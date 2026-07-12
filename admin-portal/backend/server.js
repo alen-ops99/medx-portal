@@ -5161,6 +5161,24 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_reminder_sequences_event ON reminder_sequences(event_key)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_reminder_touches_seq ON reminder_touches(sequence_id)`);
 
+    // ============ ASSISTANT WEB RESEARCH (queue 2026-07-12) ============
+    // History of admin "find people/emails/organizations online" runs (POST /api/admin/research and
+    // the co-pilot's research_web tool). ADMIN-ONLY — lives OUTSIDE the SCHEMA-MIRROR block by
+    // design; the user portal never reads or writes it (nothing to mirror, check-schema-sync stays
+    // green). Idempotent CREATE. findings_json holds the sanitized findings array; nothing here ever
+    // reaches contacts without the explicit /:id/to-contacts selection (the human-verify gate).
+    db.run(`CREATE TABLE IF NOT EXISTS research_requests (
+        id TEXT PRIMARY KEY,
+        query TEXT NOT NULL,
+        status TEXT DEFAULT 'done',
+        findings_json TEXT,
+        summary TEXT,
+        model TEXT,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_research_requests_created ON research_requests(created_at)`);
+
     // ============ ACCELERATOR / ABSTRACT SUBMISSION-AND-SCORING PIPELINE (SHARED) ============
     // Generic intake + review pipeline. The applicant surface (user portal) writes drafts and
     // submissions here; the review surface (admin portal) reads them, assigns reviewers, and records
@@ -26280,6 +26298,209 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
         } catch (e) { console.error('[contacts.import.commit]', e.message); res.status(500).json({ error: e.message }); }
     });
 
+    // ======================= ASSISTANT WEB RESEARCH =======================
+    // "Find the best five hospitals in the world and their contact emails" — a real web search
+    // (Anthropic server-side web_search tool), NOT model recall. Extends the AI-discover grounding
+    // contract: genuinely key-gated ({gated:true}, never invents names/emails), every email carries
+    // an honest confidence (listed on a cited page / inferred from a pattern / not_found), and
+    // nothing reaches contacts without the explicit to-contacts selection below. Findings are only
+    // ever presented for review — the assistant NEVER emails anyone from here.
+    const RESEARCH_OWNER_ACTION = 'Set ANTHROPIC_API_KEY on the Render admin service';
+    const RESEARCH_SYSTEM = `You are the web-research assistant of the Med&X admin portal (a Croatian biomedical NGO). You search the live web and report ONLY what you actually find.
+HARD RULES (the portal's grounding contract):
+- NEVER invent names, emails, institutions, or roles. Every finding must come from a page you actually found via web search.
+- Report an email as "listed" ONLY if you saw that exact address on a fetched page, and cite that page's URL in the finding's evidence.
+- If you infer an address from a documented pattern (e.g. first.last@org.edu because the organization publishes that format), mark it "inferred" and explain the pattern in an evidence note. Never present an inferred address as confirmed.
+- If no email can be found, set email to "" and email_confidence to "not_found". That is an acceptable and common answer — always prefer it over guessing.
+- Prefer official/institutional pages (hospital and university sites, staff directories, journal mastheads) over aggregators or people-search sites.
+After searching, reply with ONLY one JSON object — no markdown fences, no commentary before or after:
+{"query": string, "findings": [{"name": string, "role_or_desc": string, "organization": string, "email": string, "email_confidence": "listed"|"inferred"|"not_found", "evidence": [{"url": string, "note": string}], "location": string}], "summary": string}
+At most 10 findings. summary = two or three plain sentences on what you found and how confident the emails are.`;
+
+    // Sanitize the model's JSON into the fixed output contract. Downgrades any "listed" email that
+    // lacks a citing URL to "inferred", and blanks emails marked not_found.
+    function advResearchParse(queryText, text, model) {
+        let obj = null;
+        try { const m = String(text || '').match(/\{[\s\S]*\}/); if (m) obj = JSON.parse(m[0]); } catch (e) { obj = null; }
+        const raw = (obj && Array.isArray(obj.findings)) ? obj.findings : [];
+        const findings = raw.slice(0, 10).map((f) => {
+            const evidence = (Array.isArray(f && f.evidence) ? f.evidence : []).slice(0, 5)
+                .map((ev) => ({ url: String((ev && ev.url) || '').slice(0, 500), note: String((ev && ev.note) || '').slice(0, 300) }))
+                .filter((ev) => ev.url || ev.note);
+            let email = String((f && f.email) || '').trim().slice(0, 200);
+            let conf = String((f && f.email_confidence) || '').toLowerCase();
+            if (!['listed', 'inferred', 'not_found'].includes(conf)) conf = email ? 'inferred' : 'not_found';
+            if (!email || !email.includes('@')) { conf = 'not_found'; email = ''; }
+            if (conf === 'listed' && !evidence.some((ev) => /^https?:/i.test(ev.url))) conf = 'inferred'; // no cited page -> not "listed"
+            return {
+                name: String((f && f.name) || '').slice(0, 200),
+                role_or_desc: String((f && (f.role_or_desc || f.role)) || '').slice(0, 300),
+                organization: String((f && f.organization) || '').slice(0, 200),
+                email: conf === 'not_found' ? '' : email,
+                email_confidence: conf,
+                evidence,
+                location: String((f && f.location) || '').slice(0, 200)
+            };
+        }).filter((f) => f.name || f.organization);
+        const summary = String((obj && obj.summary) || '').slice(0, 1200)
+            || (findings.length ? `Found ${findings.length} result(s).` : 'No verifiable results were found for this query.');
+        return { ok: true, query: String(queryText).slice(0, 600), findings, summary, model };
+    }
+
+    // The search itself. Never throws. No key -> {gated:true}. Uses the Anthropic server-side
+    // web_search tool (same fetch style as the co-pilot agent loop); research benefits from the
+    // complex tier when configured, haiku default keeps cost down. 45s per call (web search is
+    // slow); pause_turn (server-side tool loop paused) is resumed up to 3 times.
+    async function advResearchSearch(queryText) {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) return { gated: true, actions: [RESEARCH_OWNER_ACTION] };
+        const model = process.env.ASSISTANT_MODEL_COMPLEX || process.env.ASSISTANT_MODEL || 'claude-haiku-4-5';
+        const messages = [{ role: 'user', content: String(queryText || '').slice(0, 600) }];
+        try {
+            for (let round = 0; round < 4; round++) {
+                const ctl = new AbortController();
+                const timer = setTimeout(() => ctl.abort(), 45000);
+                let resp;
+                try {
+                    resp = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+                        body: JSON.stringify({
+                            model, max_tokens: 3000, system: RESEARCH_SYSTEM,
+                            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }],
+                            messages
+                        }),
+                        signal: ctl.signal
+                    });
+                } finally { clearTimeout(timer); }
+                if (!resp.ok) {
+                    const t = await resp.text().catch(() => '');
+                    console.error('[research] anthropic', resp.status, t.slice(0, 300));
+                    return { ok: false, error: `The AI service returned an error (${resp.status}). Please try again in a moment.` };
+                }
+                const data = await resp.json();
+                if (data.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: data.content }); continue; }
+                const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+                return advResearchParse(queryText, text, model);
+            }
+            return { ok: false, error: 'The research ran too long without finishing. Try a narrower query.' };
+        } catch (e) {
+            console.error('[research] failed', e.message);
+            return { ok: false, error: e.name === 'AbortError' ? 'The web search timed out (45s). Try a narrower query.' : 'Could not reach the AI service. Please try again.' };
+        }
+    }
+
+    // Persist one run into the admin-only history. status per the contract: done | gated | error.
+    function advResearchPersist(result, createdBy) {
+        const id = uuidv4();
+        try {
+            db.run(`INSERT INTO research_requests (id, query, status, findings_json, summary, model, created_by, created_at)
+                    VALUES (?,?,?,?,?,?,?, datetime('now'))`,
+                [id, String(result.query || '').slice(0, 600),
+                 result.gated ? 'gated' : (result.ok ? 'done' : 'error'),
+                 JSON.stringify(result.findings || []),
+                 result.summary || result.error || '',
+                 result.model || null, createdBy || null]);
+            saveDb();
+        } catch (e) { console.error('[research] persist', e.message); }
+        return id;
+    }
+
+    // Web search costs real money per call — tighter than the assistantLimiter (same pattern).
+    const researchLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many research requests — please wait a moment.' } });
+
+    // Run a research query and keep it in history.
+    app.post('/api/admin/research', researchLimiter, auth, adminOnly, asyncHandler(async (req, res) => {
+        const q = String((req.body && req.body.query) || '').trim().slice(0, 600);
+        if (!q) return res.status(400).json({ error: 'Type what you want me to find first.' });
+        const result = await advResearchSearch(q);
+        if (result.gated) {
+            const id = advResearchPersist({ query: q, gated: true, summary: 'Key-gated — no ANTHROPIC_API_KEY set.' }, req.user?.email);
+            return res.json({
+                gated: true, id, key: 'ANTHROPIC_API_KEY', title: 'Web research',
+                message: 'Web research searches the live internet for people, organizations and publicly listed contact emails, and needs an AI key to run. It is switched off until one is set, so it never invents names or addresses.',
+                actions: [RESEARCH_OWNER_ACTION]
+            });
+        }
+        if (!result.ok) {
+            const id = advResearchPersist({ query: q, ok: false, error: result.error }, req.user?.email);
+            return res.status(502).json({ error: result.error || 'Research failed.', id });
+        }
+        const id = advResearchPersist(result, req.user?.email);
+        logAudit(req, 'research.run', `"${q.slice(0, 120)}" -> ${result.findings.length} finding(s)`);
+        res.json({ id, status: 'done', query: result.query, findings: result.findings, summary: result.summary, model: result.model });
+    }));
+
+    // History (newest first).
+    app.get('/api/admin/research', auth, adminOnly, (req, res) => {
+        try {
+            const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+            const rows = query.all('SELECT * FROM research_requests ORDER BY created_at DESC LIMIT ?', [limit]);
+            res.json({ requests: rows.map((r) => {
+                let findings = []; try { findings = JSON.parse(r.findings_json || '[]'); } catch (e) {}
+                return { id: r.id, query: r.query, status: r.status, summary: r.summary, model: r.model, created_by: r.created_by, created_at: r.created_at, findings };
+            }) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // THE HUMAN-VERIFY GATE: only the findings the admin explicitly selected (by index) enter the
+    // contacts table. Skips not_found emails, dedupes by email exactly like the import machinery
+    // (existing contact -> fill-blanks merge), and tags everything source 'ai-research'. Inferred
+    // emails carry a verify-before-emailing warning in the contact notes. NEVER emails anyone.
+    app.post('/api/admin/research/:id/to-contacts', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get('SELECT * FROM research_requests WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Research request not found' });
+            let findings = []; try { findings = JSON.parse(row.findings_json || '[]'); } catch (e) {}
+            const indices = Array.isArray(req.body && req.body.indices) ? req.body.indices.map(Number) : [];
+            if (!indices.length) return res.status(400).json({ error: 'Select at least one finding first.' });
+            const unionTags = (a, b) => {
+                const set = [];
+                [...String(a || '').split(','), ...String(b || '').split(',')].forEach((t) => {
+                    const v = t.trim(); if (v && !set.some((x) => x.toLowerCase() === v.toLowerCase())) set.push(v);
+                });
+                return set.join(',');
+            };
+            const seenEmails = new Set();
+            let inserted = 0, merged = 0, skipped = 0;
+            const details = [];
+            for (const i of indices) {
+                const f = findings[i];
+                const who = f ? (f.name || f.organization || `finding ${i}`) : `finding ${i}`;
+                if (!f || (!f.name && !f.organization)) { skipped++; details.push({ index: i, who, reason: 'no such finding' }); continue; }
+                if (!f.email || f.email_confidence === 'not_found') { skipped++; details.push({ index: i, who, reason: 'no verified email — add manually once confirmed' }); continue; }
+                const emailKey = String(f.email).toLowerCase();
+                if (seenEmails.has(emailKey)) { skipped++; details.push({ index: i, who, reason: 'duplicate email in selection' }); continue; }
+                seenEmails.add(emailKey);
+                const parts = String(f.name || '').trim().split(/\s+/).filter(Boolean);
+                const first = parts.shift() || String(f.organization || '').slice(0, 60) || 'Unknown';
+                const last = parts.join(' ');
+                let city = '', country = String(f.location || '').slice(0, 100);
+                const ci = country.lastIndexOf(',');
+                if (ci > 0) { city = country.slice(0, ci).trim().slice(0, 100); country = country.slice(ci + 1).trim(); }
+                const sources = (f.evidence || []).map((ev) => ev.url).filter(Boolean).join(' , ');
+                const note = (`AI research (${f.email_confidence === 'inferred' ? 'email INFERRED from a pattern — verify before emailing' : 'email listed publicly'})`
+                    + (f.role_or_desc ? ` — ${f.role_or_desc}` : '') + (sources ? ` — sources: ${sources}` : '')).slice(0, 900);
+                const existing = query.get('SELECT * FROM contacts WHERE lower(email) = ? LIMIT 1', [emailKey]);
+                if (existing) {
+                    db.run(`UPDATE contacts SET first_name = COALESCE(NULLIF(first_name,''), ?), last_name = COALESCE(NULLIF(last_name,''), ?),
+                                organization = COALESCE(NULLIF(organization,''), ?), position = COALESCE(NULLIF(position,''), ?),
+                                tags = ?, notes = COALESCE(NULLIF(notes,''), ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+                        [first, last, f.organization || '', String(f.role_or_desc || '').slice(0, 200), unionTags(existing.tags, 'ai-research'), note, existing.id]);
+                    merged++; details.push({ index: i, who, action: 'merged' });
+                } else {
+                    db.run(`INSERT INTO contacts (id, first_name, last_name, email, organization, position, contact_type, tags, city, country, notes, created_by)
+                            VALUES (?,?,?,?,?,?, 'general', 'ai-research', ?, ?, ?, ?)`,
+                        [uuidv4(), first, last, f.email, f.organization || '', String(f.role_or_desc || '').slice(0, 200), city, country, note, req.user.id]);
+                    inserted++; details.push({ index: i, who, action: 'inserted' });
+                }
+            }
+            saveDb();
+            logAudit(req, 'research.to_contacts', `${inserted} inserted, ${merged} merged, ${skipped} skipped from research ${row.id}`);
+            res.json({ success: true, inserted, merged, skipped, details });
+        } catch (e) { console.error('[research] to-contacts', e.message); res.status(500).json({ error: e.message }); }
+    });
+
     // ---- Outreach helpers ------------------------------------------------------
     const GALA_BROCHURE_URL = 'https://medx-website-preview.netlify.app/plexus-gala-sponsor.pdf';
 
@@ -26742,7 +26963,11 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
                         data: { query: needle, matches: found.map((c) => ({ name: [c.first_name, c.last_name].filter(Boolean).join(' '), organization: c.organization, position: c.position, email: c.email, phone: c.phone, tags: c.tags })) }
                     };
                 }
-                return { kind: 'contact-search', pending: [], answer: `I could not find a contact matching "${needle || q}" in My Network. Try a different name or organization, or import your contacts.`, data: { query: needle, matches: [] } };
+                // Zero LOCAL matches + a key: hand the ask to the live agent so it can research
+                // the web (research_web tool) instead of dead-ending on My Network. Keyless
+                // behavior is unchanged (grounded no-guess answer) except for the Research hint.
+                if (process.env.ANTHROPIC_API_KEY) return null;
+                return { kind: 'contact-search', pending: [], answer: `I could not find a contact matching "${needle || q}" in My Network. Try a different name or organization, or import your contacts. (With the AI key set I could also search the web for people and emails — see My Network -> Research.)`, data: { query: needle, matches: [] } };
             }
 
             // 3) LIVE DATA — grounded counts from the DB (both modes, never invents).
@@ -32448,7 +32673,9 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
         { name:'list_events', description:'List all editable events with their current values and identifiers (gala, conferences, tickets, components, forum events, bridges events). ALWAYS call this before proposing an edit so you use the correct identifier and see current values.', input_schema:{ type:'object', properties:{} } },
         { name:'update_event', description:'Propose changing fields on an existing event. Does NOT apply — the human confirms. kind ∈ gala|conference|ticket|component|forum_event|bridges_event. key identifies the row (from list_events; omit for gala). changes maps field→new value. Use YYYY-MM-DD for dates and 24-hour HH:MM for times.', input_schema:{ type:'object', properties:{ kind:{type:'string'}, key:{type:'object'}, changes:{type:'object'} }, required:['kind','changes'] } },
         { name:'create_event', description:'Propose creating a new event. kind ∈ bridges_event|forum_event. fields per kind (a name/title and a date are required). Does NOT apply — the human confirms.', input_schema:{ type:'object', properties:{ kind:{type:'string'}, fields:{type:'object'} }, required:['kind','fields'] } },
-        { name:'create_coupon', description:'Propose a discount coupon for an event. Does NOT apply — the human confirms.', input_schema:{ type:'object', properties:{ event_type:{type:'string'}, code:{type:'string'}, discount_type:{type:'string', enum:['fixed','percentage'] }, discount_value:{type:'number'}, max_uses:{type:'number'}, valid_until:{type:'string'} }, required:['event_type','code','discount_type','discount_value'] } }
+        { name:'create_coupon', description:'Propose a discount coupon for an event. Does NOT apply — the human confirms.', input_schema:{ type:'object', properties:{ event_type:{type:'string'}, code:{type:'string'}, discount_type:{type:'string', enum:['fixed','percentage'] }, discount_value:{type:'number'}, max_uses:{type:'number'}, valid_until:{type:'string'} }, required:['event_type','code','discount_type','discount_value'] } },
+        { name:'research_web', description:'Search the LIVE WEB for people, organizations, hospitals or institutions and their publicly listed contact emails — e.g. "find the emails of these five people", "find the best five hospitals in the world and their contact emails", "who is the chair of neurology at X". Use whenever the admin asks to find or look up people, emails, or organizations that are NOT already portal contacts. Runs immediately (read-only, nothing is emailed) and the results are saved to Research history in My Network. Emails come back with an honest confidence — listed (seen on a cited page), inferred (guessed from a published pattern), or not_found — report it as-is and never upgrade it.', input_schema:{ type:'object', properties:{ query:{ type:'string', description:'What to find, in one clear sentence.' } }, required:['query'] } },
+        { name:'draft_social_post', description:'Draft a social-media post (branded graphic + caption) in Content Studio. Use for ANY ask like "social post", "objava", "Instagram post", "LinkedIn post", "announcement post", "post announcing the gala/conference". Prefills the design brief from live event facts (real date, venue, prices). Creates a DRAFT only — nothing is published or scheduled; the admin reviews it in Content Studio.', input_schema:{ type:'object', properties:{ topic:{ type:'string', description:'What the post is about, e.g. "announcing the gala".' }, event_key:{ type:'string', description:'Optional: gala | plexus | bridges | forum | accelerator | medx.' } }, required:['topic'] } }
     ];
     const ASSIST_WRITE_TOOLS = ['update_event','create_event','create_coupon'];
     const ASSIST_SYSTEM = `You are the Med&X admin assistant for the Plexus 2026 conference portal. Your users are often NON-TECHNICAL staff — be warm, brief, and plain-spoken.
@@ -32456,6 +32683,8 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
 - To change anything (an event's date/time/venue/price; create an event or coupon), FIRST call list_events to get the exact identifier and current value, THEN call update_event / create_event / create_coupon. These tools DO NOT apply changes — they propose them and the human sees a Confirm button. Never say a change is "done"; say you've prepared it for them to confirm.
 - Convert dates to YYYY-MM-DD and times to 24-hour HH:MM before calling tools (e.g. "7pm" → "19:00").
 - If a request is ambiguous (which event? which price?), ask one short clarifying question instead of guessing.
+- To find people, organizations, or contact emails on the LIVE WEB (not in My Network), call research_web. Present the findings honestly — each email is marked listed / inferred / not_found; never present an inferred or missing email as confirmed. Mention that the full results were saved to Research history (My Network → Research), where they can add selected people to Contacts. NEVER offer to email anyone from research results.
+- For a social-media post ("social post", "objava", an Instagram/LinkedIn announcement), call draft_social_post. It only prepares a DRAFT brief in Content Studio — tell the admin to open Content Studio (the button under your reply) to review and export it; nothing is published or scheduled.
 - Keep replies short and friendly. Money is in euros (€).`;
 
     // Route simple questions to a fast/cheap model and anything that CHANGES data to the most
@@ -32470,11 +32699,12 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
         return actiony ? complex : simple;
     }
 
-    async function assistRunAgent(messages) {
+    async function assistRunAgent(messages, req) {
         const apiKey = process.env.ANTHROPIC_API_KEY;
         if (!apiKey) return { answer:"I'm not switched on yet — an admin needs to add an ANTHROPIC_API_KEY in the server settings (Render → medx-admin-portal → Environment). Once that's set, you can ask me anything.", pending: [] };
         const model = assistPickModel(messages);
         const pending = [];
+        let deepLink = null; // set by tools whose result lives in another surface (Research history, Content Studio)
         const convo = messages.slice();
         for (let iter = 0; iter < 6; iter++) {
             let data;
@@ -32490,12 +32720,33 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
             const content = data.content || [];
             const toolUses = content.filter(b => b.type === 'tool_use');
             const text = content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
-            if (!toolUses.length) return { answer: text || 'Done.', pending };
+            if (!toolUses.length) return { answer: text || 'Done.', pending, deepLink };
             convo.push({ role:'assistant', content });
             const results = [];
             for (const tu of toolUses) {
                 if (tu.name === 'get_overview') results.push({ type:'tool_result', tool_use_id: tu.id, content: JSON.stringify(assistComputeOverview()) });
                 else if (tu.name === 'list_events') results.push({ type:'tool_result', tool_use_id: tu.id, content: JSON.stringify(assistListEvents()) });
+                else if (tu.name === 'research_web') {
+                    // Live web research — read-only, runs immediately (no Confirm needed), persisted to
+                    // the admin-only Research history. Key-gated inside advResearchSearch (never invents).
+                    const rr = await advResearchSearch(String((tu.input && tu.input.query) || '').trim());
+                    if (rr.gated) results.push({ type:'tool_result', tool_use_id: tu.id, content: 'Web research is switched off: no ANTHROPIC_API_KEY is set. Tell the admin the owner action is: ' + RESEARCH_OWNER_ACTION });
+                    else if (!rr.ok) results.push({ type:'tool_result', tool_use_id: tu.id, content: 'Research failed: ' + (rr.error || 'unknown error'), is_error: true });
+                    else {
+                        advResearchPersist(rr, (req && req.user && req.user.email) || 'assistant');
+                        if (req) logAudit(req, 'research.run', `assistant: "${rr.query.slice(0, 120)}" -> ${rr.findings.length} finding(s)`);
+                        if (!deepLink) deepLink = { label: 'Open My Network', target: 'network' };
+                        results.push({ type:'tool_result', tool_use_id: tu.id, content: JSON.stringify({ findings: rr.findings, summary: rr.summary, note: 'Saved to Research history (My Network -> Research), where the admin can add selected findings to Contacts.' }) });
+                    }
+                }
+                else if (tu.name === 'draft_social_post') {
+                    // DRAFT only — builds a Content Studio brief from live event facts and parks it as
+                    // the pending brief the studio opens automatically. Never publishes or schedules.
+                    const dr = assistDraftSocialPost(String((tu.input && tu.input.topic) || ''), String((tu.input && tu.input.event_key) || ''), (req && req.user && req.user.email) || 'assistant');
+                    if (req) logAudit(req, 'assistant.draft_social_post', dr.ok ? `${dr.brief.template} for ${dr.brief.project}` : ('failed: ' + (dr.error || ''))); 
+                    if (dr.ok) deepLink = { label: 'Open Content Studio', target: 'content-studio' };
+                    results.push({ type:'tool_result', tool_use_id: tu.id, content: JSON.stringify(dr), is_error: !dr.ok });
+                }
                 else if (ASSIST_WRITE_TOOLS.includes(tu.name)) {
                     pending.push({ tool: tu.name, args: tu.input, description: assistDescribeAction(tu.name, tu.input) });
                     results.push({ type:'tool_result', tool_use_id: tu.id, content:'Proposed and shown to the user for confirmation. NOT applied yet. Do not call this again for the same change — briefly summarize what you prepared.' });
@@ -32503,7 +32754,39 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
             }
             convo.push({ role:'user', content: results });
         }
-        return { answer:'I\'ve prepared the change(s) above — please review and confirm.', pending };
+        return { answer:'I\'ve prepared the change(s) above — please review and confirm.', pending, deepLink };
+    }
+
+    // Build a Content Studio brief for the assistant's draft_social_post tool. Reuses the SAME
+    // deterministic brief builder as the studio wizard (contentBuildBrief + plannerLiveFacts) and
+    // sharpens the subline with the campaign engines' live event facts (eiEventFacts: real date,
+    // venue, price). The brief is parked in the one-slot app_state handoff that the Content Studio
+    // composer pops on next open (GET /api/admin/content/pending-brief). DRAFT ONLY — publishing
+    // and scheduling stay in the existing studio flows (Publer/Meta boundaries untouched).
+    function assistDraftSocialPost(topic, eventKey, createdBy) {
+        try {
+            const t = String(topic || 'a social post').slice(0, 300);
+            const ek = ['gala', 'plexus', 'bridges', 'forum', 'accelerator', 'medx'].includes(String(eventKey || '').toLowerCase()) ? String(eventKey).toLowerCase() : '';
+            const facts = plannerLiveFacts();
+            const brief = contentBuildBrief([t, '', [ek, 'square post'].filter(Boolean).join(' ')], facts);
+            try {
+                const eiKey = { gala: 'gala', plexus: 'conference', bridges: 'bridges' }[brief.project];
+                if (eiKey) {
+                    const ev = eiEventFacts()[eiKey];
+                    if (ev && (ev.date || ev.venue)) brief.subline = ([ev.date, ev.venue].filter(Boolean).join(' • ').slice(0, 90)) || brief.subline;
+                    if (ev && ev.price && brief.project === 'gala' && /invit|ticket|seat|price/i.test(t)) brief.subline = (brief.subline + ' • ' + ev.price).slice(0, 120);
+                }
+            } catch (e) {}
+            const tag = { plexus: '#Plexus2026', gala: '#MedXGala', bridges: '#BuildingBridges', accelerator: '#MedXAccelerator', forum: '#BiomedicalForum', medx: '#MedX' }[brief.project] || '#MedX';
+            brief.caption = `${brief.headline}. ${brief.subline}.\n${tag} #MedX #biomedicine #Zagreb`;
+            db.run("INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES ('content_pending_brief', ?, ?)",
+                [JSON.stringify({ brief, created_by: createdBy || null, created_at: new Date().toISOString() }), new Date().toISOString()]);
+            saveDb();
+            return { ok: true,
+                brief: { kind: brief.kind, template: brief.template, aspect: brief.aspect, project: brief.project, headline: brief.headline, subline: brief.subline, caption: brief.caption },
+                deep_link: '#content-studio',
+                note: 'DRAFT only — saved as the pending brief; Content Studio opens it in the composer automatically. Nothing is published or scheduled.' };
+        } catch (e) { return { ok: false, error: e.message }; }
     }
 
     function assistResultMessage(tool, result) {
@@ -32542,7 +32825,7 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
                 if (actiony) return res.json({ gated: true, deepLink: { label: 'Open the Handbook', target: 'resources' }, pending: [], answer: 'I can make that change for you — an event edit, a new coupon, a scheduled send — once the AI action mode is switched on. That needs an ANTHROPIC_API_KEY in the server settings (ask Alen). Until then I can walk you through doing it yourself, or pull any live number. Try asking how to make the change, and I will give you the steps and a link.' });
                 return res.json({ deepLink: { label: 'Open the Handbook', target: 'resources' }, pending: [], answer: 'I am not sure about that one. I can answer how to run the portal — for example how to send a newsletter, check people in, or approve email — and live numbers like registrations or gala seats. For anything else, the Operations Handbook has the full walkthrough, or you can ask Alen.' });
             }
-            res.json(await assistRunAgent(msgs));
+            res.json(await assistRunAgent(msgs, req));
         } catch(e) { console.error('[assistant] error', e.message); res.status(500).json({ error:'Assistant error' }); }
     });
 
@@ -32905,6 +33188,21 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
             const rows = query.all('SELECT id, kind, template, aspect, project, title, caption, asset_url, mime, bytes, calendar_id, created_at FROM content_studio_assets ORDER BY created_at DESC LIMIT 30');
             res.json({ assets: rows });
         } catch (e) { console.error('[content] assets', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // One-shot assistant handoff: draft_social_post parks a brief in app_state; the Content Studio
+    // composer pops it on next open. Read-and-clear (and a 1h freshness cap) so a stale brief never
+    // reopens weeks later. Admin-only; returns { brief: null } whenever there is nothing waiting.
+    app.get('/api/admin/content/pending-brief', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get("SELECT value FROM app_state WHERE key = 'content_pending_brief'");
+            if (!row || !row.value) return res.json({ brief: null });
+            db.run("DELETE FROM app_state WHERE key = 'content_pending_brief'");
+            saveDb();
+            let parsed = null; try { parsed = JSON.parse(row.value); } catch (e) {}
+            const fresh = parsed && parsed.created_at && (Date.now() - new Date(parsed.created_at).getTime()) < 60 * 60 * 1000;
+            res.json({ brief: (fresh && parsed.brief) ? parsed.brief : null });
+        } catch (e) { res.json({ brief: null }); }
     });
 
     // Push a finished piece into the PR review flow: one pr_content_calendar row (approved), handed to

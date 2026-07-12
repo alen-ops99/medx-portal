@@ -7172,11 +7172,11 @@
                     <span>Board pack</span>
                 </a>
 
-                <!-- Executive Advisory Board (AI CMO / CFO / COO). CSP-clean: delegated data-adv-nav
+                <!-- Executive Suite (AI CMO / CFO / COO). CSP-clean: delegated data-adv-nav
                      handler, no inline onclick. -->
                 <a class="nav-item" data-section="advisors" data-adv-nav="1">
                     <i class="fas fa-user-tie" style="color: #7c3aed;"></i>
-                    <span>Advisory Board</span>
+                    <span>Executive Suite</span>
                 </a>
 
                 <a class="nav-item" data-section="pr-media" onclick="App.showSection('pr-media', this)">
@@ -7441,10 +7441,10 @@
                     <div class="card" id="dashAdvisoryBoard" style="margin-bottom: 28px; display: none;">
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <span class="card-title">
-                                <i class="fas fa-user-tie" style="color:#7c3aed; margin-right:6px;"></i> Advisory Board
+                                <i class="fas fa-user-tie" style="color:#7c3aed; margin-right:6px;"></i> Executive Suite
                                 <span style="font-weight:400; color:var(--text-muted); font-size:12px;">&mdash; this week from your CMO, CFO and COO</span>
                             </span>
-                            <a class="btn btn-secondary" data-adv-act="open" style="font-size: 11px; padding: 5px 12px; cursor:pointer;" title="Open the Advisory Board">
+                            <a class="btn btn-secondary" data-adv-act="open" style="font-size: 11px; padding: 5px 12px; cursor:pointer;" title="Open the Executive Suite">
                                 <i class="fas fa-arrow-right"></i> Open
                             </a>
                         </div>
@@ -15363,9 +15363,25 @@ President, Med&amp;X</textarea>
             <label style="display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13px; cursor: pointer;">
                 <input type="checkbox" id="networkFavoritesOnly" onchange="NetworkApp.loadContacts()"> Favorites only
             </label>
+            <button class="btn btn-secondary" id="networkResearchBtn" title="Search the live web for people, organizations and their public contact emails" style="padding: 10px 16px;"><i class="fas fa-globe" style="color: var(--accent-gold);"></i> Research</button>
             <button class="btn btn-secondary" onclick="NetworkApp.openImport()" style="padding: 10px 16px;"><i class="fas fa-file-import"></i> Import</button>
             <button class="btn btn-secondary" id="networkComposeBtn" onclick="NetworkApp.openCompose()" style="padding: 10px 16px; opacity:.5; pointer-events:none;" title="Select one or more contacts first"><i class="fas fa-wand-magic-sparkles" style="color: var(--accent-gold);"></i> Compose with AI<span id="networkSelCount"></span></button>
             <button class="btn btn-primary" onclick="NetworkApp.openContactModal()" style="padding: 10px 16px;"><i class="fas fa-plus"></i> Add Contact</button>
+        </div>
+        <!-- ===== AI WEB RESEARCH (assistant research upgrade, 2026-07-12) =====
+             Query -> live web findings (honest email confidence) -> explicit "Add selected to Contacts".
+             CSP-clean block: ZERO inline handlers here — ResearchApp binds one delegated click listener
+             on this container and reads data-res-action attributes. Key-gated server-side; the gate
+             card names the exact owner action. Nothing is emailed from here, ever. -->
+        <div id="networkResearch" style="display: none; border-bottom: 1px solid var(--border); padding: 16px 24px; background: var(--bg-primary); max-height: 48vh; overflow-y: auto;">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="resQuery" placeholder="e.g. Find the best five hospitals in the world and their contact emails" style="flex: 1; min-width: 260px; padding: 10px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
+                <button class="btn btn-primary" id="resRunBtn" data-res-action="run" style="padding: 10px 16px;"><i class="fas fa-magnifying-glass"></i> Research</button>
+            </div>
+            <div id="resStatus" style="margin-top: 10px; font-size: 12.5px; color: var(--text-muted);">Searches the live web for people, organizations and publicly listed emails. Nothing is added to Contacts — and nobody is ever emailed — without your explicit selection below.</div>
+            <div id="resGate" style="display: none;"></div>
+            <div id="resResults" style="margin-top: 12px;"></div>
+            <div id="resHistory" style="margin-top: 14px;"></div>
         </div>
         <!-- Horizontal table layout -->
         <div style="flex: 1; overflow: auto; padding: 16px 24px;">
@@ -17076,7 +17092,7 @@ President, Med&amp;X</textarea>
                 { id: 'messages', label: 'Messages', icon: 'fa-envelope', color: '#c14b52', desc: 'Inbound messages from users' },
                 { id: 'contacts', label: 'My Network', icon: 'fa-address-book', color: '#c14b52', desc: 'Contact management' },
                 { id: 'tech', label: 'Tech', icon: 'fa-server', color: '#c14b52', desc: 'System health & deployment' },
-                { id: 'advisors', label: 'Advisory Board', icon: 'fa-user-tie', color: '#7c3aed', desc: 'AI CMO / CFO / COO weekly review' },
+                { id: 'advisors', label: 'Executive Suite', icon: 'fa-user-tie', color: '#7c3aed', desc: 'AI CMO / CFO / COO weekly review' },
             ],
 
             userSections: null, // null = all visible (backwards compat), array = filtered
@@ -17364,7 +17380,7 @@ President, Med&amp;X</textarea>
                 this.loadActionCenter();
                 // The Content-to-fill card loads independently too (owner-owned placeholder tracker).
                 ContentChecklist.load();
-                // The Advisory Board quiet home card loads independently (advice-only, never blocks stats).
+                // The Executive Suite quiet home card loads independently (advice-only, never blocks stats).
                 if (typeof AdvisoryBoard !== 'undefined') AdvisoryBoard.loadHomeCard();
                 try {
                     const stats = await this.api('/api/dashboard/portal-stats');
@@ -33996,6 +34012,187 @@ By applying to this program, I give the following consents:
             }
         };
 
+        // ================= AI WEB RESEARCH (assistant research upgrade) =================
+        // Lives inside the My Network panel because its findings' only destination is the contacts
+        // table (same dedupe as the import machinery). CSP-clean: one delegated listener, data-res-*
+        // attributes, zero inline handlers in this feature. The server is the grounding authority —
+        // this UI only renders what /api/admin/research returns (incl. the key-gate card).
+        const ResearchApp = {
+            current: null,   // { id, query, findings, summary }
+            history: [],
+            _bound: false,
+            _busy: false,
+
+            api(endpoint, options = {}) {
+                return fetch(endpoint, { ...options, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(options.headers || {}) } })
+                    .then(async (res) => {
+                        const d = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(d.error || `API error ${res.status}`);
+                        return d;
+                    });
+            },
+
+            bind() {
+                if (this._bound) return;
+                this._bound = true;
+                const btn = document.getElementById('networkResearchBtn');
+                if (btn) btn.addEventListener('click', () => this.toggle());
+                const box = document.getElementById('networkResearch');
+                if (box) box.addEventListener('click', (e) => {
+                    const el = e.target.closest('[data-res-action]');
+                    if (!el) return;
+                    e.preventDefault();
+                    const act = el.getAttribute('data-res-action');
+                    if (act === 'run') this.run();
+                    else if (act === 'add-selected') this.addSelected();
+                    else if (act === 'open-history') this.openHistory(el.getAttribute('data-res-id'));
+                });
+                const input = document.getElementById('resQuery');
+                if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.run(); } });
+            },
+
+            toggle() {
+                this.bind();
+                const box = document.getElementById('networkResearch');
+                if (!box) return;
+                const opening = box.style.display === 'none';
+                box.style.display = opening ? 'block' : 'none';
+                if (opening) { this.loadHistory(); const i = document.getElementById('resQuery'); if (i) setTimeout(() => i.focus(), 60); }
+            },
+
+            _chip(conf) {
+                const map = {
+                    listed:    ['Listed',    'rgba(34,197,94,0.14)',  '#22c55e', 'Seen on a cited page'],
+                    inferred:  ['Inferred',  'rgba(245,158,11,0.14)', '#f59e0b', 'Guessed from a published pattern — verify before emailing'],
+                    not_found: ['Not found', 'var(--bg-tertiary)',    'var(--text-muted)', 'No public email was found — an honest and common answer']
+                };
+                const c = map[conf] || map.not_found;
+                return `<span title="${escapeHtml(c[3])}" style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:700;background:${c[1]};color:${c[2]};">${c[0]}</span>`;
+            },
+
+            renderGate(g) {
+                const gate = document.getElementById('resGate');
+                if (!gate) return;
+                gate.style.display = 'block';
+                gate.innerHTML = `
+                    <div style="margin-top:12px;border:1px solid var(--accent-gold);border-radius:10px;padding:14px 16px;background:var(--bg-secondary);">
+                        <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--accent-gold);margin-bottom:6px;"><i class="fas fa-lock"></i> Web research is switched off</div>
+                        <div style="font-size:13px;color:var(--text-primary);line-height:1.55;">${escapeHtml((g && g.message) || 'This feature needs an AI key so it never invents names or addresses.')}</div>
+                        <div style="font-size:12.5px;color:var(--text-secondary);margin-top:8px;"><strong>Owner action:</strong> ${escapeHtml(((g && g.actions) || ['Set ANTHROPIC_API_KEY on the Render admin service']).join('; '))}</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Once set, you can ask things like "find the emails of these five people" and add the verified results straight into Contacts.</div>
+                    </div>`;
+            },
+
+            renderResults() {
+                const box = document.getElementById('resResults');
+                if (!box) return;
+                const cur = this.current;
+                if (!cur) { box.innerHTML = ''; return; }
+                if (!cur.findings || !cur.findings.length) {
+                    box.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:10px 0;">${escapeHtml(cur.summary || 'No verifiable results were found.')}</div>`;
+                    return;
+                }
+                const rows = cur.findings.map((f, i) => {
+                    const ev = (f.evidence || []).map((e2) => e2.url ? `<a href="${escapeHtml(e2.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(e2.note || e2.url)}" style="color:var(--accent-gold);font-size:11px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;">${escapeHtml(e2.url.replace(/^https?:\/\//, '').slice(0, 60))}</a>` : (e2.note ? `<span style="font-size:11px;color:var(--text-muted);">${escapeHtml(e2.note)}</span>` : '')).join('');
+                    const selectable = f.email && f.email_confidence !== 'not_found';
+                    return `<tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:8px;"><input type="checkbox" class="res-cb" data-idx="${i}" ${selectable ? '' : 'disabled title="No verified email — add manually once confirmed"'}></td>
+                        <td style="padding:8px;font-weight:500;white-space:nowrap;">${escapeHtml(f.name || '—')}${f.location ? `<div style="font-size:11px;color:var(--text-muted);font-weight:400;">${escapeHtml(f.location)}</div>` : ''}</td>
+                        <td style="padding:8px;font-size:12px;">${escapeHtml(f.role_or_desc || '—')}<div style="font-size:11px;color:var(--text-muted);">${escapeHtml(f.organization || '')}</div></td>
+                        <td style="padding:8px;font-size:12px;">${f.email ? `<span style="font-family:monospace;">${escapeHtml(f.email)}</span> ` : ''}${this._chip(f.email_confidence)}</td>
+                        <td style="padding:8px;">${ev || '<span style="font-size:11px;color:var(--text-muted);">—</span>'}</td>
+                    </tr>`;
+                }).join('');
+                box.innerHTML = `
+                    <div style="font-size:13px;color:var(--text-secondary);line-height:1.55;margin-bottom:10px;">${escapeHtml(cur.summary || '')}</div>
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead><tr style="border-bottom:2px solid var(--border);text-align:left;">
+                            <th style="padding:8px;width:26px;"></th>
+                            <th style="padding:8px;color:var(--text-muted);font-weight:600;">Name</th>
+                            <th style="padding:8px;color:var(--text-muted);font-weight:600;">Role / Organization</th>
+                            <th style="padding:8px;color:var(--text-muted);font-weight:600;">Email</th>
+                            <th style="padding:8px;color:var(--text-muted);font-weight:600;">Evidence</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:12px;">
+                        <button class="btn btn-primary" data-res-action="add-selected" style="padding:9px 16px;font-size:13px;"><i class="fas fa-user-plus"></i> Add selected to Contacts</button>
+                        <span style="font-size:11.5px;color:var(--text-muted);">Only ticked people are added (findings without a verified email are skipped). Inferred emails keep a verify-first note.</span>
+                    </div>`;
+            },
+
+            renderHistory() {
+                const box = document.getElementById('resHistory');
+                if (!box) return;
+                if (!this.history.length) { box.innerHTML = ''; return; }
+                box.innerHTML = `
+                    <div style="font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;">Research history</div>
+                    ${this.history.slice(0, 10).map((h) => `
+                        <button data-res-action="open-history" data-res-id="${escapeHtml(h.id)}" style="display:flex;width:100%;text-align:left;align-items:center;justify-content:space-between;gap:10px;background:none;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:6px;cursor:pointer;color:var(--text-secondary);font-family:inherit;">
+                            <span style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(h.query)}</span>
+                            <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">${escapeHtml(h.status)} · ${(h.findings || []).length} result${(h.findings || []).length === 1 ? '' : 's'} · ${escapeHtml(String(h.created_at || '').slice(0, 16))}</span>
+                        </button>`).join('')}`;
+            },
+
+            async loadHistory() {
+                try {
+                    const d = await this.api('/api/admin/research?limit=10');
+                    this.history = d.requests || [];
+                    this.renderHistory();
+                } catch (e) { /* history is best-effort */ }
+            },
+
+            openHistory(id) {
+                const h = this.history.find((x) => x.id === id);
+                if (!h) return;
+                this.current = { id: h.id, query: h.query, findings: h.findings || [], summary: h.summary || '' };
+                const input = document.getElementById('resQuery');
+                if (input) input.value = h.query || '';
+                document.getElementById('resGate').style.display = 'none';
+                this.renderResults();
+            },
+
+            async run() {
+                if (this._busy) return;
+                const input = document.getElementById('resQuery');
+                const q = ((input && input.value) || '').trim();
+                if (!q) { Toast.error('Type what you want me to find first.'); return; }
+                const btn = document.getElementById('resRunBtn');
+                const status = document.getElementById('resStatus');
+                this._busy = true;
+                if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching the web…'; }
+                if (status) status.textContent = 'Searching the live web — this can take up to a minute…';
+                document.getElementById('resGate').style.display = 'none';
+                document.getElementById('resResults').innerHTML = '';
+                try {
+                    const d = await this.api('/api/admin/research', { method: 'POST', body: JSON.stringify({ query: q }) });
+                    if (d.gated) { this.current = null; this.renderGate(d); }
+                    else { this.current = { id: d.id, query: d.query, findings: d.findings || [], summary: d.summary || '' }; this.renderResults(); }
+                    this.loadHistory();
+                    if (status) status.textContent = d.gated ? 'Web research needs the AI key — see the card below.' : 'Done. Review the findings, tick the ones you trust, then add them to Contacts.';
+                } catch (e) {
+                    if (status) status.textContent = e.message || 'Research failed. Please try again.';
+                    Toast.error(e.message || 'Research failed');
+                } finally {
+                    this._busy = false;
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-magnifying-glass"></i> Research'; }
+                }
+            },
+
+            async addSelected() {
+                if (!this.current || !this.current.id) return;
+                const indices = Array.from(document.querySelectorAll('#resResults .res-cb:checked')).map((cb) => Number(cb.getAttribute('data-idx')));
+                if (!indices.length) { Toast.error('Tick at least one finding first.'); return; }
+                try {
+                    const d = await this.api(`/api/admin/research/${encodeURIComponent(this.current.id)}/to-contacts`, { method: 'POST', body: JSON.stringify({ indices }) });
+                    Toast.success(`${d.inserted} added, ${d.merged} merged into existing contacts${d.skipped ? `, ${d.skipped} skipped` : ''}.`);
+                    try { NetworkApp.loadContacts(); } catch (e) {}
+                } catch (e) { Toast.error(e.message || 'Could not add to Contacts'); }
+            }
+        };
+        window.ResearchApp = ResearchApp;
+        try { ResearchApp.bind(); } catch (e) {}
+
         // ================= LIVE AUCTION ENGINE (admin, queue 5a5f) =================
         // Event-agnostic charity auctions: create + items, open/pause/close bidding,
         // staff paddle entry, void, confirm winner (donation email to the outbox),
@@ -43196,6 +43393,21 @@ By applying to this program, I give the following consents:
                 this.surface = null;
                 this.suite = null;
                 this.render();
+                this._popPendingBrief(); // assistant handoff: open a drafted social post, if one is waiting
+            },
+            // If the co-pilot drafted a social post (draft_social_post), the server holds it as a
+            // one-shot pending brief — pop it and open the composer directly. Read-and-clear on the
+            // server, so closing the composer never re-opens a stale draft.
+            async _popPendingBrief() {
+                try {
+                    const res = await fetch('/api/admin/content/pending-brief', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (!res.ok) return;
+                    const d = await res.json().catch(() => ({}));
+                    if (d && d.brief && typeof ContentCreator !== 'undefined') {
+                        Toast.success('Opening the draft the assistant prepared…');
+                        await ContentCreator.openFromBrief(d.brief);
+                    }
+                } catch (e) { /* handoff is best-effort */ }
             },
             back() {
                 if (this.surface) { this.surface = null; this.render(); }
@@ -43705,6 +43917,17 @@ By applying to this program, I give the following consents:
                     ? { kind: 'slideshow', template: 'announcement', aspect: 'story', project: 'plexus', projectName: 'Plexus 2026', eyebrow: 'Plexus 2026', headline: 'A moment from Plexus', subline: 'Zagreb, Croatia', accent: 'crimson', music: false, caption: '' }
                     : { kind: 'graphic', template: 'announcement', aspect: 'square', project: 'plexus', projectName: 'Plexus 2026', eyebrow: 'Plexus 2026', headline: 'Plexus is coming', subline: 'Zagreb, Croatia', accent: 'crimson', music: false, caption: '' };
                 await this.openCompose(b);
+            },
+
+            // Open the composer straight from a server-built brief (the assistant's draft_social_post
+            // handoff). Same plumbing as start(), skipping the wizard.
+            async openFromBrief(brief) {
+                this.ensureBuilt();
+                await this.ensureFonts();
+                document.getElementById('ccOverlay').classList.add('active');
+                document.body.style.overflow = 'hidden';
+                this.chat = [];
+                await this.openCompose(brief || {});
             },
 
             close() {
@@ -49647,7 +49870,7 @@ By applying to this program, I give the following consents:
                 { title: 'Team Chat', sub: 'Internal team messaging', icon: 'fa-comments', color: '#9b1b22', group: 'Sections', action: () => App.showSection('team-chat', document.querySelector('.nav-item[data-section=team-chat]')) },
                 { title: 'Member Ops', sub: 'Member experience umbrella', icon: 'fa-sliders-h', color: '#c9a962', group: 'Sections', action: () => App.showSection('member-ops', document.querySelector('.nav-item[data-section=member-ops]')) },
                 { title: 'Settings', sub: 'Profile, security, sections', icon: 'fa-cog', color: 'var(--text-muted)', group: 'Sections', action: () => App.openSettings() },
-                { title: 'Advisory Board', sub: 'AI CMO / CFO / COO weekly review', icon: 'fa-user-tie', color: '#7c3aed', group: 'Sections', action: () => App.showSection('advisors', document.querySelector('.nav-item[data-section=advisors]')) },
+                { title: 'Executive Suite', sub: 'AI CMO / CFO / COO weekly review', icon: 'fa-user-tie', color: '#7c3aed', group: 'Sections', action: () => App.showSection('advisors', document.querySelector('.nav-item[data-section=advisors]')) },
 
                 // Projects
                 { title: 'Plexus Conference', sub: 'Project', icon: 'fa-microscope', color: 'var(--plexus)', group: 'Projects', action: () => App.showProject('plexus') },
@@ -51539,7 +51762,7 @@ By applying to this program, I give the following consents:
                 if (!host) return;
                 if (!this._data) host.innerHTML = '<div style="text-align:center;padding:44px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading the board&hellip;</div>';
                 try { const r = await this.api('/api/admin/advisors/latest'); this._data = r.seats || {}; this.render(); }
-                catch (e) { host.innerHTML = '<div style="padding:22px;color:var(--text-muted);">Could not load the Advisory Board. ' + this._esc(e.message || '') + '</div>'; }
+                catch (e) { host.innerHTML = '<div style="padding:22px;color:var(--text-muted);">Could not load the Executive Suite. ' + this._esc(e.message || '') + '</div>'; }
             },
             render() {
                 const host = document.getElementById('advisoryBoardBody');
@@ -51574,7 +51797,7 @@ By applying to this program, I give the following consents:
                 }
                 host.innerHTML =
                     '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">'
-                    + '<div><h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-user-tie" style="color:#7c3aed;"></i> Advisory Board</h2></div>'
+                    + '<div><h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-user-tie" style="color:#7c3aed;"></i> Executive Suite</h2></div>'
                     + '</div>'
                     + '<p style="margin:8px 0 16px;color:var(--text-muted);font-size:13.5px;max-width:760px;line-height:1.55;">Three veteran advisors review your real numbers each week and suggest what to do next. Advice only &mdash; they never send, edit or change anything. Every point cites the live figure behind it and links to where you would act.</p>'
                     + '<div style="display:flex;gap:9px;flex-wrap:wrap;">' + tabs + '</div>'
