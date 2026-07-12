@@ -7099,33 +7099,24 @@
                     <span id="navNagBadge" title="Action items needing you" style="background: var(--danger, #c14b52); color: #fff; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: auto; display: none;">0</span>
                 </a>
 
-                <a class="nav-item" data-section="conferences" onclick="App.showSection('conferences', this)">
-                    <i class="fas fa-calendar-plus" style="color: #38bdf8;"></i>
-                    <span>Conferences</span>
-                </a>
+                <div class="nav-divider"></div>
+                <div class="nav-label">Projects</div>
+
+                <!-- Project-first IA: each entry opens a PROJECT HOME (numbers + tiles), rendered
+                     by renderProjects() with a data-home-nav click that routes to App.showProjectHome. -->
+                <div id="projectsList"></div>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label">Communications</div>
+                <div class="nav-label">Marketing &amp; Content</div>
 
-                <a class="nav-item has-sub" data-section="team-chat" onclick="App.showSection('team-chat', this)">
-                    <i class="fas fa-comments" style="color:#9b1b22;"></i>
-                    <span class="nav-text"><span class="nav-title">Team Chat</span><span class="nav-sub">Your Med&amp;X team, in real time</span></span>
-                    <span id="navTcBadge" title="Unread team messages" style="background: var(--accent-primary, #9b1b22); color:#fff; padding:1px 7px; border-radius:10px; font-size:10px; font-weight:700; margin-left:auto; display:none;">0</span>
+                <a class="nav-item" data-section="content-studio" onclick="App.showSection('content-studio', this)">
+                    <i class="fas fa-th-large" style="color: #c9a962;"></i>
+                    <span>Content studio</span>
                 </a>
 
-                <a class="nav-item has-sub" data-section="email-blast" onclick="App.showSection('email-blast', this)">
-                    <i class="fas fa-envelope-open-text" style="color: #c9a962;"></i>
-                    <span class="nav-text"><span class="nav-title">Email Registrants</span><span class="nav-sub">Everyone registered for an event</span></span>
-                </a>
-
-                <a class="nav-item has-sub" data-section="announce" onclick="App.showSection('announce', this)">
-                    <i class="fas fa-bullhorn" style="color:#9b1b22;"></i>
-                    <span class="nav-text"><span class="nav-title">Message members</span><span class="nav-sub">Portal members, by group or tier</span></span>
-                </a>
-
-                <a class="nav-item has-sub" data-section="messages" onclick="App.showSection('messages', this)">
-                    <i class="fas fa-envelope" style="color:#c2484e;"></i>
-                    <span class="nav-text"><span class="nav-title">Messages</span><span class="nav-sub">One member at a time, plus your inbox</span></span>
+                <a class="nav-item" data-section="pr-media" onclick="App.showSection('pr-media', this)">
+                    <i class="fas fa-bullhorn" style="color: var(--pr-media);"></i>
+                    <span>PR & Media</span>
                 </a>
 
                 <a class="nav-item has-sub" data-section="newsletter" onclick="App.showSection('newsletter', this)">
@@ -7133,44 +7124,38 @@
                     <span class="nav-text"><span class="nav-title">Newsletter</span><span class="nav-sub">Everyone subscribed to updates</span></span>
                 </a>
 
+                <div class="nav-divider"></div>
+                <div class="nav-label">Communications</div>
+
                 <a class="nav-item has-sub" data-section="outbox" onclick="App.openOutbox(this)">
                     <i class="fas fa-inbox" style="color:#f59e0b;"></i>
                     <span class="nav-text"><span class="nav-title">Outbox</span><span class="nav-sub">Staged emails awaiting your approval</span></span>
                     <span id="outboxNavCount" title="Batches awaiting approval" style="background:var(--red);color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:auto;display:none;">0</span>
                 </a>
 
-                <div class="nav-divider"></div>
-                <div class="nav-label">Projects</div>
+                <a class="nav-item has-sub" data-section="messages" onclick="App.showSection('messages', this)">
+                    <i class="fas fa-envelope" style="color:#c2484e;"></i>
+                    <span class="nav-text"><span class="nav-title">Messages</span><span class="nav-sub">One member at a time, plus your inbox</span></span>
+                </a>
 
-                <div id="projectsList"></div>
+                <a class="nav-item has-sub" data-section="announce" onclick="App.showSection('announce', this)">
+                    <i class="fas fa-bullhorn" style="color:#9b1b22;"></i>
+                    <span class="nav-text"><span class="nav-title">Message members</span><span class="nav-sub">Portal members, by group or tier</span></span>
+                </a>
+
+                <a class="nav-item has-sub" data-section="email-blast" onclick="App.showSection('email-blast', this)">
+                    <i class="fas fa-envelope-open-text" style="color: #c9a962;"></i>
+                    <span class="nav-text"><span class="nav-title">Email Registrants</span><span class="nav-sub">Everyone registered for an event</span></span>
+                </a>
+
+                <a class="nav-item has-sub" data-section="team-chat" onclick="App.showSection('team-chat', this)">
+                    <i class="fas fa-comments" style="color:#9b1b22;"></i>
+                    <span class="nav-text"><span class="nav-title">Team Chat</span><span class="nav-sub">Your Med&amp;X team, in real time</span></span>
+                    <span id="navTcBadge" title="Unread team messages" style="background: var(--accent-primary, #9b1b22); color:#fff; padding:1px 7px; border-radius:10px; font-size:10px; font-weight:700; margin-left:auto; display:none;">0</span>
+                </a>
 
                 <div class="nav-divider"></div>
                 <div class="nav-label">Organization</div>
-
-                <a class="nav-item" data-section="year-calendar" onclick="App.showSection('year-calendar', this)">
-                    <i class="fas fa-calendar-days" style="color: #0ea5a4;"></i>
-                    <span>Year Calendar</span>
-                </a>
-
-                <a class="nav-item" data-section="editions" onclick="App.showSection('editions', this)">
-                    <i class="fas fa-layer-group" style="color: #9b1b22;"></i>
-                    <span>Editions</span>
-                </a>
-
-                <a class="nav-item" data-section="cme" onclick="App.showSection('cme', this)">
-                    <i class="fas fa-award" style="color: #0ea5a4;"></i>
-                    <span>CME / HLK</span>
-                </a>
-
-                <a class="nav-item" data-section="finances" onclick="App.showSection('finances', this)">
-                    <i class="fas fa-coins" style="color: var(--finances);"></i>
-                    <span>Finances</span>
-                </a>
-
-                <a class="nav-item" data-section="transparency" onclick="App.showSection('transparency', this)">
-                    <i class="fas fa-scale-balanced" style="color: #C9A962;"></i>
-                    <span>Board pack</span>
-                </a>
 
                 <!-- Executive Suite (AI CMO / CFO / COO). CSP-clean: delegated data-adv-nav
                      handler, no inline onclick. -->
@@ -7179,25 +7164,47 @@
                     <span>Executive Suite</span>
                 </a>
 
-                <a class="nav-item" data-section="pr-media" onclick="App.showSection('pr-media', this)">
-                    <i class="fas fa-bullhorn" style="color: var(--pr-media);"></i>
-                    <span>PR & Media</span>
+                <a class="nav-item" data-section="finances" onclick="App.showSection('finances', this)">
+                    <i class="fas fa-coins" style="color: var(--finances);"></i>
+                    <span>Finances</span>
                 </a>
 
-                <!-- Item 11: merged into "Message members" (data-section=announce). Nav entry hidden;
-                     section stays reachable by direct id (cmd palette, quick actions) for back-compat. -->
+                <a class="nav-item" data-section="member-ops" onclick="App.showSection('member-ops', this)">
+                    <i class="fas fa-sliders-h" style="color: #c9a962;"></i>
+                    <span>Member Ops</span>
+                </a>
+
+                <a class="nav-item" data-section="conferences" onclick="App.showSection('conferences', this)">
+                    <i class="fas fa-calendar-plus" style="color: #38bdf8;"></i>
+                    <span>Conferences</span>
+                </a>
+
+                <a class="nav-item" data-section="editions" onclick="App.showSection('editions', this)">
+                    <i class="fas fa-layer-group" style="color: #9b1b22;"></i>
+                    <span>Editions</span>
+                </a>
+
+                <a class="nav-item" data-section="year-calendar" onclick="App.showSection('year-calendar', this)">
+                    <i class="fas fa-calendar-days" style="color: #0ea5a4;"></i>
+                    <span>Year Calendar</span>
+                </a>
+
+                <a class="nav-item" data-section="cme" onclick="App.showSection('cme', this)">
+                    <i class="fas fa-award" style="color: #0ea5a4;"></i>
+                    <span>CME / HLK</span>
+                </a>
+
+                <a class="nav-item" data-section="transparency" onclick="App.showSection('transparency', this)">
+                    <i class="fas fa-scale-balanced" style="color: #C9A962;"></i>
+                    <span>Board pack</span>
+                </a>
+
+                <!-- Hidden merged/legacy sections. Kept in the DOM (display:none) so deep links,
+                     Cmd+K and the Member Ops sub-nav still resolve. See MERGED_HIDDEN. -->
                 <a class="nav-item" data-section="user-notifications" onclick="App.showSection('user-notifications', this)" style="display:none;">
                     <i class="fas fa-paper-plane" style="color: #b06a1f;"></i>
                     <span>Notifications</span>
                     <span id="userNotifCount" style="background: var(--danger); color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
-                </a>
-
-                <!-- Item 13: one unified "Content studio" replaces Portal Content + Website content +
-                     Member Feed. The three old nav entries are folded in (hidden via MERGED_HIDDEN); their
-                     sections stay reachable by direct id (cmd palette, deep links) for back-compat. -->
-                <a class="nav-item" data-section="content-studio" onclick="App.showSection('content-studio', this)">
-                    <i class="fas fa-th-large" style="color: #c9a962;"></i>
-                    <span>Content studio</span>
                 </a>
 
                 <a class="nav-item" data-section="portal-content" onclick="App.showSection('portal-content', this)" style="display:none;">
@@ -7214,47 +7221,6 @@
                     <i class="fas fa-rss" style="color: #c9a962;"></i>
                     <span>Member Feed</span>
                     <span id="mfOppNav" style="background: #b45309; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
-                </a>
-
-                <a class="nav-item" data-section="member-ops" onclick="App.showSection('member-ops', this)">
-                    <i class="fas fa-sliders-h" style="color: #c9a962;"></i>
-                    <span>Member Ops</span>
-                </a>
-
-                <a class="nav-item" data-section="gala" onclick="App.showSection('gala', this)">
-                    <i class="fas fa-glass-cheers" style="color: #C9A962;"></i>
-                    <span>Gala Evening</span>
-                    <span id="galaPendingCount" style="background: #b45309; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
-                </a>
-
-                <a class="nav-item" data-section="auctions" onclick="App.showSection('auctions', this)">
-                    <i class="fas fa-gavel" style="color: #C9A962;"></i>
-                    <span>Auctions</span>
-                </a>
-
-                <a class="nav-item" data-section="event-tracking" onclick="App.showSection('event-tracking', this)">
-                    <i class="fas fa-location-dot" style="color: #ef4444;"></i>
-                    <span>Live Ops Map</span>
-                </a>
-
-                <a class="nav-item" data-section="event-invites" onclick="App.showSection('event-invites', this)">
-                    <i class="fas fa-paper-plane" style="color: #9b1b22;"></i>
-                    <span>Event invitations</span>
-                </a>
-
-                <a class="nav-item" data-section="event-reminders" onclick="App.showSection('event-reminders', this)">
-                    <i class="fas fa-bell" style="color: #b45309;"></i>
-                    <span>Event reminders</span>
-                </a>
-
-                <a class="nav-item" data-section="postevent" onclick="App.showSection('postevent', this)">
-                    <i class="fas fa-flag-checkered" style="color: #16a34a;"></i>
-                    <span>Post-event</span>
-                </a>
-
-                <a class="nav-item" data-section="croatians-abroad" onclick="App.showSection('croatians-abroad', this)">
-                    <i class="fas fa-globe-europe" style="color: #ef4444;"></i>
-                    <span>Croatians Abroad</span>
                 </a>
 
                 <div class="nav-divider"></div>
@@ -9943,6 +9909,116 @@ President, Med&amp;X</textarea>
                         </div>
                     </div>
                 </div>
+
+                <!-- ==================== PROJECT HOMES (project-first IA) ==================== -->
+                <style>
+                  .ph-numbers { display:flex; flex-wrap:wrap; gap:12px; margin:18px 0 22px; }
+                  .ph-stat { flex:1 1 140px; min-width:118px; background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:16px 18px; }
+                  .ph-stat-num { display:block; font-size:26px; font-weight:800; color:var(--text-primary); line-height:1.1; }
+                  .ph-stat-label { display:block; margin-top:4px; font-size:12px; color:var(--text-muted); font-weight:600; letter-spacing:.02em; }
+                  .ph-tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:14px; }
+                  .ph-tile { display:flex; align-items:center; gap:14px; background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:16px 18px; cursor:pointer; text-decoration:none; color:inherit; transition:border-color .15s, transform .15s, box-shadow .15s; }
+                  .ph-tile:hover { border-color:var(--accent-primary); transform:translateY(-2px); box-shadow:0 6px 18px rgba(var(--red-rgb), .08); }
+                  .ph-tile-icon { flex-shrink:0; width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; background:var(--bg-tertiary); }
+                  .ph-tile-text { display:flex; flex-direction:column; gap:2px; min-width:0; }
+                  .ph-tile-title { font-size:14px; font-weight:700; color:var(--text-primary); }
+                  .ph-tile-sub { font-size:12px; color:var(--text-muted); line-height:1.35; }
+                  @media (max-width:480px) {
+                    .ph-numbers { gap:8px; }
+                    .ph-stat { flex:1 1 calc(50% - 8px); min-width:0; padding:12px 14px; }
+                    .ph-stat-num { font-size:22px; }
+                    .ph-tiles { grid-template-columns:1fr; }
+                  }
+                </style>
+
+                <!-- PROJECT HOME: PLEXUS WEEK 2026 -->
+                <div class="section" id="section-home-plexus">
+                    <div class="page-header">
+                        <h1>Plexus Week 2026</h1>
+                        <p>Conference, Gala and the whole week in one place. 4–5 December in Zagreb.</p>
+                    </div>
+                    <div class="ph-numbers">
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_plexus_registered">—</span><span class="ph-stat-label">Registered</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_plexus_paid">—</span><span class="ph-stat-label">Paid</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_plexus_days">—</span><span class="ph-stat-label">Days to 4 Dec</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_plexus_gala_approved">—</span><span class="ph-stat-label">Gala approved</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_plexus_gala_paid">—</span><span class="ph-stat-label">Gala paid</span></div>
+                    </div>
+                    <div class="ph-tiles">
+                        <a class="ph-tile" data-home-tile="proj:plexus"><span class="ph-tile-icon" style="color:#9b1b22;"><i class="fas fa-microscope"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Conference</span><span class="ph-tile-sub">Registrations, abstracts, schedule, speakers</span></span></a>
+                        <a class="ph-tile" data-home-tile="ptab:registrations"><span class="ph-tile-icon" style="color:#9b1b22;"><i class="fas fa-users"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Registrations</span><span class="ph-tile-sub">Who is coming to the conference</span></span></a>
+                        <a class="ph-tile" data-home-tile="ptab:speakers"><span class="ph-tile-icon" style="color:#9b1b22;"><i class="fas fa-microphone"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Speakers</span><span class="ph-tile-sub">Invited speakers and their sessions</span></span></a>
+                        <a class="ph-tile" data-home-tile="ptab:schedule"><span class="ph-tile-icon" style="color:#9b1b22;"><i class="fas fa-calendar"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Schedule</span><span class="ph-tile-sub">Program and session planning</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:gala"><span class="ph-tile-icon" style="color:#C9A962;"><i class="fas fa-champagne-glasses"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Gala Evening</span><span class="ph-tile-sub">Guests, meals, program, seating</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:croatians-abroad"><span class="ph-tile-icon" style="color:#ef4444;"><i class="fas fa-globe-europe"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Croatians Abroad</span><span class="ph-tile-sub">Diaspora multi-event invitations</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:auctions"><span class="ph-tile-icon" style="color:#C9A962;"><i class="fas fa-gavel"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Auctions</span><span class="ph-tile-sub">Charity auction items and bids</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:event-tracking"><span class="ph-tile-icon" style="color:#ef4444;"><i class="fas fa-location-dot"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Live Ops Map</span><span class="ph-tile-sub">Staff and guests on event day</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:event-invites"><span class="ph-tile-icon" style="color:#9b1b22;"><i class="fas fa-paper-plane"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Event invitations</span><span class="ph-tile-sub">Invite campaigns for the week</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:event-reminders"><span class="ph-tile-icon" style="color:#b45309;"><i class="fas fa-bell"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Event reminders</span><span class="ph-tile-sub">Timed reminders before the event</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:postevent"><span class="ph-tile-icon" style="color:#16a34a;"><i class="fas fa-flag-checkered"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Post-event</span><span class="ph-tile-sub">Certificates, recaps, thank-yous</span></span></a>
+                    </div>
+                </div>
+
+                <!-- PROJECT HOME: BUILDING BRIDGES -->
+                <div class="section" id="section-home-bridges">
+                    <div class="page-header">
+                        <h1>Building Bridges</h1>
+                        <p>Global networking events connecting the Croatian biomedical diaspora.</p>
+                    </div>
+                    <div class="ph-numbers">
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_bridges_events">—</span><span class="ph-stat-label">Events</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_bridges_regs">—</span><span class="ph-stat-label">Registrations</span></div>
+                    </div>
+                    <div class="ph-tiles">
+                        <a class="ph-tile" data-home-tile="proj:bridges"><span class="ph-tile-icon" style="color:#c9a962;"><i class="fas fa-globe-americas"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Events and program</span><span class="ph-tile-sub">Bridges events, speakers, registrations</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:event-invites"><span class="ph-tile-icon" style="color:#9b1b22;"><i class="fas fa-paper-plane"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Event invitations</span><span class="ph-tile-sub">Invite campaigns for Bridges</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:event-reminders"><span class="ph-tile-icon" style="color:#b45309;"><i class="fas fa-bell"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Event reminders</span><span class="ph-tile-sub">Timed reminders before each event</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:postevent"><span class="ph-tile-icon" style="color:#16a34a;"><i class="fas fa-flag-checkered"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Post-event</span><span class="ph-tile-sub">Certificates, recaps, thank-yous</span></span></a>
+                    </div>
+                </div>
+
+                <!-- PROJECT HOME: ACCELERATOR -->
+                <div class="section" id="section-home-accelerator">
+                    <div class="page-header">
+                        <h1>Accelerator</h1>
+                        <p>The Med&X research internship program, from application to placement.</p>
+                    </div>
+                    <div class="ph-numbers">
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_acc_total">—</span><span class="ph-stat-label">Applications</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_acc_submitted">—</span><span class="ph-stat-label">Awaiting review</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_acc_reviewed">—</span><span class="ph-stat-label">Reviewed</span></div>
+                    </div>
+                    <div class="ph-tiles">
+                        <a class="ph-tile" data-home-tile="atab:applications"><span class="ph-tile-icon" style="color:#b06a1f;"><i class="fas fa-file-signature"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Applications</span><span class="ph-tile-sub">Review incoming applications</span></span></a>
+                        <a class="ph-tile" data-home-tile="atab:evaluation"><span class="ph-tile-icon" style="color:#b06a1f;"><i class="fas fa-star-half-alt"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Evaluation</span><span class="ph-tile-sub">Scoring and interviewer input</span></span></a>
+                        <a class="ph-tile" data-home-tile="atab:ranking"><span class="ph-tile-icon" style="color:#b06a1f;"><i class="fas fa-trophy"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Ranking</span><span class="ph-tile-sub">Final ranking and matching</span></span></a>
+                        <a class="ph-tile" data-home-tile="atab:institutions"><span class="ph-tile-icon" style="color:#b06a1f;"><i class="fas fa-university"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Institutions</span><span class="ph-tile-sub">Host labs and placements</span></span></a>
+                        <a class="ph-tile" data-home-tile="atab:dates"><span class="ph-tile-icon" style="color:#b06a1f;"><i class="fas fa-calendar-check"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Key dates</span><span class="ph-tile-sub">Program timeline and deadlines</span></span></a>
+                    </div>
+                </div>
+
+                <!-- PROJECT HOME: BIOMEDICAL FORUM -->
+                <div class="section" id="section-home-forum">
+                    <div class="page-header">
+                        <h1>Biomedical Forum</h1>
+                        <p>The senior leaders network, its members and recruitment pipeline.</p>
+                    </div>
+                    <div class="ph-numbers">
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_forum_members">—</span><span class="ph-stat-label">Members</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_forum_candidates">—</span><span class="ph-stat-label">Candidates</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_forum_invited">—</span><span class="ph-stat-label">Invited</span></div>
+                        <div class="ph-stat"><span class="ph-stat-num" id="ph_forum_replied">—</span><span class="ph-stat-label">Replied</span></div>
+                    </div>
+                    <div class="ph-tiles">
+                        <a class="ph-tile" data-home-tile="ftab:members"><span class="ph-tile-icon" style="color:#fb923c;"><i class="fas fa-users"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Members</span><span class="ph-tile-sub">Approved members directory</span></span></a>
+                        <a class="ph-tile" data-home-tile="ftab:candidates"><span class="ph-tile-icon" style="color:#fb923c;"><i class="fas fa-user-plus"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Candidates</span><span class="ph-tile-sub">Recruitment pipeline and outreach</span></span></a>
+                        <a class="ph-tile" data-home-tile="ftab:events"><span class="ph-tile-icon" style="color:#fb923c;"><i class="fas fa-calendar-day"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Events</span><span class="ph-tile-sub">Forum events and gatherings</span></span></a>
+                        <a class="ph-tile" data-home-tile="ftab:feed"><span class="ph-tile-icon" style="color:#fb923c;"><i class="fas fa-comments"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Feed</span><span class="ph-tile-sub">Member posts and activity</span></span></a>
+                        <a class="ph-tile" data-home-tile="ftab:groups"><span class="ph-tile-icon" style="color:#fb923c;"><i class="fas fa-user-friends"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Groups</span><span class="ph-tile-sub">Interest and specialty groups</span></span></a>
+                    </div>
+                </div>
+
+                <!-- ==================== /PROJECT HOMES ==================== -->
 
                 <!-- BRIDGES -->
                 <div class="section" id="section-bridges">
@@ -17078,9 +17154,7 @@ President, Med&amp;X</textarea>
             // Section definitions for onboarding
             sectionDefs: [
                 { id: 'dashboard', label: 'Home', icon: 'fa-home', color: '#c9a962', desc: 'Dashboard overview', alwaysOn: true },
-                { id: 'plexus', label: 'Plexus Conference', icon: 'fa-users', color: '#c14b52', desc: 'Annual flagship conference' },
-                { id: 'gala', label: 'Gala Evening', icon: 'fa-glass-cheers', color: '#c14b52', desc: 'Plexus 2026 Gala — registrations, invite links, settings' },
-                { id: 'croatians-abroad', label: 'Croatians Abroad', icon: 'fa-globe-europe', color: '#c14b52', desc: 'Diaspora multi-event invitations (Conference + Bridges + Gala)' },
+                { id: 'plexus', label: 'Plexus Week 2026', icon: 'fa-users', color: '#c14b52', desc: 'Conference, Gala and the whole week' },
                 { id: 'accelerator', label: 'Med&X Accelerator', icon: 'fa-rocket', color: '#c14b52', desc: 'Research internship program' },
                 { id: 'forum', label: 'Biomedical Forum', icon: 'fa-landmark', color: '#c14b52', desc: 'Senior leaders network' },
                 { id: 'bridges', label: 'Building Bridges', icon: 'fa-globe-americas', color: '#c14b52', desc: 'Global networking events' },
@@ -17189,7 +17263,10 @@ President, Med&amp;X</textarea>
                 // Filter static nav items (Finances, PR & Media). Core member-ops tools
                 // (Announce, Member Ops) are always visible — they are not part of the
                 // per-user onboarding toggle, so never hide them for already-onboarded users.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'auctions', 'editions', 'postevent', 'event-tracking', 'advisors'];
+                // Project-first IA: auctions / postevent / event-tracking moved into the project
+                // homes (Plexus Week / Bridges) as tiles, so they no longer have a top-level sidebar
+                // anchor to keep visible here. They stay reachable via those homes, Cmd+K and deep links.
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
@@ -19020,9 +19097,9 @@ President, Med&amp;X</textarea>
                         <div class="sidebar-project ${isPinned ? 'pinned' : ''}"
                              data-project="${id}"
                              draggable="true"
-                             onclick="App.showProject('${id}', this)">
+                             onclick="App.showProjectHome('${id}', this)">
                             <span class="project-dot" style="background: ${proj.color}"></span>
-                            <span class="project-name">${proj.name}</span>
+                            <span class="project-name">${id === 'plexus' ? 'Plexus Week 2026' : proj.name}</span>
                             <div class="project-actions">
                                 <button class="pin-btn" onclick="App.togglePinProject('${id}', event)" title="${isPinned ? 'Unpin' : 'Pin'}">
                                     <i class="fas fa-star"></i>
@@ -19060,7 +19137,7 @@ President, Med&amp;X</textarea>
                     }
                     const venueInfo = [proj.venue, proj.location].filter(Boolean).join(', ');
                     const html = `
-                        <div class="project-card" onclick="App.showProject('${id}')">
+                        <div class="project-card" onclick="App.showProjectHome('${id}')">
                             <button class="pin-project-btn ${isPinned ? 'pinned' : ''}" onclick="App.togglePinProject('${id}', event)" title="${isPinned ? 'Unpin' : 'Pin to top'}">
                                 <i class="fas fa-star"></i>
                             </button>
@@ -19621,8 +19698,19 @@ President, Med&amp;X</textarea>
                 };
                 document.title = `${sectionNames[sectionId] || sectionId} — Med&X Admin`;
 
-                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
                 const sectionEl = document.getElementById('section-' + sectionId);
+                if (!sectionEl) {
+                    // Deep links can point at non-section targets (e.g. #network / #contacts open the
+                    // My Network side panel, not a <div class="section">). Guard the null classList and
+                    // route sensibly instead of throwing in the nav-highlight path.
+                    if (sectionId === 'network' || sectionId === 'contacts') {
+                        try { if (this.user && typeof NetworkApp !== 'undefined') NetworkApp.openPanel(); } catch (e) { console.error(e); }
+                        return;
+                    }
+                    if (sectionId !== 'dashboard') this.showSection('dashboard', null, true);
+                    return;
+                }
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
                 sectionEl.classList.add('active');
 
                 // Paint the member-experience umbrella sub-nav for the sections that live under Member Ops.
@@ -19800,8 +19888,9 @@ President, Med&amp;X</textarea>
             },
 
             showProject(projectId, navItem, skipHistory = false) {
-                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
                 const sectionEl = document.getElementById('section-' + projectId);
+                if (!sectionEl) { this.showSection('dashboard', null, true); return; }
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
                 sectionEl.classList.add('active');
 
                 // Fix: hide/show main-wrapper based on section DOM position
@@ -19879,12 +19968,52 @@ President, Med&amp;X</textarea>
                 }
             },
 
+            // Project-first IA: open a PROJECT HOME (numbers strip + tiles). Falls back to the
+            // project workspace (showProject) for projects without a dedicated home (e.g. general).
+            showProjectHome(projectId, navItem, skipHistory = false) {
+                const homeId = 'home-' + projectId;
+                const sectionEl = document.getElementById('section-' + homeId);
+                if (!sectionEl) { return this.showProject(projectId, navItem, skipHistory); }
+
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                sectionEl.classList.add('active');
+
+                const mainWrapper = document.querySelector('.main-wrapper');
+                const mainEl = document.querySelector('main.main');
+                if (mainWrapper) mainWrapper.classList.toggle('hidden-for-section', sectionEl.parentElement !== mainEl);
+
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                document.querySelectorAll('.sidebar-project').forEach(n => n.classList.remove('active'));
+                const projectEl = document.querySelector(`.sidebar-project[data-project="${projectId}"]`);
+                if (projectEl) projectEl.classList.add('active');
+
+                this.currentView = projectId;
+                try { this.switchChatPanel('project', projectId); } catch (e) {}
+                try { this.loadProjectChannels(projectId); } catch (e) {}
+
+                const qrFab = document.getElementById('globalQRBtn');
+                if (qrFab && this.user && (this.user.is_admin || this.user.is_staff)) qrFab.style.display = 'flex';
+
+                const titles = { plexus: 'Plexus Week 2026', bridges: 'Building Bridges', accelerator: 'Accelerator', forum: 'Biomedical Forum' };
+                document.title = (titles[projectId] || 'Project') + ' — Med&X Admin';
+
+                // Live numbers strip from existing endpoints (fail-quiet to em-dash, never blocks render).
+                try { if (typeof ProjectHome !== 'undefined') ProjectHome.load(projectId); } catch (e) { console.error(e); }
+
+                document.getElementById('sidebar')?.classList.remove('open');
+                document.getElementById('sidebarOverlay')?.classList.remove('active');
+
+                if (!skipHistory) history.pushState({ section: homeId }, '', `#${homeId}`);
+            },
+
             // Handle browser back/forward buttons
             handlePopState(event) {
                 const section = event.state?.section || window.location.hash.slice(1) || 'dashboard';
                 const projects = ['plexus', 'accelerator', 'forum', 'bridges'];
 
-                if (projects.includes(section)) {
+                if (section.indexOf('home-') === 0) {
+                    this.showProjectHome(section.slice(5), null, true);
+                } else if (projects.includes(section)) {
                     this.showProject(section, null, true);
                 } else {
                     this.showSection(section, null, true);
@@ -33598,8 +33727,13 @@ By applying to this program, I give the following consents:
             },
 
             openPanel() {
-                document.getElementById('networkPanel').style.left = '0';
-                document.getElementById('networkOverlay').style.display = 'block';
+                // Guard the elements (deep links / pre-login callers can reach here before the
+                // panel is in the DOM) so we never throw on a null style access.
+                const panel = document.getElementById('networkPanel');
+                if (!panel) return;
+                panel.style.left = '0';
+                const overlay = document.getElementById('networkOverlay');
+                if (overlay) overlay.style.display = 'block';
                 this.loadContacts();
             },
 
@@ -49864,7 +49998,12 @@ By applying to this program, I give the following consents:
                 { title: 'Portal Content', sub: 'CMS for user portal', icon: 'fa-th-large', color: 'var(--accent-gold)', group: 'Sections', action: () => App.showSection('portal-content') },
                 { title: 'Messages', sub: 'Direct messaging with users', icon: 'fa-envelope', color: '#c2484e', group: 'Sections', action: () => App.showSection('messages') },
                 { title: 'Gala Evening', sub: 'Guests, meals, program, seating', icon: 'fa-champagne-glasses', color: '#C9A962', group: 'Sections', action: () => App.showSection('gala', document.querySelector('.nav-item[data-section=gala]')) },
-                { title: 'Croatians Abroad', sub: 'Diaspora program', icon: 'fa-globe', color: '#ef4444', group: 'Sections', action: () => App.showSection('croatians-abroad', document.querySelector('.nav-item[data-section=croatians-abroad]')) },
+                { title: 'Croatians Abroad', sub: 'Diaspora program', icon: 'fa-globe', color: '#ef4444', group: 'Sections', action: () => App.showSection('croatians-abroad') },
+                { title: 'Auctions', sub: 'Charity auction items and bids', icon: 'fa-gavel', color: '#C9A962', group: 'Sections', action: () => App.showSection('auctions') },
+                { title: 'Live Ops Map', sub: 'Staff and guests on event day', icon: 'fa-location-dot', color: '#ef4444', group: 'Sections', action: () => App.showSection('event-tracking') },
+                { title: 'Post-event', sub: 'Certificates, recaps, thank-yous', icon: 'fa-flag-checkered', color: '#16a34a', group: 'Sections', action: () => App.showSection('postevent') },
+                { title: 'Event invitations', sub: 'Per-event invite campaigns', icon: 'fa-paper-plane', color: '#9b1b22', group: 'Sections', action: () => App.showSection('event-invites') },
+                { title: 'Event reminders', sub: 'Timed reminders before an event', icon: 'fa-bell', color: '#b45309', group: 'Sections', action: () => App.showSection('event-reminders') },
                 { title: 'Conferences', sub: 'Create and manage conferences', icon: 'fa-calendar-plus', color: '#38bdf8', group: 'Sections', action: () => App.showSection('conferences', document.querySelector('.nav-item[data-section=conferences]')) },
                 { title: 'Email Registrants', sub: 'Bulk email and approval outbox', icon: 'fa-envelope-open-text', color: '#c9a962', group: 'Sections', action: () => App.showSection('email-blast', document.querySelector('.nav-item[data-section=email-blast]')) },
                 { title: 'Team Chat', sub: 'Internal team messaging', icon: 'fa-comments', color: '#9b1b22', group: 'Sections', action: () => App.showSection('team-chat', document.querySelector('.nav-item[data-section=team-chat]')) },
@@ -49872,11 +50011,11 @@ By applying to this program, I give the following consents:
                 { title: 'Settings', sub: 'Profile, security, sections', icon: 'fa-cog', color: 'var(--text-muted)', group: 'Sections', action: () => App.openSettings() },
                 { title: 'Executive Suite', sub: 'AI CMO / CFO / COO weekly review', icon: 'fa-user-tie', color: '#7c3aed', group: 'Sections', action: () => App.showSection('advisors', document.querySelector('.nav-item[data-section=advisors]')) },
 
-                // Projects
-                { title: 'Plexus Conference', sub: 'Project', icon: 'fa-microscope', color: 'var(--plexus)', group: 'Projects', action: () => App.showProject('plexus') },
-                { title: 'Accelerator', sub: 'Project', icon: 'fa-rocket', color: 'var(--accelerator)', group: 'Projects', action: () => App.showProject('accelerator') },
-                { title: 'Biomedical Forum', sub: 'Project', icon: 'fa-dna', color: 'var(--forum)', group: 'Projects', action: () => App.showProject('forum') },
-                { title: 'Building Bridges', sub: 'Project', icon: 'fa-bridge', color: 'var(--bridges)', group: 'Projects', action: () => App.showProject('bridges') },
+                // Projects (open the project HOME — numbers strip + tiles to every surface)
+                { title: 'Plexus Week 2026', sub: 'Project home', icon: 'fa-microscope', color: 'var(--plexus)', group: 'Projects', action: () => App.showProjectHome('plexus') },
+                { title: 'Accelerator', sub: 'Project home', icon: 'fa-rocket', color: 'var(--accelerator)', group: 'Projects', action: () => App.showProjectHome('accelerator') },
+                { title: 'Biomedical Forum', sub: 'Project home', icon: 'fa-dna', color: 'var(--forum)', group: 'Projects', action: () => App.showProjectHome('forum') },
+                { title: 'Building Bridges', sub: 'Project home', icon: 'fa-bridge', color: 'var(--bridges)', group: 'Projects', action: () => App.showProjectHome('bridges') },
 
                 // Plexus Tabs
                 { title: 'Registrations', sub: 'Plexus Conference', icon: 'fa-users', color: 'var(--plexus)', group: 'Plexus Tabs', action: () => { App.showProject('plexus'); App.showPlexusTab('registrations'); } },
@@ -51896,6 +52035,93 @@ By applying to this program, I give the following consents:
             if (nav) { e.preventDefault(); try { App.showSection('advisors', nav); } catch (err) { console.error(err); } return; }
             const act = e.target.closest('[data-adv-act]');
             if (act) { e.preventDefault(); try { AdvisoryBoard.handle(act); } catch (err) { console.error(err); } }
+        });
+
+        // ===== PROJECT HOMES (project-first IA) — live numbers strips + tile routing =====
+        // Every number comes from an EXISTING read-only admin endpoint and fails quiet to an
+        // em-dash on any error, so a project home always renders. Tiles route to real sections /
+        // workspaces / workspace-tabs only (discovered by data-section + tab-key grep).
+        const ProjectHome = {
+            _set(id, val) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.textContent = (val === null || val === undefined || (typeof val === 'number' && isNaN(val))) ? '—' : val;
+            },
+            _dash(ids) { ids.forEach(id => this._set(id, '—')); },
+            load(projectId) {
+                try {
+                    if (projectId === 'plexus') return this._plexus();
+                    if (projectId === 'bridges') return this._bridges();
+                    if (projectId === 'accelerator') return this._accelerator();
+                    if (projectId === 'forum') return this._forum();
+                } catch (e) { console.error(e); }
+            },
+            async _plexus() {
+                try {
+                    const evt = new Date(2026, 11, 4);
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    this._set('ph_plexus_days', Math.max(0, Math.round((evt - today) / 86400000)));
+                } catch (e) { this._set('ph_plexus_days', '—'); }
+                try {
+                    const s = await App.api('/api/admin/plexus/stats');
+                    this._set('ph_plexus_registered', s && s.total_registrations != null ? s.total_registrations : '—');
+                    this._set('ph_plexus_paid', s && s.paid_registrations != null ? s.paid_registrations : '—');
+                } catch (e) { this._dash(['ph_plexus_registered', 'ph_plexus_paid']); }
+                try {
+                    const g = await App.api('/api/admin/gala/registrations');
+                    const arr = Array.isArray(g) ? g : [];
+                    this._set('ph_plexus_gala_approved', arr.filter(r => r.status === 'approved').length);
+                    this._set('ph_plexus_gala_paid', arr.filter(r => r.payment_status === 'paid' || r.payment_status === 'vip-comp').length);
+                } catch (e) { this._dash(['ph_plexus_gala_approved', 'ph_plexus_gala_paid']); }
+            },
+            async _bridges() {
+                try {
+                    const ev = await App.api('/api/bridges/events');
+                    const arr = Array.isArray(ev) ? ev : [];
+                    this._set('ph_bridges_events', arr.length);
+                    this._set('ph_bridges_regs', arr.reduce((n, e) => n + (e.registration_count || 0), 0));
+                } catch (e) { this._dash(['ph_bridges_events', 'ph_bridges_regs']); }
+            },
+            async _accelerator() {
+                try {
+                    const a = await App.api('/api/admin/accelerator/analytics');
+                    this._set('ph_acc_total', a && a.total != null ? a.total : '—');
+                    this._set('ph_acc_submitted', a && a.submitted != null ? a.submitted : '—');
+                    this._set('ph_acc_reviewed', ((a && a.accepted) || 0) + ((a && a.rejected) || 0));
+                } catch (e) { this._dash(['ph_acc_total', 'ph_acc_submitted', 'ph_acc_reviewed']); }
+            },
+            async _forum() {
+                try {
+                    const s = await App.api('/api/admin/forum/stats');
+                    this._set('ph_forum_members', s && s.total_members != null ? s.total_members : '—');
+                } catch (e) { this._set('ph_forum_members', '—'); }
+                try {
+                    const c = await App.api('/api/admin/forum/candidates');
+                    const counts = (c && c.counts) || {};
+                    this._set('ph_forum_candidates', counts.all != null ? counts.all : '—');
+                    this._set('ph_forum_invited', counts.invited != null ? counts.invited : '—');
+                    this._set('ph_forum_replied', counts.replied != null ? counts.replied : '—');
+                } catch (e) { this._dash(['ph_forum_candidates', 'ph_forum_invited', 'ph_forum_replied']); }
+            },
+            route(spec) {
+                const parts = String(spec || '').split(':');
+                const type = parts[0], arg = parts[1];
+                if (type === 'proj') return App.showProject(arg);
+                if (type === 'sec') return App.showSection(arg);
+                if (type === 'ptab') { App.showProject('plexus'); setTimeout(() => { try { App.showPlexusTab(arg); } catch (e) {} }, 60); return; }
+                if (type === 'atab') { App.showProject('accelerator'); setTimeout(() => { try { AcceleratorApp.showTab(arg); } catch (e) {} }, 60); return; }
+                if (type === 'ftab') { App.showProject('forum'); setTimeout(() => { try { App.showForumTab(arg); } catch (e) {} }, 60); return; }
+            }
+        };
+        window.ProjectHome = ProjectHome;
+
+        // ONE delegated click listener for project homes (CSP-clean — no inline onclick on tiles).
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest) return;
+            const nav = e.target.closest('[data-home-nav]');
+            if (nav) { e.preventDefault(); try { App.showProjectHome(nav.getAttribute('data-home-nav')); } catch (err) { console.error(err); } return; }
+            const tile = e.target.closest('[data-home-tile]');
+            if (tile) { e.preventDefault(); try { ProjectHome.route(tile.getAttribute('data-home-tile')); } catch (err) { console.error(err); } }
         });
 
         // Load the advisory data when the section is opened (wrap App.showSection like StaffTracking).
