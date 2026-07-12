@@ -5317,6 +5317,44 @@ async function initializeApp() {
         try { db.run("UPDATE review_rubrics SET source = 'submission_pipeline' WHERE domain = 'accelerator' AND source = 'accelerator_applications'"); } catch (e) {}
     } catch (e) { console.error('[review-engine] seed', e.message); }
 
+    // ====================== EXECUTIVE ADVISORY BOARD (admin-only) ======================
+    // Three standing AI advisor personas (CMO / CFO / COO) review REAL portal data each week and
+    // record grounded, ADVICE-ONLY observations with deep links. Nothing here ever sends, edits
+    // money/tickets, or bypasses an approval gate — the boundary is read-only aggregation plus a
+    // persisted note. These two tables live OUTSIDE the SCHEMA-MIRROR block by design: they are
+    // ADMIN-ONLY (the user portal never reads or writes them), so there is nothing to mirror and
+    // scripts/check-schema-sync.sh stays green. Every statement is idempotent.
+    //
+    // advisor_reviews: one persisted review per (seat, ISO week). data_pack_json is the exact
+    // server-assembled evidence pack the review was grounded in; observations_json is the parsed
+    // array of {headline, detail, evidence:[{label,value}], link_section, link_label}. is_mock=1
+    // marks a rule-based (no-AI-key) review. UNIQUE(seat, week_key) makes both the weekly engine
+    // and the on-demand force-run idempotent (INSERT OR REPLACE overwrites the same week).
+    db.run(`CREATE TABLE IF NOT EXISTS advisor_reviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        seat TEXT NOT NULL,
+        week_key TEXT NOT NULL,
+        data_pack_json TEXT NOT NULL,
+        observations_json TEXT NOT NULL,
+        model TEXT,
+        is_mock INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(seat, week_key)
+    )`);
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_advisor_reviews_seat ON advisor_reviews(seat, created_at)'); } catch (e) {}
+    // advisor_feedback: one row per Helpful / Not relevant tap on a single observation. Stored, not
+    // silently learned — the owner sees the tally and it tunes future packs by hand.
+    db.run(`CREATE TABLE IF NOT EXISTS advisor_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        review_id INTEGER NOT NULL,
+        observation_idx INTEGER NOT NULL,
+        verdict TEXT NOT NULL,
+        admin_email TEXT,
+        note TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_advisor_feedback_review ON advisor_feedback(review_id)'); } catch (e) {}
+
     // ====================== THE BIOMEDICAL FORUM — WING schema ======================
     // The Forum wing (/forum) is a dignified, invitation-only experience convened under Med&X.
     // These tables live OUTSIDE the SCHEMA-MIRROR block, but are added IDENTICALLY to BOTH portal
@@ -37335,6 +37373,380 @@ ${extraCss || ''}
         } catch (e) { res.status(500).end(); }
     });
 
+    // ============================ EXECUTIVE ADVISORY BOARD ============================
+    // Three standing advisor personas (CMO / CFO / COO) review REAL portal data weekly and record
+    // grounded, ADVICE-ONLY observations with deep links. Nothing here ever sends, edits money or
+    // tickets, or bypasses an approval gate — the boundary is read-only aggregation plus a persisted
+    // note. Packs are cheap COUNT/SUM aggregates over EXISTING tables (well under 200ms). Compose:
+    // persona prompt -> Anthropic (reuses the existing key + ASSISTANT_MODEL routing) -> JSON
+    // observations -> CITE-OR-DROP post-filter (any number not present in the pack is dropped). With
+    // no key it degrades to deterministic threshold observations (is_mock=1) that are ALWAYS useful.
+    const ADVISOR_SEATS = ['CMO', 'CFO', 'COO'];
+
+    // Small helpers. advNum runs a single-value COUNT/SUM query and always returns a finite number.
+    function advNum(sql, params) {
+        try { const r = query.get(sql, params || []); if (!r) return 0; const v = Object.values(r)[0]; const n = Number(v); return Number.isFinite(n) ? n : 0; }
+        catch (e) { return 0; }
+    }
+    function advRound(n) { const x = Number(n); return Number.isFinite(x) ? Math.round(x * 100) / 100 : 0; }
+    // A pack value is always {key, label_en, label_hr, value, unit}. value may be a number or (for a
+    // caveat note) a short string; unit is 'count' | 'EUR' | 'days' | '%' | 'bool' | 'note'.
+    function advVal(key, en, hr, value, unit) { return { key, label_en: en, label_hr: hr, value, unit: unit || 'count' }; }
+    function advGet(pack, key) { const r = (pack || []).find(v => v.key === key); return r ? r.value : 0; }
+
+    // ISO-8601 week key 'YYYY-Www' measured in Europe/Zagreb (matches the weekly-pulse convention).
+    function advIsoWeekKey(d) {
+        let ymd;
+        try { ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zagreb', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d || new Date()); }
+        catch (e) { ymd = (d || new Date()).toISOString().slice(0, 10); }
+        const dt = new Date(ymd + 'T00:00:00Z');
+        dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7) + 3);
+        const isoYear = dt.getUTCFullYear();
+        const firstThu = new Date(Date.UTC(isoYear, 0, 4));
+        firstThu.setUTCDate(firstThu.getUTCDate() - ((firstThu.getUTCDay() + 6) % 7) + 3);
+        const week = 1 + Math.round((dt.getTime() - firstThu.getTime()) / (7 * 86400000));
+        return isoYear + '-W' + String(week).padStart(2, '0');
+    }
+
+    // ------------------------------- DATA PACKS -------------------------------
+    // CMO: campaign funnels, forum acquisition, newsletter reach, social calendar, press activity.
+    function advCmoPack() {
+        const pack = [];
+        pack.push(advVal('invite_campaigns_approved', 'Invitation campaigns live (approved)', 'Aktivne kampanje pozivnica (odobrene)',
+            advNum("SELECT COUNT(*) c FROM event_campaigns WHERE status = 'approved'")));
+        pack.push(advVal('invitees_total', 'People on invitation lists', 'Osobe na popisima pozivnica',
+            advNum("SELECT COUNT(*) c FROM event_campaign_invitees")));
+        pack.push(advVal('invites_sent', 'Invitations sent so far', 'Dosad poslanih pozivnica',
+            advNum("SELECT COUNT(*) c FROM event_campaign_invitees WHERE invited_at IS NOT NULL")));
+        pack.push(advVal('invites_sent_7d', 'Invitations sent in the last 7 days', 'Pozivnice poslane u zadnjih 7 dana',
+            advNum("SELECT COUNT(*) c FROM event_campaign_invitees WHERE invited_at IS NOT NULL AND invited_at >= datetime('now','-7 days')")));
+        pack.push(advVal('invite_replies', 'Replies to invitations', 'Odgovori na pozivnice',
+            advNum("SELECT COUNT(*) c FROM event_campaign_invitees WHERE replied_at IS NOT NULL OR status = 'replied'")));
+        let fc = {}; try { fc = forumCampaignStats() || {}; } catch (e) { fc = {}; }
+        pack.push(advVal('forum_pool_ready', 'Forum candidates ready to invite', 'Kandidati Foruma spremni za poziv', Number(fc.pool_ready) || 0));
+        pack.push(advVal('forum_invited_total', 'Forum invitations sent', 'Poslanih pozivnica Foruma', Number(fc.invited_total) || 0));
+        pack.push(advVal('forum_replied', 'Forum invitation replies', 'Odgovori na pozivnice Foruma', Number(fc.replied) || 0));
+        pack.push(advVal('subs_all', 'Newsletter subscribers (active)', 'Pretplatnici biltena (aktivni)',
+            advNum("SELECT COUNT(*) c FROM (SELECT DISTINCT LOWER(TRIM(email)) e FROM pr_subscribers WHERE status='active' AND email IS NOT NULL AND TRIM(email)<>'')")));
+        pack.push(advVal('subs_forum_members', 'Approved Forum members', 'Odobrenih članova Foruma',
+            advNum("SELECT COUNT(*) c FROM forum_members WHERE membership_status='approved'")));
+        pack.push(advVal('subs_plexus_regs', 'Plexus registrants reachable by email', 'Prijavljenih na Plexus (dostupnih e-poštom)',
+            advNum("SELECT COUNT(*) c FROM (SELECT DISTINCT LOWER(TRIM(email)) e FROM registrations WHERE email IS NOT NULL AND TRIM(email)<>'')")));
+        pack.push(advVal('social_scheduled_7d', 'Social posts scheduled in the next 7 days', 'Objave zakazane u sljedećih 7 dana',
+            advNum("SELECT COUNT(*) c FROM pr_content_calendar WHERE status != 'published' AND scheduled_date >= date('now') AND scheduled_date <= date('now','+7 days')")));
+        pack.push(advVal('social_published_14d', 'Social posts published in the last 14 days', 'Objave objavljene u zadnjih 14 dana',
+            advNum("SELECT COUNT(*) c FROM pr_posts WHERE published_at IS NOT NULL AND published_at >= datetime('now','-14 days')")));
+        pack.push(advVal('press_published', 'Press releases published', 'Objavljenih priopćenja za medije',
+            advNum("SELECT COUNT(*) c FROM press_releases WHERE status = 'published'")));
+        return pack;
+    }
+
+    // CFO: registration money ONLY. The internal finance_* books are demo seed (map §3.12) and are
+    // DELIBERATELY excluded — a caveat value records that so no one mistakes them for live data.
+    function advCfoPack() {
+        const pack = [];
+        const gs = (function () { try { return query.get("SELECT price_gala_only, price_bundle FROM gala_settings WHERE id='default'") || {}; } catch (e) { return {}; } })();
+        const pGala = Number(gs.price_gala_only) || 95;
+        const pBundle = Number(gs.price_bundle) || 174;
+        const paidPlexus = advNum("SELECT COALESCE(SUM(r.amount_paid),0) c FROM registrations r JOIN conferences c2 ON r.conference_id=c2.id WHERE c2.slug='plexus-2026' AND r.status!='cancelled' AND r.payment_status='paid'");
+        const paidGala = advNum("SELECT COALESCE(SUM(COALESCE(amount_paid, CASE WHEN pricing='bundle' THEN ? ELSE ? END)),0) c FROM gala_registrations WHERE payment_status='paid'", [pBundle, pGala]);
+        const paidAcc = advNum("SELECT COALESCE(SUM(COALESCE(payment_amount,75)),0) c FROM accelerator_applications WHERE payment_status='paid' AND status!='draft'");
+        const paidForum = advNum("SELECT COALESCE(SUM(COALESCE(r.payment_amount, e.price, 0)),0) c FROM forum_event_registrations r JOIN forum_events e ON r.event_id=e.id WHERE e.is_paid=1 AND r.payment_status='paid'");
+        const paidCount = advNum("SELECT COUNT(*) c FROM registrations r JOIN conferences c2 ON r.conference_id=c2.id WHERE c2.slug='plexus-2026' AND r.status!='cancelled' AND r.payment_status='paid'")
+            + advNum("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status='paid'")
+            + advNum("SELECT COUNT(*) c FROM accelerator_applications WHERE payment_status='paid' AND status!='draft'")
+            + advNum("SELECT COUNT(*) c FROM forum_event_registrations r JOIN forum_events e ON r.event_id=e.id WHERE e.is_paid=1 AND r.payment_status='paid'");
+        pack.push(advVal('paid_revenue_total', 'Registration revenue collected (EUR)', 'Naplaćeni prihod od prijava (EUR)', advRound(paidPlexus + paidGala + paidAcc + paidForum), 'EUR'));
+        pack.push(advVal('paid_count_total', 'Paid registrations (all events)', 'Plaćenih prijava (svi događaji)', paidCount));
+        pack.push(advVal('paid_rev_plexus', 'Paid revenue — Plexus (EUR)', 'Naplaćeni prihod — Plexus (EUR)', advRound(paidPlexus), 'EUR'));
+        pack.push(advVal('paid_rev_gala', 'Paid revenue — Gala (EUR)', 'Naplaćeni prihod — Gala (EUR)', advRound(paidGala), 'EUR'));
+        pack.push(advVal('paid_rev_accelerator', 'Paid revenue — Accelerator (EUR)', 'Naplaćeni prihod — Akcelerator (EUR)', advRound(paidAcc), 'EUR'));
+        pack.push(advVal('paid_rev_forum', 'Paid revenue — Forum events (EUR)', 'Naplaćeni prihod — događaji Foruma (EUR)', advRound(paidForum), 'EUR'));
+        const galaUnpaid = advNum("SELECT COUNT(*) c FROM gala_registrations WHERE status IN ('approved','awaiting_payment') AND (payment_status IS NULL OR payment_status NOT IN ('paid','vip-comp'))");
+        const galaUnpaidValue = advNum("SELECT COALESCE(SUM(CASE WHEN pricing='bundle' THEN ? ELSE ? END),0) c FROM gala_registrations WHERE status IN ('approved','awaiting_payment') AND (payment_status IS NULL OR payment_status NOT IN ('paid','vip-comp'))", [pBundle, pGala]);
+        const galaUnpaidOldest = advNum("SELECT COALESCE(MAX(julianday('now')-julianday(created_at)),0) c FROM gala_registrations WHERE status IN ('approved','awaiting_payment') AND (payment_status IS NULL OR payment_status NOT IN ('paid','vip-comp'))");
+        pack.push(advVal('gala_approved_unpaid', 'Gala guests approved but unpaid', 'Gala gostiju odobreno, a neplaćeno', galaUnpaid));
+        pack.push(advVal('gala_approved_unpaid_value', 'Estimated value of unpaid gala approvals (EUR)', 'Procijenjena vrijednost neplaćenih gala odobrenja (EUR)', advRound(galaUnpaidValue), 'EUR'));
+        pack.push(advVal('gala_approved_unpaid_oldest_days', 'Oldest unpaid gala approval (days)', 'Najstarije neplaćeno gala odobrenje (dana)', Math.floor(galaUnpaidOldest), 'days'));
+        const plexAwait = advNum("SELECT COUNT(*) c FROM registrations r JOIN conferences c2 ON r.conference_id=c2.id WHERE c2.slug='plexus-2026' AND r.status!='cancelled' AND r.payment_status IN ('unpaid','pending')");
+        const plexAwaitOldest = advNum("SELECT COALESCE(MAX(julianday('now')-julianday(r.created_at)),0) c FROM registrations r JOIN conferences c2 ON r.conference_id=c2.id WHERE c2.slug='plexus-2026' AND r.status!='cancelled' AND r.payment_status IN ('unpaid','pending')");
+        pack.push(advVal('plexus_awaiting', 'Conference registrations awaiting payment', 'Prijava na konferenciju u čekanju plaćanja', plexAwait));
+        pack.push(advVal('plexus_awaiting_oldest_days', 'Oldest conference payment awaited (days)', 'Najdulje čekano plaćanje konferencije (dana)', Math.floor(plexAwaitOldest), 'days'));
+        pack.push(advVal('bank_unmatched', 'Unmatched bank statement lines', 'Nepovezanih stavki bankovnog izvoda', advNum("SELECT COUNT(*) c FROM bank_statement_lines WHERE status='unmatched'")));
+        pack.push(advVal('promo_used_total', 'Discount code redemptions', 'Iskorištenih promotivnih kodova', advNum("SELECT COALESCE(SUM(used_count),0) c FROM promo_codes")));
+        pack.push(advVal('internal_books_excluded', 'Internal finance ledgers', 'Interne financijske knjige', 'excluded (demo seed, not live)', 'note'));
+        return pack;
+    }
+
+    // COO: event readiness — active conference, registration pace vs capacity, content checklist,
+    // Action Center backlog, overdue tasks, and a few condensed system-readiness booleans.
+    function advCooPack() {
+        const pack = [];
+        const conf = (function () { try { return getActiveConference() || {}; } catch (e) { return {}; } })();
+        let daysToEvent = 0;
+        try { if (conf.start_date) { const d = new Date(String(conf.start_date).slice(0, 10) + 'T00:00:00Z'); if (!isNaN(d.getTime())) daysToEvent = Math.ceil((d.getTime() - Date.now()) / 86400000); } } catch (e) {}
+        const capacity = Number(conf.max_capacity) || 0;
+        const regTotal = conf.id ? advNum("SELECT COUNT(*) c FROM registrations WHERE conference_id=? AND status!='cancelled'", [conf.id]) : 0;
+        const reg14 = conf.id ? advNum("SELECT COUNT(*) c FROM registrations WHERE conference_id=? AND status!='cancelled' AND created_at >= datetime('now','-14 days')", [conf.id]) : 0;
+        pack.push(advVal('active_conference', 'Active conference', 'Aktivna konferencija', String(conf.name || 'Plexus 2026'), 'note'));
+        pack.push(advVal('days_to_event', 'Days until the event', 'Dana do događaja', daysToEvent, 'days'));
+        pack.push(advVal('registrations_total', 'Registrations so far', 'Dosadašnjih prijava', regTotal));
+        pack.push(advVal('registrations_14d', 'Registrations in the last 14 days', 'Prijava u zadnjih 14 dana', reg14));
+        pack.push(advVal('capacity', 'Capacity target', 'Ciljani kapacitet', capacity));
+        pack.push(advVal('capacity_pct', 'Percent of capacity filled', 'Postotak popunjenosti kapaciteta', capacity > 0 ? Math.round((regTotal / capacity) * 100) : 0, '%'));
+        pack.push(advVal('checklist_done', 'Content items completed', 'Dovršenih stavki sadržaja', advNum("SELECT COUNT(*) c FROM content_checklist WHERE status='done'")));
+        pack.push(advVal('checklist_total', 'Content items total', 'Ukupno stavki sadržaja', advNum("SELECT COUNT(*) c FROM content_checklist")));
+        pack.push(advVal('nag_open', 'Open Action Center items', 'Otvorenih stavki Akcijskog centra', advNum("SELECT COUNT(*) c FROM nag_items WHERE status IN ('open','actioned')")));
+        pack.push(advVal('nag_oldest_days', 'Oldest open Action Center item (days)', 'Najstarija otvorena stavka Akcijskog centra (dana)', Math.floor(advNum("SELECT COALESCE(MAX(julianday('now')-julianday(created_at)),0) c FROM nag_items WHERE status IN ('open','actioned')")), 'days'));
+        pack.push(advVal('tasks_overdue', 'Overdue team tasks', 'Prekoračenih timskih zadataka', advNum("SELECT COUNT(*) c FROM project_tasks WHERE status NOT IN ('done','completed') AND due_date IS NOT NULL AND TRIM(due_date)<>'' AND date(due_date) < date('now')")));
+        pack.push(advVal('health_ai_key', 'AI key configured', 'AI ključ postavljen', process.env.ANTHROPIC_API_KEY ? 1 : 0, 'bool'));
+        pack.push(advVal('health_email', 'Email provider configured', 'Pružatelj e-pošte postavljen', (process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY || process.env.RESEND_API_KEY || process.env.SMTP_HOST) ? 1 : 0, 'bool'));
+        pack.push(advVal('health_storage', 'Media storage configured', 'Pohrana medija postavljena', process.env.CLOUDINARY_URL ? 1 : 0, 'bool'));
+        return pack;
+    }
+
+    // Persona system prompts (direct-but-courteous veteran register, 3-5 observations, EN output).
+    function advSystemPrompt(seat) {
+        const persona = {
+            CMO: 'You are a seasoned Chief Marketing Officer advising Med&X, a Croatian biomedical NGO that runs the Plexus conference, a Gala evening, an email newsletter, a senior Biomedical Forum and press outreach. You review the marketing numbers the way a veteran would: specific, useful, direct but courteous.',
+            CFO: 'You are a veteran nonprofit Chief Financial Officer advising Med&X, a Croatian biomedical NGO. You review only real registration money — collected revenue, approved-but-unpaid guests, payments awaiting settlement, reconciliation backlog and discount usage. You are precise, calm and direct but courteous.',
+            COO: 'You are a veteran conference-operations Chief Operating Officer advising Med&X, a Croatian biomedical NGO whose flagship is the Plexus conference. You review event readiness: registration pace against capacity and date, the content checklist, the Action Center backlog, overdue tasks and system readiness. You are practical, calm and direct but courteous.'
+        }[seat] || '';
+        return persona + '\n\n' +
+            'You will be given this week\'s DATA PACK: an array of {key, label, value, unit}. These numbers are the ONLY facts you may use. Never invent a number, name, date or amount that is not in the pack.\n\n' +
+            'Return ONLY a JSON array of 3 to 5 observations. Each observation is an object:\n' +
+            '{ "headline": short (max 8 words), "detail": 1-3 plain sentences of advice a veteran would give, "evidence": [ { "label": short, "value": a number copied EXACTLY from a pack value } ], "link_section": one of the allowed link_section values, "link_label": short (max 4 words) }\n\n' +
+            'Rules: Every observation MUST cite at least one real pack number inside its evidence, and every number in evidence MUST be copied exactly from a pack value. Put narrative only in detail, numbers only in evidence. Money is euros. No emojis. No semicolons. No markdown. If nothing needs attention, say so plainly and cite the healthy numbers. Output the JSON array and nothing else.';
+    }
+
+    // One 12s, never-throwing Anthropic call (own helper — the assistant loop is tool-shaped and not
+    // cleanly reusable for a JSON-array persona review). Returns the text, or '' on any failure.
+    async function advCallAnthropic(system, userText, maxTokens) {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) return '';
+        const model = process.env.ASSISTANT_MODEL || 'claude-haiku-4-5';
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 12000);
+        try {
+            const resp = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+                body: JSON.stringify({ model, max_tokens: Math.max(256, Math.min(Number(maxTokens) || 1400, 4096)), system, messages: [{ role: 'user', content: userText }] }),
+                signal: controller.signal
+            });
+            if (!resp.ok) { console.error('[Advisors] anthropic', resp.status); return ''; }
+            const data = await resp.json();
+            return (Array.isArray(data.content) ? data.content : []).filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
+        } catch (e) { console.error('[Advisors] anthropic fetch failed:', e.message); return ''; }
+        finally { clearTimeout(timer); }
+    }
+
+    // Parse a model response into an observation array (tolerant of code fences / stray prose).
+    function advParseObservations(text) {
+        if (!text) return [];
+        let s = String(text).trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+        const a = s.indexOf('['), b = s.lastIndexOf(']');
+        if (a >= 0 && b > a) s = s.slice(a, b + 1);
+        let arr; try { arr = JSON.parse(s); } catch (e) { return []; }
+        return Array.isArray(arr) ? arr.filter(o => o && typeof o === 'object') : [];
+    }
+
+    // CITE-OR-DROP grounding. Every number appearing in an observation's evidence values must match a
+    // number in the pack (integer-equal or within 0.5); an observation with no evidence number drops.
+    function advPackNumbers(pack) {
+        const nums = [];
+        (pack || []).forEach(v => { const n = Number(v.value); if (Number.isFinite(n)) nums.push(n); });
+        return nums;
+    }
+    function advExtractNumbers(str) {
+        const out = [];
+        const m = String(str == null ? '' : str).match(/-?\d[\d.,]*\d|-?\d/g);
+        if (m) m.forEach(t => { const n = parseFloat(String(t).replace(/,/g, '')); if (Number.isFinite(n)) out.push(n); });
+        return out;
+    }
+    function advMatchNum(x, packNums) { return packNums.some(p => Math.abs(p - x) <= 0.5 || Math.round(p) === Math.round(x)); }
+    function advEvidenceGrounded(obs, packNums) {
+        const ev = Array.isArray(obs.evidence) ? obs.evidence : [];
+        let any = false;
+        for (const e of ev) {
+            const raw = e && (e.value !== undefined ? e.value : e);
+            for (const x of advExtractNumbers(raw)) { any = true; if (!advMatchNum(x, packNums)) return false; }
+        }
+        return any;
+    }
+    // Coerce one observation into the stored shape and force link_section into the seat's allow-list.
+    function advSanitizeObs(o, meta) {
+        if (!o || typeof o !== 'object') return null;
+        const headline = String(o.headline || '').trim();
+        const detail = String(o.detail || '').trim();
+        if (!headline || !detail) return null;
+        let evidence = Array.isArray(o.evidence) ? o.evidence : [];
+        evidence = evidence.filter(e => e && typeof e === 'object').map(e => ({ label: String(e.label || '').slice(0, 60), value: e.value })).slice(0, 6);
+        let section = String(o.link_section || '').trim();
+        if (!meta.sections.includes(section)) section = meta.default_section;
+        return { headline: headline.slice(0, 90), detail: detail.slice(0, 500), evidence, link_section: section, link_label: String(o.link_label || 'Open').slice(0, 40) };
+    }
+
+    // Deterministic threshold observations — the no-key (or ungrounded-AI) fallback. Evidence cites
+    // ONLY pack numbers, so it is self-consistent and always useful. Returns >= 1 observation.
+    function advFallbackObservations(seat, pack) {
+        const g = (k) => advGet(pack, k);
+        const ev = (label, val) => ({ label, value: val });
+        const out = [];
+        if (seat === 'CMO') {
+            if (g('invite_campaigns_approved') > 0 && g('invites_sent_7d') === 0)
+                out.push({ headline: 'Live campaign sent nothing this week', detail: 'An approved invitation campaign sent no invitations in the last 7 days. Approve the daily send in the Outbox or check the campaign is not paused.', evidence: [ev('Approved campaigns', g('invite_campaigns_approved')), ev('Sent in last 7 days', g('invites_sent_7d'))], link_section: 'event-invites', link_label: 'Open invitations' });
+            if (g('social_scheduled_7d') === 0)
+                out.push({ headline: 'Nothing scheduled for the coming week', detail: 'The social calendar has no posts scheduled for the next 7 days. A veteran keeps a steady drumbeat, so queue at least a few posts now.', evidence: [ev('Scheduled next 7 days', g('social_scheduled_7d')), ev('Published last 14 days', g('social_published_14d'))], link_section: 'pr-media', link_label: 'Open PR & Media' });
+            if (g('forum_pool_ready') > 0)
+                out.push({ headline: 'Forum candidates waiting for an invite', detail: 'Verified Biomedical Forum candidates are ready but not yet invited. Send the approved invitations while the interest is warm.', evidence: [ev('Ready to invite', g('forum_pool_ready')), ev('Invited so far', g('forum_invited_total'))], link_section: 'forum', link_label: 'Open Forum' });
+            if (!out.length)
+                out.push({ headline: 'Marketing steady this week', detail: 'No marketing gap stands out. Reach and sends are within a normal range, so keep the cadence going.', evidence: [ev('Newsletter subscribers', g('subs_all')), ev('Invitations sent', g('invites_sent'))], link_section: 'pr-media', link_label: 'Open PR & Media' });
+        } else if (seat === 'CFO') {
+            if (g('gala_approved_unpaid') > 0)
+                out.push({ headline: 'Approved gala guests still unpaid', detail: 'Gala guests are approved but have not paid. Approved-unpaid rarely converts on its own, so one reminder touch is worth staging.', evidence: [ev('Approved unpaid', g('gala_approved_unpaid')), ev('Estimated value (EUR)', g('gala_approved_unpaid_value')), ev('Oldest (days)', g('gala_approved_unpaid_oldest_days'))], link_section: 'gala', link_label: 'Open Gala' });
+            if (g('plexus_awaiting') > 0 && g('plexus_awaiting_oldest_days') > 14)
+                out.push({ headline: 'Conference payments are aging', detail: 'Conference registrations are awaiting payment and the oldest is past two weeks. Confirm the bank transfers or nudge the registrants.', evidence: [ev('Awaiting payment', g('plexus_awaiting')), ev('Oldest (days)', g('plexus_awaiting_oldest_days'))], link_section: 'finances', link_label: 'Open Finances' });
+            if (g('bank_unmatched') > 0)
+                out.push({ headline: 'Bank lines to reconcile', detail: 'Bank statement lines are unmatched. Reconciling them now keeps the paid-status ledger accurate.', evidence: [ev('Unmatched lines', g('bank_unmatched'))], link_section: 'finances', link_label: 'Open Finances' });
+            if (!out.length)
+                out.push({ headline: 'Collections look clean', detail: 'No unpaid backlog stands out this week. Collected registration revenue is tracking and nothing is aging.', evidence: [ev('Revenue collected (EUR)', g('paid_revenue_total')), ev('Paid registrations', g('paid_count_total'))], link_section: 'finances', link_label: 'Open Finances' });
+        } else {
+            if (g('days_to_event') > 0 && g('days_to_event') < 60 && g('checklist_done') < g('checklist_total'))
+                out.push({ headline: 'Content still owed close to the event', detail: 'The content checklist is incomplete with under two months to go. Close the open items before they become event-week fires.', evidence: [ev('Days to event', g('days_to_event')), ev('Completed', g('checklist_done')), ev('Total', g('checklist_total'))], link_section: 'dashboard', link_label: 'Open checklist' });
+            if (g('days_to_event') > 0 && g('days_to_event') <= 90 && g('capacity_pct') < 70 && g('capacity') > 0)
+                out.push({ headline: 'Registration pace behind target', detail: 'With about ninety days out, registrations are below seventy percent of capacity. Consider a targeted push or a reminder touch.', evidence: [ev('Registrations', g('registrations_total')), ev('Capacity', g('capacity')), ev('Percent of capacity', g('capacity_pct')), ev('Days to event', g('days_to_event'))], link_section: 'conferences', link_label: 'Open conference' });
+            if (g('tasks_overdue') > 0)
+                out.push({ headline: 'Overdue team tasks', detail: 'Team tasks are past their due date. Clearing overdue work first keeps the operational plan honest.', evidence: [ev('Overdue tasks', g('tasks_overdue'))], link_section: 'dashboard', link_label: 'Open dashboard' });
+            if (g('nag_open') > 0 && !out.length)
+                out.push({ headline: 'Items waiting in the Action Center', detail: 'Action Center items are open. Work the oldest ones first so nothing quietly ages out.', evidence: [ev('Open items', g('nag_open')), ev('Oldest (days)', g('nag_oldest_days'))], link_section: 'dashboard', link_label: 'Open Action Center' });
+            if (!out.length)
+                out.push({ headline: 'Operations on track', detail: 'No readiness gap stands out. Registration pace, checklist and the Action Center are within a normal range.', evidence: [ev('Registrations', g('registrations_total')), ev('Days to event', g('days_to_event'))], link_section: 'conferences', link_label: 'Open conference' });
+        }
+        return out.slice(0, 5);
+    }
+
+    const ADVISOR_SEAT_META = {
+        CMO: { pack: advCmoPack, sections: ['event-invites', 'newsletter', 'pr-media', 'content-studio', 'forum', 'outbox'], default_section: 'pr-media' },
+        CFO: { pack: advCfoPack, sections: ['finances', 'gala', 'outbox', 'event-reminders', 'conferences'], default_section: 'finances' },
+        COO: { pack: advCooPack, sections: ['conferences', 'dashboard', 'health', 'postevent', 'content-studio', 'event-reminders'], default_section: 'conferences' }
+    };
+    function advSeatPack(seat) { const m = ADVISOR_SEAT_META[seat]; return m ? m.pack() : []; }
+
+    // Compose one review: AI when a key is present (grounded + cite-or-drop), else the deterministic
+    // fallback. Never throws — returns { observations, model, is_mock }.
+    async function advComposeReview(seat, pack) {
+        const meta = ADVISOR_SEAT_META[seat];
+        const fallback = advFallbackObservations(seat, pack);
+        if (!process.env.ANTHROPIC_API_KEY) return { observations: fallback, model: null, is_mock: 1 };
+        const model = process.env.ASSISTANT_MODEL || 'claude-haiku-4-5';
+        const packForModel = (pack || []).map(v => ({ key: v.key, label: v.label_en, value: v.value, unit: v.unit }));
+        const userText = 'This week\'s DATA PACK (the ONLY facts you may cite):\n\n' + JSON.stringify(packForModel, null, 2) +
+            '\n\nAllowed link_section values: ' + meta.sections.join(', ') + '\n\nReturn ONLY the JSON array of observations.';
+        let text = '';
+        try { text = await advCallAnthropic(advSystemPrompt(seat), userText, 1400); } catch (e) { text = ''; }
+        if (!text) return { observations: fallback, model: null, is_mock: 1 };
+        const packNums = advPackNumbers(pack);
+        const grounded = advParseObservations(text).map(o => advSanitizeObs(o, meta)).filter(Boolean).filter(o => advEvidenceGrounded(o, packNums)).slice(0, 5);
+        if (!grounded.length) return { observations: fallback, model, is_mock: 1 };
+        return { observations: grounded, model, is_mock: 0 };
+    }
+
+    function advReviewRowToJson(row) {
+        if (!row) return null;
+        let obs = [], pk = [];
+        try { obs = JSON.parse(row.observations_json || '[]'); } catch (e) {}
+        try { pk = JSON.parse(row.data_pack_json || '[]'); } catch (e) {}
+        return { id: row.id, seat: row.seat, week_key: row.week_key, model: row.model, is_mock: !!row.is_mock, created_at: row.created_at, observations: Array.isArray(obs) ? obs : [], data_pack: Array.isArray(pk) ? pk : [] };
+    }
+    function advLatestForSeat(seat) {
+        return advReviewRowToJson(query.get("SELECT * FROM advisor_reviews WHERE seat=? ORDER BY created_at DESC, id DESC LIMIT 1", [seat]));
+    }
+    function advPersistReview(seat, weekKey, pack, composed) {
+        // UPSERT (not INSERT OR REPLACE): a re-run of the same (seat, week) must KEEP the existing
+        // row id, otherwise advisor_feedback rows pointing at it are orphaned and the tally is lost.
+        db.run("INSERT INTO advisor_reviews (seat, week_key, data_pack_json, observations_json, model, is_mock, created_at) VALUES (?,?,?,?,?,?,?) " +
+            "ON CONFLICT(seat, week_key) DO UPDATE SET data_pack_json=excluded.data_pack_json, observations_json=excluded.observations_json, model=excluded.model, is_mock=excluded.is_mock, created_at=excluded.created_at",
+            [seat, weekKey, JSON.stringify(pack || []), JSON.stringify(composed.observations || []), composed.model || null, composed.is_mock ? 1 : 0, new Date().toISOString()]);
+    }
+    // Scheduler-safe audit (no req) — the route mutations use logAudit(req, …) directly.
+    function advLogAuto(action, detail) {
+        try { db.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)', [uuidv4(), null, 'exec-advisors (auto)', action, detail || null]); } catch (e) {}
+    }
+
+    // Weekly engine: one review per (seat, ISO week), idempotent via the drip_log 'exec-advisors'
+    // namespace (INSERT OR IGNORE precheck), so a restart never regenerates a week already covered.
+    async function runAdvisorReviews(opts) {
+        opts = opts || {};
+        const weekKey = advIsoWeekKey();
+        const results = [];
+        for (const seat of ADVISOR_SEATS) {
+            const markerKind = 'review:' + seat + ':' + weekKey;
+            const claimed = !!query.get("SELECT 1 x FROM drip_log WHERE user_id='exec-advisors' AND kind=?", [markerKind]);
+            if (claimed && !opts.force) { results.push({ seat, skipped: true }); continue; }
+            try {
+                const pack = advSeatPack(seat);
+                const composed = await advComposeReview(seat, pack);
+                advPersistReview(seat, weekKey, pack, composed);
+                db.run("INSERT OR IGNORE INTO drip_log (id, user_id, kind, created_at) VALUES (?,?,?,?)", [uuidv4(), 'exec-advisors', markerKind, new Date().toISOString()]);
+                saveDb();
+                advLogAuto('advisor_review_generated', seat + ' ' + weekKey + (composed.is_mock ? ' (rule-based)' : ''));
+                results.push({ seat, created: true, is_mock: composed.is_mock });
+            } catch (e) { console.error('[Advisors] ' + seat + ' failed:', e.message); results.push({ seat, error: e.message }); }
+        }
+        return { week: weekKey, results };
+    }
+    // Force a single seat now (bypasses the week marker via UPSERT, but still claims the marker).
+    async function advForceRunSeat(seat) {
+        const weekKey = advIsoWeekKey();
+        const pack = advSeatPack(seat);
+        const composed = await advComposeReview(seat, pack);
+        advPersistReview(seat, weekKey, pack, composed);
+        db.run("INSERT OR IGNORE INTO drip_log (id, user_id, kind, created_at) VALUES (?,?,?,?)", [uuidv4(), 'exec-advisors', 'review:' + seat + ':' + weekKey, new Date().toISOString()]);
+        saveDb();
+        return advLatestForSeat(seat);
+    }
+
+    // Modest per-IP limit protecting Anthropic spend on the force-run route.
+    const advisorLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests — please slow down a moment.' } });
+
+    app.get('/api/admin/advisors/latest', auth, adminOnly, asyncHandler(async (req, res) => {
+        const seats = {};
+        for (const s of ADVISOR_SEATS) seats[s] = advLatestForSeat(s);
+        res.json({ week: advIsoWeekKey(), seats });
+    }));
+
+    app.get('/api/admin/advisors/history', auth, adminOnly, asyncHandler(async (req, res) => {
+        const seat = String(req.query.seat || '').toUpperCase();
+        if (!ADVISOR_SEATS.includes(seat)) return res.status(400).json({ error: 'Unknown seat' });
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+        const rows = query.all("SELECT * FROM advisor_reviews WHERE seat=? ORDER BY created_at DESC, id DESC LIMIT ?", [seat, limit]);
+        res.json({ seat, reviews: rows.map(advReviewRowToJson) });
+    }));
+
+    app.post('/api/admin/advisors/run/:seat', advisorLimiter, auth, adminOnly, asyncHandler(async (req, res) => {
+        const seat = String(req.params.seat || '').toUpperCase();
+        if (!ADVISOR_SEATS.includes(seat)) return res.status(400).json({ error: 'Unknown seat' });
+        const review = await advForceRunSeat(seat);
+        logAudit(req, 'advisor_review_run', seat + ' ' + ((review && review.week_key) || ''));
+        res.json({ ok: true, review });
+    }));
+
+    app.post('/api/admin/advisors/:reviewId/feedback', auth, adminOnly, asyncHandler(async (req, res) => {
+        const reviewId = parseInt(req.params.reviewId, 10);
+        if (!Number.isInteger(reviewId)) return res.status(400).json({ error: 'Bad review id' });
+        const { observation_idx, verdict, note } = req.body || {};
+        if (!['helpful', 'not_relevant'].includes(verdict)) return res.status(400).json({ error: "verdict must be 'helpful' or 'not_relevant'" });
+        const idx = parseInt(observation_idx, 10);
+        if (!Number.isInteger(idx) || idx < 0) return res.status(400).json({ error: 'Bad observation_idx' });
+        if (!query.get("SELECT id FROM advisor_reviews WHERE id=?", [reviewId])) return res.status(404).json({ error: 'Review not found' });
+        db.run("INSERT INTO advisor_feedback (review_id, observation_idx, verdict, admin_email, note, created_at) VALUES (?,?,?,?,?,?)",
+            [reviewId, idx, verdict, (req.user && req.user.email) || null, note ? String(note).slice(0, 500) : null, new Date().toISOString()]);
+        saveDb();
+        logAudit(req, 'advisor_feedback', 'review ' + reviewId + ' obs ' + idx + ' -> ' + verdict);
+        res.json({ ok: true });
+    }));
+
     // API 404 handler — prevent unmatched API routes from returning HTML
     app.use('/api', (req, res) => {
         res.status(404).json({ error: 'API endpoint not found' });
@@ -37599,6 +38011,21 @@ app.get('*', (req, res) => {
         try { runStaffStaleScan(); } catch (e) { /* skip */ }
         setInterval(() => { try { runStaffStaleScan(); } catch (e) {} }, 60 * 1000);
         console.log('[Tracking] Event-day stale check-in sweep active (60s)');
+
+        // EXECUTIVE ADVISORY BOARD — weekly CMO/CFO/COO reviews. A boot-time run seeds this week's
+        // reviews immediately (idempotent via the drip_log 'exec-advisors' namespace, so a restart
+        // never regenerates a week already covered — the missing-boot-run bug in the campaign engines
+        // is the cautionary tale). A 6-hourly tick then generates the new week on Mondays (Zagreb).
+        // ADVICE ONLY — this never sends anything.
+        try { runAdvisorReviews().catch(() => {}); } catch (e) { console.warn('[Advisors] boot run skipped:', e.message); }
+        setInterval(() => {
+            try {
+                let ymd; try { ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zagreb', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); } catch (e) { ymd = new Date().toISOString().slice(0, 10); }
+                let isMonday = false; try { isMonday = new Date(ymd + 'T00:00:00Z').getUTCDay() === 1; } catch (e) {}
+                if (isMonday) runAdvisorReviews().catch(() => {});
+            } catch (e) {}
+        }, 6 * 60 * 60 * 1000);
+        console.log('[Advisors] Weekly executive advisory reviews active (6h tick, Mondays)');
     });
 }
 
