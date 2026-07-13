@@ -10926,7 +10926,7 @@ President, Med&amp;X</textarea>
                         <button class="tab-btn" onclick="PRApp.showTab('media', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
                             <i class="fas fa-images"></i> Media Library
                         </button>
-                        <button class="tab-btn" onclick="PRApp.showTab('ai-studio', this)" style="display:none; padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                        <button class="tab-btn" onclick="PRApp.showTab('ai-studio', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
                             <i class="fas fa-magic"></i> AI Studio
                         </button>
                         <button class="tab-btn" onclick="PRApp.showTab('campaigns', this)" style="padding: 10px 16px; background: transparent; color: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
@@ -24580,6 +24580,7 @@ President, Med&amp;X</textarea>
             },
 
             async deleteSponsorTask(taskId, sponsorId) {
+                if (!(await adminConfirm({ destructive: true, title: 'Delete this task?', confirmText: 'Delete' }))) return;
                 try {
                     await this.api(`/api/admin/plexus/sponsor-tasks/${taskId}`, { method: 'DELETE' });
                     await this.loadPlexusSponsors();
@@ -36202,10 +36203,10 @@ By applying to this program, I give the following consents:
                         document.getElementById('newsletterBodyInput').value = data.body;
                         Toast.success('Newsletter draft generated from recent data!');
                     } else {
-                        Toast.error('Failed to auto-generate: ' + (data.error || 'Unknown error'));
+                        Toast.error('Could not generate the draft. Try again.');
                     }
                 } catch (err) {
-                    Toast.error('Auto-generate failed: ' + err.message);
+                    Toast.error('Could not generate the draft. Try again.');
                 }
             },
 
@@ -38115,11 +38116,15 @@ By applying to this program, I give the following consents:
                 document.getElementById('prAiBriefText').textContent = brief;
 
                 // Save the useful brief to history (not an empty image record).
-                await this.api('/api/pr/ai-generations', {
-                    method: 'POST',
-                    body: JSON.stringify({ type: 'image_brief', prompt, result_text: brief, project, platform })
-                });
-                this.loadAiHistory();
+                try {
+                    await this.api('/api/pr/ai-generations', {
+                        method: 'POST',
+                        body: JSON.stringify({ type: 'image_brief', prompt, result_text: brief, project, platform })
+                    });
+                    this.loadAiHistory();
+                } catch (err) {
+                    Toast.error('Could not save the brief to history. Try again.');
+                }
             },
 
             buildImageBrief(project, platform, prompt) {
@@ -38170,11 +38175,15 @@ By applying to this program, I give the following consents:
                 document.getElementById('prAiGeneratedCaption').textContent = caption;
 
                 // Save to history
-                await this.api('/api/pr/ai-generations', {
-                    method: 'POST',
-                    body: JSON.stringify({ type: 'caption', prompt: topic, result_text: caption, platform })
-                });
-                this.loadAiHistory();
+                try {
+                    await this.api('/api/pr/ai-generations', {
+                        method: 'POST',
+                        body: JSON.stringify({ type: 'caption', prompt: topic, result_text: caption, platform })
+                    });
+                    this.loadAiHistory();
+                } catch (err) {
+                    Toast.error('Could not save the caption to history. Try again.');
+                }
             },
 
             buildCaption(topic, tone, platform) {
@@ -43153,6 +43162,7 @@ By applying to this program, I give the following consents:
                 if (r.ok) { this.loadTasks(); } else { Toast.error('Could not update'); }
             },
             async delTask(id) {
+                if (!(await adminConfirm({ destructive: true, title: 'Delete this task?', confirmText: 'Delete' }))) return;
                 const r = await opsApi('/api/admin/tasks/' + id, { method: 'DELETE' });
                 if (r.ok) { this.loadTasks(); } else { Toast.error('Could not delete'); }
             },

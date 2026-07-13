@@ -21788,57 +21788,61 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         try {
             const parts = [];
 
+            // Defensive pull: a missing table/column in any environment skips that
+            // section instead of failing the whole draft.
+            const pull = (sql) => { try { return query.all(sql); } catch (e) { return []; } };
+
             // Pull upcoming Plexus sessions
-            const sessions = query.all(`SELECT title, day, start_time FROM sessions ORDER BY day, start_time LIMIT 5`);
+            const sessions = pull(`SELECT title, day, start_time FROM sessions ORDER BY day, start_time LIMIT 5`);
             if (sessions.length) {
                 parts.push('UPCOMING SESSIONS');
                 sessions.forEach(s => {
-                    parts.push(`- ${s.title} (${s.day || 'TBD'} at ${s.start_time || 'TBD'})`);
+                    parts.push(`- ${s.title || 'Untitled session'} (${s.day || 'TBD'} at ${s.start_time || 'TBD'})`);
                 });
             }
 
-            // Pull upcoming Accelerator key dates
-            const keyDates = query.all(`SELECT title, date_start FROM accelerator_key_dates WHERE date_start >= date('now') ORDER BY date_start LIMIT 5`);
+            // Pull upcoming Accelerator key dates (column is `name`, not `title`)
+            const keyDates = pull(`SELECT name AS title, date_start FROM accelerator_key_dates WHERE date_start >= date('now') ORDER BY date_start LIMIT 5`);
             if (keyDates.length) {
                 parts.push('');
                 parts.push('KEY DATES');
                 keyDates.forEach(d => {
-                    parts.push(`- ${d.title}: ${d.date_start}`);
+                    parts.push(`- ${d.title || 'Untitled'}: ${d.date_start}`);
                 });
             }
 
             // Pull upcoming Forum events
-            const forumEvents = query.all(`SELECT title, start_date FROM forum_events WHERE start_date >= date('now') ORDER BY start_date LIMIT 5`);
+            const forumEvents = pull(`SELECT title, start_date FROM forum_events WHERE start_date >= date('now') ORDER BY start_date LIMIT 5`);
             if (forumEvents.length) {
                 parts.push('');
                 parts.push('FORUM EVENTS');
                 forumEvents.forEach(e => {
-                    parts.push(`- ${e.title} (${e.start_date})`);
+                    parts.push(`- ${e.title || 'Untitled event'} (${e.start_date})`);
                 });
             }
 
-            // Pull upcoming Bridges events
-            const bridgesEvents = query.all(`SELECT title, date FROM bridges_events WHERE date >= date('now') ORDER BY date LIMIT 5`);
+            // Pull upcoming Bridges events (columns are `name` and `event_date`)
+            const bridgesEvents = pull(`SELECT name AS title, event_date AS date FROM bridges_events WHERE event_date >= date('now') ORDER BY event_date LIMIT 5`);
             if (bridgesEvents.length) {
                 parts.push('');
                 parts.push('BUILDING BRIDGES');
                 bridgesEvents.forEach(e => {
-                    parts.push(`- ${e.title} (${e.date})`);
+                    parts.push(`- ${e.title || 'Untitled event'} (${e.date})`);
                 });
             }
 
             // Pull recent announcements
-            const announcements = query.all(`SELECT title, content FROM announcements ORDER BY published_at DESC LIMIT 3`);
+            const announcements = pull(`SELECT title, content FROM announcements ORDER BY published_at DESC LIMIT 3`);
             if (announcements.length) {
                 parts.push('');
                 parts.push('RECENT ANNOUNCEMENTS');
                 announcements.forEach(a => {
-                    parts.push(`- ${a.title}${a.content ? ': ' + a.content.substring(0, 100) : ''}`);
+                    parts.push(`- ${a.title || 'Untitled'}${a.content ? ': ' + a.content.substring(0, 100) : ''}`);
                 });
             }
 
-            // Pull recently confirmed speakers
-            const speakers = query.all(`SELECT name, title, institution FROM speakers WHERE status = 'confirmed' ORDER BY created_at DESC LIMIT 5`);
+            // Pull recently confirmed speakers (schema has is_confirmed, no status/created_at)
+            const speakers = pull(`SELECT name, title, institution FROM speakers WHERE COALESCE(is_confirmed, 0) = 1 ORDER BY is_keynote DESC, sort_order LIMIT 5`);
             if (speakers.length) {
                 parts.push('');
                 parts.push('CONFIRMED SPEAKERS');
@@ -25400,13 +25404,21 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     });
 
     app.post('/api/pr/ai-generations', auth, (req, res) => {
-        const { type, prompt, result_text, result_image_path, project, platform, model } = req.body;
-        const id = uuidv4();
-        db.run(`INSERT INTO pr_ai_generations (id, type, prompt, result_text, result_image_path, project, platform, model, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, type, prompt, result_text || null, result_image_path || null, project || null, platform || null, model || null, req.user?.id || null]);
-        saveDb();
-        res.json({ id, success: true });
+        try {
+            const { type, prompt, result_text, result_image_path, project, platform, model } = req.body;
+            if (!type || !prompt) return res.status(400).json({ error: 'type and prompt are required' });
+            const id = uuidv4();
+            // The original table has NOT NULL generation_type (+ output); type/result_text were
+            // added later by ALTER. Write both so the insert satisfies the legacy constraint
+            // and history rows read consistently whichever column a client uses.
+            db.run(`INSERT INTO pr_ai_generations (id, type, generation_type, prompt, result_text, output, result_image_path, project, platform, model, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, type, type, prompt, result_text || null, result_text || null, result_image_path || null, project || null, platform || null, model || null, req.user?.id || null]);
+            saveDb();
+            res.json({ id, success: true });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
     });
 
     app.post('/api/pr/ai-generations/:id/use', auth, (req, res) => {
