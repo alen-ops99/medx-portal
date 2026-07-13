@@ -8910,8 +8910,12 @@ async function initializeApp() {
             // "Verify your email" banner nudges them, they are never locked out). email_verified flips
             // to 1 only when they click the link (GET /api/auth/verify). Email routes through the
             // sendEmail() mock boundary; in dev the link is logged, never actually emailed.
+            // When no email provider is configured the verification link can never be delivered,
+            // so create the account already-verified — otherwise login would dead-end forever (see
+            // /api/auth/login). When a provider IS set, create it unverified and let the link flip it.
+            const emailEnabled = !!(process.env.RESEND_API_KEY || process.env.SMTP_USER);
             db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, email_verified, verification_token)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country, 0, null]);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country, emailEnabled ? 0 : 1, null]);
             // Adopt the locale the member chose on the portal (additive — used for member-facing emails).
             const signupLocale = (locale === 'hr' || locale === 'en') ? locale : null;
             if (signupLocale) { try { db.run('UPDATE users SET locale = ? WHERE id = ?', [signupLocale, id]); } catch (e) { /* locale column added by HR1 migration */ } }
@@ -8945,8 +8949,19 @@ async function initializeApp() {
             if (!user || !(await bcrypt.compare(password, user.password_hash))) {
                 return res.status(401).json({ error: 'Invalid credentials' });
             }
-            if (!user.email_verified) {
+            // Email verification can only be enforced when an email provider is actually
+            // configured to deliver the verification link. On a service with no provider
+            // (no RESEND_API_KEY / SMTP_USER) the link is never sent, so gating login on
+            // email_verified would permanently lock out EVERY user — including the seeded
+            // admin — with no way to ever heal. In that case we skip the check and self-heal
+            // the flag on a successful password login. When a provider IS configured the
+            // gate stays fully enforced.
+            const emailEnabled = !!(process.env.RESEND_API_KEY || process.env.SMTP_USER);
+            if (emailEnabled && !user.email_verified) {
                 return res.status(403).json({ error: 'Email not verified', needsVerification: true, email: user.email });
+            }
+            if (!emailEnabled && !user.email_verified) {
+                try { db.run('UPDATE users SET email_verified = 1 WHERE id = ?', [user.id]); saveDb(); } catch (e) { /* best-effort heal */ }
             }
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
             res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin, quiet: quietFlagFor(user) }});
