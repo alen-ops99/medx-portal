@@ -10,7 +10,8 @@
     <meta name="apple-mobile-web-app-title" content="Med&X Staff">
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <link rel="icon" type="image/png" href="assets/favicon-x.png">
+    <link rel="icon" type="image/png" href="/assets/favicon-x.png">
+    <link rel="shortcut icon" href="/assets/favicon-x.png">
     <script>
       // Register the staff service worker (enables install-to-home-screen + offline shell).
       if ('serviceWorker' in navigator) {
@@ -3783,8 +3784,13 @@
         }
 
         .mobile-menu-btn {
-            width: 40px;
-            height: 40px;
+            /* >=44x44 tap target (WCAG 2.5.5). Edge-anchored in a space-between header,
+               so the +4px over 40px enlarges only the hit area — no layout shift. */
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             background: none;
             border: none;
             color: var(--text-primary);
@@ -3808,8 +3814,12 @@
         }
 
         .mobile-chat-btn {
-            width: 40px;
-            height: 40px;
+            /* >=44x44 tap target (WCAG 2.5.5); enlarges hit area only, no layout shift. */
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             background: none;
             border: none;
             color: var(--text-primary);
@@ -6334,9 +6344,12 @@
             font-weight: 500;
             z-index: 9000;
             transform: translateY(100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            /* Parked = out of the a11y tree; only surfaces when UnsavedChanges adds .visible
+               (i.e. there ARE unsaved edits). Visibility hides after the 0.3s slide-out. */
+            visibility: hidden;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.3s;
         }
-        .unsaved-bar.visible { transform: translateY(0); }
+        .unsaved-bar.visible { transform: translateY(0); visibility: visible; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s; }
         .unsaved-bar i { font-size: 14px; }
         .unsaved-bar-actions { display: flex; gap: 8px; margin-left: 12px; }
         .unsaved-bar-actions button {
@@ -6363,8 +6376,33 @@
 
         /* ===== BULK ROW SELECTION + ACTION BAR (item 16) ===== */
         .bs-cb { width: 15px; height: 15px; accent-color: #9b1b22; cursor: pointer; vertical-align: middle; }
-        .bulk-bar { position: fixed; bottom: 18px; left: 50%; transform: translate(-50%, 200%); z-index: 9500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 10px 16px; box-shadow: 0 14px 44px rgba(0,0,0,0.5); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); max-width: min(94vw, 940px); }
-        .bulk-bar.visible { transform: translate(-50%, 0); }
+        /* Parked = off-screen AND out of the a11y tree; only surfaces when >=1 registrant is
+           selected (BulkSelect.render adds .visible). Visibility hides after the slide-out. */
+        .bulk-bar { position: fixed; bottom: 18px; left: 50%; transform: translate(-50%, 200%); z-index: 9500; visibility: hidden; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px; padding: 10px 16px; box-shadow: 0 14px 44px rgba(0,0,0,0.5); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1), visibility 0s linear 0.25s; max-width: min(94vw, 940px); }
+        .bulk-bar.visible { transform: translate(-50%, 0); visibility: visible; transition: transform 0.25s cubic-bezier(0.4,0,0.2,1), visibility 0s; }
+
+        /* ===== AUTH SHELL GATE (pre-login leak fix) =====
+           #networkPanel, #networkOverlay, #bulkBar and #unsavedBar are fixed-position overlays that
+           live OUTSIDE #mainApp, so .app{display:none} does NOT hide them before login. Keep them out
+           of the DOM/a11y tree until authenticated (body.authed is set in showApp, cleared on logout).
+           Pre-login only the login card is interactive. */
+        body:not(.authed) #networkPanel,
+        body:not(.authed) #networkOverlay,
+        body:not(.authed) #bulkBar,
+        body:not(.authed) #unsavedBar { display: none !important; }
+
+        /* Contacts drawer: parked off-canvas AND out of the a11y tree (visibility:hidden) until opened.
+           .open (toggled by NetworkApp.open/closePanel) slides it in and reveals it; on close it slides
+           out first, then visibility flips after the 0.3s transition so the slide-out stays visible. */
+        #networkPanel { width: 65%; left: -65%; visibility: hidden; transition: left 0.3s ease, visibility 0s linear 0.3s; }
+        #networkPanel.open { left: 0; visibility: visible; transition: left 0.3s ease, visibility 0s; }
+        /* Phones: 65% (~254px on a 390px screen) was too narrow — it clipped the Title/Organization
+           column and pushed the search field past the panel edge. Go full-width so the toolbar fits
+           and the wide contacts table can be scrolled horizontally to reach every column. */
+        @media (max-width: 768px) {
+            #networkPanel { width: 100%; left: -100%; }
+            #networkPanel .netcontacts-scroll { -webkit-overflow-scrolling: touch; }
+        }
         .bulk-bar .bb-count { font-weight: 700; font-size: 13px; white-space: nowrap; }
         .bulk-bar .btn { padding: 6px 11px; font-size: 12px; white-space: nowrap; }
         @media (max-width: 768px) { .bulk-bar { bottom: 8px; padding: 8px 10px; gap: 6px; } }
@@ -13854,7 +13892,7 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
-                <!-- TEAM ACCESS -->
+                <!-- RESOURCES -->
                 <div class="section" id="section-resources">
                     <div class="section-header">
                         <div>
@@ -13957,6 +13995,9 @@ President, Med&amp;X</textarea>
                         </div>
                     </div>
                 </div>
+                </div><!-- /#section-resources (was left unclosed here, which nested team/audit/health/tech inside it, so showSection treated them as escaping the main element and hid .main-wrapper, blanking those four pages) -->
+
+                <!-- TEAM ACCESS -->
                 <div class="section" id="section-team">
                     <div class="back-link" onclick="App.showSection('dashboard')"><i class="fas fa-arrow-left"></i> Back to Dashboard</div>
                     <h2 style="margin:0 0 6px;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-users-gear" style="color:#fbbf24;"></i> Team Access</h2>
@@ -15548,7 +15589,7 @@ President, Med&amp;X</textarea>
     </div>
 
     <!-- Network Panel (sliding panel from left - wide version) -->
-    <div id="networkPanel" style="position: fixed; top: 0; left: -65%; width: 65%; height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); z-index: 1001; transition: left 0.3s ease; display: flex; flex-direction: column; overflow-x: hidden;">
+    <div id="networkPanel" style="position: fixed; top: 0; height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); z-index: 1001; display: flex; flex-direction: column; overflow-x: hidden;">
         <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
             <h2 style="font-size: 20px; font-weight: 600;"><i class="fas fa-address-book" style="color: var(--accent-gold); margin-right: 10px;"></i>My Network</h2>
             <button onclick="NetworkApp.closePanel()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer; padding: 4px 8px;">&times;</button>
@@ -15586,7 +15627,7 @@ President, Med&amp;X</textarea>
             <div id="resHistory" style="margin-top: 14px;"></div>
         </div>
         <!-- Horizontal table layout -->
-        <div style="flex: 1; overflow: auto; padding: 16px 24px;">
+        <div class="netcontacts-scroll" style="flex: 1; min-width: 0; overflow: auto; padding: 16px 24px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;" id="networkContactsTable">
                 <thead>
                     <tr style="border-bottom: 2px solid var(--border); text-align: left;">
@@ -16902,6 +16943,7 @@ President, Med&amp;X</textarea>
                 this.user = null;
                 if (this.chatRefreshInterval) clearInterval(this.chatRefreshInterval);
                 document.getElementById('mainApp').classList.remove('active');
+                document.body.classList.remove('authed');
                 document.getElementById('loginPage').style.display = 'flex';
                 document.getElementById('globalQRBtn').style.display = 'none';
                 { const af = document.getElementById('assistantFab'); if (af) af.style.display = 'none'; }
@@ -16931,6 +16973,9 @@ President, Med&amp;X</textarea>
             async showApp() {
                 document.getElementById('loginPage').style.display = 'none';
                 document.getElementById('mainApp').classList.add('active');
+                // Authenticated: release the auth-gated shell overlays (contacts drawer, bulk
+                // toolbar, unsaved-changes bar) that live outside #mainApp. See the AUTH SHELL GATE.
+                document.body.classList.add('authed');
                 // Check-in scanner FAB: visible everywhere for admins & scanner staff (the global
                 // scanner handles every event, so it's useful on any section — not just Plexus).
                 { const qf = document.getElementById('globalQRBtn'); if (qf && this.user && (this.user.is_admin || this.user.is_staff)) qf.style.display = 'flex'; }
@@ -33876,14 +33921,14 @@ By applying to this program, I give the following consents:
                 // panel is in the DOM) so we never throw on a null style access.
                 const panel = document.getElementById('networkPanel');
                 if (!panel) return;
-                panel.style.left = '0';
+                panel.classList.add('open');
                 const overlay = document.getElementById('networkOverlay');
                 if (overlay) overlay.style.display = 'block';
                 this.loadContacts();
             },
 
             closePanel() {
-                document.getElementById('networkPanel').style.left = '-65%';
+                document.getElementById('networkPanel').classList.remove('open');
                 document.getElementById('networkOverlay').style.display = 'none';
             },
 
@@ -50422,6 +50467,10 @@ By applying to this program, I give the following consents:
             sectionNames: {
                 'dashboard': { label: 'Home', icon: 'fa-home' },
                 'plexus': { label: 'Plexus Conference', icon: 'fa-microscope' },
+                'home-plexus': { label: 'Plexus Week 2026', icon: 'fa-microscope' },
+                'home-bridges': { label: 'Building Bridges', icon: 'fa-bridge' },
+                'home-accelerator': { label: 'Accelerator', icon: 'fa-rocket' },
+                'home-forum': { label: 'Biomedical Forum', icon: 'fa-dna' },
                 'accelerator': { label: 'Accelerator', icon: 'fa-rocket' },
                 'forum': { label: 'Biomedical Forum', icon: 'fa-dna' },
                 'bridges': { label: 'Building Bridges', icon: 'fa-bridge' },
@@ -50491,6 +50540,13 @@ By applying to this program, I give the following consents:
         App.showSection = function(sectionId, navItem, skipHistory) {
             if (sectionId !== 'content-studio' && typeof ContentStudio !== 'undefined') ContentStudio.onLeave();
             _csLeaveShowSection.call(this, sectionId, navItem, skipHistory);
+        };
+
+        // Hook breadcrumbs into showProjectHome (project home pages)
+        const _origShowProjectHome = App.showProjectHome;
+        App.showProjectHome = function(projectId, navItem, skipHistory) {
+            _origShowProjectHome.call(this, projectId, navItem, skipHistory);
+            Breadcrumbs.update('home-' + projectId);
         };
 
         // Hook breadcrumbs into showProject
@@ -52429,7 +52485,7 @@ By applying to this program, I give the following consents:
                     const dl = `<datalist id="spkSpeakerList">${this.speakers.map(s => `<option value="${esc(s.name)}">`).join('')}</datalist>`;
                     const field = (labelText, id, value, type, ph) => `<div>${lbl(labelText)}<input id="${id}" type="${type || 'text'}" value="${esc(value || '')}" placeholder="${esc(ph || '')}" style="${INP}"></div>`;
                     const savedNote = (this.cur && this.cur.id)
-                        ? `<span style="font-size:12px;${MUTED}">Link: <a href="${esc(this.cur.public_url)}" target="_blank" rel="noopener" style="color:var(--text-primary);">${esc(this.cur.public_url)}</a></span>`
+                        ? `<span style="font-size:12px;overflow-wrap:anywhere;word-break:break-all;${MUTED}">Link: <a href="${esc(this.cur.public_url)}" target="_blank" rel="noopener" style="color:var(--text-primary);overflow-wrap:anywhere;">${esc(this.cur.public_url)}</a></span>`
                         : `<span style="font-size:12px;${MUTED}">Save first to generate the link and add schedule items.</span>`;
                     root.innerHTML = `
                         ${dl}

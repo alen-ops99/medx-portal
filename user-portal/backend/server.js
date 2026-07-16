@@ -1106,7 +1106,7 @@ const REVOKED_INVITE_IDS = new Set([
 // gala_registrations table + Gala Sheet tab as every other Gala entry point (unified data).
 // Reachable publicly at /plexus and via an admin-generated link at /plexus/:token (the token's
 // registration_links.component_keys decide which of the three events the link OFFERS).
-const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title || 'Plexus 2026'}</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>
+const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title || 'Plexus 2026'}</title><link rel="icon" type="image/png" href="/assets/favicon-x.png"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif; color:#e2e8f0; padding:32px 16px; }
     /* Wide on desktop (was a fixed 640px strip — that's why it didn't use desktop space). */
@@ -1115,12 +1115,12 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     .logo img { height:38px; width:auto; display:inline-block; filter:brightness(0) invert(1); }
     .logo span { font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px; }
     .logo span em { font-style:normal; color:#c9a962; }
-    .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:20px; padding:28px 26px; }
+    .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:20px; padding:28px 26px; min-width:0; max-width:100%; }
     /* Hero header band spanning the full width on desktop. */
     .hero { background:linear-gradient(135deg,rgba(201,169,98,0.12),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.22); border-radius:20px; padding:34px 28px; text-align:center; margin-bottom:20px; }
     .hero .lede { max-width:640px; margin:0 auto; }
     /* Two-column layout on desktop: events on the left, the form on the right. */
-    .plex-layout { display:grid; grid-template-columns:1.25fr 1fr; gap:20px; align-items:start; }
+    .plex-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:20px; align-items:start; }
     .form-col { position:sticky; top:24px; }
     .badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#c9a962; margin-bottom:12px; padding:5px 12px; background:rgba(201,169,98,0.12); border-radius:20px; }
     h1 { font-size:24px; font-weight:700; color:#fff; margin-bottom:6px; line-height:1.2; }
@@ -1190,7 +1190,7 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     .foot a { color:#c9a962; text-decoration:none; }
     /* Mid widths — drop the two-column split to a single stacked column. */
     @media (max-width: 880px) {
-        .plex-layout { grid-template-columns: 1fr; }
+        .plex-layout { grid-template-columns: minmax(0, 1fr); }
         .form-col { position: static; }
     }
     /* Tablet / large phone — stack the form to one column, tighten the cards (mirrors the Gala
@@ -1205,10 +1205,15 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
         .event-option { padding: 14px; gap: 12px; }
         .event-icon { width: 34px; height: 34px; font-size: 14px; }
         .event-name { font-size: 14.5px; }
-        .event-price { font-size: 12.5px; }
+        .event-price { font-size: 12.5px; white-space: normal; }
         .event-meta { font-size: 11.5px; }
         .form-row { grid-template-columns: 1fr; gap: 12px; }
         .submit-btn { padding: 14px; font-size: 14px; }
+        /* iOS Safari auto-zooms any focused control whose font-size is < 16px.
+           Bump form controls to 16px on phones/tablets only (desktop keeps 13.5px). */
+        input, select, textarea { font-size: 16px; }
+        /* Comfortable 44px touch targets for the add-to-calendar chips. */
+        .plex-cal-btn { min-height: 44px; }
     }
     /* Small phone — further compaction, larger touch targets kept comfortable. */
     @media (max-width: 480px) {
