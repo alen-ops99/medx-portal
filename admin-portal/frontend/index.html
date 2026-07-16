@@ -7257,6 +7257,13 @@
                     <i class="fas fa-server" style="color: #9b1b22;"></i>
                     <span>Tech</span>
                 </a>
+
+                <!-- DISCOVER TOUR — quiet pinned entry (delegated, no inline onclick). Role-gated: applyRoleRestrictions hides it for scanner staff. -->
+                <div class="nav-divider"></div>
+                <a class="nav-item" data-section="discover" style="border-left:2px solid var(--gold);">
+                    <i class="fas fa-compass" style="color: #c9a962;"></i>
+                    <span>Discover</span>
+                </a>
             </nav>
 
             <!-- My Network Button -->
@@ -10239,6 +10246,116 @@ President, Med&amp;X</textarea>
 
                     <!-- Dynamic Dashboard Cards -->
                     <div id="bridgesDashboardCards" style="margin-top: 16px;"></div>
+                </div>
+
+
+                <!-- ==================== DISCOVER TOUR (in-portal onboarding) ====================
+                     Native section. Body rendered by Discover.render() from TOUR_COPY (EN/HR).
+                     Delegated data-tour-* handlers only — zero inline onclick in this block. -->
+                <style>
+                  #section-discover { --tour-accent: var(--gold); }
+                  .tour-root { max-width: 900px; margin: 0 auto; position: relative; }
+                  .tour-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+                  .tour-eyebrow { display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:800; letter-spacing:.14em; color:var(--gold); text-transform:uppercase; }
+                  .tour-eyebrow i { font-size:14px; }
+                  .tour-controls { display:flex; align-items:center; gap:10px; }
+                  .tour-langpill { display:inline-flex; border:1px solid var(--border); border-radius:999px; overflow:hidden; background:var(--bg-secondary); }
+                  .tour-lang-btn { border:none; background:transparent; padding:6px 14px; font-size:12px; font-weight:700; color:var(--text-muted); cursor:pointer; line-height:1; }
+                  .tour-lang-btn.active { background:var(--gold); color:#15110f; }
+                  .tour-skip { border:none; background:transparent; color:var(--text-muted); font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px; padding:6px 4px; }
+                  .tour-skip:hover { color:var(--text-primary); }
+
+                  /* Hero */
+                  .tour-hero { padding:22px 0 8px; }
+                  .tour-hero h1 { font-size:30px; line-height:1.15; font-weight:800; color:var(--text-primary); margin:0 0 12px; max-width:20ch; }
+                  .tour-hero p { font-size:16px; color:var(--text-secondary); line-height:1.5; margin:0 0 22px; max-width:52ch; }
+                  .tour-hero-demo { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:26px; }
+                  .thd-item { flex:1 1 200px; display:flex; align-items:center; gap:10px; min-width:0; }
+                  .thd-old { display:inline-flex; align-items:center; gap:8px; padding:9px 12px; border:1px dashed var(--border); border-radius:11px; background:var(--bg-tertiary); color:var(--text-muted); font-size:12.5px; font-weight:600; white-space:nowrap; }
+                  .thd-old .thd-strike { position:relative; }
+                  .thd-arrow { color:var(--text-muted); font-size:12px; flex:0 0 auto; }
+                  .thd-new { display:inline-flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid var(--border); border-radius:11px; background:var(--card-bg); color:var(--text-primary); font-size:12.5px; font-weight:800; white-space:nowrap; box-shadow:0 4px 16px rgba(201,169,98,.14); }
+                  .thd-new i { color:var(--gold); }
+                  /* Hero demo loop: strike the old chip, glow the new tile, in a slow 3-beat cycle */
+                  .thd-old .thd-strike { text-decoration:line-through; text-decoration-thickness:2px; text-decoration-color:transparent; animation:thdStrike 6s ease-in-out infinite; }
+                  .thd-item:nth-child(2) .thd-strike { animation-delay:.5s; }
+                  .thd-item:nth-child(3) .thd-strike { animation-delay:1s; }
+                  .thd-new { animation:thdGlow 6s ease-in-out infinite; }
+                  .thd-item:nth-child(2) .thd-new { animation-delay:.5s; }
+                  .thd-item:nth-child(3) .thd-new { animation-delay:1s; }
+                  @keyframes thdStrike { 0%,12%{text-decoration-color:transparent;} 30%,86%{text-decoration-color:var(--accent-primary);} 100%{text-decoration-color:transparent;} }
+                  @keyframes thdGlow { 0%,18%{transform:scale(.97);opacity:.55;} 34%,86%{transform:scale(1);opacity:1;} 100%{transform:scale(.97);opacity:.55;} }
+
+                  /* Basics band */
+                  .tour-basics { display:flex; align-items:stretch; gap:0; background:var(--bg-secondary); border:1px solid var(--border); border-radius:16px; padding:16px 8px; margin-bottom:8px; }
+                  .tb-step { flex:1; display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; padding:6px 12px; position:relative; }
+                  .tb-num { width:34px; height:34px; border-radius:50%; background:var(--gold); color:#15110f; font-weight:800; font-size:15px; display:flex; align-items:center; justify-content:center; }
+                  .tb-txt { font-size:13px; font-weight:600; color:var(--text-primary); line-height:1.35; }
+                  .tb-step:not(:last-child)::after { content:""; position:absolute; top:17px; right:-1px; width:calc(100% - 34px); height:2px; background:linear-gradient(90deg,var(--gold),var(--border)); opacity:.5; transform:translateX(50%); }
+
+                  /* Section heading between hero and cards */
+                  .tour-swaps-lead { margin:30px 0 4px; font-size:13px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--text-muted); }
+
+                  /* Before -> after cards */
+                  .tour-card { padding:26px 0; border-top:1px solid var(--border); opacity:0; transform:translateY(18px); transition:opacity .55s ease, transform .55s cubic-bezier(.22,.61,.36,1); }
+                  .tour-card.in { opacity:1; transform:none; }
+                  .tour-card h2 { font-size:22px; font-weight:800; line-height:1.2; color:var(--text-primary); margin:0 0 16px; max-width:24ch; }
+                  .tour-swap { display:flex; align-items:stretch; gap:16px; }
+                  .tour-old { flex:0 0 200px; max-width:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; padding:18px 14px; border:1px dashed var(--border); border-radius:14px; background:var(--bg-tertiary); color:var(--text-muted); transition:opacity .5s ease, filter .5s ease; }
+                  .tour-card.in .tour-old { opacity:.6; filter:grayscale(.4); }
+                  .tour-old-ic { font-size:24px; opacity:.8; }
+                  .tour-old-label { font-size:13px; font-weight:700; text-decoration:line-through; text-decoration-thickness:2px; text-decoration-color:transparent; transition:text-decoration-color .55s ease .1s; }
+                  .tour-card.in .tour-old-label { text-decoration-color:var(--accent-primary); }
+                  .tour-conn { flex:0 0 auto; display:flex; align-items:center; justify-content:center; color:var(--tour-accent); font-size:18px; }
+                  .tour-new { flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:16px; background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:18px 20px; cursor:pointer; text-decoration:none; color:inherit; transition:border-color .2s, transform .45s cubic-bezier(.22,.61,.36,1), box-shadow .3s, opacity .45s; opacity:.35; transform:scale(.97); }
+                  .tour-card.in .tour-new { opacity:1; transform:none; box-shadow:0 8px 26px rgba(201,169,98,.16); }
+                  .tour-new:hover { border-color:var(--tour-accent); transform:translateY(-2px); }
+                  .tour-new:focus-visible { outline:2px solid var(--tour-accent); outline-offset:2px; }
+                  .tour-new-ic { flex-shrink:0; width:52px; height:52px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:22px; background:var(--bg-tertiary); color:var(--tour-accent); }
+                  .tour-new-txt { display:flex; flex-direction:column; gap:4px; min-width:0; }
+                  .tour-new-title { font-size:15px; font-weight:800; color:var(--text-primary); }
+                  .tour-new-sub { font-size:13.5px; color:var(--text-muted); line-height:1.45; }
+                  .tour-cta { margin-top:16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+                  .tour-try { display:inline-flex; align-items:center; gap:8px; min-height:44px; }
+                  .tour-foot { font-size:12px; color:var(--text-muted); display:inline-flex; align-items:center; gap:6px; }
+                  .tour-foot i { color:var(--accelerator); }
+
+                  /* Closing panel */
+                  .tour-close { margin-top:8px; padding:30px 24px; border-radius:18px; background:linear-gradient(135deg, rgba(201,169,98,.12), rgba(155,27,34,.05)); border:1px solid var(--border); text-align:center; }
+                  .tour-close h2 { font-size:22px; font-weight:800; color:var(--text-primary); margin:0 0 18px; max-width:30ch; margin-left:auto; margin-right:auto; }
+                  .tour-close-btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+
+                  /* Progress rail (fixed; only shown while #section-discover is active because
+                     a display:none parent hides its fixed children) */
+                  .tour-progress { position:fixed; right:26px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:12px; z-index:40; }
+                  .tour-dot { width:11px; height:11px; border-radius:50%; border:2px solid var(--border); background:transparent; cursor:pointer; padding:0; transition:background .2s, border-color .2s, transform .2s; }
+                  .tour-dot:hover { border-color:var(--gold); }
+                  .tour-dot.active { background:var(--gold); border-color:var(--gold); transform:scale(1.25); }
+
+                  @media (prefers-reduced-motion: reduce) {
+                    .tour-card { transition:opacity .3s ease; transform:none; }
+                    .tour-card.in .tour-new, .tour-new { transform:none; }
+                    .thd-old .thd-strike, .thd-new { animation:none; text-decoration-color:var(--accent-primary); opacity:1; transform:none; }
+                  }
+
+                  @media (max-width: 720px) {
+                    .tour-hero h1 { font-size:24px; }
+                    .tour-hero p { font-size:15px; }
+                    .tour-basics { flex-direction:column; gap:14px; padding:16px; }
+                    .tb-step { flex-direction:row; text-align:left; align-items:center; }
+                    .tb-step:not(:last-child)::after { display:none; }
+                    .tour-swap { flex-direction:column; align-items:stretch; }
+                    .tour-old { flex:0 0 auto; max-width:none; }
+                    .tour-conn { transform:rotate(90deg); }
+                    .tour-card h2 { font-size:20px; }
+                    /* horizontal progress bar on mobile */
+                    .tour-progress { position:sticky; top:0; left:0; right:0; flex-direction:row; justify-content:center; transform:none; padding:10px 0; margin:-8px 0 6px; background:var(--bg-primary); z-index:40; }
+                  }
+                </style>
+                <div class="section" id="section-discover">
+                    <div id="discoverBody">
+                        <div style="text-align:center;padding:44px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div>
+                    </div>
                 </div>
 
                 <!-- FINANCES -->
@@ -16911,6 +17028,15 @@ President, Med&amp;X</textarea>
 
                 // Start the Outbox sidebar badge poller (pending-approval batch count).
                 if (typeof OutboxNav !== 'undefined') OutboxNav.start();
+
+                // First-login Discover auto-open (admins only; scanner staff returned early above).
+                // Client-side once, keyed on medxDiscoverSeen so a refresh never re-triggers.
+                try {
+                    if (this.user && this.user.is_admin && !localStorage.getItem('medxDiscoverSeen')) {
+                        localStorage.setItem('medxDiscoverSeen', '1');
+                        this.showSection('discover', document.querySelector('.nav-item[data-section=discover]'));
+                    }
+                } catch (e) {}
             },
 
             initDashboardCharts() {
@@ -17167,6 +17293,7 @@ President, Med&amp;X</textarea>
                 { id: 'contacts', label: 'My Network', icon: 'fa-address-book', color: '#c14b52', desc: 'Contact management' },
                 { id: 'tech', label: 'Tech', icon: 'fa-server', color: '#c14b52', desc: 'System health & deployment' },
                 { id: 'advisors', label: 'Executive Suite', icon: 'fa-user-tie', color: '#7c3aed', desc: 'AI CMO / CFO / COO weekly review' },
+                { id: 'discover', label: 'Discover', icon: 'fa-compass', color: '#c9a962', desc: 'What this portal replaces — a 2-minute tour', alwaysOn: true },
             ],
 
             userSections: null, // null = all visible (backwards compat), array = filtered
@@ -17266,7 +17393,7 @@ President, Med&amp;X</textarea>
                 // Project-first IA: auctions / postevent / event-tracking moved into the project
                 // homes (Plexus Week / Bridges) as tiles, so they no longer have a top-level sidebar
                 // anchor to keep visible here. They stay reachable via those homes, Cmd+K and deep links.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors'];
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
@@ -19694,6 +19821,7 @@ President, Med&amp;X</textarea>
                     'team-chat': 'Team Chat',
                     'health': 'System Health',
                     'tech': 'Tech Dashboard',
+                    'discover': 'Discover',
                     'settings': 'Settings'
                 };
                 document.title = `${sectionNames[sectionId] || sectionId} — Med&X Admin`;
@@ -50001,6 +50129,7 @@ By applying to this program, I give the following consents:
             registry: [
                 // Sections
                 { title: 'Dashboard', sub: 'Home', icon: 'fa-home', color: 'var(--accent-gold)', group: 'Sections', action: () => App.showSection('dashboard') },
+                { title: 'Discover', sub: 'What this portal replaces — a 2-minute tour', icon: 'fa-compass', color: 'var(--gold)', group: 'Sections', action: () => App.showSection('discover', document.querySelector('.nav-item[data-section=discover]')) },
                 { title: 'Finances', sub: 'Budget, transactions, invoices', icon: 'fa-coins', color: 'var(--finances)', group: 'Sections', action: () => App.showSection('finances') },
                 { title: 'PR & Media', sub: 'Social, newsletters, campaigns', icon: 'fa-bullhorn', color: 'var(--pr-media)', group: 'Sections', action: () => App.showSection('pr-media') },
                 { title: 'Message members', sub: 'Announcements + direct notifications', icon: 'fa-bullhorn', color: '#9b1b22', group: 'Sections', action: () => App.memberExpGo('announce') },
@@ -52133,6 +52262,308 @@ By applying to this program, I give the following consents:
             const tile = e.target.closest('[data-home-tile]');
             if (tile) { e.preventDefault(); try { ProjectHome.route(tile.getAttribute('data-home-tile')); } catch (err) { console.error(err); } }
         });
+
+
+        // ==================== DISCOVER TOUR MODULE ====================
+        // Native in-portal onboarding. Self-contained EN/HR dictionary, delegated
+        // data-tour-* routing through a whitelist (no inline onclick, no eval).
+        const Discover = (function () {
+            // Language-independent per-card wiring (icons + deep-link whitelist key + accent).
+            const CARDS = [
+                { goto: 'content-studio',   accent: 'var(--gold)',            oldIc: 'fa-instagram',           newIc: 'fa-wand-magic-sparkles' },
+                { goto: 'email-blast',      accent: '#b06a1f',                oldIc: 'fa-envelopes-bulk',      newIc: 'fa-envelope-open-text' },
+                { goto: 'qr-checkin',       accent: 'var(--accent-primary)',  oldIc: 'fa-clipboard-list',      newIc: 'fa-qrcode' },
+                { goto: 'finances',         accent: 'var(--finances)',        oldIc: 'fa-file-excel',          newIc: 'fa-coins' },
+                { goto: 'pr-media-planner', accent: 'var(--pr-media)',        oldIc: 'fa-brain',               newIc: 'fa-hand-holding-dollar' },
+                { goto: 'advisors',         accent: '#7c3aed',                oldIc: 'fa-phone',               newIc: 'fa-user-tie' },
+                { goto: 'print-suite',      accent: 'var(--accelerator)',     oldIc: 'fa-paintbrush',          newIc: 'fa-print' },
+                { goto: 'assistant',        accent: 'var(--gold)',            oldIc: 'fa-magnifying-glass',    newIc: 'fa-magnifying-glass-chart' },
+            ];
+
+            const GUIDE_URL = 'https://alen-ops99.github.io/medx-claude-code-onboarding/';
+
+            // Deep-link whitelist — the ONLY calls Discover.go() may make. No eval.
+            const q = (s) => document.querySelector(s);
+            const TOUR_TARGETS = {
+                'content-studio':   () => App.showSection('content-studio', q('.nav-item[data-section=content-studio]')),
+                'email-blast':      () => App.showSection('email-blast', q('.nav-item[data-section=email-blast]')),
+                'qr-checkin':       () => { try { EventCheckin.open(); } catch (e) { App.showSection('dashboard'); } },
+                'finances':         () => App.showSection('finances', q('.nav-item[data-section=finances]')),
+                'pr-media-planner': () => { App.showSection('pr-media', q('.nav-item[data-section=pr-media]')); setTimeout(() => { try { Planner.open(); } catch (e) {} }, 220); },
+                'advisors':         () => App.showSection('advisors', q('.nav-item[data-section=advisors]')),
+                'print-suite':      () => { try { PrintSuite.start(); } catch (e) { App.showSection('content-studio', q('.nav-item[data-section=content-studio]')); } },
+                'assistant':        () => { try { App.openAssistant(); } catch (e) { App.showSection('dashboard'); } },
+                'dashboard':        () => App.showSection('dashboard', q('.nav-item[data-section=dashboard]')),
+            };
+
+            const TOUR_COPY = {
+                en: {
+                    eyebrow: 'Discover',
+                    skip: 'Skip tour',
+                    tryBtn: 'Try it now',
+                    lead: 'What it replaces',
+                    hero_h: 'Everything you used to do by hand now lives here.',
+                    hero_p: 'One place for your posts, emails, guest lists, money and sponsors — press a card to see it happen.',
+                    basics: ['Open a card', 'Press Try it now', "You're in the real tool"],
+                    demo: [
+                        { o: 'Instagram, one by one', n: 'Content Studio' },
+                        { o: 'Ten spreadsheets', n: 'Finances' },
+                        { o: 'Paper list at the door', n: 'QR check-in' },
+                    ],
+                    cards: [
+                        { old: 'Instagram, one by one', title: 'Content Studio', h: 'Stop posting one platform at a time.', p: 'Write it once, brand it, and get a ready-to-post caption and image — the portal does everything up to the final Share.' },
+                        { old: 'MailChimp / mail-merge', title: 'Email registrants', h: 'Email everyone who registered, in one send.', p: 'Pick an event, write once, and it goes to the whole list — held in the Outbox for a final approval before anything leaves.', foot: 'Live email needs the sending key switched on.' },
+                        { old: 'Paper list at the door', title: 'QR check-in', h: 'No more paper lists at the door.', p: "Scan a guest's phone, they're checked in, and your headcount updates live." },
+                        { old: 'Ten spreadsheets', title: 'Finances', h: 'Your budget stops living in ten spreadsheets.', p: 'Budget, invoices, transactions and Croatian reconciliation in one running ledger.' },
+                        { old: 'From memory', title: 'Campaigns & Planner', h: 'Never lose a sponsor in your inbox again.', p: 'Plan one to three months of outreach, with drafts and reminders queued for you.' },
+                        { old: 'Calling around', title: 'Project homes & Executive Suite', h: 'Stop calling around to ask where things stand.', p: 'Live numbers on every project home, plus a weekly AI read from your CMO, CFO and COO.' },
+                        { old: 'Badges by hand in Canva', title: 'Print Suite', h: 'Print every badge from the guest list itself.', p: 'Pull the whole roster and get print-ready badge sheets, roll-up banners and signage — each badge carries a member-verify QR.' },
+                        { old: 'Ten open browser tabs', title: 'Assistant · Research', h: 'Ask the assistant instead of opening ten tabs.', p: 'Built-in research and drafting — ask a question, get a sourced answer you can act on.', foot: 'The research tool needs the AI key switched on.' },
+                    ],
+                    close: { h: "That's the tour. It's all in the left menu whenever you need it.", dash: 'Take me to the Dashboard', guide: 'Want the deeper Claude Code guide?' },
+                },
+                hr: {
+                    eyebrow: 'Otkrijte',
+                    skip: 'Preskočite obilazak',
+                    tryBtn: 'Isprobajte odmah',
+                    lead: 'Što zamjenjuje',
+                    hero_h: 'Sve što ste dosad radili ručno sada je na jednom mjestu.',
+                    hero_p: 'Objave, e-poruke, popisi gostiju, financije i sponzori — pritisnite karticu i vidjet ćete uživo.',
+                    basics: ['Otvorite karticu', 'Pritisnite Isprobajte odmah', 'Već ste u pravom alatu'],
+                    demo: [
+                        { o: 'Instagram, jedan po jedan', n: 'Content Studio' },
+                        { o: 'Deset tablica', n: 'Financije' },
+                        { o: 'Papirnati popis na ulazu', n: 'QR prijava' },
+                    ],
+                    cards: [
+                        { old: 'Instagram, jedan po jedan', title: 'Content Studio', h: 'Prestanite objavljivati platformu po platformu.', p: 'Napišite jednom, uredite u prepoznatljivom stilu i dobijte gotov tekst i sliku za objavu — portal odradi sve do posljednjeg klika na Podijeli.' },
+                        { old: 'MailChimp / spajanje adresa', title: 'E-pošta prijavljenima', h: 'Pošaljite e-poruku svima koji su se prijavili, jednim slanjem.', p: 'Odaberite događaj, napišite jednom i poruka ide cijelom popisu — uz zadržavanje u Odlaznom pretincu za konačnu potvrdu prije slanja.', foot: 'Za stvarno slanje e-pošte mora biti uključen ključ za slanje.' },
+                        { old: 'Papirnati popis na ulazu', title: 'QR prijava', h: 'Nema više papirnatih popisa na ulazu.', p: 'Skenirajte mobitel gosta, prijava je gotova, a broj prisutnih ažurira se uživo.' },
+                        { old: 'Deset tablica', title: 'Financije', h: 'Vaš proračun više ne živi u deset tablica.', p: 'Proračun, računi, transakcije i usklađenje u jednoj knjizi — sve na hrvatskom.' },
+                        { old: 'Napamet', title: 'Kampanje i planer', h: 'Nijedan sponzor više neće nestati u vašem pretincu.', p: 'Isplanirajte jedan do tri mjeseca komunikacije, s unaprijed pripremljenim nacrtima i podsjetnicima.' },
+                        { old: 'Pozivi uokolo', title: 'Naslovnice projekata i Izvršni tim', h: 'Prestanite zvati uokolo da provjerite gdje smo.', p: 'Brojke uživo na naslovnici svakog projekta, uz tjedni AI pregled vaših savjetnika za marketing, financije i poslovanje (CMO, CFO i COO).' },
+                        { old: 'Bedževi ručno u Canvi', title: 'Ispis i oznake', h: 'Ispišite sve bedževe izravno iz popisa gostiju.', p: 'Povucite cijeli popis i dobijte listove bedževa spremne za ispis, roll-up banere i oznake — svaki bedž nosi QR za provjeru člana.' },
+                        { old: 'Deset otvorenih kartica', title: 'Pomoćnik · Istraživanje', h: 'Pitajte pomoćnika umjesto da otvarate deset kartica.', p: 'Ugrađeno istraživanje i pisanje — postavite pitanje i dobijte potkrijepljen odgovor na temelju kojeg možete odmah djelovati.', foot: 'Alat za istraživanje traži uključen AI ključ.' },
+                    ],
+                    close: { h: 'To je kraj obilaska. Sve vam je u lijevom izborniku kad god zatreba.', dash: 'Odvedite me na naslovnicu', guide: 'Želite dublji vodič za Claude Code?' },
+                },
+            };
+
+            let _io = null, _scrollBound = false, _rafPending = false;
+
+            function lang() {
+                const l = localStorage.getItem('medxDiscoverLang');
+                return (l === 'hr') ? 'hr' : 'en';
+            }
+
+            function mainEl() { return document.querySelector('main.main'); }
+
+            function esc(s) { return String(s == null ? '' : s); }
+
+            function render() {
+                const body = document.getElementById('discoverBody');
+                if (!body) return;
+                const L = lang();
+                const c = TOUR_COPY[L];
+                const totalDots = 1 + CARDS.length; // hero + 8 cards
+
+                const demoHtml = c.demo.map(d => `
+                    <div class="thd-item">
+                        <span class="thd-old"><span class="thd-strike">${esc(d.o)}</span></span>
+                        <i class="fas fa-arrow-right thd-arrow"></i>
+                        <span class="thd-new"><i class="fas fa-circle-check"></i>${esc(d.n)}</span>
+                    </div>`).join('');
+
+                const basicsHtml = c.basics.map((b, i) => `
+                    <div class="tb-step"><span class="tb-num">${i + 1}</span><span class="tb-txt">${esc(b)}</span></div>`).join('');
+
+                const cardsHtml = CARDS.map((card, i) => {
+                    const cc = c.cards[i];
+                    const step = i + 1;
+                    const footHtml = cc.foot ? `<span class="tour-foot"><i class="fas fa-key"></i>${esc(cc.foot)}</span>` : '';
+                    return `
+                    <div class="tour-card" data-step="${step}" style="--tour-accent:${card.accent};">
+                        <h2>${esc(cc.h)}</h2>
+                        <div class="tour-swap">
+                            <div class="tour-old">
+                                <i class="fas ${card.oldIc} tour-old-ic"></i>
+                                <span class="tour-old-label">${esc(cc.old)}</span>
+                            </div>
+                            <div class="tour-conn"><i class="fas fa-arrow-right"></i></div>
+                            <a class="tour-new" role="button" tabindex="0" data-tour-goto="${card.goto}">
+                                <span class="tour-new-ic"><i class="fas ${card.newIc}"></i></span>
+                                <span class="tour-new-txt">
+                                    <span class="tour-new-title">${esc(cc.title)}</span>
+                                    <span class="tour-new-sub">${esc(cc.p)}</span>
+                                </span>
+                            </a>
+                        </div>
+                        <div class="tour-cta">
+                            <button class="btn btn-primary tour-try" data-tour-goto="${card.goto}">${esc(c.tryBtn)} <i class="fas fa-arrow-right"></i></button>
+                            ${footHtml}
+                        </div>
+                    </div>`;
+                }).join('');
+
+                let dotsHtml = '';
+                for (let i = 0; i < totalDots; i++) {
+                    dotsHtml += `<button class="tour-dot${i === 0 ? ' active' : ''}" data-tour-step="${i}" aria-label="Step ${i + 1}"></button>`;
+                }
+
+                body.innerHTML = `
+                    <div class="tour-root" data-lang="${L}">
+                        <div class="tour-progress">${dotsHtml}</div>
+                        <div class="tour-header">
+                            <span class="tour-eyebrow"><i class="fas fa-compass"></i> ${esc(c.eyebrow)}</span>
+                            <div class="tour-controls">
+                                <span class="tour-langpill" role="group" aria-label="Language">
+                                    <button class="tour-lang-btn${L === 'en' ? ' active' : ''}" data-tour-lang="en">EN</button>
+                                    <button class="tour-lang-btn${L === 'hr' ? ' active' : ''}" data-tour-lang="hr">HR</button>
+                                </span>
+                                <button class="tour-skip" data-tour-step="close">${esc(c.skip)}</button>
+                            </div>
+                        </div>
+                        <div class="tour-card in" data-step="0" style="--tour-accent:var(--gold);">
+                            <div class="tour-hero">
+                                <h1>${esc(c.hero_h)}</h1>
+                                <p>${esc(c.hero_p)}</p>
+                                <div class="tour-hero-demo">${demoHtml}</div>
+                                <div class="tour-basics">${basicsHtml}</div>
+                            </div>
+                        </div>
+                        <div class="tour-swaps-lead">${esc(c.lead)}</div>
+                        ${cardsHtml}
+                        <div class="tour-close">
+                            <h2>${esc(c.close.h)}</h2>
+                            <div class="tour-close-btns">
+                                <button class="btn btn-primary" data-tour-goto="dashboard"><i class="fas fa-house"></i> ${esc(c.close.dash)}</button>
+                                <a class="btn btn-secondary" href="${GUIDE_URL}" target="_blank" rel="noopener"><i class="fas fa-graduation-cap"></i> ${esc(c.close.guide)}</a>
+                            </div>
+                        </div>
+                    </div>`;
+
+                setupObserver();
+                requestAnimationFrame(reveal);
+                bindScroll();
+                updateDots();
+            }
+
+            function setupObserver() {
+                if (_io) { _io.disconnect(); _io = null; }
+                const root = mainEl();
+                try {
+                    _io = new IntersectionObserver((entries) => {
+                        entries.forEach(en => { if (en.isIntersecting) en.target.classList.add('in'); });
+                    }, { root: root, rootMargin: '0px 0px -12% 0px', threshold: 0.15 });
+                    document.querySelectorAll('#discoverBody .tour-card').forEach(el => _io.observe(el));
+                } catch (e) { /* IO unsupported — scroll handler still reveals */ }
+            }
+
+            // Manual reveal for cards already inside the .main viewport (covers the
+            // display:none -> visible transition when the section is first shown).
+            function reveal() {
+                const root = mainEl();
+                if (!root) return;
+                const rb = root.getBoundingClientRect();
+                document.querySelectorAll('#discoverBody .tour-card').forEach(el => {
+                    const r = el.getBoundingClientRect();
+                    if (r.top < rb.bottom - 60) el.classList.add('in');
+                });
+            }
+
+            function updateDots() {
+                const root = mainEl();
+                if (!root) return;
+                const cards = Array.from(document.querySelectorAll('#discoverBody .tour-card'));
+                const dots = Array.from(document.querySelectorAll('#discoverBody .tour-dot'));
+                if (!cards.length || !dots.length) return;
+                const mid = root.getBoundingClientRect().top + root.clientHeight * 0.42;
+                let active = 0;
+                cards.forEach((el, i) => { if (el.getBoundingClientRect().top <= mid) active = i; });
+                dots.forEach((d, i) => d.classList.toggle('active', i === active));
+            }
+
+            function onScroll() {
+                if (_rafPending) return;
+                _rafPending = true;
+                requestAnimationFrame(() => { _rafPending = false; reveal(); updateDots(); });
+            }
+
+            function bindScroll() {
+                if (_scrollBound) return;
+                const root = mainEl();
+                if (!root) return;
+                root.addEventListener('scroll', onScroll, { passive: true });
+                window.addEventListener('resize', onScroll, { passive: true });
+                _scrollBound = true;
+            }
+
+            return {
+                render,
+                // Called when the discover section is shown (wraps App.showSection below).
+                onShow() {
+                    // (Re)render only if empty (first show); language flips re-render explicitly.
+                    const body = document.getElementById('discoverBody');
+                    if (body && !body.querySelector('.tour-root')) render();
+                    else { setupObserver(); requestAnimationFrame(reveal); bindScroll(); updateDots(); }
+                },
+                go(key) {
+                    const fn = TOUR_TARGETS[key];
+                    if (typeof fn === 'function') { try { fn(); } catch (e) { console.error('Discover.go', key, e); } }
+                },
+                setLang(l) {
+                    l = (l === 'hr') ? 'hr' : 'en';
+                    localStorage.setItem('medxDiscoverLang', l);
+                    const root = mainEl();
+                    const keep = root ? root.scrollTop : 0;
+                    render();
+                    if (root) root.scrollTop = keep;
+                },
+                scrollToStep(step) {
+                    const root = mainEl();
+                    if (step === 'close') {
+                        const el = document.querySelector('#discoverBody .tour-close');
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        return;
+                    }
+                    const n = parseInt(step, 10);
+                    const el = document.querySelector('#discoverBody .tour-card[data-step="' + n + '"]');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                },
+                _render: render,
+            };
+        })();
+        window.Discover = Discover;
+
+        // ONE delegated listener for every Discover control (CSP-clean — no inline onclick).
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest) return;
+            const goto = e.target.closest('[data-tour-goto]');
+            if (goto) { e.preventDefault(); Discover.go(goto.getAttribute('data-tour-goto')); return; }
+            const langBtn = e.target.closest('[data-tour-lang]');
+            if (langBtn) { e.preventDefault(); Discover.setLang(langBtn.getAttribute('data-tour-lang')); return; }
+            const stepBtn = e.target.closest('[data-tour-step]');
+            if (stepBtn) { e.preventDefault(); Discover.scrollToStep(stepBtn.getAttribute('data-tour-step')); return; }
+            const navD = e.target.closest('.nav-item[data-section=discover]');
+            if (navD) { e.preventDefault(); try { App.showSection('discover', navD); } catch (err) { console.error(err); } return; }
+        });
+        // Keyboard access for the tile role=button (Enter / Space).
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const goto = e.target.closest && e.target.closest('[data-tour-goto]');
+            if (goto && goto.classList.contains('tour-new')) { e.preventDefault(); Discover.go(goto.getAttribute('data-tour-goto')); }
+        });
+        // Render/reveal the Discover section when it opens (wrap App.showSection like wireAdvisors).
+        (function wireDiscover() {
+            if (typeof App === 'undefined' || !App.showSection) { setTimeout(wireDiscover, 400); return; }
+            if (App._discoverWired) return; App._discoverWired = true;
+            const _prev = App.showSection.bind(App);
+            App.showSection = function (id, nav, skip) {
+                const r = _prev(id, nav, skip);
+                try { if (id === 'discover') Discover.onShow(); } catch (e) { console.error(e); }
+                return r;
+            };
+        })();
 
         // Load the advisory data when the section is opened (wrap App.showSection like StaffTracking).
         (function wireAdvisors() {
