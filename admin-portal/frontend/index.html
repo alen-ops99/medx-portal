@@ -9963,6 +9963,7 @@ President, Med&amp;X</textarea>
                         <a class="ph-tile" data-home-tile="sec:event-invites"><span class="ph-tile-icon" style="color:#9b1b22;"><i class="fas fa-paper-plane"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Event invitations</span><span class="ph-tile-sub">Invite campaigns for the week</span></span></a>
                         <a class="ph-tile" data-home-tile="sec:event-reminders"><span class="ph-tile-icon" style="color:#b45309;"><i class="fas fa-bell"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Event reminders</span><span class="ph-tile-sub">Timed reminders before the event</span></span></a>
                         <a class="ph-tile" data-home-tile="sec:postevent"><span class="ph-tile-icon" style="color:#16a34a;"><i class="fas fa-flag-checkered"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Post-event</span><span class="ph-tile-sub">Certificates, recaps, thank-yous</span></span></a>
+                        <a class="ph-tile" data-home-tile="sec:speaker-itineraries"><span class="ph-tile-icon" style="color:#9b1b22;"><i class="fas fa-passport"></i></span><span class="ph-tile-text"><span class="ph-tile-title">Speaker itineraries</span><span class="ph-tile-sub">Personal plans for your speakers</span></span></a>
                     </div>
                 </div>
 
@@ -10026,6 +10027,14 @@ President, Med&amp;X</textarea>
                 </div>
 
                 <!-- ==================== /PROJECT HOMES ==================== -->
+
+                <!-- SPEAKER ITINERARIES (Stage B composer) — a Plexus Week sub-surface reached from the
+                     Plexus home tile / Cmd+K / #speaker-itineraries. All content is rendered by
+                     SpeakerItinerariesApp into #spkRoot via delegated data-* handlers (no inline onclick). -->
+                <div class="section" id="section-speaker-itineraries">
+                    <div class="back-link" data-spk-nav="plexus-home"><i class="fas fa-arrow-left"></i> Back to Plexus Week</div>
+                    <div id="spkRoot"><div class="card"><p style="color:var(--text-muted);padding:8px;">Loading speaker itineraries…</p></div></div>
+                </div>
 
                 <!-- BRIDGES -->
                 <div class="section" id="section-bridges">
@@ -17393,7 +17402,10 @@ President, Med&amp;X</textarea>
                 // Project-first IA: auctions / postevent / event-tracking moved into the project
                 // homes (Plexus Week / Bridges) as tiles, so they no longer have a top-level sidebar
                 // anchor to keep visible here. They stay reachable via those homes, Cmd+K and deep links.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover'];
+                // 'speaker-itineraries' is a Plexus Week sub-surface reached via the project home tile,
+                // Cmd+K and #speaker-itineraries (no top-level sidebar anchor — same pattern as auctions /
+                // postevent). Listed here so section filtering never hides it if a nav entry is ever added.
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover', 'speaker-itineraries'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
@@ -19999,6 +20011,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'postevent';
                     this.switchChatPanel('team');
                     if (typeof PostEventEngine !== 'undefined') PostEventEngine.init();
+                } else if (sectionId === 'speaker-itineraries') {
+                    this.currentView = 'speaker-itineraries';
+                    this.switchChatPanel('team');
+                    if (typeof SpeakerItinerariesApp !== 'undefined') SpeakerItinerariesApp.init();
                 } else {
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
@@ -50163,6 +50179,7 @@ By applying to this program, I give the following consents:
                 { title: 'Speakers', sub: 'Plexus Conference', icon: 'fa-microphone', color: 'var(--plexus)', group: 'Plexus Tabs', action: () => { App.showProject('plexus'); App.showPlexusTab('speakers'); } },
                 { title: 'Sponsors', sub: 'Plexus Conference', icon: 'fa-handshake', color: 'var(--plexus)', group: 'Plexus Tabs', action: () => { App.showProject('plexus'); App.showPlexusTab('sponsors'); } },
                 { title: 'Volunteers', sub: 'Plexus Conference', icon: 'fa-hand-holding-heart', color: 'var(--plexus)', group: 'Plexus Tabs', action: () => { App.showProject('plexus'); App.showPlexusTab('volunteers'); } },
+                { title: 'Speaker itineraries', sub: 'Personal plans for your speakers', icon: 'fa-passport', color: 'var(--plexus)', group: 'Plexus Tabs', action: () => App.showSection('speaker-itineraries') },
 
                 // Accelerator Tabs
                 { title: 'Key Dates', sub: 'Accelerator', icon: 'fa-calendar-check', color: 'var(--accelerator)', group: 'Accelerator Tabs', action: () => { App.showProject('accelerator'); AcceleratorApp.showTab('dates'); } },
@@ -52262,6 +52279,457 @@ By applying to this program, I give the following consents:
             const tile = e.target.closest('[data-home-tile]');
             if (tile) { e.preventDefault(); try { ProjectHome.route(tile.getAttribute('data-home-tile')); } catch (err) { console.error(err); } }
         });
+
+
+        // ==================== SPEAKER ITINERARIES (Stage B composer) ====================
+        // A dignified, phone-first plan composer for senior speakers. List + editor rendered into
+        // #spkRoot; ALL interaction rides ONE delegated click/input/change listener on the section
+        // (CSP-clean — zero inline onclick). Admin chrome is EN (portal convention); the speaker-facing
+        // strings (item titles/notes) carry an optional HR field that the public page toggles.
+        const SpeakerItinerariesApp = (function () {
+            const INP = 'width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:13px;box-sizing:border-box;';
+            const MUTED = 'color:var(--text-muted);';
+            const TYPES = [['talk', 'Talk'], ['panel', 'Panel'], ['dinner', 'Dinner'], ['transfer', 'Transfer'], ['free', 'Free time'], ['photo', 'Photo'], ['other', 'Other']];
+            const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const lbl = (t) => `<label style="display:block;font-size:11px;${MUTED}margin:0 0 4px;font-weight:600;letter-spacing:.02em;">${esc(t)}</label>`;
+            const val = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+
+            const App2 = {
+                _wired: false,
+                list: [], cur: null, items: [], preview: [], flights: [], speakers: [], editItemId: null,
+
+                init() {
+                    if (!this._wired) { this._wire(); this._wired = true; }
+                    this.cur = null;
+                    this.loadList();
+                },
+
+                _wire() {
+                    const root = document.getElementById('section-speaker-itineraries');
+                    if (!root) return;
+                    root.addEventListener('click', (e) => this._onClick(e));
+                    root.addEventListener('change', (e) => this._onChange(e));
+                },
+
+                _onClick(e) {
+                    const nav = e.target.closest('[data-spk-nav]');
+                    if (nav) { e.preventDefault(); try { App.showProjectHome('plexus'); } catch (err) { App.showSection('dashboard'); } return; }
+                    const t = e.target.closest('[data-spk-action]');
+                    if (!t) return;
+                    e.preventDefault();
+                    const a = t.getAttribute('data-spk-action');
+                    const id = t.getAttribute('data-spk-id');
+                    const url = t.getAttribute('data-spk-url');
+                    switch (a) {
+                        case 'new': return this.newItinerary();
+                        case 'back': return this.loadList();
+                        case 'edit': return this.edit(id);
+                        case 'copy': return this.copy(url);
+                        case 'open': return this.open(url);
+                        case 'revoke': return this.setRevoked(id, 1);
+                        case 'unrevoke': return this.setRevoked(id, 0);
+                        case 'send': return this.send(id);
+                        case 'save': return this.save();
+                        case 'addFlight': return this.addFlight();
+                        case 'delFlight': { const row = t.closest('[data-spk-flight-row]'); if (row) row.remove(); return; }
+                        case 'saveItem': return this.saveItem();
+                        case 'editItem': return this.beginEditItem(t.getAttribute('data-spk-item'));
+                        case 'clearItem': return this.clearItemForm();
+                        case 'delItem': return this.delItem(t.getAttribute('data-spk-item'));
+                    }
+                },
+
+                _onChange(e) {
+                    // Datalist pick: if the typed name matches a roster speaker and title is empty, prefill it.
+                    if (e.target && e.target.id === 'spk_f_name') {
+                        const nm = (e.target.value || '').trim().toLowerCase();
+                        const sp = this.speakers.find(s => String(s.name || '').trim().toLowerCase() === nm);
+                        const tEl = document.getElementById('spk_f_title');
+                        if (sp && tEl && !tEl.value.trim()) tEl.value = sp.title || '';
+                    }
+                },
+
+                // ---------- LIST ----------
+                async loadList() {
+                    this.cur = null;
+                    try { const d = await App.api('/api/admin/speaker-itineraries'); this.list = (d && d.itineraries) || []; }
+                    catch (e) { this.list = []; }
+                    this.renderList();
+                },
+
+                renderList() {
+                    const root = document.getElementById('spkRoot'); if (!root) return;
+                    const stateChip = (it) => it.revoked
+                        ? '<span style="font-size:11px;font-weight:700;color:#fca5a5;background:rgba(127,29,29,.25);padding:2px 8px;border-radius:20px;">Revoked</span>'
+                        : '<span style="font-size:11px;font-weight:700;color:#86efac;background:rgba(22,101,52,.25);padding:2px 8px;border-radius:20px;">Active</span>';
+                    const sentLabel = (s) => s === 'sent' ? 'Sent' : s === 'staged' ? 'Staged' : 'Not sent';
+                    const rows = this.list.map(it => {
+                        const revBtn = it.revoked
+                            ? `<button class="btn btn-secondary" style="padding:5px 9px;font-size:12px;" data-spk-action="unrevoke" data-spk-id="${esc(it.id)}"><i class="fas fa-rotate-left"></i> Restore</button>`
+                            : `<button class="btn btn-secondary" style="padding:5px 9px;font-size:12px;" data-spk-action="revoke" data-spk-id="${esc(it.id)}"><i class="fas fa-ban"></i> Revoke</button>`;
+                        return `<tr style="border-top:1px solid var(--border);">
+                            <td style="padding:10px 8px;"><div style="font-weight:700;color:var(--text-primary);">${esc(it.speaker_name)}</div><div style="font-size:12px;${MUTED}">${esc(it.speaker_title || '')}</div></td>
+                            <td style="padding:10px 8px;font-size:13px;color:var(--text-primary);">${esc(it.event_name || it.event_key)}</td>
+                            <td style="padding:10px 8px;text-align:center;font-size:13px;">${it.item_count}</td>
+                            <td style="padding:10px 8px;">${stateChip(it)}</td>
+                            <td style="padding:10px 8px;font-size:12px;${MUTED}">${sentLabel(it.send_state)}</td>
+                            <td style="padding:10px 8px;text-align:right;white-space:nowrap;">
+                                <button class="btn btn-secondary" style="padding:5px 9px;font-size:12px;" data-spk-action="edit" data-spk-id="${esc(it.id)}"><i class="fas fa-pen"></i> Edit</button>
+                                <button class="btn btn-secondary" style="padding:5px 9px;font-size:12px;" data-spk-action="copy" data-spk-url="${esc(it.public_url)}"><i class="fas fa-link"></i> Copy link</button>
+                                <button class="btn btn-secondary" style="padding:5px 9px;font-size:12px;" data-spk-action="open" data-spk-url="${esc(it.public_url)}"><i class="fas fa-arrow-up-right-from-square"></i> Open</button>
+                                <button class="btn btn-secondary" style="padding:5px 9px;font-size:12px;" data-spk-action="send" data-spk-id="${esc(it.id)}"><i class="fas fa-paper-plane"></i> Send</button>
+                                ${revBtn}
+                            </td>
+                        </tr>`;
+                    }).join('');
+                    const empty = `<div style="padding:26px 8px;text-align:center;${MUTED}">No itineraries yet. Create the first personal plan for a speaker.</div>`;
+                    root.innerHTML = `
+                        <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+                            <div>
+                                <h1><i class="fas fa-passport" style="color:#9b1b22;margin-right:10px;"></i>Speaker itineraries</h1>
+                                <p>Personal, phone-first plans for your speakers — talks, dinners, transfers and a dignified link they keep on their home screen. Sent in advance through the Outbox.</p>
+                            </div>
+                            <button class="btn btn-primary" data-spk-action="new"><i class="fas fa-plus"></i> New itinerary</button>
+                        </div>
+                        <div class="card">
+                            ${this.list.length ? `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+                                <thead><tr style="text-align:left;font-size:11px;${MUTED}text-transform:uppercase;letter-spacing:.04em;">
+                                    <th style="padding:8px;">Speaker</th><th style="padding:8px;">Event</th><th style="padding:8px;text-align:center;">Items</th><th style="padding:8px;">Link</th><th style="padding:8px;">Sent</th><th style="padding:8px;text-align:right;">Actions</th>
+                                </tr></thead><tbody>${rows}</tbody></table></div>` : empty}
+                        </div>`;
+                },
+
+                // ---------- EDITOR ----------
+                async newItinerary() {
+                    this.cur = null; this.items = []; this.preview = []; this.flights = []; this.editItemId = null;
+                    await this._loadSpeakers();
+                    this.renderEditor();
+                },
+                async edit(id) {
+                    await this._loadSpeakers();
+                    try {
+                        const d = await App.api('/api/admin/speaker-itineraries/' + encodeURIComponent(id));
+                        this.cur = d.itinerary; this.items = d.items || []; this.flights = (this.cur.flights || []).slice();
+                    } catch (e) { Toast.error(e.message || 'Could not open itinerary'); return; }
+                    this.editItemId = null;
+                    this.renderEditor();
+                    this.loadPreview();
+                },
+                async _loadSpeakers() {
+                    try { const s = await App.api('/api/admin/plexus/speakers'); this.speakers = Array.isArray(s) ? s : []; }
+                    catch (e) { this.speakers = []; }
+                },
+
+                renderEditor() {
+                    const root = document.getElementById('spkRoot'); if (!root) return;
+                    const c = this.cur || {};
+                    const ct = c.contacts || {}; const li = c.local_info || {};
+                    const events = Array.from(new Set(['plexus-2026', c.event_key].filter(Boolean)));
+                    const evOpts = events.map(k => `<option value="${esc(k)}" ${k === (c.event_key || 'plexus-2026') ? 'selected' : ''}>${esc(k)}</option>`).join('');
+                    const dl = `<datalist id="spkSpeakerList">${this.speakers.map(s => `<option value="${esc(s.name)}">`).join('')}</datalist>`;
+                    const field = (labelText, id, value, type, ph) => `<div>${lbl(labelText)}<input id="${id}" type="${type || 'text'}" value="${esc(value || '')}" placeholder="${esc(ph || '')}" style="${INP}"></div>`;
+                    const savedNote = (this.cur && this.cur.id)
+                        ? `<span style="font-size:12px;${MUTED}">Link: <a href="${esc(this.cur.public_url)}" target="_blank" rel="noopener" style="color:var(--text-primary);">${esc(this.cur.public_url)}</a></span>`
+                        : `<span style="font-size:12px;${MUTED}">Save first to generate the link and add schedule items.</span>`;
+                    root.innerHTML = `
+                        ${dl}
+                        <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+                            <div>
+                                <h1 style="font-size:22px;"><i class="fas fa-passport" style="color:#9b1b22;margin-right:10px;"></i>${this.cur && this.cur.id ? 'Edit itinerary' : 'New itinerary'}</h1>
+                                <p>${savedNote}</p>
+                            </div>
+                            <div style="display:flex;gap:8px;">
+                                <button class="btn btn-secondary" data-spk-action="back"><i class="fas fa-arrow-left"></i> All itineraries</button>
+                                <button class="btn btn-primary" data-spk-action="save"><i class="fas fa-floppy-disk"></i> Save itinerary</button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div style="font-weight:700;color:var(--text-primary);margin-bottom:12px;">Speaker</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                <div>${lbl('Speaker name')}<input id="spk_f_name" list="spkSpeakerList" value="${esc(c.speaker_name || '')}" placeholder="Start typing a confirmed speaker, or type a new name" style="${INP}"></div>
+                                ${field('Title (e.g. Prof., MD)', 'spk_f_title', c.speaker_title, 'text', 'Prof.')}
+                                <div>${lbl('Event')}<select id="spk_f_event" style="${INP}">${evOpts}</select></div>
+                                <div>${lbl('Default language of the page')}<select id="spk_f_lang" style="${INP}"><option value="en" ${(c.lang_default !== 'hr') ? 'selected' : ''}>English</option><option value="hr" ${(c.lang_default === 'hr') ? 'selected' : ''}>Croatian</option></select></div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div style="font-weight:700;color:var(--text-primary);margin-bottom:12px;">Hotel</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                ${field('Hotel name', 'spk_f_hotel_name', c.hotel_name, 'text', 'Esplanade Zagreb')}
+                                ${field('Map link', 'spk_f_hotel_map', c.hotel_map_url, 'text', 'https://maps.google.com/…')}
+                                <div style="grid-column:1 / -1;">${lbl('Address')}<input id="spk_f_hotel_addr" value="${esc(c.hotel_address || '')}" placeholder="Mihanovićeva ul. 1, 10000 Zagreb" style="${INP}"></div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                                <div style="font-weight:700;color:var(--text-primary);">Flights</div>
+                                <button class="btn btn-secondary" style="padding:5px 10px;font-size:12px;" data-spk-action="addFlight"><i class="fas fa-plus"></i> Add flight</button>
+                            </div>
+                            <div id="spkFlights">${(this.flights || []).map(f => this._flightRow(f)).join('') || `<div style="${MUTED}font-size:13px;">No flights added.</div>`}</div>
+                        </div>
+
+                        <div class="card">
+                            <div style="font-weight:700;color:var(--text-primary);margin-bottom:12px;">Contacts &amp; host</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                ${field('Host name', 'spk_f_host_name', ct.host_name, 'text', 'Med&X host')}
+                                ${field('Host email', 'spk_f_host_email', ct.host_email, 'text', 'name@medx.hr')}
+                                ${field('Host phone', 'spk_f_host_phone', ct.host_phone, 'text', '+385 …')}
+                                ${field('24-hour event line', 'spk_f_host_24h', ct.event_phone_24h, 'text', '+385 …')}
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div style="font-weight:700;color:var(--text-primary);margin-bottom:4px;">Local essentials</div>
+                            <div style="font-size:12px;${MUTED}margin-bottom:12px;">Croatia defaults are prefilled. Set a nearby pharmacy so seniors have it to hand.</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                                ${field('Emergency', 'spk_f_emg', li.emergency || '112', 'text')}
+                                ${field('Police', 'spk_f_pol', li.police || '192', 'text')}
+                                ${field('Ambulance', 'spk_f_amb', li.ambulance || '194', 'text')}
+                                ${field('Pharmacy name', 'spk_f_ph_name', li.pharmacy_name, 'text', 'Ljekarna …')}
+                                ${field('Pharmacy address', 'spk_f_ph_addr', li.pharmacy_address, 'text')}
+                                ${field('Pharmacy hours', 'spk_f_ph_hours', li.pharmacy_hours, 'text', '0–24 h')}
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div style="font-weight:700;color:var(--text-primary);margin-bottom:12px;">Schedule items</div>
+                            ${(this.cur && this.cur.id) ? `
+                                <div id="spkItemsList">${this._itemsHtml()}</div>
+                                <div style="border-top:1px dashed var(--border);margin:16px 0;"></div>
+                                <div id="spkItemForm">${this._itemFormHtml()}</div>
+                            ` : `<div style="${MUTED}font-size:13px;">Save the itinerary first — then add talks, dinners and transfers here.</div>`}
+                        </div>
+
+                        <div class="card" style="background:var(--bg-secondary);">
+                            <div style="font-weight:700;color:var(--text-primary);margin-bottom:4px;"><i class="fas fa-wand-magic-sparkles" style="color:#9b1b22;margin-right:8px;"></i>From the programme</div>
+                            <div style="font-size:12px;${MUTED}margin-bottom:12px;">These sessions are matched automatically from the conference schedule by speaker name and appear on the speaker's page without being added by hand. Edit the schedule to change them.</div>
+                            <div id="spkPreview">${(this.cur && this.cur.id) ? '<div style="' + MUTED + 'font-size:13px;">Loading matches…</div>' : '<div style="' + MUTED + 'font-size:13px;">Save to see the sessions this speaker is assigned to.</div>'}</div>
+                        </div>`;
+                },
+
+                _flightRow(f) {
+                    f = f || {};
+                    const dir = (f.direction === 'departure') ? 'departure' : 'arrival';
+                    return `<div data-spk-flight-row style="display:grid;grid-template-columns:120px 1fr 1fr 1fr 1fr 130px 110px 1fr auto;gap:6px;align-items:center;margin-bottom:8px;">
+                        <select data-fk="direction" style="${INP}"><option value="arrival" ${dir === 'arrival' ? 'selected' : ''}>Arrival</option><option value="departure" ${dir === 'departure' ? 'selected' : ''}>Departure</option></select>
+                        <input data-fk="airline" value="${esc(f.airline || '')}" placeholder="Airline" style="${INP}">
+                        <input data-fk="flight_no" value="${esc(f.flight_no || '')}" placeholder="Flight #" style="${INP}">
+                        <input data-fk="from" value="${esc(f.from || '')}" placeholder="From" style="${INP}">
+                        <input data-fk="to" value="${esc(f.to || '')}" placeholder="To" style="${INP}">
+                        <input data-fk="date" type="date" value="${esc(f.date || '')}" style="${INP}">
+                        <input data-fk="time" type="time" value="${esc(f.time || '')}" style="${INP}">
+                        <input data-fk="meet_note" value="${esc(f.meet_note || '')}" placeholder="Who meets / transfer" style="${INP}">
+                        <button class="btn btn-secondary" style="padding:7px 9px;" data-spk-action="delFlight" title="Remove"><i class="fas fa-times"></i></button>
+                    </div>`;
+                },
+                addFlight() {
+                    const wrap = document.getElementById('spkFlights'); if (!wrap) return;
+                    if (wrap.querySelector('[data-spk-flight-row]') == null) wrap.innerHTML = '';
+                    wrap.insertAdjacentHTML('beforeend', this._flightRow({}));
+                },
+                _readFlights() {
+                    const rows = Array.prototype.slice.call(document.querySelectorAll('#spkFlights [data-spk-flight-row]'));
+                    return rows.map(r => {
+                        const o = {};
+                        r.querySelectorAll('[data-fk]').forEach(i => { o[i.getAttribute('data-fk')] = (i.value || '').trim(); });
+                        return o;
+                    }).filter(o => o.airline || o.flight_no || o.from || o.to || o.date || o.time || o.meet_note);
+                },
+
+                _itemsHtml() {
+                    if (!this.items.length) return `<div style="${MUTED}font-size:13px;">No schedule items yet.</div>`;
+                    return this.items.map(it => {
+                        const role = it.role === 'speaking'
+                            ? '<span style="font-size:11px;font-weight:700;color:#fecaca;background:rgba(155,27,34,.28);padding:2px 8px;border-radius:20px;">You speak</span>'
+                            : '<span style="font-size:11px;font-weight:700;color:var(--text-muted);background:rgba(100,116,139,.2);padding:2px 8px;border-radius:20px;">Guest</span>';
+                        const when = [it.day, [it.start_time, it.end_time].filter(Boolean).join('–')].filter(Boolean).join(' · ');
+                        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+                            <div style="min-width:0;">
+                                <div style="font-weight:600;color:var(--text-primary);">${esc(it.title_en)} ${role}</div>
+                                <div style="font-size:12px;${MUTED}">${esc(when)}${it.venue ? ' · ' + esc(it.venue) : ''}${it.with_whom ? ' · with ' + esc(it.with_whom) : ''}</div>
+                            </div>
+                            <div style="white-space:nowrap;">
+                                <button class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" data-spk-action="editItem" data-spk-item="${esc(it.id)}"><i class="fas fa-pen"></i></button>
+                                <button class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" data-spk-action="delItem" data-spk-item="${esc(it.id)}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>`;
+                    }).join('');
+                },
+                _itemFormHtml(it) {
+                    it = it || {};
+                    const typeOpts = TYPES.map(([v, t]) => `<option value="${v}" ${((it.item_type || 'other') === v) ? 'selected' : ''}>${t}</option>`).join('');
+                    const editing = !!this.editItemId;
+                    return `<div style="display:grid;grid-template-columns:130px 110px 110px 1fr;gap:10px;margin-bottom:10px;">
+                            <div>${lbl('Day')}<input id="spk_it_day" type="date" value="${esc(it.day || '')}" style="${INP}"></div>
+                            <div>${lbl('Start')}<input id="spk_it_start" type="time" value="${esc(it.start_time || '')}" style="${INP}"></div>
+                            <div>${lbl('End')}<input id="spk_it_end" type="time" value="${esc(it.end_time || '')}" style="${INP}"></div>
+                            <div>${lbl('Role')}<select id="spk_it_role" style="${INP}"><option value="speaking" ${(it.role === 'speaking') ? 'selected' : ''}>You speak</option><option value="guest" ${(it.role !== 'speaking') ? 'selected' : ''}>Guest — no obligations</option></select></div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                            <div>${lbl('Title (EN)')}<input id="spk_it_title_en" value="${esc(it.title_en || '')}" placeholder="Keynote lecture" style="${INP}"></div>
+                            <div>${lbl('Title (HR, optional)')}<input id="spk_it_title_hr" value="${esc(it.title_hr || '')}" placeholder="Uvodno predavanje" style="${INP}"></div>
+                            <div>${lbl('Venue')}<input id="spk_it_venue" value="${esc(it.venue || '')}" placeholder="Room / restaurant" style="${INP}"></div>
+                            <div>${lbl('Venue map link')}<input id="spk_it_venue_map" value="${esc(it.venue_map_url || '')}" placeholder="https://maps.google.com/…" style="${INP}"></div>
+                            <div>${lbl('With whom')}<input id="spk_it_with" value="${esc(it.with_whom || '')}" placeholder="Organisers, fellow speakers" style="${INP}"></div>
+                            <div>${lbl('Type')}<select id="spk_it_type" style="${INP}">${typeOpts}</select></div>
+                            <div>${lbl('Notes (EN)')}<input id="spk_it_notes_en" value="${esc(it.notes_en || '')}" placeholder="Dress smart casual" style="${INP}"></div>
+                            <div>${lbl('Notes (HR, optional)')}<input id="spk_it_notes_hr" value="${esc(it.notes_hr || '')}" style="${INP}"></div>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-primary" style="padding:6px 14px;font-size:13px;" data-spk-action="saveItem"><i class="fas fa-plus"></i> ${editing ? 'Update item' : 'Add item'}</button>
+                            ${editing ? '<button class="btn btn-secondary" style="padding:6px 14px;font-size:13px;" data-spk-action="clearItem">Cancel edit</button>' : ''}
+                        </div>`;
+                },
+
+                collect() {
+                    return {
+                        speaker_name: val('spk_f_name').trim(),
+                        speaker_title: val('spk_f_title').trim(),
+                        event_key: (val('spk_f_event') || 'plexus-2026').trim(),
+                        lang_default: val('spk_f_lang'),
+                        hotel_name: val('spk_f_hotel_name').trim(),
+                        hotel_address: val('spk_f_hotel_addr').trim(),
+                        hotel_map_url: val('spk_f_hotel_map').trim(),
+                        flights: this._readFlights(),
+                        contacts: {
+                            host_name: val('spk_f_host_name').trim(),
+                            host_email: val('spk_f_host_email').trim(),
+                            host_phone: val('spk_f_host_phone').trim(),
+                            event_phone_24h: val('spk_f_host_24h').trim()
+                        },
+                        local_info: {
+                            emergency: val('spk_f_emg').trim() || '112',
+                            police: val('spk_f_pol').trim() || '192',
+                            ambulance: val('spk_f_amb').trim() || '194',
+                            pharmacy_name: val('spk_f_ph_name').trim(),
+                            pharmacy_address: val('spk_f_ph_addr').trim(),
+                            pharmacy_hours: val('spk_f_ph_hours').trim()
+                        }
+                    };
+                },
+                async save() {
+                    const body = this.collect();
+                    if (!body.speaker_name) { Toast.error('Speaker name is required.'); return; }
+                    try {
+                        let d;
+                        if (this.cur && this.cur.id) d = await App.api('/api/admin/speaker-itineraries/' + encodeURIComponent(this.cur.id), { method: 'PUT', body: JSON.stringify(body) });
+                        else d = await App.api('/api/admin/speaker-itineraries', { method: 'POST', body: JSON.stringify(body) });
+                        const wasNew = !(this.cur && this.cur.id);
+                        this.cur = d.itinerary; this.flights = (this.cur.flights || []).slice();
+                        Toast.success('Itinerary saved');
+                        if (wasNew) { this.items = []; }
+                        this.renderEditor();
+                        this.loadPreview();
+                    } catch (e) { Toast.error(e.message || 'Could not save the itinerary'); }
+                },
+
+                // ---------- ITEMS ----------
+                async loadItems() {
+                    if (!(this.cur && this.cur.id)) return;
+                    try { const d = await App.api('/api/admin/speaker-itineraries/' + encodeURIComponent(this.cur.id) + '/items'); this.items = (d && d.items) || []; }
+                    catch (e) { this.items = []; }
+                    const box = document.getElementById('spkItemsList'); if (box) box.innerHTML = this._itemsHtml();
+                },
+                _collectItem() {
+                    return {
+                        day: val('spk_it_day').trim(),
+                        start_time: val('spk_it_start').trim(),
+                        end_time: val('spk_it_end').trim(),
+                        title_en: val('spk_it_title_en').trim(),
+                        title_hr: val('spk_it_title_hr').trim(),
+                        venue: val('spk_it_venue').trim(),
+                        venue_map_url: val('spk_it_venue_map').trim(),
+                        with_whom: val('spk_it_with').trim(),
+                        notes_en: val('spk_it_notes_en').trim(),
+                        notes_hr: val('spk_it_notes_hr').trim(),
+                        role: val('spk_it_role'),
+                        item_type: val('spk_it_type')
+                    };
+                },
+                async saveItem() {
+                    if (!(this.cur && this.cur.id)) { Toast.error('Save the itinerary first.'); return; }
+                    const body = this._collectItem();
+                    if (!body.day) { Toast.error('Pick a day for the item.'); return; }
+                    if (!body.title_en) { Toast.error('An English title is required.'); return; }
+                    try {
+                        const base = '/api/admin/speaker-itineraries/' + encodeURIComponent(this.cur.id) + '/items';
+                        if (this.editItemId) await App.api(base + '/' + encodeURIComponent(this.editItemId), { method: 'PUT', body: JSON.stringify(body) });
+                        else await App.api(base, { method: 'POST', body: JSON.stringify(body) });
+                        this.editItemId = null;
+                        Toast.success('Item saved');
+                        await this.loadItems();
+                        this.clearItemForm();
+                    } catch (e) { Toast.error(e.message || 'Could not save the item'); }
+                },
+                beginEditItem(itemId) {
+                    const it = this.items.find(x => String(x.id) === String(itemId)); if (!it) return;
+                    this.editItemId = itemId;
+                    const form = document.getElementById('spkItemForm');
+                    if (form) form.innerHTML = this._itemFormHtml(it);
+                },
+                clearItemForm() {
+                    this.editItemId = null;
+                    const form = document.getElementById('spkItemForm');
+                    if (form) form.innerHTML = this._itemFormHtml({});
+                },
+                async delItem(itemId) {
+                    if (!(this.cur && this.cur.id)) return;
+                    if (!(await adminConfirm({ destructive: true, title: 'Delete this item?', message: 'It will be removed from the speaker\'s plan.', confirmText: 'Delete' }))) return;
+                    try {
+                        await App.api('/api/admin/speaker-itineraries/' + encodeURIComponent(this.cur.id) + '/items/' + encodeURIComponent(itemId), { method: 'DELETE' });
+                        Toast.success('Item removed');
+                        await this.loadItems();
+                    } catch (e) { Toast.error(e.message || 'Could not delete the item'); }
+                },
+
+                // ---------- PROGRAM PREVIEW ----------
+                async loadPreview() {
+                    if (!(this.cur && this.cur.id)) return;
+                    let matches = [];
+                    try { const d = await App.api('/api/admin/speaker-itineraries/' + encodeURIComponent(this.cur.id) + '/program-preview'); matches = (d && d.matches) || []; }
+                    catch (e) { matches = []; }
+                    const box = document.getElementById('spkPreview'); if (!box) return;
+                    if (!matches.length) { box.innerHTML = `<div style="${MUTED}font-size:13px;">No programme sessions matched this speaker yet. Add them to the conference schedule and they will appear here.</div>`; return; }
+                    box.innerHTML = matches.map(m => {
+                        const when = [m.day, [m.start_time, m.end_time].filter(Boolean).join('–')].filter(Boolean).join(' · ');
+                        return `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+                            <div style="font-weight:600;color:var(--text-primary);">${esc(m.title_en)} <span style="font-size:11px;font-weight:700;color:#fecaca;background:rgba(155,27,34,.28);padding:2px 8px;border-radius:20px;">You speak</span></div>
+                            <div style="font-size:12px;${MUTED}">${esc(when)}${m.venue ? ' · ' + esc(m.venue) : ''}</div>
+                        </div>`;
+                    }).join('');
+                },
+
+                // ---------- ACTIONS ----------
+                async copy(url) {
+                    try { await navigator.clipboard.writeText(url); Toast.success('Link copied'); }
+                    catch (e) { Toast.error('Copy failed — ' + url); }
+                },
+                open(url) { window.open(url, '_blank', 'noopener'); },
+                async setRevoked(id, on) {
+                    try {
+                        await App.api('/api/admin/speaker-itineraries/' + encodeURIComponent(id) + '/' + (on ? 'revoke' : 'unrevoke'), { method: 'POST' });
+                        Toast.success(on ? 'Link revoked' : 'Link restored');
+                        this.loadList();
+                    } catch (e) { Toast.error(e.message || 'Could not update the link'); }
+                },
+                async send(id) {
+                    const to = window.prompt("Send this itinerary to which email? (the speaker's address)");
+                    if (to == null) return;
+                    const email = String(to).trim();
+                    if (!email) { Toast.error('Enter an email to send to.'); return; }
+                    try {
+                        await App.api('/api/admin/speaker-itineraries/' + encodeURIComponent(id) + '/send', { method: 'POST', body: JSON.stringify({ to: email }) });
+                        Toast.success('Staged to Outbox for approval');
+                        this.loadList();
+                    } catch (e) { Toast.error(e.message || 'Could not stage the email'); }
+                }
+            };
+            return App2;
+        })();
+        window.SpeakerItinerariesApp = SpeakerItinerariesApp;
 
 
         // ==================== DISCOVER TOUR MODULE ====================

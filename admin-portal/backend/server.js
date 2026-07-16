@@ -5780,6 +5780,55 @@ async function initializeApp() {
 
     // ==================== END ADMIN TEAM CHAT schema ====================
 
+    // SPEAKER ITINERARIES (Stage B composer) — these two tables live OUTSIDE the SCHEMA-MIRROR
+    // block but are declared IDENTICALLY in both portal server.js files (shared-by-convention):
+    // the ADMIN portal WRITES itineraries + items (this composer) while the USER portal only READS
+    // them for the public /speaker/:token page. The two CREATEs + two guarded ALTERs + two indexes
+    // below are byte-identical to the user portal's copy, so scripts/check-schema-sync.sh stays
+    // green (it only diffs the mirror region) while both services boot the same Turso DB. Every
+    // statement is idempotent (CREATE TABLE IF NOT EXISTS; each later column a guarded ALTER) so
+    // whichever process boots first creates them once and re-execution on every boot is a no-op.
+    db.run(`CREATE TABLE IF NOT EXISTS speaker_itineraries (
+        id TEXT PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        speaker_name TEXT NOT NULL,
+        speaker_title TEXT,
+        event_key TEXT NOT NULL,
+        hotel_name TEXT,
+        hotel_address TEXT,
+        hotel_map_url TEXT,
+        flights_json TEXT,
+        contacts_json TEXT,
+        local_info_json TEXT,
+        lang_default TEXT DEFAULT 'en',
+        revoked INTEGER DEFAULT 0,
+        created_at TEXT,
+        updated_at TEXT
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS speaker_itinerary_items (
+        id TEXT PRIMARY KEY,
+        itinerary_id TEXT NOT NULL,
+        day TEXT NOT NULL,
+        start_time TEXT,
+        end_time TEXT,
+        title_en TEXT NOT NULL,
+        title_hr TEXT,
+        venue TEXT,
+        venue_map_url TEXT,
+        with_whom TEXT,
+        notes_en TEXT,
+        notes_hr TEXT,
+        role TEXT DEFAULT 'guest',
+        item_type TEXT DEFAULT 'other',
+        sort_order INTEGER DEFAULT 0
+    )`);
+    // Guarded ALTERs — additive, run identically in both portals so a table created by an older
+    // build gains any newer column exactly once (a re-run throws "duplicate column" and is swallowed).
+    try { db.run(`ALTER TABLE speaker_itineraries ADD COLUMN lang_default TEXT DEFAULT 'en'`); } catch (e) {}
+    try { db.run(`ALTER TABLE speaker_itineraries ADD COLUMN revoked INTEGER DEFAULT 0`); } catch (e) {}
+    db.run(`CREATE INDEX IF NOT EXISTS idx_speaker_itineraries_token ON speaker_itineraries(token)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_speaker_itinerary_items_itin ON speaker_itinerary_items(itinerary_id)`);
+
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
     //   'everyone' | 'interested' | 'registered' | 'interested_not_registered'.
@@ -20436,6 +20485,325 @@ By applying to this program, I provide the following consents:
         saveDb();
         res.json({ success: true, outbox_batch: batchId, recipient: to });
     });
+
+    // ============================ SPEAKER ITINERARIES (Stage B composer) ============================
+    // Admin composes each speaker's personalized, zero-login plan; the public /speaker/:token page
+    // lives in the USER portal (Stage A) and reads the SAME shared-by-convention tables. THIS portal
+    // only WRITES itineraries + items and stages the advance email through the outbox (approval gate —
+    // never a direct send). The program-preview mirror re-implements the user portal's
+    // speakerProgramItems() matching idiom against the identical conferences/speakers/sessions tables
+    // so the auto-pulled sessions line up with what the public page will render.
+    const SPK_ROLES = ['speaking', 'guest'];
+    const SPK_ITEM_TYPES = ['talk', 'panel', 'dinner', 'transfer', 'free', 'photo', 'other'];
+    function spkLocalDefaults() {
+        return { emergency: '112', police: '192', ambulance: '194', pharmacy_name: '', pharmacy_address: '', pharmacy_hours: '' };
+    }
+    // 16 random bytes → 32 url-safe hex chars (well over the 16-char minimum, unguessable).
+    function spkToken() { return require('crypto').randomBytes(16).toString('hex'); }
+    // Parse a stored JSON column into an object/array, else the fallback (accepts already-parsed input).
+    function spkParse(v, fallback) {
+        if (v == null || v === '') return fallback;
+        if (typeof v === 'object') return v;
+        try { const p = JSON.parse(v); return (p == null) ? fallback : p; } catch (e) { return fallback; }
+    }
+    // Normalize a JSON column for storage: accept an object/array OR a JSON string; persist a compact
+    // string (or null). An unparseable string is dropped rather than stored as garbage.
+    function spkJsonCol(v) {
+        if (v == null || v === '') return null;
+        if (typeof v === 'string') { try { JSON.parse(v); return v; } catch (e) { return null; } }
+        try { return JSON.stringify(v); } catch (e) { return null; }
+    }
+    function spkPublicBase() { return (process.env.USER_PORTAL_URL || 'http://localhost:3003').replace(/\/+$/, ''); }
+    function spkEventName(eventKey) {
+        try { const c = query.get('SELECT name FROM conferences WHERE slug = ? OR id = ?', [eventKey, eventKey]); if (c && c.name) return c.name; } catch (e) {}
+        return 'Plexus 2026';
+    }
+    // Sent/staged state derived from the outbox — no extra column needed, no second send path. Any
+    // scheduled/sent row for this itinerary's batch prefix = "sent"; a pending_approval row = "staged".
+    function spkSendState(id) {
+        try {
+            const rows = query.all("SELECT status FROM scheduled_emails WHERE source_engine = 'speaker-itinerary' AND batch_id LIKE ?", ['speaker-itinerary-' + id + '-%']);
+            if (!rows.length) return 'not_sent';
+            if (rows.some(r => r.status === 'sent' || r.status === 'scheduled')) return 'sent';
+            if (rows.some(r => r.status === 'pending_approval')) return 'staged';
+            return 'not_sent';
+        } catch (e) { return 'not_sent'; }
+    }
+    // MIRROR of user-portal speakerProgramItems(): resolve the conference from event_key (slug|id, else
+    // active), match the speaker by name (exact, else pragmatic contains within the conference), then
+    // read every session whose comma-joined speaker_ids references that speaker id (the shared LIKE
+    // idiom). Read-only — these are shown as "from the programme" and appear on the page automatically.
+    function spkProgramItems(itin) {
+        const out = [];
+        try {
+            let conf = null;
+            if (itin.event_key) conf = query.get('SELECT * FROM conferences WHERE slug = ? OR id = ?', [itin.event_key, itin.event_key]);
+            if (!conf) { try { conf = getActiveConference(); } catch (e) {} }
+            const confId = conf && conf.id;
+            const nm = String(itin.speaker_name || '').trim();
+            if (!nm) return out;
+            let speakers = confId
+                ? query.all('SELECT id, name FROM speakers WHERE conference_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))', [confId, nm])
+                : query.all('SELECT id, name FROM speakers WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))', [nm]);
+            if (!speakers.length) {
+                speakers = (confId
+                    ? query.all('SELECT id, name FROM speakers WHERE conference_id = ?', [confId])
+                    : query.all('SELECT id, name FROM speakers')
+                ).filter(sp => {
+                    const rn = String(sp.name || '').trim().toLowerCase();
+                    const inm = nm.toLowerCase();
+                    return rn && (inm.includes(rn) || rn.includes(inm));
+                });
+            }
+            const seen = new Set();
+            for (const sp of speakers) {
+                const rows = confId
+                    ? query.all("SELECT * FROM sessions WHERE conference_id = ? AND speaker_ids LIKE '%' || ? || '%'", [confId, sp.id])
+                    : query.all("SELECT * FROM sessions WHERE speaker_ids LIKE '%' || ? || '%'", [sp.id]);
+                for (const s of rows) {
+                    if (seen.has(s.id)) continue;
+                    seen.add(s.id);
+                    const st = String(s.session_type || '').toLowerCase();
+                    const item_type = (st.includes('panel') || st.includes('discussion') || st.includes('round')) ? 'panel' : 'talk';
+                    out.push({
+                        source: 'program', role: 'speaking', item_type,
+                        day: (s.day != null && String(s.day).match(/^\d+$/)) ? ('day' + s.day) : (s.day || 'day1'),
+                        start_time: s.start_time || '', end_time: s.end_time || '',
+                        title_en: s.title || 'Session', venue: s.room || '',
+                        notes_en: s.description || '', matched_speaker: sp.name || ''
+                    });
+                }
+            }
+        } catch (e) { /* best-effort; the manual plan still stands */ }
+        return out;
+    }
+    function spkSerialize(r) {
+        const itemCount = (query.get('SELECT COUNT(*) AS n FROM speaker_itinerary_items WHERE itinerary_id = ?', [r.id]) || {}).n || 0;
+        return {
+            id: r.id, token: r.token,
+            speaker_name: r.speaker_name, speaker_title: r.speaker_title || '',
+            event_key: r.event_key, event_name: spkEventName(r.event_key),
+            hotel_name: r.hotel_name || '', hotel_address: r.hotel_address || '', hotel_map_url: r.hotel_map_url || '',
+            flights: spkParse(r.flights_json, []),
+            contacts: spkParse(r.contacts_json, {}),
+            local_info: Object.assign(spkLocalDefaults(), spkParse(r.local_info_json, {}) || {}),
+            lang_default: (r.lang_default === 'hr' ? 'hr' : 'en'),
+            revoked: r.revoked ? 1 : 0,
+            item_count: itemCount,
+            send_state: spkSendState(r.id),
+            public_url: spkPublicBase() + '/speaker/' + encodeURIComponent(r.token),
+            created_at: r.created_at, updated_at: r.updated_at
+        };
+    }
+    // Bilingual EN+HR advance email (formal Vi register) — greeting by name+title, one-line purpose,
+    // THE LINK, an add-to-home one-liner, and the host contact block. Staged only, never sent here.
+    function spkAdvanceEmail(r) {
+        const eventName = spkEventName(r.event_key);
+        const link = spkPublicBase() + '/speaker/' + encodeURIComponent(r.token);
+        const contacts = spkParse(r.contacts_json, {}) || {};
+        const greetName = seatEsc(r.speaker_name || '');
+        const greetTitle = seatEsc(r.speaker_title || '');
+        const salut = greetTitle ? greetTitle + ' ' : '';
+        const evt = seatEsc(eventName);
+        const hostBits = [contacts.host_name, contacts.host_email, contacts.host_phone].filter(Boolean).map(seatEsc).join(' · ');
+        const has24 = contacts.event_phone_24h ? seatEsc(contacts.event_phone_24h) : '';
+        const hostEn = hostBits ? `
+            <p style="margin:18px 0 4px;font-weight:700;color:#0f172a;">Your Med&amp;X host</p>
+            <p style="margin:0;color:#334155;">${hostBits}</p>${has24 ? `<p style="margin:4px 0 0;color:#334155;">24-hour event line: ${has24}</p>` : ''}` : '';
+        const hostHr = hostBits ? `
+            <p style="margin:18px 0 4px;font-weight:700;color:#0f172a;">Vaš domaćin iz Med&amp;X-a</p>
+            <p style="margin:0;color:#334155;">${hostBits}</p>${has24 ? `<p style="margin:4px 0 0;color:#334155;">Dežurni broj (0–24 h): ${has24}</p>` : ''}` : '';
+        const body = `
+            <p style="margin:0 0 10px;">Dear ${salut}${greetName},</p>
+            <p style="margin:0 0 6px;">This is your personal programme for <strong>${evt}</strong> — your talks, dinners, transfers and everything we have arranged for you, in one place.</p>
+            <div style="margin:22px 0;"><a href="${link}" style="background:#9b1b22;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:700;display:inline-block;">Open your programme</a></div>
+            <p style="margin:0 0 4px;color:#334155;">Tip: you can add this page to your phone's Home Screen and open it like an app — tap Share, then “Add to Home Screen”.</p>
+            ${hostEn}
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:26px 0;">
+            <p style="margin:0 0 10px;">Poštovani/poštovana ${salut}${greetName},</p>
+            <p style="margin:0 0 6px;">Ovo je Vaš osobni program za <strong>${evt}</strong> — Vaša predavanja, večere, prijevozi i sve što smo za Vas pripremili, na jednome mjestu.</p>
+            <div style="margin:22px 0;"><a href="${link}" style="background:#9b1b22;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:700;display:inline-block;">Otvorite svoj program</a></div>
+            <p style="margin:0 0 4px;color:#334155;">Savjet: ovu stranicu možete dodati na početni zaslon telefona i otvarati je poput aplikacije — dodirnite Podijeli, zatim „Dodaj na početni zaslon“.</p>
+            ${hostHr}
+            <p style="margin:24px 0 0;color:#64748b;font-size:13px;word-break:break-all;">${seatEsc(link)}</p>
+        `;
+        return { subject: `Your personal programme — ${eventName} / Vaš osobni program`, html: buildEmailTemplate('Your Med&X programme', body) };
+    }
+
+    // ---- List ----
+    app.get('/api/admin/speaker-itineraries', auth, adminOnly, asyncHandler(async (req, res) => {
+        const rows = query.all('SELECT * FROM speaker_itineraries ORDER BY COALESCE(updated_at, created_at) DESC, created_at DESC');
+        res.json({ itineraries: rows.map(spkSerialize) });
+    }));
+
+    // ---- Read one (with items) ----
+    app.get('/api/admin/speaker-itineraries/:id', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM speaker_itineraries WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Itinerary not found' });
+        const items = query.all('SELECT * FROM speaker_itinerary_items WHERE itinerary_id = ? ORDER BY sort_order, start_time', [r.id]);
+        res.json({ itinerary: spkSerialize(r), items });
+    }));
+
+    // ---- Create ----
+    app.post('/api/admin/speaker-itineraries', auth, adminOnly, asyncHandler(async (req, res) => {
+        const b = req.body || {};
+        const name = String(b.speaker_name || '').trim();
+        if (!name) return res.status(400).json({ error: 'Speaker name is required.' });
+        const id = uuidv4();
+        const token = spkToken();
+        const eventKey = String(b.event_key || 'plexus-2026').trim() || 'plexus-2026';
+        // local_info DEFAULTS prefilled server-side when the admin sent nothing (or only some fields).
+        const localIn = spkParse(b.local_info_json != null ? b.local_info_json : b.local_info, null);
+        const local = Object.assign(spkLocalDefaults(), (localIn && typeof localIn === 'object') ? localIn : {});
+        const now = new Date().toISOString();
+        db.run(`INSERT INTO speaker_itineraries
+            (id, token, speaker_name, speaker_title, event_key, hotel_name, hotel_address, hotel_map_url,
+             flights_json, contacts_json, local_info_json, lang_default, revoked, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)`,
+            [id, token, name, String(b.speaker_title || '').trim() || null, eventKey,
+             String(b.hotel_name || '').trim() || null, String(b.hotel_address || '').trim() || null, String(b.hotel_map_url || '').trim() || null,
+             spkJsonCol(b.flights_json != null ? b.flights_json : b.flights),
+             spkJsonCol(b.contacts_json != null ? b.contacts_json : b.contacts),
+             JSON.stringify(local), (b.lang_default === 'hr' ? 'hr' : 'en'), now, now]);
+        logAudit(req, 'speaker_itinerary_create', `${name} (${eventKey})`);
+        saveDb();
+        const r = query.get('SELECT * FROM speaker_itineraries WHERE id = ?', [id]);
+        res.json({ success: true, itinerary: spkSerialize(r) });
+    }));
+
+    // ---- Update ----
+    app.put('/api/admin/speaker-itineraries/:id', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM speaker_itineraries WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Itinerary not found' });
+        const b = req.body || {};
+        const name = (b.speaker_name != null) ? (String(b.speaker_name).trim() || r.speaker_name) : r.speaker_name;
+        const eventKey = (b.event_key != null) ? (String(b.event_key).trim() || r.event_key) : r.event_key;
+        const setStr = (v, cur) => v !== undefined ? (String(v).trim() || null) : cur;
+        const local = (b.local_info_json !== undefined || b.local_info !== undefined)
+            ? Object.assign(spkLocalDefaults(), spkParse(b.local_info_json != null ? b.local_info_json : b.local_info, {}) || {})
+            : Object.assign(spkLocalDefaults(), spkParse(r.local_info_json, {}) || {});
+        db.run(`UPDATE speaker_itineraries SET
+            speaker_name = ?, speaker_title = ?, event_key = ?,
+            hotel_name = ?, hotel_address = ?, hotel_map_url = ?,
+            flights_json = ?, contacts_json = ?, local_info_json = ?, lang_default = ?, updated_at = ?
+            WHERE id = ?`,
+            [name, setStr(b.speaker_title, r.speaker_title), eventKey,
+             setStr(b.hotel_name, r.hotel_name), setStr(b.hotel_address, r.hotel_address), setStr(b.hotel_map_url, r.hotel_map_url),
+             (b.flights_json !== undefined || b.flights !== undefined) ? spkJsonCol(b.flights_json != null ? b.flights_json : b.flights) : r.flights_json,
+             (b.contacts_json !== undefined || b.contacts !== undefined) ? spkJsonCol(b.contacts_json != null ? b.contacts_json : b.contacts) : r.contacts_json,
+             JSON.stringify(local),
+             (b.lang_default !== undefined ? (b.lang_default === 'hr' ? 'hr' : 'en') : r.lang_default),
+             new Date().toISOString(), r.id]);
+        logAudit(req, 'speaker_itinerary_update', `${name} (${eventKey})`);
+        saveDb();
+        const nr = query.get('SELECT * FROM speaker_itineraries WHERE id = ?', [r.id]);
+        res.json({ success: true, itinerary: spkSerialize(nr) });
+    }));
+
+    // ---- Revoke / Unrevoke (soft — a sent link points at this row; never delete it) ----
+    app.post('/api/admin/speaker-itineraries/:id/revoke', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM speaker_itineraries WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Itinerary not found' });
+        db.run('UPDATE speaker_itineraries SET revoked = 1, updated_at = ? WHERE id = ?', [new Date().toISOString(), r.id]);
+        logAudit(req, 'speaker_itinerary_revoke', `${r.speaker_name} link revoked`);
+        saveDb();
+        res.json({ success: true, revoked: 1 });
+    }));
+    app.post('/api/admin/speaker-itineraries/:id/unrevoke', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM speaker_itineraries WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Itinerary not found' });
+        db.run('UPDATE speaker_itineraries SET revoked = 0, updated_at = ? WHERE id = ?', [new Date().toISOString(), r.id]);
+        logAudit(req, 'speaker_itinerary_unrevoke', `${r.speaker_name} link restored`);
+        saveDb();
+        res.json({ success: true, revoked: 0 });
+    }));
+
+    // ---- Items CRUD ----
+    app.get('/api/admin/speaker-itineraries/:id/items', auth, adminOnly, asyncHandler(async (req, res) => {
+        const parent = query.get('SELECT id FROM speaker_itineraries WHERE id = ?', [req.params.id]);
+        if (!parent) return res.status(404).json({ error: 'Itinerary not found' });
+        const items = query.all('SELECT * FROM speaker_itinerary_items WHERE itinerary_id = ? ORDER BY sort_order, start_time', [req.params.id]);
+        res.json({ items });
+    }));
+    app.post('/api/admin/speaker-itineraries/:id/items', auth, adminOnly, asyncHandler(async (req, res) => {
+        const parent = query.get('SELECT id FROM speaker_itineraries WHERE id = ?', [req.params.id]);
+        if (!parent) return res.status(404).json({ error: 'Itinerary not found' });
+        const b = req.body || {};
+        const day = String(b.day || '').trim();
+        const titleEn = String(b.title_en || '').trim();
+        if (!day) return res.status(400).json({ error: 'A day is required for each item.' });
+        if (!titleEn) return res.status(400).json({ error: 'An English title is required for each item.' });
+        const role = SPK_ROLES.includes(b.role) ? b.role : 'guest';
+        const itemType = SPK_ITEM_TYPES.includes(b.item_type) ? b.item_type : 'other';
+        const id = uuidv4();
+        db.run(`INSERT INTO speaker_itinerary_items
+            (id, itinerary_id, day, start_time, end_time, title_en, title_hr, venue, venue_map_url, with_whom, notes_en, notes_hr, role, item_type, sort_order)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [id, req.params.id, day, String(b.start_time || '').trim() || null, String(b.end_time || '').trim() || null,
+             titleEn, String(b.title_hr || '').trim() || null, String(b.venue || '').trim() || null, String(b.venue_map_url || '').trim() || null,
+             String(b.with_whom || '').trim() || null, String(b.notes_en || '').trim() || null, String(b.notes_hr || '').trim() || null,
+             role, itemType, Number.isFinite(+b.sort_order) ? (+b.sort_order | 0) : 0]);
+        db.run('UPDATE speaker_itineraries SET updated_at = ? WHERE id = ?', [new Date().toISOString(), req.params.id]);
+        logAudit(req, 'speaker_itinerary_item_add', `${titleEn} (${role}/${itemType})`);
+        saveDb();
+        res.json({ success: true, item: query.get('SELECT * FROM speaker_itinerary_items WHERE id = ?', [id]) });
+    }));
+    app.put('/api/admin/speaker-itineraries/:id/items/:itemId', auth, adminOnly, asyncHandler(async (req, res) => {
+        const it = query.get('SELECT * FROM speaker_itinerary_items WHERE id = ? AND itinerary_id = ?', [req.params.itemId, req.params.id]);
+        if (!it) return res.status(404).json({ error: 'Item not found' });
+        const b = req.body || {};
+        const day = (b.day !== undefined) ? (String(b.day).trim() || it.day) : it.day;
+        const titleEn = (b.title_en !== undefined) ? (String(b.title_en).trim() || it.title_en) : it.title_en;
+        const role = (b.role !== undefined) ? (SPK_ROLES.includes(b.role) ? b.role : it.role) : it.role;
+        const itemType = (b.item_type !== undefined) ? (SPK_ITEM_TYPES.includes(b.item_type) ? b.item_type : it.item_type) : it.item_type;
+        const setStr = (v, cur) => v !== undefined ? (String(v).trim() || null) : cur;
+        db.run(`UPDATE speaker_itinerary_items SET
+            day=?, start_time=?, end_time=?, title_en=?, title_hr=?, venue=?, venue_map_url=?, with_whom=?, notes_en=?, notes_hr=?, role=?, item_type=?, sort_order=?
+            WHERE id=?`,
+            [day, setStr(b.start_time, it.start_time), setStr(b.end_time, it.end_time), titleEn, setStr(b.title_hr, it.title_hr),
+             setStr(b.venue, it.venue), setStr(b.venue_map_url, it.venue_map_url), setStr(b.with_whom, it.with_whom),
+             setStr(b.notes_en, it.notes_en), setStr(b.notes_hr, it.notes_hr), role, itemType,
+             (b.sort_order !== undefined && Number.isFinite(+b.sort_order)) ? (+b.sort_order | 0) : it.sort_order, it.id]);
+        db.run('UPDATE speaker_itineraries SET updated_at = ? WHERE id = ?', [new Date().toISOString(), req.params.id]);
+        logAudit(req, 'speaker_itinerary_item_update', `${titleEn}`);
+        saveDb();
+        res.json({ success: true, item: query.get('SELECT * FROM speaker_itinerary_items WHERE id = ?', [it.id]) });
+    }));
+    app.delete('/api/admin/speaker-itineraries/:id/items/:itemId', auth, adminOnly, asyncHandler(async (req, res) => {
+        const it = query.get('SELECT * FROM speaker_itinerary_items WHERE id = ? AND itinerary_id = ?', [req.params.itemId, req.params.id]);
+        if (!it) return res.status(404).json({ error: 'Item not found' });
+        db.run('DELETE FROM speaker_itinerary_items WHERE id = ?', [it.id]);
+        db.run('UPDATE speaker_itineraries SET updated_at = ? WHERE id = ?', [new Date().toISOString(), req.params.id]);
+        logAudit(req, 'speaker_itinerary_item_delete', `${it.title_en}`);
+        saveDb();
+        res.json({ success: true });
+    }));
+
+    // ---- Program preview (read-only auto-match against the conference programme) ----
+    app.get('/api/admin/speaker-itineraries/:id/program-preview', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM speaker_itineraries WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Itinerary not found' });
+        const matches = spkProgramItems(r);
+        res.json({ matches, note: 'These sessions are matched automatically from the conference programme by speaker name. They appear on the speaker\'s page without being added by hand — edit the schedule to change them.' });
+    }));
+
+    // ---- Send (stage ONE outbox email for approval — never a direct send) ----
+    app.post('/api/admin/speaker-itineraries/:id/send', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM speaker_itineraries WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Itinerary not found' });
+        if (r.revoked) return res.status(400).json({ error: 'This link is revoked. Restore it before sending.' });
+        const to = req.body && String(req.body.to || '').trim();
+        if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return res.status(400).json({ error: 'A valid recipient email is required to send this itinerary.' });
+        const mail = spkAdvanceEmail(r);
+        const batchId = 'speaker-itinerary-' + r.id + '-' + Date.now();
+        const payload = JSON.stringify({ to, subject: mail.subject, html: mail.html });
+        db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                VALUES (?, 'pending_approval', ?, 'speaker-itinerary', 'speaker_itinerary', ?, ?, ?, ?, datetime('now'))`,
+            [uuidv4(), batchId, payload, to, mail.subject, req.user?.email || 'admin']);
+        logAudit(req, 'speaker_itinerary_send', `${r.speaker_name} → ${to} staged to outbox (pending approval)`);
+        saveDb();
+        res.json({ success: true, staged: true, outbox_batch: batchId, recipient: to });
+    }));
 
     // ===================== TRANSPARENCY ENGINE (R3-5) =====================
     // Board pack / godišnje izvješće generated from REAL portal numbers — members, events,

@@ -3654,6 +3654,575 @@ app.post('/api/forum/wing/convenings/:id/reserve', auth, forumWingMemberGate, as
 });
 // ========== END FORUM WING API ==========
 
+// ============================ SPEAKER ITINERARIES (public, read-only) ============================
+// A dignified, phone-first, zero-login plan for each conference speaker. The admin portal composes
+// the itinerary (Stage B); this portal only READS it and renders a stately page installable to the
+// phone home screen. NOTHING here writes, and no member/portal API is touched. Registered BEFORE
+// express.static so /speaker/:token beats the SPA (same pattern as /invite and /forum). Rate-limited
+// with the same window/max as the shared publicLimiter. Unknown and revoked tokens are answered
+// identically (no existence leak).
+const speakerLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests.' } });
+
+// Croatia local-essentials defaults (dictated additions) — merged under any admin-entered values so
+// a blank field always falls back to the correct national number rather than showing nothing.
+const SPEAKER_CROATIA_DEFAULTS = { emergency: '112', police: '192', ambulance: '194', pharmacy_name: '', pharmacy_address: '', pharmacy_hours: '' };
+
+function speakerFirstName(fullName) {
+    let n = String(fullName || '').trim();
+    n = n.replace(/^((prof|dr|mr|mrs|ms|sir|dame|md|phd|assoc|acad)\.?\s+)+/i, '');
+    return (n.split(/\s+/)[0] || '').trim();
+}
+function speakerPossessive(fullName) {
+    const f = speakerFirstName(fullName);
+    if (!f) return 'Your';
+    return /s$/i.test(f) ? f + '’' : f + '’s';
+}
+function safeParseJson(str, fallback) {
+    if (!str) return fallback;
+    try { const v = JSON.parse(str); return (v == null) ? fallback : v; } catch (e) { return fallback; }
+}
+function speakerItineraryByToken(token) {
+    try { return query.get('SELECT * FROM speaker_itineraries WHERE token = ?', [String(token || '')]); }
+    catch (e) { return null; }
+}
+// Add N days to an ISO date (YYYY-MM-DD) → ISO string (UTC-safe, no timezone drift).
+function isoAddDays(iso, n) {
+    try { const d = new Date(String(iso) + 'T00:00:00Z'); if (isNaN(d.getTime())) return null; d.setUTCDate(d.getUTCDate() + Number(n || 0)); return d.toISOString().slice(0, 10); }
+    catch (e) { return null; }
+}
+const SPEAKER_HR_MONTHS = ['siječnja','veljače','ožujka','travnja','svibnja','lipnja','srpnja','kolovoza','rujna','listopada','studenoga','prosinca'];
+const SPEAKER_HR_WEEKDAYS = ['nedjelja','ponedjeljak','utorak','srijeda','četvrtak','petak','subota'];
+function speakerDayLabels(dayKey, confStart) {
+    // A day key is either an ISO date, a "dayN" program marker, or a free-text label the admin typed.
+    let iso = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(dayKey))) iso = String(dayKey);
+    else if (/^day(\d+)$/i.test(String(dayKey)) && confStart) iso = isoAddDays(confStart, Number(String(dayKey).replace(/^day/i, '')) - 1);
+    if (iso) {
+        const d = new Date(iso + 'T00:00:00Z');
+        if (!isNaN(d.getTime())) {
+            const en = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+            const hr = `${SPEAKER_HR_WEEKDAYS[d.getUTCDay()]}, ${d.getUTCDate()}. ${SPEAKER_HR_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}.`;
+            const hrCap = hr.charAt(0).toUpperCase() + hr.slice(1);
+            return { iso, en, hr: hrCap, sortKey: iso };
+        }
+    }
+    // "dayN" with no conference start date → a plain "Day N" heading; anything else is used verbatim.
+    const m = /^day(\d+)$/i.exec(String(dayKey));
+    if (m) return { iso: null, en: 'Day ' + m[1], hr: m[1] + '. dan', sortKey: 'zzz-day-' + String(m[1]).padStart(3, '0') };
+    const raw = String(dayKey || '').trim() || 'Programme';
+    return { iso: null, en: raw, hr: raw, sortKey: 'zzz-' + raw.toLowerCase() };
+}
+function speakerSessionType(t) {
+    const s = String(t || '').toLowerCase();
+    if (s.includes('keynote') || s.includes('talk') || s.includes('lecture') || s.includes('address')) return 'talk';
+    if (s.includes('panel') || s.includes('discussion') || s.includes('round')) return 'panel';
+    return 'talk';
+}
+// AUTO-PULL: the speaker's assigned program sessions, so admin edits to the schedule flow through
+// live (single source of truth). We resolve the conference from event_key (slug or id, else the
+// active one), match the speaker by name against the speakers table (exact, else pragmatic
+// contains — restricted to the resolved conference to avoid cross-event false matches), then read
+// every session whose comma-joined speaker_ids references that speaker id (the LIKE idiom already
+// used across the codebase). These items are marked role='speaking', source='program'.
+function speakerProgramItems(itin) {
+    const out = [];
+    try {
+        let conf = null;
+        if (itin.event_key) conf = query.get('SELECT * FROM conferences WHERE slug = ? OR id = ?', [itin.event_key, itin.event_key]);
+        if (!conf) { try { conf = getActiveConference(); } catch (e) {} }
+        const confId = conf && conf.id;
+        const confStart = conf && conf.start_date;
+        const nm = String(itin.speaker_name || '').trim();
+        if (!nm) return out;
+        let speakers = [];
+        const exact = confId
+            ? query.all('SELECT id, name FROM speakers WHERE conference_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))', [confId, nm])
+            : query.all('SELECT id, name FROM speakers WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))', [nm]);
+        speakers = exact;
+        if (!speakers.length) {
+            // Pragmatic fallback: itinerary name contains the roster name or vice-versa (handles a
+            // "Prof." prefix on one side). Scoped to the conference so short names can't over-match.
+            speakers = (confId
+                ? query.all('SELECT id, name FROM speakers WHERE conference_id = ?', [confId])
+                : query.all('SELECT id, name FROM speakers')
+            ).filter(sp => {
+                const rn = String(sp.name || '').trim().toLowerCase();
+                const inm = nm.toLowerCase();
+                return rn && (inm.includes(rn) || rn.includes(inm));
+            });
+        }
+        const seen = new Set();
+        for (const sp of speakers) {
+            const rows = confId
+                ? query.all("SELECT * FROM sessions WHERE conference_id = ? AND speaker_ids LIKE '%' || ? || '%'", [confId, sp.id])
+                : query.all("SELECT * FROM sessions WHERE speaker_ids LIKE '%' || ? || '%'", [sp.id]);
+            for (const s of rows) {
+                if (seen.has(s.id)) continue;
+                seen.add(s.id);
+                const dayKey = (s.day != null && String(s.day).match(/^\d+$/)) ? ('day' + s.day) : (s.day || 'day1');
+                out.push({
+                    source: 'program', role: 'speaking', item_type: speakerSessionType(s.session_type),
+                    dayKey, confStart,
+                    start_time: s.start_time || '', end_time: s.end_time || '',
+                    title_en: s.title || 'Session', title_hr: s.title || 'Session',
+                    venue: s.room || '', venue_map_url: '',
+                    with_whom: '', notes_en: s.description || '', notes_hr: s.description || ''
+                });
+            }
+        }
+    } catch (e) { /* program pull is best-effort; the manual plan still renders */ }
+    return out;
+}
+// Assemble the full, sorted, day-grouped payload the page renders and the API returns.
+function buildSpeakerPayload(itin) {
+    let conf = null;
+    if (itin.event_key) { try { conf = query.get('SELECT * FROM conferences WHERE slug = ? OR id = ?', [itin.event_key, itin.event_key]); } catch (e) {} }
+    if (!conf) { try { conf = getActiveConference(); } catch (e) {} }
+    const confStart = conf && conf.start_date;
+    const eventName = (conf && conf.name) || 'Plexus 2026';
+    const eventDatesEn = conf ? [fmtEventDate(conf.start_date), conf.end_date && conf.end_date !== conf.start_date ? '– ' + fmtEventDate(conf.end_date) : ''].filter(Boolean).join(' ') : '';
+    const venueLine = conf ? [conf.venue_name, conf.venue_city].filter(Boolean).join(', ') : '';
+
+    const manualRows = query.all('SELECT * FROM speaker_itinerary_items WHERE itinerary_id = ? ORDER BY sort_order, start_time', [itin.id]);
+    const manual = manualRows.map(r => ({
+        source: 'manual', role: (r.role === 'speaking' ? 'speaking' : 'guest'),
+        item_type: r.item_type || 'other',
+        dayKey: r.day, confStart,
+        start_time: r.start_time || '', end_time: r.end_time || '',
+        title_en: r.title_en || '', title_hr: r.title_hr || r.title_en || '',
+        venue: r.venue || '', venue_map_url: r.venue_map_url || '',
+        with_whom: r.with_whom || '', notes_en: r.notes_en || '', notes_hr: r.notes_hr || r.notes_en || ''
+    }));
+    const program = speakerProgramItems(itin);
+    const all = manual.concat(program);
+
+    // Group by day, attach labels, sort groups chronologically then items by start_time.
+    const groups = {};
+    for (const it of all) {
+        const labels = speakerDayLabels(it.dayKey, it.confStart || confStart);
+        const key = labels.sortKey;
+        if (!groups[key]) groups[key] = { key, iso: labels.iso, label_en: labels.en, label_hr: labels.hr, sortKey: labels.sortKey, items: [] };
+        groups[key].items.push(it);
+    }
+    const timeVal = t => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : 9999; };
+    const days = Object.values(groups).sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
+    days.forEach(g => g.items.sort((a, b) => timeVal(a.start_time) - timeVal(b.start_time)));
+    days.forEach(g => g.items.forEach(it => { delete it.dayKey; delete it.confStart; }));
+
+    // Flat, sorted item list (day + time) for the API/tests.
+    const flat = [];
+    days.forEach(g => g.items.forEach(it => flat.push(Object.assign({ day: g.iso || g.key, day_label_en: g.label_en, day_label_hr: g.label_hr }, it))));
+
+    const localRaw = safeParseJson(itin.local_info_json, {}) || {};
+    const local = Object.assign({}, SPEAKER_CROATIA_DEFAULTS, localRaw);
+    const contacts = safeParseJson(itin.contacts_json, {}) || {};
+    let flights = safeParseJson(itin.flights_json, []);
+    if (!Array.isArray(flights)) flights = [];
+
+    return {
+        itinerary: {
+            speaker_name: itin.speaker_name || '',
+            speaker_title: itin.speaker_title || '',
+            event_key: itin.event_key || '',
+            event_name: eventName,
+            event_dates_en: eventDatesEn,
+            venue_line: venueLine,
+            lang_default: (itin.lang_default === 'hr' ? 'hr' : 'en'),
+            hotel: { name: itin.hotel_name || '', address: itin.hotel_address || '', map_url: itin.hotel_map_url || '' },
+            flights,
+            contacts: {
+                host_name: contacts.host_name || '', host_email: contacts.host_email || '',
+                host_phone: contacts.host_phone || '', event_phone_24h: contacts.event_phone_24h || ''
+            },
+            local_info: local
+        },
+        days,
+        items: flat,
+        generated_at: new Date().toISOString()
+    };
+}
+
+// ---- Bilingual chrome dictionary (formal Vi register). Both strings are embedded per element and
+//      the client toggle swaps textContent, so a cached page toggles offline with no refetch. ----
+const SPK_I18N = {
+    glance:       { en: 'Your week at a glance', hr: 'Vaš tjedan ukratko' },
+    today:        { en: 'Today', hr: 'Danas' },
+    role_speak:   { en: 'You speak', hr: 'Vi govorite' },
+    role_guest:   { en: 'Guest — no obligations', hr: 'Gost — bez obveza' },
+    stay:         { en: 'Your stay', hr: 'Vaš smještaj' },
+    flights:      { en: 'Your flights', hr: 'Vaši letovi' },
+    contacts:     { en: 'Contacts & emergencies', hr: 'Kontakti i hitne službe' },
+    with:         { en: 'With', hr: 'U društvu' },
+    viewmap:      { en: 'View on map', hr: 'Prikaži na karti' },
+    host:         { en: 'Your Med&X host', hr: 'Vaš domaćin iz Med&X-a' },
+    event24:      { en: '24-hour event line', hr: 'Dežurni broj (0–24 h)' },
+    emergency:    { en: 'Emergency', hr: 'Hitne službe' },
+    police:       { en: 'Police', hr: 'Policija' },
+    ambulance:    { en: 'Ambulance', hr: 'Hitna pomoć' },
+    pharmacy:     { en: 'Nearest pharmacy', hr: 'Najbliža ljekarna' },
+    airline:      { en: 'Airline', hr: 'Zračni prijevoznik' },
+    flightno:     { en: 'Flight', hr: 'Let' },
+    departs:      { en: 'Departs', hr: 'Polazak' },
+    arrives:      { en: 'Arrives', hr: 'Dolazak' },
+    transfer:     { en: 'Transfer & who meets you', hr: 'Prijevoz i tko vas dočekuje' },
+    arrival:      { en: 'Arrival', hr: 'Dolazni let' },
+    departure:    { en: 'Departure', hr: 'Odlazni let' },
+    call:         { en: 'Call', hr: 'Nazovite' },
+    email:        { en: 'Email', hr: 'E-pošta' },
+    home_hint_ios:{ en: 'Add this page to your Home Screen: tap Share, then “Add to Home Screen”.', hr: 'Dodajte ovu stranicu na početni zaslon: dodirnite Podijeli, zatim „Dodaj na početni zaslon“.' },
+    home_hint_and:{ en: 'Add this page to your home screen: open the menu, then “Add to Home screen / Install”.', hr: 'Dodajte ovu stranicu na početni zaslon: otvorite izbornik, zatim „Dodaj na početni zaslon / Instaliraj“.' },
+    dismiss:      { en: 'Dismiss', hr: 'Zatvori' },
+    no_items:     { en: 'Your detailed plan will appear here shortly.', hr: 'Vaš detaljni raspored uskoro će se pojaviti ovdje.' }
+};
+const SPK_TYPE_I18N = {
+    talk:     { en: 'Talk', hr: 'Predavanje' },
+    panel:    { en: 'Panel', hr: 'Panel' },
+    dinner:   { en: 'Dinner', hr: 'Večera' },
+    transfer: { en: 'Transfer', hr: 'Prijevoz' },
+    free:     { en: 'Free time', hr: 'Slobodno vrijeme' },
+    photo:    { en: 'Photo', hr: 'Fotografiranje' },
+    other:    { en: '', hr: '' }
+};
+function spkBi(en, hr, cls) {
+    return `<span${cls ? ' class="' + cls + '"' : ''} data-en="${escapeHtml(en)}" data-hr="${escapeHtml(hr)}">${escapeHtml(en)}</span>`;
+}
+
+function renderSpeakerPage(payload, token) {
+    const it = payload.itinerary;
+    const lang = it.lang_default === 'hr' ? 'hr' : 'en';
+    const pick = (o) => escapeHtml(lang === 'hr' ? o.hr : o.en);
+    const dataLang = (o) => `data-en="${escapeHtml(o.en)}" data-hr="${escapeHtml(o.hr)}"`;
+    const telHref = (v) => 'tel:' + String(v || '').replace(/[^\d+]/g, '');
+
+    // Timeline: each day a flex item; CSS `order` lets the client float "today" to the top without
+    // moving DOM. Default order is chronological index; the client sets order:-1 on the matching day.
+    let timeline = '';
+    if (!payload.days.length) {
+        timeline = `<p class="empty" data-en="${escapeHtml(SPK_I18N.no_items.en)}" data-hr="${escapeHtml(SPK_I18N.no_items.hr)}">${escapeHtml(SPK_I18N.no_items[lang])}</p>`;
+    }
+    payload.days.forEach((g, gi) => {
+        let itemsHtml = '';
+        g.items.forEach(item => {
+            const roleObj = item.role === 'speaking' ? SPK_I18N.role_speak : SPK_I18N.role_guest;
+            const roleCls = item.role === 'speaking' ? 'chip-speak' : 'chip-guest';
+            const typeObj = SPK_TYPE_I18N[item.item_type] || SPK_TYPE_I18N.other;
+            const typeChip = (typeObj.en || typeObj.hr) ? `<span class="type" data-en="${escapeHtml(typeObj.en)}" data-hr="${escapeHtml(typeObj.hr)}">${escapeHtml(typeObj[lang])}</span>` : '';
+            const timeStr = [item.start_time, item.end_time].filter(Boolean).join(' – ');
+            const titleHtml = `<span class="it-title" data-en="${escapeHtml(item.title_en || '')}" data-hr="${escapeHtml(item.title_hr || item.title_en || '')}">${escapeHtml(lang === 'hr' ? (item.title_hr || item.title_en || '') : (item.title_en || ''))}</span>`;
+            let meta = '';
+            if (item.venue) {
+                const venueTxt = `<span class="venue-name">${escapeHtml(item.venue)}</span>`;
+                meta += item.venue_map_url
+                    ? `<a class="it-map" href="${escapeHtml(item.venue_map_url)}" target="_blank" rel="noopener">${venueTxt} <span class="maplink" ${dataLang(SPK_I18N.viewmap)}>${pick(SPK_I18N.viewmap)}</span></a>`
+                    : `<div class="it-venue">${venueTxt}</div>`;
+            }
+            if (item.with_whom) meta += `<div class="it-with"><span class="lbl" ${dataLang(SPK_I18N.with)}>${pick(SPK_I18N.with)}</span>: ${escapeHtml(item.with_whom)}</div>`;
+            const notes = lang === 'hr' ? (item.notes_hr || item.notes_en || '') : (item.notes_en || '');
+            const notesHtml = (item.notes_en || item.notes_hr) ? `<div class="it-notes" data-en="${escapeHtml(item.notes_en || '')}" data-hr="${escapeHtml(item.notes_hr || item.notes_en || '')}">${escapeHtml(notes)}</div>` : '';
+            itemsHtml += `<article class="item">
+                <div class="it-time">${escapeHtml(timeStr) || '&nbsp;'}</div>
+                <div class="it-body">
+                    <div class="it-head"><span class="chip ${roleCls}" ${dataLang(roleObj)}>${pick(roleObj)}</span>${typeChip}</div>
+                    <h3>${titleHtml}</h3>
+                    ${meta}
+                    ${notesHtml}
+                </div>
+            </article>`;
+        });
+        timeline += `<section class="day" data-day-iso="${escapeHtml(g.iso || '')}" style="order:${(gi + 1) * 10}">
+            <div class="day-eyebrow" ${dataLang(SPK_I18N.today)} hidden>${pick(SPK_I18N.today)}</div>
+            <h2 class="day-title" data-en="${escapeHtml(g.label_en)}" data-hr="${escapeHtml(g.label_hr)}">${escapeHtml(lang === 'hr' ? g.label_hr : g.label_en)}</h2>
+            ${itemsHtml}
+        </section>`;
+    });
+
+    // Stay
+    const hotel = it.hotel;
+    let stayHtml = '';
+    if (hotel.name || hotel.address) {
+        const mapBtn = hotel.map_url ? `<a class="row-map" href="${escapeHtml(hotel.map_url)}" target="_blank" rel="noopener" ${dataLang(SPK_I18N.viewmap)}>${pick(SPK_I18N.viewmap)}</a>` : '';
+        stayHtml = `<section class="block">
+            <h2 class="block-title" ${dataLang(SPK_I18N.stay)}>${pick(SPK_I18N.stay)}</h2>
+            <div class="card">
+                ${hotel.name ? `<div class="card-name">${escapeHtml(hotel.name)}</div>` : ''}
+                ${hotel.address ? `<div class="card-sub">${escapeHtml(hotel.address)}</div>` : ''}
+                ${mapBtn}
+            </div>
+        </section>`;
+    }
+
+    // Flights
+    let flightsHtml = '';
+    if (Array.isArray(it.flights) && it.flights.length) {
+        let cards = '';
+        it.flights.forEach(f => {
+            const dirObj = String(f.direction || '').toLowerCase().startsWith('dep') ? SPK_I18N.departure : SPK_I18N.arrival;
+            const lines = [];
+            if (f.airline || f.flight_number) lines.push(`<div class="fl-line"><span class="lbl" ${dataLang(SPK_I18N.airline)}>${pick(SPK_I18N.airline)}</span>: ${escapeHtml([f.airline, f.flight_number].filter(Boolean).join(' '))}</div>`);
+            if (f.depart_airport || f.depart_time) lines.push(`<div class="fl-line"><span class="lbl" ${dataLang(SPK_I18N.departs)}>${pick(SPK_I18N.departs)}</span>: ${escapeHtml([f.depart_airport, f.depart_time].filter(Boolean).join(' · '))}</div>`);
+            if (f.arrive_airport || f.arrive_time) lines.push(`<div class="fl-line"><span class="lbl" ${dataLang(SPK_I18N.arrives)}>${pick(SPK_I18N.arrives)}</span>: ${escapeHtml([f.arrive_airport, f.arrive_time].filter(Boolean).join(' · '))}</div>`);
+            if (f.notes) lines.push(`<div class="fl-line"><span class="lbl" ${dataLang(SPK_I18N.transfer)}>${pick(SPK_I18N.transfer)}</span>: ${escapeHtml(f.notes)}</div>`);
+            cards += `<div class="card">
+                <div class="card-name"><span ${dataLang(dirObj)}>${pick(dirObj)}</span></div>
+                ${lines.join('')}
+            </div>`;
+        });
+        flightsHtml = `<section class="block">
+            <h2 class="block-title" ${dataLang(SPK_I18N.flights)}>${pick(SPK_I18N.flights)}</h2>
+            ${cards}
+        </section>`;
+    }
+
+    // Contacts & emergencies (always present)
+    const c = it.contacts, li = it.local_info;
+    const contactRow = (labelObj, name, valueHtml) => `<div class="crow"><div class="crow-label" ${dataLang(labelObj)}>${pick(labelObj)}</div><div class="crow-val">${name ? '<div class="crow-name">' + escapeHtml(name) + '</div>' : ''}${valueHtml}</div></div>`;
+    const telLink = (num) => num ? `<a class="tel" href="${escapeHtml(telHref(num))}">${escapeHtml(num)}</a>` : '';
+    const mailLink = (addr) => addr ? `<a class="tel" href="mailto:${escapeHtml(addr)}">${escapeHtml(addr)}</a>` : '';
+    let contactRows = '';
+    if (c.host_name || c.host_email || c.host_phone) {
+        contactRows += contactRow(SPK_I18N.host, c.host_name, [telLink(c.host_phone), mailLink(c.host_email)].filter(Boolean).join(''));
+    }
+    if (c.event_phone_24h) contactRows += contactRow(SPK_I18N.event24, '', telLink(c.event_phone_24h));
+    contactRows += contactRow(SPK_I18N.emergency, '', telLink(li.emergency || '112'));
+    contactRows += contactRow(SPK_I18N.police, '', telLink(li.police || '192'));
+    contactRows += contactRow(SPK_I18N.ambulance, '', telLink(li.ambulance || '194'));
+    if (li.pharmacy_name || li.pharmacy_address) {
+        const pharmSub = [li.pharmacy_address, li.pharmacy_hours].filter(Boolean).map(x => '<div class="crow-sub">' + escapeHtml(x) + '</div>').join('');
+        contactRows += contactRow(SPK_I18N.pharmacy, li.pharmacy_name || '', pharmSub);
+    }
+    const contactsHtml = `<section class="block block-contacts">
+        <h2 class="block-title" ${dataLang(SPK_I18N.contacts)}>${pick(SPK_I18N.contacts)}</h2>
+        <div class="card">${contactRows}</div>
+    </section>`;
+
+    const bootstrap = JSON.stringify(payload).replace(/</g, '\\u003c');
+    const title = escapeHtml(`Med&X — ${speakerPossessive(it.speaker_name)} Plexus Week`);
+
+    return `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>${title}</title>
+<link rel="manifest" href="/speaker/${encodeURIComponent(token)}/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/assets/favicon-x.png">
+<meta name="theme-color" content="#12362b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="${escapeHtml(speakerFirstName(it.speaker_name) || 'Med&X')}">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root{ --green:#12362b; --green-2:#1c4a3a; --brass:#b08d4f; --brass-2:#caa668; --cream:#f6f1e6; --cream-2:#efe8d8; --ink:#241f17; --muted:#6f6857; --line:rgba(36,31,23,.12); }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{ background:var(--cream); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:17px; line-height:1.55; padding-bottom:56px; }
+  .serif{ font-family:'Iowan Old Style','Palatino Linotype','Book Antiqua',Palatino,Georgia,'Times New Roman',serif; }
+  .wrap{ max-width:560px; margin:0 auto; }
+  header{ background:linear-gradient(165deg,var(--green),var(--green-2)); color:var(--cream); padding:26px 22px 30px; }
+  .brand{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:22px; }
+  .brand .mark{ font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:var(--brass-2); font-weight:700; }
+  .langbar{ display:flex; gap:4px; background:rgba(255,255,255,.08); border-radius:999px; padding:3px; }
+  .langbar button{ min-width:46px; min-height:44px; border:0; background:transparent; color:var(--cream); font-size:14px; font-weight:600; letter-spacing:.04em; border-radius:999px; cursor:pointer; }
+  .langbar button.active{ background:var(--brass); color:var(--green); }
+  .sp-name{ font-size:30px; line-height:1.15; font-weight:600; color:#fff; }
+  .sp-title{ font-size:16px; color:var(--brass-2); margin-top:6px; }
+  .ev-line{ margin-top:18px; padding-top:16px; border-top:1px solid rgba(255,255,255,.16); font-size:15px; color:rgba(246,241,230,.85); }
+  .ev-line strong{ color:#fff; font-weight:600; }
+  main{ padding:22px 18px 8px; }
+  .section-title{ font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--brass); font-weight:700; margin:6px 2px 14px; }
+  #timeline{ display:flex; flex-direction:column; }
+  .day{ margin-bottom:22px; }
+  .day-eyebrow{ display:inline-block; font-size:12px; letter-spacing:.16em; text-transform:uppercase; font-weight:700; color:#fff; background:var(--brass); padding:4px 12px; border-radius:999px; margin-bottom:10px; }
+  .day-title{ font-size:20px; font-weight:600; color:var(--green); margin-bottom:12px; }
+  .is-today .day-title{ color:var(--green); }
+  .item{ display:flex; gap:14px; background:#fff; border:1px solid var(--line); border-radius:16px; padding:16px 16px; margin-bottom:12px; box-shadow:0 1px 2px rgba(36,31,23,.04); }
+  .it-time{ flex:0 0 62px; font-weight:700; color:var(--green); font-size:16px; padding-top:2px; }
+  .it-body{ flex:1 1 auto; min-width:0; }
+  .it-head{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; }
+  .chip{ font-size:13px; font-weight:700; letter-spacing:.03em; padding:5px 12px; border-radius:999px; }
+  .chip-speak{ background:var(--green); color:var(--brass-2); }
+  .chip-guest{ background:var(--cream-2); color:var(--muted); }
+  .type{ font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .it-body h3{ font-size:18px; font-weight:600; line-height:1.3; color:var(--ink); margin-bottom:4px; }
+  .it-map,.it-venue{ display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:15.5px; color:var(--muted); text-decoration:none; margin-top:2px; }
+  .it-map .maplink{ color:var(--brass); font-weight:600; text-decoration:underline; }
+  .it-with{ font-size:15.5px; color:var(--muted); margin-top:4px; }
+  .it-with .lbl{ font-weight:600; color:var(--ink); }
+  .it-notes{ font-size:15px; color:var(--muted); margin-top:6px; line-height:1.5; }
+  .empty{ color:var(--muted); font-size:16px; padding:8px 2px 20px; }
+  .block{ margin:8px 0 24px; }
+  .block-title{ font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--brass); font-weight:700; margin:0 2px 12px; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px 18px; box-shadow:0 1px 2px rgba(36,31,23,.04); }
+  .card + .card{ margin-top:12px; }
+  .card-name{ font-size:18px; font-weight:600; color:var(--green); }
+  .card-sub{ font-size:16px; color:var(--muted); margin-top:4px; }
+  .row-map{ display:inline-block; margin-top:12px; min-height:44px; line-height:44px; padding:0 20px; background:var(--green); color:var(--cream); border-radius:12px; text-decoration:none; font-size:15.5px; font-weight:600; }
+  .fl-line{ font-size:16px; color:var(--ink); margin-top:8px; }
+  .fl-line:first-of-type{ margin-top:10px; }
+  .fl-line .lbl{ color:var(--muted); font-weight:600; }
+  .block-contacts .card{ background:#fbf8f0; }
+  .crow{ display:flex; gap:14px; padding:14px 0; border-bottom:1px solid var(--line); }
+  .crow:last-child{ border-bottom:0; }
+  .crow-label{ flex:0 0 40%; font-size:15px; font-weight:600; color:var(--muted); }
+  .crow-val{ flex:1 1 auto; min-width:0; }
+  .crow-name{ font-size:16.5px; font-weight:600; color:var(--ink); }
+  .crow-sub{ font-size:15px; color:var(--muted); }
+  a.tel{ display:inline-block; min-height:44px; line-height:44px; font-size:17px; font-weight:600; color:var(--green); text-decoration:none; margin-right:14px; }
+  .atsh{ position:sticky; bottom:0; z-index:5; margin:0; background:var(--green); color:var(--cream); display:flex; gap:12px; align-items:center; padding:12px 16px; font-size:14.5px; line-height:1.4; }
+  .atsh .atsh-text{ flex:1 1 auto; }
+  .atsh button{ flex:0 0 auto; min-width:44px; min-height:44px; border:0; background:rgba(255,255,255,.14); color:var(--cream); border-radius:10px; font-size:20px; cursor:pointer; }
+  footer{ text-align:center; color:var(--muted); font-size:13px; padding:22px 16px 30px; }
+  @media (min-width:600px){ body{ padding-bottom:40px; } header{ border-radius:0 0 20px 20px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="mark">Med&amp;X</span>
+      <div class="langbar" id="langbar">
+        <button type="button" data-lang-btn="en"${lang === 'en' ? ' class="active"' : ''}>EN</button>
+        <button type="button" data-lang-btn="hr"${lang === 'hr' ? ' class="active"' : ''}>HR</button>
+      </div>
+    </div>
+    <div class="sp-name serif">${escapeHtml(it.speaker_name)}</div>
+    ${it.speaker_title ? `<div class="sp-title">${escapeHtml(it.speaker_title)}</div>` : ''}
+    <div class="ev-line"><strong>${escapeHtml(it.event_name)}</strong>${it.event_dates_en ? ' · <span id="ev-dates">' + escapeHtml(it.event_dates_en) + '</span>' : ''}${it.venue_line ? '<br>' + escapeHtml(it.venue_line) : ''}</div>
+  </header>
+  <main>
+    <div class="section-title" id="glance-title" ${dataLang(SPK_I18N.glance)}>${pick(SPK_I18N.glance)}</div>
+    <div id="timeline">${timeline}</div>
+    ${stayHtml}
+    ${flightsHtml}
+    ${contactsHtml}
+  </main>
+  <footer><span class="serif">Med&amp;X</span> &middot; Building Bridges in Biomedicine</footer>
+</div>
+<div class="atsh" id="atsh" hidden>
+  <span class="atsh-text" id="atsh-text" data-en-ios="${escapeHtml(SPK_I18N.home_hint_ios.en)}" data-hr-ios="${escapeHtml(SPK_I18N.home_hint_ios.hr)}" data-en-and="${escapeHtml(SPK_I18N.home_hint_and.en)}" data-hr-and="${escapeHtml(SPK_I18N.home_hint_and.hr)}">${escapeHtml(SPK_I18N.home_hint_ios[lang])}</span>
+  <button type="button" id="atsh-dismiss" aria-label="${escapeHtml(SPK_I18N.dismiss[lang])}">&times;</button>
+</div>
+<script id="spk-data" type="application/json">${bootstrap}</script>
+<script>
+(function(){
+  var lang = ${JSON.stringify(lang)};
+  function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+  function applyLang(l){
+    lang = (l === 'hr') ? 'hr' : 'en';
+    document.documentElement.lang = lang;
+    var nodes = document.querySelectorAll('[data-en]');
+    for (var i=0;i<nodes.length;i++){ var v = nodes[i].getAttribute('data-' + lang); if (v !== null) nodes[i].textContent = v; }
+    var btns = document.querySelectorAll('[data-lang-btn]');
+    for (var j=0;j<btns.length;j++){ btns[j].classList.toggle('active', btns[j].getAttribute('data-lang-btn') === lang); }
+    var t = document.getElementById('atsh-text');
+    if (t){ var plat = isIOS() ? 'ios' : 'and'; t.textContent = t.getAttribute('data-' + lang + '-' + plat) || t.textContent; }
+    try { localStorage.setItem('medx_speaker_lang', lang); } catch(e){}
+  }
+  // Float today's day-section to the top (device-local date, correct for a traveller).
+  function markToday(){
+    var pad = function(n){ return (n<10?'0':'') + n; };
+    var d = new Date();
+    var iso = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+    var days = document.querySelectorAll('#timeline .day');
+    var found = false;
+    for (var i=0;i<days.length;i++){
+      if (days[i].getAttribute('data-day-iso') === iso){
+        days[i].style.order = '-1';
+        days[i].classList.add('is-today');
+        var eb = days[i].querySelector('.day-eyebrow'); if (eb) eb.hidden = false;
+        found = true;
+      }
+    }
+    return found;
+  }
+  document.addEventListener('click', function(e){
+    var lb = e.target.closest ? e.target.closest('[data-lang-btn]') : null;
+    if (lb){ applyLang(lb.getAttribute('data-lang-btn')); return; }
+    if (e.target.closest && e.target.closest('#atsh-dismiss')){
+      var a = document.getElementById('atsh'); if (a) a.hidden = true;
+      try { localStorage.setItem('medx_speaker_atsh', '1'); } catch(err){}
+    }
+  });
+  // Restore a previously chosen language (never overrides an explicit toggle mid-session).
+  try { var saved = localStorage.getItem('medx_speaker_lang'); if (saved && saved !== lang) applyLang(saved); else applyLang(lang); } catch(e){ applyLang(lang); }
+  markToday();
+  // Add-to-Home-Screen hint: show once (dismissible), skip if already installed/standalone.
+  try {
+    var standalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    var dismissed = false; try { dismissed = localStorage.getItem('medx_speaker_atsh') === '1'; } catch(e2){}
+    if (!standalone && !dismissed){ var el = document.getElementById('atsh'); if (el){ el.hidden = false; var tt = document.getElementById('atsh-text'); if (tt){ var plat = isIOS() ? 'ios':'and'; tt.textContent = tt.getAttribute('data-' + lang + '-' + plat) || tt.textContent; } } }
+  } catch(e3){}
+})();
+</script>
+</body>
+</html>`;
+}
+
+// GET /speaker/:token/manifest.json — per-speaker dynamic PWA manifest (registered before the page
+// route; distinct path depth means no collision either way).
+app.get('/speaker/:token/manifest.json', speakerLimiter, async (req, res) => {
+    try { await freshSync(); } catch (e) {}
+    const itin = speakerItineraryByToken(req.params.token);
+    if (!itin || itin.revoked) return res.status(404).json({ error: 'not_found' });
+    const first = speakerFirstName(itin.speaker_name);
+    const manifest = {
+        name: `Med&X — ${speakerPossessive(itin.speaker_name)} Plexus Week`,
+        short_name: first || 'Med&X',
+        start_url: `/speaker/${encodeURIComponent(req.params.token)}`,
+        scope: `/speaker/${encodeURIComponent(req.params.token)}`,
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#12362b',
+        theme_color: '#12362b',
+        lang: itin.lang_default === 'hr' ? 'hr' : 'en',
+        icons: [
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ]
+    };
+    res.set('Cache-Control', 'private, max-age=300');
+    res.type('application/manifest+json').send(JSON.stringify(manifest));
+});
+
+// GET /speaker/:token — the dignified, phone-first plan page (server-rendered, data embedded so a
+// cached page still shows offline). Unknown + revoked answer identically (no existence leak).
+app.get('/speaker/:token', speakerLimiter, async (req, res) => {
+    try { await freshSync(); } catch (e) {}
+    const itin = speakerItineraryByToken(req.params.token);
+    if (!itin || itin.revoked) {
+        return res.status(404).send(linkNoticePage(
+            'This plan is not available',
+            'This personal link is not active. If you believe this is an error, please contact the Med&X team.'
+        ));
+    }
+    try {
+        const payload = buildSpeakerPayload(itin);
+        res.set('Cache-Control', 'private, max-age=300');
+        res.send(renderSpeakerPage(payload, req.params.token));
+    } catch (e) {
+        console.error('[speaker page]', e && e.message);
+        res.status(500).send(linkNoticePage('Something went wrong', 'We could not load this plan just now. Please try again shortly.'));
+    }
+});
+
+// GET /api/public/speaker-itinerary/:token — JSON for the page (and any future print/PDF). Read-only.
+app.get('/api/public/speaker-itinerary/:token', speakerLimiter, async (req, res) => {
+    try { await freshSync(); } catch (e) {}
+    const itin = speakerItineraryByToken(req.params.token);
+    if (!itin || itin.revoked) return res.status(404).json({ error: 'not_found' });
+    try {
+        const payload = buildSpeakerPayload(itin);
+        res.set('Cache-Control', 'private, max-age=120');
+        res.json(payload);
+    } catch (e) {
+        console.error('[speaker api]', e && e.message);
+        res.status(500).json({ error: 'server_error' });
+    }
+});
+// ========================== END SPEAKER ITINERARIES ==========================
+
 app.use(express.static(path.join(__dirname, '../frontend')));
 // User-uploaded files: force download + nosniff so a stored .svg/.html/.xml can't execute
 // inline as same-origin script (multer trusts the client MIME, so the content is untrusted).
@@ -8226,6 +8795,55 @@ async function initializeApp() {
     )`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_talk_ratings_talk ON talk_ratings(talk_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_talk_ratings_user ON talk_ratings(user_id)`);
+
+    // ===== Speaker Itineraries (queue 5a — dignified zero-login speaker plan pages) =====
+    // SHARED-BY-CONVENTION: these two tables live OUTSIDE the SCHEMA-MIRROR block but the ADMIN
+    // portal carries the IDENTICAL DDL (added by the Stage-B composer build) so check-schema-sync
+    // stays byte-identical on the mirror block while both services boot the same Turso DB. The
+    // admin portal WRITES itineraries + items (composer); THIS user portal only READS them for the
+    // public /speaker/:token page. Every statement is idempotent (CREATE TABLE IF NOT EXISTS;
+    // each later column is a guarded ALTER) so whichever process boots first creates them once and
+    // a re-execution on every boot of two services against one DB is a no-op. No seed rows here.
+    db.run(`CREATE TABLE IF NOT EXISTS speaker_itineraries (
+        id TEXT PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        speaker_name TEXT NOT NULL,
+        speaker_title TEXT,
+        event_key TEXT NOT NULL,
+        hotel_name TEXT,
+        hotel_address TEXT,
+        hotel_map_url TEXT,
+        flights_json TEXT,
+        contacts_json TEXT,
+        local_info_json TEXT,
+        lang_default TEXT DEFAULT 'en',
+        revoked INTEGER DEFAULT 0,
+        created_at TEXT,
+        updated_at TEXT
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS speaker_itinerary_items (
+        id TEXT PRIMARY KEY,
+        itinerary_id TEXT NOT NULL,
+        day TEXT NOT NULL,
+        start_time TEXT,
+        end_time TEXT,
+        title_en TEXT NOT NULL,
+        title_hr TEXT,
+        venue TEXT,
+        venue_map_url TEXT,
+        with_whom TEXT,
+        notes_en TEXT,
+        notes_hr TEXT,
+        role TEXT DEFAULT 'guest',
+        item_type TEXT DEFAULT 'other',
+        sort_order INTEGER DEFAULT 0
+    )`);
+    // Guarded ALTERs — additive, run identically in both portals so a table created by an older
+    // build gains any newer column exactly once (a re-run throws "duplicate column" and is swallowed).
+    try { db.run(`ALTER TABLE speaker_itineraries ADD COLUMN lang_default TEXT DEFAULT 'en'`); } catch (e) {}
+    try { db.run(`ALTER TABLE speaker_itineraries ADD COLUMN revoked INTEGER DEFAULT 0`); } catch (e) {}
+    db.run(`CREATE INDEX IF NOT EXISTS idx_speaker_itineraries_token ON speaker_itineraries(token)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_speaker_itinerary_items_itin ON speaker_itinerary_items(itinerary_id)`);
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
