@@ -31416,7 +31416,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 : { status: 'warn', detail: 'FIRA_API_KEY not set — paid registrations get no fiscal invoice.', fix: 'Set FIRA_API_KEY if Croatian fiscalization is required.' }),
             safe('CME data encryption (CME_ENC_KEY)', () => has('CME_ENC_KEY')
                 ? { detail: 'Physician OIB and date of birth encrypt at rest' }
-                : { warn: 'NOT SET - CME OIB/DOB would store as plaintext. Set the SAME value on BOTH Render services.' }),
+                : { status: 'warn', detail: 'CME_ENC_KEY not set - physician OIB/DOB would store as plaintext.', fix: 'Set CME_ENC_KEY (same value) on BOTH Render services.' }),
             safe('Tech tools password', () => has('TECH_PASSWORD')
                 ? { detail: 'Set (DB-export tools enabled)' }
                 : { status: 'warn', detail: 'TECH_PASSWORD not set — the DB-export tech tools are disabled (safe default).', fix: 'Set TECH_PASSWORD in Render env to enable them.' }),
