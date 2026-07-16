@@ -1511,7 +1511,7 @@ const PUBLIC_EVENT_PAGES = {
         accent: '#2dd4bf',
         pageTitle: 'Building Bridges in Biomedicine Croatia — Plexus Week 2026',
         heading: 'Building Bridges in Biomedicine Croatia',
-        framing: 'The fifth edition of Building Bridges in Biomedicine — after Washington, New York, London and Zürich — brings Croatia’s biomedical diaspora and the world’s leading institutions to the same table. Panel conversations on international collaboration give way to open networking, and the first steps of new collaborations begin.',
+        framing: 'The fifth edition of Building Bridges in Biomedicine (after Washington, New York, London and Zürich) brings Croatia’s biomedical diaspora and the world’s leading institutions to the same table. Panel conversations on international collaboration give way to open networking, and the first steps of new collaborations begin.',
         facts: ['4 or 5 December 2026', 'Zagreb', 'By invitation'],
         note: 'The exact date, time and venue follow with your invitation.',
         dietary: false,
@@ -3638,7 +3638,7 @@ app.post('/api/forum/wing/convenings/:id/reserve', auth, forumWingMemberGate, as
                         <p>Vaše mjesto na <strong>${escapeHtml(conv.title)}</strong> je rezervirano.</p>
                         <p style="color:#475569;font-size:14px;">${escapeHtml(conv.when_label || '')}${conv.venue ? '<br>' + escapeHtml(conv.venue) : ''}${conv.dress ? '<br>' + escapeHtml(conv.dress) : ''}</p>
                         ${segRows ? '<p style="font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6f5a31;">Prisustvovat ćete</p>' + segRows : ''}
-                        <p>Vaša ulazna iskaznica priložena je kao diskretan kod — tiha zaštita za ulaz, koja se očita u trenutku na dolasku. Nema se što ispisivati ni pamtiti.</p>
+                        <p>Vaša ulazna iskaznica priložena je kao diskretan kod, tiha zaštita za ulaz, koja se očita u trenutku na dolasku. Nema se što ispisivati ni pamtiti.</p>
                         <p style="color:#475569;font-size:14px;">Referenca <strong>${escapeHtml(reservation.qr_code || '')}</strong></p>
                         <p style="color:#6a625a;font-size:13px;margin-top:22px;">Uz punu diskreciju — Ured Foruma, inicijativa Med&amp;X-a.</p>
                     ` : `
@@ -3646,7 +3646,7 @@ app.post('/api/forum/wing/convenings/:id/reserve', auth, forumWingMemberGate, as
                         <p>Your place at <strong>${escapeHtml(conv.title)}</strong> is reserved.</p>
                         <p style="color:#475569;font-size:14px;">${escapeHtml(conv.when_label || '')}${conv.venue ? '<br>' + escapeHtml(conv.venue) : ''}${conv.dress ? '<br>' + escapeHtml(conv.dress) : ''}</p>
                         ${segRows ? '<p style="font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6f5a31;">You will attend</p>' + segRows : ''}
-                        <p>Your entry credential is attached as a discreet code — a quiet backup for the door, read in a moment on arrival. There is nothing to print and nothing to remember.</p>
+                        <p>Your entry credential is attached as a discreet code, a quiet backup for the door, read in a moment on arrival. There is nothing to print and nothing to remember.</p>
                         <p style="color:#475569;font-size:14px;">Reference <strong>${escapeHtml(reservation.qr_code || '')}</strong></p>
                         <p style="color:#6a625a;font-size:13px;margin-top:22px;">Held with discretion — the Office of the Forum, an initiative of Med&amp;X.</p>
                     `, loc);
@@ -9889,7 +9889,7 @@ async function initializeApp() {
             const html = buildEmailTemplate(hr ? 'Odaberite o čemu želite primati vijesti' : 'Pick what you want to hear about', `
                 ${greet}
                 ${hr
-                    ? `<p>Med&amp;X vodi nekoliko programa — konferenciju Plexus, Gala večer, Accelerator i Building Bridges. Pratite one koji vas zanimaju i obavijestit ćemo vas čim se otvore prijave ili stignu novosti.</p>`
+                    ? `<p>Med&amp;X vodi nekoliko programa: konferenciju Plexus, Gala večer, Accelerator i Building Bridges. Pratite one koji vas zanimaju i obavijestit ćemo vas čim se otvore prijave ili stignu novosti.</p>`
                     : `<p>Med&amp;X runs several programs — the Plexus Conference, the Gala evening, the Accelerator, and Building Bridges. Follow the ones you care about and we will notify you the moment registration opens or news drops.</p>`}
                 <div style="text-align:center;margin:32px 0;">
                     <a href="${base}/#projects" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">${hr ? 'Odaberite svoje interese' : 'Choose your interests'}</a>
@@ -9936,7 +9936,7 @@ async function initializeApp() {
                 const which = kind === 'verify_nudge_2' ? 'second' : 'first';
                 const html = buildEmailTemplate('Please confirm your email', `
                     <p>Hi ${u.first_name || 'there'},</p>
-                    <p>Your Med&amp;X account is almost ready — it just needs a confirmed email. Here is a fresh link (the ${which} reminder).</p>
+                    <p>Your Med&amp;X account is almost ready. It just needs a confirmed email. Here is a fresh link (the ${which} reminder).</p>
                     <div style="text-align:center;margin:32px 0;">
                         <a href="${verifyUrl}" style="display:inline-block;background:#C9A962;color:#0f172a;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:16px;">Confirm my email</a>
                     </div>
@@ -10855,7 +10855,7 @@ async function submitReset(e){
             const to = (admin && admin.email) || 'info@medx.hr';
 
             const eventLabel = purchase ? `${purchase.conference_name}${purchase.ticket_name ? ' — ' + purchase.ticket_name : ''}` : 'a purchase';
-            const title = (type === 'refund' ? 'Refund request — ' : 'Question about a purchase — ') + eventLabel;
+            const title = (type === 'refund' ? 'Refund request, ' : 'Question about a purchase, ') + eventLabel;
 
             const lines = [];
             lines.push(type === 'refund'
@@ -14575,7 +14575,7 @@ By applying to this program, I provide the following consents:
             // Paid events must register through the invitation link (server-priced Stripe
             // checkout); this direct member-portal path only confirms FREE registrations.
             if (Number(event.price) > 0) {
-                return res.status(409).json({ error: 'This event requires paid registration — please use the official registration link to complete payment.' });
+                return res.status(409).json({ error: 'This event requires paid registration. Please use the official registration link to complete payment.' });
             }
 
             // Check capacity
@@ -14638,7 +14638,7 @@ By applying to this program, I provide the following consents:
             // would hand out a real check-in QR for €0 and defeat the paid-event gate.
             const applyEvent = query.get('SELECT price FROM bridges_events WHERE id = ?', [event_id]);
             if (applyEvent && Number(applyEvent.price) > 0) {
-                return res.status(409).json({ error: 'This event requires paid registration — please use the official registration link to complete payment.', requires_payment: true });
+                return res.status(409).json({ error: 'This event requires paid registration. Please use the official registration link to complete payment.', requires_payment: true });
             }
 
             // Check if already registered
@@ -18378,7 +18378,7 @@ By applying to this program, I provide the following consents:
                             sendEmail(applicantEmail, 'Payment Confirmed — Med&X Accelerator 2026', buildEmailTemplate('Payment Confirmed', `
                                 <p>Dear ${application.first_name || 'Applicant'},</p>
                                 <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
-                                    Your Accelerator processing fee has been received — your application is confirmed!
+                                    Your Accelerator processing fee has been received. Your application is confirmed!
                                 </p>
                                 <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
                                     <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Amount Paid</td>
@@ -18472,7 +18472,7 @@ By applying to this program, I provide the following consents:
                         sendEventConfirmation(galaReg.email, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
                             <p>Dear ${galaReg.first_name},</p>
                             <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
-                                Your Gala Evening payment has been received — your spot is secured!
+                                Your Gala Evening payment has been received. Your spot is secured!
                             </p>
                             <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
                                 <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Amount Paid</td>
@@ -18599,7 +18599,7 @@ By applying to this program, I provide the following consents:
                             sendEventConfirmation(recipientEmail, `Payment Confirmed — Med&X Forum: ${forumReg.event_title || 'Event'}`, buildEmailTemplate('Payment Confirmed', `
                                 <p>Dear ${forumReg.name || forumReg.first_name || 'Forum Member'},</p>
                                 <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
-                                    Your Forum event payment has been received — your spot is secured!
+                                    Your Forum event payment has been received. Your spot is secured!
                                 </p>
                                 <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
                                     <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Event</td>
@@ -19071,7 +19071,7 @@ By applying to this program, I provide the following consents:
                     sendEventConfirmation(reg.email, 'Payment Confirmed — Plexus 2026', buildEmailTemplate('Payment Confirmed', `
                         <p>Dear ${reg.first_name},</p>
                         <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
-                            Your payment has been received — your spot is secured!
+                            Your payment has been received. Your spot is secured!
                         </p>
                         <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
                             <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Amount Paid</td>
