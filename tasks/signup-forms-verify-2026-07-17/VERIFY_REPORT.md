@@ -1,4 +1,21 @@
-# Sign-up Forms — verification report (2026-07-17)
+# Sign-up Forms + QR check-in + VIP Guest Passes — verification report (2026-07-17)
+
+## Round 2 (same day): QR door tickets + VIP Guest Passes
+
+Commits `652b2b9` (QR check-in), `3eda286` (guest passes), `bbb2431` (lessons). CI green.
+
+**QR check-in, verified locally end-to-end:** confirmed signup → confirmation email carries hosted QR + PNG attachment (EN and HR captions) → `/qr/:id.png` serves the ticket → `checkin/verify` with `event='signup-form'` resolves UUID, email, and 8-char manual prefix → `mark` persists → re-scan shows already-checked-in → waitlisted guests firmly rejected → check-in done on one server visible on the other (shared DB). Scanner dropdown gained "Sign-up form events".
+
+**VIP Guest Passes, verified locally end-to-end:** composer mints a pass (gala, all four modules, HR default) → `/pass/:token` renders the Croatian page (Dobro došli, personal note, live gala programme, venue + arrival + map, materials, host card) → EN toggle → per-guest PWA manifest → revoke kills the link (404), restore revives it → send stages a bilingual email to the Outbox as pending_approval → page views counted. Screenshots: `guest-pass-hr.png`, `guest-pass-composer.png`.
+
+**Two collisions caught by local verification before they could reach production:**
+1. `guest_passes` table name was already taken by the member +1-guest-ticket feature — a duplicate CREATE would have crash-looped both live services on boot. The feature's table is `vip_passes`.
+2. A commit issued from inside `admin-portal/` landed in a vestigial nested git repo; reset and re-committed from the repo root (see tasks/lessons.md).
+
+Live smoke after Render rollout: `/pass/<bogus>` 404s branded, GuestPassApp + scanner option present in live admin HTML.
+
+---
+
 
 Feature: premium Google-Forms-style signup forms for short events (networking evenings, workshops).
 Commits: `a50d65e` (schema + admin API), `5530301` (admin module), `4b7a08e` (public page + submit + email + QR).
