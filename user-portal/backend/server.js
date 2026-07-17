@@ -8367,8 +8367,7 @@ async function initializeApp() {
     // message). When null, it's a broadcast to everyone. ALTER is idempotent.
     try { db.run('ALTER TABLE push_outbox ADD COLUMN target_email TEXT'); } catch(e) {}
 
-    // ---- Sign-up Forms (short-event signup builder; shared with the admin portal) ----
-    // Kept byte-identical in the admin-portal server.js.
+    // ---- Sign-up Forms (short-event signup builder): /f/:slug public pages + admin CRUD ----
     db.run(`CREATE TABLE IF NOT EXISTS signup_forms (
         id TEXT PRIMARY KEY,
         slug TEXT UNIQUE NOT NULL,
