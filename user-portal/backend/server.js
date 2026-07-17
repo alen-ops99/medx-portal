@@ -12218,6 +12218,61 @@ async function submitReset(e){
     });
 
     // The member's permanent record — events, certificates, badges across years.
+    // MY EVENTS wallet — every event this member is registered for, across all five registration
+    // tables, unified into one actionable list: title, date, venue, paid/checked-in state, the
+    // hosted QR ticket, and a calendar link where one exists. Upcoming vs past split server-side.
+    // Read-only, guarded per table (a table this DB lacks reads as empty, never fails the whole call).
+    app.get('/api/my/events', auth, (req, res) => {
+        try {
+            const meUser = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
+            const email = (meUser && meUser.email) || req.user.email || '';
+            const emL = String(email).toLowerCase();
+            const items = [];
+            const q = (sql, params) => { try { return query.all(sql, params) || []; } catch (e) { return []; } };
+
+            q(`SELECT r.id, r.payment_status, r.status, r.checked_in, c.name, c.start_date, c.end_date, c.venue_name, c.venue_city
+               FROM registrations r JOIN conferences c ON r.conference_id = c.id WHERE r.user_id = ?`, [req.user.id]).forEach(r => {
+                items.push({ id: r.id, evt: 'plexus', title: r.name || 'Plexus Conference', date: r.start_date, end_date: r.end_date,
+                    venue: [r.venue_name, r.venue_city].filter(Boolean).join(', '), paid: r.payment_status === 'paid' || r.status === 'confirmed',
+                    checked_in: !!r.checked_in, calendar: '/calendar/plexus.ics' });
+            });
+            q(`SELECT gr.id, gr.payment_status, gr.status, gr.checked_in, g.title, g.date, g.venue
+               FROM gala_registrations gr LEFT JOIN gala_settings g ON g.id = 'default' WHERE LOWER(gr.email) = ?`, [emL]).forEach(r => {
+                items.push({ id: r.id, evt: 'gala', title: r.title || 'Gala Evening', date: r.date, venue: r.venue || '',
+                    paid: r.payment_status === 'paid' || ['confirmed', 'vip-comp'].includes(String(r.status || '')), checked_in: !!r.checked_in });
+            });
+            q(`SELECT br.id, br.status, br.checked_in, e.name, e.event_date, e.event_time, e.venue_name, e.city, e.slug
+               FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id WHERE LOWER(br.email) = ?`, [emL]).forEach(r => {
+                if (String(r.status || '') === 'cancelled') return;
+                items.push({ id: r.id, evt: (r.slug === 'donor-night' ? 'donor' : 'bridges'), title: r.name || 'Building Bridges',
+                    date: r.event_date, venue: [r.venue_name, r.city].filter(Boolean).join(', '), paid: true, checked_in: !!r.checked_in });
+            });
+            q(`SELECT fer.id, fer.payment_status, fer.checked_in, fe.name, fe.slug, fe.event_date, fe.venue
+               FROM forum_event_registrations fer JOIN forum_events fe ON fer.event_id = fe.id WHERE LOWER(fer.email) = ?`, [emL]).forEach(r => {
+                items.push({ id: r.id, evt: 'forum', title: r.name || 'Biomedical Forum', date: r.event_date, venue: r.venue || '',
+                    paid: r.payment_status === 'paid' || !r.payment_status, checked_in: !!r.checked_in });
+            });
+            q(`SELECT sr.id, sr.is_waitlisted, sr.checked_in, sf.title, sf.slug, sf.event_date, sf.event_time, sf.venue
+               FROM signup_form_responses sr JOIN signup_forms sf ON sr.form_id = sf.id WHERE LOWER(sr.email) = ?`, [emL]).forEach(r => {
+                items.push({ id: r.id, evt: 'signup-form', title: r.title || 'Med&X event', date: r.event_date, venue: r.venue || '',
+                    paid: !r.is_waitlisted, waitlisted: !!r.is_waitlisted, checked_in: !!r.checked_in,
+                    calendar: r.event_date ? `/f/${r.slug}/calendar.ics` : null,
+                    ticket: r.is_waitlisted ? null : `/qr/${r.id}.png` });
+            });
+            items.forEach(it => { if (it.ticket === undefined) it.ticket = it.paid ? `/qr/${it.id}.png` : null; });
+
+            const today = new Date().toISOString().slice(0, 10);
+            const withDate = items.filter(i => i.date);
+            const undated = items.filter(i => !i.date);
+            const upcoming = withDate.filter(i => String(i.date).slice(0, 10) >= today).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+            const past = withDate.filter(i => String(i.date).slice(0, 10) < today).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+            res.json({ upcoming: [...upcoming, ...undated], past, count: items.length, generated_at: new Date().toISOString() });
+        } catch (e) {
+            console.error('[my events] error:', e.message);
+            res.status(500).json({ error: 'Failed to load your events' });
+        }
+    });
+
     app.get('/api/member/record', auth, (req, res) => {
         try {
             const user = query.get('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [req.user.id]);
