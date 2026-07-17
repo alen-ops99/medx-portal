@@ -37,3 +37,4 @@
 - Print-shop convention reconciled: badges are sheet-trimmed (page = A4 with per-badge bleed + crop marks); large-format roll-ups/backdrops are made at the exact ordered size, so page = the named size with INWARD 3mm bleed + trim marks (satisfies both "3mm bleed + crop marks" and "banner PDF = 100x200cm").
 
 - 2026-07-17 (signup-forms build): shared tables MUST go INSIDE the SCHEMA-MIRROR:BEGIN/END markers in BOTH server.js files, byte-identical including comments — CI (Boot smoke → scripts/check-schema-sync.sh) fails the deploy gate otherwise. Run the script locally before any schema push.
+- 2026-07-17 (guest-pass build): admin-portal/ contains a VESTIGIAL NESTED .git repo — a commit run with cwd inside admin-portal/ lands there silently (wrong identity, no origin). Always run git from the MedX repo ROOT. Also: table name guest_passes is TAKEN (member +1 guest tickets) — the VIP capability links live in vip_passes.
