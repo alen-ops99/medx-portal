@@ -7936,6 +7936,42 @@ async function initializeApp() {
             [defaultGalaSpeakers, defaultGalaSchedule]);
     }
 
+    // ---- Sign-up Forms (short-event signup builder; shared with the user portal) ----
+    // Kept byte-identical in the user-portal server.js.
+    db.run(`CREATE TABLE IF NOT EXISTS signup_forms (
+        id TEXT PRIMARY KEY,
+        slug TEXT UNIQUE NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        event_date TEXT,
+        event_time TEXT,
+        venue TEXT,
+        capacity INTEGER,
+        waitlist_enabled INTEGER DEFAULT 0,
+        registration_deadline TEXT,
+        status TEXT DEFAULT 'draft',
+        confirmation_message TEXT,
+        project_tag TEXT DEFAULT 'general',
+        language TEXT DEFAULT 'en',
+        fields_json TEXT DEFAULT '[]',
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS signup_form_responses (
+        id TEXT PRIMARY KEY,
+        form_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        answers_json TEXT DEFAULT '{}',
+        is_waitlisted INTEGER DEFAULT 0,
+        gdpr_consent INTEGER DEFAULT 0,
+        email_sent INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(form_id, email)
+    )`);
+
     // Plexus settings (admin-editable)
     db.run(`CREATE TABLE IF NOT EXISTS plexus_settings (
         id TEXT PRIMARY KEY DEFAULT 'default',
@@ -28268,6 +28304,191 @@ At most 10 findings. summary = two or three plain sentences on what you found an
              FROM croatians_abroad_registrations WHERE ${col} = 1 AND source = 'plexus' ORDER BY created_at DESC`
         );
         res.json({ event, count: rows.length, emails: rows.map(r => r.email), registrants: rows });
+    });
+
+    // ========== SIGN-UP FORMS — admin CRUD, responses, export ==========
+    // Google-Forms-style signup forms for short events (networking evenings, workshops).
+    // Forms are authored here; the public page + submissions live on the user portal (/f/:slug).
+
+    const SIGNUP_FORM_QUESTION_TYPES = ['short_text', 'paragraph', 'dropdown', 'radio', 'checkbox'];
+    const SIGNUP_FORM_OPTION_TYPES = ['dropdown', 'radio', 'checkbox'];
+
+    function generateSignupFormSlug() {
+        let slug;
+        do { slug = require('crypto').randomBytes(6).toString('base64url'); }
+        while (query.get('SELECT id FROM signup_forms WHERE slug = ?', [slug]));
+        return slug;
+    }
+
+    function signupFormPublicUrl(slug) {
+        return `${userPortalBase()}/f/${slug}`;
+    }
+
+    // Returns an error string, or null when the fields array is valid.
+    function validateSignupFormFields(fields) {
+        if (!Array.isArray(fields)) return 'fields_json must be an array';
+        if (fields.length > 30) return 'A form can have at most 30 questions';
+        for (const f of fields) {
+            if (!f || typeof f !== 'object') return 'Each question must be an object';
+            if (!f.id || typeof f.id !== 'string' || f.id.length > 20) return 'Each question needs a stable id';
+            if (!SIGNUP_FORM_QUESTION_TYPES.includes(f.type)) return `Unknown question type: ${f.type}`;
+            if (!f.label || typeof f.label !== 'string' || !f.label.trim() || f.label.length > 200) return 'Every question needs a label (max 200 characters)';
+            if (SIGNUP_FORM_OPTION_TYPES.includes(f.type)) {
+                if (!Array.isArray(f.options) || f.options.length < 1 || f.options.length > 30) return `"${f.label}" needs between 1 and 30 options`;
+                if (f.options.some(o => typeof o !== 'string' || !o.trim() || o.length > 200)) return `"${f.label}" has an empty or too-long option`;
+            }
+        }
+        return null;
+    }
+
+    function signupFormCounts(formId) {
+        return {
+            response_count: query.get('SELECT COUNT(*) AS n FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0', [formId])?.n || 0,
+            waitlist_count: query.get('SELECT COUNT(*) AS n FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 1', [formId])?.n || 0
+        };
+    }
+
+    app.get('/api/admin/signup-forms', auth, adminOnly, (req, res) => {
+        const forms = query.all('SELECT * FROM signup_forms ORDER BY created_at DESC');
+        res.json(forms.map(f => ({ ...f, url: signupFormPublicUrl(f.slug), ...signupFormCounts(f.id) })));
+    });
+
+    app.post('/api/admin/signup-forms', auth, adminOnly, (req, res) => {
+        const title = String(req.body?.title || '').trim() || 'Untitled form';
+        if (title.length > 200) return res.status(400).json({ error: 'title too long (max 200 characters)' });
+        const id = require('crypto').randomUUID();
+        const slug = generateSignupFormSlug();
+        db.run('INSERT INTO signup_forms (id, slug, title, created_by) VALUES (?, ?, ?, ?)',
+            [id, slug, title, req.user?.email || null]);
+        saveDb();
+        logAudit(req, 'signup_form_create', title);
+        const form = query.get('SELECT * FROM signup_forms WHERE id = ?', [id]);
+        res.json({ success: true, form: { ...form, url: signupFormPublicUrl(slug), response_count: 0, waitlist_count: 0 } });
+    });
+
+    app.get('/api/admin/signup-forms/:id', auth, adminOnly, (req, res) => {
+        const form = query.get('SELECT * FROM signup_forms WHERE id = ?', [req.params.id]);
+        if (!form) return res.status(404).json({ error: 'Form not found' });
+        let fields = [];
+        try { fields = JSON.parse(form.fields_json || '[]'); } catch(e) {}
+        res.json({ ...form, fields, url: signupFormPublicUrl(form.slug), ...signupFormCounts(form.id) });
+    });
+
+    app.put('/api/admin/signup-forms/:id', auth, adminOnly, (req, res) => {
+        const form = query.get('SELECT * FROM signup_forms WHERE id = ?', [req.params.id]);
+        if (!form) return res.status(404).json({ error: 'Form not found' });
+        const b = req.body || {};
+
+        if (b.status !== undefined && !['draft', 'open', 'closed'].includes(b.status)) return res.status(400).json({ error: 'status must be draft, open or closed' });
+        if (b.language !== undefined && !['en', 'hr'].includes(b.language)) return res.status(400).json({ error: 'language must be en or hr' });
+        if (b.project_tag !== undefined && !['plexus', 'bridges', 'forum', 'general'].includes(b.project_tag)) return res.status(400).json({ error: 'invalid project_tag' });
+        if (b.capacity !== undefined && b.capacity !== null && (!Number.isInteger(b.capacity) || b.capacity < 1)) return res.status(400).json({ error: 'capacity must be a positive whole number, or empty for unlimited' });
+        if (b.title !== undefined && (!String(b.title).trim() || String(b.title).length > 200)) return res.status(400).json({ error: 'title required (max 200 characters)' });
+
+        let fieldsJson;
+        if (b.fields_json !== undefined) {
+            let parsed;
+            try { parsed = typeof b.fields_json === 'string' ? JSON.parse(b.fields_json) : b.fields_json; }
+            catch(e) { return res.status(400).json({ error: 'fields_json is not valid JSON' }); }
+            const err = validateSignupFormFields(parsed);
+            if (err) return res.status(400).json({ error: err });
+            fieldsJson = JSON.stringify(parsed);
+        }
+
+        const patch = {};
+        ['title', 'description', 'event_date', 'event_time', 'venue', 'registration_deadline',
+         'status', 'confirmation_message', 'project_tag', 'language'].forEach(k => {
+            if (b[k] !== undefined) patch[k] = b[k] === null ? null : String(b[k]);
+        });
+        if (b.capacity !== undefined) patch.capacity = b.capacity;
+        if (b.waitlist_enabled !== undefined) patch.waitlist_enabled = b.waitlist_enabled ? 1 : 0;
+        if (fieldsJson !== undefined) patch.fields_json = fieldsJson;
+
+        if (!Object.keys(patch).length) return res.json({ success: true });
+        patch.updated_at = new Date().toISOString();
+        const sets = Object.keys(patch).map(k => `${k} = ?`).join(', ');
+        db.run(`UPDATE signup_forms SET ${sets} WHERE id = ?`, [...Object.values(patch), form.id]);
+        saveDb();
+        if (b.status !== undefined && b.status !== form.status) logAudit(req, 'signup_form_status', `${form.title}: ${form.status} -> ${b.status}`);
+        res.json({ success: true });
+    });
+
+    app.delete('/api/admin/signup-forms/:id', auth, adminOnly, (req, res) => {
+        const form = query.get('SELECT * FROM signup_forms WHERE id = ?', [req.params.id]);
+        if (!form) return res.status(404).json({ error: 'Form not found' });
+        db.run('DELETE FROM signup_form_responses WHERE form_id = ?', [form.id]);
+        db.run('DELETE FROM signup_forms WHERE id = ?', [form.id]);
+        saveDb();
+        logAudit(req, 'signup_form_delete', form.title);
+        res.json({ success: true });
+    });
+
+    app.get('/api/admin/signup-forms/:id/responses', auth, adminOnly, (req, res) => {
+        // Responses are written by the user portal; this server's background pull only
+        // runs every 60s, so pull the freshest replica before reading.
+        if (process.env.TURSO_DATABASE_URL) { try { db.sync(); } catch(e) {} }
+        const form = query.get('SELECT * FROM signup_forms WHERE id = ?', [req.params.id]);
+        if (!form) return res.status(404).json({ error: 'Form not found' });
+        const responses = query.all('SELECT * FROM signup_form_responses WHERE form_id = ? ORDER BY created_at ASC', [form.id]).map(r => {
+            let answers = {};
+            try { answers = JSON.parse(r.answers_json || '{}'); } catch(e) {}
+            return { ...r, answers };
+        });
+        const counts = signupFormCounts(form.id);
+        res.json({
+            form: { ...form, url: signupFormPublicUrl(form.slug) },
+            responses,
+            counts: { confirmed: counts.response_count, waitlisted: counts.waitlist_count, capacity: form.capacity }
+        });
+    });
+
+    app.delete('/api/admin/signup-forms/:id/responses/:responseId', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT * FROM signup_form_responses WHERE id = ? AND form_id = ?', [req.params.responseId, req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Response not found' });
+        db.run('DELETE FROM signup_form_responses WHERE id = ?', [row.id]);
+        saveDb();
+        logAudit(req, 'signup_form_response_delete', `${row.email} (${req.params.id})`);
+        res.json({ success: true });
+    });
+
+    // Responses export — CSV or XLSX (columns follow the CURRENT question labels)
+    app.get('/api/admin/signup-forms/:id/export', auth, adminOnly, (req, res) => {
+        if (process.env.TURSO_DATABASE_URL) { try { db.sync(); } catch(e) {} }
+        const form = query.get('SELECT * FROM signup_forms WHERE id = ?', [req.params.id]);
+        if (!form) return res.status(404).json({ error: 'Form not found' });
+        let formFields = [];
+        try { formFields = JSON.parse(form.fields_json || '[]'); } catch(e) {}
+        const rows = query.all('SELECT * FROM signup_form_responses WHERE form_id = ? ORDER BY created_at ASC', [form.id]);
+
+        const headers = ['Name', 'Email', ...formFields.map(f => f.label), 'Waitlisted', 'GDPR Consent', 'Submitted At'];
+        const dataRows = rows.map(r => {
+            let answers = {};
+            try { answers = JSON.parse(r.answers_json || '{}'); } catch(e) {}
+            return [
+                r.name || '',
+                r.email || '',
+                ...formFields.map(f => {
+                    const a = answers[f.id];
+                    return Array.isArray(a) ? a.join('; ') : (a === undefined || a === null ? '' : String(a));
+                }),
+                r.is_waitlisted ? 'Yes' : 'No',
+                r.gdpr_consent ? 'Yes' : 'No',
+                r.created_at || ''
+            ];
+        });
+
+        const slugForFilename = form.slug.replace(/[^a-z0-9_-]/gi, '-');
+        if (req.query.format === 'xlsx') {
+            const buf = generateXlsxBuffer(headers, dataRows, 'Responses');
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="${slugForFilename}-responses.xlsx"`);
+            return res.send(buf);
+        }
+        const csv = [headers.map(h => `"${sanitizeCsvCell(h).replace(/"/g, '""')}"`).join(',')];
+        dataRows.forEach(r => csv.push(r.map(v => `"${sanitizeCsvCell(v).replace(/"/g, '""')}"`).join(',')));
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${slugForFilename}-responses.csv"`);
+        res.send(csv.join('\n'));
     });
 
     // ========== EVENT-COMBO INVITE LINKS (new routes only — existing invite pages untouched) ==========

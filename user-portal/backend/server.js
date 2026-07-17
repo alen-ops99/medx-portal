@@ -7971,6 +7971,42 @@ async function initializeApp() {
     // message). When null, it's a broadcast to everyone. ALTER is idempotent.
     try { db.run('ALTER TABLE push_outbox ADD COLUMN target_email TEXT'); } catch(e) {}
 
+    // ---- Sign-up Forms (short-event signup builder; shared with the admin portal) ----
+    // Kept byte-identical in the admin-portal server.js.
+    db.run(`CREATE TABLE IF NOT EXISTS signup_forms (
+        id TEXT PRIMARY KEY,
+        slug TEXT UNIQUE NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        event_date TEXT,
+        event_time TEXT,
+        venue TEXT,
+        capacity INTEGER,
+        waitlist_enabled INTEGER DEFAULT 0,
+        registration_deadline TEXT,
+        status TEXT DEFAULT 'draft',
+        confirmation_message TEXT,
+        project_tag TEXT DEFAULT 'general',
+        language TEXT DEFAULT 'en',
+        fields_json TEXT DEFAULT '[]',
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS signup_form_responses (
+        id TEXT PRIMARY KEY,
+        form_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        answers_json TEXT DEFAULT '{}',
+        is_waitlisted INTEGER DEFAULT 0,
+        gdpr_consent INTEGER DEFAULT 0,
+        email_sent INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(form_id, email)
+    )`);
+
     // ===== Member Home feed, opportunity board, talk library (menu items 9 & 23) =====
     // Shared across both portals: the member portal reads these, the admin portal curates them.
     // These CREATE TABLE blocks are kept byte-identical in the admin-portal server.js.
