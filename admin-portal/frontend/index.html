@@ -48183,7 +48183,8 @@ By applying to this program, I give the following consents:
                             ${f.venue ? `<span><i class="fas fa-location-dot" style="margin-right:5px;"></i>${this.esc(f.venue)}</span>` : ''}
                             ${this.tagPill(f.project_tag)}
                         </div>
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+                        ${f.capacity ? `<div style="margin-top:12px;height:5px;border-radius:3px;background:var(--bg-tertiary);overflow:hidden;"><div style="height:100%;width:${Math.min(100, Math.round(100 * (f.response_count || 0) / f.capacity))}%;background:${(f.response_count || 0) >= f.capacity ? '#9b1b22' : 'linear-gradient(90deg,#c9a962,#b8965a)'};"></div></div>` : ''}
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:${f.capacity ? '10px' : '14px'};padding-top:12px;border-top:1px solid var(--border);">
                             <span style="font-size:13px;"><strong>${f.response_count || 0}</strong><span style="color:var(--text-muted);">${f.capacity ? ' / ' + f.capacity : ''} signed up</span>${f.waitlist_count ? `<span style="color:#b45309;"> · ${f.waitlist_count} waitlist</span>` : ''}</span>
                             <span style="color:var(--text-muted);font-size:12px;">Open <i class="fas fa-arrow-right" style="font-size:10px;"></i></span>
                         </div>
@@ -48394,6 +48395,7 @@ By applying to this program, I give the following consents:
                                 ${['general', 'plexus', 'bridges', 'forum'].map(t => `<option value="${t}" ${c.project_tag === t ? 'selected' : ''}>${{ general: 'General / Med&X', plexus: 'Plexus Week', bridges: 'Building Bridges', forum: 'Biomedical Forum' }[t]}</option>`).join('')}
                             </select></div>
                             <div style="grid-column:1 / -1;"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfSetWaitlist" ${c.waitlist_enabled ? 'checked' : ''}> Enable a waiting list when the event is full</label></div>
+                            <div style="grid-column:1 / -1;"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfSetReminder" ${c.reminder_enabled ? 'checked' : ''}> Send a "see you tomorrow" reminder email (with the QR ticket) the day before the event</label></div>
                             <div style="grid-column:1 / -1;">${label('Confirmation message (success page + email, optional)')}<textarea id="sfSetConfirmMsg" rows="2" placeholder="e.g. Doors open at 18:30. Bring a business card!" style="${inputStyle}resize:vertical;">${this.esc(c.confirmation_message)}</textarea></div>
                         </div>
                         <div style="display:flex;justify-content:flex-end;margin-top:18px;">
@@ -48449,6 +48451,7 @@ By applying to this program, I give the following consents:
                     venue: v('sfSetVenue').trim(),
                     capacity,
                     waitlist_enabled: document.getElementById('sfSetWaitlist').checked,
+                    reminder_enabled: document.getElementById('sfSetReminder').checked,
                     registration_deadline: v('sfSetDeadline'),
                     language: v('sfSetLanguage'),
                     project_tag: v('sfSetTag'),
@@ -48583,7 +48586,7 @@ By applying to this program, I give the following consents:
                                     ${td(`<a href="mailto:${this.esc(r.email)}" style="color:inherit;">${this.esc(r.email)}</a>`)}
                                     ${fields.map(f => td(answerCell(r, f))).join('')}
                                     ${td(`<span style="color:var(--text-muted);font-size:12px;white-space:nowrap;">${r.created_at ? new Date(r.created_at.replace(' ', 'T') + (r.created_at.includes('Z') ? '' : 'Z')).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>`)}
-                                    ${td(`<button onclick="SignupFormsApp.deleteResponse('${r.id}')" title="Remove signup" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px 6px;"><i class="fas fa-trash-can"></i></button>`)}
+                                    ${td(`${r.is_waitlisted ? `<button onclick="SignupFormsApp.promoteResponse('${r.id}')" title="Promote from the waiting list" class="btn btn-secondary" style="padding:4px 10px;font-size:11.5px;margin-right:6px;white-space:nowrap;"><i class="fas fa-arrow-up"></i> Promote</button>` : ''}<button onclick="SignupFormsApp.deleteResponse('${r.id}')" title="Remove signup" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px 6px;"><i class="fas fa-trash-can"></i></button>`)}
                                 </tr>`).join('')}
                             </tbody>
                         </table>
@@ -48605,6 +48608,17 @@ By applying to this program, I give the following consents:
 
             exportResponses(format) {
                 App.downloadFile(`/api/admin/signup-forms/${this.current.id}/export?format=${format}`, `${this.current.slug}-responses.${format === 'xlsx' ? 'xlsx' : 'csv'}`);
+            },
+
+            async promoteResponse(id) {
+                const c = this.current;
+                const overCap = c.capacity && (c.response_count || 0) >= c.capacity;
+                if (!confirm(`Promote this guest from the waiting list?${overCap ? ' NOTE: the event is at capacity (' + c.response_count + '/' + c.capacity + ') — this goes over it.' : ''} They receive a confirmation email with their entry QR.`)) return;
+                try {
+                    const r = await App.api(`/api/admin/signup-forms/${this.current.id}/responses/${id}/promote`, { method: 'POST' });
+                    if (r.email === 'not_sent') alert('Promoted, but the email could not be sent — contact the guest directly.');
+                    this.loadResponses();
+                } catch(e) { alert('Could not promote: ' + e.message); }
             },
 
             async deleteResponse(id) {
@@ -48646,6 +48660,14 @@ By applying to this program, I give the following consents:
                 this.renderList();
             },
 
+            openedLabel(p) {
+                if (!p.last_viewed_at) return '';
+                try {
+                    const d = new Date(p.last_viewed_at);
+                    return ' · opened ' + d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+                } catch(e) { return ''; }
+            },
+
             statusBadge(p) {
                 if (p.revoked) return `<span style="background:rgba(155,27,34,0.1);color:#9b1b22;padding:3px 11px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;">Revoked</span>`;
                 if (p.expires_at && new Date(p.expires_at) < new Date()) return `<span style="background:rgba(107,98,88,0.12);color:#6b6258;padding:3px 11px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;">Expired</span>`;
@@ -48684,7 +48706,7 @@ By applying to this program, I give the following consents:
                             ${(p.modules || []).map(m => `<span style="background:var(--bg-tertiary);color:var(--text-secondary);padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;">${this.esc((this.MODULES.find(x => x.key === m) || {}).label || m)}</span>`).join('')}
                         </div>
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
-                            <span style="color:var(--text-muted);font-size:12px;"><i class="far fa-eye" style="margin-right:5px;"></i>${p.page_views || 0} views</span>
+                            <span style="color:var(--text-muted);font-size:12px;"><i class="far fa-eye" style="margin-right:5px;"></i>${p.page_views || 0} views${this.esc(this.openedLabel(p))}</span>
                             ${this.sendBadge(p)}
                         </div>
                     </div>`).join('') + `</div>`;
@@ -48732,7 +48754,7 @@ By applying to this program, I give the following consents:
                         ${p.revoked
                             ? `<button class="btn btn-secondary" onclick="GuestPassApp.setRevoked(false)">Restore</button>`
                             : `<button class="btn btn-secondary" style="color:#9b1b22;" onclick="GuestPassApp.setRevoked(true)"><i class="fas fa-ban"></i> Revoke</button>`}
-                        <span style="color:var(--text-muted);font-size:12px;margin-left:auto;"><i class="far fa-eye" style="margin-right:5px;"></i>${p.page_views || 0} views &middot; ${this.sendBadge(p)}</span>
+                        <span style="color:var(--text-muted);font-size:12px;margin-left:auto;"><i class="far fa-eye" style="margin-right:5px;"></i>${p.page_views || 0} views${this.esc(this.openedLabel(p))} &middot; ${this.sendBadge(p)}</span>
                     </div>`;
             },
 

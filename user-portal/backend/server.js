@@ -623,6 +623,12 @@ async function qrPngAttachment(payload) {
 }
 
 // Ticket-style QR card used by every confirmation email (email-client-safe tables only)
+// Inbox preview line (the grey text after the subject in Gmail/Outlook). Hidden in the body.
+function emailPreheader(text) {
+    if (!text) return '';
+    return `<div style="display:none;max-height:0px;overflow:hidden;mso-hide:all;">${escapeHtml(text)}${'&nbsp;&zwnj;'.repeat(30)}</div>`;
+}
+
 function buildTicketQrBlock(regId, opts = {}) {
     const label = opts.label || 'Your Check-in QR Code';
     const caption = opts.caption || 'Present this code at the event entrance';
@@ -1692,6 +1698,13 @@ const SIGNUP_FORM_I18N = {
         errNetwork: 'Something went wrong. Please try again.',
         errTooMany: 'Too many attempts. Please try again in a few minutes.',
         footQuestions: 'Questions?',
+        addToCalendar: 'Add to calendar',
+        ticketLabel: 'Your entry QR code',
+        ticketNote: 'Also in your confirmation email. Show it at the entrance.',
+        manualCode: 'MANUAL CODE',
+        reminderSubject: 'See you tomorrow: {title}',
+        reminderTitle: 'See you tomorrow',
+        reminderLine: 'A friendly reminder that <strong>{title}</strong> takes place tomorrow.',
         emailSubject: 'Sign-up confirmed: {title}',
         emailSubjectWaitlist: 'Waiting list: {title}',
         emailTitle: 'Sign-up confirmed',
@@ -1733,6 +1746,13 @@ const SIGNUP_FORM_I18N = {
         errNetwork: 'Došlo je do pogreške. Molimo pokušajte ponovno.',
         errTooMany: 'Previše pokušaja. Molimo pokušajte ponovno za nekoliko minuta.',
         footQuestions: 'Pitanja?',
+        addToCalendar: 'Dodajte u kalendar',
+        ticketLabel: 'Vaš QR kod za ulaz',
+        ticketNote: 'Nalazi se i u e-poruci s potvrdom. Pokažite ga na ulazu.',
+        manualCode: 'RUČNI KOD',
+        reminderSubject: 'Vidimo se sutra: {title}',
+        reminderTitle: 'Vidimo se sutra',
+        reminderLine: 'Podsjećamo Vas da se <strong>{title}</strong> održava sutra.',
         emailSubject: 'Potvrda prijave: {title}',
         emailSubjectWaitlist: 'Lista čekanja: {title}',
         emailTitle: 'Potvrda prijave',
@@ -1862,6 +1882,8 @@ function renderSignupFormPage(form, state) {
         </div>`;
     }
 
+    const calBtn = form && form.event_date && (state === 'open' || state === 'waitlist')
+        ? `<div style="margin-top:20px;"><a href="/f/${escapeHtml(form.slug)}/calendar.ics" style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border:1px solid ${accent};border-radius:999px;background:${accent}14;color:#e2e8f0;font-size:13px;font-weight:600;text-decoration:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${T.addToCalendar}</a></div>` : '';
     const hero = (state === 'notfound') ? `
     <div class="hero">
         <div class="eyebrow">Med&X</div>
@@ -1873,6 +1895,7 @@ function renderSignupFormPage(form, state) {
         ${form && form.description ? `<p class="framing">${escapeHtml(form.description)}</p>` : ''}
         ${factLine ? `<div class="facts">${factLine}</div>` : ''}
         ${deadlineNote}
+        ${calBtn}
     </div>`;
 
     const clientData = state === 'open' || state === 'waitlist' ? `<script>
@@ -1880,6 +1903,7 @@ function renderSignupFormPage(form, state) {
     var SF_FIELDS = ${JSON.stringify(fields.map(f => ({ id: f.id, type: f.type, required: !!f.required }))).replace(/</g, '\\u003c')};
     var SF_T = ${JSON.stringify(T).replace(/</g, '\\u003c')};
     var SF_WAITLIST_STATE = ${JSON.stringify(state === 'waitlist')};
+    var SF_HAS_DATE = ${JSON.stringify(!!(form && form.event_date))};
     function sfErr(m){ var e = document.getElementById('sfMsg'); e.className = 'msg err'; e.textContent = m; }
     function sfNotice(title, body){
         document.getElementById('sfCard').innerHTML =
@@ -1928,7 +1952,11 @@ function renderSignupFormPage(form, state) {
                     '<div class="notice-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>' +
                     '<div class="confirm-heading">' + (waitl ? SF_T.waitlistTitle : SF_T.successTitle) + '</div>' +
                     (window.SF_CONFIRM_MSG ? '<p class="confirm-line" style="color:#e2e8f0;">' + esc(window.SF_CONFIRM_MSG) + '</p>' : '') +
-                    '<p class="confirm-line">' + (waitl ? SF_T.waitlistBody : SF_T.successBody).replace('{email}', esc(email)) + '</p>';
+                    (d.ticket_id ? '<div style="background:#fff;border-radius:16px;padding:16px;width:fit-content;margin:22px auto 6px;box-shadow:0 6px 24px rgba(0,0,0,0.35);"><img src="/qr/' + esc(d.ticket_id) + '.png" alt="QR" width="180" height="180" style="display:block;"></div>' +
+                        '<div style="text-align:center;font-family:monospace;font-size:13px;letter-spacing:3px;color:#e2e8f0;margin-bottom:4px;"><span style="font-family:Inter,sans-serif;font-size:9px;letter-spacing:1.5px;color:#94a3b8;">' + SF_T.manualCode + '&nbsp;&nbsp;</span>' + esc(d.ticket_id.slice(0, 8).toUpperCase()) + '</div>' +
+                        '<p class="confirm-line" style="margin-top:4px;">' + SF_T.ticketNote + '</p>' : '') +
+                    '<p class="confirm-line">' + (waitl ? SF_T.waitlistBody : SF_T.successBody).replace('{email}', esc(email)) + '</p>' +
+                    (SF_HAS_DATE ? '<p class="confirm-line" style="margin-top:10px;"><a href="/f/' + SF_SLUG + '/calendar.ics" style="color:#c9a962;">' + SF_T.addToCalendar + '</a></p>' : '');
                 document.getElementById('sfCard').classList.add('notice');
                 return false;
             }
@@ -1946,6 +1974,12 @@ function renderSignupFormPage(form, state) {
     </script>` : '';
 
     return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(title)} — Med&amp;X</title>
+<meta property="og:title" content="${escapeHtml(title)} — Med&amp;X">
+<meta property="og:description" content="${escapeHtml(facts.length ? facts.join(' · ') : (form && form.description ? form.description.slice(0, 140) : 'Med&X event sign-up'))}">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://medx-user-portal.onrender.com/icon-512.png">
+${form ? `<meta property="og:url" content="https://medx-user-portal.onrender.com/f/${escapeHtml(form.slug)}">` : ''}
+<meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -2819,6 +2853,54 @@ app.get('/calendar/:file', (req, res) => {
         console.error('[calendar] error:', e.message);
         return res.status(500).send('Calendar temporarily unavailable');
     }
+});
+// Dynamic .ics for sign-up-form events and guest passes (same Zagreb VTIMEZONE pipeline).
+app.get('/f/:slug/calendar.ics', (req, res) => {
+    try {
+        const form = query.get('SELECT * FROM signup_forms WHERE slug = ?', [req.params.slug]);
+        if (!form || form.status === 'draft' || !form.event_date) return res.status(404).send('Calendar not found');
+        const base = (process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+        const t = String(form.event_time || '19:00').slice(0, 5);
+        const endT = String(Math.min(23, parseInt(t.slice(0, 2), 10) + 3)).padStart(2, '0') + t.slice(2);
+        const ev = buildVEVENT({
+            uid: 'signup-form-' + form.id + '@medx.hr',
+            stamp: icsStampUTC(new Date()),
+            start: icsLocalDT(form.event_date, t, t.replace(':', '')),
+            end: icsLocalDT(form.event_date, endT, endT.replace(':', '')),
+            summary: form.title,
+            location: form.venue || '',
+            description: form.description || '',
+            url: `${base}/f/${form.slug}`
+        });
+        res.set('Content-Type', 'text/calendar; charset=utf-8');
+        res.set('Content-Disposition', `attachment; filename="medx-${form.slug}.ics"`);
+        res.send(buildICS([ev]));
+    } catch (e) { res.status(500).send('Calendar temporarily unavailable'); }
+});
+
+app.get('/pass/:token/calendar.ics', (req, res) => {
+    try {
+        const pass = guestPassByToken(req.params.token);
+        if (!pass || pass.revoked || guestPassExpired(pass)) return res.status(404).send('Calendar not found');
+        const ev = guestPassEventInfo(pass.event_key);
+        if (!ev.date) return res.status(404).send('Calendar not found');
+        const t = String(ev.time || '18:00').slice(0, 5);
+        const endT = ev.end_time ? String(ev.end_time).slice(0, 5)
+            : String(Math.min(23, parseInt(t.slice(0, 2), 10) + 4)).padStart(2, '0') + t.slice(2);
+        const vevent = buildVEVENT({
+            uid: 'vip-pass-' + pass.id + '@medx.hr',
+            stamp: icsStampUTC(new Date()),
+            start: icsLocalDT(ev.date, t, t.replace(':', '')),
+            end: icsLocalDT(ev.date, endT, endT.replace(':', '')),
+            summary: ev.name,
+            location: [ev.venue, ev.address].filter(Boolean).join(', '),
+            description: '',
+            url: `${(process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '')}/pass/${pass.token}`
+        });
+        res.set('Content-Type', 'text/calendar; charset=utf-8');
+        res.set('Content-Disposition', 'attachment; filename="medx-event.ics"');
+        res.send(buildICS([vevent]));
+    } catch (e) { res.status(500).send('Calendar temporarily unavailable'); }
 });
 // ========================== end ADD-TO-CALENDAR (.ics) ==========================
 
@@ -4643,6 +4725,7 @@ const GP_I18N = {
         openMap: 'Open map',
         day: 'Day',
         questions: 'Questions?',
+        addToCal: 'Add to calendar',
         preparedFor: 'This page was prepared personally for you. Please treat the link as private.'
     },
     hr: {
@@ -4655,6 +4738,7 @@ const GP_I18N = {
         openMap: 'Otvorite kartu',
         day: 'Dan',
         questions: 'Pitanja?',
+        addToCal: 'Dodajte u kalendar',
         preparedFor: 'Ova je stranica pripremljena osobno za Vas. Molimo poveznicu smatrajte privatnom.'
     }
 };
@@ -4770,6 +4854,9 @@ function renderGuestPassPage(pass, lang) {
     return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>${escapeHtml(ev.name)} — Med&amp;X</title>
 <meta name="robots" content="noindex, nofollow">
+<meta property="og:title" content="Med&amp;X">
+<meta property="og:description" content="Personal access page">
+<meta property="og:image" content="https://medx-user-portal.onrender.com/icon-512.png">
 <link rel="manifest" href="/pass/${encodeURIComponent(pass.token)}/manifest.json">
 <meta name="theme-color" content="#0f172a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4823,6 +4910,7 @@ function renderGuestPassPage(pass, lang) {
         <div class="gp-guest">${guestLine}</div>
         ${note ? `<p class="gp-note">${escapeHtml(note)}</p>` : ''}
         ${factLine ? `<div class="facts">${factLine}</div>` : ''}
+        ${ev.date ? `<div style="margin-top:18px;"><a class="gp-btn" href="/pass/${encodeURIComponent(pass.token)}/calendar.ics">${T.addToCal}</a></div>` : ''}
     </div>
     ${moduleHtml.join('')}
     <div class="foot">${T.preparedFor}<br>${T.questions} <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a></div>
@@ -4865,7 +4953,7 @@ app.get('/pass/:token', speakerLimiter, async (req, res) => {
             ));
         }
         const lang = req.query.lang === 'hr' ? 'hr' : req.query.lang === 'en' ? 'en' : (pass.lang_default === 'hr' ? 'hr' : 'en');
-        try { query.run('UPDATE vip_passes SET page_views = COALESCE(page_views, 0) + 1 WHERE id = ?', [pass.id]); } catch (e) {}
+        try { query.run('UPDATE vip_passes SET page_views = COALESCE(page_views, 0) + 1, last_viewed_at = ? WHERE id = ?', [new Date().toISOString(), pass.id]); } catch (e) {}
         res.set('Cache-Control', 'private, max-age=120');
         res.send(renderGuestPassPage(pass, lang));
     } catch (err) {
@@ -8634,6 +8722,7 @@ async function initializeApp() {
         confirmation_message TEXT,
         project_tag TEXT DEFAULT 'general',
         language TEXT DEFAULT 'en',
+        reminder_enabled INTEGER DEFAULT 0,
         fields_json TEXT DEFAULT '[]',
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -8651,6 +8740,7 @@ async function initializeApp() {
         email_sent INTEGER DEFAULT 0,
         checked_in INTEGER DEFAULT 0,
         checked_in_at TEXT,
+        reminder_sent INTEGER DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(form_id, email)
     )`);
@@ -8658,6 +8748,8 @@ async function initializeApp() {
     // created before these columns existed.
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in_at TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE signup_form_responses ADD COLUMN reminder_sent INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
 
     // ===== Member Home feed, opportunity board, talk library (menu items 9 & 23) =====
     // Shared across both portals: the member portal reads these, the admin portal curates them.
@@ -9559,11 +9651,13 @@ async function initializeApp() {
         revoked INTEGER DEFAULT 0,
         expires_at TEXT,
         page_views INTEGER DEFAULT 0,
+        last_viewed_at TEXT,
         created_by TEXT,
         created_at TEXT,
         updated_at TEXT
     )`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_vip_passes_token ON vip_passes(token)`);
+    try { db.run('ALTER TABLE vip_passes ADD COLUMN last_viewed_at TEXT'); } catch (e) {}
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
@@ -15421,7 +15515,10 @@ By applying to this program, I provide the following consents:
 
     app.get('/api/bridges/speakers', auth, (req, res) => {
         const { event_id } = req.query;
-        let sql = 'SELECT * FROM bridges_speakers WHERE is_published = 1';
+        // Admins see drafts too (the bridges content editor lists through this same route).
+        let sql = (req.user && req.user.is_admin)
+            ? 'SELECT * FROM bridges_speakers WHERE 1 = 1'
+            : 'SELECT * FROM bridges_speakers WHERE is_published = 1';
         const params = [];
         if (event_id) {
             sql += ' AND event_id = ?';
@@ -15431,6 +15528,62 @@ By applying to this program, I provide the following consents:
         res.json(query.all(sql, params) || []);
     });
 
+    // ========== BRIDGES CONTENT ADMIN (the editor UI already called these; they were missing) ==========
+    const BRIDGES_SPEAKER_COLS = ['event_id', 'name', 'title', 'institution', 'bio', 'photo_url', 'talk_title', 'sort_order'];
+    const BRIDGES_PROGRAM_COLS = ['event_id', 'title', 'description', 'speaker_id', 'start_time', 'end_time', 'sort_order'];
+
+    function bridgesUpsertHandler(table, cols) {
+        return (req, res) => {
+            const b = req.body || {};
+            if (!String(b.name || b.title || '').trim()) return res.status(400).json({ error: 'A name/title is required' });
+            if (req.params.id) {
+                const row = query.get(`SELECT id FROM ${table} WHERE id = ?`, [req.params.id]);
+                if (!row) return res.status(404).json({ error: 'Not found' });
+                const patch = {};
+                cols.forEach(c => { if (b[c] !== undefined) patch[c] = b[c]; });
+                if (Object.keys(patch).length) {
+                    const sets = Object.keys(patch).map(k => `${k} = ?`).join(', ');
+                    db.run(`UPDATE ${table} SET ${sets} WHERE id = ?`, [...Object.values(patch), req.params.id]);
+                    saveDb();
+                }
+                return res.json({ success: true, id: req.params.id });
+            }
+            const id = require('crypto').randomUUID();
+            const present = cols.filter(c => b[c] !== undefined);
+            db.run(`INSERT INTO ${table} (id${present.map(c => ', ' + c).join('')}) VALUES (?${present.map(() => ', ?').join('')})`,
+                [id, ...present.map(c => b[c])]);
+            saveDb();
+            res.json({ success: true, id });
+        };
+    }
+
+    app.post('/api/bridges/speakers', auth, adminOnly, bridgesUpsertHandler('bridges_speakers', BRIDGES_SPEAKER_COLS));
+    app.put('/api/bridges/speakers/:id', auth, adminOnly, bridgesUpsertHandler('bridges_speakers', BRIDGES_SPEAKER_COLS));
+    app.post('/api/bridges/program', auth, adminOnly, bridgesUpsertHandler('bridges_program', BRIDGES_PROGRAM_COLS));
+    app.put('/api/bridges/program/:id', auth, adminOnly, bridgesUpsertHandler('bridges_program', BRIDGES_PROGRAM_COLS));
+
+    function bridgesDeleteHandler(table) {
+        return (req, res) => {
+            db.run(`DELETE FROM ${table} WHERE id = ?`, [req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        };
+    }
+    app.delete('/api/bridges/speakers/:id', auth, adminOnly, bridgesDeleteHandler('bridges_speakers'));
+    app.delete('/api/bridges/program/:id', auth, adminOnly, bridgesDeleteHandler('bridges_program'));
+
+    function bridgesPublishToggle(table) {
+        return (req, res) => {
+            const row = query.get(`SELECT is_published FROM ${table} WHERE id = ?`, [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Not found' });
+            db.run(`UPDATE ${table} SET is_published = ? WHERE id = ?`, [row.is_published ? 0 : 1, req.params.id]);
+            saveDb();
+            res.json({ success: true, is_published: row.is_published ? 0 : 1 });
+        };
+    }
+    app.put('/api/bridges/speakers/:id/publish', auth, adminOnly, bridgesPublishToggle('bridges_speakers'));
+    app.put('/api/bridges/program/:id/publish', auth, adminOnly, bridgesPublishToggle('bridges_program'));
+
     // ========== BRIDGES PROGRAM (user-facing, published only) ==========
 
     app.get('/api/bridges/program', auth, (req, res) => {
@@ -15438,7 +15591,7 @@ By applying to this program, I provide the following consents:
         let sql = `SELECT p.*, s.name as speaker_name, s.institution as speaker_institution
                    FROM bridges_program p
                    LEFT JOIN bridges_speakers s ON p.speaker_id = s.id
-                   WHERE p.is_published = 1`;
+                   WHERE ${req.user && req.user.is_admin ? '1 = 1' : 'p.is_published = 1'}`;
         const params = [];
         if (event_id) {
             sql += ' AND p.event_id = ?';
@@ -16327,6 +16480,12 @@ By applying to this program, I provide the following consents:
     });
 
     // Get user's registration for an event (+ QR code)
+    app.get('/api/forum/events/:id', auth, (req, res) => {
+        const evt = query.get('SELECT * FROM forum_events WHERE id = ? OR slug = ?', [req.params.id, req.params.id]);
+        if (!evt) return res.status(404).json({ error: 'Event not found' });
+        res.json(evt);
+    });
+
     app.get('/api/forum/events/:id/my-registration', auth, (req, res) => {
         try {
             const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
@@ -16573,6 +16732,14 @@ By applying to this program, I provide the following consents:
     });
 
     // Admin: Get all members
+    app.delete('/api/admin/forum/members/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT id, email FROM forum_members WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Member not found' });
+        db.run('DELETE FROM forum_members WHERE id = ?', [row.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
     app.get('/api/admin/forum/members', auth, adminOnly, (req, res) => {
         const members = query.all(`
             SELECT fm.*, u.first_name, u.last_name, u.email
@@ -27604,10 +27771,13 @@ By applying to this program, I provide the following consents:
                 if (!waitlisted) {
                     try { ticketAttachments = await qrPngAttachment({ type: 'MEDX_MEMBER', regId: id, evt: 'signup-form' }); } catch (e) {}
                 }
-                const bodyHtml = `
+                const sfBase = (process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+                const preheader = emailPreheader([signupFormDateLabel(form.event_date, lang), form.event_time, form.venue].filter(Boolean).join(' · ') || form.title);
+                const bodyHtml = `${preheader}
                     <p style="margin:0 0 14px;">${T.emailGreeting.replace('{name}', escapeHtml(name))}</p>
                     <p style="margin:0 0 18px;">${line}</p>
                     ${details ? `<table cellpadding="0" cellspacing="0" style="margin:0 0 18px;border-left:3px solid #C9A962;padding-left:14px;"><tbody>${details}</tbody></table>` : ''}
+                    ${form.event_date ? `<p style="margin:0 0 18px;"><a href="${sfBase}/f/${form.slug}/calendar.ics" style="color:#C9A962;">${T.addToCalendar}</a></p>` : ''}
                     ${qrBlock}
                     ${form.confirmation_message ? `<p style="margin:0 0 18px;">${escapeHtml(form.confirmation_message)}</p>` : ''}
                     <p style="margin:0 0 6px;color:#64748b;font-size:13px;">${T.emailQuestions} <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;">laura.rodman@medx.hr</a></p>
@@ -27620,12 +27790,46 @@ By applying to this program, I provide the following consents:
                 console.error('[signup-forms] confirmation email failed:', e.message);
             }
 
-            res.json({ success: true, waitlisted: !!waitlisted });
+            res.json({ success: true, waitlisted: !!waitlisted, ticket_id: waitlisted ? null : id });
         } catch (err) {
             console.error('[signup-forms submit] error:', err.message);
             res.status(500).json({ error: 'Something went wrong. Please try again.' });
         }
     });
+
+    // Day-before reminder for sign-up-form events (opt-in per form). Runs hourly; the
+    // reminder_sent flag makes each recipient's reminder exactly-once.
+    async function runSignupFormReminders() {
+        try {
+            const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Zagreb' });
+            const forms = query.all("SELECT * FROM signup_forms WHERE reminder_enabled = 1 AND event_date = ? AND status != 'draft'", [tomorrow]);
+            for (const form of forms) {
+                const due = query.all('SELECT * FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0 AND COALESCE(reminder_sent, 0) = 0', [form.id]);
+                const lang = signupFormLang(form);
+                const T = SIGNUP_FORM_I18N[lang];
+                for (const r of due) {
+                    try {
+                        const details = [signupFormDateLabel(form.event_date, lang), form.event_time, form.venue].filter(Boolean).join(' · ');
+                        const qrBlock = buildTicketQrBlock(r.id, lang === 'hr'
+                            ? { label: 'Vaš QR kod za ulaz', caption: 'Pokažite ovaj kod na ulazu u događanje', attachNote: 'QR kod nalazi se i u privitku ove poruke. Spremite ga na svoj mobitel.' }
+                            : { label: 'Your entry QR code', caption: 'Present this code at the event entrance' });
+                        const body = `${emailPreheader(details)}
+                            <p style="margin:0 0 14px;">${T.emailGreeting.replace('{name}', escapeHtml(r.name))}</p>
+                            <p style="margin:0 0 14px;">${T.reminderLine.replace('{title}', escapeHtml(form.title))}</p>
+                            ${details ? `<p style="margin:0 0 18px;color:#334155;">${escapeHtml(details)}</p>` : ''}
+                            ${qrBlock}
+                            <p style="margin:14px 0 0;">${T.emailSignoff}</p>`;
+                        let atts; try { atts = await qrPngAttachment({ type: 'MEDX_MEMBER', regId: r.id, evt: 'signup-form' }); } catch (e) {}
+                        const result = await sendEmail(r.email, T.reminderSubject.replace('{title}', form.title), buildEmailTemplate(T.reminderTitle, body, lang), atts);
+                        if (result && result.success) query.run('UPDATE signup_form_responses SET reminder_sent = 1 WHERE id = ?', [r.id]);
+                    } catch (e) { console.error('[signup reminder] send failed:', e.message); }
+                }
+                if (due.length) console.log(`[signup reminder] ${form.title}: ${due.length} reminder(s) processed`);
+            }
+        } catch (e) { console.error('[signup reminder] job error:', e.message); }
+    }
+    setInterval(runSignupFormReminders, 60 * 60 * 1000);
+    setTimeout(runSignupFormReminders, 90 * 1000);
 
     // In-memory error ring buffer — admin-visible production observability.
     // Keeps last 50 unhandled errors with request context. No external deps.

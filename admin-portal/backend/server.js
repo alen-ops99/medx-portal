@@ -4021,6 +4021,7 @@ async function initializeApp() {
         confirmation_message TEXT,
         project_tag TEXT DEFAULT 'general',
         language TEXT DEFAULT 'en',
+        reminder_enabled INTEGER DEFAULT 0,
         fields_json TEXT DEFAULT '[]',
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -4038,6 +4039,7 @@ async function initializeApp() {
         email_sent INTEGER DEFAULT 0,
         checked_in INTEGER DEFAULT 0,
         checked_in_at TEXT,
+        reminder_sent INTEGER DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(form_id, email)
     )`);
@@ -4045,6 +4047,8 @@ async function initializeApp() {
     // created before these columns existed.
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in_at TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE signup_form_responses ADD COLUMN reminder_sent INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
 
     // ===== Member Home feed, opportunity board, talk library (menu items 9 & 23) =====
     // Shared across both portals: the member portal reads these, the admin portal curates them.
@@ -5891,11 +5895,13 @@ async function initializeApp() {
         revoked INTEGER DEFAULT 0,
         expires_at TEXT,
         page_views INTEGER DEFAULT 0,
+        last_viewed_at TEXT,
         created_by TEXT,
         created_at TEXT,
         updated_at TEXT
     )`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_vip_passes_token ON vip_passes(token)`);
+    try { db.run('ALTER TABLE vip_passes ADD COLUMN last_viewed_at TEXT'); } catch (e) {}
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
@@ -15617,6 +15623,15 @@ By applying to this program, I provide the following consents:
     });
 
     // Admin: Get all members
+    app.delete('/api/admin/forum/members/:id', auth, adminOnly, (req, res) => {
+        const row = query.get('SELECT id, email FROM forum_members WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Member not found' });
+        db.run('DELETE FROM forum_members WHERE id = ?', [row.id]);
+        saveDb();
+        logAudit(req, 'forum_member_delete', row.email);
+        res.json({ success: true });
+    });
+
     app.get('/api/admin/forum/members', auth, adminOnly, (req, res) => {
         const members = query.all(`
             SELECT fm.*,
@@ -20912,6 +20927,7 @@ By applying to this program, I provide the following consents:
             revoked: r.revoked ? 1 : 0,
             expires_at: r.expires_at || '',
             page_views: r.page_views || 0,
+            last_viewed_at: r.last_viewed_at || '',
             send_state: gpSendState(r.id),
             public_url: spkPublicBase() + '/pass/' + encodeURIComponent(r.token),
             created_at: r.created_at, updated_at: r.updated_at
@@ -28611,6 +28627,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         });
         if (b.capacity !== undefined) patch.capacity = b.capacity;
         if (b.waitlist_enabled !== undefined) patch.waitlist_enabled = b.waitlist_enabled ? 1 : 0;
+        if (b.reminder_enabled !== undefined) patch.reminder_enabled = b.reminder_enabled ? 1 : 0;
         if (fieldsJson !== undefined) patch.fields_json = fieldsJson;
 
         if (!Object.keys(patch).length) return res.json({ success: true });
@@ -28658,6 +28675,53 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         saveDb();
         logAudit(req, 'signup_form_response_delete', `${row.email} (${req.params.id})`);
         res.json({ success: true });
+    });
+
+    // Promote a waitlisted signup to confirmed + send their ticket (bilingual, hosted QR the
+    // user portal serves + PNG attachment). Email failure never fails the promotion.
+    app.post('/api/admin/signup-forms/:id/responses/:responseId/promote', auth, adminOnly, async (req, res) => {
+        try {
+            if (process.env.TURSO_DATABASE_URL) { try { db.sync(); } catch (e) {} }
+            const form = query.get('SELECT * FROM signup_forms WHERE id = ?', [req.params.id]);
+            if (!form) return res.status(404).json({ error: 'Form not found' });
+            const r = query.get('SELECT * FROM signup_form_responses WHERE id = ? AND form_id = ?', [req.params.responseId, form.id]);
+            if (!r) return res.status(404).json({ error: 'Response not found' });
+            if (!r.is_waitlisted) return res.status(400).json({ error: 'This guest is already confirmed.' });
+            db.run('UPDATE signup_form_responses SET is_waitlisted = 0 WHERE id = ?', [r.id]);
+            saveDb();
+            logAudit(req, 'signup_form_promote', `${r.email} (${form.title})`);
+            let emailOk = false;
+            try {
+                const hr = form.language === 'hr';
+                const qrUrl = `${QR_BASE_URL}/qr/${r.id}.png`;
+                const subject = hr ? `Oslobodilo se mjesto: ${form.title}` : `A place opened up: ${form.title}`;
+                const line = hr
+                    ? `Oslobodilo se mjesto i Vaša prijava na događanje <strong>${seatEsc(form.title)}</strong> sada je potvrđena.`
+                    : `A place opened up and your sign-up for <strong>${seatEsc(form.title)}</strong> is now confirmed.`;
+                const details = [form.event_date, form.event_time, form.venue].filter(Boolean).join(' · ');
+                const body = `
+                    <div style="display:none;max-height:0px;overflow:hidden;mso-hide:all;">${seatEsc(details || form.title)}</div>
+                    <p style="margin:0 0 10px;">${hr ? 'Poštovani/poštovana' : 'Dear'} ${seatEsc(r.name)},</p>
+                    <p style="margin:0 0 18px;">${line}</p>
+                    ${details ? `<p style="margin:0 0 18px;color:#334155;">${seatEsc(details)}</p>` : ''}
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;"><tr><td align="center">
+                        <img src="${qrUrl}" alt="QR" width="200" height="200" style="display:block;background:#ffffff;border:1px solid #e6dfc8;border-radius:14px;padding:10px;" />
+                        <div style="margin-top:8px;font-size:12px;color:#64748b;letter-spacing:2px;font-family:monospace;">${String(r.id).substring(0, 8).toUpperCase()}</div>
+                    </td></tr></table>
+                    <p style="margin:0;color:#64748b;font-size:13px;">${hr ? 'Pokažite QR kod na ulazu u događanje.' : 'Show the QR code at the event entrance.'}</p>`;
+                let atts;
+                try {
+                    const png = await QRCode.toBuffer(JSON.stringify({ type: 'MEDX_MEMBER', regId: r.id, evt: 'signup-form' }), { width: 560, margin: 2 });
+                    atts = [{ filename: 'medx-ticket-qr.png', content: png, type: 'image/png' }];
+                } catch (e) {}
+                const result = await sendEmail(r.email, subject, buildEmailTemplate(hr ? 'Potvrda prijave' : 'Sign-up confirmed', body), atts);
+                emailOk = !!(result && result.success);
+            } catch (e) { console.error('[signup promote] email failed:', e.message); }
+            res.json({ success: true, email: emailOk ? 'sent' : 'not_sent' });
+        } catch (e) {
+            console.error('[signup promote] error:', e.message);
+            res.status(500).json({ error: 'Failed to promote' });
+        }
     });
 
     // Responses export — CSV or XLSX (columns follow the CURRENT question labels)
