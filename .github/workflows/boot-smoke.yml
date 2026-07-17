@@ -30,6 +30,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Dual-portal schema mirror must be byte-identical
         run: bash scripts/check-schema-sync.sh
+      - name: Frontend API calls must have matching backend routes
+        run: node scripts/check-api-contract.js
 
   boot:
     runs-on: ubuntu-latest
