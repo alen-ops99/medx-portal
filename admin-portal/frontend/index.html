@@ -7222,6 +7222,11 @@
                     <span>Editions</span>
                 </a>
 
+                <a class="nav-item" data-section="signup-forms" onclick="App.showSection('signup-forms', this)">
+                    <i class="fas fa-clipboard-check" style="color: #059669;"></i>
+                    <span>Sign-up Forms</span>
+                </a>
+
                 <a class="nav-item" data-section="year-calendar" onclick="App.showSection('year-calendar', this)">
                     <i class="fas fa-calendar-days" style="color: #0ea5a4;"></i>
                     <span>Year Calendar</span>
@@ -13869,6 +13874,46 @@ President, Med&amp;X</textarea>
                 </div>
                 <!-- ============ /POST-EVENT ENGINE ============ -->
 
+                <!-- ============ SIGN-UP FORMS (short-event signup builder) ============ -->
+                <div class="section" id="section-signup-forms">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+
+                    <!-- List view -->
+                    <div id="sfListView">
+                        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+                            <div>
+                                <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-clipboard-check" style="color:#059669;"></i> Sign-up Forms</h2>
+                                <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">Beautiful public sign-up pages for short events: networking evenings, workshops, talks. Share one link and watch signups arrive live.</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="SignupFormsApp.createForm()"><i class="fas fa-plus"></i> New form</button>
+                        </div>
+                        <div id="sfFormsList"></div>
+                    </div>
+
+                    <!-- Editor view -->
+                    <div id="sfEditorView" style="display:none;">
+                        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
+                            <button class="btn btn-secondary" onclick="SignupFormsApp.closeEditor()" style="padding:8px 14px;"><i class="fas fa-arrow-left"></i> All forms</button>
+                            <h2 id="sfEditorTitle" style="margin:0;font-size:20px;"></h2>
+                            <span id="sfEditorStatus"></span>
+                            <span id="sfDirtyPill" style="display:none;background:#b45309;color:#fff;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;">Unsaved changes</span>
+                        </div>
+                        <div class="tabs" style="margin:14px 0 20px;">
+                            <button class="tab-btn active" id="sfTabBtn-questions" onclick="SignupFormsApp.showTab('questions')"><i class="fas fa-list"></i> Questions</button>
+                            <button class="tab-btn" id="sfTabBtn-settings" onclick="SignupFormsApp.showTab('settings')"><i class="fas fa-sliders-h"></i> Settings</button>
+                            <button class="tab-btn" id="sfTabBtn-share" onclick="SignupFormsApp.showTab('share')"><i class="fas fa-share-nodes"></i> Share</button>
+                            <button class="tab-btn" id="sfTabBtn-responses" onclick="SignupFormsApp.showTab('responses')"><i class="fas fa-inbox"></i> Responses <span id="sfRespCountPill" style="display:none;background:#059669;color:#fff;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;margin-left:4px;">0</span></button>
+                        </div>
+                        <div id="sfTab-questions"></div>
+                        <div id="sfTab-settings" style="display:none;"></div>
+                        <div id="sfTab-share" style="display:none;"></div>
+                        <div id="sfTab-responses" style="display:none;"></div>
+                    </div>
+                </div>
+                <!-- ============ /SIGN-UP FORMS ============ -->
+
                 <div class="section" id="section-conferences">
                     <div class="back-link" onclick="App.showSection('dashboard')">
                         <i class="fas fa-arrow-left"></i> Back to Dashboard
@@ -17345,6 +17390,7 @@ President, Med&amp;X</textarea>
                 { id: 'portal-content', label: 'Portal Content', icon: 'fa-th-large', color: '#c14b52', desc: 'User-portal content & pages' },
                 { id: 'messages', label: 'Messages', icon: 'fa-envelope', color: '#c14b52', desc: 'Inbound messages from users' },
                 { id: 'contacts', label: 'My Network', icon: 'fa-address-book', color: '#c14b52', desc: 'Contact management' },
+                { id: 'signup-forms', label: 'Sign-up Forms', icon: 'fa-clipboard-check', color: '#059669', desc: 'Public sign-up pages for short events' },
                 { id: 'tech', label: 'Tech', icon: 'fa-server', color: '#c14b52', desc: 'System health & deployment' },
                 { id: 'advisors', label: 'Executive Suite', icon: 'fa-user-tie', color: '#7c3aed', desc: 'AI CMO / CFO / COO weekly review' },
                 { id: 'discover', label: 'Discover', icon: 'fa-compass', color: '#c9a962', desc: 'What this portal replaces — a 2-minute tour', alwaysOn: true },
@@ -17450,7 +17496,7 @@ President, Med&amp;X</textarea>
                 // 'speaker-itineraries' is a Plexus Week sub-surface reached via the project home tile,
                 // Cmd+K and #speaker-itineraries (no top-level sidebar anchor — same pattern as auctions /
                 // postevent). Listed here so section filtering never hides it if a nav entry is ever added.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover', 'speaker-itineraries'];
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover', 'speaker-itineraries', 'signup-forms'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
@@ -19872,6 +19918,7 @@ President, Med&amp;X</textarea>
                     'event-reminders': 'Event reminders',
                     'postevent': 'Post-event',
                     'conferences': 'Conferences',
+                    'signup-forms': 'Sign-up Forms',
                     'email-blast': 'Email Registrants',
                     'audit': 'Audit Log',
                     'team': 'Team Access',
@@ -20060,6 +20107,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'speaker-itineraries';
                     this.switchChatPanel('team');
                     if (typeof SpeakerItinerariesApp !== 'undefined') SpeakerItinerariesApp.init();
+                } else if (sectionId === 'signup-forms') {
+                    this.currentView = 'signup-forms';
+                    this.switchChatPanel('team');
+                    if (typeof SignupFormsApp !== 'undefined') SignupFormsApp.init();
                 } else {
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
@@ -48013,6 +48064,517 @@ By applying to this program, I give the following consents:
         // 48h recap assembly, testimonial harvesting, speaker/attendee thank-you kits, the
         // early-bird bridge, and sponsor fulfilment reports. Every send below stages
         // pending_approval rows into the ONE outbox — this UI never sends anything itself.
+        // ===================== SIGN-UP FORMS (short-event signup builder) =====================
+        // Google-Forms-style builder for short events. Authored here via /api/admin/signup-forms;
+        // the public page + submissions live on the user portal at /f/:slug.
+        const SignupFormsApp = {
+            forms: [],
+            current: null,          // form being edited (includes .fields)
+            dirty: false,
+            pollTimer: null,
+
+            TYPE_META: {
+                short_text: { label: 'Short answer', icon: 'fa-minus' },
+                paragraph:  { label: 'Paragraph', icon: 'fa-align-left' },
+                dropdown:   { label: 'Dropdown', icon: 'fa-square-caret-down' },
+                radio:      { label: 'Multiple choice', icon: 'fa-circle-dot' },
+                checkbox:   { label: 'Checkboxes', icon: 'fa-square-check' }
+            },
+
+            esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
+
+            async init() {
+                this.stopPolling();
+                document.getElementById('sfEditorView').style.display = 'none';
+                document.getElementById('sfListView').style.display = '';
+                await this.loadForms();
+            },
+
+            async loadForms() {
+                try { this.forms = await App.api('/api/admin/signup-forms'); }
+                catch(e) { this.forms = []; }
+                this.renderList();
+            },
+
+            statusPill(status) {
+                const map = {
+                    draft:  ['Draft', '#6b6258', 'rgba(107,98,88,0.12)'],
+                    open:   ['Open', '#059669', 'rgba(5,150,105,0.12)'],
+                    closed: ['Closed', '#9b1b22', 'rgba(155,27,34,0.10)']
+                };
+                const m = map[status] || map.draft;
+                return `<span style="display:inline-flex;align-items:center;background:${m[2]};color:${m[1]};padding:3px 11px;border-radius:12px;font-size:11px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;">${m[0]}</span>`;
+            },
+
+            tagPill(tag) {
+                if (!tag || tag === 'general') return '';
+                const names = { plexus: 'Plexus Week', bridges: 'Building Bridges', forum: 'Biomedical Forum' };
+                return `<span style="color:var(--text-muted);font-size:12px;"><i class="fas fa-tag" style="font-size:10px;margin-right:4px;"></i>${names[tag] || this.esc(tag)}</span>`;
+            },
+
+            fmtDate(d) {
+                if (!d) return '';
+                try { return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch(e) { return this.esc(d); }
+            },
+
+            renderList() {
+                const el = document.getElementById('sfFormsList');
+                if (!this.forms.length) {
+                    el.innerHTML = `
+                        <div class="card" style="text-align:center;padding:56px 24px;">
+                            <div style="width:64px;height:64px;border-radius:50%;background:rgba(5,150,105,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                                <i class="fas fa-clipboard-check" style="font-size:24px;color:#059669;"></i>
+                            </div>
+                            <h3 style="margin:0 0 6px;">No sign-up forms yet</h3>
+                            <p style="margin:0 auto 18px;color:var(--text-muted);font-size:13px;max-width:420px;">Create a form for your next networking evening or workshop. You get a beautiful public page and a live list of everyone who signs up.</p>
+                            <button class="btn btn-primary" onclick="SignupFormsApp.createForm()"><i class="fas fa-plus"></i> Create the first form</button>
+                        </div>`;
+                    return;
+                }
+                el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;">` + this.forms.map(f => `
+                    <div class="card" style="padding:18px 20px;cursor:pointer;" onclick="SignupFormsApp.openEditor('${f.id}')">
+                        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+                            <div style="font-weight:600;font-size:15px;line-height:1.35;">${this.esc(f.title)}</div>
+                            ${this.statusPill(f.status)}
+                        </div>
+                        <div style="display:flex;align-items:center;gap:14px;margin-top:10px;color:var(--text-muted);font-size:12.5px;flex-wrap:wrap;">
+                            ${f.event_date ? `<span><i class="far fa-calendar" style="margin-right:5px;"></i>${this.fmtDate(f.event_date)}${f.event_time ? ' · ' + this.esc(f.event_time) : ''}</span>` : ''}
+                            ${f.venue ? `<span><i class="fas fa-location-dot" style="margin-right:5px;"></i>${this.esc(f.venue)}</span>` : ''}
+                            ${this.tagPill(f.project_tag)}
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+                            <span style="font-size:13px;"><strong>${f.response_count || 0}</strong><span style="color:var(--text-muted);">${f.capacity ? ' / ' + f.capacity : ''} signed up</span>${f.waitlist_count ? `<span style="color:#b45309;"> · ${f.waitlist_count} waitlist</span>` : ''}</span>
+                            <span style="color:var(--text-muted);font-size:12px;">Open <i class="fas fa-arrow-right" style="font-size:10px;"></i></span>
+                        </div>
+                    </div>`).join('') + `</div>`;
+            },
+
+            async createForm() {
+                try {
+                    const r = await App.api('/api/admin/signup-forms', { method: 'POST', body: JSON.stringify({ title: 'Untitled form' }) });
+                    this.forms.unshift(r.form);
+                    await this.openEditor(r.form.id);
+                    this.showTab('settings');
+                    const t = document.getElementById('sfSetTitle');
+                    if (t) { t.focus(); t.select(); }
+                } catch(e) { alert('Could not create the form: ' + e.message); }
+            },
+
+            async openEditor(id) {
+                try { this.current = await App.api('/api/admin/signup-forms/' + id); }
+                catch(e) { alert('Could not load the form: ' + e.message); return; }
+                if (!Array.isArray(this.current.fields)) this.current.fields = [];
+                this.setDirty(false);
+                document.getElementById('sfListView').style.display = 'none';
+                document.getElementById('sfEditorView').style.display = '';
+                this.renderEditorHeader();
+                this.showTab('questions');
+            },
+
+            closeEditor() {
+                if (this.dirty && !confirm('You have unsaved changes. Leave anyway?')) return;
+                this.stopPolling();
+                this.current = null;
+                this.setDirty(false);
+                document.getElementById('sfEditorView').style.display = 'none';
+                document.getElementById('sfListView').style.display = '';
+                this.loadForms();
+            },
+
+            setDirty(v) {
+                this.dirty = v;
+                const pill = document.getElementById('sfDirtyPill');
+                if (pill) pill.style.display = v ? '' : 'none';
+            },
+
+            renderEditorHeader() {
+                document.getElementById('sfEditorTitle').textContent = this.current.title;
+                document.getElementById('sfEditorStatus').innerHTML = this.statusPill(this.current.status);
+                const pill = document.getElementById('sfRespCountPill');
+                const total = (this.current.response_count || 0) + (this.current.waitlist_count || 0);
+                pill.textContent = total;
+                pill.style.display = total ? '' : 'none';
+            },
+
+            showTab(tab) {
+                ['questions', 'settings', 'share', 'responses'].forEach(t => {
+                    document.getElementById('sfTab-' + t).style.display = (t === tab) ? '' : 'none';
+                    document.getElementById('sfTabBtn-' + t).classList.toggle('active', t === tab);
+                });
+                if (tab === 'questions') this.renderQuestions();
+                else if (tab === 'settings') this.renderSettings();
+                else if (tab === 'share') this.renderShare();
+                if (tab === 'responses') { this.loadResponses(); this.startPolling(); }
+                else this.stopPolling();
+            },
+
+            // ---------- Questions tab ----------
+
+            renderQuestions() {
+                const c = this.current;
+                const warn = ((c.response_count || 0) + (c.waitlist_count || 0))
+                    ? `<div style="background:rgba(180,83,9,0.08);border:1px solid rgba(180,83,9,0.25);color:#b45309;padding:10px 14px;border-radius:10px;font-size:12.5px;margin-bottom:14px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>This form already has signups. Removing or re-typing a question hides its old answers in exports.</div>`
+                    : '';
+                const lockedField = (icon, label) => `
+                    <div class="card" style="padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;gap:12px;opacity:0.75;">
+                        <i class="fas ${icon}" style="color:var(--text-muted);width:18px;text-align:center;"></i>
+                        <div style="flex:1;font-weight:500;">${label}</div>
+                        <span style="color:var(--text-muted);font-size:11px;letter-spacing:0.5px;text-transform:uppercase;"><i class="fas fa-lock" style="margin-right:5px;font-size:10px;"></i>Always included</span>
+                    </div>`;
+                document.getElementById('sfTab-questions').innerHTML = `
+                    ${warn}
+                    ${lockedField('fa-user', 'Full name')}
+                    ${lockedField('fa-envelope', 'Email address')}
+                    <div id="sfFieldsList">${c.fields.map((f, i) => this.fieldCard(f, i)).join('')}</div>
+                    <div class="card" style="padding:16px 18px;margin-top:4px;">
+                        <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Add a question</div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            ${Object.keys(this.TYPE_META).map(t =>
+                                `<button class="btn btn-secondary" style="padding:8px 14px;font-size:12.5px;" onclick="SignupFormsApp.addField('${t}')"><i class="fas ${this.TYPE_META[t].icon}"></i> ${this.TYPE_META[t].label}</button>`).join('')}
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                        <button class="btn btn-primary" onclick="SignupFormsApp.saveFields()"><i class="fas fa-floppy-disk"></i> Save questions</button>
+                    </div>`;
+            },
+
+            fieldCard(f, i) {
+                const m = this.TYPE_META[f.type] || this.TYPE_META.short_text;
+                const total = this.current.fields.length;
+                const iconBtn = (handler, icon, title, disabled, color) =>
+                    `<button onclick="${handler}" title="${title}" ${disabled ? 'disabled' : ''} style="background:none;border:none;cursor:${disabled ? 'default' : 'pointer'};color:${color || 'var(--text-muted)'};padding:4px 6px;${disabled ? 'opacity:0.3;' : ''}"><i class="fas ${icon}"></i></button>`;
+                const optionEditor = ['dropdown', 'radio', 'checkbox'].includes(f.type) ? `
+                    <div style="margin-top:10px;padding-left:30px;">
+                        ${(f.options || []).map((o, oi) => `
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                                <i class="${f.type === 'checkbox' ? 'far fa-square' : 'far fa-circle'}" style="font-size:11px;color:var(--text-muted);"></i>
+                                <input type="text" value="${this.esc(o)}" oninput="SignupFormsApp.updateOption(${i}, ${oi}, this.value)" style="flex:1;max-width:340px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);">
+                                ${iconBtn(`SignupFormsApp.removeOption(${i}, ${oi})`, 'fa-xmark', 'Remove option')}
+                            </div>`).join('')}
+                        <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;margin-top:2px;" onclick="SignupFormsApp.addOption(${i})"><i class="fas fa-plus" style="font-size:10px;"></i> Add option</button>
+                    </div>` : '';
+                return `
+                    <div class="card" style="padding:14px 18px;margin-bottom:10px;">
+                        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <i class="fas ${m.icon}" style="color:#059669;width:18px;text-align:center;" title="${m.label}"></i>
+                            <input type="text" value="${this.esc(f.label)}" placeholder="Type the question…" oninput="SignupFormsApp.updateField(${i}, 'label', this.value)" style="flex:1;min-width:200px;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13.5px;font-weight:500;background:var(--bg-secondary);color:var(--text-primary);">
+                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;white-space:nowrap;">
+                                <input type="checkbox" ${f.required ? 'checked' : ''} onchange="SignupFormsApp.updateField(${i}, 'required', this.checked)"> Required
+                            </label>
+                            <div style="display:flex;gap:2px;">
+                                ${iconBtn(`SignupFormsApp.moveField(${i}, -1)`, 'fa-arrow-up', 'Move up', i === 0)}
+                                ${iconBtn(`SignupFormsApp.moveField(${i}, 1)`, 'fa-arrow-down', 'Move down', i === total - 1)}
+                                ${iconBtn(`SignupFormsApp.removeField(${i})`, 'fa-trash-can', 'Delete question', false, '#9b1b22')}
+                            </div>
+                        </div>
+                        ${optionEditor}
+                    </div>`;
+            },
+
+            newFieldId() { return 'q_' + Math.random().toString(36).slice(2, 8); },
+
+            addField(type) {
+                const f = { id: this.newFieldId(), type, label: '', required: false };
+                if (['dropdown', 'radio', 'checkbox'].includes(type)) f.options = ['Option 1'];
+                this.current.fields.push(f);
+                this.setDirty(true);
+                this.renderQuestions();
+                const inputs = document.querySelectorAll('#sfFieldsList input[type="text"]');
+                if (inputs.length) inputs[inputs.length - (f.options ? 2 : 1)]?.focus();
+            },
+
+            // Typing edits write straight into the array WITHOUT re-rendering (keeps focus).
+            updateField(i, key, val) {
+                this.current.fields[i][key] = val;
+                this.setDirty(true);
+            },
+
+            addOption(i) {
+                const f = this.current.fields[i];
+                f.options = f.options || [];
+                f.options.push('Option ' + (f.options.length + 1));
+                this.setDirty(true);
+                this.renderQuestions();
+            },
+
+            updateOption(i, oi, val) {
+                this.current.fields[i].options[oi] = val;
+                this.setDirty(true);
+            },
+
+            removeOption(i, oi) {
+                this.current.fields[i].options.splice(oi, 1);
+                this.setDirty(true);
+                this.renderQuestions();
+            },
+
+            moveField(i, dir) {
+                const arr = this.current.fields, j = i + dir;
+                if (j < 0 || j >= arr.length) return;
+                const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+                this.setDirty(true);
+                this.renderQuestions();
+            },
+
+            removeField(i) {
+                const f = this.current.fields[i];
+                if (f.label && !confirm(`Delete the question "${f.label}"?`)) return;
+                this.current.fields.splice(i, 1);
+                this.setDirty(true);
+                this.renderQuestions();
+            },
+
+            async saveFields() {
+                if (this.current.fields.some(f => !String(f.label || '').trim())) { alert('Every question needs a label before saving.'); return; }
+                try {
+                    await App.api('/api/admin/signup-forms/' + this.current.id, { method: 'PUT', body: JSON.stringify({ fields_json: this.current.fields }) });
+                    this.setDirty(false);
+                } catch(e) { alert('Could not save: ' + e.message); }
+            },
+
+            // ---------- Settings tab ----------
+
+            renderSettings() {
+                const c = this.current;
+                const label = t => `<label style="display:block;font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;">${t}</label>`;
+                const inputStyle = `width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13.5px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;`;
+                document.getElementById('sfTab-settings').innerHTML = `
+                    <div class="card" style="padding:22px;max-width:760px;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                            <div style="grid-column:1 / -1;">${label('Form title')}<input type="text" id="sfSetTitle" value="${this.esc(c.title)}" style="${inputStyle}"></div>
+                            <div style="grid-column:1 / -1;">${label('Description (shown under the title on the public page)')}<textarea id="sfSetDescription" rows="3" style="${inputStyle}resize:vertical;">${this.esc(c.description)}</textarea></div>
+                            <div>${label('Event date')}<input type="date" id="sfSetDate" value="${this.esc(c.event_date)}" style="${inputStyle}"></div>
+                            <div>${label('Start time')}<input type="time" id="sfSetTime" value="${this.esc(c.event_time)}" style="${inputStyle}"></div>
+                            <div style="grid-column:1 / -1;">${label('Venue')}<input type="text" id="sfSetVenue" value="${this.esc(c.venue)}" placeholder="e.g. Hotel Esplanade, Zagreb" style="${inputStyle}"></div>
+                            <div>${label('Capacity (empty = unlimited)')}<input type="number" min="1" id="sfSetCapacity" value="${c.capacity || ''}" style="${inputStyle}"></div>
+                            <div>${label('Registration deadline (Croatian time)')}<input type="datetime-local" id="sfSetDeadline" value="${this.esc(c.registration_deadline)}" style="${inputStyle}"></div>
+                            <div>${label('Page language')}<select id="sfSetLanguage" style="${inputStyle}"><option value="en" ${c.language !== 'hr' ? 'selected' : ''}>English</option><option value="hr" ${c.language === 'hr' ? 'selected' : ''}>Hrvatski</option></select></div>
+                            <div>${label('Project')}<select id="sfSetTag" style="${inputStyle}">
+                                ${['general', 'plexus', 'bridges', 'forum'].map(t => `<option value="${t}" ${c.project_tag === t ? 'selected' : ''}>${{ general: 'General / Med&X', plexus: 'Plexus Week', bridges: 'Building Bridges', forum: 'Biomedical Forum' }[t]}</option>`).join('')}
+                            </select></div>
+                            <div style="grid-column:1 / -1;"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfSetWaitlist" ${c.waitlist_enabled ? 'checked' : ''}> Enable a waiting list when the event is full</label></div>
+                            <div style="grid-column:1 / -1;">${label('Confirmation message (success page + email, optional)')}<textarea id="sfSetConfirmMsg" rows="2" placeholder="e.g. Doors open at 18:30. Bring a business card!" style="${inputStyle}resize:vertical;">${this.esc(c.confirmation_message)}</textarea></div>
+                        </div>
+                        <div style="display:flex;justify-content:flex-end;margin-top:18px;">
+                            <button class="btn btn-primary" onclick="SignupFormsApp.saveSettings()"><i class="fas fa-floppy-disk"></i> Save settings</button>
+                        </div>
+                    </div>
+                    <div class="card" style="padding:22px;max-width:760px;margin-top:14px;" id="sfStatusCard"></div>
+                    <div class="card" style="padding:18px 22px;max-width:760px;margin-top:14px;border-color:rgba(155,27,34,0.3);">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                            <div>
+                                <div style="font-weight:600;margin-bottom:2px;">Delete this form</div>
+                                <div style="color:var(--text-muted);font-size:12.5px;">Removes the form and every signup permanently.</div>
+                            </div>
+                            <button class="btn btn-secondary" style="color:#9b1b22;" onclick="SignupFormsApp.deleteForm()"><i class="fas fa-trash-can"></i> Delete form</button>
+                        </div>
+                    </div>`;
+                this.renderStatusCard();
+            },
+
+            renderStatusCard() {
+                const c = this.current;
+                const el = document.getElementById('sfStatusCard');
+                if (!el) return;
+                const desc = {
+                    draft:  'The public link shows "not found" until you open registrations.',
+                    open:   'The public page is live and accepting signups.',
+                    closed: 'The public page shows "registration closed."'
+                }[c.status] || '';
+                el.innerHTML = `
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px;"><span style="font-weight:600;">Status</span> ${this.statusPill(c.status)}</div>
+                            <div style="color:var(--text-muted);font-size:12.5px;">${desc}</div>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            ${c.status !== 'open' ? `<button class="btn btn-primary" onclick="SignupFormsApp.setStatus('open')"><i class="fas fa-play"></i> Open registrations</button>` : ''}
+                            ${c.status === 'open' ? `<button class="btn btn-secondary" onclick="SignupFormsApp.setStatus('closed')"><i class="fas fa-stop"></i> Close registrations</button>` : ''}
+                            ${c.status === 'closed' ? `<button class="btn btn-secondary" onclick="SignupFormsApp.setStatus('draft')">Back to draft</button>` : ''}
+                        </div>
+                    </div>`;
+            },
+
+            async saveSettings() {
+                const v = id => (document.getElementById(id) ? document.getElementById(id).value : '');
+                const capRaw = String(v('sfSetCapacity')).trim();
+                const capacity = capRaw === '' ? null : parseInt(capRaw, 10);
+                if (capRaw !== '' && (!Number.isInteger(capacity) || capacity < 1)) { alert('Capacity must be a positive whole number, or empty for unlimited.'); return; }
+                const patch = {
+                    title: v('sfSetTitle').trim(),
+                    description: v('sfSetDescription').trim(),
+                    event_date: v('sfSetDate'),
+                    event_time: v('sfSetTime'),
+                    venue: v('sfSetVenue').trim(),
+                    capacity,
+                    waitlist_enabled: document.getElementById('sfSetWaitlist').checked,
+                    registration_deadline: v('sfSetDeadline'),
+                    language: v('sfSetLanguage'),
+                    project_tag: v('sfSetTag'),
+                    confirmation_message: v('sfSetConfirmMsg').trim()
+                };
+                if (!patch.title) { alert('The form needs a title.'); return; }
+                try {
+                    await App.api('/api/admin/signup-forms/' + this.current.id, { method: 'PUT', body: JSON.stringify(patch) });
+                    Object.assign(this.current, patch, { waitlist_enabled: patch.waitlist_enabled ? 1 : 0 });
+                    this.renderEditorHeader();
+                    const idx = this.forms.findIndex(f => f.id === this.current.id);
+                    if (idx >= 0) Object.assign(this.forms[idx], this.current);
+                } catch(e) { alert('Could not save settings: ' + e.message); }
+            },
+
+            async setStatus(status) {
+                try {
+                    await App.api('/api/admin/signup-forms/' + this.current.id, { method: 'PUT', body: JSON.stringify({ status }) });
+                    this.current.status = status;
+                    this.renderEditorHeader();
+                    this.renderStatusCard();
+                } catch(e) { alert('Could not change status: ' + e.message); }
+            },
+
+            async deleteForm() {
+                const total = (this.current.response_count || 0) + (this.current.waitlist_count || 0);
+                if (!confirm(`Delete "${this.current.title}"${total ? ` and its ${total} signups` : ''}? This cannot be undone.`)) return;
+                try {
+                    await App.api('/api/admin/signup-forms/' + this.current.id, { method: 'DELETE' });
+                    this.dirty = false;
+                    this.closeEditor();
+                } catch(e) { alert('Could not delete: ' + e.message); }
+            },
+
+            // ---------- Share tab ----------
+
+            renderShare() {
+                const c = this.current;
+                const note = c.status !== 'open'
+                    ? `<div style="background:rgba(180,83,9,0.08);border:1px solid rgba(180,83,9,0.25);color:#b45309;padding:10px 14px;border-radius:10px;font-size:12.5px;margin-bottom:16px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>Signups only work while the form is <strong>Open</strong>. ${c.status === 'draft' ? 'Right now the link shows "not found."' : 'Right now the page shows "registration closed."'}</div>`
+                    : '';
+                document.getElementById('sfTab-share').innerHTML = `
+                    <div class="card" style="padding:22px;max-width:680px;">
+                        ${note}
+                        <label style="display:block;font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;">Public link</label>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <input readonly id="sfShareUrl" value="${this.esc(c.url)}" style="flex:1;min-width:240px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-tertiary);color:var(--text-primary);">
+                            <button class="btn btn-secondary" onclick="SignupFormsApp.copyUrl(this)"><i class="far fa-copy"></i> Copy</button>
+                            <a class="btn btn-secondary" href="${this.esc(c.url)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Open</a>
+                        </div>
+                        <div style="margin-top:24px;">
+                            <label style="display:block;font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">QR code — posters, stories, slides</label>
+                            <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+                                <img src="${this.esc(c.url)}/qr.png" alt="QR code for ${this.esc(c.title)}" width="180" height="180" style="border:1px solid var(--border);border-radius:12px;background:#fff;padding:8px;">
+                                <div style="display:flex;flex-direction:column;gap:8px;">
+                                    <a class="btn btn-secondary" href="${this.esc(c.url)}/qr.png" target="_blank" rel="noopener"><i class="fas fa-download"></i> Open PNG</a>
+                                    <div style="color:var(--text-muted);font-size:12px;max-width:220px;">Scanning opens the sign-up page directly. Right-click the image to save it.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            },
+
+            copyUrl(btn) {
+                const el = document.getElementById('sfShareUrl');
+                el.select();
+                const done = () => { if (btn) { btn.innerHTML = '<i class="fas fa-check"></i> Copied'; setTimeout(() => { btn.innerHTML = '<i class="far fa-copy"></i> Copy'; }, 1600); } };
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(el.value).then(done, done);
+                else { try { document.execCommand('copy'); } catch(e) {} done(); }
+            },
+
+            // ---------- Responses tab ----------
+
+            async loadResponses() {
+                if (!this.current) return;
+                let data;
+                try { data = await App.api(`/api/admin/signup-forms/${this.current.id}/responses`); }
+                catch(e) {
+                    document.getElementById('sfTab-responses').innerHTML = `<div class="card" style="padding:22px;color:var(--text-muted);">Could not load responses: ${this.esc(e.message)}</div>`;
+                    return;
+                }
+                this.current.response_count = data.counts.confirmed;
+                this.current.waitlist_count = data.counts.waitlisted;
+                this.renderEditorHeader();
+                this.renderResponses(data);
+            },
+
+            renderResponses(data) {
+                const c = this.current;
+                const fields = c.fields || [];
+                const stat = (num, lbl, color) => `
+                    <div class="card" style="padding:14px 20px;min-width:130px;">
+                        <div style="font-size:22px;font-weight:700;color:${color || 'var(--text-primary)'};">${num}</div>
+                        <div style="font-size:11px;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-muted);margin-top:2px;">${lbl}</div>
+                    </div>`;
+                const strip = `
+                    <div style="display:flex;align-items:stretch;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+                        ${stat(`${data.counts.confirmed}${c.capacity ? ' / ' + c.capacity : ''}`, 'Signed up', '#059669')}
+                        ${c.waitlist_enabled || data.counts.waitlisted ? stat(data.counts.waitlisted, 'Waiting list', '#b45309') : ''}
+                        <div style="flex:1;"></div>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-secondary" onclick="SignupFormsApp.loadResponses()"><i class="fas fa-rotate"></i> Refresh</button>
+                            <button class="btn btn-secondary" onclick="SignupFormsApp.exportResponses('csv')"><i class="fas fa-file-csv"></i> CSV</button>
+                            <button class="btn btn-secondary" onclick="SignupFormsApp.exportResponses('xlsx')"><i class="fas fa-file-excel"></i> Excel</button>
+                        </div>
+                    </div>`;
+                if (!data.responses.length) {
+                    document.getElementById('sfTab-responses').innerHTML = strip + `
+                        <div class="card" style="text-align:center;padding:48px 24px;color:var(--text-muted);">
+                            <i class="fas fa-inbox" style="font-size:28px;margin-bottom:10px;display:block;"></i>
+                            No signups yet. Share the public link from the Share tab — new signups appear here automatically.
+                        </div>`;
+                    return;
+                }
+                const answerCell = (r, f) => {
+                    const a = r.answers ? r.answers[f.id] : undefined;
+                    return this.esc(Array.isArray(a) ? a.join(', ') : (a === undefined || a === null ? '' : a));
+                };
+                const th = t => `<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap;">${t}</th>`;
+                const td = t => `<td style="padding:10px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:top;">${t}</td>`;
+                document.getElementById('sfTab-responses').innerHTML = strip + `
+                    <div class="card" style="padding:0;overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;min-width:640px;">
+                            <thead><tr>
+                                ${th('Name')}${th('Email')}
+                                ${fields.map(f => th(this.esc(f.label))).join('')}
+                                ${th('Signed up')}${th('')}
+                            </tr></thead>
+                            <tbody>
+                                ${data.responses.map(r => `<tr>
+                                    ${td(`${this.esc(r.name)}${r.is_waitlisted ? ' <span style="background:rgba(180,83,9,0.12);color:#b45309;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;margin-left:6px;">Waitlist</span>' : ''}`)}
+                                    ${td(`<a href="mailto:${this.esc(r.email)}" style="color:inherit;">${this.esc(r.email)}</a>`)}
+                                    ${fields.map(f => td(answerCell(r, f))).join('')}
+                                    ${td(`<span style="color:var(--text-muted);font-size:12px;white-space:nowrap;">${r.created_at ? new Date(r.created_at.replace(' ', 'T') + (r.created_at.includes('Z') ? '' : 'Z')).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>`)}
+                                    ${td(`<button onclick="SignupFormsApp.deleteResponse('${r.id}')" title="Remove signup" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px 6px;"><i class="fas fa-trash-can"></i></button>`)}
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>`;
+            },
+
+            startPolling() {
+                this.stopPolling();
+                this.pollTimer = setInterval(() => {
+                    const sec = document.getElementById('section-signup-forms');
+                    if (!sec || !sec.classList.contains('active') || !this.current) { this.stopPolling(); return; }
+                    this.loadResponses();
+                }, 10000);
+            },
+
+            stopPolling() {
+                if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+            },
+
+            exportResponses(format) {
+                App.downloadFile(`/api/admin/signup-forms/${this.current.id}/export?format=${format}`, `${this.current.slug}-responses.${format === 'xlsx' ? 'xlsx' : 'csv'}`);
+            },
+
+            async deleteResponse(id) {
+                if (!confirm('Remove this signup? This cannot be undone.')) return;
+                try {
+                    await App.api(`/api/admin/signup-forms/${this.current.id}/responses/${id}`, { method: 'DELETE' });
+                    this.loadResponses();
+                } catch(e) { alert('Could not delete: ' + e.message); }
+            }
+        };
+
         const PostEventEngine = {
             ek: 'plexus',
             _editBridge: null,
@@ -50192,6 +50754,7 @@ By applying to this program, I give the following consents:
                 { title: 'Dashboard', sub: 'Home', icon: 'fa-home', color: 'var(--accent-gold)', group: 'Sections', action: () => App.showSection('dashboard') },
                 { title: 'Discover', sub: 'What this portal replaces — a 2-minute tour', icon: 'fa-compass', color: 'var(--gold)', group: 'Sections', action: () => App.showSection('discover', document.querySelector('.nav-item[data-section=discover]')) },
                 { title: 'Finances', sub: 'Budget, transactions, invoices', icon: 'fa-coins', color: 'var(--finances)', group: 'Sections', action: () => App.showSection('finances') },
+                { title: 'Sign-up Forms', sub: 'Public sign-up pages for short events', icon: 'fa-clipboard-check', color: '#059669', group: 'Sections', action: () => App.showSection('signup-forms', document.querySelector('.nav-item[data-section=signup-forms]')) },
                 { title: 'PR & Media', sub: 'Social, newsletters, campaigns', icon: 'fa-bullhorn', color: 'var(--pr-media)', group: 'Sections', action: () => App.showSection('pr-media') },
                 { title: 'Message members', sub: 'Announcements + direct notifications', icon: 'fa-bullhorn', color: '#9b1b22', group: 'Sections', action: () => App.memberExpGo('announce') },
                 { title: 'Direct notification', sub: 'Precise send — group, tier, banner, push', icon: 'fa-paper-plane', color: '#b06a1f', group: 'Sections', action: () => App.showSection('user-notifications') },
