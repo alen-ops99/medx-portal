@@ -1653,6 +1653,402 @@ function renderPublicEventPage(slug) {
 app.get('/building-bridges', (req, res) => res.send(renderPublicEventPage('building-bridges')));
 app.get('/donor-night', (req, res) => res.send(renderPublicEventPage('donor-night')));
 
+// ========== SIGN-UP FORMS — public pages (/f/:slug) ==========
+// Admin-built forms for short events (networking evenings, workshops). The builder lives in
+// the admin portal; this serves the public page + QR. The submit endpoint is registered inside
+// initializeApp (it needs registrationLimiter). Same premium shell language as the event pages
+// above. Chrome is bilingual per the form's language setting; admin-authored question text is
+// rendered verbatim.
+
+const SIGNUP_FORM_I18N = {
+    en: {
+        eyebrow: 'Event sign-up',
+        yourDetails: 'Your details',
+        fullName: 'Full name',
+        email: 'Email',
+        optional: 'optional',
+        choosePlaceholder: 'Choose…',
+        gdpr: 'I agree that Med&X stores these details to organize this event.',
+        gdprMore: 'Privacy policy',
+        submit: 'Sign up',
+        submitWaitlist: 'Join the waiting list',
+        working: 'One moment…',
+        waitlistNote: 'This event is fully booked. You can join the waiting list and we will contact you if a place opens up.',
+        deadlineNote: 'Sign-ups close on {date}.',
+        successTitle: 'You are signed up',
+        successBody: 'A confirmation email is on its way to {email}.',
+        waitlistTitle: 'You are on the waiting list',
+        waitlistBody: 'We will contact you as soon as a place opens up. A confirmation has been sent to {email}.',
+        fullTitle: 'This event is full',
+        fullBody: 'All places are taken. Thank you for your interest.',
+        closedTitle: 'Sign-ups are closed',
+        closedBody: 'Sign-ups for this event are no longer possible. Thank you for your interest.',
+        notFoundTitle: 'Page not found',
+        notFoundBody: 'This link does not lead to an active event. Please check the link, or contact us.',
+        errRequired: 'Please fill in all required fields.',
+        errConsent: 'Please confirm the consent checkbox.',
+        errDuplicate: 'This email address is already signed up for this event.',
+        errNetwork: 'Something went wrong. Please try again.',
+        errTooMany: 'Too many attempts. Please try again in a few minutes.',
+        footQuestions: 'Questions?',
+        emailSubject: 'Sign-up confirmed: {title}',
+        emailSubjectWaitlist: 'Waiting list: {title}',
+        emailTitle: 'Sign-up confirmed',
+        emailTitleWaitlist: 'Waiting list',
+        emailGreeting: 'Dear {name},',
+        emailConfirmedLine: 'Your sign-up for <strong>{title}</strong> is confirmed.',
+        emailWaitlistLine: 'You are currently on the waiting list for <strong>{title}</strong>. We will contact you as soon as a place opens up.',
+        emailDate: 'Date', emailTime: 'Time', emailVenue: 'Venue',
+        emailQuestions: 'Questions? Write to us at',
+        emailSignoff: 'Warm regards,<br>The Med&X Team'
+    },
+    hr: {
+        eyebrow: 'Prijava na događanje',
+        yourDetails: 'Vaši podaci',
+        fullName: 'Ime i prezime',
+        email: 'E-mail adresa',
+        optional: 'neobavezno',
+        choosePlaceholder: 'Odaberite…',
+        gdpr: 'Suglasan/suglasna sam da Med&X pohrani navedene podatke radi organizacije ovog događanja.',
+        gdprMore: 'Pravila privatnosti',
+        submit: 'Prijavite se',
+        submitWaitlist: 'Prijavite se na listu čekanja',
+        working: 'Trenutak…',
+        waitlistNote: 'Događanje je popunjeno. Možete se prijaviti na listu čekanja i javit ćemo Vam se čim se oslobodi mjesto.',
+        deadlineNote: 'Prijave se zatvaraju {date}.',
+        successTitle: 'Vaša prijava je zaprimljena',
+        successBody: 'Potvrda je poslana na {email}.',
+        waitlistTitle: 'Nalazite se na listi čekanja',
+        waitlistBody: 'Javit ćemo Vam se čim se oslobodi mjesto. Potvrda je poslana na {email}.',
+        fullTitle: 'Događanje je popunjeno',
+        fullBody: 'Sva mjesta su zauzeta. Hvala Vam na interesu.',
+        closedTitle: 'Prijave su zatvorene',
+        closedBody: 'Prijave za ovo događanje više nisu moguće. Hvala Vam na interesu.',
+        notFoundTitle: 'Stranica nije pronađena',
+        notFoundBody: 'Ova poveznica ne vodi ni na jedno aktivno događanje. Provjerite poveznicu ili nas kontaktirajte.',
+        errRequired: 'Molimo ispunite sva obavezna polja.',
+        errConsent: 'Molimo potvrdite suglasnost.',
+        errDuplicate: 'Ova e-mail adresa već je prijavljena na ovo događanje.',
+        errNetwork: 'Došlo je do pogreške. Molimo pokušajte ponovno.',
+        errTooMany: 'Previše pokušaja. Molimo pokušajte ponovno za nekoliko minuta.',
+        footQuestions: 'Pitanja?',
+        emailSubject: 'Potvrda prijave: {title}',
+        emailSubjectWaitlist: 'Lista čekanja: {title}',
+        emailTitle: 'Potvrda prijave',
+        emailTitleWaitlist: 'Lista čekanja',
+        emailGreeting: 'Poštovani/poštovana {name},',
+        emailConfirmedLine: 'Vaša prijava na događanje <strong>{title}</strong> je potvrđena.',
+        emailWaitlistLine: 'Trenutačno se nalazite na listi čekanja za događanje <strong>{title}</strong>. Javit ćemo Vam se čim se oslobodi mjesto.',
+        emailDate: 'Datum', emailTime: 'Vrijeme', emailVenue: 'Mjesto',
+        emailQuestions: 'Pitanja? Pišite nam na',
+        emailSignoff: 'Srdačan pozdrav,<br>Med&X tim'
+    }
+};
+
+const SIGNUP_FORM_TAG_NAMES = {
+    en: { plexus: 'Plexus Week', bridges: 'Building Bridges in Biomedicine', forum: 'Biomedical Forum', general: 'Med&X' },
+    hr: { plexus: 'Plexus Week', bridges: 'Building Bridges in Biomedicine', forum: 'Biomedical Forum', general: 'Med&X' }
+};
+const SIGNUP_FORM_ACCENTS = { plexus: '#c9a962', bridges: '#2dd4bf', forum: '#fb923c', general: '#c9a962' };
+
+function signupFormLang(form) { return form && form.language === 'hr' ? 'hr' : 'en'; }
+
+// Deadlines are entered in the admin as Croatian wall-clock time ("YYYY-MM-DDTHH:MM").
+// Compare against Zagreb wall-clock now (sv-SE gives "YYYY-MM-DD HH:MM:SS") — DST-proof,
+// no offset arithmetic.
+function zagrebNowStamp() {
+    return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Zagreb' });
+}
+function signupFormDeadlinePassed(form) {
+    if (!form.registration_deadline) return false;
+    return zagrebNowStamp() > String(form.registration_deadline).replace('T', ' ');
+}
+
+function signupFormDateLabel(dateStr, lang) {
+    if (!dateStr) return '';
+    try {
+        return new Date(dateStr + 'T12:00:00').toLocaleDateString(lang === 'hr' ? 'hr-HR' : 'en-GB',
+            { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    } catch (e) { return dateStr; }
+}
+
+function signupFormDeadlineLabel(form, lang) {
+    const dl = String(form.registration_deadline || '');
+    if (!dl) return '';
+    const parts = dl.split('T');
+    let ds = parts[0];
+    try { ds = new Date(parts[0] + 'T12:00:00').toLocaleDateString(lang === 'hr' ? 'hr-HR' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) {}
+    return parts[1] ? `${ds}, ${parts[1]}` : ds;
+}
+
+function renderSignupFormQuestionInput(f, T, accent) {
+    const req = f.required ? ' <span class="req">*</span>' : ` <span class="opt">(${T.optional})</span>`;
+    const label = `<label class="q-label" for="q_${escapeHtml(f.id)}">${escapeHtml(f.label)}${req}</label>`;
+    if (f.type === 'paragraph') {
+        return `<div>${label}<textarea id="q_${escapeHtml(f.id)}" data-qid="${escapeHtml(f.id)}" data-qtype="paragraph" ${f.required ? 'data-required="1"' : ''} rows="3" maxlength="2000"></textarea></div>`;
+    }
+    if (f.type === 'dropdown') {
+        return `<div>${label}<select id="q_${escapeHtml(f.id)}" data-qid="${escapeHtml(f.id)}" data-qtype="dropdown" ${f.required ? 'data-required="1"' : ''}>
+            <option value="" selected>${T.choosePlaceholder}</option>
+            ${(f.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+        </select></div>`;
+    }
+    if (f.type === 'radio' || f.type === 'checkbox') {
+        const inputType = f.type === 'radio' ? 'radio' : 'checkbox';
+        return `<div data-qgroup="${escapeHtml(f.id)}" data-qtype="${f.type}" ${f.required ? 'data-required="1"' : ''}>${label}
+            <div class="choice-group">
+                ${(f.options || []).map(o => `<label class="choice"><input type="${inputType}" name="q_${escapeHtml(f.id)}" value="${escapeHtml(o)}"><span>${escapeHtml(o)}</span></label>`).join('')}
+            </div></div>`;
+    }
+    return `<div>${label}<input type="text" id="q_${escapeHtml(f.id)}" data-qid="${escapeHtml(f.id)}" data-qtype="short_text" ${f.required ? 'data-required="1"' : ''} maxlength="500"></div>`;
+}
+
+// state: 'open' | 'waitlist' (open but only the waiting list remains) | 'full' | 'closed' | 'notfound'
+function renderSignupFormPage(form, state) {
+    const lang = signupFormLang(form);
+    const T = SIGNUP_FORM_I18N[lang];
+    const accent = SIGNUP_FORM_ACCENTS[form ? form.project_tag : 'general'] || '#c9a962';
+    const tagName = form ? (SIGNUP_FORM_TAG_NAMES[lang][form.project_tag] || 'Med&X') : 'Med&X';
+    const title = form ? form.title : T.notFoundTitle;
+
+    let fields = [];
+    if (form) { try { fields = JSON.parse(form.fields_json || '[]'); } catch (e) {} }
+
+    const facts = [];
+    if (form && form.event_date) facts.push(escapeHtml(signupFormDateLabel(form.event_date, lang)));
+    if (form && form.event_time) facts.push(escapeHtml(form.event_time));
+    if (form && form.venue) facts.push(escapeHtml(form.venue));
+    const factLine = facts.map(f => `<span>${f}</span>`).join('<span class="dot">&middot;</span>');
+
+    const deadlineNote = (state === 'open' || state === 'waitlist') && form && form.registration_deadline
+        ? `<div class="note">${T.deadlineNote.replace('{date}', escapeHtml(signupFormDeadlineLabel(form, lang)))}</div>` : '';
+
+    const svgCheck = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`;
+    const svgLock = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+    const svgUsers = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+
+    const noticeCard = (icon, heading, body) => `
+        <div class="card notice">
+            <div class="notice-icon">${icon}</div>
+            <div class="confirm-heading">${heading}</div>
+            <p class="confirm-line">${body}</p>
+        </div>`;
+
+    let cardHtml = '';
+    if (state === 'notfound') {
+        cardHtml = noticeCard(svgLock, T.notFoundTitle, T.notFoundBody);
+    } else if (state === 'closed') {
+        cardHtml = noticeCard(svgLock, T.closedTitle, T.closedBody);
+    } else if (state === 'full') {
+        cardHtml = noticeCard(svgUsers, T.fullTitle, T.fullBody);
+    } else {
+        const waitlistNote = state === 'waitlist'
+            ? `<div class="amber-note">${T.waitlistNote}</div>` : '';
+        cardHtml = `
+        <div class="card" id="sfCard">
+            ${waitlistNote}
+            <form id="sfForm" onsubmit="return sfSubmit(event)">
+                <div class="section-label">${T.yourDetails}</div>
+                <div class="form-grid">
+                    <div><label for="sf_name">${T.fullName} <span class="req">*</span></label><input id="sf_name" name="name" autocomplete="name" required maxlength="200"></div>
+                    <div><label for="sf_email">${T.email} <span class="req">*</span></label><input id="sf_email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="200"></div>
+                    ${fields.map(f => renderSignupFormQuestionInput(f, T, accent)).join('')}
+                    <label class="gdpr"><input type="checkbox" id="sf_gdpr"><span>${T.gdpr} <a href="/privacy" target="_blank" rel="noopener">${T.gdprMore}</a></span></label>
+                </div>
+                <button type="submit" class="submit-btn" id="sfBtn">${state === 'waitlist' ? T.submitWaitlist : T.submit}</button>
+                <div class="msg" id="sfMsg"></div>
+            </form>
+        </div>`;
+    }
+
+    const hero = (state === 'notfound') ? `
+    <div class="hero">
+        <div class="eyebrow">Med&X</div>
+        <h1>${T.notFoundTitle}</h1>
+    </div>` : `
+    <div class="hero">
+        <div class="eyebrow">${escapeHtml(tagName)} &middot; ${T.eyebrow}</div>
+        <h1>${escapeHtml(title)}</h1>
+        ${form && form.description ? `<p class="framing">${escapeHtml(form.description)}</p>` : ''}
+        ${factLine ? `<div class="facts">${factLine}</div>` : ''}
+        ${deadlineNote}
+    </div>`;
+
+    const clientData = state === 'open' || state === 'waitlist' ? `<script>
+    var SF_SLUG = ${JSON.stringify(form.slug)};
+    var SF_FIELDS = ${JSON.stringify(fields.map(f => ({ id: f.id, type: f.type, required: !!f.required }))).replace(/</g, '\\u003c')};
+    var SF_T = ${JSON.stringify(T).replace(/</g, '\\u003c')};
+    var SF_WAITLIST_STATE = ${JSON.stringify(state === 'waitlist')};
+    function sfErr(m){ var e = document.getElementById('sfMsg'); e.className = 'msg err'; e.textContent = m; }
+    function sfNotice(title, body){
+        document.getElementById('sfCard').innerHTML =
+            '<div class="confirm-heading">' + title + '</div><p class="confirm-line">' + body + '</p>';
+    }
+    async function sfSubmit(ev){
+        ev.preventDefault();
+        var msgEl = document.getElementById('sfMsg'); msgEl.className = 'msg'; msgEl.textContent = '';
+        var name = document.getElementById('sf_name').value.trim();
+        var email = document.getElementById('sf_email').value.trim();
+        var missing = false;
+        var answers = {};
+        SF_FIELDS.forEach(function(f){
+            var val = '';
+            if (f.type === 'radio') {
+                var r = document.querySelector('input[name="q_' + f.id + '"]:checked');
+                val = r ? r.value : '';
+                if (val) answers[f.id] = val;
+            } else if (f.type === 'checkbox') {
+                var vals = Array.prototype.map.call(document.querySelectorAll('input[name="q_' + f.id + '"]:checked'), function(x){ return x.value; });
+                if (vals.length) answers[f.id] = vals;
+                val = vals.length ? 'x' : '';
+            } else {
+                var el = document.getElementById('q_' + f.id);
+                val = el ? el.value.trim() : '';
+                if (val) answers[f.id] = val;
+            }
+            var wrap = document.querySelector('[data-qgroup="' + f.id + '"]') || document.getElementById('q_' + f.id);
+            if (wrap) wrap.classList.remove('invalid');
+            if (f.required && !val) { missing = true; if (wrap) wrap.classList.add('invalid'); }
+        });
+        if (!name || !email || missing) { sfErr(SF_T.errRequired); return false; }
+        if (!document.getElementById('sf_gdpr').checked) { sfErr(SF_T.errConsent); return false; }
+        var btn = document.getElementById('sfBtn'); btn.disabled = true; btn.textContent = SF_T.working;
+        try {
+            var r = await fetch('/api/signup-forms/' + SF_SLUG + '/submit', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, email: email, gdpr_consent: true, answers: answers })
+            });
+            var d = null;
+            try { d = await r.json(); } catch(e) {}
+            if (r.ok && d && d.success) {
+                var waitl = d.waitlisted || SF_WAITLIST_STATE;
+                var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); };
+                document.getElementById('sfCard').innerHTML =
+                    '<div class="notice-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>' +
+                    '<div class="confirm-heading">' + (waitl ? SF_T.waitlistTitle : SF_T.successTitle) + '</div>' +
+                    (window.SF_CONFIRM_MSG ? '<p class="confirm-line" style="color:#e2e8f0;">' + esc(window.SF_CONFIRM_MSG) + '</p>' : '') +
+                    '<p class="confirm-line">' + (waitl ? SF_T.waitlistBody : SF_T.successBody).replace('{email}', esc(email)) + '</p>';
+                document.getElementById('sfCard').classList.add('notice');
+                return false;
+            }
+            var code = d && d.code;
+            if (code === 'duplicate') sfErr(SF_T.errDuplicate);
+            else if (code === 'full') sfNotice(SF_T.fullTitle, SF_T.fullBody);
+            else if (code === 'closed' || code === 'notfound') sfNotice(SF_T.closedTitle, SF_T.closedBody);
+            else if (r.status === 429) sfErr(SF_T.errTooMany);
+            else sfErr((d && d.error) || SF_T.errNetwork);
+        } catch(e) { sfErr(SF_T.errNetwork); }
+        btn.disabled = false; btn.textContent = SF_WAITLIST_STATE ? SF_T.submitWaitlist : SF_T.submit;
+        return false;
+    }
+    ${form && form.confirmation_message ? `window.SF_CONFIRM_MSG = ${JSON.stringify(form.confirmation_message).replace(/</g, '\\u003c')};` : ''}
+    </script>` : '';
+
+    return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(title)} — Med&amp;X</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif; color:#e2e8f0; padding:48px 20px 40px; }
+    .container { max-width:820px; margin:0 auto; }
+    .logo { text-align:center; margin-bottom:34px; }
+    .logo img { height:36px; width:auto; display:inline-block; filter:brightness(0) invert(1); opacity:0.92; }
+    .hero { position:relative; text-align:center; padding:52px 40px 46px; margin-bottom:26px; }
+    .hero::before, .hero::after { content:''; position:absolute; width:46px; height:46px; }
+    .hero::before { top:0; left:0; border-top:1px solid rgba(201,169,98,0.6); border-left:1px solid rgba(201,169,98,0.6); }
+    .hero::after { bottom:0; right:0; border-bottom:1px solid rgba(201,169,98,0.6); border-right:1px solid rgba(201,169,98,0.6); }
+    .eyebrow { font-size:11px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:${accent}; margin-bottom:20px; }
+    h1 { font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; font-size:clamp(32px,5.5vw,48px); line-height:1.12; color:#fff; margin-bottom:18px; }
+    .framing { max-width:600px; margin:0 auto 24px; font-size:15.5px; line-height:1.75; color:#94a3b8; white-space:pre-line; }
+    .facts { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 12px; font-size:13.5px; font-weight:500; color:#e2e8f0; letter-spacing:0.3px; }
+    .facts .dot { color:${accent}; }
+    .note { margin-top:14px; font-family:'Cormorant Garamond',Georgia,serif; font-style:italic; font-size:16.5px; color:#c9a962; }
+    .form-wrap { max-width:540px; margin:0 auto; }
+    .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.22); border-radius:20px; padding:38px 36px; }
+    .card.notice { text-align:center; padding:46px 36px; }
+    .notice-icon { width:64px; height:64px; border-radius:50%; background:rgba(255,255,255,0.05); border:1px solid rgba(201,169,98,0.25); display:flex; align-items:center; justify-content:center; margin:0 auto 18px; }
+    .section-label { font-size:11px; font-weight:600; letter-spacing:2.5px; text-transform:uppercase; color:${accent}; margin-bottom:22px; text-align:center; }
+    .form-grid { display:grid; gap:16px; }
+    label { display:block; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#94a3b8; margin-bottom:6px; }
+    label.q-label { font-size:13.5px; font-weight:500; letter-spacing:0; text-transform:none; color:#cbd5e1; margin-bottom:8px; }
+    .req { color:${accent}; }
+    .opt { color:#64748b; font-weight:400; text-transform:none; letter-spacing:0; }
+    input, textarea, select { width:100%; padding:12px 14px; border:1px solid rgba(255,255,255,0.1); border-radius:10px; background:rgba(255,255,255,0.05); color:#fff; font-size:14px; font-family:inherit; }
+    input:focus, textarea:focus, select:focus { border-color:${accent}; outline:none; box-shadow:0 0 0 3px ${accent}1f; }
+    input::placeholder, textarea::placeholder { color:#64748b; }
+    textarea { resize:vertical; min-height:76px; }
+    select { appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; }
+    select option { background:#1e293b; color:#fff; }
+    .choice-group { display:grid; gap:8px; }
+    .choice { display:flex; align-items:center; gap:10px; padding:11px 14px; border:1px solid rgba(255,255,255,0.1); border-radius:10px; background:rgba(255,255,255,0.04); cursor:pointer; font-size:14px; text-transform:none; letter-spacing:0; font-weight:400; color:#e2e8f0; margin-bottom:0; transition:border-color 0.15s, background 0.15s; }
+    .choice:hover { border-color:${accent}66; background:rgba(255,255,255,0.06); }
+    .choice input { width:auto; accent-color:${accent}; margin:0; flex-shrink:0; }
+    .choice span { flex:1; }
+    .invalid, .invalid input, [data-qgroup].invalid .choice { border-color:rgba(239,68,68,0.55) !important; }
+    .gdpr { display:flex; align-items:flex-start; gap:10px; margin-top:6px; font-size:12.5px; line-height:1.6; color:#94a3b8; text-transform:none; letter-spacing:0; font-weight:400; cursor:pointer; }
+    .gdpr input { width:auto; margin-top:3px; accent-color:${accent}; flex-shrink:0; }
+    .gdpr a { color:#c9a962; text-decoration:none; }
+    .amber-note { background:rgba(245,158,11,0.09); border:1px solid rgba(245,158,11,0.3); color:#fbbf24; padding:12px 15px; border-radius:11px; font-size:13px; line-height:1.6; margin-bottom:20px; }
+    .submit-btn { width:100%; margin-top:22px; padding:16px; border:none; border-radius:11px; background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; font-size:15px; font-weight:600; letter-spacing:0.4px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+    .submit-btn:hover { transform:translateY(-1px); box-shadow:0 8px 22px rgba(201,169,98,0.25); }
+    .submit-btn:disabled { opacity:0.55; cursor:not-allowed; transform:none; box-shadow:none; }
+    .msg { margin-top:14px; padding:12px 14px; border-radius:9px; font-size:13px; display:none; }
+    .msg.err { display:block; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; }
+    .confirm-heading { font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; font-size:30px; color:#fff; text-align:center; margin-bottom:8px; }
+    .confirm-line { max-width:400px; margin:14px auto 0; text-align:center; font-size:13.5px; line-height:1.7; color:#94a3b8; }
+    .foot { text-align:center; font-size:12px; color:#64748b; margin-top:32px; }
+    .foot a { color:#c9a962; text-decoration:none; }
+    @media (max-width: 640px) {
+        body { padding:30px 14px; }
+        .hero { padding:42px 18px 38px; }
+        .card { padding:28px 20px; }
+        input, textarea, select { font-size:16px; } /* <16px makes iOS Safari zoom on focus */
+    }
+</style></head><body><div class="container">
+    <div class="logo"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X" /></div>
+    ${hero}
+    <div class="form-wrap">${cardHtml}</div>
+    <div class="foot">${T.footQuestions} <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a> &middot; <a href="/privacy">${T.gdprMore}</a></div>
+</div>${clientData}</body></html>`;
+}
+
+app.get('/f/:slug/qr.png', async (req, res) => {
+    try {
+        let form = query.get('SELECT slug FROM signup_forms WHERE slug = ?', [req.params.slug]);
+        if (!form) { await freshSync(); form = query.get('SELECT slug FROM signup_forms WHERE slug = ?', [req.params.slug]); }
+        if (!form) return res.status(404).send('Not found');
+        const base = (process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+        const png = await QRCode.toBuffer(`${base}/f/${form.slug}`, { width: 560, margin: 2, color: { dark: '#0f172a', light: '#ffffff' } });
+        res.type('png').send(png);
+    } catch (err) {
+        console.error('[/f/:slug/qr.png] error:', err.message);
+        res.status(500).send('Error');
+    }
+});
+
+app.get('/f/:slug', async (req, res) => {
+    try {
+        let form = query.get('SELECT * FROM signup_forms WHERE slug = ?', [req.params.slug]);
+        if (!form) {
+            // A form created in the admin seconds ago may not have replicated yet
+            // (this server pulls Turso every 60s) — one throttled sync, then retry.
+            await freshSync();
+            form = query.get('SELECT * FROM signup_forms WHERE slug = ?', [req.params.slug]);
+        }
+        if (!form || form.status === 'draft') return res.status(404).send(renderSignupFormPage(null, 'notfound'));
+        let state = 'open';
+        if (form.status === 'closed' || signupFormDeadlinePassed(form)) {
+            state = 'closed';
+        } else if (form.capacity) {
+            const row = query.get('SELECT COUNT(*) AS n FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0', [form.id]);
+            if ((row ? row.n : 0) >= form.capacity) state = form.waitlist_enabled ? 'waitlist' : 'full';
+        }
+        res.send(renderSignupFormPage(form, state));
+    } catch (err) {
+        console.error('[/f/:slug] error:', err.message);
+        res.status(500).send('Something went wrong. Please try again.');
+    }
+});
+
 // ===================== LinkedIn badge + public membership verification =====================
 // A member can prove active Med&X membership with one stable, shareable link. The token is a
 // signed slug derived from the user id via HMAC(JWT_SECRET) — no schema change and it cannot be
@@ -26785,6 +27181,92 @@ By applying to this program, I provide the following consents:
             res.json({ user, registrations, forumRegistrations, galaRegistrations, bridgesRegistrations });
         } catch(e) {
             res.status(500).json({ error: 'Lookup failed' });
+        }
+    });
+
+    // ========== SIGN-UP FORMS — public submit (page + QR are top-level routes near /donor-night) ==========
+    app.post('/api/signup-forms/:slug/submit', registrationLimiter, async (req, res) => {
+        try {
+            const form = query.get('SELECT * FROM signup_forms WHERE slug = ?', [req.params.slug]);
+            if (!form || form.status === 'draft') return res.status(404).json({ error: 'Form not found', code: 'notfound' });
+            if (form.status !== 'open' || signupFormDeadlinePassed(form)) return res.status(410).json({ error: 'Registration is closed', code: 'closed' });
+
+            const name = String((req.body && req.body.name) || '').trim();
+            const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+            const answers = (req.body && typeof req.body.answers === 'object' && req.body.answers) ? req.body.answers : {};
+            if (!name || name.length > 200) return res.status(400).json({ error: 'Please provide your name', code: 'invalid' });
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) return res.status(400).json({ error: 'Please provide a valid email address', code: 'invalid' });
+            if (!(req.body && req.body.gdpr_consent)) return res.status(400).json({ error: 'Consent is required', code: 'consent' });
+
+            const dupe = query.get('SELECT id FROM signup_form_responses WHERE form_id = ? AND LOWER(email) = ?', [form.id, email]);
+            if (dupe) return res.status(409).json({ error: 'This email is already registered', code: 'duplicate' });
+
+            let fields = [];
+            try { fields = JSON.parse(form.fields_json || '[]'); } catch (e) {}
+            const cleanAnswers = {};
+            for (const f of fields) {
+                let a = answers[f.id];
+                if (f.type === 'checkbox') {
+                    a = Array.isArray(a) ? a.filter(x => typeof x === 'string' && (f.options || []).includes(x)) : [];
+                    if (f.required && !a.length) return res.status(400).json({ error: `"${f.label}" is required`, code: 'invalid' });
+                    if (a.length) cleanAnswers[f.id] = a;
+                } else if (f.type === 'dropdown' || f.type === 'radio') {
+                    a = typeof a === 'string' ? a : '';
+                    if (a && !(f.options || []).includes(a)) return res.status(400).json({ error: `Invalid answer for "${f.label}"`, code: 'invalid' });
+                    if (f.required && !a) return res.status(400).json({ error: `"${f.label}" is required`, code: 'invalid' });
+                    if (a) cleanAnswers[f.id] = a;
+                } else {
+                    a = typeof a === 'string' ? a.trim().slice(0, 2000) : '';
+                    if (f.required && !a) return res.status(400).json({ error: `"${f.label}" is required`, code: 'invalid' });
+                    if (a) cleanAnswers[f.id] = a;
+                }
+            }
+
+            let waitlisted = 0;
+            if (form.capacity) {
+                const row = query.get('SELECT COUNT(*) AS n FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0', [form.id]);
+                if ((row ? row.n : 0) >= form.capacity) {
+                    if (!form.waitlist_enabled) return res.status(409).json({ error: 'This event is full', code: 'full' });
+                    waitlisted = 1;
+                }
+            }
+
+            const id = require('crypto').randomUUID();
+            query.run(`INSERT INTO signup_form_responses (id, form_id, name, email, answers_json, is_waitlisted, gdpr_consent)
+                VALUES (?, ?, ?, ?, ?, ?, 1)`, [id, form.id, name, email, JSON.stringify(cleanAnswers), waitlisted]);
+
+            // Confirmation email — never fail the registration if it errors.
+            try {
+                const lang = signupFormLang(form);
+                const T = SIGNUP_FORM_I18N[lang];
+                const detailRow = (label, value) => value
+                    ? `<tr><td style="padding:6px 14px 6px 0;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#94a3b8;white-space:nowrap;">${label}</td><td style="padding:6px 0;font-size:14px;color:#0f172a;">${escapeHtml(value)}</td></tr>`
+                    : '';
+                const details = [
+                    detailRow(T.emailDate, signupFormDateLabel(form.event_date, lang)),
+                    detailRow(T.emailTime, form.event_time),
+                    detailRow(T.emailVenue, form.venue)
+                ].join('');
+                const line = (waitlisted ? T.emailWaitlistLine : T.emailConfirmedLine).replace('{title}', escapeHtml(form.title));
+                const bodyHtml = `
+                    <p style="margin:0 0 14px;">${T.emailGreeting.replace('{name}', escapeHtml(name))}</p>
+                    <p style="margin:0 0 18px;">${line}</p>
+                    ${details ? `<table cellpadding="0" cellspacing="0" style="margin:0 0 18px;border-left:3px solid #C9A962;padding-left:14px;"><tbody>${details}</tbody></table>` : ''}
+                    ${form.confirmation_message ? `<p style="margin:0 0 18px;">${escapeHtml(form.confirmation_message)}</p>` : ''}
+                    <p style="margin:0 0 6px;color:#64748b;font-size:13px;">${T.emailQuestions} <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;">laura.rodman@medx.hr</a></p>
+                    <p style="margin:14px 0 0;">${T.emailSignoff}</p>`;
+                const subject = (waitlisted ? T.emailSubjectWaitlist : T.emailSubject).replace('{title}', form.title);
+                const emailTitle = waitlisted ? T.emailTitleWaitlist : T.emailTitle;
+                const result = await sendEmail(email, subject, buildEmailTemplate(emailTitle, bodyHtml, lang));
+                if (result && result.success) query.run('UPDATE signup_form_responses SET email_sent = 1 WHERE id = ?', [id]);
+            } catch (e) {
+                console.error('[signup-forms] confirmation email failed:', e.message);
+            }
+
+            res.json({ success: true, waitlisted: !!waitlisted });
+        } catch (err) {
+            console.error('[signup-forms submit] error:', err.message);
+            res.status(500).json({ error: 'Something went wrong. Please try again.' });
         }
     });
 
