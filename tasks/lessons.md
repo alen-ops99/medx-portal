@@ -35,3 +35,5 @@
 ### Misc
 - **Bash tool cwd resets between calls, and a `cd` inside a compound command changes cwd for the rest of that command** — a later relative `cp admin-portal/...` after `cd .../backend` silently fails. Use absolute paths.
 - Print-shop convention reconciled: badges are sheet-trimmed (page = A4 with per-badge bleed + crop marks); large-format roll-ups/backdrops are made at the exact ordered size, so page = the named size with INWARD 3mm bleed + trim marks (satisfies both "3mm bleed + crop marks" and "banner PDF = 100x200cm").
+
+- 2026-07-17 (signup-forms build): shared tables MUST go INSIDE the SCHEMA-MIRROR:BEGIN/END markers in BOTH server.js files, byte-identical including comments — CI (Boot smoke → scripts/check-schema-sync.sh) fails the deploy gate otherwise. Run the script locally before any schema push.
