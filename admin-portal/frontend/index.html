@@ -7227,6 +7227,11 @@
                     <span>Sign-up Forms</span>
                 </a>
 
+                <a class="nav-item" data-section="guest-passes" onclick="App.showSection('guest-passes', this)">
+                    <i class="fas fa-id-badge" style="color: #a78bfa;"></i>
+                    <span>Guest Passes</span>
+                </a>
+
                 <a class="nav-item" data-section="year-calendar" onclick="App.showSection('year-calendar', this)">
                     <i class="fas fa-calendar-days" style="color: #0ea5a4;"></i>
                     <span>Year Calendar</span>
@@ -13914,6 +13919,35 @@ President, Med&amp;X</textarea>
                 </div>
                 <!-- ============ /SIGN-UP FORMS ============ -->
 
+                <!-- ============ GUEST PASSES (personal VIP access links) ============ -->
+                <div class="section" id="section-guest-passes">
+                    <div class="back-link" onclick="App.showSection('dashboard')">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </div>
+
+                    <div id="gpListView">
+                        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+                            <div>
+                                <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-id-badge" style="color:#a78bfa;"></i> Guest Passes</h2>
+                                <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">Personal access links for high-level guests: one person, one event, only the modules you grant. Zero login, beautiful on a phone.</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="GuestPassApp.newPass()"><i class="fas fa-plus"></i> New pass</button>
+                        </div>
+                        <div id="gpList"></div>
+                    </div>
+
+                    <div id="gpEditorView" style="display:none;">
+                        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+                            <button class="btn btn-secondary" onclick="GuestPassApp.closeEditor()" style="padding:8px 14px;"><i class="fas fa-arrow-left"></i> All passes</button>
+                            <h2 id="gpEditorTitle" style="margin:0;font-size:20px;"></h2>
+                            <span id="gpEditorBadge"></span>
+                        </div>
+                        <div id="gpShareStrip"></div>
+                        <div id="gpEditor"></div>
+                    </div>
+                </div>
+                <!-- ============ /GUEST PASSES ============ -->
+
                 <div class="section" id="section-conferences">
                     <div class="back-link" onclick="App.showSection('dashboard')">
                         <i class="fas fa-arrow-left"></i> Back to Dashboard
@@ -17391,6 +17425,7 @@ President, Med&amp;X</textarea>
                 { id: 'messages', label: 'Messages', icon: 'fa-envelope', color: '#c14b52', desc: 'Inbound messages from users' },
                 { id: 'contacts', label: 'My Network', icon: 'fa-address-book', color: '#c14b52', desc: 'Contact management' },
                 { id: 'signup-forms', label: 'Sign-up Forms', icon: 'fa-clipboard-check', color: '#059669', desc: 'Public sign-up pages for short events' },
+                { id: 'guest-passes', label: 'Guest Passes', icon: 'fa-id-badge', color: '#a78bfa', desc: 'Personal VIP access links for one event' },
                 { id: 'tech', label: 'Tech', icon: 'fa-server', color: '#c14b52', desc: 'System health & deployment' },
                 { id: 'advisors', label: 'Executive Suite', icon: 'fa-user-tie', color: '#7c3aed', desc: 'AI CMO / CFO / COO weekly review' },
                 { id: 'discover', label: 'Discover', icon: 'fa-compass', color: '#c9a962', desc: 'What this portal replaces — a 2-minute tour', alwaysOn: true },
@@ -17496,7 +17531,7 @@ President, Med&amp;X</textarea>
                 // 'speaker-itineraries' is a Plexus Week sub-surface reached via the project home tile,
                 // Cmd+K and #speaker-itineraries (no top-level sidebar anchor — same pattern as auctions /
                 // postevent). Listed here so section filtering never hides it if a nav entry is ever added.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover', 'speaker-itineraries', 'signup-forms'];
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover', 'speaker-itineraries', 'signup-forms', 'guest-passes'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
@@ -19919,6 +19954,7 @@ President, Med&amp;X</textarea>
                     'postevent': 'Post-event',
                     'conferences': 'Conferences',
                     'signup-forms': 'Sign-up Forms',
+                    'guest-passes': 'Guest Passes',
                     'email-blast': 'Email Registrants',
                     'audit': 'Audit Log',
                     'team': 'Team Access',
@@ -20111,6 +20147,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'signup-forms';
                     this.switchChatPanel('team');
                     if (typeof SignupFormsApp !== 'undefined') SignupFormsApp.init();
+                } else if (sectionId === 'guest-passes') {
+                    this.currentView = 'guest-passes';
+                    this.switchChatPanel('team');
+                    if (typeof GuestPassApp !== 'undefined') GuestPassApp.init();
                 } else {
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
@@ -48576,6 +48616,298 @@ By applying to this program, I give the following consents:
             }
         };
 
+        // ===================== GUEST PASSES (personal VIP access links) =====================
+        // Composer for /pass/:token capability pages served by the user portal. One guest, one
+        // event, only the granted modules. Sibling of SpeakerItinerariesApp.
+        const GuestPassApp = {
+            passes: [],
+            events: [],
+            current: null,   // pass being edited; null while composing a new one
+
+            MODULES: [
+                { key: 'program', label: 'Programme', desc: 'Live schedule of the chosen event' },
+                { key: 'venue', label: 'Venue & arrival', desc: 'Address, map link, arrival notes' },
+                { key: 'materials', label: 'Materials', desc: 'Links to documents or pages' },
+                { key: 'host', label: 'Your host', desc: 'Contact card for their Med&X host' }
+            ],
+
+            esc(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); },
+
+            async init() {
+                document.getElementById('gpEditorView').style.display = 'none';
+                document.getElementById('gpListView').style.display = '';
+                try { this.events = (await App.api('/api/admin/guest-pass-events')).events || []; } catch(e) { this.events = []; }
+                await this.loadPasses();
+            },
+
+            async loadPasses() {
+                try { this.passes = (await App.api('/api/admin/guest-passes')).passes || []; }
+                catch(e) { this.passes = []; }
+                this.renderList();
+            },
+
+            statusBadge(p) {
+                if (p.revoked) return `<span style="background:rgba(155,27,34,0.1);color:#9b1b22;padding:3px 11px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;">Revoked</span>`;
+                if (p.expires_at && new Date(p.expires_at) < new Date()) return `<span style="background:rgba(107,98,88,0.12);color:#6b6258;padding:3px 11px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;">Expired</span>`;
+                return `<span style="background:rgba(5,150,105,0.12);color:#059669;padding:3px 11px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;">Active</span>`;
+            },
+
+            sendBadge(p) {
+                if (!p.send_state) return '<span style="color:var(--text-muted);font-size:12px;">Not sent</span>';
+                if (p.send_state === 'pending_approval') return '<span style="color:#b45309;font-size:12px;">In outbox (awaiting approval)</span>';
+                if (p.send_state === 'sent') return '<span style="color:#059669;font-size:12px;">Sent</span>';
+                return `<span style="color:var(--text-muted);font-size:12px;">${this.esc(p.send_state)}</span>`;
+            },
+
+            renderList() {
+                const el = document.getElementById('gpList');
+                if (!this.passes.length) {
+                    el.innerHTML = `
+                        <div class="card" style="text-align:center;padding:56px 24px;">
+                            <div style="width:64px;height:64px;border-radius:50%;background:rgba(167,139,250,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                                <i class="fas fa-id-badge" style="font-size:24px;color:#a78bfa;"></i>
+                            </div>
+                            <h3 style="margin:0 0 6px;">No guest passes yet</h3>
+                            <p style="margin:0 auto 18px;color:var(--text-muted);font-size:13px;max-width:440px;">Mint a personal link for a high-level guest: an ambassador who should see only the Bridges programme, a partner who needs venue and host details, nothing more.</p>
+                            <button class="btn btn-primary" onclick="GuestPassApp.newPass()"><i class="fas fa-plus"></i> Create the first pass</button>
+                        </div>`;
+                    return;
+                }
+                el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;">` + this.passes.map(p => `
+                    <div class="card" style="padding:18px 20px;cursor:pointer;" onclick="GuestPassApp.openEditor('${p.id}')">
+                        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+                            <div style="font-weight:600;font-size:15px;">${this.esc((p.guest_title ? p.guest_title + ' ' : '') + p.guest_name)}</div>
+                            ${this.statusBadge(p)}
+                        </div>
+                        <div style="color:var(--text-muted);font-size:12.5px;margin-top:6px;"><i class="fas fa-calendar-star" style="display:none;"></i>${this.esc(p.event_name)}</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+                            ${(p.modules || []).map(m => `<span style="background:var(--bg-tertiary);color:var(--text-secondary);padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;">${this.esc((this.MODULES.find(x => x.key === m) || {}).label || m)}</span>`).join('')}
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+                            <span style="color:var(--text-muted);font-size:12px;"><i class="far fa-eye" style="margin-right:5px;"></i>${p.page_views || 0} views</span>
+                            ${this.sendBadge(p)}
+                        </div>
+                    </div>`).join('') + `</div>`;
+            },
+
+            newPass() {
+                this.current = null;
+                this.showEditor();
+            },
+
+            async openEditor(id) {
+                try { this.current = (await App.api('/api/admin/guest-passes/' + id)).pass; }
+                catch(e) { alert('Could not load the pass: ' + e.message); return; }
+                this.showEditor();
+            },
+
+            closeEditor() {
+                this.current = null;
+                document.getElementById('gpEditorView').style.display = 'none';
+                document.getElementById('gpListView').style.display = '';
+                this.loadPasses();
+            },
+
+            showEditor() {
+                document.getElementById('gpListView').style.display = 'none';
+                document.getElementById('gpEditorView').style.display = '';
+                document.getElementById('gpEditorTitle').textContent = this.current
+                    ? (this.current.guest_title ? this.current.guest_title + ' ' : '') + this.current.guest_name
+                    : 'New guest pass';
+                document.getElementById('gpEditorBadge').innerHTML = this.current ? this.statusBadge(this.current) : '';
+                this.renderShareStrip();
+                this.renderEditor();
+            },
+
+            renderShareStrip() {
+                const el = document.getElementById('gpShareStrip');
+                if (!this.current) { el.innerHTML = ''; return; }
+                const p = this.current;
+                el.innerHTML = `
+                    <div class="card" style="padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <input readonly id="gpShareUrl" value="${this.esc(p.public_url)}" style="flex:1;min-width:220px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:var(--bg-tertiary);color:var(--text-primary);">
+                        <button class="btn btn-secondary" onclick="GuestPassApp.copyUrl(this)"><i class="far fa-copy"></i> Copy</button>
+                        <a class="btn btn-secondary" href="${this.esc(p.public_url)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Open</a>
+                        <button class="btn btn-secondary" onclick="GuestPassApp.sendPass()"><i class="fas fa-paper-plane"></i> Send</button>
+                        ${p.revoked
+                            ? `<button class="btn btn-secondary" onclick="GuestPassApp.setRevoked(false)">Restore</button>`
+                            : `<button class="btn btn-secondary" style="color:#9b1b22;" onclick="GuestPassApp.setRevoked(true)"><i class="fas fa-ban"></i> Revoke</button>`}
+                        <span style="color:var(--text-muted);font-size:12px;margin-left:auto;"><i class="far fa-eye" style="margin-right:5px;"></i>${p.page_views || 0} views &middot; ${this.sendBadge(p)}</span>
+                    </div>`;
+            },
+
+            renderEditor() {
+                const p = this.current;
+                const modules = p ? (p.modules || []) : ['program'];
+                const venue = (p && p.venue) || {};
+                const materials = (p && p.materials && p.materials.length) ? p.materials : [{ label: '', url: '' }];
+                const host = (p && p.host) || {};
+                const label = t => `<label style="display:block;font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;">${t}</label>`;
+                const inp = `width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13.5px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;`;
+                const moduleChecked = k => modules.includes(k) ? 'checked' : '';
+                const condDisplay = k => modules.includes(k) ? '' : 'display:none;';
+
+                document.getElementById('gpEditor').innerHTML = `
+                    <div class="card" style="padding:22px;max-width:780px;">
+                        <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;">Guest</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                            <div>${label('Title (optional, e.g. Ambassador, prof. dr. sc.)')}<input id="gpTitle" value="${this.esc(p ? p.guest_title : '')}" style="${inp}"></div>
+                            <div>${label('Full name')}<input id="gpName" value="${this.esc(p ? p.guest_name : '')}" style="${inp}"></div>
+                            <div>${label('Email (for sending the pass)')}<input id="gpEmail" type="email" value="${this.esc(p ? p.guest_email : '')}" style="${inp}"></div>
+                            <div>${label('Page language')}<select id="gpLang" style="${inp}"><option value="en" ${!p || p.lang_default !== 'hr' ? 'selected' : ''}>English</option><option value="hr" ${p && p.lang_default === 'hr' ? 'selected' : ''}>Hrvatski</option></select></div>
+                            <div>${label('Event')}<select id="gpEvent" style="${inp}">${this.events.map(e => `<option value="${this.esc(e.key)}" ${p && p.event_key === e.key ? 'selected' : ''}>${this.esc(e.name)}${e.date ? ' (' + this.esc(e.date) + ')' : ''}</option>`).join('')}</select></div>
+                            <div>${label('Link expires (optional)')}<input id="gpExpires" type="date" value="${this.esc(p && p.expires_at ? String(p.expires_at).slice(0, 10) : '')}" style="${inp}"></div>
+                            <div style="grid-column:1 / -1;">${label('Personal note — English (optional)')}<input id="gpNoteEn" value="${this.esc(p ? p.note_en : '')}" placeholder="We look forward to welcoming you." style="${inp}"></div>
+                            <div style="grid-column:1 / -1;">${label('Personal note — Hrvatski (optional)')}<input id="gpNoteHr" value="${this.esc(p ? p.note_hr : '')}" placeholder="Radujemo se Vašem dolasku." style="${inp}"></div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="padding:22px;max-width:780px;margin-top:14px;">
+                        <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;">Granted modules — the guest sees ONLY these</div>
+                        ${this.MODULES.map(m => `
+                            <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 4px;cursor:pointer;">
+                                <input type="checkbox" id="gpMod_${m.key}" ${moduleChecked(m.key)} onchange="GuestPassApp.toggleModule('${m.key}', this.checked)" style="margin-top:3px;">
+                                <span><span style="font-weight:600;">${m.label}</span><br><span style="color:var(--text-muted);font-size:12.5px;">${m.desc}</span></span>
+                            </label>`).join('')}
+                    </div>
+
+                    <div class="card" id="gpVenueCard" style="padding:22px;max-width:780px;margin-top:14px;${condDisplay('venue')}">
+                        <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;">Venue & arrival</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                            <div>${label('Venue name')}<input id="gpVenueName" value="${this.esc(venue.venue_name)}" style="${inp}"></div>
+                            <div>${label('Address')}<input id="gpVenueAddr" value="${this.esc(venue.address)}" style="${inp}"></div>
+                            <div style="grid-column:1 / -1;">${label('Map link')}<input id="gpVenueMap" value="${this.esc(venue.map_url)}" placeholder="https://maps.google.com/…" style="${inp}"></div>
+                            <div style="grid-column:1 / -1;">${label('Arrival notes — English')}<textarea id="gpArrEn" rows="2" style="${inp}resize:vertical;">${this.esc(venue.arrival_en)}</textarea></div>
+                            <div style="grid-column:1 / -1;">${label('Arrival notes — Hrvatski')}<textarea id="gpArrHr" rows="2" style="${inp}resize:vertical;">${this.esc(venue.arrival_hr)}</textarea></div>
+                        </div>
+                    </div>
+
+                    <div class="card" id="gpMaterialsCard" style="padding:22px;max-width:780px;margin-top:14px;${condDisplay('materials')}">
+                        <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;">Materials (links)</div>
+                        <div id="gpMaterialRows">${materials.map((mt, i) => this.materialRow(mt, i)).join('')}</div>
+                        <button class="btn btn-secondary" style="padding:6px 14px;font-size:12.5px;" onclick="GuestPassApp.addMaterial()"><i class="fas fa-plus" style="font-size:10px;"></i> Add link</button>
+                    </div>
+
+                    <div class="card" id="gpHostCard" style="padding:22px;max-width:780px;margin-top:14px;${condDisplay('host')}">
+                        <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;">Host contact</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+                            <div>${label('Name')}<input id="gpHostName" value="${this.esc(host.name)}" placeholder="Laura Rodman" style="${inp}"></div>
+                            <div>${label('Email')}<input id="gpHostEmail" value="${this.esc(host.email)}" placeholder="laura.rodman@medx.hr" style="${inp}"></div>
+                            <div>${label('Phone')}<input id="gpHostPhone" value="${this.esc(host.phone)}" placeholder="+385 …" style="${inp}"></div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex;justify-content:flex-end;max-width:780px;margin-top:16px;">
+                        <button class="btn btn-primary" onclick="GuestPassApp.save()"><i class="fas fa-floppy-disk"></i> ${p ? 'Save changes' : 'Create pass'}</button>
+                    </div>`;
+            },
+
+            materialRow(mt, i) {
+                return `
+                    <div class="gp-mat-row" style="display:flex;gap:10px;margin-bottom:8px;align-items:center;">
+                        <input class="gp-mat-label" value="${this.esc(mt.label)}" placeholder="Label (e.g. Event brochure)" style="flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);">
+                        <input class="gp-mat-url" value="${this.esc(mt.url)}" placeholder="https://…" style="flex:1.4;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);">
+                        <button onclick="GuestPassApp.removeMaterial(${i})" title="Remove" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px 6px;"><i class="fas fa-xmark"></i></button>
+                    </div>`;
+            },
+
+            collectMaterials() {
+                return [...document.querySelectorAll('#gpMaterialRows .gp-mat-row')].map(row => ({
+                    label: row.querySelector('.gp-mat-label').value.trim(),
+                    url: row.querySelector('.gp-mat-url').value.trim()
+                })).filter(m => m.label || m.url);
+            },
+
+            addMaterial() {
+                const cur = this.collectMaterials();
+                cur.push({ label: '', url: '' });
+                document.getElementById('gpMaterialRows').innerHTML = cur.map((mt, i) => this.materialRow(mt, i)).join('');
+            },
+
+            removeMaterial(i) {
+                const cur = this.collectMaterials();
+                cur.splice(i, 1);
+                if (!cur.length) cur.push({ label: '', url: '' });
+                document.getElementById('gpMaterialRows').innerHTML = cur.map((mt, idx) => this.materialRow(mt, idx)).join('');
+            },
+
+            toggleModule(key, on) {
+                const cards = { venue: 'gpVenueCard', materials: 'gpMaterialsCard', host: 'gpHostCard' };
+                if (cards[key]) {
+                    const el = document.getElementById(cards[key]);
+                    if (el) el.style.display = on ? '' : 'none';
+                }
+            },
+
+            collect() {
+                const v = id => (document.getElementById(id) ? document.getElementById(id).value : '');
+                const modules = this.MODULES.map(m => m.key).filter(k => document.getElementById('gpMod_' + k) && document.getElementById('gpMod_' + k).checked);
+                return {
+                    guest_name: v('gpName').trim(),
+                    guest_title: v('gpTitle').trim(),
+                    guest_email: v('gpEmail').trim(),
+                    event_key: v('gpEvent'),
+                    lang_default: v('gpLang'),
+                    expires_at: v('gpExpires') ? v('gpExpires') + 'T23:59:59' : '',
+                    note_en: v('gpNoteEn').trim(),
+                    note_hr: v('gpNoteHr').trim(),
+                    modules,
+                    venue: {
+                        venue_name: v('gpVenueName').trim(), address: v('gpVenueAddr').trim(), map_url: v('gpVenueMap').trim(),
+                        arrival_en: v('gpArrEn').trim(), arrival_hr: v('gpArrHr').trim()
+                    },
+                    materials: this.collectMaterials().filter(m => m.url),
+                    host: { name: v('gpHostName').trim(), email: v('gpHostEmail').trim(), phone: v('gpHostPhone').trim() }
+                };
+            },
+
+            async save() {
+                const b = this.collect();
+                if (!b.guest_name) { alert('The guest needs a name.'); return; }
+                if (!b.event_key) { alert('Pick the event this pass belongs to.'); return; }
+                if (!b.modules.length) { alert('Grant at least one module.'); return; }
+                try {
+                    const r = this.current
+                        ? await App.api('/api/admin/guest-passes/' + this.current.id, { method: 'PUT', body: JSON.stringify(b) })
+                        : await App.api('/api/admin/guest-passes', { method: 'POST', body: JSON.stringify(b) });
+                    this.current = r.pass;
+                    this.showEditor();
+                } catch(e) { alert('Could not save: ' + e.message); }
+            },
+
+            copyUrl(btn) {
+                const el = document.getElementById('gpShareUrl');
+                el.select();
+                const done = () => { if (btn) { btn.innerHTML = '<i class="fas fa-check"></i> Copied'; setTimeout(() => { btn.innerHTML = '<i class="far fa-copy"></i> Copy'; }, 1600); } };
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(el.value).then(done, done);
+                else { try { document.execCommand('copy'); } catch(e) {} done(); }
+            },
+
+            async sendPass() {
+                if (!this.current) return;
+                let to = this.current.guest_email;
+                if (!to) { to = prompt('Send the pass to which email address?'); if (!to) return; }
+                if (!confirm(`Stage the pass email to ${to}? It goes to the Outbox for approval before sending.`)) return;
+                try {
+                    const r = await App.api(`/api/admin/guest-passes/${this.current.id}/send`, { method: 'POST', body: JSON.stringify({ to }) });
+                    this.current.send_state = 'pending_approval';
+                    this.renderShareStrip();
+                    alert(`Staged to the Outbox for ${r.recipient}. Approve it there to send.`);
+                } catch(e) { alert('Could not stage: ' + e.message); }
+            },
+
+            async setRevoked(revoked) {
+                if (!this.current) return;
+                if (revoked && !confirm('Revoke this pass? The link stops working immediately.')) return;
+                try {
+                    await App.api(`/api/admin/guest-passes/${this.current.id}/${revoked ? 'revoke' : 'unrevoke'}`, { method: 'POST' });
+                    this.current.revoked = revoked ? 1 : 0;
+                    document.getElementById('gpEditorBadge').innerHTML = this.statusBadge(this.current);
+                    this.renderShareStrip();
+                } catch(e) { alert('Could not update: ' + e.message); }
+            }
+        };
+
         const PostEventEngine = {
             ek: 'plexus',
             _editBridge: null,
@@ -50756,6 +51088,7 @@ By applying to this program, I give the following consents:
                 { title: 'Discover', sub: 'What this portal replaces — a 2-minute tour', icon: 'fa-compass', color: 'var(--gold)', group: 'Sections', action: () => App.showSection('discover', document.querySelector('.nav-item[data-section=discover]')) },
                 { title: 'Finances', sub: 'Budget, transactions, invoices', icon: 'fa-coins', color: 'var(--finances)', group: 'Sections', action: () => App.showSection('finances') },
                 { title: 'Sign-up Forms', sub: 'Public sign-up pages for short events', icon: 'fa-clipboard-check', color: '#059669', group: 'Sections', action: () => App.showSection('signup-forms', document.querySelector('.nav-item[data-section=signup-forms]')) },
+                { title: 'Guest Passes', sub: 'Personal VIP access links for one event', icon: 'fa-id-badge', color: '#a78bfa', group: 'Sections', action: () => App.showSection('guest-passes', document.querySelector('.nav-item[data-section=guest-passes]')) },
                 { title: 'PR & Media', sub: 'Social, newsletters, campaigns', icon: 'fa-bullhorn', color: 'var(--pr-media)', group: 'Sections', action: () => App.showSection('pr-media') },
                 { title: 'Message members', sub: 'Announcements + direct notifications', icon: 'fa-bullhorn', color: '#9b1b22', group: 'Sections', action: () => App.memberExpGo('announce') },
                 { title: 'Direct notification', sub: 'Precise send — group, tier, banner, push', icon: 'fa-paper-plane', color: '#b06a1f', group: 'Sections', action: () => App.showSection('user-notifications') },

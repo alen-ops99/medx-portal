@@ -5870,6 +5870,33 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_speaker_itineraries_token ON speaker_itineraries(token)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_speaker_itinerary_items_itin ON speaker_itinerary_items(itinerary_id)`);
 
+    // VIP GUEST PASSES — per-person capability links (/pass/:token on the user portal) showing
+    // ONLY the granted modules of ONE event. SHARED-BY-CONVENTION: declared identically in BOTH
+    // portal server.js files, OUTSIDE the SCHEMA-MIRROR block (same pattern as speaker_itineraries:
+    // the admin portal composes, the user portal serves the page).
+    db.run(`CREATE TABLE IF NOT EXISTS vip_passes (
+        id TEXT PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        guest_name TEXT NOT NULL,
+        guest_title TEXT,
+        guest_email TEXT,
+        event_key TEXT NOT NULL,
+        modules_json TEXT DEFAULT '[]',
+        venue_json TEXT,
+        materials_json TEXT,
+        host_json TEXT,
+        note_en TEXT,
+        note_hr TEXT,
+        lang_default TEXT DEFAULT 'en',
+        revoked INTEGER DEFAULT 0,
+        expires_at TEXT,
+        page_views INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_vip_passes_token ON vip_passes(token)`);
+
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
     //   'everyone' | 'interested' | 'registered' | 'interested_not_registered'.
@@ -20845,6 +20872,183 @@ By applying to this program, I provide the following consents:
         saveDb();
         res.json({ success: true, staged: true, outbox_batch: batchId, recipient: to });
     }));
+
+    // ===================== VIP GUEST PASSES — admin CRUD + outbox send =====================
+    // Sibling of the speaker itineraries above: per-guest capability links (/pass/:token on the
+    // user portal) showing ONLY the granted modules of ONE event. Reuses spkToken/spkPublicBase/
+    // spkParse; page rendering lives in the user portal.
+
+    const GP_MODULES = ['program', 'venue', 'materials', 'host'];
+
+    function gpEventName(key) {
+        try {
+            if (key === 'gala') { const g = query.get("SELECT title FROM gala_settings WHERE id = 'default'"); return (g && g.title) || 'Gala Evening'; }
+            const be = query.get('SELECT name FROM bridges_events WHERE id = ? OR slug = ?', [key, key]);
+            if (be) return be.name;
+            const c = query.get('SELECT name FROM conferences WHERE slug = ? OR id = ?', [key, key]);
+            if (c) return c.name || key;
+        } catch (e) {}
+        return key;
+    }
+
+    function gpSendState(id) {
+        try {
+            const r = query.get("SELECT status FROM scheduled_emails WHERE source_engine = 'guest-pass' AND batch_id LIKE ? ORDER BY created_at DESC LIMIT 1", ['guest-pass-' + id + '-%']);
+            return r ? r.status : '';
+        } catch (e) { return ''; }
+    }
+
+    function gpSerialize(r) {
+        return {
+            id: r.id, token: r.token,
+            guest_name: r.guest_name, guest_title: r.guest_title || '', guest_email: r.guest_email || '',
+            event_key: r.event_key, event_name: gpEventName(r.event_key),
+            modules: spkParse(r.modules_json, []),
+            venue: spkParse(r.venue_json, {}) || {},
+            materials: spkParse(r.materials_json, []) || [],
+            host: spkParse(r.host_json, {}) || {},
+            note_en: r.note_en || '', note_hr: r.note_hr || '',
+            lang_default: (r.lang_default === 'hr' ? 'hr' : 'en'),
+            revoked: r.revoked ? 1 : 0,
+            expires_at: r.expires_at || '',
+            page_views: r.page_views || 0,
+            send_state: gpSendState(r.id),
+            public_url: spkPublicBase() + '/pass/' + encodeURIComponent(r.token),
+            created_at: r.created_at, updated_at: r.updated_at
+        };
+    }
+
+    function gpValidModules(arr) {
+        return Array.isArray(arr) ? arr.filter(m => GP_MODULES.includes(m)) : [];
+    }
+
+    // Bilingual EN+HR invitation email (formal Vi register), staged to the outbox — never sent here.
+    function gpEmail(r) {
+        const eventName = gpEventName(r.event_key);
+        const link = spkPublicBase() + '/pass/' + encodeURIComponent(r.token);
+        const salut = r.guest_title ? seatEsc(r.guest_title) + ' ' : '';
+        const greetName = seatEsc(r.guest_name || '');
+        const evt = seatEsc(eventName);
+        const body = `
+            <p style="margin:0 0 10px;">Dear ${salut}${greetName},</p>
+            <p style="margin:0 0 6px;">It is our pleasure to share your personal page for <strong>${evt}</strong> — everything we have prepared for you, in one place.</p>
+            <div style="margin:22px 0;"><a href="${link}" style="background:#9b1b22;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:700;display:inline-block;">Open your personal page</a></div>
+            <p style="margin:0 0 4px;color:#334155;">Tip: you can add this page to your phone's Home Screen and open it like an app — tap Share, then “Add to Home Screen”.</p>
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:26px 0;">
+            <p style="margin:0 0 10px;">Poštovani/poštovana ${salut}${greetName},</p>
+            <p style="margin:0 0 6px;">Zadovoljstvo nam je podijeliti Vašu osobnu stranicu za <strong>${evt}</strong> — sve što smo za Vas pripremili, na jednome mjestu.</p>
+            <div style="margin:22px 0;"><a href="${link}" style="background:#9b1b22;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:700;display:inline-block;">Otvorite svoju stranicu</a></div>
+            <p style="margin:0 0 4px;color:#334155;">Savjet: ovu stranicu možete dodati na početni zaslon telefona i otvarati je poput aplikacije — dodirnite Podijeli, zatim „Dodaj na početni zaslon“.</p>
+            <p style="margin:24px 0 0;color:#64748b;font-size:13px;word-break:break-all;">${seatEsc(link)}</p>
+        `;
+        return { subject: `Your personal access — ${eventName} / Vaš osobni pristup`, html: buildEmailTemplate('Your Med&X page', body) };
+    }
+
+    // Event options for the composer dropdown (the ONE event a pass is scoped to).
+    app.get('/api/admin/guest-pass-events', auth, adminOnly, asyncHandler(async (req, res) => {
+        const out = [];
+        try { const g = query.get("SELECT title, date FROM gala_settings WHERE id = 'default'"); out.push({ key: 'gala', name: (g && g.title) || 'Gala Evening', date: (g && g.date) || '' }); } catch (e) {}
+        try { query.all('SELECT id, name, event_date FROM bridges_events ORDER BY event_date').forEach(b => out.push({ key: b.id, name: b.name, date: b.event_date || '' })); } catch (e) {}
+        try { query.all('SELECT id, slug, name, start_date FROM conferences ORDER BY start_date DESC').forEach(c => out.push({ key: c.slug || c.id, name: c.name, date: c.start_date || '' })); } catch (e) {}
+        res.json({ events: out });
+    }));
+
+    app.get('/api/admin/guest-passes', auth, adminOnly, asyncHandler(async (req, res) => {
+        const rows = query.all('SELECT * FROM vip_passes ORDER BY COALESCE(updated_at, created_at) DESC, created_at DESC');
+        res.json({ passes: rows.map(gpSerialize) });
+    }));
+
+    app.get('/api/admin/guest-passes/:id', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM vip_passes WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Guest pass not found' });
+        res.json({ pass: gpSerialize(r) });
+    }));
+
+    app.post('/api/admin/guest-passes', auth, adminOnly, asyncHandler(async (req, res) => {
+        const b = req.body || {};
+        const name = String(b.guest_name || '').trim();
+        const eventKey = String(b.event_key || '').trim();
+        if (!name) return res.status(400).json({ error: 'Guest name is required.' });
+        if (!eventKey) return res.status(400).json({ error: 'An event is required.' });
+        const id = uuidv4();
+        const token = spkToken();
+        const nowIso = new Date().toISOString();
+        db.run(`INSERT INTO vip_passes (id, token, guest_name, guest_title, guest_email, event_key, modules_json,
+                venue_json, materials_json, host_json, note_en, note_hr, lang_default, expires_at, created_by, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, token, name, String(b.guest_title || '').trim() || null, String(b.guest_email || '').trim() || null,
+             eventKey, JSON.stringify(gpValidModules(b.modules).length ? gpValidModules(b.modules) : ['program']),
+             b.venue ? JSON.stringify(b.venue) : null, b.materials ? JSON.stringify(b.materials) : null,
+             b.host ? JSON.stringify(b.host) : null, String(b.note_en || '').trim() || null, String(b.note_hr || '').trim() || null,
+             b.lang_default === 'hr' ? 'hr' : 'en', String(b.expires_at || '').trim() || null,
+             req.user?.email || 'admin', nowIso, nowIso]);
+        saveDb();
+        logAudit(req, 'guest_pass_create', `${name} — ${gpEventName(eventKey)}`);
+        const r = query.get('SELECT * FROM vip_passes WHERE id = ?', [id]);
+        res.json({ success: true, pass: gpSerialize(r) });
+    }));
+
+    app.put('/api/admin/guest-passes/:id', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM vip_passes WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Guest pass not found' });
+        const b = req.body || {};
+        const patch = {};
+        if (b.guest_name !== undefined) { const v = String(b.guest_name).trim(); if (!v) return res.status(400).json({ error: 'Guest name is required.' }); patch.guest_name = v; }
+        if (b.guest_title !== undefined) patch.guest_title = String(b.guest_title).trim() || null;
+        if (b.guest_email !== undefined) patch.guest_email = String(b.guest_email).trim() || null;
+        if (b.event_key !== undefined) { const v = String(b.event_key).trim(); if (!v) return res.status(400).json({ error: 'An event is required.' }); patch.event_key = v; }
+        if (b.modules !== undefined) patch.modules_json = JSON.stringify(gpValidModules(b.modules));
+        if (b.venue !== undefined) patch.venue_json = b.venue ? JSON.stringify(b.venue) : null;
+        if (b.materials !== undefined) patch.materials_json = b.materials ? JSON.stringify(b.materials) : null;
+        if (b.host !== undefined) patch.host_json = b.host ? JSON.stringify(b.host) : null;
+        if (b.note_en !== undefined) patch.note_en = String(b.note_en).trim() || null;
+        if (b.note_hr !== undefined) patch.note_hr = String(b.note_hr).trim() || null;
+        if (b.lang_default !== undefined) patch.lang_default = b.lang_default === 'hr' ? 'hr' : 'en';
+        if (b.expires_at !== undefined) patch.expires_at = String(b.expires_at).trim() || null;
+        if (!Object.keys(patch).length) return res.json({ success: true, pass: gpSerialize(r) });
+        patch.updated_at = new Date().toISOString();
+        const sets = Object.keys(patch).map(k => `${k} = ?`).join(', ');
+        db.run(`UPDATE vip_passes SET ${sets} WHERE id = ?`, [...Object.values(patch), r.id]);
+        saveDb();
+        const fresh = query.get('SELECT * FROM vip_passes WHERE id = ?', [r.id]);
+        res.json({ success: true, pass: gpSerialize(fresh) });
+    }));
+
+    app.post('/api/admin/guest-passes/:id/revoke', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM vip_passes WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Guest pass not found' });
+        db.run('UPDATE vip_passes SET revoked = 1, updated_at = ? WHERE id = ?', [new Date().toISOString(), r.id]);
+        saveDb();
+        logAudit(req, 'guest_pass_revoke', r.guest_name);
+        res.json({ success: true });
+    }));
+
+    app.post('/api/admin/guest-passes/:id/unrevoke', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM vip_passes WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Guest pass not found' });
+        db.run('UPDATE vip_passes SET revoked = 0, updated_at = ? WHERE id = ?', [new Date().toISOString(), r.id]);
+        saveDb();
+        logAudit(req, 'guest_pass_unrevoke', r.guest_name);
+        res.json({ success: true });
+    }));
+
+    app.post('/api/admin/guest-passes/:id/send', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM vip_passes WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Guest pass not found' });
+        if (r.revoked) return res.status(400).json({ error: 'This pass is revoked. Restore it before sending.' });
+        const to = String((req.body && req.body.to) || r.guest_email || '').trim();
+        if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return res.status(400).json({ error: 'A valid recipient email is required.' });
+        const mail = gpEmail(r);
+        const batchId = 'guest-pass-' + r.id + '-' + Date.now();
+        const payload = JSON.stringify({ to, subject: mail.subject, html: mail.html });
+        db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                VALUES (?, 'pending_approval', ?, 'guest-pass', 'guest_pass', ?, ?, ?, ?, datetime('now'))`,
+            [uuidv4(), batchId, payload, to, mail.subject, req.user?.email || 'admin']);
+        logAudit(req, 'guest_pass_send', `${r.guest_name} → ${to} staged to outbox (pending approval)`);
+        saveDb();
+        res.json({ success: true, staged: true, outbox_batch: batchId, recipient: to });
+    }));
+    // ===================== END VIP GUEST PASSES =====================
 
     // ===================== TRANSPARENCY ENGINE (R3-5) =====================
     // Board pack / godišnje izvješće generated from REAL portal numbers — members, events,

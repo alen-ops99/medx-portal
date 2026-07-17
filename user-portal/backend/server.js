@@ -4626,6 +4626,255 @@ app.get('/api/public/speaker-itinerary/:token', speakerLimiter, async (req, res)
 });
 // ========================== END SPEAKER ITINERARIES ==========================
 
+// ========================== VIP GUEST PASSES ==========================
+// Per-person capability link: /pass/:token opens a zero-login micro-page showing ONLY the
+// granted modules (program / venue / materials / host) of ONE event, for one named guest.
+// Composed in the admin portal (GuestPassApp); this serves the page. Sibling of the speaker
+// itinerary pages above, in the navy/gold invitation design language. EN/HR via ?lang= toggle.
+
+const GP_I18N = {
+    en: {
+        eyebrow: 'Personal access',
+        welcome: 'Welcome',
+        program: 'Programme',
+        venue: 'Venue & arrival',
+        materials: 'Materials',
+        host: 'Your host',
+        openMap: 'Open map',
+        day: 'Day',
+        questions: 'Questions?',
+        preparedFor: 'This page was prepared personally for you. Please treat the link as private.'
+    },
+    hr: {
+        eyebrow: 'Osobni pristup',
+        welcome: 'Dobro došli',
+        program: 'Program',
+        venue: 'Mjesto i dolazak',
+        materials: 'Materijali',
+        host: 'Vaš domaćin',
+        openMap: 'Otvorite kartu',
+        day: 'Dan',
+        questions: 'Pitanja?',
+        preparedFor: 'Ova je stranica pripremljena osobno za Vas. Molimo poveznicu smatrajte privatnom.'
+    }
+};
+
+function guestPassByToken(token) {
+    try { return query.get('SELECT * FROM vip_passes WHERE token = ?', [String(token || '')]); }
+    catch (e) { return null; }
+}
+
+function guestPassExpired(pass) {
+    if (!pass.expires_at) return false;
+    try { return new Date(pass.expires_at) < new Date(); } catch (e) { return false; }
+}
+
+// Resolve the ONE event a pass is scoped to. Never reads outside event_key.
+function guestPassEventInfo(eventKey) {
+    const key = String(eventKey || '').trim();
+    if (key === 'gala') {
+        const g = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
+        let schedule = [];
+        try { schedule = JSON.parse(g.schedule_json || '[]'); } catch (e) {}
+        return { type: 'gala', name: g.title || 'Gala Evening', date: g.date || '', time: g.time || '', end_time: '', venue: g.venue || '', address: '', description: g.description || '', schedule };
+    }
+    const be = query.get('SELECT * FROM bridges_events WHERE id = ? OR slug = ?', [key, key]);
+    if (be) {
+        return { type: 'bridges', name: be.name, date: be.event_date || '', time: be.event_time || '', end_time: be.end_time || '', venue: be.venue_name || '', address: be.venue_address || '', description: be.description || '', schedule: [] };
+    }
+    const conf = query.get('SELECT * FROM conferences WHERE slug = ? OR id = ?', [key, key]);
+    if (conf) {
+        const sessions = query.all('SELECT * FROM sessions WHERE conference_id = ? AND is_published = 1 ORDER BY day, start_time', [conf.id]);
+        return { type: 'conference', name: conf.name || 'Plexus Conference', date: conf.start_date || '', time: '', end_time: '', venue: conf.venue_name || '', address: conf.venue_address || '', description: conf.description || '', sessions };
+    }
+    return { type: 'other', name: key, date: '', time: '', end_time: '', venue: '', address: '', description: '', schedule: [] };
+}
+
+function gpDateLabel(dateStr, lang) {
+    if (!dateStr) return '';
+    try {
+        return new Date(dateStr + 'T12:00:00').toLocaleDateString(lang === 'hr' ? 'hr-HR' : 'en-GB',
+            { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    } catch (e) { return dateStr; }
+}
+
+function renderGuestPassPage(pass, lang) {
+    const T = GP_I18N[lang];
+    let modules = [];
+    try { modules = JSON.parse(pass.modules_json || '[]'); } catch (e) {}
+    let venueInfo = {}, materials = [], host = {};
+    try { venueInfo = JSON.parse(pass.venue_json || '{}') || {}; } catch (e) {}
+    try { materials = JSON.parse(pass.materials_json || '[]') || []; } catch (e) {}
+    try { host = JSON.parse(pass.host_json || '{}') || {}; } catch (e) {}
+    const ev = guestPassEventInfo(pass.event_key);
+    const note = lang === 'hr' ? (pass.note_hr || pass.note_en) : (pass.note_en || pass.note_hr);
+    const guestLine = `${pass.guest_title ? escapeHtml(pass.guest_title) + ' ' : ''}${escapeHtml(pass.guest_name)}`;
+
+    const facts = [];
+    if (ev.date) facts.push(escapeHtml(gpDateLabel(ev.date, lang)));
+    if (ev.time) facts.push(escapeHtml(ev.time + (ev.end_time ? ` – ${ev.end_time}` : '')));
+    if (ev.venue) facts.push(escapeHtml(ev.venue));
+    const factLine = facts.map(f => `<span>${f}</span>`).join('<span class="dot">&middot;</span>');
+
+    const card = (title, inner) => `
+        <div class="card">
+            <div class="section-label">${title}</div>
+            ${inner}
+        </div>`;
+
+    const moduleHtml = [];
+    for (const m of modules) {
+        if (m === 'program') {
+            let inner = '';
+            if (ev.description) inner += `<p class="gp-desc">${escapeHtml(ev.description)}</p>`;
+            if (ev.type === 'gala' && ev.schedule && ev.schedule.length) {
+                inner += `<div class="gp-timeline">` + ev.schedule.map(s => `
+                    <div class="gp-row"><div class="gp-time">${escapeHtml(s.time || '')}</div>
+                    <div><div class="gp-item-title">${escapeHtml(s.title || '')}</div>
+                    ${s.description ? `<div class="gp-item-sub">${escapeHtml(s.description)}</div>` : ''}</div></div>`).join('') + `</div>`;
+            } else if (ev.type === 'conference' && ev.sessions && ev.sessions.length) {
+                const byDay = {};
+                ev.sessions.forEach(s => { (byDay[s.day || 1] = byDay[s.day || 1] || []).push(s); });
+                inner += Object.keys(byDay).sort().map(d => `
+                    <div class="gp-dayhead">${T.day} ${escapeHtml(String(d))}</div>
+                    <div class="gp-timeline">` + byDay[d].map(s => `
+                        <div class="gp-row"><div class="gp-time">${escapeHtml(s.start_time || '')}${s.end_time ? `<span class="gp-until">–${escapeHtml(s.end_time)}</span>` : ''}</div>
+                        <div><div class="gp-item-title">${escapeHtml(s.title || '')}</div>
+                        ${s.room ? `<div class="gp-item-sub">${escapeHtml(s.room)}</div>` : ''}</div></div>`).join('') + `</div>`).join('');
+            }
+            if (!inner) inner = `<p class="gp-desc">${lang === 'hr' ? 'Program slijedi uskoro.' : 'The programme follows shortly.'}</p>`;
+            moduleHtml.push(card(T.program, inner));
+        } else if (m === 'venue') {
+            const vName = venueInfo.venue_name || ev.venue;
+            const vAddr = venueInfo.address || ev.address;
+            const arrival = lang === 'hr' ? (venueInfo.arrival_hr || venueInfo.arrival_en) : (venueInfo.arrival_en || venueInfo.arrival_hr);
+            let inner = '';
+            if (vName) inner += `<div class="gp-item-title" style="margin-bottom:4px;">${escapeHtml(vName)}</div>`;
+            if (vAddr) inner += `<div class="gp-item-sub" style="margin-bottom:10px;">${escapeHtml(vAddr)}</div>`;
+            if (arrival) inner += `<p class="gp-desc">${escapeHtml(arrival)}</p>`;
+            if (venueInfo.map_url) inner += `<a class="gp-btn" href="${escapeHtml(venueInfo.map_url)}" target="_blank" rel="noopener">${T.openMap}</a>`;
+            moduleHtml.push(card(T.venue, inner || `<p class="gp-desc">${lang === 'hr' ? 'Pojedinosti slijede.' : 'Details to follow.'}</p>`));
+        } else if (m === 'materials') {
+            const rows = (materials || []).filter(x => x && x.url).map(x =>
+                `<a class="gp-material" href="${escapeHtml(x.url)}" target="_blank" rel="noopener"><span>${escapeHtml(x.label || x.url)}</span><span class="gp-arrow">&rarr;</span></a>`).join('');
+            if (rows) moduleHtml.push(card(T.materials, rows));
+        } else if (m === 'host') {
+            let inner = '';
+            if (host.name) inner += `<div class="gp-item-title" style="margin-bottom:8px;">${escapeHtml(host.name)}</div>`;
+            if (host.email) inner += `<a class="gp-btn" href="mailto:${escapeHtml(host.email)}">${escapeHtml(host.email)}</a> `;
+            if (host.phone) inner += `<a class="gp-btn" href="tel:${escapeHtml(String(host.phone).replace(/[^+\d]/g, ''))}">${escapeHtml(host.phone)}</a>`;
+            if (inner) moduleHtml.push(card(T.host, inner));
+        }
+    }
+
+    return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>${escapeHtml(ev.name)} — Med&amp;X</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="/pass/${encodeURIComponent(pass.token)}/manifest.json">
+<meta name="theme-color" content="#0f172a">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif; color:#e2e8f0; padding:44px 18px 40px; }
+    .container { max-width:680px; margin:0 auto; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:26px; }
+    .logo img { height:32px; width:auto; filter:brightness(0) invert(1); opacity:0.92; }
+    .lang a { color:#94a3b8; text-decoration:none; font-size:12px; font-weight:600; letter-spacing:1px; padding:6px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:999px; }
+    .lang a.on { color:#0f172a; background:#c9a962; border-color:#c9a962; }
+    .hero { position:relative; text-align:center; padding:46px 28px 40px; margin-bottom:24px; }
+    .hero::before, .hero::after { content:''; position:absolute; width:42px; height:42px; }
+    .hero::before { top:0; left:0; border-top:1px solid rgba(201,169,98,0.6); border-left:1px solid rgba(201,169,98,0.6); }
+    .hero::after { bottom:0; right:0; border-bottom:1px solid rgba(201,169,98,0.6); border-right:1px solid rgba(201,169,98,0.6); }
+    .eyebrow { font-size:11px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:#c9a962; margin-bottom:18px; }
+    h1 { font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; font-size:clamp(30px,5.5vw,44px); line-height:1.14; color:#fff; margin-bottom:8px; }
+    .gp-guest { font-family:'Cormorant Garamond',Georgia,serif; font-style:italic; font-size:19px; color:#c9a962; margin-bottom:16px; }
+    .gp-note { max-width:520px; margin:0 auto 18px; font-size:14.5px; line-height:1.7; color:#94a3b8; }
+    .facts { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 12px; font-size:13.5px; font-weight:500; color:#e2e8f0; }
+    .facts .dot { color:#c9a962; }
+    .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.22); border-radius:18px; padding:26px 26px; margin-bottom:16px; }
+    .section-label { font-size:11px; font-weight:600; letter-spacing:2.5px; text-transform:uppercase; color:#c9a962; margin-bottom:16px; }
+    .gp-desc { font-size:14px; line-height:1.75; color:#cbd5e1; margin-bottom:12px; white-space:pre-line; }
+    .gp-dayhead { font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#94a3b8; margin:16px 0 10px; }
+    .gp-timeline { display:grid; gap:12px; }
+    .gp-row { display:flex; gap:14px; align-items:flex-start; }
+    .gp-time { flex-shrink:0; min-width:52px; font-size:13px; font-weight:600; color:#c9a962; padding-top:1px; }
+    .gp-until { color:#64748b; font-weight:400; font-size:11px; margin-left:2px; }
+    .gp-item-title { font-size:14.5px; font-weight:600; color:#fff; line-height:1.4; }
+    .gp-item-sub { font-size:12.5px; color:#94a3b8; margin-top:2px; line-height:1.5; }
+    .gp-btn { display:inline-flex; align-items:center; gap:8px; padding:10px 18px; border:1px solid rgba(201,169,98,0.5); border-radius:999px; color:#e8e2d4; font-size:13px; font-weight:600; text-decoration:none; margin:4px 8px 4px 0; }
+    .gp-btn:hover { background:rgba(201,169,98,0.12); }
+    .gp-material { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 16px; border:1px solid rgba(255,255,255,0.1); border-radius:12px; background:rgba(255,255,255,0.04); color:#e2e8f0; text-decoration:none; font-size:14px; font-weight:500; margin-bottom:8px; }
+    .gp-material:hover { border-color:rgba(201,169,98,0.45); }
+    .gp-arrow { color:#c9a962; }
+    .foot { text-align:center; font-size:12px; color:#64748b; margin-top:28px; line-height:1.8; }
+    .foot a { color:#c9a962; text-decoration:none; }
+    @media (max-width:560px) { body { padding:26px 12px; } .hero { padding:38px 14px 34px; } .card { padding:20px 16px; } }
+</style></head><body><div class="container">
+    <div class="topbar">
+        <div class="logo"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X" /></div>
+        <div class="lang">
+            <a href="/pass/${encodeURIComponent(pass.token)}?lang=en" class="${lang === 'en' ? 'on' : ''}">EN</a>
+            <a href="/pass/${encodeURIComponent(pass.token)}?lang=hr" class="${lang === 'hr' ? 'on' : ''}">HR</a>
+        </div>
+    </div>
+    <div class="hero">
+        <div class="eyebrow">${escapeHtml(ev.name)} &middot; ${T.eyebrow}</div>
+        <h1>${T.welcome},</h1>
+        <div class="gp-guest">${guestLine}</div>
+        ${note ? `<p class="gp-note">${escapeHtml(note)}</p>` : ''}
+        ${factLine ? `<div class="facts">${factLine}</div>` : ''}
+    </div>
+    ${moduleHtml.join('')}
+    <div class="foot">${T.preparedFor}<br>${T.questions} <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a></div>
+</div></body></html>`;
+}
+
+app.get('/pass/:token/manifest.json', speakerLimiter, async (req, res) => {
+    const pass = guestPassByToken(req.params.token);
+    if (!pass || pass.revoked) return res.status(404).json({ error: 'not_found' });
+    const first = String(pass.guest_name || '').trim().split(/\s+/)[0] || 'Med&X';
+    res.set('Cache-Control', 'private, max-age=300');
+    res.type('application/manifest+json').send(JSON.stringify({
+        name: `Med&X — ${pass.guest_name}`,
+        short_name: first,
+        start_url: `/pass/${encodeURIComponent(req.params.token)}`,
+        scope: `/pass/${encodeURIComponent(req.params.token)}`,
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#0f172a',
+        theme_color: '#0f172a',
+        lang: pass.lang_default || 'en',
+        icons: [
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ]
+    }));
+});
+
+app.get('/pass/:token', speakerLimiter, async (req, res) => {
+    try {
+        let pass = guestPassByToken(req.params.token);
+        if (!pass) {
+            try { await freshSync(); } catch (e) {}
+            pass = guestPassByToken(req.params.token);
+        }
+        if (!pass || pass.revoked || guestPassExpired(pass)) {
+            return res.status(404).send(linkNoticePage(
+                'This page is not available',
+                'This personal link is not active. If you believe this is an error, please contact the Med&X team.'
+            ));
+        }
+        const lang = req.query.lang === 'hr' ? 'hr' : req.query.lang === 'en' ? 'en' : (pass.lang_default === 'hr' ? 'hr' : 'en');
+        try { query.run('UPDATE vip_passes SET page_views = COALESCE(page_views, 0) + 1 WHERE id = ?', [pass.id]); } catch (e) {}
+        res.set('Cache-Control', 'private, max-age=120');
+        res.send(renderGuestPassPage(pass, lang));
+    } catch (err) {
+        console.error('[/pass/:token] error:', err && err.message);
+        res.status(500).send('Something went wrong. Please try again.');
+    }
+});
+// ========================== END VIP GUEST PASSES ==========================
+
 app.use(express.static(path.join(__dirname, '../frontend')));
 // User-uploaded files: force download + nosniff so a stored .svg/.html/.xml can't execute
 // inline as same-origin script (multer trusts the client MIME, so the content is untrusted).
@@ -9288,6 +9537,33 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE speaker_itineraries ADD COLUMN revoked INTEGER DEFAULT 0`); } catch (e) {}
     db.run(`CREATE INDEX IF NOT EXISTS idx_speaker_itineraries_token ON speaker_itineraries(token)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_speaker_itinerary_items_itin ON speaker_itinerary_items(itinerary_id)`);
+
+    // VIP GUEST PASSES — per-person capability links (/pass/:token on the user portal) showing
+    // ONLY the granted modules of ONE event. SHARED-BY-CONVENTION: declared identically in BOTH
+    // portal server.js files, OUTSIDE the SCHEMA-MIRROR block (same pattern as speaker_itineraries:
+    // the admin portal composes, the user portal serves the page).
+    db.run(`CREATE TABLE IF NOT EXISTS vip_passes (
+        id TEXT PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        guest_name TEXT NOT NULL,
+        guest_title TEXT,
+        guest_email TEXT,
+        event_key TEXT NOT NULL,
+        modules_json TEXT DEFAULT '[]',
+        venue_json TEXT,
+        materials_json TEXT,
+        host_json TEXT,
+        note_en TEXT,
+        note_hr TEXT,
+        lang_default TEXT DEFAULT 'en',
+        revoked INTEGER DEFAULT 0,
+        expires_at TEXT,
+        page_views INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_vip_passes_token ON vip_passes(token)`);
 
     // Audience scope for member announcements (additive, guarded — deliberately OUTSIDE the mirror
     // block so it never disturbs the byte-identical CREATE TABLE region). Values:
