@@ -26071,6 +26071,7 @@ President, Med&amp;X</textarea>
                                     <option value="bridges-zurich">Building Bridges: Zurich</option>
                                     <option value="bridges-dc">Building Bridges: Washington DC</option>
                                     <option value="bridges-boston">Building Bridges: Boston</option>
+                                    <option value="signup-form">Sign-up form events</option>
                                 </optgroup>
                             </select>
                         </div>
@@ -26341,12 +26342,12 @@ President, Med&amp;X</textarea>
                 // verifier (croatians_abroad). The city bridges -> their own bridges_registrations
                 // endpoint, so a Plexus QR scanned under a city correctly returns "not found" instead
                 // of a false "pre-registered".
-                const ctxMap = { plexus: 'conference', conference: 'conference', gala: 'gala', forum: 'forum', 'bridges-croatian': 'bridges' };
+                const ctxMap = { plexus: 'conference', conference: 'conference', gala: 'gala', forum: 'forum', 'bridges-croatian': 'bridges', 'signup-form': 'signup-form' };
                 const isRegionalBridges = (ctx === 'bridges-zurich' || ctx === 'bridges-dc' || ctx === 'bridges-boston');
                 let evt = ctxMap[ctx] || (isRegionalBridges ? 'regional-bridges' : null);
                 if (!evt) {
                     const e = parsed.evt;
-                    evt = (e === 'plexus' || e === 'conference') ? 'conference' : e === 'gala' ? 'gala' : e === 'forum' ? 'forum' : e === 'bridges' ? 'bridges' : e === 'croatians-abroad' ? 'gala' : 'conference';
+                    evt = (e === 'plexus' || e === 'conference') ? 'conference' : e === 'gala' ? 'gala' : e === 'forum' ? 'forum' : e === 'bridges' ? 'bridges' : e === 'croatians-abroad' ? 'gala' : e === 'signup-form' ? 'signup-form' : 'conference';
                 }
                 const code = parsed.regId || parsed.caRegId || parsed.id;
                 try {

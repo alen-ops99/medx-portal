@@ -4036,9 +4036,15 @@ async function initializeApp() {
         is_waitlisted INTEGER DEFAULT 0,
         gdpr_consent INTEGER DEFAULT 0,
         email_sent INTEGER DEFAULT 0,
+        checked_in INTEGER DEFAULT 0,
+        checked_in_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(form_id, email)
     )`);
+    // Door check-in for signup-form events (scanner support). Idempotent for databases
+    // created before these columns existed.
+    try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in_at TEXT'); } catch(e) {}
 
     // ===== Member Home feed, opportunity board, talk library (menu items 9 & 23) =====
     // Shared across both portals: the member portal reads these, the admin portal curates them.
@@ -29892,13 +29898,51 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // ========== UNIVERSAL EVENT CHECK-IN VERIFY (mirror of user-portal endpoint) ==========
     app.post('/api/admin/checkin/verify', auth, staffOrAdmin, (req, res) => {
         const { event, code, mark } = req.body || {};
-        if (!event || !['gala', 'conference', 'bridges', 'donor'].includes(event)) {
-            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', 'bridges', or 'donor'" });
+        if (!event || !['gala', 'conference', 'bridges', 'donor', 'signup-form'].includes(event)) {
+            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', 'bridges', 'donor', or 'signup-form'" });
         }
         if (!code) return res.status(400).json({ valid: false, error: 'code required' });
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
         const codeClean = String(code).trim();
         const now = new Date().toISOString();
+
+        // ===== SIGN-UP FORM EVENTS (QR ticket from the signup confirmation email) =====
+        if (event === 'signup-form') {
+            let reg = null;
+            if (isUuid) reg = query.get('SELECT * FROM signup_form_responses WHERE id = ?', [codeClean]);
+            if (!reg && codeClean.includes('@')) {
+                reg = query.get('SELECT * FROM signup_form_responses WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+            }
+            if (!reg) {
+                // Manual failsafe: the short code under the QR is the response UUID's prefix (dashes stripped)
+                const norm = codeClean.toLowerCase().replace(/[^0-9a-f]/g, '');
+                if (norm.length >= 4 && norm.length <= 12) {
+                    reg = query.get("SELECT * FROM signup_form_responses WHERE replace(lower(id), '-', '') LIKE ? ORDER BY created_at DESC LIMIT 1", [norm + '%']);
+                }
+            }
+            if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No sign-up found for this code.' });
+            const sfForm = query.get('SELECT title, event_date, venue FROM signup_forms WHERE id = ?', [reg.form_id]);
+            const evName = sfForm ? sfForm.title : 'Sign-up form event';
+            if (reg.is_waitlisted) {
+                return res.json({
+                    valid: false, event, code, reason: 'waitlisted',
+                    message: 'On the waiting list. Do NOT admit unless a place was confirmed.',
+                    registrant: { name: reg.name, email: reg.email, applied_for: evName }
+                });
+            }
+            const already = !!reg.checked_in;
+            if (mark && !already) {
+                db.run('UPDATE signup_form_responses SET checked_in = 1, checked_in_at = ? WHERE id = ?', [now, reg.id]);
+                saveDb();
+            }
+            return res.json({
+                valid: true, event, code, event_name: evName,
+                already_checked_in: already,
+                checked_in_at: already ? reg.checked_in_at : (mark ? now : null),
+                status_label: 'SIGNED UP', status_color: '#22c55e',
+                registrant: { name: reg.name, email: reg.email, applied_for: evName, venue: (sfForm && sfForm.venue) || '', ...welcomeInfo(reg.email) }
+            });
+        }
 
         // What this person applied for (components/items) + their custom answers, read straight
         // from the denormalized registration row so the door staff can see it.

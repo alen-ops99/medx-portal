@@ -626,6 +626,7 @@ async function qrPngAttachment(payload) {
 function buildTicketQrBlock(regId, opts = {}) {
     const label = opts.label || 'Your Check-in QR Code';
     const caption = opts.caption || 'Present this code at the event entrance';
+    const attachNote = opts.attachNote || 'Your QR is also attached to this email — save it to your phone.';
     return `
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0;"><tr><td align="center">
         <table cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e6dfc8;border-radius:18px;overflow:hidden;box-shadow:0 3px 14px rgba(15,23,42,0.07);">
@@ -635,7 +636,7 @@ function buildTicketQrBlock(regId, opts = {}) {
                 <img src="${qrImageUrl(regId)}" alt="Check-in QR code" width="220" height="220" style="display:block;margin:0 auto;border:0;" />
             </td></tr>
             <tr><td style="padding:0 34px 4px;text-align:center;font-size:12px;color:#94a3b8;letter-spacing:2px;font-family:'Courier New',monospace;"><span style="font-family:Arial,Helvetica,sans-serif;letter-spacing:1.5px;color:#b0b8c4;font-size:9px;">MANUAL CODE&nbsp;&nbsp;</span>${String(regId).substring(0, 8).toUpperCase()}</td></tr>
-            <tr><td style="padding:6px 34px 22px;text-align:center;font-size:12px;color:#64748b;line-height:1.6;">${caption}<br><span style="color:#94a3b8;">Your QR is also attached to this email — save it to your phone.</span></td></tr>
+            <tr><td style="padding:6px 34px 22px;text-align:center;font-size:12px;color:#64748b;line-height:1.6;">${caption}<br><span style="color:#94a3b8;">${attachNote}</span></td></tr>
         </table>
     </td></tr></table>`;
 }
@@ -3705,7 +3706,8 @@ app.get('/qr/:id.png', async (req, res) => {
             const lookups = [
                 { sql: 'SELECT * FROM registrations WHERE id = ?', evt: 'plexus', evtName: 'Plexus Conference 2026' },
                 { sql: 'SELECT * FROM forum_event_registrations WHERE id = ?', evt: 'forum', evtName: 'Med&X Forum' },
-                { sql: 'SELECT * FROM bridges_registrations WHERE id = ?', evt: 'bridges', evtName: 'Croatia Building Bridges' }
+                { sql: 'SELECT * FROM bridges_registrations WHERE id = ?', evt: 'bridges', evtName: 'Croatia Building Bridges' },
+                { sql: 'SELECT * FROM signup_form_responses WHERE id = ?', evt: 'signup-form', evtName: 'Med&X Event' }
             ];
             for (const l of lookups) {
                 let row = null;
@@ -8398,9 +8400,15 @@ async function initializeApp() {
         is_waitlisted INTEGER DEFAULT 0,
         gdpr_consent INTEGER DEFAULT 0,
         email_sent INTEGER DEFAULT 0,
+        checked_in INTEGER DEFAULT 0,
+        checked_in_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(form_id, email)
     )`);
+    // Door check-in for signup-form events (scanner support). Idempotent for databases
+    // created before these columns existed.
+    try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in_at TEXT'); } catch(e) {}
 
     // ===== Member Home feed, opportunity board, talk library (menu items 9 & 23) =====
     // Shared across both portals: the member portal reads these, the admin portal curates them.
@@ -25348,8 +25356,8 @@ By applying to this program, I provide the following consents:
     // registration is valid, marks them checked in for THAT event.
     app.post('/api/admin/checkin/verify', auth, adminOnly, (req, res) => {
         const { event, code, mark } = req.body || {};
-        if (!event || !['gala', 'conference', 'bridges', 'donor'].includes(event)) {
-            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', 'bridges', or 'donor'" });
+        if (!event || !['gala', 'conference', 'bridges', 'donor', 'signup-form'].includes(event)) {
+            return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', 'bridges', 'donor', or 'signup-form'" });
         }
         if (!code) return res.status(400).json({ valid: false, error: 'code required' });
 
@@ -25357,6 +25365,44 @@ By applying to this program, I provide the following consents:
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
         const codeClean = String(code).trim();
         const now = new Date().toISOString();
+
+        // ===== SIGN-UP FORM EVENTS (QR ticket from the signup confirmation email) =====
+        if (event === 'signup-form') {
+            let reg = null;
+            if (isUuid) reg = query.get('SELECT * FROM signup_form_responses WHERE id = ?', [codeClean]);
+            if (!reg && codeClean.includes('@')) {
+                reg = query.get('SELECT * FROM signup_form_responses WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+            }
+            if (!reg) {
+                // Manual failsafe: the short code under the QR is the response UUID's prefix (dashes stripped)
+                const norm = codeClean.toLowerCase().replace(/[^0-9a-f]/g, '');
+                if (norm.length >= 4 && norm.length <= 12) {
+                    reg = query.get("SELECT * FROM signup_form_responses WHERE replace(lower(id), '-', '') LIKE ? ORDER BY created_at DESC LIMIT 1", [norm + '%']);
+                }
+            }
+            if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No sign-up found for this code.' });
+            const sfForm = query.get('SELECT title, event_date, venue FROM signup_forms WHERE id = ?', [reg.form_id]);
+            const evName = sfForm ? sfForm.title : 'Sign-up form event';
+            if (reg.is_waitlisted) {
+                return res.json({
+                    valid: false, event, code, reason: 'waitlisted',
+                    message: 'On the waiting list. Do NOT admit unless a place was confirmed.',
+                    registrant: { name: reg.name, email: reg.email, applied_for: evName }
+                });
+            }
+            const already = !!reg.checked_in;
+            if (mark && !already) {
+                db.run('UPDATE signup_form_responses SET checked_in = 1, checked_in_at = ? WHERE id = ?', [now, reg.id]);
+                saveDb();
+            }
+            return res.json({
+                valid: true, event, code, event_name: evName,
+                already_checked_in: already,
+                checked_in_at: already ? reg.checked_in_at : (mark ? now : null),
+                status_label: 'SIGNED UP', status_color: '#22c55e',
+                registrant: { name: reg.name, email: reg.email, applied_for: evName, venue: (sfForm && sfForm.venue) || '' }
+            });
+        }
 
         // ===== GALA =====
         if (event === 'gala') {
@@ -27271,16 +27317,28 @@ By applying to this program, I provide the following consents:
                     detailRow(T.emailVenue, form.venue)
                 ].join('');
                 const line = (waitlisted ? T.emailWaitlistLine : T.emailConfirmedLine).replace('{title}', escapeHtml(form.title));
+                // Door ticket: hosted QR + PNG attachment (Gmail-safe), confirmed signups only —
+                // waiting-list guests get no ticket until a place is confirmed.
+                const qrBlock = waitlisted ? '' : buildTicketQrBlock(id, lang === 'hr' ? {
+                    label: 'Vaš QR kod za ulaz',
+                    caption: 'Pokažite ovaj kod na ulazu u događanje',
+                    attachNote: 'QR kod nalazi se i u privitku ove poruke. Spremite ga na svoj mobitel.'
+                } : { label: 'Your entry QR code', caption: 'Present this code at the event entrance' });
+                let ticketAttachments;
+                if (!waitlisted) {
+                    try { ticketAttachments = await qrPngAttachment({ type: 'MEDX_MEMBER', regId: id, evt: 'signup-form' }); } catch (e) {}
+                }
                 const bodyHtml = `
                     <p style="margin:0 0 14px;">${T.emailGreeting.replace('{name}', escapeHtml(name))}</p>
                     <p style="margin:0 0 18px;">${line}</p>
                     ${details ? `<table cellpadding="0" cellspacing="0" style="margin:0 0 18px;border-left:3px solid #C9A962;padding-left:14px;"><tbody>${details}</tbody></table>` : ''}
+                    ${qrBlock}
                     ${form.confirmation_message ? `<p style="margin:0 0 18px;">${escapeHtml(form.confirmation_message)}</p>` : ''}
                     <p style="margin:0 0 6px;color:#64748b;font-size:13px;">${T.emailQuestions} <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;">laura.rodman@medx.hr</a></p>
                     <p style="margin:14px 0 0;">${T.emailSignoff}</p>`;
                 const subject = (waitlisted ? T.emailSubjectWaitlist : T.emailSubject).replace('{title}', form.title);
                 const emailTitle = waitlisted ? T.emailTitleWaitlist : T.emailTitle;
-                const result = await sendEmail(email, subject, buildEmailTemplate(emailTitle, bodyHtml, lang));
+                const result = await sendEmail(email, subject, buildEmailTemplate(emailTitle, bodyHtml, lang), ticketAttachments);
                 if (result && result.success) query.run('UPDATE signup_form_responses SET email_sent = 1 WHERE id = ?', [id]);
             } catch (e) {
                 console.error('[signup-forms] confirmation email failed:', e.message);
