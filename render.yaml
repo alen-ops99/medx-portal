@@ -48,8 +48,9 @@ services:
       - key: FIRA_API_URL
         value: https://app.fira.finance
       # Bank transfer details — set REAL values in the Render dashboard.
-      # MEDX_IBAN/MEDX_VAT_ID must be the real account/VAT id; if unset or left as a
-      # placeholder the portal hides bank-transfer instructions rather than show a fake IBAN.
+      # MEDX_IBAN must be the real account; if unset or left as a placeholder the portal
+      # hides bank-transfer instructions rather than show a fake IBAN. (MEDX_VAT_ID is
+      # reserved for future invoice use — nothing reads it yet.)
       - key: MEDX_IBAN
         sync: false
       - key: MEDX_BANK_NAME

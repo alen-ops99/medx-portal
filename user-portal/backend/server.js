@@ -192,8 +192,8 @@ async function sendEmail(to, subject, htmlContent, attachments, cc) {
         try {
             const transporter = nodemailer.createTransport({
                 host: process.env.SMTP_HOST || 'smtp.gmail.com',
-                port: parseInt(process.env.SMTP_PORT || '587'),
-                secure: parseInt(process.env.SMTP_PORT || '587') === 465,
+                port: parseInt(process.env.SMTP_PORT || '465'),
+                secure: process.env.SMTP_PORT ? process.env.SMTP_PORT === '465' : true,
                 connectionTimeout: 10000,
                 greetingTimeout: 10000,
                 socketTimeout: 10000,
@@ -10746,6 +10746,30 @@ async function submitReset(e){
         } catch (e) {
             console.error('Reset password error:', e);
             res.status(500).json({ error: 'Failed to reset password' });
+        }
+    });
+
+    // In-session password change (Settings pane). Mirrors the admin portal's PUT /api/auth/password.
+    // Deliberately does NOT set password_changed_at — that field invalidates every JWT issued
+    // before it (see auth middleware), which would log the member out of this very session.
+    app.post('/api/auth/change-password', authLimiter, auth, async (req, res) => {
+        try {
+            const { currentPassword, newPassword } = req.body || {};
+            if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both current and new password are required' });
+            if (typeof newPassword !== 'string' || newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+            const user = query.get('SELECT password_hash, email FROM users WHERE id = ?', [req.user.id]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            if (!user.password_hash) return res.status(400).json({ error: 'No password is set for this account. Use "Forgot password" to set one.' });
+            const valid = await bcrypt.compare(currentPassword, user.password_hash);
+            if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+            const newHash = await bcrypt.hash(newPassword, 10);
+            db.run('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, req.user.id]);
+            saveDb();
+            console.log(`[Auth] Password changed in-session for ${user.email}`);
+            res.json({ success: true });
+        } catch (e) {
+            console.error('Change password error:', e);
+            res.status(500).json({ error: 'Failed to update password' });
         }
     });
 
