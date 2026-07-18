@@ -17,6 +17,67 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
       }
+
+      // ---- One-time "install as an app" hint (2026-07-18) ----
+      // The admin has been installable for a while; nobody knew. Chrome/Edge (Mac) get a real
+      // one-click Install button (beforeinstallprompt); iPhone Safari gets the Share -> Add to
+      // Home Screen line. Never shown when already running as an app; dismiss remembers forever.
+      (function () {
+        var KEY = 'medx_admin_install_hint_dismissed';
+        var deferredPrompt = null;
+        function standalone() {
+          try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { return false; }
+        }
+        function dismissed() { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return true; } }
+        function dismiss() { try { localStorage.setItem(KEY, '1'); } catch (e) {} var el = document.getElementById('mxInstallHint'); if (el) el.remove(); }
+        window.mxDismissInstallHint = dismiss;
+        window.mxDoInstall = function () {
+          if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.finally(dismiss); }
+          else dismiss();
+        };
+        function show(withButton) {
+          if (standalone() || dismissed() || document.getElementById('mxInstallHint')) return;
+          var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+          var body = withButton
+            ? 'Add Med&X Admin to your Dock — one window, no tabs, straight to work.'
+            : (isIOS
+              ? 'On iPhone: tap Share, then \u201cAdd to Home Screen\u201d \u2014 the icon opens the admin directly, no login detours.'
+              : 'In Chrome or Edge: open the browser menu and choose \u201cInstall Med&X Admin\u201d.');
+          var el = document.createElement('div');
+          el.id = 'mxInstallHint';
+          el.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9999;max-width:300px;background:#fff;border:1px solid #e2dcd3;border-radius:14px;box-shadow:0 10px 30px rgba(21,17,15,0.14);padding:16px 18px;font-family:Inter,system-ui,sans-serif;';
+          el.innerHTML = '<div style="font-weight:600;font-size:13.5px;color:#15110f;margin-bottom:5px;">Med&X Admin is an app</div>'
+            + '<div style="font-size:12.5px;line-height:1.55;color:#6b6258;margin-bottom:12px;">' + body + '</div>'
+            + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
+            + '<button onclick="mxDismissInstallHint()" style="background:none;border:none;color:#6b6258;font-size:12.5px;cursor:pointer;padding:6px 10px;">Not now</button>'
+            + (withButton ? '<button onclick="mxDoInstall()" style="background:#9b1b22;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;padding:7px 16px;">Install</button>' : '')
+            + '</div>';
+          document.body.appendChild(el);
+        }
+        window.addEventListener('beforeinstallprompt', function (e) {
+          e.preventDefault();
+          deferredPrompt = e;
+          setTimeout(function () { show(true); }, 4000);
+        });
+        // iOS never fires beforeinstallprompt — show the guidance variant there.
+        window.addEventListener('load', function () {
+          if (/iphone|ipad|ipod/i.test(navigator.userAgent)) setTimeout(function () { show(false); }, 6000);
+        });
+
+        // Manifest shortcut: /#scanner opens the check-in scanner directly.
+        window.addEventListener('load', function () {
+          if (location.hash === '#scanner') {
+            var tries = 0;
+            var t = setInterval(function () {
+              tries++;
+              try {
+                if (window.App && App.token && typeof App.openGlobalQRScanner === 'function') { App.openGlobalQRScanner(); clearInterval(t); }
+              } catch (e) {}
+              if (tries > 40) clearInterval(t);
+            }, 500);
+          }
+        });
+      })();
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
@@ -24,10 +85,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
     <style id="medx-admin-brand">
       /* Brand match with the website + user portal (presentation-only) */
-      h1,h2,h3,.welcome-title,.section-title,.card-title,.modal-title{font-family:'Fraunces',Georgia,serif !important;letter-spacing:-.01em;}
+      h1,h2,h3,.welcome-title,.section-title,.card-title,.modal-title{font-family:'Inter',-apple-system,system-ui,sans-serif !important;letter-spacing:-.01em;}
       /* Premium login: warm cream card + crimson Sign In */
       .login-card{background:linear-gradient(180deg, #ffffff 0%, #fbf9f6 100%) !important;border:1px solid #e6e0d7 !important;box-shadow:0 30px 80px rgba(21,17,15,0.14) !important;}
-      .login-card .login-logo p{font-family:'Fraunces',Georgia,serif !important;letter-spacing:.01em;}
+      .login-card .login-logo p{font-family:'Inter',-apple-system,system-ui,sans-serif !important;letter-spacing:.01em;}
       .login-btn{background:#9b1b22 !important;color:#fff !important;border:none !important;}
       .login-btn:hover{background:#7e151b !important;}
       .form-input:focus{border-color:#9b1b22 !important;box-shadow:0 0 0 3px rgba(155,27,34,0.18) !important;}
@@ -7165,6 +7226,12 @@
                 <div class="nav-divider"></div>
                 <div class="nav-label">Communications</div>
 
+                <a class="nav-item" data-section="member-ops" onclick="App.showSection('member-ops', this)">
+                    <i class="fas fa-sliders-h" style="color: #c9a962;"></i>
+                    <span>Member Ops</span>
+                </a>
+
+
                 <a class="nav-item has-sub" data-section="outbox" onclick="App.openOutbox(this)">
                     <i class="fas fa-inbox" style="color:#f59e0b;"></i>
                     <span class="nav-text"><span class="nav-title">Outbox</span><span class="nav-sub">Staged emails awaiting your approval</span></span>
@@ -7193,24 +7260,7 @@
                 </a>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label">Organization</div>
-
-                <!-- Executive Suite (AI CMO / CFO / COO). CSP-clean: delegated data-adv-nav
-                     handler, no inline onclick. -->
-                <a class="nav-item" data-section="advisors" data-adv-nav="1">
-                    <i class="fas fa-user-tie" style="color: #7c3aed;"></i>
-                    <span>Executive Suite</span>
-                </a>
-
-                <a class="nav-item" data-section="finances" onclick="App.showSection('finances', this)">
-                    <i class="fas fa-coins" style="color: var(--finances);"></i>
-                    <span>Finances</span>
-                </a>
-
-                <a class="nav-item" data-section="member-ops" onclick="App.showSection('member-ops', this)">
-                    <i class="fas fa-sliders-h" style="color: #c9a962;"></i>
-                    <span>Member Ops</span>
-                </a>
+                <div class="nav-label">Events &amp; access</div>
 
                 <a class="nav-item" data-section="conferences" onclick="App.showSection('conferences', this)">
                     <i class="fas fa-calendar-plus" style="color: #38bdf8;"></i>
@@ -7242,9 +7292,27 @@
                     <span>CME / HLK</span>
                 </a>
 
+                <div class="nav-divider"></div>
+                <div class="nav-label">Finance</div>
+
+                <a class="nav-item" data-section="finances" onclick="App.showSection('finances', this)">
+                    <i class="fas fa-coins" style="color: var(--finances);"></i>
+                    <span>Finances</span>
+                </a>
+
                 <a class="nav-item" data-section="transparency" onclick="App.showSection('transparency', this)">
                     <i class="fas fa-scale-balanced" style="color: #C9A962;"></i>
                     <span>Board pack</span>
+                </a>
+
+                <div class="nav-divider"></div>
+                <div class="nav-label">Leadership</div>
+
+                <!-- Executive Suite (AI CMO / CFO / COO). CSP-clean: delegated data-adv-nav
+                     handler, no inline onclick. -->
+                <a class="nav-item" data-section="advisors" data-adv-nav="1">
+                    <i class="fas fa-user-tie" style="color: #7c3aed;"></i>
+                    <span>Executive Suite</span>
                 </a>
 
                 <!-- Hidden merged/legacy sections. Kept in the DOM (display:none) so deep links,
@@ -7675,7 +7743,7 @@
                 <div class="section" id="section-team-chat">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
         <div>
-            <h1 style="font-family:'Fraunces',Georgia,serif;font-size:28px;font-weight:600;color:var(--text-primary);margin:0;">Team Chat</h1>
+            <h1 style="font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:28px;font-weight:600;color:var(--text-primary);margin:0;">Team Chat</h1>
             <p style="font-size:13px;color:var(--text-muted);margin:4px 0 0;">Private team messaging, sub-team channels, and meeting scheduling for Med&amp;X.</p>
         </div>
     </div>
@@ -11532,7 +11600,7 @@ President, Med&amp;X</textarea>
                     .planner-overlay.active { display: block; }
                     .planner-shell { position: absolute; inset: 3vh 3vw; background: var(--bg-primary, #fbf7f0); border-radius: 18px; box-shadow: 0 30px 90px rgba(0,0,0,0.35); display: flex; flex-direction: column; overflow: hidden; }
                     .planner-topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, rgba(155,27,34,0.06), transparent); }
-                    .planner-brand { font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+                    .planner-brand { font-family: 'Inter', -apple-system, system-ui, sans-serif; font-size: 20px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
                     .planner-brand i { color: var(--pr-media); }
                     .planner-sub { font-family: inherit; font-size: 12px; font-weight: 500; color: var(--text-muted); background: rgba(155,27,34,0.08); padding: 3px 10px; border-radius: 20px; }
                     .planner-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; }
@@ -11549,7 +11617,7 @@ President, Med&amp;X</textarea>
                     .planner-send:disabled { opacity: 0.5; cursor: default; }
                     .planner-typing { align-self: flex-start; color: var(--text-muted); font-size: 13px; font-style: italic; padding: 6px 4px; }
                     .planner-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px max(20px,4%); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-                    .planner-plan-title { font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 700; color: var(--text-primary); }
+                    .planner-plan-title { font-family: 'Inter', -apple-system, system-ui, sans-serif; font-size: 20px; font-weight: 700; color: var(--text-primary); }
                     .planner-plan-meta { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
                     .planner-plan-month { font-weight: 700; min-width: 150px; text-align: center; color: var(--text-primary); }
                     .planner-approve { border: none; background: linear-gradient(135deg,#1f7a44,#155e33); color: #fff; padding: 10px 18px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
@@ -11569,7 +11637,7 @@ President, Med&amp;X</textarea>
                     .planner-editor, .planner-photopicker { position: absolute; top: 3vh; right: 3vw; bottom: 3vh; width: min(440px, 90vw); background: var(--bg-primary,#fbf7f0); border-radius: 16px; box-shadow: -20px 0 60px rgba(0,0,0,0.28); z-index: 4100; transform: translateX(120%); transition: transform .25s ease; display: flex; flex-direction: column; overflow: hidden; }
                     .planner-editor.active, .planner-photopicker.active { transform: translateX(0); }
                     .planner-photopicker { z-index: 4200; }
-                    .planner-editor-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); font-family: 'Fraunces', Georgia, serif; font-size: 17px; font-weight: 700; color: var(--text-primary); }
+                    .planner-editor-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); font-family: 'Inter', -apple-system, system-ui, sans-serif; font-size: 17px; font-weight: 700; color: var(--text-primary); }
                     .planner-editor-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
                     .planner-field label { display: block; font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 5px; }
                     .planner-field input, .planner-field textarea, .planner-field select { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; background: var(--bg-secondary); color: var(--text-primary); }
@@ -13278,7 +13346,7 @@ President, Med&amp;X</textarea>
                     <style>
                     #section-transparency .tr-grid{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0 22px;}
                     #section-transparency .tr-stat{border:1px solid var(--border);border-radius:12px;background:var(--bg-secondary);padding:14px 20px;min-width:150px;flex:1 1 150px;}
-                    #section-transparency .tr-stat .n{font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:700;line-height:1;color:var(--text-primary);}
+                    #section-transparency .tr-stat .n{font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:26px;font-weight:700;line-height:1;color:var(--text-primary);}
                     #section-transparency .tr-stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-top:6px;}
                     #section-transparency .tr-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;border:1px solid var(--border);border-radius:12px;background:var(--bg-secondary);padding:14px 16px;margin:6px 0 4px;}
                     #section-transparency .tr-controls label{font-size:13px;color:var(--text-muted);}
@@ -13319,17 +13387,17 @@ President, Med&amp;X</textarea>
                     #section-editions .ed-head h1{font-size:28px;font-weight:700;margin-bottom:4px;}
                     #section-editions .ed-sum{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 22px;}
                     #section-editions .ed-stat{border:1px solid var(--border);border-radius:12px;background:var(--bg-secondary);padding:12px 18px;min-width:120px;}
-                    #section-editions .ed-stat .n{font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:700;line-height:1;color:var(--text-primary);}
+                    #section-editions .ed-stat .n{font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:26px;font-weight:700;line-height:1;color:var(--text-primary);}
                     #section-editions .ed-stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-top:6px;}
                     #section-editions .ed-proj{border:1px solid var(--border);border-radius:16px;background:var(--bg-secondary);padding:0 0 4px;margin:0 0 18px;overflow:hidden;}
                     #section-editions .ed-proj-hd{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--border);}
                     #section-editions .ed-proj-ic{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex-shrink:0;}
-                    #section-editions .ed-proj-hd h3{margin:0;font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:600;}
+                    #section-editions .ed-proj-hd h3{margin:0;font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:18px;font-weight:600;}
                     #section-editions .ed-proj-hd .sub{font-size:12px;color:var(--text-muted);}
                     #section-editions .ed-rail{display:flex;gap:14px;flex-wrap:wrap;padding:16px 18px;}
                     #section-editions .ed-card{position:relative;flex:1 1 300px;min-width:280px;max-width:420px;border:1px solid var(--border);border-radius:14px;background:var(--bg-primary);padding:16px 16px 14px;}
                     #section-editions .ed-card.archived{opacity:.82;background:var(--bg-secondary);border-style:dashed;}
-                    #section-editions .ed-card .yr{position:absolute;top:14px;right:16px;font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;color:var(--text-muted);opacity:.5;}
+                    #section-editions .ed-card .yr{position:absolute;top:14px;right:16px;font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:22px;font-weight:700;color:var(--text-muted);opacity:.5;}
                     #section-editions .ed-card h4{margin:0 44px 4px 0;font-size:16px;font-weight:700;line-height:1.2;}
                     #section-editions .ed-card .meta{font-size:12.5px;color:var(--text-muted);margin-bottom:10px;}
                     #section-editions .ed-badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff;}
@@ -13347,7 +13415,7 @@ President, Med&amp;X</textarea>
                     #section-editions .ed-prev h5{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);}
                     #section-editions .ed-prevgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;}
                     #section-editions .ed-prevgrid .c{border:1px solid var(--border);border-radius:10px;padding:9px 11px;background:var(--bg-secondary);}
-                    #section-editions .ed-prevgrid .c .n{font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:700;line-height:1;}
+                    #section-editions .ed-prevgrid .c .n{font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:20px;font-weight:700;line-height:1;}
                     #section-editions .ed-prevgrid .c .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-top:5px;}
                     #section-editions .ed-safe{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin:5px 0;}
                     #section-editions .ed-safe i{color:#1f9d55;margin-top:2px;}
@@ -13384,7 +13452,7 @@ President, Med&amp;X</textarea>
                     #section-cme .cme-card{border:1px solid var(--border);border-radius:14px;background:var(--bg-secondary);padding:16px 18px;margin:0 0 14px;}
                     #section-cme .cme-card.on{border-color:rgba(155,27,34,.4);}
                     #section-cme .cme-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-                    #section-cme .cme-title{font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;}
+                    #section-cme .cme-title{font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:18px;font-weight:700;}
                     #section-cme .cme-meta{font-size:12.5px;color:var(--text-muted);}
                     #section-cme .cme-badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff;}
                     #section-cme .cme-toggle{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;font-weight:600;}
@@ -13423,7 +13491,7 @@ President, Med&amp;X</textarea>
                         #section-event-invites .ei-funnel{display:flex;background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:16px;flex-wrap:wrap;}
                         #section-event-invites .ei-fstep{flex:1;min-width:96px;text-align:center;padding:14px 8px;border-right:1px solid var(--border);}
                         #section-event-invites .ei-fstep:last-child{border-right:none;}
-                        #section-event-invites .ei-fstep .n{font-size:26px;font-weight:800;color:#1f2937;font-family:'Fraunces',Georgia,serif;line-height:1;}
+                        #section-event-invites .ei-fstep .n{font-size:26px;font-weight:800;color:#1f2937;font-family:'Inter',-apple-system,system-ui,sans-serif;line-height:1;}
                         #section-event-invites .ei-fstep .l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-top:6px;}
                         #section-event-invites .ei-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-top:20px;flex-wrap:wrap;}
                         #section-event-invites .ei-tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-weight:600;font-size:14px;padding:10px 16px;cursor:pointer;white-space:nowrap;}
@@ -13580,7 +13648,7 @@ President, Med&amp;X</textarea>
                         #section-event-reminders .rm-pill.paused{background:#fef3c7;color:#92400e;}
                         #section-event-reminders .rm-cadence{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
                         #section-event-reminders .rm-dot{display:inline-flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;padding:7px 11px;min-width:58px;}
-                        #section-event-reminders .rm-dot .k{font-size:13px;font-weight:800;font-family:'Fraunces',Georgia,serif;color:#1f2937;}
+                        #section-event-reminders .rm-dot .k{font-size:13px;font-weight:800;font-family:'Inter',-apple-system,system-ui,sans-serif;color:#1f2937;}
                         #section-event-reminders .rm-dot .d{font-size:10px;color:var(--text-muted);}
                         #section-event-reminders .rm-dot.off{opacity:.4;}
                         #section-event-reminders .rm-back{background:none;border:none;color:var(--text-muted);font-weight:600;font-size:14px;cursor:pointer;padding:4px 0;margin-bottom:12px;}
@@ -13588,7 +13656,7 @@ President, Med&amp;X</textarea>
                         #section-event-reminders .rm-fact b{color:var(--text-primary);font-weight:600;}
                         #section-event-reminders .rm-touch{display:flex;align-items:flex-start;gap:14px;padding:15px 16px;border:1px solid var(--border);border-radius:10px;margin-top:12px;background:var(--card-bg,#fff);}
                         #section-event-reminders .rm-touch .tl{min-width:64px;text-align:center;}
-                        #section-event-reminders .rm-touch .tl .big{font-size:20px;font-weight:800;font-family:'Fraunces',Georgia,serif;line-height:1;color:#b45309;}
+                        #section-event-reminders .rm-touch .tl .big{font-size:20px;font-weight:800;font-family:'Inter',-apple-system,system-ui,sans-serif;line-height:1;color:#b45309;}
                         #section-event-reminders .rm-touch .tl .sm{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-top:4px;}
                         #section-event-reminders .rm-touch.off{opacity:.55;}
                         #section-event-reminders .rm-chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;background:#eef1f6;color:#475569;}
@@ -13713,7 +13781,7 @@ President, Med&amp;X</textarea>
                         #section-postevent .pex-acts .btn{font-size:12.5px;padding:8px 13px;}
                         #section-postevent .pex-stats{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 4px;}
                         #section-postevent .pex-stat{border:1px solid var(--border);border-radius:10px;background:var(--bg-primary);padding:10px 16px;min-width:104px;text-align:center;}
-                        #section-postevent .pex-stat .n{font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;line-height:1;color:var(--text-primary);}
+                        #section-postevent .pex-stat .n{font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:22px;font-weight:700;line-height:1;color:var(--text-primary);}
                         #section-postevent .pex-stat .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-top:5px;}
                         #section-postevent .pex-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-top:8px;}
                         #section-postevent .pex-row .t{font-size:13px;font-weight:600;color:var(--text-primary);}
@@ -14101,7 +14169,7 @@ President, Med&amp;X</textarea>
 .tc-wrap{position:relative;display:grid;grid-template-columns:290px 1fr;height:calc(100vh - 168px);min-height:520px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--bg-secondary);box-shadow:0 1px 3px rgba(0,0,0,0.04);}
 .tc-side{background:var(--bg-primary);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;}
 .tc-side-head{padding:16px 18px 8px;}
-.tc-side-title{font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:600;color:var(--text-primary);}
+.tc-side-title{font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:20px;font-weight:600;color:var(--text-primary);}
 .tc-side-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
 .tc-side-scroll{flex:1;overflow-y:auto;padding:6px 10px 16px;}
 .tc-grp{margin-top:14px;}
@@ -14119,7 +14187,7 @@ President, Med&amp;X</textarea>
 .tc-badge{background:var(--accent-primary);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
 .tc-main{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg-secondary);}
 .tc-head{padding:13px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
-.tc-head-title{font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:600;color:var(--text-primary);line-height:1.1;}
+.tc-head-title{font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:18px;font-weight:600;color:var(--text-primary);line-height:1.1;}
 .tc-head-sub{font-size:12px;color:var(--text-muted);margin-top:1px;}
 .tc-head-actions{margin-left:auto;display:flex;gap:8px;flex-shrink:0;}
 .tc-btn{border:1px solid var(--border);background:#fff;color:var(--text-secondary);border-radius:9px;padding:7px 12px;font-size:13px;cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
@@ -14177,7 +14245,7 @@ President, Med&amp;X</textarea>
 .tc-empty i{font-size:34px;opacity:.35;}
 .tc-modal{position:fixed;inset:0;z-index:9000;background:rgba(21,17,15,.45);display:flex;align-items:center;justify-content:center;padding:20px;}
 .tc-modal-card{background:var(--bg-secondary);border-radius:16px;max-width:480px;width:100%;padding:22px 24px;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);}
-.tc-modal-title{font-family:'Fraunces',Georgia,serif;font-size:21px;font-weight:600;margin-bottom:3px;color:var(--text-primary);}
+.tc-modal-title{font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:21px;font-weight:600;margin-bottom:3px;color:var(--text-primary);}
 .tc-modal-sub{font-size:13px;color:var(--text-muted);margin-bottom:16px;}
 .tc-field{margin-bottom:14px;}
 .tc-field>label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;}
@@ -17518,9 +17586,12 @@ President, Med&amp;X</textarea>
                 if (!this.userSections) return; // null = show everything
 
                 // Filter project items in sidebar
+                const CORE_PROJECTS = ['plexus', 'accelerator', 'forum', 'bridges'];
                 document.querySelectorAll('#projectsList .sidebar-project').forEach(el => {
                     const projectId = el.dataset.project;
-                    el.style.display = this.userSections.includes(projectId) ? '' : 'none';
+                    // Core projects never disappear: saved section prefs from before the
+                    // Projects IA don't contain project ids and were emptying the group.
+                    el.style.display = (CORE_PROJECTS.includes(projectId) || this.userSections.includes(projectId)) ? '' : 'none';
                 });
 
                 // Filter static nav items (Finances, PR & Media). Core member-ops tools
@@ -19077,6 +19148,15 @@ President, Med&amp;X</textarea>
                     });
                 }
 
+                // No timer running: the little display shows the LIVE time (before this fix it
+                // sat on a static '25:00' placeholder and read as a broken clock).
+                if (!this.timerEndTime) {
+                    const idleEl = document.getElementById('clockTimer');
+                    if (idleEl) {
+                        idleEl.textContent = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                        idleEl.classList.remove('active', 'warning');
+                    }
+                }
                 // Update timer if active
                 if (this.timerEndTime) {
                     const remaining = this.timerEndTime - Date.now();
@@ -44218,7 +44298,7 @@ By applying to this program, I give the following consents:
                 .cc-overlay.active { display: block; }
                 .cc-shell { position: absolute; inset: 2.4vh 2.4vw; background: var(--bg-primary, #fbf9f6); border-radius: 18px; box-shadow: 0 30px 90px rgba(0,0,0,0.35); display: flex; flex-direction: column; overflow: hidden; }
                 .cc-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, rgba(155,27,34,0.06), transparent); flex-shrink: 0; }
-                .cc-brand { font-family: 'Fraunces', Georgia, serif; font-size: 19px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+                .cc-brand { font-family: 'Inter', -apple-system, system-ui, sans-serif; font-size: 19px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
                 .cc-brand i { color: var(--accent-primary); }
                 .cc-topacts { display: flex; align-items: center; gap: 8px; }
                 .cc-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); padding: 8px 13px; border-radius: 8px; cursor: pointer; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; font-family: inherit; }
@@ -44611,7 +44691,7 @@ By applying to this program, I give the following consents:
             INV: { gold: '#D4A84B', goldLight: '#e8c97a', burgundy: '#A31D3A', burgundyDark: '#8a1830', navy: '#0f1c2e', cream: '#FAF8F5', ink: '#1a1a1a', line: '#e6e1d9', status: '#fdf6e3', statusLine: '#ede2c4', statusInk: '#7a5a12' },
             // accent selector -> the invitation's secondary accent (rules, tags, labels). Gold stays the fixed signature.
             accentInk(name) { return ({ crimson: this.INV.burgundy, gold: this.INV.gold, ink: this.INV.navy })[name] || this.INV.burgundy; },
-            SERIF: "'Cormorant Garamond', 'Fraunces', Georgia, serif",
+            SERIF: "'Cormorant Garamond', 'Inter', -apple-system, system-ui, sans-serif",
 
             // the invitation's signature gold L-bracket frame + hairline inset
             drawFrame(ctx, W, H, color, opacity) {
@@ -44990,7 +45070,7 @@ By applying to this program, I give the following consents:
                 const today = new Date(); const d = new Date(today.getTime() + 86400000).toISOString().slice(0, 10);
                 document.getElementById('ccSchedCard').innerHTML = `
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                        <div style="font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:700;">Add to the media schedule</div>
+                        <div style="font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:20px;font-weight:700;">Add to the media schedule</div>
                         <button class="cc-x" onclick="document.getElementById('ccSchedModal').classList.remove('active')">&times;</button>
                     </div>
                     <p style="color:var(--text-muted);font-size:13px;line-height:1.5;margin:0 0 16px;">This stages the piece in the PR calendar and hands it to Publer through the mock-safe boundary. It shows up in Social posts like any other post. Nothing posts for real until a Publer key is added.</p>
@@ -45055,8 +45135,8 @@ By applying to this program, I give the following consents:
             DIMS: { landscape: [1280, 720], square: [1080, 1080], portrait: [720, 1280] },
             FORMATS: [{ v: 'landscape', l: '16:9' }, { v: 'square', l: '1:1' }, { v: 'portrait', l: '9:16' }],
             PAL: { navy: '#0f1c2e', navy2: '#091320', gold: '#D4A84B', goldLight: '#e8c97a', burgundy: '#A31D3A', cream: '#FAF8F5', ink: '#141414' },
-            SERIF: "'Cormorant Garamond','Fraunces',Georgia,serif",
-            DISPLAY: "'Fraunces',Georgia,serif",
+            SERIF: "'Cormorant Garamond','Inter',-apple-system,system-ui,sans-serif",
+            DISPLAY: "'Inter',-apple-system,system-ui,sans-serif",
             SANS: "'Inter',system-ui,sans-serif",
             LOGO_URL: '/assets/email-logo.png',
             TEMPLATES: [
@@ -45090,7 +45170,7 @@ By applying to this program, I give the following consents:
                 .vs-overlay.active { display: block; }
                 .vs-shell { position: absolute; inset: 2.2vh 2.2vw; background: var(--bg-primary,#fbf9f6); border-radius: 18px; box-shadow: 0 30px 90px rgba(0,0,0,0.4); display: flex; flex-direction: column; overflow: hidden; }
                 .vs-top { display: flex; align-items: center; justify-content: space-between; padding: 13px 22px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, rgba(15,28,46,0.06), transparent); flex-shrink: 0; }
-                .vs-brand { font-family: 'Fraunces',Georgia,serif; font-size: 19px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+                .vs-brand { font-family: 'Inter',-apple-system,system-ui,sans-serif; font-size: 19px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
                 .vs-brand i { color: var(--gold); }
                 .vs-badge { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 20px; background: rgba(212,168,75,.16); color: #8a6d1f; }
                 .vs-x { background: none; border: none; font-size: 26px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 0 4px; }
@@ -45675,7 +45755,7 @@ By applying to this program, I give the following consents:
                 const cap = (this.cfg.headline || this.cfg.name || this.cfg.title || b.eventName || '') + '. ' + (this.cfg.line1 || this.cfg.sub || this.cfg.date || '');
                 document.getElementById('vsSchedCard').innerHTML = `
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                        <div style="font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:700;">Save to PR schedule</div>
+                        <div style="font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:20px;font-weight:700;">Save to PR schedule</div>
                         <button class="vs-x" onclick="document.getElementById('vsSchedModal').classList.remove('active')">&times;</button>
                     </div>
                     <p style="color:var(--text-muted);font-size:13px;line-height:1.5;margin:0 0 16px;">This renders the video if needed, attaches it to the PR content calendar, and hands it to Publer through the mock-safe boundary. Nothing posts for real until a Publer key is added.</p>
@@ -45736,7 +45816,7 @@ By applying to this program, I give the following consents:
                 .pr-overlay.active { display: block; }
                 .pr-shell { position: absolute; inset: 2.2vh 2.2vw; background: var(--bg-primary,#fbf9f6); border-radius: 18px; box-shadow: 0 30px 90px rgba(0,0,0,0.4); display: flex; flex-direction: column; overflow: hidden; }
                 .pr-top { display: flex; align-items: center; justify-content: space-between; padding: 13px 22px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, rgba(155,27,34,0.06), transparent); flex-shrink: 0; }
-                .pr-brand { font-family: 'Fraunces',Georgia,serif; font-size: 19px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+                .pr-brand { font-family: 'Inter',-apple-system,system-ui,sans-serif; font-size: 19px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
                 .pr-brand i { color: var(--gold); }
                 .pr-chip { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 20px; }
                 .pr-chip.ok { background: rgba(31,122,68,.14); color: #1f7a44; }
@@ -45761,7 +45841,7 @@ By applying to this program, I give the following consents:
                 .pr-toggle { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-primary); cursor: pointer; margin-bottom: 10px; font-size: 13px; color: var(--text-primary); }
                 .pr-toggle input { width: 17px; height: 17px; accent-color: #9b1b22; }
                 .pr-summary { background: linear-gradient(135deg, rgba(155,27,34,.06), rgba(201,169,98,.08)); border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; margin-bottom: 16px; }
-                .pr-summary .big { font-family: 'Fraunces',Georgia,serif; font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1; }
+                .pr-summary .big { font-family: 'Inter',-apple-system,system-ui,sans-serif; font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1; }
                 .pr-summary .lbl { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
                 .pr-rolebar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
                 .pr-rolepill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
@@ -50296,12 +50376,12 @@ By applying to this program, I give the following consents:
                         <div class="ei-accent"></div>
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                             <div><div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#9b1b22;font-weight:700;"><i class="fas ${this.esc(ev.icon||'fa-calendar')}"></i> ${this.esc(ev.name||c.event_key)}</div>
-                            <div style="font-size:17px;font-weight:700;margin-top:3px;font-family:'Fraunces',Georgia,serif;">${this.esc(c.name||'Untitled campaign')}</div></div>
+                            <div style="font-size:17px;font-weight:700;margin-top:3px;font-family:'Inter',-apple-system,system-ui,sans-serif;">${this.esc(c.name||'Untitled campaign')}</div></div>
                             <span class="ei-pill ${sm.c}">${this.esc(sm.l)}</span>
                         </div>
                         <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${this.esc(ev.date||'')}${ev.venue?' &middot; '+this.esc(ev.venue):''}</div>
                         <div style="display:flex;gap:14px;margin-top:14px;">
-                            ${[['Imported',f.imported],['Sent',f.invited],['Replied',f.replied],['Registered',f.registered]].map(x=>`<div><div style="font-size:20px;font-weight:800;font-family:'Fraunces',Georgia,serif;line-height:1;">${x[1]||0}</div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-top:3px;">${x[0]}</div></div>`).join('')}
+                            ${[['Imported',f.imported],['Sent',f.invited],['Replied',f.replied],['Registered',f.registered]].map(x=>`<div><div style="font-size:20px;font-weight:800;font-family:'Inter',-apple-system,system-ui,sans-serif;line-height:1;">${x[1]||0}</div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-top:3px;">${x[0]}</div></div>`).join('')}
                         </div>
                         <div style="font-size:11px;color:var(--text-muted);margin-top:12px;"><i class="fas fa-user-tie"></i> ${this.esc(c.sender_from||'president@medx.hr')}</div>
                     </div>`;
@@ -50364,7 +50444,7 @@ By applying to this program, I give the following consents:
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
                         <div>
                             <div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#9b1b22;font-weight:700;"><i class="fas ${this.esc(ev.icon||'fa-calendar')}"></i> ${this.esc(ev.name||c.event_key)} &nbsp;<span class="ei-pill ${sm.c}">${this.esc(sm.l)}</span></div>
-                            <div style="font-size:22px;font-weight:800;margin-top:4px;font-family:'Fraunces',Georgia,serif;">${this.esc(c.name||'Untitled campaign')}</div>
+                            <div style="font-size:22px;font-weight:800;margin-top:4px;font-family:'Inter',-apple-system,system-ui,sans-serif;">${this.esc(c.name||'Untitled campaign')}</div>
                             <div style="margin-top:10px;">
                                 <span class="ei-fact"><i class="fas fa-calendar-day"></i> <b>${this.esc(ev.date||'—')}</b></span>
                                 <span class="ei-fact"><i class="fas fa-location-dot"></i> <b>${this.esc(ev.venue||'—')}</b></span>
@@ -50597,7 +50677,7 @@ By applying to this program, I give the following consents:
             renderDiscover(){
                 const pane=document.getElementById('eiTab-discover');
                 pane.innerHTML=`<div class="card" style="padding:18px 20px;">
-                    <div style="font-weight:700;font-size:16px;font-family:'Fraunces',Georgia,serif;"><i class="fas fa-wand-magic-sparkles" style="color:#9b1b22;"></i> Discover people with AI</div>
+                    <div style="font-weight:700;font-size:16px;font-family:'Inter',-apple-system,system-ui,sans-serif;"><i class="fas fa-wand-magic-sparkles" style="color:#9b1b22;"></i> Discover people with AI</div>
                     <p style="font-size:13px;color:var(--text-muted);margin:6px 0 12px;">Describe who you need for ${this.esc((this.current&&this.current.event&&this.current.event.name)||'this event')}. Candidates come back with a short evidence note and a place to verify them &mdash; review, then add the right ones to the campaign.</p>
                     <textarea id="eiDiscoverBrief" rows="3" class="search-input" style="width:100%;" maxlength="800" placeholder="e.g. senior Croatian cardiologists working at leading hospitals abroad"></textarea>
                     <div style="margin-top:10px;"><button class="btn btn-primary" style="background:#9b1b22;border:none;" id="eiDiscoverBtn" onclick="EventInvitesApp.runDiscover(this)"><i class="fas fa-magnifying-glass"></i> Find candidates</button></div>
@@ -50670,7 +50750,7 @@ By applying to this program, I give the following consents:
                 const toggleCard = `<div class="card" style="padding:18px 20px;border-left:4px solid ${armed?'#166534':'#9b1b22'};">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
                         <div style="flex:1;min-width:260px;">
-                            <div style="font-size:16px;font-weight:800;font-family:'Fraunces',Georgia,serif;"><i class="fas fa-robot" style="color:${armed?'#166534':'#9b1b22'};"></i> Auto-reply is ${armed?'<span style="color:#166534;">ARMED</span>':'<span style="color:#9b1b22;">off</span>'}</div>
+                            <div style="font-size:16px;font-weight:800;font-family:'Inter',-apple-system,system-ui,sans-serif;"><i class="fas fa-robot" style="color:${armed?'#166534':'#9b1b22'};"></i> Auto-reply is ${armed?'<span style="color:#166534;">ARMED</span>':'<span style="color:#9b1b22;">off</span>'}</div>
                             <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;max-width:640px;">While armed, a clear reply that is a confirmation, a decline, or a plain logistics question is answered automatically from an approved template &mdash; every message still flows through the one approval outbox, and each inbound message is answered at most once. Anything ambiguous or delicate is never auto-sent: it is escalated to the president and Laura and appears in the Action Center. Turning this off stops the next auto-reply instantly.</p>
                             ${armed&&notApproved.length?`<div style="margin-top:10px;font-size:12px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;"><i class="fas fa-triangle-exclamation"></i> ${notApproved.length} categor${notApproved.length===1?'y is':'ies are'} not approved yet (${notApproved.join(', ')}). Replies in ${notApproved.length===1?'that category':'those categories'} are escalated for a human until you approve the template below.</div>`:''}
                             ${s.enabled_by?`<div style="font-size:11px;color:var(--text-muted);margin-top:8px;">Armed by ${this.esc(s.enabled_by)}${s.enabled_at?' &middot; '+this.esc((s.enabled_at||'').replace('T',' ').slice(0,16)):''}</div>`:''}
@@ -50841,7 +50921,7 @@ By applying to this program, I give the following consents:
                         <div class="rm-accent"></div>
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                             <div><div style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#b45309;font-weight:700;"><i class="fas ${this.esc(ev.icon||'fa-calendar')}"></i> ${this.esc(ev.name||sq.event_key)}</div>
-                            <div style="font-size:17px;font-weight:700;margin-top:3px;font-family:'Fraunces',Georgia,serif;">${this.esc(sq.name||'Untitled sequence')}</div></div>
+                            <div style="font-size:17px;font-weight:700;margin-top:3px;font-family:'Inter',-apple-system,system-ui,sans-serif;">${this.esc(sq.name||'Untitled sequence')}</div></div>
                             <span class="rm-pill ${sm.c}">${this.esc(sm.l)}</span>
                         </div>
                         <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">${this.esc(ev.date||'')}${ev.venue?' &middot; '+this.esc(ev.venue):''}</div>
@@ -51215,6 +51295,7 @@ By applying to this program, I give the following consents:
                 { title: 'New sign-up form', sub: 'Create a public sign-up page for a short event', icon: 'fa-clipboard-check', color: '#059669', group: 'Quick Actions', action: () => { App.showSection('signup-forms', document.querySelector('.nav-item[data-section=signup-forms]')); setTimeout(() => { if (typeof SignupFormsApp !== 'undefined') SignupFormsApp.createForm(); }, 350); } },
                 { title: 'New guest pass', sub: 'Mint a personal VIP access link', icon: 'fa-id-badge', color: '#a78bfa', group: 'Quick Actions', action: () => { App.showSection('guest-passes', document.querySelector('.nav-item[data-section=guest-passes]')); setTimeout(() => { if (typeof GuestPassApp !== 'undefined') GuestPassApp.newPass(); }, 350); } },
                 { title: 'Open check-in scanner', sub: 'Scan tickets at the door', icon: 'fa-qrcode', color: '#9b1b22', group: 'Quick Actions', action: () => App.openGlobalQRScanner() },
+                { title: 'View member portal', sub: 'See exactly what members see', icon: 'fa-eye', color: '#0ea5a4', group: 'Quick Actions', action: () => window.open('https://medx-user-portal.onrender.com', '_blank', 'noopener') },
             ],
 
             open() {

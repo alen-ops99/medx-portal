@@ -1,7 +1,7 @@
 {
-  "name": "Med&X Staff — Admin & Scanner",
-  "short_name": "Med&X Staff",
-  "description": "Med&X staff app: event check-in scanner, registrations, and admin tools.",
+  "name": "Med&X Admin",
+  "short_name": "Med&X Admin",
+  "description": "The Med&X admin: events, sign-ups, guest passes, scanner, finances.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
@@ -26,7 +26,7 @@
       "name": "Check-in Scanner",
       "short_name": "Scanner",
       "description": "Open the event check-in scanner",
-      "url": "/?section=health"
+      "url": "/#scanner"
     },
     {
       "name": "System Health",
@@ -35,7 +35,11 @@
       "url": "/?section=health"
     }
   ],
-  "categories": ["medical", "productivity", "business"],
+  "categories": [
+    "medical",
+    "productivity",
+    "business"
+  ],
   "lang": "en-US",
   "scope": "/",
   "id": "medx-staff-admin"

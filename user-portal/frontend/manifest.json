@@ -1,7 +1,7 @@
 {
-  "name": "Plexus 2026 — Med&X",
-  "short_name": "Plexus",
-  "description": "Your Plexus 2026 ticket, schedule, and event updates from Med&X.",
+  "name": "Med&X",
+  "short_name": "Med&X",
+  "description": "Your Med&X membership: events, tickets, schedule, and community.",
   "start_url": "/?app=1",
   "display": "standalone",
   "background_color": "#0f172a",
@@ -35,7 +35,11 @@
       "url": "/?app=1&view=schedule"
     }
   ],
-  "categories": ["medical", "education", "events"],
+  "categories": [
+    "medical",
+    "education",
+    "events"
+  ],
   "lang": "en-US",
   "scope": "/",
   "id": "medx-plexus-attendee"
