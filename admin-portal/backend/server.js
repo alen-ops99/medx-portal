@@ -949,6 +949,9 @@ app.use(cors({
 
 // Security headers via helmet — same posture as user-portal so the admin UI loads
 // the same CDN scripts (Chart.js, FontAwesome, html5-qrcode, jsQR).
+// Keep the whole admin service out of search engines. robots.txt alone leaves a bare
+// URL listing in Google once the address is known; the noindex header makes Google drop it.
+app.use((req, res, next) => { res.setHeader('X-Robots-Tag', 'noindex, nofollow'); next(); });
 app.use(helmet({
     contentSecurityPolicy: {
         useDefaults: true,

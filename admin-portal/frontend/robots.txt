@@ -1,4 +1,5 @@
-User-agent: *
-Disallow: /
-
 # Med&X admin portal — internal use only.
+# Crawling is allowed so search engines can read the noindex header
+# and REMOVE this site from results; every page says: do not index.
+User-agent: *
+Disallow: /api/
