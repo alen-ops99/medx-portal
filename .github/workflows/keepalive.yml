@@ -14,8 +14,13 @@ name: Keep portals warm
 #    (~$7/mo). It never sleeps, and then this workflow (and the splash) become
 #    unnecessary. See the delivery report for the free-hour math.
 on:
-  schedule:
-    - cron: '*/10 * * * *'
+  # SCHEDULE DISABLED 2026-07-18: with the cron + the in-process self-ping, both free
+  # services stayed awake 24/7 and burned ~48 of the 750 free instance-hours per day
+  # (limit nearly reached mid-month). During test production the portals may sleep;
+  # first hit pays a ~30s cold start. Re-enable the cron (and set KEEP_WARM=1 on Render)
+  # for event days, or move to Render Starter for real launch.
+  # schedule:
+  #   - cron: '*/10 * * * *'
   workflow_dispatch:
 
 # Don't let backed-up runs pile up if a run is slow.
