@@ -1675,6 +1675,8 @@ const SIGNUP_FORM_I18N = {
         email: 'Email',
         optional: 'optional',
         choosePlaceholder: 'Choose…',
+        going: '{n} going',
+        share: 'Share',
         gdpr: 'I agree that Med&X stores these details to organize this event.',
         gdprMore: 'Privacy policy',
         submit: 'Sign up',
@@ -1723,6 +1725,8 @@ const SIGNUP_FORM_I18N = {
         email: 'E-mail adresa',
         optional: 'neobavezno',
         choosePlaceholder: 'Odaberite…',
+        going: 'dolazi: {n}',
+        share: 'Podijelite',
         gdpr: 'Suglasan/suglasna sam da Med&X pohrani navedene podatke radi organizacije ovog događanja.',
         gdprMore: 'Pravila privatnosti',
         submit: 'Prijavite se',
@@ -1825,7 +1829,7 @@ function renderSignupFormQuestionInput(f, T, accent) {
 }
 
 // state: 'open' | 'waitlist' (open but only the waiting list remains) | 'full' | 'closed' | 'notfound'
-function renderSignupFormPage(form, state) {
+function renderSignupFormPage(form, state, confirmedCount) {
     const lang = signupFormLang(form);
     const T = SIGNUP_FORM_I18N[lang];
     const accent = SIGNUP_FORM_ACCENTS[form ? form.project_tag : 'general'] || '#c9a962';
@@ -1839,6 +1843,8 @@ function renderSignupFormPage(form, state) {
     if (form && form.event_date) facts.push(escapeHtml(signupFormDateLabel(form.event_date, lang)));
     if (form && form.event_time) facts.push(escapeHtml(form.event_time));
     if (form && form.venue) facts.push(escapeHtml(form.venue));
+    // Social proof, Luma-style: only from 3 confirmed guests up (never "1 going").
+    if ((confirmedCount || 0) >= 3) facts.push(`<span style="color:${accent};font-weight:600;">${T.going.replace('{n}', String(confirmedCount))}</span>`);
     const factLine = facts.map(f => `<span>${f}</span>`).join('<span class="dot">&middot;</span>');
 
     const deadlineNote = (state === 'open' || state === 'waitlist') && form && form.registration_deadline
@@ -1874,6 +1880,7 @@ function renderSignupFormPage(form, state) {
                     <div><label for="sf_name">${T.fullName} <span class="req">*</span></label><input id="sf_name" name="name" autocomplete="name" required maxlength="200"></div>
                     <div><label for="sf_email">${T.email} <span class="req">*</span></label><input id="sf_email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="200"></div>
                     ${fields.map(f => renderSignupFormQuestionInput(f, T, accent)).join('')}
+                    <input type="text" name="company" id="sf_hp" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;top:-9999px;height:1px;width:1px;opacity:0;" aria-hidden="true">
                     <label class="gdpr"><input type="checkbox" id="sf_gdpr"><span>${T.gdpr} <a href="/privacy" target="_blank" rel="noopener">${T.gdprMore}</a></span></label>
                 </div>
                 <button type="submit" class="submit-btn" id="sfBtn">${state === 'waitlist' ? T.submitWaitlist : T.submit}</button>
@@ -1883,7 +1890,8 @@ function renderSignupFormPage(form, state) {
     }
 
     const calBtn = form && form.event_date && (state === 'open' || state === 'waitlist')
-        ? `<div style="margin-top:20px;"><a href="/f/${escapeHtml(form.slug)}/calendar.ics" style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border:1px solid ${accent};border-radius:999px;background:${accent}14;color:#e2e8f0;font-size:13px;font-weight:600;text-decoration:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${T.addToCalendar}</a></div>` : '';
+        ? `<div style="margin-top:20px;"><a href="/f/${escapeHtml(form.slug)}/calendar.ics" style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border:1px solid ${accent};border-radius:999px;background:${accent}14;color:#e2e8f0;font-size:13px;font-weight:600;text-decoration:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${T.addToCalendar}</a>
+           <button type="button" id="sfShareBtn" style="display:none;align-items:center;gap:8px;padding:10px 18px;border:1px solid rgba(255,255,255,0.25);border-radius:999px;background:transparent;color:#e2e8f0;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;margin-left:10px;">${T.share}</button></div>` : '';
     const hero = (state === 'notfound') ? `
     <div class="hero">
         <div class="eyebrow">Med&X</div>
@@ -1905,6 +1913,15 @@ function renderSignupFormPage(form, state) {
     var SF_WAITLIST_STATE = ${JSON.stringify(state === 'waitlist')};
     var SF_HAS_DATE = ${JSON.stringify(!!(form && form.event_date))};
     function sfErr(m){ var e = document.getElementById('sfMsg'); e.className = 'msg err'; e.textContent = m; }
+    (function(){
+      var b = document.getElementById('sfShareBtn');
+      if (b && navigator.share) {
+        b.style.display = 'inline-flex';
+        b.addEventListener('click', function(){
+          navigator.share({ title: document.title, url: location.href }).catch(function(){});
+        });
+      }
+    })();
     function sfNotice(title, body){
         document.getElementById('sfCard').innerHTML =
             '<div class="confirm-heading">' + title + '</div><p class="confirm-line">' + body + '</p>';
@@ -1941,7 +1958,7 @@ function renderSignupFormPage(form, state) {
         try {
             var r = await fetch('/api/signup-forms/' + SF_SLUG + '/submit', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name, email: email, gdpr_consent: true, answers: answers })
+                body: JSON.stringify({ name: name, email: email, gdpr_consent: true, answers: answers, company: (document.getElementById('sf_hp') || {}).value || '' })
             });
             var d = null;
             try { d = await r.json(); } catch(e) {}
@@ -2071,13 +2088,14 @@ app.get('/f/:slug', async (req, res) => {
         }
         if (!form || form.status === 'draft') return res.status(404).send(renderSignupFormPage(null, 'notfound'));
         let state = 'open';
+        const confirmedRow = query.get('SELECT COUNT(*) AS n FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0', [form.id]);
+        const confirmedCount = confirmedRow ? confirmedRow.n : 0;
         if (form.status === 'closed' || signupFormDeadlinePassed(form)) {
             state = 'closed';
-        } else if (form.capacity) {
-            const row = query.get('SELECT COUNT(*) AS n FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0', [form.id]);
-            if ((row ? row.n : 0) >= form.capacity) state = form.waitlist_enabled ? 'waitlist' : 'full';
+        } else if (form.capacity && confirmedCount >= form.capacity) {
+            state = form.waitlist_enabled ? 'waitlist' : 'full';
         }
-        res.send(renderSignupFormPage(form, state));
+        res.send(renderSignupFormPage(form, state, confirmedCount));
     } catch (err) {
         console.error('[/f/:slug] error:', err.message);
         res.status(500).send('Something went wrong. Please try again.');
@@ -2839,6 +2857,49 @@ function calendarEventsFor(slug) {
     }
     return null;
 }
+// Subscribe-once feed: every upcoming published Med&X event in ONE calendar URL.
+// Members add webcal once; future events appear automatically as they are created.
+app.get('/calendar/medx-events.ics', (req, res) => {
+    try {
+        const today = new Date().toISOString().slice(0, 10);
+        const stamp = icsStampUTC(new Date());
+        const base = (process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+        const vevents = [];
+        try {
+            query.all("SELECT * FROM signup_forms WHERE status = 'open' AND event_date >= ?", [today]).forEach(fm => {
+                const t = String(fm.event_time || '19:00').slice(0, 5);
+                const endT = String(Math.min(23, parseInt(t.slice(0, 2), 10) + 3)).padStart(2, '0') + t.slice(2);
+                vevents.push(buildVEVENT({ uid: 'signup-form-' + fm.id + '@medx.hr', stamp,
+                    start: icsLocalDT(fm.event_date, t, t.replace(':', '')), end: icsLocalDT(fm.event_date, endT, endT.replace(':', '')),
+                    summary: fm.title, location: fm.venue || '', description: fm.description || '', url: base + '/f/' + fm.slug }));
+            });
+        } catch (e) {}
+        try {
+            query.all('SELECT * FROM bridges_events WHERE is_published = 1 AND event_date >= ?', [today]).forEach(be => {
+                const t = String(be.event_time || '18:00').slice(0, 5);
+                const endT = be.end_time ? String(be.end_time).slice(0, 5) : (String(Math.min(23, parseInt(t.slice(0, 2), 10) + 3)).padStart(2, '0') + t.slice(2));
+                vevents.push(buildVEVENT({ uid: 'bridges-' + be.id + '@medx.hr', stamp,
+                    start: icsLocalDT(be.event_date, t, t.replace(':', '')), end: icsLocalDT(be.event_date, endT, endT.replace(':', '')),
+                    summary: be.name, location: [be.venue_name, be.city].filter(Boolean).join(', '), description: '', url: base }));
+            });
+        } catch (e) {}
+        try {
+            const g = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+            if (g && g.date && g.date >= today) {
+                const t = String(g.time || '18:00').slice(0, 5);
+                vevents.push(buildVEVENT({ uid: 'gala-' + (g.date || '') + '@medx.hr', stamp,
+                    start: icsLocalDT(g.date, t, t.replace(':', '')), end: icsLocalDT(g.date, '23:30', '2330'),
+                    summary: g.title || 'Med&X Gala Evening', location: g.venue || '', description: g.description || '', url: base }));
+            }
+        } catch (e) {}
+        res.set('Content-Type', 'text/calendar; charset=utf-8');
+        res.set('Content-Disposition', 'inline; filename="medx-events.ics"');
+        res.set('Cache-Control', 'public, max-age=900');
+        res.send(buildICS(vevents));
+    } catch (e) { res.status(500).send('Calendar temporarily unavailable'); }
+});
+
+
 app.get('/calendar/:file', (req, res) => {
     try {
         const slug = String(req.params.file || '').replace(/\.ics$/i, '').toLowerCase();
@@ -27783,6 +27844,8 @@ By applying to this program, I provide the following consents:
             if (!name || name.length > 200) return res.status(400).json({ error: 'Please provide your name', code: 'invalid' });
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) return res.status(400).json({ error: 'Please provide a valid email address', code: 'invalid' });
             if (!(req.body && req.body.gdpr_consent)) return res.status(400).json({ error: 'Consent is required', code: 'consent' });
+            // Honeypot: bots fill the invisible "company" field. Pretend success, store nothing.
+            if (req.body && String(req.body.company || '').trim() !== '') return res.json({ success: true, waitlisted: false });
 
             const dupe = query.get('SELECT id FROM signup_form_responses WHERE form_id = ? AND LOWER(email) = ?', [form.id, email]);
             if (dupe) return res.status(409).json({ error: 'This email is already registered', code: 'duplicate' });
