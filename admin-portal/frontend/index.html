@@ -48283,7 +48283,7 @@ By applying to this program, I give the following consents:
                     await App.api('/api/admin/signup-forms/' + r.form.id, { method: 'PUT', body: JSON.stringify({
                         description: c.description || '', event_time: c.event_time || '', venue: c.venue || '',
                         capacity: c.capacity || null, waitlist_enabled: !!c.waitlist_enabled,
-                        reminder_enabled: !!c.reminder_enabled, language: c.lang_default || c.language || 'en',
+                        reminder_enabled: !!c.reminder_enabled, reminder_plan: c.reminder_plan || '', language: c.lang_default || c.language || 'en',
                         project_tag: c.project_tag || 'general', confirmation_message: c.confirmation_message || '',
                         fields_json: (c.fields || []).map(f => ({ ...f }))
                     }) });
@@ -48481,6 +48481,7 @@ By applying to this program, I give the following consents:
 
             renderSettings() {
                 const c = this.current;
+                const sfPlan = String(c.reminder_plan || (c.reminder_enabled ? '2' : '')).split(',').map(s => s.trim()).filter(Boolean);
                 const label = t => `<label style="display:block;font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;">${t}</label>`;
                 const inputStyle = `width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13.5px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;`;
                 document.getElementById('sfTab-settings').innerHTML = `
@@ -48498,7 +48499,15 @@ By applying to this program, I give the following consents:
                                 ${['general', 'plexus', 'bridges', 'forum'].map(t => `<option value="${t}" ${c.project_tag === t ? 'selected' : ''}>${{ general: 'General / Med&X', plexus: 'Plexus Week', bridges: 'Building Bridges', forum: 'Biomedical Forum' }[t]}</option>`).join('')}
                             </select></div>
                             <div style="grid-column:1 / -1;"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfSetWaitlist" ${c.waitlist_enabled ? 'checked' : ''}> Enable a waiting list when the event is full</label></div>
-                            <div style="grid-column:1 / -1;"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfSetReminder" ${c.reminder_enabled ? 'checked' : ''}> Send a "see you tomorrow" reminder email (with the QR ticket) the day before the event</label></div>
+                            <div style="grid-column:1 / -1;">
+                                <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Reminder emails</div>
+                                <div style="display:flex;gap:18px;flex-wrap:wrap;">
+                                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfRem7" ${sfPlan.includes('7') ? 'checked' : ''}> 7 days before</label>
+                                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfRem2" ${sfPlan.includes('2') ? 'checked' : ''}> 2 days before</label>
+                                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfRem0" ${sfPlan.includes('0') ? 'checked' : ''}> On the day</label>
+                                </div>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Nothing sends by itself: each reminder is drafted into the Outbox and waits there for your approval. Guests who unsubscribed from reminders are skipped automatically.</div>
+                            </div>
                             <div style="grid-column:1 / -1;">${label('Confirmation message (success page + email, optional)')}<textarea id="sfSetConfirmMsg" rows="2" placeholder="e.g. Doors open at 18:30. Bring a business card!" style="${inputStyle}resize:vertical;">${this.esc(c.confirmation_message)}</textarea></div>
                         </div>
                         <div style="display:flex;justify-content:flex-end;margin-top:18px;">
@@ -48554,7 +48563,8 @@ By applying to this program, I give the following consents:
                     venue: v('sfSetVenue').trim(),
                     capacity,
                     waitlist_enabled: document.getElementById('sfSetWaitlist').checked,
-                    reminder_enabled: document.getElementById('sfSetReminder').checked,
+                    reminder_plan: ['7','2','0'].filter(d => document.getElementById('sfRem' + d).checked).join(','),
+                    reminder_enabled: ['7','2','0'].some(d => document.getElementById('sfRem' + d).checked),
                     registration_deadline: v('sfSetDeadline'),
                     language: v('sfSetLanguage'),
                     project_tag: v('sfSetTag'),

@@ -8914,6 +8914,7 @@ async function initializeApp() {
         project_tag TEXT DEFAULT 'general',
         language TEXT DEFAULT 'en',
         reminder_enabled INTEGER DEFAULT 0,
+        reminder_plan TEXT DEFAULT '',
         ics_sequence INTEGER DEFAULT 0,
         fields_json TEXT DEFAULT '[]',
         created_by TEXT,
@@ -8943,6 +8944,7 @@ async function initializeApp() {
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN reminder_sent INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN ics_sequence INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run("ALTER TABLE signup_forms ADD COLUMN reminder_plan TEXT DEFAULT ''"); } catch(e) {}
 
     // Email preferences: a row means this address OPTED OUT of the listed categories
     // ('reminders','newsletter' — comma separated). Tickets/confirmations always send.
@@ -28076,38 +28078,54 @@ By applying to this program, I provide the following consents:
         }
     });
 
-    // Day-before reminder for sign-up-form events (opt-in per form). Runs hourly; the
-    // reminder_sent flag makes each recipient's reminder exactly-once.
+    // Reminder emails on a schedule the admin chooses per event (7 days / 2 days / day-of).
+    // NOTHING sends automatically: each reminder is DRAFTED into the approval outbox
+    // (scheduled_emails, pending_approval) and goes out only after a person approves it there.
+    // Guests who unsubscribed from reminders are skipped. Duplicate-proof per event+day+guest.
     async function runSignupFormReminders() {
         try {
-            const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Zagreb' });
-            const forms = query.all("SELECT * FROM signup_forms WHERE reminder_enabled = 1 AND event_date = ? AND status != 'draft'", [tomorrow]);
-            for (const form of forms) {
-                const due = query.all('SELECT * FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0 AND COALESCE(reminder_sent, 0) = 0', [form.id]);
-                const lang = signupFormLang(form);
-                const T = SIGNUP_FORM_I18N[lang];
-                for (const r of due) {
-                    try {
-                        if (emailOptedOut(r.email, 'reminders')) continue;
-                        const details = [signupFormDateLabel(form.event_date, lang), form.event_time, form.venue].filter(Boolean).join(' · ');
-                        const qrBlock = buildTicketQrBlock(r.id, lang === 'hr'
-                            ? { label: 'Vaš QR kod za ulaz', caption: 'Pokažite ovaj kod na ulazu u događanje', attachNote: 'QR kod nalazi se i u privitku ove poruke. Spremite ga na svoj mobitel.' }
-                            : { label: 'Your entry QR code', caption: 'Present this code at the event entrance' });
-                        const body = `${emailPreheader(details)}
-                            <p style="margin:0 0 14px;">${T.emailGreeting.replace('{name}', escapeHtml(r.name))}</p>
-                            <p style="margin:0 0 14px;">${T.reminderLine.replace('{title}', escapeHtml(form.title))}</p>
-                            ${details ? `<p style="margin:0 0 18px;color:#334155;">${escapeHtml(details)}</p>` : ''}
-                            ${qrBlock}
-                            <p style="margin:14px 0 0;">${T.emailSignoff}</p>
-                            ${emailUnsubFooter(r.email, lang)}`;
-                        let atts; try { atts = await qrPngAttachment({ type: 'MEDX_MEMBER', regId: r.id, evt: 'signup-form' }); } catch (e) {}
-                        const inviteAtt = signupFormIcsAttachment(form, r.email);
-                        if (inviteAtt) atts = (atts || []).concat([inviteAtt]);
-                        const result = await sendEmail(r.email, T.reminderSubject.replace('{title}', form.title), buildEmailTemplate(T.reminderTitle, body, lang), atts);
-                        if (result && result.success) query.run('UPDATE signup_form_responses SET reminder_sent = 1 WHERE id = ?', [r.id]);
-                    } catch (e) { console.error('[signup reminder] send failed:', e.message); }
+            const offsets = [7, 2, 0];
+            for (const off of offsets) {
+                const target = new Date(Date.now() + off * 24 * 3600 * 1000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Zagreb' });
+                const forms = query.all("SELECT * FROM signup_forms WHERE status != 'draft' AND event_date = ?", [target]);
+                for (const form of forms) {
+                    const plan = String(form.reminder_plan || (form.reminder_enabled ? '2' : '')).split(',').map(x => x.trim()).filter(Boolean);
+                    if (!plan.includes(String(off))) continue;
+                    const lang = signupFormLang(form);
+                    const T = SIGNUP_FORM_I18N[lang];
+                    const batchId = `sfrem-${form.id}-${off}-${form.event_date}`;
+                    const guests = query.all('SELECT * FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0', [form.id]);
+                    let staged = 0;
+                    for (const g of guests) {
+                        try {
+                            if (emailOptedOut(g.email, 'reminders')) continue;
+                            const dup = query.get('SELECT id FROM scheduled_emails WHERE batch_id = ? AND recipient_email = ?', [batchId, g.email]);
+                            if (dup) continue;
+                            const base = (process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+                            const details = [signupFormDateLabel(form.event_date, lang), form.event_time, form.venue].filter(Boolean).join(' · ');
+                            const lead = off === 7
+                                ? (lang === 'hr' ? `Za tjedan dana vidimo se na događanju <strong>${escapeHtml(form.title)}</strong>. Radujemo se Vašem dolasku.` : `One week from now: <strong>${escapeHtml(form.title)}</strong>. We look forward to seeing you.`)
+                                : off === 2
+                                ? (lang === 'hr' ? `Podsjećamo Vas: <strong>${escapeHtml(form.title)}</strong> je za dva dana.` : `A reminder: <strong>${escapeHtml(form.title)}</strong> is in two days.`)
+                                : (lang === 'hr' ? `Danas je dan: <strong>${escapeHtml(form.title)}</strong>. Vidimo se!` : `Today is the day: <strong>${escapeHtml(form.title)}</strong>. See you there!`);
+                            const subject = off === 0
+                                ? (lang === 'hr' ? `Danas: ${form.title}` : `Today: ${form.title}`)
+                                : (lang === 'hr' ? `Podsjetnik: ${form.title}` : `Reminder: ${form.title}`);
+                            const html = buildEmailTemplate(subject, `${emailPreheader(details || form.title)}
+                                <p style="margin:0 0 14px;">${T.emailGreeting.replace('{name}', escapeHtml(g.name))}</p>
+                                <p style="margin:0 0 14px;">${lead}</p>
+                                ${details ? `<p style="margin:0 0 14px;color:#334155;">${escapeHtml(details)}</p>` : ''}
+                                <p style="margin:0 0 8px;"><a href="${base}/qr/${g.id}.png" style="color:#C9A962;">${lang === 'hr' ? 'Vaš QR kod za ulaz' : 'Your entry QR code'}</a>${form.event_date ? ` · <a href="${base}/f/${form.slug}/calendar.ics" style="color:#C9A962;">${T.addToCalendar}</a>` : ''}</p>
+                                <p style="margin:14px 0 0;">${T.emailSignoff}</p>
+                                ${emailUnsubFooter(g.email, lang)}`, lang);
+                            db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                                    VALUES (?, 'pending_approval', ?, 'signup-reminder', 'signup_reminder', ?, ?, ?, 'reminder-engine', datetime('now'))`,
+                                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: g.email, subject, html, reply_to: 'laura.rodman@medx.hr' }), g.email, subject]);
+                            staged++;
+                        } catch (e2) { /* per-guest best effort */ }
+                    }
+                    if (staged) { saveDb(); console.log(`[signup reminder] ${form.title}: ${staged} draft(s) staged to the outbox (${off} day(s) before)`); }
                 }
-                if (due.length) console.log(`[signup reminder] ${form.title}: ${due.length} reminder(s) processed`);
             }
         } catch (e) { console.error('[signup reminder] job error:', e.message); }
     }

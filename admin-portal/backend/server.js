@@ -4022,6 +4022,7 @@ async function initializeApp() {
         project_tag TEXT DEFAULT 'general',
         language TEXT DEFAULT 'en',
         reminder_enabled INTEGER DEFAULT 0,
+        reminder_plan TEXT DEFAULT '',
         ics_sequence INTEGER DEFAULT 0,
         fields_json TEXT DEFAULT '[]',
         created_by TEXT,
@@ -4051,6 +4052,7 @@ async function initializeApp() {
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN reminder_sent INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN ics_sequence INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run("ALTER TABLE signup_forms ADD COLUMN reminder_plan TEXT DEFAULT ''"); } catch(e) {}
 
     // Email preferences: a row means this address OPTED OUT of the listed categories
     // ('reminders','newsletter' — comma separated). Tickets/confirmations always send.
@@ -28698,6 +28700,10 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         if (b.capacity !== undefined) patch.capacity = b.capacity;
         if (b.waitlist_enabled !== undefined) patch.waitlist_enabled = b.waitlist_enabled ? 1 : 0;
         if (b.reminder_enabled !== undefined) patch.reminder_enabled = b.reminder_enabled ? 1 : 0;
+        if (b.reminder_plan !== undefined) {
+            // CSV of day-offsets; only 7, 2 and 0 (day-of) are valid.
+            patch.reminder_plan = String(b.reminder_plan || '').split(',').map(x => x.trim()).filter(x => ['7', '2', '0'].includes(x)).join(',');
+        }
         if (fieldsJson !== undefined) patch.fields_json = fieldsJson;
 
         if (!Object.keys(patch).length) return res.json({ success: true });
