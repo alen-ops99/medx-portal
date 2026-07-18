@@ -48805,6 +48805,7 @@ By applying to this program, I give the following consents:
 
             async loadResponses() {
                 if (!this.current) return;
+                if (this.pendingDelete) return; // an undo window is open — do not repaint over it
                 let data;
                 try { data = await App.api(`/api/admin/signup-forms/${this.current.id}/responses`); }
                 catch(e) {
@@ -48818,8 +48819,18 @@ By applying to this program, I give the following consents:
             },
 
             renderResponses(data) {
+                this.lastData = data;
+                if (!this.respSel) this.respSel = new Set();
+                if (!this.respFilter) this.respFilter = 'all';
                 const c = this.current;
                 const fields = c.fields || [];
+                const rows = data.responses || [];
+                const pendIds = this.pendingDelete ? this.pendingDelete.ids : new Set();
+                const live = rows.filter(r => !pendIds.has(r.id));
+                // keep the selection meaningful across repaints
+                const liveIds = new Set(live.map(r => r.id));
+                this.respSel.forEach(id => { if (!liveIds.has(id)) this.respSel.delete(id); });
+
                 const stat = (num, lbl, color) => `
                     <div class="card" style="padding:14px 20px;min-width:130px;">
                         <div style="font-size:22px;font-weight:700;color:${color || 'var(--text-primary)'};">${num}</div>
@@ -48836,7 +48847,29 @@ By applying to this program, I give the following consents:
                             <button class="btn btn-secondary" onclick="SignupFormsApp.exportResponses('xlsx')"><i class="fas fa-file-excel"></i> Excel</button>
                         </div>
                     </div>`;
-                if (!data.responses.length) {
+
+                // Quick views with live counts — one click answers "who is actually here?"
+                const nAll = live.length;
+                const nConf = live.filter(r => !r.is_waitlisted).length;
+                const nWait = live.filter(r => !!r.is_waitlisted).length;
+                const nIn = live.filter(r => !!r.checked_in).length;
+                const nNotIn = live.filter(r => !r.checked_in && !r.is_waitlisted).length;
+                const VIEWS = [
+                    ['all', 'Everyone', nAll], ['confirmed', 'Signed up', nConf], ['waitlist', 'Waiting list', nWait],
+                    ['checkedin', 'Checked in', nIn], ['notchecked', 'Not checked in', nNotIn]
+                ];
+                const chips = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">` + VIEWS.map(([k, lbl, n]) =>
+                    `<button class="btn ${this.respFilter === k ? 'btn-primary' : 'btn-secondary'}" style="padding:5px 13px;font-size:12px;border-radius:999px;" onclick="SignupFormsApp.setRespFilter('${k}')">${lbl} <span style="opacity:.72;">${n}</span></button>`).join('') + `</div>`;
+
+                const shown = live.filter(r => {
+                    if (this.respFilter === 'confirmed') return !r.is_waitlisted;
+                    if (this.respFilter === 'waitlist') return !!r.is_waitlisted;
+                    if (this.respFilter === 'checkedin') return !!r.checked_in;
+                    if (this.respFilter === 'notchecked') return !r.checked_in && !r.is_waitlisted;
+                    return true;
+                });
+
+                if (!rows.length) {
                     document.getElementById('sfTab-responses').innerHTML = strip + `
                         <div class="card" style="text-align:center;padding:48px 24px;color:var(--text-muted);">
                             <i class="fas fa-inbox" style="font-size:28px;margin-bottom:10px;display:block;"></i>
@@ -48844,23 +48877,40 @@ By applying to this program, I give the following consents:
                         </div>`;
                     return;
                 }
+
+                const selCount = this.respSel.size;
+                const selBar = selCount ? `
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--text-primary);color:#fbf9f6;border-radius:12px;padding:10px 16px;margin-bottom:12px;">
+                        <span style="font-size:13px;font-weight:600;">${selCount} selected</span>
+                        <span style="opacity:.4;">|</span>
+                        <button onclick="SignupFormsApp.copySelEmails()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:12.5px;padding:4px 8px;"><i class="far fa-copy"></i> Copy emails</button>
+                        <button onclick="SignupFormsApp.exportSelected()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:12.5px;padding:4px 8px;"><i class="fas fa-file-csv"></i> Export these</button>
+                        <button onclick="SignupFormsApp.promoteSelected()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:12.5px;padding:4px 8px;"><i class="fas fa-arrow-up"></i> Promote from waitlist</button>
+                        <button onclick="SignupFormsApp.removeSelected()" style="background:none;border:none;color:#fca5a5;cursor:pointer;font-size:12.5px;padding:4px 8px;"><i class="fas fa-trash-can"></i> Remove</button>
+                        <div style="flex:1;"></div>
+                        <button onclick="SignupFormsApp.clearSel()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:12px;opacity:.7;padding:4px 8px;">Clear</button>
+                    </div>` : '';
+
                 const answerCell = (r, f) => {
                     const a = r.answers ? r.answers[f.id] : undefined;
                     return this.esc(Array.isArray(a) ? a.join(', ') : (a === undefined || a === null ? '' : a));
                 };
                 const th = t => `<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap;">${t}</th>`;
                 const td = t => `<td style="padding:10px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:top;">${t}</td>`;
-                document.getElementById('sfTab-responses').innerHTML = strip + `
+                const allShownSel = shown.length && shown.every(r => this.respSel.has(r.id));
+                document.getElementById('sfTab-responses').innerHTML = strip + chips + selBar + `
                     <div class="card" style="padding:0;overflow-x:auto;">
                         <table style="width:100%;border-collapse:collapse;min-width:640px;">
                             <thead><tr>
+                                ${th(`<input type="checkbox" ${allShownSel ? 'checked' : ''} onclick="SignupFormsApp.toggleSelAll(this.checked)" title="Select everyone shown">`)}
                                 ${th('Name')}${th('Email')}
                                 ${fields.map(f => th(this.esc(f.label))).join('')}
                                 ${th('Signed up')}${th('')}
                             </tr></thead>
                             <tbody>
-                                ${data.responses.map(r => `<tr>
-                                    ${td(`${this.esc(r.name)}${r.is_waitlisted ? ' <span style="background:rgba(180,83,9,0.12);color:#b45309;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;margin-left:6px;">Waitlist</span>' : ''}`)}
+                                ${shown.map(r => `<tr${this.respSel.has(r.id) ? ' style="background:rgba(201,169,98,0.07);"' : ''}>
+                                    ${td(`<input type="checkbox" ${this.respSel.has(r.id) ? 'checked' : ''} onclick="SignupFormsApp.toggleSel('${r.id}', this.checked)">`)}
+                                    ${td(`${this.esc(r.name)}${r.is_waitlisted ? ' <span style="background:rgba(180,83,9,0.12);color:#b45309;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;margin-left:6px;">Waitlist</span>' : ''}${r.checked_in ? ' <span style="background:rgba(5,150,105,0.12);color:#059669;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;margin-left:6px;">Checked in</span>' : ''}`)}
                                     ${td(`<a href="mailto:${this.esc(r.email)}" style="color:inherit;">${this.esc(r.email)}</a>`)}
                                     ${fields.map(f => td(answerCell(r, f))).join('')}
                                     ${td(`<span style="color:var(--text-muted);font-size:12px;white-space:nowrap;">${r.created_at ? new Date(r.created_at.replace(' ', 'T') + (r.created_at.includes('Z') ? '' : 'Z')).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>`)}
@@ -48868,7 +48918,113 @@ By applying to this program, I give the following consents:
                                 </tr>`).join('')}
                             </tbody>
                         </table>
-                    </div>`;
+                    </div>
+                    ${shown.length !== live.length ? `<div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Showing ${shown.length} of ${live.length}.</div>` : ''}`;
+            },
+
+            setRespFilter(k) { this.respFilter = k; if (this.lastData) this.renderResponses(this.lastData); },
+            toggleSel(id, on) { if (!this.respSel) this.respSel = new Set(); on ? this.respSel.add(id) : this.respSel.delete(id); if (this.lastData) this.renderResponses(this.lastData); },
+            clearSel() { if (this.respSel) this.respSel.clear(); if (this.lastData) this.renderResponses(this.lastData); },
+            toggleSelAll(on) {
+                if (!this.respSel) this.respSel = new Set();
+                const pendIds = this.pendingDelete ? this.pendingDelete.ids : new Set();
+                const live = (this.lastData.responses || []).filter(r => !pendIds.has(r.id));
+                const shown = live.filter(r => {
+                    if (this.respFilter === 'confirmed') return !r.is_waitlisted;
+                    if (this.respFilter === 'waitlist') return !!r.is_waitlisted;
+                    if (this.respFilter === 'checkedin') return !!r.checked_in;
+                    if (this.respFilter === 'notchecked') return !r.checked_in && !r.is_waitlisted;
+                    return true;
+                });
+                shown.forEach(r => { on ? this.respSel.add(r.id) : this.respSel.delete(r.id); });
+                this.renderResponses(this.lastData);
+            },
+            selRows() { return (this.lastData && this.lastData.responses || []).filter(r => this.respSel && this.respSel.has(r.id)); },
+
+            async copySelEmails() {
+                const emails = this.selRows().map(r => r.email).filter(Boolean);
+                if (!emails.length) return;
+                try { await navigator.clipboard.writeText(emails.join(', ')); alert(emails.length + ' email address(es) copied — paste them into any email.'); }
+                catch (e) { prompt('Copy the addresses:', emails.join(', ')); }
+            },
+
+            exportSelected() {
+                const rows = this.selRows();
+                if (!rows.length) return;
+                const fields = (this.current && this.current.fields) || [];
+                const esc = v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+                const head = ['Name', 'Email', ...fields.map(f => f.label), 'Waitlist', 'Checked in', 'Signed up'];
+                const lines = [head.map(esc).join(',')];
+                rows.forEach(r => {
+                    const ans = fields.map(f => { const a = r.answers ? r.answers[f.id] : ''; return Array.isArray(a) ? a.join('; ') : (a == null ? '' : a); });
+                    lines.push([r.name, r.email, ...ans, r.is_waitlisted ? 'yes' : '', r.checked_in ? 'yes' : '', r.created_at || ''].map(esc).join(','));
+                });
+                const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `${this.current.slug}-selected.csv`;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+            },
+
+            async promoteSelected() {
+                const waiting = this.selRows().filter(r => r.is_waitlisted);
+                if (!waiting.length) { alert('None of the selected guests are on the waiting list.'); return; }
+                if (!confirm(`Promote ${waiting.length} guest(s) from the waiting list? Each receives a confirmation email with their entry QR.`)) return;
+                let ok = 0, fail = 0;
+                for (const r of waiting) {
+                    try { await App.api(`/api/admin/signup-forms/${this.current.id}/responses/${r.id}/promote`, { method: 'POST' }); ok++; }
+                    catch (e) { fail++; }
+                }
+                if (fail) alert(`${ok} promoted, ${fail} failed — refresh and check the list.`);
+                this.respSel.clear();
+                this.loadResponses();
+            },
+
+            removeSelected() {
+                const ids = [...(this.respSel || [])];
+                if (!ids.length) return;
+                this.scheduleDelete(ids);
+            },
+
+            // Deletes wait 6 seconds behind an Undo button before anything is really removed.
+            scheduleDelete(ids) {
+                this.flushDelete(); // a previous pending delete really goes through now
+                this.pendingDelete = { ids: new Set(ids), timer: setTimeout(() => this.flushDelete(), 6000) };
+                if (this.respSel) ids.forEach(id => this.respSel.delete(id));
+                if (this.lastData) this.renderResponses(this.lastData);
+                let bar = document.getElementById('sfUndoBar');
+                if (!bar) {
+                    bar = document.createElement('div');
+                    bar.id = 'sfUndoBar';
+                    bar.style.cssText = 'position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:3000;background:var(--text-primary);color:#fbf9f6;border-radius:999px;padding:10px 20px;display:flex;align-items:center;gap:14px;box-shadow:0 12px 34px -12px rgba(0,0,0,0.45);font-size:13.5px;';
+                    document.body.appendChild(bar);
+                }
+                bar.innerHTML = `<span>${ids.length === 1 ? 'Signup removed.' : ids.length + ' signups removed.'}</span><button onclick="SignupFormsApp.undoDelete()" style="background:none;border:none;color:#c9a962;font-weight:700;cursor:pointer;font-size:13.5px;">Undo</button>`;
+                bar.style.display = 'flex';
+            },
+
+            undoDelete() {
+                if (!this.pendingDelete) return;
+                clearTimeout(this.pendingDelete.timer);
+                this.pendingDelete = null;
+                const bar = document.getElementById('sfUndoBar');
+                if (bar) bar.style.display = 'none';
+                if (this.lastData) this.renderResponses(this.lastData);
+            },
+
+            async flushDelete() {
+                if (!this.pendingDelete) return;
+                const ids = [...this.pendingDelete.ids];
+                clearTimeout(this.pendingDelete.timer);
+                this.pendingDelete = null;
+                const bar = document.getElementById('sfUndoBar');
+                if (bar) bar.style.display = 'none';
+                for (const id of ids) {
+                    try { await App.api(`/api/admin/signup-forms/${this.current.id}/responses/${id}`, { method: 'DELETE' }); }
+                    catch (e) { /* row may already be gone */ }
+                }
+                this.loadResponses();
             },
 
             startPolling() {
@@ -48899,12 +49055,8 @@ By applying to this program, I give the following consents:
                 } catch(e) { alert('Could not promote: ' + e.message); }
             },
 
-            async deleteResponse(id) {
-                if (!confirm('Remove this signup? This cannot be undone.')) return;
-                try {
-                    await App.api(`/api/admin/signup-forms/${this.current.id}/responses/${id}`, { method: 'DELETE' });
-                    this.loadResponses();
-                } catch(e) { alert('Could not delete: ' + e.message); }
+            deleteResponse(id) {
+                this.scheduleDelete([id]);
             }
         };
 
