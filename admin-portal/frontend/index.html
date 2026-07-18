@@ -26514,9 +26514,10 @@ President, Med&amp;X</textarea>
                         : ctx === 'gala' ? 'gala'
                         : ctx === 'forum' ? 'forum'
                         : ctx === 'bridges-croatian' ? 'bridges'
+                        : ctx === 'signup-form' ? 'signupForm'
                         : ctx.indexOf('bridges') === 0 ? 'regionalBridges'
                         : null;
-                    const eventNames = { conference: 'Plexus Conference', bridges: 'Croatian Bridges', gala: 'Gala Evening', forum: 'Forum', regionalBridges: 'Building Bridges' };
+                    const eventNames = { conference: 'Plexus Conference', bridges: 'Croatian Bridges', gala: 'Gala Evening', forum: 'Forum', regionalBridges: 'Building Bridges', signupForm: 'Sign-up form events' };
                     const head = (ctxKey && stats[ctxKey]) ? stats[ctxKey] : o;
                     const headLabel = (ctxKey && stats[ctxKey]) ? eventNames[ctxKey] : 'All events';
                     const pct = head.total > 0 ? Math.round((head.checked_in / head.total) * 100) : 0;
@@ -26525,7 +26526,7 @@ President, Med&amp;X</textarea>
                     pctEl.textContent = `${pct}%`;
                     fill.style.width = `${pct}%`;
 
-                    events.innerHTML = ['conference', 'bridges', 'gala', 'forum', 'regionalBridges']
+                    events.innerHTML = ['conference', 'bridges', 'gala', 'forum', 'regionalBridges', 'signupForm']
                         .filter(e => stats[e] && stats[e].total > 0)
                         .map(e => {
                             const s = stats[e];

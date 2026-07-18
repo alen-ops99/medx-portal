@@ -30833,12 +30833,15 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const forum = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM forum_members') || { total: 0, checked_in: 0 };
             // Regional Building Bridges (Zurich/DC/Boston) — a SEPARATE program from Croatian Biomedical Bridges.
             const regionalBridges = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM bridges_registrations') || { total: 0, checked_in: 0 };
+            // Sign-up-form events: confirmed (non-waitlisted) rows only.
+            let signupForm = { total: 0, checked_in: 0 };
+            try { signupForm = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM signup_form_responses WHERE is_waitlisted = 0') || signupForm; } catch (e) {}
             res.json({
-                conference, bridges, gala, forum, regionalBridges,
+                conference, bridges, gala, forum, regionalBridges, signupForm,
                 plexus: conference, // legacy alias (Plexus Conference)
                 overall: {
-                    total: conference.total + bridges.total + gala.total + forum.total + regionalBridges.total,
-                    checked_in: conference.checked_in + bridges.checked_in + gala.checked_in + forum.checked_in + regionalBridges.checked_in
+                    total: conference.total + bridges.total + gala.total + forum.total + regionalBridges.total + signupForm.total,
+                    checked_in: conference.checked_in + bridges.checked_in + gala.checked_in + forum.checked_in + regionalBridges.checked_in + signupForm.checked_in
                 }
             });
         } catch (err) {
@@ -30862,6 +30865,8 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 SELECT id, first_name, last_name, email, conference_checked_in_at as checked_in_at, 'conference' as event FROM croatians_abroad_registrations WHERE conference_checked_in = 1 AND conference_checked_in_at IS NOT NULL
                 UNION ALL
                 SELECT id, first_name, last_name, email, bridges_checked_in_at as checked_in_at, 'bridges' as event FROM croatians_abroad_registrations WHERE bridges_checked_in = 1 AND bridges_checked_in_at IS NOT NULL
+                UNION ALL
+                SELECT id, name as first_name, '' as last_name, email, checked_in_at, 'signup-form' as event FROM signup_form_responses WHERE checked_in = 1 AND checked_in_at IS NOT NULL
                 ORDER BY checked_in_at DESC LIMIT 10
             `);
             res.json(rows.map(r => ({
