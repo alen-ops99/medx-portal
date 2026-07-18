@@ -165,7 +165,37 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(160deg, #fbf9f6 0%, #f3efe9 100%);
+            position: relative;
+            overflow: hidden;
+            background:
+                radial-gradient(1100px 700px at 12% -8%, rgba(155, 27, 34, 0.07), transparent 60%),
+                radial-gradient(900px 640px at 105% 108%, rgba(201, 169, 98, 0.14), transparent 62%),
+                linear-gradient(160deg, #fbf9f6 0%, #f3efe9 100%);
+        }
+
+        /* A fine dot weave over the cream, like good letterpress paper. */
+        .login-page::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(circle, rgba(21, 17, 15, 0.05) 1px, transparent 1.4px);
+            background-size: 22px 22px;
+            pointer-events: none;
+        }
+
+        /* Oversized ghosted Med&X mark anchored off the corner. */
+        .login-page::after {
+            content: '';
+            position: absolute;
+            right: -150px;
+            bottom: -130px;
+            width: 560px;
+            height: 560px;
+            background: url('assets/images/medx-logo.png') center / contain no-repeat;
+            filter: brightness(0);
+            opacity: 0.045;
+            transform: rotate(-8deg);
+            pointer-events: none;
         }
 
         .login-card {
@@ -175,6 +205,9 @@
             padding: 40px;
             width: 100%;
             max-width: 400px;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 24px 60px -30px rgba(21, 17, 15, 0.28);
         }
 
         .login-logo {
