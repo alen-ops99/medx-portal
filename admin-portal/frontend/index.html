@@ -48562,7 +48562,8 @@ By applying to this program, I give the following consents:
                 };
                 if (!patch.title) { alert('The form needs a title.'); return; }
                 try {
-                    await App.api('/api/admin/signup-forms/' + this.current.id, { method: 'PUT', body: JSON.stringify(patch) });
+                    const resp = await App.api('/api/admin/signup-forms/' + this.current.id, { method: 'PUT', body: JSON.stringify(patch) });
+                    if (resp && resp.calendar_updates) alert('Saved. ' + resp.calendar_updates + ' guest calendar(s) were sent the corrected invitation.');
                     Object.assign(this.current, patch, { waitlist_enabled: patch.waitlist_enabled ? 1 : 0 });
                     this.renderEditorHeader();
                     const idx = this.forms.findIndex(f => f.id === this.current.id);

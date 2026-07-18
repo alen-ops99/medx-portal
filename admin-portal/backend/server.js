@@ -4022,6 +4022,7 @@ async function initializeApp() {
         project_tag TEXT DEFAULT 'general',
         language TEXT DEFAULT 'en',
         reminder_enabled INTEGER DEFAULT 0,
+        ics_sequence INTEGER DEFAULT 0,
         fields_json TEXT DEFAULT '[]',
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -4049,6 +4050,7 @@ async function initializeApp() {
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in_at TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN reminder_sent INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE signup_forms ADD COLUMN ics_sequence INTEGER DEFAULT 0'); } catch(e) {}
     // Login visibility (2026-07-18 security pass): before this, logins were recorded NOWHERE,
     // so a credential-abuse window could never be reconstructed. Guarded, additive.
     try { db.run('ALTER TABLE users ADD COLUMN last_login TEXT'); } catch(e) {}
@@ -28585,6 +28587,47 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         return null;
     }
 
+    // Self-contained calendar-invitation builder (mirror of the user portal's — the admin
+    // sends the corrected invite when an event's date/time/venue changes). Same UID; the
+    // bumped SEQUENCE makes guests' calendar apps replace the old entry silently.
+    function sfIcsEscape(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+    function sfIcsFold(line) {
+        if (line.length <= 74) return line;
+        let out = line.slice(0, 74);
+        let rest = line.slice(74);
+        while (rest.length) { out += '\r\n ' + rest.slice(0, 73); rest = rest.slice(73); }
+        return out;
+    }
+    const SF_VTIMEZONE = [
+        'BEGIN:VTIMEZONE', 'TZID:Europe/Zagreb',
+        'BEGIN:DAYLIGHT', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200', 'TZNAME:CEST', 'DTSTART:19700329T020000', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU', 'END:DAYLIGHT',
+        'BEGIN:STANDARD', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0100', 'TZNAME:CET', 'DTSTART:19701025T030000', 'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU', 'END:STANDARD',
+        'END:VTIMEZONE'
+    ];
+    function sfInviteIcs(form, attendeeEmail) {
+        const t = String(form.event_time || '19:00').slice(0, 5);
+        const endT = String(Math.min(23, parseInt(t.slice(0, 2), 10) + 3)).padStart(2, '0') + t.slice(2);
+        const dt = (d, hm) => String(d).replace(/-/g, '') + 'T' + hm.replace(':', '') + '00';
+        const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z/, 'Z');
+        const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Med&X//Events//EN', 'CALSCALE:GREGORIAN', 'METHOD:REQUEST']
+            .concat(SF_VTIMEZONE).concat([
+            'BEGIN:VEVENT',
+            'UID:signup-form-' + form.id + '@medx.hr',
+            'DTSTAMP:' + stamp,
+            'SEQUENCE:' + (form.ics_sequence || 0),
+            'DTSTART;TZID=Europe/Zagreb:' + dt(form.event_date, t),
+            'DTEND;TZID=Europe/Zagreb:' + dt(form.event_date, endT),
+            'SUMMARY:' + sfIcsEscape(form.title),
+            form.venue ? 'LOCATION:' + sfIcsEscape(form.venue) : null,
+            'ORGANIZER;CN=Med&X:mailto:laura.rodman@medx.hr',
+            attendeeEmail ? 'ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED:mailto:' + attendeeEmail : null,
+            'STATUS:CONFIRMED', 'TRANSP:OPAQUE',
+            'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + sfIcsEscape(form.title), 'TRIGGER:-PT2H', 'END:VALARM',
+            'END:VEVENT', 'END:VCALENDAR'
+        ].filter(Boolean));
+        return lines.map(sfIcsFold).join('\r\n') + '\r\n';
+    }
+
     function signupFormCounts(formId) {
         return {
             response_count: query.get('SELECT COUNT(*) AS n FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0', [formId])?.n || 0,
@@ -28618,7 +28661,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         res.json({ ...form, fields, url: signupFormPublicUrl(form.slug), ...signupFormCounts(form.id) });
     });
 
-    app.put('/api/admin/signup-forms/:id', auth, adminOnly, (req, res) => {
+    app.put('/api/admin/signup-forms/:id', auth, adminOnly, async (req, res) => {
         const form = query.get('SELECT * FROM signup_forms WHERE id = ?', [req.params.id]);
         if (!form) return res.status(404).json({ error: 'Form not found' });
         const b = req.body || {};
@@ -28650,12 +28693,45 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         if (fieldsJson !== undefined) patch.fields_json = fieldsJson;
 
         if (!Object.keys(patch).length) return res.json({ success: true });
+        const detailsChanged = ['event_date', 'event_time', 'venue'].some(k =>
+            patch[k] !== undefined && String(patch[k] || '') !== String(form[k] || ''));
         patch.updated_at = new Date().toISOString();
         const sets = Object.keys(patch).map(k => `${k} = ?`).join(', ');
         db.run(`UPDATE signup_forms SET ${sets} WHERE id = ?`, [...Object.values(patch), form.id]);
         saveDb();
         if (b.status !== undefined && b.status !== form.status) logAudit(req, 'signup_form_status', `${form.title}: ${form.status} -> ${b.status}`);
-        res.json({ success: true });
+
+        // Date/time/venue changed on a live event: bump the invite SEQUENCE and email every
+        // confirmed guest the corrected invitation — their calendars update themselves.
+        let calendarUpdates = 0;
+        try {
+            const fresh0 = query.get('SELECT * FROM signup_forms WHERE id = ?', [form.id]);
+            if (detailsChanged && fresh0 && fresh0.status === 'open' && fresh0.event_date) {
+                db.run('UPDATE signup_forms SET ics_sequence = COALESCE(ics_sequence, 0) + 1 WHERE id = ?', [form.id]);
+                saveDb();
+                const freshForm = query.get('SELECT * FROM signup_forms WHERE id = ?', [form.id]);
+                const guests = query.all('SELECT * FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0', [form.id]);
+                const hr = freshForm.language === 'hr';
+                const details = [freshForm.event_date, freshForm.event_time, freshForm.venue].filter(Boolean).join(' · ');
+                for (const g of guests.slice(0, 500)) {
+                    try {
+                        const subject = hr ? `Izmjena termina: ${freshForm.title}` : `Updated details: ${freshForm.title}`;
+                        const line = hr
+                            ? `Podaci o događanju <strong>${seatEsc(freshForm.title)}</strong> su izmijenjeni. Priložena pozivnica automatski će ažurirati Vaš kalendar.`
+                            : `The details of <strong>${seatEsc(freshForm.title)}</strong> have changed. The attached invitation updates your calendar automatically.`;
+                        const body = `
+                            <p style="margin:0 0 10px;">${hr ? 'Poštovani/poštovana' : 'Dear'} ${seatEsc(g.name)},</p>
+                            <p style="margin:0 0 14px;">${line}</p>
+                            <p style="margin:0 0 14px;color:#334155;">${seatEsc(details)}</p>`;
+                        const att = [{ filename: 'medx-event.ics', content: Buffer.from(sfInviteIcs(freshForm, g.email)), type: 'text/calendar' }];
+                        const r2 = await sendEmail(g.email, subject, buildEmailTemplate(hr ? 'Izmjena termina' : 'Updated details', body), att);
+                        if (r2 && r2.success) calendarUpdates++;
+                    } catch (e) { /* per-guest best effort */ }
+                }
+                if (calendarUpdates) logAudit(req, 'signup_form_ics_update', `${freshForm.title}: ${calendarUpdates} calendar update(s) sent`);
+            }
+        } catch (e) { console.error('[signup ics update] failed:', e.message); }
+        res.json({ success: true, calendar_updates: calendarUpdates });
     });
 
     app.delete('/api/admin/signup-forms/:id', auth, adminOnly, (req, res) => {

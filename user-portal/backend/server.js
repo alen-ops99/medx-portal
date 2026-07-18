@@ -1806,6 +1806,40 @@ function signupFormDeadlineLabel(form, lang) {
     return parts[1] ? `${ds}, ${parts[1]}` : ds;
 }
 
+// A real calendar invitation as an email attachment. The UID never changes and the
+// SEQUENCE number goes up when the event's date/time/venue changes, so the guest's
+// calendar app quietly REPLACES the old entry instead of duplicating it. Includes a
+// 2-hour-before alarm. (This is what Luma does; members' calendars stay correct.)
+function signupFormInviteIcs(form, attendeeEmail) {
+    const t = String(form.event_time || '19:00').slice(0, 5);
+    const endT = String(Math.min(23, parseInt(t.slice(0, 2), 10) + 3)).padStart(2, '0') + t.slice(2);
+    const lines = [
+        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Med&X//Events//EN',
+        'CALSCALE:GREGORIAN', 'METHOD:REQUEST'
+    ].concat(ZAGREB_VTIMEZONE).concat([
+        'BEGIN:VEVENT',
+        'UID:signup-form-' + form.id + '@medx.hr',
+        'DTSTAMP:' + icsStampUTC(new Date()),
+        'SEQUENCE:' + (form.ics_sequence || 0),
+        'DTSTART;TZID=Europe/Zagreb:' + icsLocalDT(form.event_date, t, t.replace(':', '')),
+        'DTEND;TZID=Europe/Zagreb:' + icsLocalDT(form.event_date, endT, endT.replace(':', '')),
+        'SUMMARY:' + icsEscapeText(form.title),
+        form.venue ? 'LOCATION:' + icsEscapeText(form.venue) : null,
+        form.description ? 'DESCRIPTION:' + icsEscapeText(form.description) : null,
+        'ORGANIZER;CN=Med&X:mailto:laura.rodman@medx.hr',
+        attendeeEmail ? 'ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED:mailto:' + attendeeEmail : null,
+        'STATUS:CONFIRMED', 'TRANSP:OPAQUE',
+        'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEscapeText(form.title), 'TRIGGER:-PT2H', 'END:VALARM',
+        'END:VEVENT', 'END:VCALENDAR'
+    ].filter(Boolean));
+    return lines.map(icsFold).join('\r\n') + '\r\n';
+}
+function signupFormIcsAttachment(form, email) {
+    if (!form.event_date) return null;
+    try { return { filename: 'medx-event.ics', content: Buffer.from(signupFormInviteIcs(form, email)), type: 'text/calendar' }; }
+    catch (e) { return null; }
+}
+
 function renderSignupFormQuestionInput(f, T, accent) {
     const req = f.required ? ' <span class="req">*</span>' : ` <span class="opt">(${T.optional})</span>`;
     const label = `<label class="q-label" for="q_${escapeHtml(f.id)}">${escapeHtml(f.label)}${req}</label>`;
@@ -8784,6 +8818,7 @@ async function initializeApp() {
         project_tag TEXT DEFAULT 'general',
         language TEXT DEFAULT 'en',
         reminder_enabled INTEGER DEFAULT 0,
+        ics_sequence INTEGER DEFAULT 0,
         fields_json TEXT DEFAULT '[]',
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -8811,6 +8846,7 @@ async function initializeApp() {
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in_at TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN reminder_sent INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE signup_forms ADD COLUMN ics_sequence INTEGER DEFAULT 0'); } catch(e) {}
     // Login visibility (2026-07-18 security pass): before this, logins were recorded NOWHERE,
     // so a credential-abuse window could never be reconstructed. Guarded, additive.
     try { db.run('ALTER TABLE users ADD COLUMN last_login TEXT'); } catch(e) {}
@@ -27907,6 +27943,8 @@ By applying to this program, I provide the following consents:
                 let ticketAttachments;
                 if (!waitlisted) {
                     try { ticketAttachments = await qrPngAttachment({ type: 'MEDX_MEMBER', regId: id, evt: 'signup-form' }); } catch (e) {}
+                    const invite = signupFormIcsAttachment(form, email);
+                    if (invite) ticketAttachments = (ticketAttachments || []).concat([invite]);
                 }
                 const sfBase = (process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
                 const preheader = emailPreheader([signupFormDateLabel(form.event_date, lang), form.event_time, form.venue].filter(Boolean).join(' · ') || form.title);
@@ -27957,6 +27995,8 @@ By applying to this program, I provide the following consents:
                             ${qrBlock}
                             <p style="margin:14px 0 0;">${T.emailSignoff}</p>`;
                         let atts; try { atts = await qrPngAttachment({ type: 'MEDX_MEMBER', regId: r.id, evt: 'signup-form' }); } catch (e) {}
+                        const inviteAtt = signupFormIcsAttachment(form, r.email);
+                        if (inviteAtt) atts = (atts || []).concat([inviteAtt]);
                         const result = await sendEmail(r.email, T.reminderSubject.replace('{title}', form.title), buildEmailTemplate(T.reminderTitle, body, lang), atts);
                         if (result && result.success) query.run('UPDATE signup_form_responses SET reminder_sent = 1 WHERE id = ?', [r.id]);
                     } catch (e) { console.error('[signup reminder] send failed:', e.message); }
