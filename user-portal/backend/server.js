@@ -65,10 +65,11 @@ function asyncHandler(fn) {
 
 // Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
 // attachments: optional array of { filename, content: Buffer, type? } — converted per provider below
-async function sendEmail(to, subject, htmlContent, attachments, cc) {
+async function sendEmail(to, subject, htmlContent, attachments, cc, replyTo) {
     const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
     const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
     const ccList = cc ? (Array.isArray(cc) ? cc : [cc]).filter(Boolean) : null;
+    const replyAddr = replyTo ? String(replyTo) : null;
 
     // Option -1: Brevo (Sendinblue) — HTTP API, works on Render, single-sender (no DNS)
     if (process.env.BREVO_API_KEY) {
@@ -84,6 +85,7 @@ async function sendEmail(to, subject, htmlContent, attachments, cc) {
                 htmlContent
             };
             if (ccList && ccList.length) bvBody.cc = ccList.map(e => ({ email: e }));
+            if (replyAddr) bvBody.replyTo = { email: replyAddr };
             if (atts.length) {
                 bvBody.attachment = atts.map(a => ({
                     content: Buffer.from(a.content).toString('base64'),
@@ -122,6 +124,7 @@ async function sendEmail(to, subject, htmlContent, attachments, cc) {
             const sgFromName = fromAddress.replace(/<[^>]*>/, '').trim() || 'Med&X';
             const sgBody = {
                 personalizations: [{ to: [{ email: to }], ...(ccList && ccList.length ? { cc: ccList.map(e => ({ email: e })) } : {}) }],
+                ...(replyAddr ? { reply_to: { email: replyAddr } } : {}),
                 from: { email: sgFromEmail, name: sgFromName },
                 subject,
                 content: [{ type: 'text/html', value: htmlContent }]
@@ -160,6 +163,7 @@ async function sendEmail(to, subject, htmlContent, attachments, cc) {
         try {
             const resendBody = { from: fromAddress, to, subject, html: htmlContent };
             if (ccList && ccList.length) resendBody.cc = ccList;
+            if (replyAddr) resendBody.reply_to = replyAddr;
             if (atts.length) {
                 resendBody.attachments = atts.map(a => ({
                     filename: a.filename,
@@ -202,6 +206,7 @@ async function sendEmail(to, subject, htmlContent, attachments, cc) {
             // Gmail SMTP requires FROM to match the authenticated user
             const smtpFrom = `Med&X <${process.env.SMTP_USER}>`;
             const mailOpts = { from: smtpFrom, to, subject, html: htmlContent };
+            if (replyAddr) mailOpts.replyTo = replyAddr;
             if (ccList && ccList.length) mailOpts.cc = ccList;
             if (atts.length) {
                 mailOpts.attachments = atts.map(a => ({ filename: a.filename, content: a.content }));
@@ -28065,7 +28070,7 @@ By applying to this program, I provide the following consents:
                     <p style="margin:14px 0 0;">${T.emailSignoff}</p>`;
                 const subject = (waitlisted ? T.emailSubjectWaitlist : T.emailSubject).replace('{title}', form.title);
                 const emailTitle = waitlisted ? T.emailTitleWaitlist : T.emailTitle;
-                const result = await sendEmail(email, subject, buildEmailTemplate(emailTitle, bodyHtml, lang), ticketAttachments);
+                const result = await sendEmail(email, subject, buildEmailTemplate(emailTitle, bodyHtml, lang), ticketAttachments, null, 'laura.rodman@medx.hr');
                 if (result && result.success) query.run('UPDATE signup_form_responses SET email_sent = 1 WHERE id = ?', [id]);
             } catch (e) {
                 console.error('[signup-forms] confirmation email failed:', e.message);
