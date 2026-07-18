@@ -56253,6 +56253,21 @@ button,input,select,textarea{font-family:var(--sans);}
           var DICT={
             // --- Top bar: primary navigation ---
             'nav.home':        {en:'Home',            hr:'Početna'},
+            // --- 2026-07-18 Croatian pass: hub / footer / search / tour ---
+            'hub.quickAccess': {en:'Quick Access', hr:'Brzi pristup'},
+            'hub.network':     {en:'Network', hr:'Mreža'},
+            'hub.notifications':{en:'Notifications', hr:'Obavijesti'},
+            'hub.theme':       {en:'Theme', hr:'Tema'},
+            'hub.settings':    {en:'Settings', hr:'Postavke'},
+            'hub.search':      {en:'Search', hr:'Pretraživanje'},
+            'hub.myAccount':   {en:'My Account', hr:'Moj račun'},
+            'foot.privacy':    {en:'Privacy', hr:'Privatnost'},
+            'foot.terms':      {en:'Terms', hr:'Uvjeti'},
+            'foot.contact':    {en:'Contact', hr:'Kontakt'},
+            'foot.needHelp':   {en:'Need help?', hr:'Trebate li pomoć?'},
+            'search.placeholder': {en:'Search pages, events, people, talks…', hr:'Pretražite stranice, događaje, ljude, predavanja…'},
+            'tour.skip':       {en:'Skip tour', hr:'Preskočite uvod'},
+            'tour.letsGo':     {en:"Let's go", hr:'Krenimo'},
             'nav.projects':    {en:'Projects',        hr:'Projekti'},
             'nav.network':     {en:'Network',         hr:'Mreža'},
             'nav.talks':       {en:'Talk Library',    hr:'Knjižnica predavanja'},
@@ -58068,6 +58083,142 @@ button,input,select,textarea{font-family:var(--sans);}
           // Convenience global for terse template-literal use: t('key')
           try{ if(typeof window.t==='undefined') window.t=t; }catch(e){}
 
+          // ---- Toast localization (Croatian pass 2026-07-18) ----
+          // ~120 showToast() call sites carry literal English. Rather than edit each call,
+          // every showToast body routes its message through this exact-match map plus a few
+          // dynamic-pattern rules. Unknown strings and EN locale pass through untouched.
+          var TOAST_HR = {
+          "Activity feed coming soon!": "Pregled aktivnosti uskoro stiže!",
+          "Added to My Schedule": "Dodano u Moj raspored",
+          "Added to your schedule!": "Dodano u Vaš raspored!",
+          "All filters cleared": "Svi filtri su uklonjeni",
+          "App installed! Find it on your home screen.": "Aplikacija je instalirana! Pronađite je na početnom zaslonu.",
+          "App is already installed!": "Aplikacija je već instalirana!",
+          "Attendance confirmed! See you there!": "Dolazak je potvrđen! Vidimo se!",
+          "Attendee directory coming soon!": "Imenik sudionika uskoro stiže!",
+          "Badge downloaded!": "Akreditacija je preuzeta!",
+          "Badge not found": "Akreditacija nije pronađena",
+          "Briefing Kit downloaded!": "Informativni paket je preuzet!",
+          "Calendar event downloaded!": "Kalendarski događaj je preuzet!",
+          "Certificate downloaded!": "Potvrda je preuzeta!",
+          "Check-in removed.": "Prijava je poništena.",
+          "Checked in successfully!": "Uspješno ste prijavljeni!",
+          "Checked in! See you there.": "Prijavljeni ste! Vidimo se.",
+          "Comment added": "Komentar je dodan",
+          "Comments feature coming in next update": "Komentari stižu u sljedećoj nadogradnji",
+          "Connection request sent!": "Zahtjev za povezivanje je poslan!",
+          "Could not send. Recipient not found.": "Slanje nije uspjelo. Primatelj nije pronađen.",
+          "Could not toggle flashlight": "Svjetiljku nije moguće uključiti",
+          "Dashboard personalized! You can change this anytime in Settings.": "Nadzorna ploča je prilagođena! To možete promijeniti u Postavkama.",
+          "Dashboard updated!": "Nadzorna ploča je ažurirana!",
+          "Default layout applied!": "Zadani raspored je primijenjen!",
+          "Document removed": "Dokument je uklonjen",
+          "Draft saved successfully": "Skica je spremljena",
+          "Event added to calendar!": "Događaj je dodan u kalendar!",
+          "Event deleted": "Događaj je izbrisan",
+          "Event not found": "Događaj nije pronađen",
+          "Export downloaded": "Izvoz je preuzet",
+          "Export downloaded!": "Izvoz je preuzet!",
+          "Failed to read file. Please try again.": "Datoteku nije moguće pročitati. Pokušajte ponovno.",
+          "Failed to send connection request. Please try again.": "Zahtjev za povezivanje nije poslan. Pokušajte ponovno.",
+          "File too large. Maximum size is 5MB.": "Datoteka je prevelika. Najveća dopuštena veličina je 5 MB.",
+          "Flashlight not available on this device": "Svjetiljka nije dostupna na ovom uređaju",
+          "Full achievements gallery coming soon": "Cjelovita galerija postignuća uskoro stiže",
+          "Full recommendations view coming soon": "Cjelovit prikaz preporuka uskoro stiže",
+          "Interactive map coming soon!": "Interaktivna karta uskoro stiže!",
+          "Interest withdrawn from this project.": "Interes za ovaj projekt je povučen.",
+          "Interviewer added. You can now send them a magic link.": "Ispitivač je dodan. Sada mu možete poslati pristupnu poveznicu.",
+          "Interviewer not found": "Ispitivač nije pronađen",
+          "Interviewer updated successfully": "Podaci o ispitivaču su ažurirani",
+          "Invitation revoked": "Pozivnica je opozvana",
+          "Link copied to clipboard": "Poveznica je kopirana u međuspremnik",
+          "Live stream opening in new window...": "Prijenos uživo otvara se u novom prozoru…",
+          "Magic link copied to clipboard": "Pristupna poveznica je kopirana u međuspremnik",
+          "Member updated": "Podaci o članu su ažurirani",
+          "Message could not be sent. Please try again.": "Poruku nije moguće poslati. Pokušajte ponovno.",
+          "Message sent to Forum Team. Expect a response within 24 hours.": "Poruka je poslana Forum timu. Odgovor možete očekivati u roku od 24 sata.",
+          "Messages panel coming soon!": "Poruke uskoro stižu!",
+          "Networking preferences saved!": "Postavke umrežavanja su spremljene!",
+          "No admin message to reply to.": "Nema poruke administratora na koju biste odgovorili.",
+          "Nothing to save": "Nema promjena za spremanje",
+          "Opening conversation...": "Otvaranje razgovora…",
+          "Pass downloaded! Your digital pass has also been sent to your email.": "Propusnica je preuzeta! Digitalna propusnica poslana je i na Vašu e-adresu.",
+          "Pass not found. Please try again.": "Propusnica nije pronađena. Pokušajte ponovno.",
+          "Payment system unavailable. You can pay later.": "Sustav plaćanja trenutačno nije dostupan. Možete platiti kasnije.",
+          "Photo uploaded! (Demo mode)": "Fotografija je učitana! (demo način)",
+          "Please add recipients": "Dodajte primatelje",
+          "Please allow pop-ups to print your badge": "Dopustite skočne prozore za ispis akreditacije",
+          "Please contact admin team for travel arrangements": "Za organizaciju putovanja obratite se administrativnom timu",
+          "Please enter a message": "Unesite poruku",
+          "Please enter a message.": "Unesite poruku.",
+          "Please enter a subject": "Unesite temu",
+          "Please enter a subject or message to preview": "Unesite temu ili poruku za pregled",
+          "Please enter your email.": "Unesite svoju e-adresu.",
+          "Please enter your name.": "Unesite svoje ime.",
+          "Please select a subject.": "Odaberite temu.",
+          "Please select an image file.": "Odaberite slikovnu datoteku.",
+          "Post shared!": "Objava je podijeljena!",
+          "Preferences saved successfully!": "Postavke su spremljene!",
+          "Preparing badge download...": "Priprema preuzimanja akreditacije…",
+          "Preparing your pass for download...": "Priprema Vaše propusnice za preuzimanje…",
+          "Profile not found": "Profil nije pronađen",
+          "Profile saved successfully!": "Profil je spremljen!",
+          "Profile updated successfully!": "Profil je ažuriran!",
+          "Profile view coming soon!": "Pregled profila uskoro stiže!",
+          "Question submitted!": "Pitanje je poslano!",
+          "RSVP cancelled": "Prijava je otkazana",
+          "RSVP confirmed!": "Dolazak je potvrđen!",
+          "Redirecting to payment...": "Preusmjeravanje na plaćanje…",
+          "Registration cancelled": "Registracija je otkazana",
+          "Removed from My Schedule": "Uklonjeno iz Mojeg rasporeda",
+          "Removed from schedule": "Uklonjeno iz rasporeda",
+          "Removed from your schedule": "Uklonjeno iz Vašeg rasporeda",
+          "Reply could not be sent.": "Odgovor nije moguće poslati.",
+          "Reset to default widgets": "Vraćeno na zadane widgete",
+          "Review submitted successfully": "Recenzija je poslana",
+          "Saved a badge image. Add to Apple Wallet coming soon.": "Slika akreditacije je spremljena. Dodavanje u Apple Wallet uskoro stiže.",
+          "Schedule downloaded!": "Raspored je preuzet!",
+          "Schedule not available for download": "Raspored nije dostupan za preuzimanje",
+          "Scheduled message cancelled": "Zakazana poruka je otkazana",
+          "Sequence created successfully": "Slijed je uspješno izrađen",
+          "Sequence deleted": "Slijed je izbrisan",
+          "Session removed from schedule": "Predavanje je uklonjeno iz rasporeda",
+          "Shift created successfully": "Smjena je izrađena",
+          "Speaker added successfully": "Predavač je dodan",
+          "Standard criteria added": "Standardni kriteriji su dodani",
+          "Step completed!": "Korak je dovršen!",
+          "Successfully registered! Confirmation email sent.": "Uspješno ste registrirani! Potvrda je poslana e-poštom.",
+          "Template created successfully": "Predložak je izrađen",
+          "Template deleted": "Predložak je izbrisan",
+          "Template downloaded! Fill in your data and upload.": "Predložak je preuzet! Ispunite podatke i učitajte ga.",
+          "Thank you! The project lead will contact you soon.": "Hvala Vam! Voditelj projekta uskoro će Vam se javiti.",
+          "This is a demo profile. Messaging works with registered users.": "Ovo je demonstracijski profil. Poruke rade s registriranim korisnicima.",
+          "You already have an active duel": "Već imate aktivan dvoboj",
+          "You will no longer receive updates about this event.": "Više nećete primati obavijesti o ovom događanju.",
+          "You'll receive updates about this event.": "Primat ćete obavijesti o ovom događanju.",
+          "You're now following this event.": "Sada pratite ovo događanje."
+          };
+          var TOAST_HR_PATTERNS = [
+            [/^Connection request sent to (.+)!$/, 'Zahtjev za povezivanje poslan je: $1'],
+            [/^You are now connected with (.+)!$/, 'Sada ste povezani s: $1'],
+            [/^Request from (.+) declined\.$/, 'Zahtjev korisnika $1 je odbijen.'],
+            [/^Checked in to (.+)$/, 'Prijavljeni ste na: $1'],
+            [/^Invitation resent to (.+)$/, 'Pozivnica je ponovno poslana: $1'],
+            [/^Invitation sent to (.+)$/, 'Pozivnica je poslana: $1'],
+            [/^Exported (.+)$/, 'Izvezeno: $1']
+          ];
+          function localizeToast(msg){
+            try{
+              if(_locale!=='hr' || typeof msg!=='string') return msg;
+              if(TOAST_HR[msg]) return TOAST_HR[msg];
+              for(var i=0;i<TOAST_HR_PATTERNS.length;i++){
+                if(TOAST_HR_PATTERNS[i][0].test(msg)) return msg.replace(TOAST_HR_PATTERNS[i][0], TOAST_HR_PATTERNS[i][1]);
+              }
+            }catch(e){}
+            return msg;
+          }
+          try{ window.mxLocalizeToast = localizeToast; }catch(e){}
+
           boot();
         })();
         </script>
@@ -58843,7 +58994,7 @@ button,input,select,textarea{font-family:var(--sans);}
                     <a href="#">FAQ</a>
                     <a href="mailto:info@medx.hr">Contact Us</a>
                     <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('privacy');">Privacy Policy</a>
-                    <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');">Terms</a>
+                    <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" data-i18n="foot.terms">Terms</a>
                     <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('refund');">Refund Policy</a>
                 </div>
                 <div class="footer-column">
@@ -59078,9 +59229,9 @@ button,input,select,textarea{font-family:var(--sans);}
         <div class="onboarding-title" id="onboardingTitle">Welcome to Med&X</div>
         <div class="onboarding-desc" id="onboardingDesc">Let's take a quick tour to help you get started.</div>
         <div class="onboarding-actions">
-            <button class="onboarding-skip" onclick="OnboardingTour.skip()">Skip tour</button>
+            <button class="onboarding-skip" onclick="OnboardingTour.skip()" data-i18n="tour.skip">Skip tour</button>
             <button class="onboarding-next" onclick="OnboardingTour.next()">
-                <span id="onboardingNextText">Let's go</span>
+                <span id="onboardingNextText" data-i18n="tour.letsGo">Let's go</span>
                 <i class="fas fa-arrow-right"></i>
             </button>
         </div>
@@ -60470,7 +60621,7 @@ button,input,select,textarea{font-family:var(--sans);}
           <div class="up-gs-panel">
             <div class="up-gs-inputrow">
               <i class="fas fa-search" aria-hidden="true"></i>
-              <input id="upSearchInput" class="up-gs-input" type="text" placeholder="Search pages, events, people, talks&hellip;" autocomplete="off" spellcheck="false" aria-label="Search Med&amp;X" role="combobox" aria-expanded="true" aria-controls="upSearchResults" />
+              <input id="upSearchInput" class="up-gs-input" type="text" placeholder="Search pages, events, people, talks&hellip;" data-i18n-placeholder="search.placeholder" autocomplete="off" spellcheck="false" aria-label="Search Med&amp;X" role="combobox" aria-expanded="true" aria-controls="upSearchResults" />
               <span class="up-gs-esc">esc</span>
             </div>
             <div id="upSearchResults" class="up-gs-results" role="listbox" aria-label="Search results"></div>
@@ -60647,18 +60798,18 @@ button,input,select,textarea{font-family:var(--sans);}
                             </a>
                         </div>
                         <div class="hub-greeting">
-                            <h1 id="upWelcomeHeader">Welcome back</h1>
+                            <h1 id="upWelcomeHeader" data-i18n="home.welcomeBack">Welcome back</h1>
                         </div>
                         <div class="hub-header-right">
                             <!-- Quick Access Grid Button -->
                             <div class="hub-projects-wrapper">
-                                <button class="hub-grid-btn" onclick="Dashboard.toggleProjectsDropdown(event)" title="Quick Access">
+                                <button class="hub-grid-btn" onclick="Dashboard.toggleProjectsDropdown(event)" title="Quick Access" data-i18n-title="hub.quickAccess">
                                     <i class="fas fa-th"></i>
                                     <span class="hub-grid-btn-badge" id="hubGridBtnBadge">3</span>
                                 </button>
                                 <div class="hub-projects-dropdown hub-quick-grid" id="hubProjectsDropdown">
                                     <div class="hub-projects-dropdown-header">
-                                        <span>Quick Access</span>
+                                        <span data-i18n="hub.quickAccess">Quick Access</span>
                                     </div>
                                     <div class="hub-quick-grid-items">
                                         <div class="hub-quick-grid-item" onclick="UserPortal.showSection('plexus'); Dashboard.closeProjectsDropdown();">
@@ -60675,7 +60826,7 @@ button,input,select,textarea{font-family:var(--sans);}
                                         </div>
                                         <div class="hub-quick-grid-item" onclick="UserPortal.showSection('network'); Dashboard.closeProjectsDropdown();">
                                             <div class="hub-quick-grid-icon network"><i class="fas fa-network-wired"></i></div>
-                                            <span>Network</span>
+                                            <span data-i18n="hub.network">Network</span>
                                         </div>
                                         <div class="hub-quick-grid-item" onclick="UserPortal.showSection('mymedx'); Dashboard.closeProjectsDropdown();">
                                             <div class="hub-quick-grid-icon mymedx"><i class="fas fa-user-circle"></i></div>
@@ -60683,31 +60834,31 @@ button,input,select,textarea{font-family:var(--sans);}
                                         </div>
                                         <div class="hub-quick-grid-item" onclick="Dashboard.showNotificationsFromMenu(event); Dashboard.closeProjectsDropdown();">
                                             <div class="hub-quick-grid-icon notifications"><i class="fas fa-bell"></i><span class="up-project-badge" id="hubBadgeNotif">5</span></div>
-                                            <span>Notifications</span>
+                                            <span data-i18n="hub.notifications">Notifications</span>
                                         </div>
                                         <div class="hub-quick-grid-item" onclick="UserPortal.toggleTheme(); Dashboard.closeProjectsDropdown();">
                                             <div class="hub-quick-grid-icon theme"><i class="fas fa-moon" id="hubThemeIcon"></i></div>
-                                            <span>Theme</span>
+                                            <span data-i18n="hub.theme">Theme</span>
                                         </div>
                                         <div class="hub-quick-grid-item" onclick="UserPortal.showSection('settings'); Dashboard.closeProjectsDropdown();">
                                             <div class="hub-quick-grid-icon settings"><i class="fas fa-cog"></i></div>
-                                            <span>Settings</span>
+                                            <span data-i18n="hub.settings">Settings</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             <!-- Global search (spotlight) trigger -->
-                            <button class="hub-header-btn" onclick="GlobalSearch.open()" title="Search" aria-label="Search">
+                            <button class="hub-header-btn" onclick="GlobalSearch.open()" title="Search" aria-label="Search" data-i18n-title="hub.search" data-i18n-aria-label="hub.search">
                                 <i class="fas fa-search"></i>
                             </button>
                             <!-- Standalone Notification Bell -->
-                            <button class="hub-header-btn" onclick="NotificationSystem.toggle()" title="Notifications" style="position:relative;">
+                            <button class="hub-header-btn" onclick="NotificationSystem.toggle()" title="Notifications" data-i18n-title="hub.notifications" style="position:relative;">
                                 <i class="fas fa-bell"></i>
                                 <span id="hubBellBadge" class="hub-header-badge" style="display:none;position:absolute;top:2px;right:2px;background:#ff3b30;color:#fff;border-radius:50%;min-width:16px;height:16px;font-size:10px;align-items:center;justify-content:center;font-weight:600;padding:0 4px;">0</span>
                             </button>
                             <!-- Account/Membership Badge with Dropdown -->
                             <div class="hub-account-wrapper">
-                                <button class="hub-account-btn" onclick="Dashboard.toggleAccountDropdown(event)" title="My Account">
+                                <button class="hub-account-btn" onclick="Dashboard.toggleAccountDropdown(event)" title="My Account" data-i18n-title="hub.myAccount">
                                     <div class="hub-account-avatar" id="hubAccountAvatar">A</div>
                                     <div class="hub-account-info">
                                         <span class="hub-account-name" id="hubAccountName">Alen</span>
@@ -61909,14 +62060,14 @@ button,input,select,textarea{font-family:var(--sans);}
                                 </a>
                             </div>
                             <div class="hub-footer-minimal-links">
-                                <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('privacy');">Privacy</a>
+                                <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('privacy');" data-i18n="foot.privacy">Privacy</a>
                                 <span>·</span>
-                                <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');">Terms</a>
+                                <a href="#" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');" data-i18n="foot.terms">Terms</a>
                                 <span>·</span>
-                                <a href="#" onclick="ContactForm.toggle(); return false;">Contact</a>
+                                <a href="#" onclick="ContactForm.toggle(); return false;" data-i18n="foot.contact">Contact</a>
                             </div>
                             <div class="hub-footer-support">
-                                Need help? <a href="mailto:pr@medx.hr">pr@medx.hr</a>
+                                <span data-i18n="foot.needHelp">Need help?</span> <a href="mailto:pr@medx.hr">pr@medx.hr</a>
                             </div>
                         </div>
                     </footer>
@@ -79157,6 +79308,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Show toast notification
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 const toast = document.createElement('div');
                 toast.setAttribute('role', 'status');
                 toast.setAttribute('aria-live', 'polite');
@@ -82857,7 +83009,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
                     // Set up portal data in background
                     document.getElementById('upUserAvatar').textContent = initials;
-                    document.getElementById('upWelcomeHeader').textContent = `Welcome, ${firstName}`;
+                    document.getElementById('upWelcomeHeader').textContent = ((window.MedXI18n && MedXI18n.t) ? MedXI18n.t('home.welcomeBack') : 'Welcome back') + (firstName ? (', ' + firstName) : '');
                     this.applyTheme();
                     Dashboard.init();
                     FeaturedCarousel.init();
@@ -86601,6 +86753,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Show toast notification
             showToast(message, type = 'success') {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 // Use existing toast system if available
                 if (typeof SpeakerPortal !== 'undefined' && SpeakerPortal.showToast) {
                     SpeakerPortal.showToast(message);
@@ -90052,6 +90205,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Simple toast notification
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 // Remove existing toast
                 const existing = document.querySelector('.px-toast');
                 if (existing) existing.remove();
@@ -90739,6 +90893,7 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 const toast = document.createElement('div');
                 toast.setAttribute('role', 'status');
                 toast.setAttribute('aria-live', 'polite');
@@ -94945,6 +95100,7 @@ You can use variables like {first_name} that will be personalized for each recip
 
             // Toast notification
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 const existing = document.querySelector('.fm-toast');
                 if (existing) existing.remove();
 
@@ -96802,6 +96958,7 @@ You can use variables like {first_name} that will be personalized for each recip
             },
 
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 // Create toast element
                 const toast = document.createElement('div');
                 toast.setAttribute('role', 'status');
@@ -100108,6 +100265,7 @@ ${'='.repeat(70)}
             },
 
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 // Use existing toast system if available, or create simple one
                 if (typeof UserPortal !== 'undefined' && UserPortal.showToast) {
                     UserPortal.showToast(message);
@@ -101695,6 +101853,7 @@ ${'='.repeat(70)}
             },
 
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 if (typeof App !== 'undefined' && App.showNotification) {
                     App.showNotification(message, 'success');
                 } else {
@@ -110681,6 +110840,7 @@ ${'='.repeat(70)}
             },
 
             showToast(message, type = 'info') {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 // Simple toast notification
                 const toast = document.createElement('div');
                 toast.setAttribute('role', 'status');
@@ -120058,6 +120218,7 @@ By applying to this program, I give the following consents:
             },
 
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 const toast = document.createElement('div');
                 toast.setAttribute('role', 'status');
                 toast.setAttribute('aria-live', 'polite');
@@ -123477,6 +123638,7 @@ By applying to this program, I give the following consents:
             },
 
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 if (typeof ConnectionSystem !== 'undefined') {
                     ConnectionSystem.showToast(message);
                 } else {
@@ -124204,6 +124366,7 @@ By applying to this program, I give the following consents:
             },
 
             showToast(message) {
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 // Create toast element
                 const toast = document.createElement('div');
                 toast.setAttribute('role', 'status');
