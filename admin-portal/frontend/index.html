@@ -7363,6 +7363,11 @@
                     <span>Resources</span>
                 </a>
 
+                <a class="nav-item" data-section="files" onclick="App.showSection('files', this)">
+                    <i class="fas fa-box-archive" style="color: #c9a962;"></i>
+                    <span>Files</span>
+                </a>
+
                 <a class="nav-item" data-section="merch-studio" href="https://medx-merch-studio.netlify.app/studio/" target="_blank" rel="noopener">
                     <i class="fas fa-shirt" style="color: #c9a962;"></i>
                     <span>Merch Studio</span>
@@ -13948,6 +13953,21 @@ President, Med&amp;X</textarea>
                 <!-- ============ /POST-EVENT ENGINE ============ -->
 
                 <!-- ============ SIGN-UP FORMS (short-event signup builder) ============ -->
+                <div class="section" id="section-files">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px;">
+                        <div>
+                            <h2 style="margin:0 0 4px;">Files</h2>
+                            <p style="margin:0;color:var(--text-muted);font-size:13.5px;">Team files kept safely in the database — they stay here through every redeploy. Up to 5MB each; bigger files stay on SharePoint.</p>
+                        </div>
+                        <div>
+                            <input type="file" id="pfUploadInput" style="display:none;">
+                            <button class="btn btn-primary" onclick="document.getElementById('pfUploadInput').click()"><i class="fas fa-arrow-up-from-bracket"></i> Upload a file</button>
+                        </div>
+                    </div>
+                    <div id="pfScopeChips" style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;"></div>
+                    <div id="pfList"></div>
+                </div>
+
                 <div class="section" id="section-signup-forms">
                     <div class="back-link" onclick="App.showSection('dashboard')">
                         <i class="fas fa-arrow-left"></i> Back to Dashboard
@@ -17603,7 +17623,7 @@ President, Med&amp;X</textarea>
                 // 'speaker-itineraries' is a Plexus Week sub-surface reached via the project home tile,
                 // Cmd+K and #speaker-itineraries (no top-level sidebar anchor — same pattern as auctions /
                 // postevent). Listed here so section filtering never hides it if a nav entry is ever added.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover', 'speaker-itineraries', 'signup-forms', 'guest-passes'];
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'files', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover', 'speaker-itineraries', 'signup-forms', 'guest-passes'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
@@ -20035,6 +20055,7 @@ President, Med&amp;X</textarea>
                     'postevent': 'Post-event',
                     'conferences': 'Conferences',
                     'signup-forms': 'Sign-up Forms',
+                    'files': 'Files',
                     'guest-passes': 'Guest Passes',
                     'email-blast': 'Email Registrants',
                     'audit': 'Audit Log',
@@ -20232,6 +20253,10 @@ President, Med&amp;X</textarea>
                     this.currentView = 'guest-passes';
                     this.switchChatPanel('team');
                     if (typeof GuestPassApp !== 'undefined') GuestPassApp.init();
+                } else if (sectionId === 'files') {
+                    this.currentView = 'files';
+                    this.switchChatPanel('team');
+                    if (typeof FilesApp !== 'undefined') FilesApp.init();
                 } else {
                     // Switch chat panel to team chat mode
                     this.currentView = 'dashboard';
@@ -48190,6 +48215,112 @@ By applying to this program, I give the following consents:
         // ===================== SIGN-UP FORMS (short-event signup builder) =====================
         // Google-Forms-style builder for short events. Authored here via /api/admin/signup-forms;
         // the public page + submissions live on the user portal at /f/:slug.
+        const FilesApp = {
+            scope: 'all',
+            counts: {},
+            SCOPES: [
+                ['all', 'All files'], ['plexus', 'Plexus & Gala'], ['bridges', 'Bridges'],
+                ['accelerator', 'Accelerator'], ['forum', 'Forum'], ['finances', 'Finances'],
+                ['pr', 'PR & Media'], ['general', 'General']
+            ],
+            init() {
+                const input = document.getElementById('pfUploadInput');
+                if (input && !input._pfWired) {
+                    input._pfWired = true;
+                    input.addEventListener('change', () => this.upload(input.files[0]));
+                }
+                this.load();
+            },
+            async load() {
+                try {
+                    const q = this.scope !== 'all' ? ('?scope=' + this.scope) : '';
+                    const r = await App.api('/api/admin/files' + q);
+                    this.counts = r.counts || {};
+                    this.renderChips();
+                    this.renderList(r.files || []);
+                } catch (e) {
+                    const el = document.getElementById('pfList');
+                    if (el) el.innerHTML = '<div class="card" style="padding:20px;color:var(--text-muted);">Could not load files: ' + this.esc(e.message) + '</div>';
+                }
+            },
+            renderChips() {
+                const el = document.getElementById('pfScopeChips');
+                if (!el) return;
+                const total = Object.values(this.counts).reduce((a, b) => a + b, 0);
+                el.innerHTML = this.SCOPES.map(([k, label]) => {
+                    const n = k === 'all' ? total : (this.counts[k] || 0);
+                    const on = this.scope === k;
+                    return `<button class="btn ${on ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px;font-size:12.5px;border-radius:999px;" data-pf-scope="${k}">${label}${n ? ` <span style="opacity:.7;">(${n})</span>` : ''}</button>`;
+                }).join('');
+                el.querySelectorAll('[data-pf-scope]').forEach(b => b.addEventListener('click', () => { this.scope = b.getAttribute('data-pf-scope'); this.load(); }));
+            },
+            renderList(files) {
+                const el = document.getElementById('pfList');
+                if (!el) return;
+                if (!files.length) {
+                    el.innerHTML = '<div class="card" style="padding:26px;text-align:center;color:var(--text-muted);">No files here yet. Upload the documents your team reaches for often — logos, templates, price lists — and they will stay put.</div>';
+                    return;
+                }
+                el.innerHTML = '<div class="card" style="padding:0;overflow:hidden;">' + files.map(f => `
+                    <div style="display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid var(--border);">
+                        <i class="${this.iconFor(f.mime, f.name)}" style="font-size:18px;color:#c9a962;width:22px;text-align:center;"></i>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${this.esc(f.name)}</div>
+                            <div style="font-size:11.5px;color:var(--text-muted);">${this.scopeLabel(f.scope)} · ${this.fmtSize(f.size)}${f.uploaded_by_name ? ' · ' + this.esc(f.uploaded_by_name) : ''} · ${String(f.created_at || '').slice(0, 10)}</div>
+                        </div>
+                        <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" data-pf-dl="${f.id}" data-pf-name="${this.esc(f.name)}"><i class="fas fa-download"></i> Download</button>
+                        <button class="btn btn-secondary" style="padding:6px 10px;font-size:12px;color:#b91c1c;" data-pf-del="${f.id}" title="Delete"><i class="far fa-trash-can"></i></button>
+                    </div>`).join('') + '</div>';
+                el.querySelectorAll('[data-pf-dl]').forEach(b => b.addEventListener('click', () => this.download(b.getAttribute('data-pf-dl'), b.getAttribute('data-pf-name'))));
+                el.querySelectorAll('[data-pf-del]').forEach(b => b.addEventListener('click', () => this.remove(b.getAttribute('data-pf-del'))));
+            },
+            async upload(file) {
+                if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { alert('Files up to 5MB only — larger files belong on SharePoint.'); return; }
+                try {
+                    const scope = this.scope === 'all' ? 'general' : this.scope;
+                    const qs = `?scope=${encodeURIComponent(scope)}&name=${encodeURIComponent(file.name)}&mime=${encodeURIComponent(file.type || 'application/octet-stream')}`;
+                    const token = localStorage.getItem('medx_admin_token');
+                    const resp = await fetch('/api/admin/files' + qs, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: file });
+                    const j = await resp.json();
+                    if (!resp.ok) throw new Error(j.error || 'Upload failed');
+                    document.getElementById('pfUploadInput').value = '';
+                    this.load();
+                } catch (e) { alert('Upload failed: ' + e.message); }
+            },
+            async download(id, name) {
+                try {
+                    const token = localStorage.getItem('medx_admin_token');
+                    const resp = await fetch(`/api/admin/files/${id}/download`, { headers: { 'Authorization': 'Bearer ' + token } });
+                    if (!resp.ok) throw new Error('Download failed');
+                    const blob = await resp.blob();
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = name || 'file';
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+                } catch (e) { alert(e.message); }
+            },
+            async remove(id) {
+                if (!confirm('Delete this file? This cannot be undone.')) return;
+                try { await App.api('/api/admin/files/' + id, { method: 'DELETE' }); this.load(); }
+                catch (e) { alert('Delete failed: ' + e.message); }
+            },
+            scopeLabel(k) { const m = this.SCOPES.find(s => s[0] === k); return m ? m[1] : k; },
+            fmtSize(n) { n = n || 0; return n > 1024 * 1024 ? (n / 1048576).toFixed(1) + ' MB' : n > 1024 ? Math.round(n / 1024) + ' KB' : n + ' B'; },
+            iconFor(mime, name) {
+                const m = String(mime || ''), x = String(name || '').toLowerCase();
+                if (m.startsWith('image/')) return 'far fa-file-image';
+                if (m.includes('pdf') || x.endsWith('.pdf')) return 'far fa-file-pdf';
+                if (x.match(/\.(docx?|odt)$/)) return 'far fa-file-word';
+                if (x.match(/\.(xlsx?|csv|ods)$/)) return 'far fa-file-excel';
+                if (x.match(/\.(pptx?|key|odp)$/)) return 'far fa-file-powerpoint';
+                if (x.match(/\.(zip|rar|7z)$/)) return 'far fa-file-zipper';
+                return 'far fa-file';
+            },
+            esc(s) { const d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+        };
+
         const SignupFormsApp = {
             forms: [],
             current: null,          // form being edited (includes .fields)

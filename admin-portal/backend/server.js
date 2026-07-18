@@ -4613,6 +4613,22 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // ADMIN-ONLY: team file storage. The bytes live IN the database (base64 in a TEXT column),
+    // NOT on disk — Render's free-tier disk is wiped on every redeploy, and Alen's explicit
+    // requirement was "I don't want them to get wiped out". 5MB per file keeps rows sane; bigger
+    // things belong on SharePoint. Sits OUTSIDE the SCHEMA-MIRROR (user portal never reads it).
+    db.run(`CREATE TABLE IF NOT EXISTS team_files (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL DEFAULT 'general',
+        name TEXT NOT NULL,
+        mime TEXT,
+        size INTEGER DEFAULT 0,
+        data TEXT NOT NULL,
+        uploaded_by TEXT,
+        uploaded_by_name TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     // ADMIN-ONLY: Advisory Council invitations — the print-grade invitation artifact generated in the
     // Content Studio ("Council Invitations"). One row per designed invitation. The rendered artifact
     // lives under /uploads/content-studio (as a content_studio_assets 'invitation' row too); this row
@@ -34221,6 +34237,64 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const rows = query.all('SELECT id, kind, template, aspect, project, title, caption, asset_url, mime, bytes, calendar_id, created_at FROM content_studio_assets ORDER BY created_at DESC LIMIT 30');
             res.json({ assets: rows });
         } catch (e) { console.error('[content] assets', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ============ TEAM FILES (stored in the database — survive redeploys) ============
+    const PROJECT_FILE_SCOPES = ['plexus', 'bridges', 'accelerator', 'forum', 'finances', 'pr', 'general'];
+    const PROJECT_FILE_MAX = 5 * 1024 * 1024; // 5MB
+
+    app.get('/api/admin/files', auth, adminOnly, (req, res) => {
+        try {
+            const scope = String(req.query.scope || '').trim();
+            const rows = scope && PROJECT_FILE_SCOPES.includes(scope)
+                ? query.all('SELECT id, scope, name, mime, size, uploaded_by_name, created_at FROM team_files WHERE scope = ? ORDER BY created_at DESC', [scope])
+                : query.all('SELECT id, scope, name, mime, size, uploaded_by_name, created_at FROM team_files ORDER BY created_at DESC');
+            const counts = {};
+            try { query.all('SELECT scope, COUNT(*) AS n FROM team_files GROUP BY scope').forEach(r => { counts[r.scope] = r.n; }); } catch (e) {}
+            res.json({ files: rows, counts });
+        } catch (e) { console.error('[files] list', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/admin/files', auth, adminOnly, express.raw({ type: () => true, limit: '6mb' }), (req, res) => {
+        try {
+            const buf = Buffer.isBuffer(req.body) ? req.body : null;
+            if (!buf || !buf.length) return res.status(400).json({ error: 'No file received.' });
+            if (buf.length > PROJECT_FILE_MAX) return res.status(413).json({ error: 'Files up to 5MB only — larger files belong on SharePoint.' });
+            const q = req.query || {};
+            const scope = PROJECT_FILE_SCOPES.includes(String(q.scope)) ? String(q.scope) : 'general';
+            const name = String(q.name || 'file').replace(/[\/\\]/g, '_').slice(0, 180) || 'file';
+            const mime = String(q.mime || 'application/octet-stream').slice(0, 80);
+            const id = uuidv4();
+            db.run(`INSERT INTO team_files (id, scope, name, mime, size, data, uploaded_by, uploaded_by_name, created_at)
+                    VALUES (?,?,?,?,?,?,?,?, datetime('now'))`,
+                [id, scope, name, mime, buf.length, buf.toString('base64'), req.user?.id || null, req.user?.name || req.user?.email || null]);
+            saveDb();
+            logAudit(req, 'files.upload', `${scope}/${name} (${buf.length} bytes)`);
+            res.json({ success: true, id, scope, name, size: buf.length });
+        } catch (e) { console.error('[files] upload', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/admin/files/:id/download', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get('SELECT * FROM team_files WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'File not found.' });
+            const buf = Buffer.from(row.data || '', 'base64');
+            res.setHeader('Content-Type', row.mime || 'application/octet-stream');
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(row.name)}`);
+            res.setHeader('Content-Length', buf.length);
+            res.end(buf);
+        } catch (e) { console.error('[files] download', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    app.delete('/api/admin/files/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = query.get('SELECT scope, name FROM team_files WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'File not found.' });
+            db.run('DELETE FROM team_files WHERE id = ?', [req.params.id]);
+            saveDb();
+            logAudit(req, 'files.delete', `${row.scope}/${row.name}`);
+            res.json({ success: true });
+        } catch (e) { console.error('[files] delete', e.message); res.status(500).json({ error: e.message }); }
     });
 
     // One-shot assistant handoff: draft_social_post parks a brief in app_state; the Content Studio
