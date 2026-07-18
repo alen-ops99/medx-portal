@@ -4049,6 +4049,9 @@ async function initializeApp() {
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN checked_in_at TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN reminder_sent INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
+    // Login visibility (2026-07-18 security pass): before this, logins were recorded NOWHERE,
+    // so a credential-abuse window could never be reconstructed. Guarded, additive.
+    try { db.run('ALTER TABLE users ADD COLUMN last_login TEXT'); } catch(e) {}
 
     // ===== Member Home feed, opportunity board, talk library (menu items 9 & 23) =====
     // Shared across both portals: the member portal reads these, the admin portal curates them.
@@ -10375,11 +10378,27 @@ async function initializeApp() {
             const { email, password } = req.body;
             const user = query.get('SELECT * FROM users WHERE email = ?', [email]);
             if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+                // Failed attempts are audited too (brute-force visibility). Never blocks the response.
+                try {
+                    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+                    db.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)',
+                        [require('crypto').randomUUID(), user ? user.id : null, String(email || '').slice(0, 200), 'login_failed', ip]);
+                    saveDb();
+                } catch (e) { /* best-effort */ }
                 return res.status(401).json({ error: 'Invalid credentials' });
             }
             if (!user.is_admin && !user.is_staff) {
                 return res.status(403).json({ error: 'Admin access only. Please use the user portal.' });
             }
+            // Security pass 2026-07-18: record every successful login (audit_log + last_login)
+            // so credential abuse is reconstructable. Best-effort — never blocks the login.
+            try {
+                const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+                db.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)',
+                    [require('crypto').randomUUID(), user.id, user.email, 'login', ip]);
+                db.run('UPDATE users SET last_login = ? WHERE id = ?', [new Date().toISOString(), user.id]);
+                saveDb();
+            } catch (e) { /* best-effort */ }
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
             res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin, is_staff: user.is_staff || 0 }});
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
