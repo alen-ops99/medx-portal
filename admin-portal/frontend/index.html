@@ -20059,6 +20059,7 @@ President, Med&amp;X</textarea>
 
             // ===== NAVIGATION =====
             showSection(sectionId, navItem, skipHistory = false) {
+                try { setTimeout(() => { if (typeof MxHints !== 'undefined') MxHints.maybeShow(sectionId); }, 450); } catch (e) {}
                 const sectionNames = {
                     'resources': 'Resources',
                     'dashboard': 'Dashboard',
@@ -48248,6 +48249,39 @@ By applying to this program, I give the following consents:
         // ===================== SIGN-UP FORMS (short-event signup builder) =====================
         // Google-Forms-style builder for short events. Authored here via /api/admin/signup-forms;
         // the public page + submissions live on the user portal at /f/:slug.
+        // Discreet feature hints: when a section opens, one quiet line suggests something the
+        // portal can also do there. One click on the x dismisses that hint forever (localStorage).
+        // Alen's brief: "nice and discreet, and we can easily discard them" — never a popup.
+        const MxHints = {
+            HINTS: {
+                'dashboard': 'Press Cmd+K (Ctrl+K on Windows) anywhere for quick actions — a new sign-up form, a guest pass, or the check-in scanner.',
+                'signup-forms': 'Reminder emails (7 days / 2 days / on the day) can be switched on per form under Settings — each one waits in the Outbox for your approval before it sends.',
+                'guest-passes': 'A guest pass page updates itself — change the modules or venue and the guest sees the new version at the same link, no re-send needed.',
+                'speaker-itineraries': 'Each speaker gets a zero-login page that keeps working offline once opened — made for senior guests on the move.',
+                'email-blast': 'Nothing in the portal emails anyone on its own — every batch waits in the outbox card here for one approval click from you.',
+                'content-studio': 'Everything you create here lands in the asset gallery automatically, ready to reuse for the next post.',
+                'resources': 'The "Who we are" deck lives here — Open shows it full screen; present with the arrow keys.',
+                'files': 'The project chips sort files for the right team — finance sheets under Finances, press kits under PR & Media.'
+            },
+            maybeShow(sectionId) {
+                const text = this.HINTS[sectionId];
+                if (!text) return;
+                if (localStorage.getItem('medx_admin_hint_off_' + sectionId)) return;
+                const sec = document.getElementById('section-' + sectionId);
+                if (!sec || sec.querySelector('.mx-hint')) return;
+                const el = document.createElement('div');
+                el.className = 'mx-hint';
+                el.style.cssText = 'display:flex;align-items:center;gap:10px;background:rgba(201,169,98,0.10);border:1px solid rgba(201,169,98,0.35);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:12.5px;color:var(--text-secondary);';
+                el.innerHTML = '<i class="far fa-lightbulb" style="color:#b08d3f;flex-shrink:0;"></i><span style="flex:1;">' + text + '</span>' +
+                    '<button title="Do not show this again" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:2px 6px;flex-shrink:0;"><i class="fas fa-xmark"></i></button>';
+                el.querySelector('button').addEventListener('click', () => {
+                    localStorage.setItem('medx_admin_hint_off_' + sectionId, '1');
+                    el.remove();
+                });
+                sec.insertBefore(el, sec.firstChild);
+            }
+        };
+
         const FilesApp = {
             scope: 'all',
             counts: {},
