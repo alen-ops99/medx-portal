@@ -39034,7 +39034,7 @@ ${extraCss || ''}
 
         // Keep-alive: ping self every 14 min to prevent Render free tier from sleeping
         const KEEP_ALIVE_URL = process.env.RENDER_EXTERNAL_URL || 'https://medx-admin-portal.onrender.com';
-        if (process.env.NODE_ENV === 'production') {
+        if (process.env.NODE_ENV === 'production' && process.env.KEEP_WARM === '1') { // KEEP_WARM opt-in (2026-07-18): always-on self-ping burned the free instance-hour budget
             setInterval(() => {
                 fetch(KEEP_ALIVE_URL + '/health').catch(() => {});
 
