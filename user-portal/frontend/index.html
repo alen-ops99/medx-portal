@@ -56268,6 +56268,12 @@ button,input,select,textarea{font-family:var(--sans);}
             'search.placeholder': {en:'Search pages, events, people, talks…', hr:'Pretražite stranice, događaje, ljude, predavanja…'},
             'tour.skip':       {en:'Skip tour', hr:'Preskočite uvod'},
             'tour.letsGo':     {en:"Let's go", hr:'Krenimo'},
+            'myev.title':      {en:'My events', hr:'Moja događanja'},
+            'myev.ticket':     {en:'Ticket', hr:'Ulaznica'},
+            'myev.calendar':   {en:'Calendar', hr:'Kalendar'},
+            'myev.waitlist':   {en:'Waiting list', hr:'Lista čekanja'},
+            'myev.checkedIn':  {en:'Checked in', hr:'Prijavljeni'},
+            'myev.pastCount':  {en:'{n} past events on your record.', hr:'{n} prošlih događanja u Vašem zapisu.'},
             'nav.projects':    {en:'Projects',        hr:'Projekti'},
             'nav.network':     {en:'Network',         hr:'Mreža'},
             'nav.talks':       {en:'Talk Library',    hr:'Knjižnica predavanja'},
@@ -60550,7 +60556,7 @@ button,input,select,textarea{font-family:var(--sans);}
             <button class="up-tb-item" data-i18n="nav.network" data-nav="network" onclick="UserPortal.showSection('network')">Network</button>
             <button class="up-tb-item" data-i18n="nav.talks" data-nav="talks" onclick="UserPortal.showSection('talks')">Talk Library</button>
             <button class="up-tb-item" data-i18n="nav.mymedx" data-nav="mymedx" onclick="UserPortal.showSection('mymedx')">My Med&amp;X</button>
-            <a class="up-tb-item" data-i18n="nav.website" href="https://medx.hr" target="_blank" rel="noopener" aria-label="Med&amp;X website (opens in a new tab)">Website <i class="fas fa-external-link-alt up-tb-ext" aria-hidden="true"></i></a>
+            <a class="up-tb-item" data-i18n="nav.website" href="https://medx-website-preview.netlify.app" target="_blank" rel="noopener" aria-label="Med&amp;X website (opens in a new tab)">Website <i class="fas fa-external-link-alt up-tb-ext" aria-hidden="true"></i></a>
           </nav>
           <div class="up-tb-spacer"></div>
           <button class="up-tb-icon" id="upTbSearch" data-i18n-aria-label="a11y.search" aria-label="Search (Ctrl+K)" title="Search &#8984;K" onclick="GlobalSearch.open()">
@@ -71807,6 +71813,8 @@ button,input,select,textarea{font-family:var(--sans);}
 
                     <!-- Programs Grid -->
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;" data-i18n="mmx.myProjects">My projects</h3>
+                    <div id="mymedxMyEvents" style="display:none; margin-bottom:24px;"></div>
+
                     <div id="mymedxPrograms" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 24px;">
                         <!-- Populated by MyMedXPortal.renderPrograms() -->
                     </div>
@@ -79703,6 +79711,7 @@ You can use variables like {first_name} that will be personalized for each recip
         // =========================================
         const MyMedXPortal = {
             init() {
+                this.renderMyEvents();
                 this.renderTierCard();
                 this.renderMembershipCardVisual();
                 this.loadPhoto();
@@ -79715,6 +79724,46 @@ You can use variables like {first_name} that will be personalized for each recip
                 this.renderGuestPasses();
                 this.renderGiving();
                 this.renderMyCme();
+            },
+
+            // MY EVENTS — one card per upcoming registration across ALL event types, each with
+            // its QR ticket and calendar link (backend: /api/my/events). Hidden when empty.
+            renderMyEvents() {
+                var el = document.getElementById('mymedxMyEvents');
+                if (!el) return;
+                var token = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                var apiBase = (typeof API_BASE !== 'undefined') ? API_BASE : '';
+                fetch(apiBase + '/api/my/events', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
+                    .then(function(r){ return r.ok ? r.json() : null; })
+                    .then(function(data){
+                        if (!data || !Array.isArray(data.upcoming) || !data.upcoming.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+                        var esc = function(x){ return String(x == null ? '' : x).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); };
+                        var fmtDate = function(d){
+                            if (!d) return '';
+                            try { return new Date(String(d).slice(0,10) + 'T12:00:00').toLocaleDateString((typeof dateLocale === 'function') ? dateLocale() : 'en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); } catch(e){ return d; }
+                        };
+                        var cards = data.upcoming.map(function(ev){
+                            var badge = ev.waitlisted
+                                ? '<span style="background:rgba(180,83,9,0.12);color:#b45309;padding:2px 10px;border-radius:10px;font-size:10.5px;font-weight:700;text-transform:uppercase;">' + esc(t('myev.waitlist')) + '</span>'
+                                : (ev.checked_in ? '<span style="background:rgba(22,163,74,0.12);color:#16a34a;padding:2px 10px;border-radius:10px;font-size:10.5px;font-weight:700;text-transform:uppercase;">' + esc(t('myev.checkedIn')) + '</span>' : '');
+                            var btns = '';
+                            if (ev.ticket) btns += '<a href="' + esc(ev.ticket) + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--up-border,#e5e0d8);border-radius:9px;font-size:12.5px;font-weight:600;color:var(--up-text,#1d1d1f);text-decoration:none;"><i class="fas fa-qrcode"></i> ' + esc(t('myev.ticket')) + '</a>';
+                            if (ev.calendar) btns += '<a href="' + esc(ev.calendar) + '" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--up-border,#e5e0d8);border-radius:9px;font-size:12.5px;font-weight:600;color:var(--up-text,#1d1d1f);text-decoration:none;margin-left:8px;"><i class="far fa-calendar-plus"></i> ' + esc(t('myev.calendar')) + '</a>';
+                            return '<div style="border:1px solid var(--up-border,#e5e0d8);border-radius:12px;padding:14px 16px;">'
+                                + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">'
+                                + '<div style="font-weight:600;color:var(--up-text,#1d1d1f);">' + esc(ev.title) + '</div>' + badge + '</div>'
+                                + '<div style="font-size:12.5px;color:var(--up-text-muted,#6b6b70);margin-top:6px;">'
+                                + esc(fmtDate(ev.date)) + (ev.venue ? ' &middot; ' + esc(ev.venue) : '') + '</div>'
+                                + (btns ? '<div style="margin-top:10px;">' + btns + '</div>' : '')
+                                + '</div>';
+                        }).join('');
+                        var pastLine = (data.past && data.past.length)
+                            ? '<p style="font-size:11.5px;color:var(--up-text-muted,#6b6b70);margin:10px 0 0;padding-left:4px;">' + esc(t('myev.pastCount', { n: data.past.length })) + '</p>' : '';
+                        el.innerHTML = '<h3 style="font-size:16px;font-weight:600;color:var(--up-text,#1d1d1f);margin:0 0 8px;padding-left:4px;">' + esc(t('myev.title')) + '</h3>'
+                            + '<div style="display:flex;flex-direction:column;gap:12px;">' + cards + '</div>' + pastLine;
+                        el.style.display = '';
+                    })
+                    .catch(function(){ el.style.display = 'none'; });
             },
 
             // The member's own CME record (queue 5a5c) — read-only self-view. Official chamber
