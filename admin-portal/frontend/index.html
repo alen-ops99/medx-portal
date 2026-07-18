@@ -13904,6 +13904,7 @@ President, Med&amp;X</textarea>
                             <h2 id="sfEditorTitle" style="margin:0;font-size:20px;"></h2>
                             <span id="sfEditorStatus"></span>
                             <span id="sfDirtyPill" style="display:none;background:#b45309;color:#fff;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;">Unsaved changes</span>
+                            <button class="btn btn-secondary" style="margin-left:auto;padding:7px 14px;font-size:12.5px;" onclick="SignupFormsApp.duplicateForm()" title="Copy questions and settings into a new form for the next event"><i class="far fa-copy"></i> Duplicate</button>
                         </div>
                         <div class="tabs" style="margin:14px 0 20px;">
                             <button class="tab-btn active" id="sfTabBtn-questions" onclick="SignupFormsApp.showTab('questions')"><i class="fas fa-list"></i> Questions</button>
@@ -48192,6 +48193,27 @@ By applying to this program, I give the following consents:
                     </div>`).join('') + `</div>`;
             },
 
+            // Next event in two clicks: new draft carrying this form's questions + settings,
+            // with the date cleared and the title marked as a copy.
+            async duplicateForm() {
+                const c = this.current;
+                if (!c) return;
+                try {
+                    const r = await App.api('/api/admin/signup-forms', { method: 'POST', body: JSON.stringify({ title: c.title + ' (copy)' }) });
+                    await App.api('/api/admin/signup-forms/' + r.form.id, { method: 'PUT', body: JSON.stringify({
+                        description: c.description || '', event_time: c.event_time || '', venue: c.venue || '',
+                        capacity: c.capacity || null, waitlist_enabled: !!c.waitlist_enabled,
+                        reminder_enabled: !!c.reminder_enabled, language: c.lang_default || c.language || 'en',
+                        project_tag: c.project_tag || 'general', confirmation_message: c.confirmation_message || '',
+                        fields_json: (c.fields || []).map(f => ({ ...f }))
+                    }) });
+                    await this.openEditor(r.form.id);
+                    this.showTab('settings');
+                    const t = document.getElementById('sfSetTitle');
+                    if (t) { t.focus(); t.select(); }
+                } catch(e) { alert('Could not duplicate: ' + e.message); }
+            },
+
             async createForm() {
                 try {
                     const r = await App.api('/api/admin/signup-forms', { method: 'POST', body: JSON.stringify({ title: 'Untitled form' }) });
@@ -48664,8 +48686,14 @@ By applying to this program, I give the following consents:
             openedLabel(p) {
                 if (!p.last_viewed_at) return '';
                 try {
-                    const d = new Date(p.last_viewed_at);
-                    return ' · opened ' + d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+                    const ms = Date.now() - new Date(p.last_viewed_at).getTime();
+                    const min = Math.floor(ms / 60000);
+                    let rel;
+                    if (min < 1) rel = 'just now';
+                    else if (min < 60) rel = min + ' min ago';
+                    else if (min < 48 * 60) rel = Math.round(min / 60) + ' h ago';
+                    else rel = new Date(p.last_viewed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                    return ' · opened ' + rel;
                 } catch(e) { return ''; }
             },
 
@@ -51184,6 +51212,9 @@ By applying to this program, I give the following consents:
                 { title: 'Send Notification', sub: 'Quick send to users', icon: 'fa-bell', color: '#b06a1f', group: 'Actions', action: () => App.showSection('user-notifications') },
                 { title: 'New Task', sub: 'Create a new to-do item', icon: 'fa-plus-circle', color: '#10b981', group: 'Quick Actions', action: () => App.openTaskModal() },
                 { title: 'My Network', sub: 'Open contacts panel', icon: 'fa-address-book', color: 'var(--accent-gold)', group: 'Quick Actions', action: () => NetworkApp.openPanel() },
+                { title: 'New sign-up form', sub: 'Create a public sign-up page for a short event', icon: 'fa-clipboard-check', color: '#059669', group: 'Quick Actions', action: () => { App.showSection('signup-forms', document.querySelector('.nav-item[data-section=signup-forms]')); setTimeout(() => { if (typeof SignupFormsApp !== 'undefined') SignupFormsApp.createForm(); }, 350); } },
+                { title: 'New guest pass', sub: 'Mint a personal VIP access link', icon: 'fa-id-badge', color: '#a78bfa', group: 'Quick Actions', action: () => { App.showSection('guest-passes', document.querySelector('.nav-item[data-section=guest-passes]')); setTimeout(() => { if (typeof GuestPassApp !== 'undefined') GuestPassApp.newPass(); }, 350); } },
+                { title: 'Open check-in scanner', sub: 'Scan tickets at the door', icon: 'fa-qrcode', color: '#9b1b22', group: 'Quick Actions', action: () => App.openGlobalQRScanner() },
             ],
 
             open() {
