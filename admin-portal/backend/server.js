@@ -4051,6 +4051,14 @@ async function initializeApp() {
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN reminder_sent INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN ics_sequence INTEGER DEFAULT 0'); } catch(e) {}
+
+    // Email preferences: a row means this address OPTED OUT of the listed categories
+    // ('reminders','newsletter' — comma separated). Tickets/confirmations always send.
+    db.run(`CREATE TABLE IF NOT EXISTS email_optouts (
+        email TEXT PRIMARY KEY,
+        scopes TEXT DEFAULT 'reminders,newsletter',
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
     // Login visibility (2026-07-18 security pass): before this, logins were recorded NOWHERE,
     // so a credential-abuse window could never be reconstructed. Guarded, additive.
     try { db.run('ALTER TABLE users ADD COLUMN last_login TEXT'); } catch(e) {}

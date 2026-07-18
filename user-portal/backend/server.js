@@ -1660,6 +1660,102 @@ function renderPublicEventPage(slug) {
 app.get('/building-bridges', (req, res) => res.send(renderPublicEventPage('building-bridges')));
 app.get('/donor-night', (req, res) => res.send(renderPublicEventPage('donor-night')));
 
+// ========== EMAIL PREFERENCES (one-click unsubscribe + a small choices page) ==========
+// Signed links (HMAC of the address) — no login needed, and nobody can change another
+// person's choices. Tickets and registration confirmations ALWAYS send; the choices only
+// cover reminders and news.
+function emailPrefSig(email) {
+    return crypto.createHmac('sha256', JWT_SECRET).update('medx-email-prefs:' + String(email).toLowerCase()).digest('hex').slice(0, 24);
+}
+function emailPrefLink(email) {
+    const base = (process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+    const e = Buffer.from(String(email).toLowerCase()).toString('base64url');
+    return `${base}/email-prefs?e=${e}&s=${emailPrefSig(email)}`;
+}
+function emailOptedOut(email, scope) {
+    try {
+        const row = query.get('SELECT scopes FROM email_optouts WHERE email = ?', [String(email).toLowerCase()]);
+        return !!(row && String(row.scopes || '').split(',').map(s => s.trim()).includes(scope));
+    } catch (e) { return false; }
+}
+// Small grey footer line for reminder/news emails (never on tickets/confirmations).
+function emailUnsubFooter(email, lang) {
+    const link = emailPrefLink(email);
+    const txt = lang === 'hr'
+        ? `Ne želite ove podsjetnike? <a href="${link}" style="color:#94a3b8;">Odjavite se jednim klikom</a>.`
+        : `Don't want these reminders? <a href="${link}" style="color:#94a3b8;">Unsubscribe in one click</a>.`;
+    return `<p style="margin:22px 0 0;font-size:11.5px;color:#94a3b8;">${txt}</p>`;
+}
+
+function emailPrefsPage(email, scopes, saved) {
+    const outR = scopes.includes('reminders'), outN = scopes.includes('newsletter');
+    const e = Buffer.from(email).toString('base64url');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Email preferences — Med&X</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>
+    body{margin:0;min-height:100vh;background:linear-gradient(160deg,#0f172a,#1e293b);color:#e2e8f0;font-family:'Inter',system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px;}
+    .card{max-width:440px;width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(201,169,98,0.22);border-radius:20px;padding:34px 32px;}
+    h1{font-size:20px;margin:0 0 6px;color:#fff;} .sub{font-size:13px;color:#94a3b8;margin:0 0 22px;}
+    label{display:flex;align-items:flex-start;gap:10px;padding:12px 0;font-size:14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.06);}
+    label input{accent-color:#c9a962;margin-top:2px;} .always{opacity:0.55;cursor:default;}
+    .hint{font-size:12px;color:#64748b;display:block;margin-top:2px;}
+    button{width:100%;margin-top:22px;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#c9a962,#b8965a);color:#0f172a;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;}
+    .ok{margin-top:14px;font-size:13px;color:#22c55e;text-align:center;display:${saved ? 'block' : 'none'};}
+</style></head><body><div class="card">
+    <h1>Email preferences</h1>
+    <p class="sub">${escapeHtml(email)} · Postavke e-pošte</p>
+    <form method="POST" action="/api/email-prefs">
+        <input type="hidden" name="e" value="${e}"><input type="hidden" name="s" value="${emailPrefSig(email)}">
+        <label><input type="checkbox" name="reminders" ${outR ? '' : 'checked'}><span>Event reminders<span class="hint">Podsjetnici na događanja</span></span></label>
+        <label><input type="checkbox" name="newsletter" ${outN ? '' : 'checked'}><span>News from Med&X<span class="hint">Novosti Med&X-a</span></span></label>
+        <label class="always"><input type="checkbox" checked disabled><span>Tickets & registration confirmations<span class="hint">Ulaznice i potvrde — always sent / uvijek se šalju</span></span></label>
+        <button type="submit">Save · Spremi</button>
+        <div class="ok">Saved. / Spremljeno.</div>
+    </form>
+</div></body></html>`;
+}
+
+app.get('/email-prefs', (req, res) => {
+    try {
+        const email = Buffer.from(String(req.query.e || ''), 'base64url').toString();
+        if (!email || emailPrefSig(email) !== String(req.query.s || '')) return res.status(400).send('Invalid link');
+        const row = query.get('SELECT scopes FROM email_optouts WHERE email = ?', [email.toLowerCase()]);
+        const scopes = row ? String(row.scopes || '').split(',').map(s => s.trim()) : [];
+        res.send(emailPrefsPage(email.toLowerCase(), scopes, req.query.saved === '1'));
+    } catch (e) { res.status(500).send('Something went wrong.'); }
+});
+
+app.post('/api/email-prefs', express.urlencoded({ extended: false }), (req, res) => {
+    try {
+        const email = Buffer.from(String(req.body.e || ''), 'base64url').toString().toLowerCase();
+        if (!email || emailPrefSig(email) !== String(req.body.s || '')) return res.status(400).send('Invalid link');
+        // Checked box = wants the mail; missing = opted out of that category.
+        const out = [];
+        if (!req.body.reminders) out.push('reminders');
+        if (!req.body.newsletter) out.push('newsletter');
+        if (out.length) {
+            db.run('INSERT INTO email_optouts (email, scopes, updated_at) VALUES (?, ?, ?) ON CONFLICT(email) DO UPDATE SET scopes = ?, updated_at = ?',
+                [email, out.join(','), new Date().toISOString(), out.join(','), new Date().toISOString()]);
+        } else {
+            db.run('DELETE FROM email_optouts WHERE email = ?', [email]);
+        }
+        saveDb();
+        res.redirect('/email-prefs?e=' + String(req.body.e) + '&s=' + String(req.body.s) + '&saved=1');
+    } catch (e) { res.status(500).send('Something went wrong.'); }
+});
+
+// True one-click: this link opts the address out of reminders + news immediately.
+app.get('/unsubscribe', (req, res) => {
+    try {
+        const email = Buffer.from(String(req.query.e || ''), 'base64url').toString().toLowerCase();
+        if (!email || emailPrefSig(email) !== String(req.query.s || '')) return res.status(400).send('Invalid link');
+        db.run('INSERT INTO email_optouts (email, scopes, updated_at) VALUES (?, ?, ?) ON CONFLICT(email) DO UPDATE SET scopes = ?, updated_at = ?',
+            [email, 'reminders,newsletter', new Date().toISOString(), 'reminders,newsletter', new Date().toISOString()]);
+        saveDb();
+        res.redirect('/email-prefs?e=' + String(req.query.e) + '&s=' + String(req.query.s) + '&saved=1');
+    } catch (e) { res.status(500).send('Something went wrong.'); }
+});
+// ========== END EMAIL PREFERENCES ==========
+
 // ========== SIGN-UP FORMS — public pages (/f/:slug) ==========
 // Admin-built forms for short events (networking evenings, workshops). The builder lives in
 // the admin portal; this serves the public page + QR. The submit endpoint is registered inside
@@ -8847,6 +8943,14 @@ async function initializeApp() {
     try { db.run('ALTER TABLE signup_form_responses ADD COLUMN reminder_sent INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN ics_sequence INTEGER DEFAULT 0'); } catch(e) {}
+
+    // Email preferences: a row means this address OPTED OUT of the listed categories
+    // ('reminders','newsletter' — comma separated). Tickets/confirmations always send.
+    db.run(`CREATE TABLE IF NOT EXISTS email_optouts (
+        email TEXT PRIMARY KEY,
+        scopes TEXT DEFAULT 'reminders,newsletter',
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
     // Login visibility (2026-07-18 security pass): before this, logins were recorded NOWHERE,
     // so a credential-abuse window could never be reconstructed. Guarded, additive.
     try { db.run('ALTER TABLE users ADD COLUMN last_login TEXT'); } catch(e) {}
@@ -27984,6 +28088,7 @@ By applying to this program, I provide the following consents:
                 const T = SIGNUP_FORM_I18N[lang];
                 for (const r of due) {
                     try {
+                        if (emailOptedOut(r.email, 'reminders')) continue;
                         const details = [signupFormDateLabel(form.event_date, lang), form.event_time, form.venue].filter(Boolean).join(' · ');
                         const qrBlock = buildTicketQrBlock(r.id, lang === 'hr'
                             ? { label: 'Vaš QR kod za ulaz', caption: 'Pokažite ovaj kod na ulazu u događanje', attachNote: 'QR kod nalazi se i u privitku ove poruke. Spremite ga na svoj mobitel.' }
@@ -27993,7 +28098,8 @@ By applying to this program, I provide the following consents:
                             <p style="margin:0 0 14px;">${T.reminderLine.replace('{title}', escapeHtml(form.title))}</p>
                             ${details ? `<p style="margin:0 0 18px;color:#334155;">${escapeHtml(details)}</p>` : ''}
                             ${qrBlock}
-                            <p style="margin:14px 0 0;">${T.emailSignoff}</p>`;
+                            <p style="margin:14px 0 0;">${T.emailSignoff}</p>
+                            ${emailUnsubFooter(r.email, lang)}`;
                         let atts; try { atts = await qrPngAttachment({ type: 'MEDX_MEMBER', regId: r.id, evt: 'signup-form' }); } catch (e) {}
                         const inviteAtt = signupFormIcsAttachment(form, r.email);
                         if (inviteAtt) atts = (atts || []).concat([inviteAtt]);
