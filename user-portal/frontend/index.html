@@ -62913,11 +62913,11 @@ button,input,select,textarea{font-family:var(--sans);}
                                             <div class="auth-form-row" style="margin-bottom: 20px;">
                                                 <div class="auth-form-group" style="margin-bottom: 0;">
                                                     <label class="auth-form-label" data-i18n="f.firstName">First Name<span> *</span></label>
-                                                    <input type="text" class="auth-form-input" id="pxRegFirstName" placeholder="John" autocomplete="given-name" maxlength="100">
+                                                    <input type="text" class="auth-form-input" id="pxRegFirstName" placeholder="John" data-i18n-placeholder="reg.firstNamePh" autocomplete="given-name" maxlength="100">
                                                 </div>
                                                 <div class="auth-form-group" style="margin-bottom: 0;">
                                                     <label class="auth-form-label" data-i18n="f.lastName">Last Name<span> *</span></label>
-                                                    <input type="text" class="auth-form-input" id="pxRegLastName" placeholder="Doe" autocomplete="family-name" maxlength="100">
+                                                    <input type="text" class="auth-form-input" id="pxRegLastName" placeholder="Doe" data-i18n-placeholder="reg.lastNamePh" autocomplete="family-name" maxlength="100">
                                                 </div>
                                             </div>
                                             <div class="auth-form-group">
@@ -70076,11 +70076,11 @@ button,input,select,textarea{font-family:var(--sans);}
                                         <div class="settings-form-row">
                                             <div class="settings-form-group">
                                                 <label data-i18n="set.firstName">First Name</label>
-                                                <input type="text" id="settingsFirstName" class="settings-input" placeholder="John" maxlength="100">
+                                                <input type="text" id="settingsFirstName" class="settings-input" placeholder="John" data-i18n-placeholder="reg.firstNamePh" maxlength="100">
                                             </div>
                                             <div class="settings-form-group">
                                                 <label data-i18n="set.lastName">Last Name</label>
-                                                <input type="text" id="settingsLastName" class="settings-input" placeholder="Doe" maxlength="100">
+                                                <input type="text" id="settingsLastName" class="settings-input" placeholder="Doe" data-i18n-placeholder="reg.lastNamePh" maxlength="100">
                                             </div>
                                         </div>
 
@@ -71911,11 +71911,11 @@ button,input,select,textarea{font-family:var(--sans);}
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                         <div class="form-group">
                             <label class="form-label">First Name</label>
-                            <input type="text" class="form-input" id="adminRegFirstName" placeholder="John" required maxlength="100">
+                            <input type="text" class="form-input" id="adminRegFirstName" placeholder="John" data-i18n-placeholder="reg.firstNamePh" required maxlength="100">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Last Name</label>
-                            <input type="text" class="form-input" id="adminRegLastName" placeholder="Doe" required maxlength="100">
+                            <input type="text" class="form-input" id="adminRegLastName" placeholder="Doe" data-i18n-placeholder="reg.lastNamePh" required maxlength="100">
                         </div>
                     </div>
                     <div class="form-group">
@@ -83896,6 +83896,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 {
                     title: 'Welcome to Med&X!',
                     description: 'Let us give you a quick tour of your new portal. This will only take a moment.',
+                    title_hr: 'Dobro došli u Med&X!',
+                    desc_hr: 'Provedimo Vas kroz kratki uvod u Vaš novi portal. Trajat će samo trenutak.',
                     icon: 'fa-sparkles',
                     element: null,
                     mobileElement: null
@@ -83903,6 +83905,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 {
                     title: 'Your Personal Dashboard',
                     description: 'This is your home base where you can see what\'s happening and access everything quickly.',
+                    title_hr: 'Vaša osobna nadzorna ploča',
+                    desc_hr: 'Ovo je Vaše polazište: ovdje vidite što je novo i što Vas očekuje.',
                     icon: 'fa-home',
                     element: '.hub-hero',
                     mobileElement: '.hub-hero'
@@ -83910,6 +83914,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 {
                     title: 'Our Programs',
                     description: 'Explore Plexus Conference, Accelerator internships, Biomedical Forum, and more. Tap any card to learn more.',
+                    title_hr: 'Naši programi',
+                    desc_hr: 'Istražite konferenciju Plexus, Accelerator stažiranja, Biomedicinski forum i više.',
                     icon: 'fa-layer-group',
                     element: '.hub-programs-grid',
                     mobileElement: '.hub-program-card:first-child'
@@ -83917,6 +83923,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 {
                     title: 'Quick Actions',
                     description: 'Use this button for fast access to registration, applications, and browsing events.',
+                    title_hr: 'Brze radnje',
+                    desc_hr: 'Ovim gumbom brzo pristupate registraciji, prijavama i pregledavanju.',
                     icon: 'fa-bolt',
                     element: '.hub-action-btn',
                     mobileElement: '.hub-action-btn'
@@ -83924,6 +83932,8 @@ You can use variables like {first_name} that will be personalized for each recip
                 {
                     title: 'You\'re Ready!',
                     description: 'That\'s everything! Explore the portal and connect with the Med&X community. Welcome aboard!',
+                    title_hr: 'Spremni ste!',
+                    desc_hr: 'To je sve. Dobro došli u zajednicu Med&X — drago nam je što ste s nama.',
                     icon: 'fa-check-circle',
                     element: null,
                     mobileElement: null
@@ -83953,9 +83963,12 @@ You can use variables like {first_name} that will be personalized for each recip
                     this.updateStepIndicator(index);
 
                     // Update tooltip content
+                    const hrLoc = (function(){ try { return localStorage.getItem('medx_locale') === 'hr'; } catch(e){ return false; } })();
+                    const stepTitle = (hrLoc && step.title_hr) ? step.title_hr : step.title;
+                    const stepDesc = (hrLoc && step.desc_hr) ? step.desc_hr : (step.desc || step.description);
                     document.getElementById('onboardingIcon').innerHTML = `<i class="fas ${step.icon}"></i>`;
-                    document.getElementById('onboardingTitle').textContent = step.title;
-                    document.getElementById('onboardingDesc').textContent = step.description;
+                    document.getElementById('onboardingTitle').textContent = stepTitle;
+                    document.getElementById('onboardingDesc').textContent = stepDesc;
 
                     // Update button text
                     const nextBtn = document.getElementById('onboardingNextText');
