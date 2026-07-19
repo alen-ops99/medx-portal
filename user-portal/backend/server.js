@@ -763,6 +763,66 @@ function sanitizeCsvCell(value) {
 }
 
 // Download registrations CSV log (admin only)
+// ===== ADMIN: cancel a PAID registration with an automatic Stripe refund =====
+// One endpoint for every paid surface. Looks up the Stripe reference (checkout session or
+// payment intent), issues the refund through Stripe, marks the row refunded, and emails the
+// guest a confirmation. Idempotent: a second call on the same row is a safe no-op.
+app.post('/api/admin/payments/:kind/:id/refund', auth, adminOnly, async (req, res) => {
+    try {
+        if (!stripe) return res.status(503).json({ error: 'Stripe is not configured on this server.' });
+        const { kind, id } = req.params;
+        let row = null, table = null, statusCol = 'status', sessionCol = 'stripe_session_id';
+        if (kind === 'gala') { table = 'gala_registrations'; }
+        else if (kind === 'forum-event') { table = 'forum_event_registrations'; }
+        else if (kind === 'conference') { table = 'registrations'; statusCol = 'payment_status'; sessionCol = null; }
+        else return res.status(400).json({ error: 'Unknown payment kind.' });
+        row = query.get(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+        if (!row) return res.status(404).json({ error: 'Registration not found.' });
+        if (String(row[statusCol] || '').toLowerCase() === 'refunded') {
+            return res.json({ success: true, already: true, message: 'Already refunded.' });
+        }
+        // Resolve the payment intent
+        let paymentIntent = null;
+        if (sessionCol && row[sessionCol]) {
+            const session = await stripe.checkout.sessions.retrieve(row[sessionCol]);
+            paymentIntent = session && session.payment_intent;
+        } else if (kind === 'conference') {
+            const tx = query.get("SELECT provider_transaction_id FROM payment_transactions WHERE registration_id = ? AND status = 'completed'", [id]);
+            paymentIntent = tx && tx.provider_transaction_id;
+            if (paymentIntent && paymentIntent.startsWith('cs_')) {
+                const session = await stripe.checkout.sessions.retrieve(paymentIntent);
+                paymentIntent = session && session.payment_intent;
+            }
+        }
+        if (!paymentIntent) {
+            return res.status(409).json({ error: 'No Stripe payment found on this registration — nothing to refund. If it was paid by bank transfer, refund it manually.' });
+        }
+        const refund = await stripe.refunds.create({ payment_intent: paymentIntent });
+        db.run(`UPDATE ${table} SET ${statusCol} = 'refunded' WHERE id = ?`, [id]);
+        if (kind === 'conference') {
+            db.run("UPDATE payment_transactions SET status = 'refunded' WHERE registration_id = ?", [id]);
+            db.run("UPDATE invoices SET status = 'refunded' WHERE registration_id = ?", [id]);
+        }
+        saveDb();
+        try {
+            db.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)',
+                [require('crypto').randomUUID(), (req.user && req.user.id) || null, (req.user && req.user.email) || 'admin', 'payment.refund', `${kind}/${id} refund ${refund.id}`]);
+        } catch (e) {}
+        const email = row.email || null;
+        if (email) {
+            const hr = false;
+            sendEmail(email, 'Your Med&X payment has been refunded',
+                buildEmailTemplate('Refund confirmed',
+                    `<p>Your registration has been cancelled and the payment refunded in full. The refund (Stripe reference ${refund.id}) typically appears on your statement within 5–10 business days.</p><p>If anything looks off, just reply to this email.</p>`),
+                null, null, 'laura.rodman@medx.hr').catch(() => {});
+        }
+        res.json({ success: true, refund_id: refund.id, payment_intent: paymentIntent });
+    } catch (e) {
+        console.error('[refund]', e.message);
+        res.status(500).json({ error: 'Refund failed: ' + e.message });
+    }
+});
+
 app.get('/api/admin/registrations-csv', auth, adminOnly, (req, res) => {
     const csvPath = path.join(__dirname, 'registrations-log.csv');
     if (fs.existsSync(csvPath)) {
@@ -5923,6 +5983,8 @@ async function initializeApp() {
         is_keynote INTEGER DEFAULT 0, is_confirmed INTEGER DEFAULT 1,
         linkedin_url TEXT, twitter_url TEXT, sort_order INTEGER DEFAULT 0
     )`);
+    // The admin's publish/unpublish toggle writes is_published; the public site must honor it.
+    try { db.run('ALTER TABLE speakers ADD COLUMN is_published INTEGER DEFAULT 0'); } catch (e) {}
 
     db.run(`CREATE TABLE IF NOT EXISTS speaker_documents (
         id TEXT PRIMARY KEY,
@@ -9172,6 +9234,11 @@ async function initializeApp() {
         updated_at TEXT,
         updated_by TEXT
     )`);
+    // Croatian variants for website hydration on /hr/ pages (announcements + status labels).
+    try { db.run('ALTER TABLE content_blocks ADD COLUMN body_hr TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE project_status ADD COLUMN status_label_hr TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE project_status ADD COLUMN detail_line_hr TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE project_status ADD COLUMN cta_label_hr TEXT'); } catch (e) {}
 
     // ===== Email verification tokens (member signup confirmation) =====
     // Byte-identical in both portal server.js files (shared Turso DB in prod). One row per issued
@@ -11024,7 +11091,7 @@ async function initializeApp() {
         const base = PORTAL_BASE_URL();
         let keynotes = [];
         try {
-            keynotes = query.all("SELECT name, institution FROM speakers WHERE COALESCE(is_confirmed,1) = 1 AND COALESCE(is_keynote,0) = 1 AND name IS NOT NULL ORDER BY sort_order LIMIT 3")
+            keynotes = query.all("SELECT name, institution FROM speakers WHERE COALESCE(is_confirmed,1) = 1 AND COALESCE(is_published,0) = 1 AND COALESCE(is_keynote,0) = 1 AND name IS NOT NULL ORDER BY sort_order LIMIT 3")
                 .map(s => s.institution ? `${s.name} (${s.institution})` : s.name);
         } catch (e) { keynotes = []; }
         const keynoteLine = keynotes.length ? `<p>Confirmed keynote voices so far include ${keynotes.join(', ')}.</p>` : '';
@@ -11427,7 +11494,7 @@ async function submitReset(e){
                 [conf.id]
             );
             const speakers = query.all(
-                'SELECT name, title, institution, photo_url, talk_title, is_keynote, sort_order FROM speakers WHERE conference_id = ? AND is_confirmed = 1 ORDER BY is_keynote DESC, sort_order',
+                'SELECT name, title, institution, photo_url, talk_title, is_keynote, sort_order FROM speakers WHERE conference_id = ? AND is_confirmed = 1 AND COALESCE(is_published, 0) = 1 ORDER BY is_keynote DESC, sort_order',
                 [conf.id]
             );
             const today = new Date().toISOString().slice(0, 10);
@@ -11509,10 +11576,10 @@ async function submitReset(e){
             const page = req.query.page ? String(req.query.page) : null;
             const payload = memo('content:' + (page || 'all'), 45000, () => {
                 const rows = page
-                    ? query.all('SELECT block_key, page, block_type, body, updated_at FROM content_blocks WHERE is_published = 1 AND page = ?', [page])
-                    : query.all('SELECT block_key, page, block_type, body, updated_at FROM content_blocks WHERE is_published = 1');
+                    ? query.all('SELECT block_key, page, block_type, body, body_hr, updated_at FROM content_blocks WHERE is_published = 1 AND page = ?', [page])
+                    : query.all('SELECT block_key, page, block_type, body, body_hr, updated_at FROM content_blocks WHERE is_published = 1');
                 const blocks = {};
-                rows.forEach(r => { blocks[r.block_key] = { type: r.block_type, body: r.body || '', updated_at: r.updated_at }; });
+                rows.forEach(r => { blocks[r.block_key] = { type: r.block_type, body: r.body || '', body_hr: r.body_hr || '', updated_at: r.updated_at }; });
                 return { blocks, generated_at: new Date().toISOString() };
             });
             publicCacheHeaders(res);
@@ -11535,7 +11602,7 @@ async function submitReset(e){
         try {
             const payload = memo('status', 30000, () => {
                 const HUB_ORDER = ['plexus', 'gala', 'accelerator', 'forum', 'bridges'];
-                const rows = query.all('SELECT project_key, status_label, status_kind, detail_line, cta_label, cta_target, updated_at FROM project_status');
+                const rows = query.all('SELECT project_key, status_label, status_kind, detail_line, cta_label, cta_target, status_label_hr, detail_line_hr, cta_label_hr, updated_at FROM project_status');
                 const byKey = {}; rows.forEach(r => { byKey[r.project_key] = r; });
                 const ordered = [];
                 HUB_ORDER.forEach(k => { if (byKey[k]) { ordered.push(byKey[k]); delete byKey[k]; } });

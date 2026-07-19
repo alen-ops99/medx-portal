@@ -4278,6 +4278,11 @@ async function initializeApp() {
         updated_at TEXT,
         updated_by TEXT
     )`);
+    // Croatian variants for website hydration on /hr/ pages (announcements + status labels).
+    try { db.run('ALTER TABLE content_blocks ADD COLUMN body_hr TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE project_status ADD COLUMN status_label_hr TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE project_status ADD COLUMN detail_line_hr TEXT'); } catch (e) {}
+    try { db.run('ALTER TABLE project_status ADD COLUMN cta_label_hr TEXT'); } catch (e) {}
 
     // ===== Email verification tokens (member signup confirmation) =====
     // Byte-identical in both portal server.js files (shared Turso DB in prod). One row per issued
@@ -11274,17 +11279,21 @@ async function initializeApp() {
         const status_kind = PROJECT_STATUS_KINDS.includes(b.status_kind) ? b.status_kind : (existing ? existing.status_kind : 'info');
         const now = new Date().toISOString();
         if (existing) {
-            db.run(`UPDATE project_status SET status_label=?, status_kind=?, detail_line=?, cta_label=?, cta_target=?, updated_at=? WHERE project_key=?`,
+            db.run(`UPDATE project_status SET status_label=?, status_kind=?, detail_line=?, cta_label=?, cta_target=?, status_label_hr=?, detail_line_hr=?, cta_label_hr=?, updated_at=? WHERE project_key=?`,
                 [b.status_label !== undefined ? b.status_label : existing.status_label,
                  status_kind,
                  b.detail_line !== undefined ? b.detail_line : existing.detail_line,
                  b.cta_label !== undefined ? b.cta_label : existing.cta_label,
                  b.cta_target !== undefined ? b.cta_target : existing.cta_target,
+                 b.status_label_hr !== undefined ? b.status_label_hr : existing.status_label_hr,
+                 b.detail_line_hr !== undefined ? b.detail_line_hr : existing.detail_line_hr,
+                 b.cta_label_hr !== undefined ? b.cta_label_hr : existing.cta_label_hr,
                  now, key]);
         } else {
-            db.run(`INSERT INTO project_status (project_key, status_label, status_kind, detail_line, cta_label, cta_target, updated_at)
-                VALUES (?,?,?,?,?,?,?)`,
-                [key, b.status_label || null, status_kind, b.detail_line || null, b.cta_label || null, b.cta_target || key, now]);
+            db.run(`INSERT INTO project_status (project_key, status_label, status_kind, detail_line, cta_label, cta_target, status_label_hr, detail_line_hr, cta_label_hr, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)`,
+                [key, b.status_label || null, status_kind, b.detail_line || null, b.cta_label || null, b.cta_target || key,
+                 b.status_label_hr || null, b.detail_line_hr || null, b.cta_label_hr || null, now]);
         }
         saveDb();
         logAudit(req, 'project_status.update', key);
@@ -11450,8 +11459,12 @@ async function initializeApp() {
         }
         if (body.length > maxLen) return res.status(400).json({ error: 'Too long — max ' + maxLen + ' characters.' });
         const isPub = b.is_published === undefined ? existing.is_published : (b.is_published ? 1 : 0);
-        db.run('UPDATE content_blocks SET body = ?, is_published = ?, updated_at = ?, updated_by = ? WHERE block_key = ?',
-            [body, isPub, new Date().toISOString(), (req.user && req.user.email) || 'admin', key]);
+        let bodyHr = b.body_hr != null ? String(b.body_hr) : (existing.body_hr || '');
+        if (existing.block_type === 'richtext') bodyHr = sanitizeRichText(bodyHr);
+        else if (existing.block_type !== 'url') bodyHr = bodyHr.replace(/<[^>]*>/g, '');
+        if (bodyHr.length > maxLen) return res.status(400).json({ error: 'Croatian text too long — max ' + maxLen + ' characters.' });
+        db.run('UPDATE content_blocks SET body = ?, body_hr = ?, is_published = ?, updated_at = ?, updated_by = ? WHERE block_key = ?',
+            [body, bodyHr, isPub, new Date().toISOString(), (req.user && req.user.email) || 'admin', key]);
         try {
             db.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)',
                 [require('crypto').randomUUID(), (req.user && req.user.id) || null, (req.user && req.user.email) || 'unknown', 'content_block.update', key]);

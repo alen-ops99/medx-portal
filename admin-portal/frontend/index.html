@@ -40706,7 +40706,11 @@ By applying to this program, I give the following consents:
                     } else if (r.status === 'approved' && r.payment_status !== 'paid') {
                         html += `<span style="font-size: 12px; color: var(--text-muted);">Awaiting payment</span>`;
                     } else if (r.payment_status === 'paid') {
-                        html += `<span style="font-size: 12px; color: #10b981;"><i class="fas fa-check-circle"></i> Confirmed</span>`;
+                        html += `<span style="font-size: 12px; color: #10b981;"><i class="fas fa-check-circle"></i> Confirmed</span>
+                            <button class="btn btn-secondary" onclick="GalaAdmin.cancelAndRefund('${r.id}')" style="padding: 4px 12px; font-size: 12px; color: #b91c1c; margin-left: 6px;" title="Cancel and refund the card payment">
+                                <i class="fas fa-rotate-left"></i> Refund</button>`;
+                    } else if (r.payment_status === 'refunded') {
+                        html += `<span style="font-size: 12px; color: var(--text-muted);"><i class="fas fa-rotate-left"></i> Refunded</span>`;
                     } else {
                         html += `<button class="btn btn-secondary" onclick="GalaAdmin.updateStatus('${r.id}', 'pending')" style="padding: 4px 12px; font-size: 12px;" title="Reset to pending">
                             <i class="fas fa-undo"></i>
@@ -40742,6 +40746,28 @@ By applying to this program, I give the following consents:
                     }
                 } catch (err) {
                     console.error('Failed to update gala status:', err);
+                }
+            },
+
+            async cancelAndRefund(id) {
+                const r = (this.registrations || []).find(x => x.id === id);
+                const who = r ? `${r.first_name || ''} ${r.last_name || ''} (${r.email || ''})`.trim() : id;
+                const sure = await adminConfirm({ type: 'danger', title: 'Cancel and refund?', message: `This cancels ${who} and automatically refunds their card payment in full through Stripe. This cannot be undone.` });
+                if (!sure) return;
+                try {
+                    const res = await fetch(`https://medx-user-portal.onrender.com/api/admin/payments/gala/${id}/refund`.replace('https://medx-user-portal.onrender.com', (location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://medx-user-portal.onrender.com')), {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${App.token}` }
+                    });
+                    const d = await res.json().catch(() => ({}));
+                    if (res.ok) {
+                        Toast.success(d.already ? 'Was already refunded' : 'Cancelled — refund issued, guest emailed');
+                        this.loadRegistrations();
+                    } else {
+                        await adminAlert({ type: 'danger', title: 'Refund failed', message: d.error || 'Stripe refund did not go through. Nothing was changed.' });
+                    }
+                } catch (err) {
+                    await adminAlert({ type: 'danger', title: 'Refund failed', message: String(err.message || err) });
                 }
             },
 
@@ -43071,6 +43097,10 @@ By applying to this program, I give the following consents:
                         <span style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;">${typeLabel}</span>
                     </div>
                     ${control}
+                    ${type !== 'url' ? `<div style="margin-top:8px;">
+                        <label for="${fid}-hr" style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Croatian (shown on the Croatian pages)</label>
+                        <textarea id="${fid}-hr" rows="2" placeholder="Hrvatska verzija — ako ostane prazno, hrvatske stranice zadržavaju ugrađeni tekst." style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px dashed var(--border);background:var(--input-bg);color:var(--text-primary);font-size:13.5px;resize:vertical;font-family:inherit;line-height:1.5;">${this.esc(b.body_hr || '')}</textarea>
+                    </div>` : ''}
                     <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
                         <span id="${fid}-count" style="font-size:12px;color:${over ? '#b91c1c' : 'var(--text-muted)'};font-weight:600;">${len} / ${max}</span>
                         <span style="font-size:12px;color:var(--text-muted);">${edited}</span>
@@ -43122,7 +43152,8 @@ By applying to this program, I give the following consents:
                 if (b.block_type === 'url' && val.trim() && !/^https?:\/\/[^\s]+$/i.test(val.trim())) { Toast.error('Enter a valid http(s) link, or leave blank.'); return; }
                 const btn = document.getElementById(fid + '-save');
                 if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…'; }
-                const r = await opsApi('/api/admin/content-blocks/' + encodeURIComponent(key), { method: 'PUT', body: JSON.stringify({ body: val }) });
+                const taHr = document.getElementById(fid + '-hr');
+                const r = await opsApi('/api/admin/content-blocks/' + encodeURIComponent(key), { method: 'PUT', body: JSON.stringify(taHr ? { body: val, body_hr: taHr.value } : { body: val }) });
                 if (r.ok) {
                     Toast.success('Saved to the website');
                     await this.refreshRow(key);
@@ -43444,6 +43475,14 @@ By applying to this program, I give the following consents:
                                 <input id="${fld}-detail" value="${opsEsc(p.detail_line || '')}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
                             </div>
                             <div>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Status label — Croatian <span style="font-weight:400;color:var(--text-muted);">(website /hr)</span></label>
+                                <input id="${fld}-label-hr" value="${opsEsc(p.status_label_hr || '')}" placeholder="npr. Prijave otvorene" style="width:100%;padding:10px 12px;border-radius:8px;border:1px dashed var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Detail line — Croatian</label>
+                                <input id="${fld}-detail-hr" value="${opsEsc(p.detail_line_hr || '')}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px dashed var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
+                            </div>
+                            <div>
                                 <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:5px;">Button label</label>
                                 <input id="${fld}-cta" value="${opsEsc(p.cta_label || '')}" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:14px;">
                             </div>
@@ -43462,7 +43501,9 @@ By applying to this program, I give the following consents:
                     status_kind: g('kind').value,
                     detail_line: g('detail').value,
                     cta_label: g('cta').value,
-                    cta_target: g('target').value
+                    cta_target: g('target').value,
+                    status_label_hr: g('label-hr') ? g('label-hr').value : undefined,
+                    detail_line_hr: g('detail-hr') ? g('detail-hr').value : undefined
                 };
                 const r = await opsApi('/api/admin/project-status/' + key, { method: 'PUT', body: JSON.stringify(payload) });
                 if (r.ok) { Toast.success('Saved — members see it now'); } else { Toast.error(r.d.error || 'Could not save'); }
