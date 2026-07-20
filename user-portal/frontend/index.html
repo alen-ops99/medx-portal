@@ -37,7 +37,7 @@
          browser blocks the scanner library. Vendored like Font Awesome, no SRI needed same-origin. -->
     <script src="/vendor/jsqr/jsQR.min.js" defer></script>
     <script src="https://js.stripe.com/v3/" async></script>
-    <link rel="stylesheet" href="/assets/app.css?v=split2">
+    <link rel="stylesheet" href="/assets/app.css?v=split3">
 
     <!-- PWA Manifest and Icons — absolute paths so they resolve correctly
          on path-style direct links like /forum/events/<slug> or /invite/<token>. -->
@@ -190,7 +190,7 @@
           .splash-lang-toggle .up-lang-opt.active{background:var(--crimson,#9b1b22);color:#fff;}
           @media(max-width:480px){ .splash-lang-toggle{top:14px;right:14px;} }
         </style>
-        <script src="/assets/app.part1.js?v=split2"></script>
+        <script src="/assets/app.part1.js?v=split3"></script>
 
 
         <!-- Skip Link for Accessibility -->
@@ -1301,7 +1301,7 @@
 
         <!-- Left rail retired — the premium sticky top bar (#upTopbar, defined below) is the desktop nav.
              This script keeps the window.MedXRail contract but repoints it to the top-bar nodes. -->
-        <script src="/assets/app.part2.js?v=split2"></script>
+        <script src="/assets/app.part2.js?v=split3"></script>
 
         <!-- Floating Messages Button (hidden — contact btn is sufficient) -->
         <div class="floating-btns-stack" id="floatingBtnsStack" style="display: none !important;">
@@ -2565,7 +2565,7 @@
             <div class="up-gs-foot"><span><kbd>&#8593;</kbd> <kbd>&#8595;</kbd> navigate</span><span><kbd>&#8629;</kbd> open</span><span><kbd>esc</kbd> close</span></div>
           </div>
         </div>
-        <script src="/assets/app.part3.js?v=split2"></script>
+        <script src="/assets/app.part3.js?v=split3"></script>
 
         <main class="up-main">
             <!-- Soft-gate email confirmation banner (shown until email_verified) -->
@@ -2732,7 +2732,7 @@
 
                     <!-- Your next event hub (personalized from /api/registrations/my) -->
                     <section id="upNextEvent" class="up-next-event" style="margin:0 0 18px;"></section>
-                    <script src="/assets/app.part4.js?v=split2"></script>
+                    <script src="/assets/app.part4.js?v=split3"></script>
 
                     <!-- PROFILE-COMPLETENESS NUDGE — normal members only. Double persona gate
                          (S1 pattern): the medx-playful class hides it under body.medx-quiet, and the
@@ -2749,7 +2749,7 @@
                     @media(max-width:600px){ .up-nudge-card{flex-wrap:wrap;} .up-nudge-btn{width:100%;justify-content:center;} }
                     </style>
                     <section id="upProfileNudge" class="medx-playful" style="display:none;"></section>
-                    <script src="/assets/app.part5.js?v=split2"></script>
+                    <script src="/assets/app.part5.js?v=split3"></script>
 
                     <!-- PROJECT HUB — live status from /api/project-status (admin-owned), get-notified bells persist to notify_topics -->
                     <style>
@@ -2802,7 +2802,7 @@
                         </div>
                         <div class="mx-hub-grid" id="mxProjectHub"></div>
                     </section>
-                    <script src="/assets/app.part6.js?v=split2"></script>
+                    <script src="/assets/app.part6.js?v=split3"></script>
 
                     <!-- NOTIFY-ME ON EACH PROJECT PAGE — a premium toggle row injected near the top of every
                          project section, wired to the SAME notify_topics subscription as the hub bells. The
@@ -2823,11 +2823,11 @@
                     .mx-notify-row.on .mx-notify-switch::after{transform:translateX(19px);}
                     @media(max-width:560px){.mx-notify-sub{display:none;}.mx-notify-row{gap:12px;padding:12px 14px;}}
                     </style>
-                    <script src="/assets/app.part7.js?v=split2"></script>
+                    <script src="/assets/app.part7.js?v=split3"></script>
 
                     <!-- SECTION STATUS BINDING — fills every [data-mx-status="<project>"] element in the section heros
                          from GET /api/project-status (admin-owned). Graceful: if the fetch fails the baked text stays. -->
-                    <script src="/assets/app.part8.js?v=split2"></script>
+                    <script src="/assets/app.part8.js?v=split3"></script>
 
                     <!-- Membership value strip — what belonging includes (quiet, informational) -->
                     <style>
@@ -6380,28 +6380,16 @@
                         <!-- Live Header -->
                         <div class="px-live-header">
                             <div class="px-live-badge">
-                                <span class="px-live-dot"></span> LIVE NOW
+                                <span class="px-live-dot"></span> <span data-i18n="px.liveNowBadge">LIVE NOW</span>
                             </div>
-                            <h2>Plexus 2026 - Day 1</h2>
-                            <p>December 4, 2026 | Welcome to the conference!</p>
+                            <h2>Plexus 2026</h2>
+                            <p data-i18n="px.liveWelcome">Welcome to the conference!</p>
                             <p style="margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.4);" data-i18n="px.liveTimes">All times in CET (Central European Time)</p>
 
-                                <!-- Happening Now Section -->
-                                <div class="happening-now" id="happeningNow" style="margin-bottom: 20px;">
-                                    <div class="happening-now-header">
-                                        <div class="happening-now-badge">
-                                            <div class="live-dot"></div>
-                                            HAPPENING NOW
-                                        </div>
-                                        <div class="attendee-count live">
-                                            <i class="fas fa-users"></i>
-                                            <span id="liveAttendeeCount">847</span> watching
-                                        </div>
-                                    </div>
-                                    <div class="happening-now-sessions" id="happeningNowSessions">
-                                        <!-- Populated by JavaScript -->
-                                    </div>
-                                </div>
+                                <!-- The REAL now/next board (PlexusLiveBoard, app.part14) renders into
+                                     every .pxlb-mount from the published DB program. The mock
+                                     HappeningNow widget + fake attendee counter lived here. -->
+                                <div class="pxlb-mount" id="pxLiveBoardMountLive" style="margin-bottom: 20px;"></div>
 
                         </div>
 
@@ -6418,212 +6406,26 @@
                                     </div>
                                     <div class="up-card-body">
                                         <div class="px-live-schedule">
-                                            <div class="px-live-session past">
-                                                <div class="px-session-time">08:00</div>
-                                                <div class="px-session-content">
-                                                    <div class="px-session-status completed"><i class="fas fa-check"></i></div>
-                                                    <div class="px-session-info">
-                                                        <h4>Registration & Coffee</h4>
-                                                        <p>Grand Foyer</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="px-live-session current">
-                                                <div class="px-session-time">09:00</div>
-                                                <div class="px-session-content">
-                                                    <div class="px-session-status live"><i class="fas fa-broadcast-tower"></i></div>
-                                                    <div class="px-session-info">
-                                                        <h4>Opening Ceremony & Welcome</h4>
-                                                        <p>Main Hall • Dr. Alen Juginovic</p>
-                                                        <div class="px-session-actions">
-                                                            <button onclick="PlexusPortal.openLiveStream('opening')"><i class="fas fa-play"></i> Watch Live</button>
-                                                            <button onclick="PlexusPortal.addToMySchedule('opening')"><i class="fas fa-plus"></i> Add</button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="px-live-session upcoming">
-                                                <div class="px-session-time">09:30</div>
-                                                <div class="px-session-content">
-                                                    <div class="px-session-status"><i class="fas fa-clock"></i></div>
-                                                    <div class="px-session-info">
-                                                        <h4>Keynote: The Future of Precision Medicine</h4>
-                                                        <p>Main Hall • Dr. Richard Henderson (Keynote Speaker)</p>
-                                                        <span class="px-session-countdown">Starts in 28 min</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="px-live-session upcoming">
-                                                <div class="px-session-time">11:00</div>
-                                                <div class="px-session-content">
-                                                    <div class="px-session-status"><i class="fas fa-clock"></i></div>
-                                                    <div class="px-session-info">
-                                                        <h4>Coffee Break & Networking</h4>
-                                                        <p>Grand Foyer</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="px-live-session upcoming">
-                                                <div class="px-session-time">11:30</div>
-                                                <div class="px-session-content">
-                                                    <div class="px-session-status"><i class="fas fa-clock"></i></div>
-                                                    <div class="px-session-info">
-                                                        <h4>Parallel Sessions</h4>
-                                                        <p>Room A: Neuroscience • Room B: Oncology • Room C: AI in Medicine</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="px-live-session upcoming">
-                                                <div class="px-session-time">13:00</div>
-                                                <div class="px-session-content">
-                                                    <div class="px-session-status"><i class="fas fa-utensils"></i></div>
-                                                    <div class="px-session-info">
-                                                        <h4>Lunch</h4>
-                                                        <p>Restaurant Level 2</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="px-live-session upcoming">
-                                                <div class="px-session-time">14:00</div>
-                                                <div class="px-session-content">
-                                                    <div class="px-session-status"><i class="fas fa-chalkboard-teacher"></i></div>
-                                                    <div class="px-session-info">
-                                                        <h4>Workshop: AI in Medical Research</h4>
-                                                        <p>Workshop Room • Dr. James Chen</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="px-live-session upcoming">
-                                                <div class="px-session-time">18:00</div>
-                                                <div class="px-session-content">
-                                                    <div class="px-session-status"><i class="fas fa-glass-cheers"></i></div>
-                                                    <div class="px-session-info">
-                                                        <h4 data-i18n="gala.s1">Welcome Reception</h4>
-                                                        <p>Grand Foyer • Networking drinks & canapés</p>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            <!-- Filled from the published program by renderLiveScheduleFromData -->
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Right Sidebar -->
-
-                                    <!-- Q&A Queue -->
-                                    <div class="qa-queue-panel" style="margin-top: 20px;">
-                                        <div class="qa-queue-header">
-                                            <h4><i class="fas fa-question-circle"></i> Live Q&A</h4>
-                                            <span class="qa-queue-count" id="qaQueueCount">5</span>
-                                        </div>
-                                        <div class="qa-queue-body">
-                                            <div class="qa-input-wrapper">
-                                                <input type="text" class="qa-input" id="qaInput" placeholder="Ask a question..." maxlength="500">
-                                                <button class="qa-submit-btn" onclick="LiveQA.submitQuestion()">
-                                                    <i class="fas fa-paper-plane"></i>
-                                                </button>
-                                            </div>
-                                            <div class="qa-questions-list" id="qaQuestionsList">
-                                                <!-- Populated by JavaScript -->
-                                            </div>
-                                        </div>
-                                    </div>
-
+                            <!-- Right column — real facts only. The fake Messages preview,
+                                 invented attendee suggestions and Wi-Fi password lived here;
+                                 nothing renders now unless it is true. -->
                             <div>
-                                <!-- Quick Connect -->
-                                <div class="up-card" style="margin-bottom: 24px;">
-                                    <div class="up-card-header">
-                                        <h3 class="up-card-title"><i class="fas fa-comments" style="margin-right: 8px;"></i> Messages</h3>
-                                        <span class="px-msg-badge">3</span>
-                                    </div>
-                                    <div class="up-card-body">
-                                        <div class="px-messages-preview">
-                                            <div class="px-msg-item unread" onclick="PlexusPortal.openChat('user1')">
-                                                <img src="https://randomuser.me/api/portraits/women/32.jpg" alt="Dr. Maria Santos">
-                                                <div class="px-msg-content">
-                                                    <span class="px-msg-name">Dr. Maria Santos</span>
-                                                    <span class="px-msg-preview">Would love to discuss your research...</span>
-                                                </div>
-                                            </div>
-                                            <div class="px-msg-item unread" onclick="PlexusPortal.openChat('user2')">
-                                                <img src="https://randomuser.me/api/portraits/men/45.jpg" alt="Prof. James Chen">
-                                                <div class="px-msg-content">
-                                                    <span class="px-msg-name">Prof. James Chen</span>
-                                                    <span class="px-msg-preview">See you at the AI workshop!</span>
-                                                </div>
-                                            </div>
-                                            <div class="px-msg-item" onclick="PlexusPortal.openChat('user3')">
-                                                <img src="https://randomuser.me/api/portraits/women/28.jpg" alt="Dr. Emma Wilson">
-                                                <div class="px-msg-content">
-                                                    <span class="px-msg-name">Dr. Emma Wilson</span>
-                                                    <span class="px-msg-preview">Thanks for connecting!</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button class="px-hero-btn px-hero-btn-secondary" style="width: 100%; margin-top: 12px; font-size: 13px; padding: 10px;" onclick="PlexusPortal.openAllMessages()">
-                                            View All Messages
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Attendee Discovery -->
-                                <div class="up-card" style="margin-bottom: 24px;">
-                                    <div class="up-card-header">
-                                        <h3 class="up-card-title"><i class="fas fa-users" style="margin-right: 8px;"></i> Connect</h3>
-                                    </div>
-                                    <div class="up-card-body">
-                                        <div class="px-attendee-list">
-                                            <div class="px-attendee-card" onclick="PlexusPortal.viewProfile('att1')">
-                                                <img src="https://randomuser.me/api/portraits/men/22.jpg" alt="Dr. Thomas Klein">
-                                                <div class="px-attendee-info">
-                                                    <span class="px-attendee-name">Dr. Thomas Klein</span>
-                                                    <span class="px-attendee-inst">ETH Zurich</span>
-                                                </div>
-                                                <button class="px-connect-btn" onclick="event.stopPropagation(); PlexusPortal.sendConnection('att1')">
-                                                    <i class="fas fa-user-plus"></i>
-                                                </button>
-                                            </div>
-                                            <div class="px-attendee-card" onclick="PlexusPortal.viewProfile('att2')">
-                                                <img src="https://randomuser.me/api/portraits/women/55.jpg" alt="Prof. Lisa Park">
-                                                <div class="px-attendee-info">
-                                                    <span class="px-attendee-name">Prof. Lisa Park</span>
-                                                    <span class="px-attendee-inst">Seoul National University</span>
-                                                </div>
-                                                <button class="px-connect-btn" onclick="event.stopPropagation(); PlexusPortal.sendConnection('att2')">
-                                                    <i class="fas fa-user-plus"></i>
-                                                </button>
-                                            </div>
-                                            <div class="px-attendee-card" onclick="PlexusPortal.viewProfile('att3')">
-                                                <img src="https://randomuser.me/api/portraits/men/67.jpg" alt="Dr. Ahmed Hassan">
-                                                <div class="px-attendee-info">
-                                                    <span class="px-attendee-name">Dr. Ahmed Hassan</span>
-                                                    <span class="px-attendee-inst">Cairo University</span>
-                                                </div>
-                                                <button class="px-connect-btn" onclick="event.stopPropagation(); PlexusPortal.sendConnection('att3')">
-                                                    <i class="fas fa-user-plus"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <button class="px-hero-btn px-hero-btn-secondary" style="width: 100%; margin-top: 12px; font-size: 13px; padding: 10px;" onclick="PlexusPortal.openAttendeeDirectory()">
-                                            <i class="fas fa-search"></i> Find Attendees
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Venue Info -->
                                 <div class="up-card">
                                     <div class="up-card-header">
-                                        <h3 class="up-card-title"><i class="fas fa-map-marker-alt" style="margin-right: 8px;"></i> Venue</h3>
+                                        <h3 class="up-card-title"><i class="fas fa-map-marker-alt" style="margin-right: 8px;"></i> <span data-i18n="px.venueCard">Venue &amp; help</span></h3>
                                     </div>
                                     <div class="up-card-body">
                                         <div class="px-venue-quick">
-                                            <p><strong>WiFi:</strong> Plexus2026</p>
-                                            <p><strong>Password:</strong> Welcome2026!</p>
-                                            <p><strong>Support:</strong> info@medx.hr</p>
+                                            <p><strong>Hotel Esplanade Zagreb</strong></p>
+                                            <p data-i18n="px.wifiDesk">Wi-Fi details are available at the registration desk.</p>
+                                            <p><span data-i18n="px.supportLbl">Support:</span> <a href="mailto:info@medx.hr" style="color: var(--up-gold, var(--gold));">info@medx.hr</a></p>
                                         </div>
-                                        <button class="px-hero-btn px-hero-btn-secondary" style="width: 100%; margin-top: 12px; font-size: 13px; padding: 10px;" onclick="PlexusPortal.openVenueMap()">
-                                            <i class="fas fa-map"></i> Interactive Map
-                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -20409,7 +20211,7 @@ You can use variables like {first_name} that will be personalized for each recip
         </div>
     </div>
 
-    <script src="/assets/app.part9.js?v=split2"></script>
+    <script src="/assets/app.part9.js?v=split3"></script>
 
     <!-- Floating QR Code Button — always visible -->
     <button id="floatingQRBtn" onclick="showQuickQR()" style="
@@ -20426,10 +20228,10 @@ You can use variables like {first_name} that will be personalized for each recip
 
     <!-- Global install helper so the Settings "Install app" row works on Android (native prompt)
          and iOS (Add to Home Screen instructions). Isolated so it can never break the app. -->
-    <script src="/assets/app.part10.js?v=split2"></script>
+    <script src="/assets/app.part10.js?v=split3"></script>
 
     <!-- Self-contained "Install app" banner (attendee-facing PWA install; iOS-aware). -->
-    <script src="/assets/app.part11.js?v=split2"></script>
+    <script src="/assets/app.part11.js?v=split3"></script>
 
     <!-- ============================================================================
          GuestPass — member-initiated "Bring a colleague" guest passes (bilingual).
@@ -20446,7 +20248,7 @@ You can use variables like {first_name} that will be personalized for each recip
       .gp-card-head .gp-card-btn{ width: 100%; justify-content: center; margin-top: 4px; }
     }
     </style>
-    <script src="/assets/app.part12.js?v=split2"></script>
+    <script src="/assets/app.part12.js?v=split3"></script>
 
         <!-- ===================== MEMBER FAQ ASSISTANT (queue 5a6) ===================== -->
         <!-- Tasteful, grounded member assistant. Retrieval-first answers from the vetted KB with live
@@ -20525,7 +20327,7 @@ You can use variables like {first_name} that will be personalized for each recip
             <button class="mxa-go" id="mxaSend" type="button" data-i18n-aria-label="asst.send" aria-label="Send"><i class="fas fa-paper-plane" aria-hidden="true"></i></button>
           </div>
         </div>
-        <script src="/assets/app.part13.js?v=split2"></script>
+        <script src="/assets/app.part13.js?v=split3"></script>
 
         <!-- Plexus LIVE NOW/NEXT board (cluster 5a5b) — see #pxlbStyles for the design system.
              Self-contained module: reads ConferenceData (single source of truth), computes a
@@ -20534,7 +20336,7 @@ You can use variables like {first_name} that will be personalized for each recip
              API ~60s so admin edits land mid-event, gates itself to the event window with a
              quiet "begins on" card beforehand, and powers a chrome-free ?display=1 projector
              variant. Bilingual via MedXI18n. No inline handlers. -->
-        <script src="/assets/app.part14.js?v=split2"></script>
+        <script src="/assets/app.part14.js?v=split3"></script>
 
 </body>
 

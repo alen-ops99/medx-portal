@@ -8237,6 +8237,20 @@
                 const listView = document.getElementById('pxListView');
                 if (!listView) return;
 
+                if (!ConferenceData.schedule.length) {
+                    const tt = (k, fb) => { try { const v = window.MedXI18n && MedXI18n.t(k); if (v && v !== k) return v; } catch (e) {} return fb; };
+                    listView.innerHTML = `<div class="px-schedule-day"><div class="px-schedule-items">
+                        <div class="px-schedule-item" style="cursor:default;">
+                            <div class="px-schedule-item-time"><i class="fas fa-hourglass-half"></i></div>
+                            <div class="px-schedule-item-content">
+                                <div class="px-schedule-item-title">${tt('pxsch.prepTitle', 'Program in preparation')}</div>
+                                <div class="px-schedule-item-meta"><span>${tt('pxsch.prep', 'The detailed schedule will appear here as soon as it is published.')}</span></div>
+                            </div>
+                        </div>
+                    </div></div>`;
+                    return;
+                }
+
                 const days = [1, 2];
                 const dayLabels = { 1: { num: '4', month: 'Dec', title: 'Day 1 - Opening & Keynotes', date: 'December 4, 2026' }, 2: { num: '5', month: 'Dec', title: 'Day 2 - Research & Gala', date: 'December 5, 2026' } };
 
@@ -8482,6 +8496,20 @@
                 if (!container) return;
 
                 const sessions = ConferenceData.getScheduleByDay(dayNum);
+                if (!sessions.length) {
+                    const tt = (k, fb) => { try { const v = window.MedXI18n && MedXI18n.t(k); if (v && v !== k) return v; } catch (e) {} return fb; };
+                    container.innerHTML = `<div class="px-live-session">
+                        <div class="px-session-time"><i class="fas fa-hourglass-half"></i></div>
+                        <div class="px-session-content">
+                            <div class="px-session-status"><i class="fas fa-clock"></i></div>
+                            <div class="px-session-info">
+                                <h4>${tt('pxsch.prepTitle', 'Program in preparation')}</h4>
+                                <p>${tt('pxsch.prep', 'The detailed schedule will appear here as soon as it is published.')}</p>
+                            </div>
+                        </div>
+                    </div>`;
+                    return;
+                }
                 const now = new Date();
                 const currentHour = now.getHours();
                 const currentMin = now.getMinutes();
@@ -8505,7 +8533,6 @@
                             <div class="px-session-info">
                                 <h4>${escapeHtml(s.title)}</h4>
                                 <p>${escapeHtml(s.room)}${s.speaker ? ' &bull; ' + escapeHtml(s.speaker) : ''}</p>
-                                ${status === 'current' ? `<div class="px-session-actions"><button onclick="PlexusPortal.openLiveStream('${s.id}')"><i class="fas fa-play"></i> Watch Live</button></div>` : ''}
                             </div>
                         </div>
                     </div>`;
@@ -8779,9 +8806,11 @@
                     const res = await fetch('/api/plexus/sessions');
                     if (!res.ok) return;
                     const dbSessions = await res.json();
-                    if (!dbSessions || dbSessions.length === 0) return;
+                    if (!Array.isArray(dbSessions)) return;
 
-                    // Update ConferenceData if available
+                    // The server answer IS the program — including an empty one. Keeping the
+                    // local seed when the DB has no published sessions is how fictional
+                    // sessions used to reach members; an empty answer now clears them.
                     if (typeof ConferenceData !== 'undefined') {
                         ConferenceData.schedule = dbSessions.map(s => ({
                             id: s.id,
@@ -8796,11 +8825,13 @@
                             speaker: s.speaker_names || '',
                             speakerIds: s.speaker_ids || ''
                         }));
+                        try { ConferenceData.save(); } catch (e) {}
                         this.renderScheduleFromData();
                         this.renderLiveScheduleFromData(this._currentLiveDay || 1);
+                        try { if (window.PlexusLiveBoard) PlexusLiveBoard.refresh(); } catch (e) {}
                     }
                 } catch(e) {
-                    console.log('Could not load schedule from DB, using defaults:', e.message);
+                    console.log('Could not load schedule from DB:', e.message);
                 }
             },
 
@@ -11339,9 +11370,9 @@
 
             showLiveDay(day) {
                 document.querySelectorAll('.px-day-btn').forEach(btn => btn.classList.remove('active'));
-                document.querySelector(`.px-day-btn:nth-child(${day})`).classList.add('active');
-                // In a real implementation, this would load the schedule for that day
-                this.showToast(`Showing Day ${day} schedule`);
+                const btn = document.querySelector(`.px-day-btn:nth-child(${day})`);
+                if (btn) btn.classList.add('active');
+                this.renderLiveScheduleFromData(day);
             },
 
             openLiveStream(sessionId) {
@@ -45124,79 +45155,31 @@ By applying to this program, I give the following consents:
         };
 
         // =========================================
-        // PHASE 3: HAPPENING NOW
+        // PHASE 3: HAPPENING NOW — retired mock.
+        // The Live tab now mounts the REAL PlexusLiveBoard (app.part14), which renders the
+        // published DB program. This stub keeps old call sites (initPhase3, tab hooks) safe.
         // =========================================
         const HappeningNow = {
-            sessions: [
-                { id: 'hn1', title: 'Opening Ceremony & Welcome', speaker: 'Dr. Alen Juginovic', room: 'Main Hall', time: '09:00', remaining: '12 min left', checkedIn: false },
-                { id: 'hn2', title: 'Poster Session A', speaker: '', room: 'Exhibition Hall', time: '09:00', remaining: '42 min left', checkedIn: true }
-            ],
-            attendeeCount: 847,
-
-            init() {
-                this.render();
-                // Simulate live count updates
-                this._interval = setInterval(() => this.updateAttendeeCount(), 30000);
-            },
-
-            destroy() {
-                if (this._interval) {
-                    clearInterval(this._interval);
-                    this._interval = null;
-                }
-            },
-
-            render() {
-                const container = document.getElementById('happeningNowSessions');
-                const countEl = document.getElementById('liveAttendeeCount');
-
-                if (countEl) countEl.textContent = this.attendeeCount;
-                if (!container) return;
-
-                container.innerHTML = this.sessions.map(session => `
-                    <div class="now-session">
-                        <div class="now-session-time">
-                            <div class="time">${session.time}</div>
-                            <div class="remaining">${session.remaining}</div>
-                        </div>
-                        <div class="now-session-info">
-                            <div class="now-session-title">${session.title}</div>
-                            ${session.speaker ? `<div class="now-session-speaker">${session.speaker}</div>` : ''}
-                            <div class="now-session-location"><i class="fas fa-map-marker-alt"></i> ${session.room}</div>
-                        </div>
-                        <div class="now-session-actions">
-                            <button class="now-action-btn checkin ${session.checkedIn ? 'checked' : ''}" onclick="HappeningNow.toggleCheckIn('${session.id}')">
-                                <i class="fas ${session.checkedIn ? 'fa-check' : 'fa-map-pin'}"></i>
-                                ${session.checkedIn ? 'Checked In' : 'Check In'}
-                            </button>
-                            <button class="now-action-btn qa" onclick="LiveQA.init(); document.getElementById('qaInput').focus();">
-                                <i class="fas fa-question"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-            },
-
-            toggleCheckIn(sessionId) {
-                const session = this.sessions.find(s => s.id === sessionId);
-                if (session) {
-                    session.checkedIn = !session.checkedIn;
-                    this.render();
-
-                    if (session.checkedIn && typeof ConnectionSystem !== 'undefined') {
-                        ConnectionSystem.showToast('Checked in to ' + session.title);
-                    }
-                }
-            },
-
-            updateAttendeeCount() {
-                // Simulate count changes
-                this.attendeeCount += Math.floor(Math.random() * 20) - 10;
-                this.attendeeCount = Math.max(500, this.attendeeCount);
-                const countEl = document.getElementById('liveAttendeeCount');
-                if (countEl) countEl.textContent = this.attendeeCount;
-            }
+            init() {},
+            destroy() {},
+            render() {},
+            toggleCheckIn() {},
+            updateAttendeeCount() {}
         };
+
+        // Live-tab / program truth strings (EN + HR). Registered before MedXI18n.apply()
+        // runs on DOMContentLoaded, so data-i18n markup resolves in both languages.
+        try {
+            if (window.MedXI18n && MedXI18n.extend) MedXI18n.extend({
+                'px.liveNowBadge': { en: 'LIVE NOW', hr: 'UŽIVO' },
+                'px.liveWelcome':  { en: 'Welcome to the conference!', hr: 'Dobro došli na konferenciju!' },
+                'px.venueCard':    { en: 'Venue & help', hr: 'Mjesto održavanja i pomoć' },
+                'px.wifiDesk':     { en: 'Wi-Fi details are available at the registration desk.', hr: 'Podaci za Wi-Fi dostupni su na registracijskom pultu.' },
+                'px.supportLbl':   { en: 'Support:', hr: 'Podrška:' },
+                'pxsch.prepTitle': { en: 'Program in preparation', hr: 'Program u pripremi' },
+                'pxsch.prep':      { en: 'The detailed schedule will appear here as soon as it is published.', hr: 'Detaljan raspored pojavit će se ovdje čim bude objavljen.' }
+            });
+        } catch (e) {}
 
         // =========================================
         // PHASE 3: POST-EVENT FEATURES
