@@ -23318,15 +23318,16 @@
         .gala-hero .gala-btn-secondary:hover,
         [data-theme="light"] .gala-hero .gala-btn-secondary:hover{background:rgba(255,255,255,.24)!important;border-color:rgba(255,255,255,.85)!important;}
         /* Get-updates toggle promoted onto the hero, below the countdown (suppresses the auto cream row) */
-        .gala-hero-notify{position:relative;z-index:2;display:inline-flex;align-items:center;gap:12px;margin:0 auto 24px;padding:8px 10px 8px 16px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.4);border-radius:999px;backdrop-filter:blur(4px);}
-        .gala-hero-notify .gxn-ico{color:var(--up-gold,#c9a962);font-size:14px;}
-        .gala-hero-notify .gxn-copy{display:flex;flex-direction:column;line-height:1.15;text-align:left;}
-        .gala-hero-notify .gxn-title{font-size:13px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.35);}
+        /* Compact one-line pill (2026-07-20) — mirrors .px-hero-notify */
+        .gala-hero-notify{position:relative;z-index:2;display:inline-flex;align-items:center;gap:10px;margin:0 auto 22px;padding:6px 8px 6px 14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.32);border-radius:999px;backdrop-filter:blur(4px);}
+        .gala-hero-notify .gxn-ico{color:var(--up-gold,#c9a962);font-size:13px;}
+        .gala-hero-notify .gxn-copy{display:flex;align-items:baseline;gap:8px;line-height:1;}
+        .gala-hero-notify .gxn-title{font-size:12.5px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.35);white-space:nowrap;}
         .gala-hero-notify .gxn-state{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.75);}
         .gala-hero-notify.on .gxn-state{color:#f0d79a;}
-        .gala-hero-notify .mx-notify-switch{width:44px;height:26px;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);flex-shrink:0;}
+        .gala-hero-notify .mx-notify-switch{width:40px;height:22px;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);flex-shrink:0;}
         .gala-hero-notify.on .mx-notify-switch{background:var(--up-gold,#c9a962);border-color:var(--up-gold,#c9a962);}
-        .gala-hero-notify .mx-notify-switch::after{width:20px;height:20px;}
+        .gala-hero-notify .mx-notify-switch::after{width:16px;height:16px;}
         .gala-hero-notify.on .mx-notify-switch::after{transform:translateX(18px);}
         /* Networking / bridge-building feature band — the felt centerpiece */
         .gala-feature{display:grid;grid-template-columns:1.05fr 1fr;gap:0;border:1px solid var(--up-border,#e7e2da);border-radius:20px;overflow:hidden;background:var(--up-bg,#fbf9f6);box-shadow:0 1px 2px rgba(21,17,15,.05);margin:32px 0;}

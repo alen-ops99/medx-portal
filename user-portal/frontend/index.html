@@ -2757,19 +2757,21 @@
                          localStorage cache (medx_notify_topics) is the single source of truth, so the hub bell
                          and the section toggle always reflect each other (both directions). -->
                     <style>
-                    .mx-notify-row{display:flex;align-items:center;gap:14px;background:var(--paper,#fbf9f6);border:1px solid var(--line,#e2dcd3);border-radius:14px;padding:14px 16px;margin:18px 0 6px;box-shadow:0 1px 2px rgba(21,17,15,.05);}
+                    /* Compact pill (2026-07-20): was a full-width card with icon box + two text
+                       lines that read as a long banner. Now a small content-hugging one-line
+                       pill, centered, one label + the switch. */
+                    .mx-notify-row{display:flex;width:max-content;max-width:calc(100% - 32px);align-items:center;gap:10px;background:var(--paper,#fbf9f6);border:1px solid var(--line,#e2dcd3);border-radius:999px;padding:7px 9px 7px 14px;margin:14px auto 6px;box-shadow:0 1px 2px rgba(21,17,15,.05);}
                     .mx-notify-row.on{border-color:rgba(201,169,98,.55);background:linear-gradient(0deg,rgba(201,169,98,.06),rgba(201,169,98,.06)),var(--paper,#fbf9f6);}
-                    .mx-notify-ico{width:38px;height:38px;border-radius:10px;background:var(--paper-2,#f3efe9);border:1px solid var(--line,#e2dcd3);display:flex;align-items:center;justify-content:center;color:var(--gold,#c9a962);font-size:15px;flex-shrink:0;}
-                    .mx-notify-copy{flex:1;min-width:0;}
-                    .mx-notify-title{font-family:var(--serif,'Fraunces',Georgia,serif);font-size:15px;font-weight:600;color:var(--ink,#15110f);letter-spacing:-.01em;}
-                    .mx-notify-sub{font-size:12.5px;color:var(--muted,#6e6e73);margin-top:2px;line-height:1.4;}
-                    .mx-notify-state{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted,#8a847b);min-width:22px;text-align:right;}
+                    .mx-notify-ico{color:var(--gold,#c9a962);font-size:13px;flex-shrink:0;}
+                    .mx-notify-copy{display:flex;align-items:baseline;gap:8px;min-width:0;}
+                    .mx-notify-title{font-size:13px;font-weight:600;color:var(--ink,#15110f);white-space:nowrap;}
+                    .mx-notify-sub{display:none;}
+                    .mx-notify-state{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#8a847b);}
                     .mx-notify-row.on .mx-notify-state{color:#a8842f;}
-                    .mx-notify-switch{position:relative;width:46px;height:27px;border-radius:999px;border:1px solid var(--line-strong,#d9d2c7);background:var(--paper-2,#f3efe9);cursor:pointer;flex-shrink:0;padding:0;transition:background .2s ease,border-color .2s ease;}
-                    .mx-notify-switch::after{content:'';position:absolute;top:2px;left:2px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(21,17,15,.25);transition:transform .2s ease;}
+                    .mx-notify-switch{position:relative;width:40px;height:22px;border-radius:999px;border:1px solid var(--line-strong,#d9d2c7);background:var(--paper-2,#f3efe9);cursor:pointer;flex-shrink:0;padding:0;transition:background .2s ease,border-color .2s ease;}
+                    .mx-notify-switch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(21,17,15,.25);transition:transform .2s ease;}
                     .mx-notify-row.on .mx-notify-switch{background:var(--gold,#c9a962);border-color:var(--gold,#c9a962);}
-                    .mx-notify-row.on .mx-notify-switch::after{transform:translateX(19px);}
-                    @media(max-width:560px){.mx-notify-sub{display:none;}.mx-notify-row{gap:12px;padding:12px 14px;}}
+                    .mx-notify-row.on .mx-notify-switch::after{transform:translateX(18px);}
                     </style>
                     <script src="/assets/app.part7.js?v=split5"></script>
 
@@ -3620,15 +3622,17 @@
 .px-hero .px-hero-btn-secondary,[data-theme="light"] .px-hero .px-hero-btn-secondary{background:rgba(255,255,255,.14) !important;color:#fff !important;border:1px solid rgba(255,255,255,.55) !important;backdrop-filter:blur(3px);text-shadow:0 1px 4px rgba(0,0,0,.35);}
 .px-hero .px-hero-btn-secondary:hover,[data-theme="light"] .px-hero .px-hero-btn-secondary:hover{background:rgba(255,255,255,.24) !important;border-color:rgba(255,255,255,.85) !important;}
 /* (8) Get-updates toggle promoted onto the hero, below the countdown */
-.px-hero-notify{position:relative;z-index:2;display:inline-flex;align-items:center;gap:12px;margin:0 auto 22px;padding:8px 10px 8px 16px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.4);border-radius:999px;backdrop-filter:blur(4px);}
-.px-hero-notify .pxn-ico{color:var(--up-gold,#c9a962);font-size:14px;}
-.px-hero-notify .pxn-copy{display:flex;flex-direction:column;line-height:1.15;text-align:left;}
-.px-hero-notify .pxn-title{font-size:13px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.35);}
+/* Compact one-line pill (2026-07-20): the stacked two-line version read as a
+   long banner over the hero. Label + tiny state + switch on a single line. */
+.px-hero-notify{position:relative;z-index:2;display:inline-flex;align-items:center;gap:10px;margin:0 auto 20px;padding:6px 8px 6px 14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.32);border-radius:999px;backdrop-filter:blur(4px);}
+.px-hero-notify .pxn-ico{color:var(--up-gold,#c9a962);font-size:13px;}
+.px-hero-notify .pxn-copy{display:flex;align-items:baseline;gap:8px;line-height:1;}
+.px-hero-notify .pxn-title{font-size:12.5px;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.35);white-space:nowrap;}
 .px-hero-notify .pxn-state{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.75);}
 .px-hero-notify.on .pxn-state{color:#f0d79a;}
-.px-hero-notify .mx-notify-switch{width:44px;height:26px;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);flex-shrink:0;}
+.px-hero-notify .mx-notify-switch{width:40px;height:22px;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);flex-shrink:0;}
 .px-hero-notify.on .mx-notify-switch{background:var(--up-gold,#c9a962);border-color:var(--up-gold,#c9a962);}
-.px-hero-notify .mx-notify-switch::after{width:20px;height:20px;}
+.px-hero-notify .mx-notify-switch::after{width:16px;height:16px;}
 .px-hero-notify.on .mx-notify-switch::after{transform:translateX(18px);}
 /* (1) Keynote portraits -> face-centered circular crop */
 .mxlead-kn-imgwrap{width:84px;height:84px;border-radius:50%;overflow:hidden;margin:0 auto 11px;border:2px solid rgba(201,169,98,.45);background:var(--up-bg-subtle,#f3efe9);}
