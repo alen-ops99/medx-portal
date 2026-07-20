@@ -11530,7 +11530,11 @@ async function submitReset(e){
                     venue_name: conf.venue_name, venue_city: conf.venue_city, venue_country: conf.venue_country,
                     registration_open: !!conf.registration_open,
                     early_bird_deadline: conf.early_bird_deadline, regular_deadline: conf.regular_deadline,
-                    pricing_phase: phase
+                    pricing_phase: phase,
+                    // computed from the published roster so "four keynotes" copy can bind live
+                    keynote_count: speakers.filter(s => s.is_keynote).length,
+                    keynote_count_word: (['zero','one','two','three','four','five','six','seven','eight','nine','ten'][speakers.filter(s => s.is_keynote).length] || String(speakers.filter(s => s.is_keynote).length)),
+                    keynote_count_word_hr: (['nula','jedan','dva','tri','\u010detiri','pet','\u0161est','sedam','osam','devet','deset'][speakers.filter(s => s.is_keynote).length] || String(speakers.filter(s => s.is_keynote).length))
                 },
                 price: {
                     early_bird: primary.price_early_bird != null ? primary.price_early_bird : null,
@@ -27177,7 +27181,7 @@ By applying to this program, I provide the following consents:
                         </table>
                         ${qrBlock}
                         ${(finalConf || finalBridges) ? `<p>We will email you ${[finalConf ? 'the <strong>Conference program</strong>' : null, finalBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(finalConf && finalBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
-                        <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> on 5 December 2026 (Hotel Esplanade Zagreb, Lord Smith of Finsbury keynote), simply reply to this email and we will send you the ticket link.</p>
+                        <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> (${(() => { try { const g = query.get("SELECT date, venue, keynote_name FROM gala_settings WHERE id='default'") || {}; return [g.date ? fmtEventDate(g.date) : '5 December 2026', g.venue || 'Hotel Esplanade Zagreb', g.keynote_name ? g.keynote_name + ' keynote' : ''].filter(Boolean).join(', '); } catch (e) { return '5 December 2026, Hotel Esplanade Zagreb'; } })()}), simply reply to this email and we will send you the ticket link.</p>
                         <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                         <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
                     `));
