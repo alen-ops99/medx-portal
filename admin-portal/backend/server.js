@@ -976,7 +976,10 @@ app.use(helmet({
                 "https://api.stripe.com", "https://m.stripe.network", "https://r.stripe.com",
                 "https://*.cloudinary.com",
                 "https://api.resend.com",
-                "https://www.gstatic.com"
+                "https://www.gstatic.com",
+                // The admin SPA calls the USER portal directly for member-DB actions
+                // (gala refunds, Live Q&A). Without this, those fetches die on CSP.
+                "https://medx-user-portal.onrender.com", "http://localhost:3001"
             ],
             "worker-src": ["'self'", "blob:"],
             "frame-src": [
