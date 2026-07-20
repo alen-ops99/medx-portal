@@ -78,4 +78,28 @@ stamp_one() {
 stamp_one "${ROOT}/user-portal/frontend/sw.js"
 stamp_one "${ROOT}/admin-portal/frontend/sw.js"
 
+# Also stamp the ?v= cache busters on the user portal's split assets (app.css +
+# app.part*.js). The SW serves these cache-first with the query string in the key,
+# and the buster used to be a hand-edited token ("split4") that was easy to forget
+# — one forgotten bump meant returning visitors ran stale JS for a load. Deriving
+# it from the deploy SHA removes the manual step. Same BUILD-SAFE rules as above.
+stamp_assets() {
+  html="$1"
+  if [ ! -f "${html}" ]; then
+    echo "stamp-sw: skip (not found) ${html}"
+    return 0
+  fi
+  tmp="$(mktemp)"
+  sed -E "s#(assets/app\.(css|part[0-9]+\.js))\?v=[A-Za-z0-9_-]+#\1?v=${SHORT}#g" \
+    "${html}" > "${tmp}"
+  if [ -s "${tmp}" ] && grep -q "assets/app.css?v=${SHORT}" "${tmp}"; then
+    mv "${tmp}" "${html}"
+    echo "stamp-sw: ${html} asset busters -> ?v=${SHORT}"
+  else
+    rm -f "${tmp}"
+    echo "stamp-sw: WARN asset-buster rewrite verification failed for ${html}, left unchanged"
+  fi
+}
+stamp_assets "${ROOT}/user-portal/frontend/index.html"
+
 exit 0

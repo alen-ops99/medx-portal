@@ -942,8 +942,14 @@ const PUBLIC_API_ORIGINS = [
 ];
 app.use('/api/public', cors({ origin: PUBLIC_API_ORIGINS }));
 
+// NEVER fall back to origin:true here — reflect-any-origin + credentials:true would let any
+// site read authenticated admin responses the moment CORS_ORIGIN goes missing from the env.
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true,
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [
+    'https://medx-admin-portal.onrender.com',
+    'https://medx-user-portal.onrender.com',
+    'http://localhost:3000', 'http://localhost:3001'
+  ],
   credentials: true
 }));
 
@@ -8104,16 +8110,22 @@ async function initializeApp() {
             { label: 'Abstract Submission Deadline', date: 'October 15, 2026', color: 'var(--up-warning)' },
             { label: 'Conference', date: 'December 4-5, 2026', color: '#0f172a' }
         ]);
-        const defaultTestimonials = JSON.stringify([
-            { name: 'Dr. Ana Markovic', title: 'Postdoc, Max Planck Institute', year: 'Plexus 2025', quote: 'Plexus changed the trajectory of my career. I connected with my current PhD supervisor during a coffee break and landed a position at his lab in Munich. The quality of speakers and networking opportunities is unmatched.', avatar: 'https://randomuser.me/api/portraits/women/32.jpg' },
-            { name: 'Marco Rossi', title: 'MD Student, University of Milan', year: 'Plexus 2024', quote: 'As a medical student, attending Plexus opened my eyes to the world of biomedical research. The workshop on grant writing was incredibly practical, and I have already used those skills to secure funding for my thesis project.', avatar: 'https://randomuser.me/api/portraits/men/45.jpg' },
-            { name: 'Dr. Sarah Chen', title: 'Assistant Professor, Stanford', year: 'Plexus 2025', quote: 'The Gala Evening was the highlight of my trip. Meeting Nobel laureates in person and discussing science over dinner was surreal. Zagreb Christmas market made it even more magical!', avatar: 'https://randomuser.me/api/portraits/women/56.jpg' },
-            { name: 'Luka Horvat', title: 'PhD Candidate, University of Zagreb', year: 'Plexus 2023', quote: 'I presented my first poster at Plexus and the feedback I received was invaluable. The questions from senior researchers helped me refine my methodology significantly. Now I am presenting an oral talk!', avatar: 'https://randomuser.me/api/portraits/men/28.jpg' },
-            { name: 'Dr. Emma Mueller', title: 'Research Scientist, ETH Zurich', year: 'Plexus 2024', quote: 'Best organized conference I have attended in Europe. The Med&X team truly understands what young researchers need. The networking app made it so easy to connect with people before the event even started.', avatar: 'https://randomuser.me/api/portraits/women/41.jpg' }
-        ]);
+        // Testimonials start EMPTY — the member portal hides the section until real
+        // consented quotes are added. Never seed fabricated people. (Mirrors user server.)
         db.run("INSERT INTO plexus_settings (id, key_dates_json, testimonials_json) VALUES ('default', ?, ?)",
-            [defaultKeyDates, defaultTestimonials]);
+            [defaultKeyDates, '[]']);
     }
+
+    // One-time cleanup mirroring the user server: blank the row only if it still holds the
+    // old fabricated seed (marker: 'Dr. Ana Markovic'). Real admin-added quotes untouched.
+    try {
+        const tRow = query.get("SELECT testimonials_json FROM plexus_settings WHERE id = 'default'");
+        if (tRow && tRow.testimonials_json && tRow.testimonials_json.includes('Dr. Ana Markovic')) {
+            db.run("UPDATE plexus_settings SET testimonials_json = '[]' WHERE id = 'default'");
+            saveDb();
+            console.log('[Cleanup] Removed fabricated seed testimonials from plexus_settings');
+        }
+    } catch (e) {}
 
     try { db.run(`ALTER TABLE forum_members ADD COLUMN checked_in INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE forum_members ADD COLUMN checked_in_at TEXT`); } catch(e) {}

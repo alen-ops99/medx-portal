@@ -1,87 +1,46 @@
-# Full Portal Audit + Fix — 2026-06-10 (Fable 5 session)
+# Broken-things sweep — fix batch (2026-07-20)
 
-User mandate: thorough audit of BOTH portals; fix all bugs found; free rein on UI/UX
-improvements (respect Med&X brand + typographic restraint rule). Commit to main,
-Alen deploys on Render. Only test data live — read-only probes against prod OK.
+Source: commissioned sweep (30-agent audit + live browser pass, all findings adversarially verified).
+Full findings JSON: /private/tmp/claude-501/-Users-alen/d47fa78e-4f04-4103-a514-06b17b01cd53/tasks/wuzn44pj2.output
+Previous todo archived at tasks/todo-archive-2026-06-10-full-audit.md.
 
-Old master plan archived at tasks/todo-archive-2026-02-overhaul.md.
+## Broken (fix now)
+- [ ] 1. .ics calendar links bake https://portal.medx.hr (404) — user server.js:2977 fallback chain
+- [ ] 2. Prep-checklist "Add Details" throws TypeError (this=window) — make it a working mailto CTA
 
-## Plan
+## Fake-success / fake content (member-visible, de-fake now)
+- [ ] 3. Registration wizard fake paid add-ons (€35 AI workshop, €35 Grant Writing, €15 cert, €10 proceedings) — remove from seed, empty-safe render
+- [ ] 4. Plexus "What Attendees Say" 5 fabricated testimonials (hardcoded + DB) — empty seed, hide-when-empty, blank DB field
+- [ ] 5. Building Bridges 2 fabricated testimonials (Petra Novak / Ivan Matic) — remove cards
+- [ ] 6. Forum Concierge "Message sent" but sends nothing — wire to real inbox endpoint or mailto
+- [ ] 7. Pass modal "Resend Email" fake toast — remove button
+- [ ] 8. Speaker photo upload "(Demo mode)" fake success — truthful message
+- [ ] 9. Settings + Forum photo upload preview-only, silently unsaved — truthful message
+- [ ] 10. Abstract submit catch() fakes success + awards points on network error — error toast, keep form
+- [ ] 11. "Admin Access" tile → embedded legacy demo admin (demo-admin-token) — open real admin portal, delete demo fallbacks
+- [ ] 12. Forum wing "My Network" fake 24-connections demo grid — real empty state
+- [ ] 13. Explore Zagreb: Museum of Broken Relationships shows St. Mark's photo — fix URL (verify live before commit)
+- [ ] 14. Dead "See All Recommendations" button — remove
+- [ ] 15. Venue Map tile "coming soon" toast — open real venue map link
+- [ ] 16. Network nav phantom "Messages 3" badge vs empty inbox — real count or hide
+- [ ] 17. "People You May Know — AI-powered matches" fictional trio — remove/empty state
+- [ ] 18. Profile modal fabricated 54 connections / 20 publications / 860 citations — real or hidden
+- [ ] 19. member-profile-panel fake shared connections/achievements/activity — de-fake if reachable
 
-### Phase 1 — Map (parallel agents)
-- [ ] Map user-portal backend (18k lines): routes by subsystem, auth model, integrations
-- [ ] Map admin-portal backend (17k lines): same
-- [ ] Map admin frontend (31k lines): views, API calls, styling
-- [ ] Map user frontend (5.4MB SPA + sw.js + root index.html)
-- [ ] Map DB schema across BOTH server.js files (dual-file divergence = bug source)
-- [ ] Live smoke test (read-only GETs) on both Render services
+## Hardening (small, do now)
+- [ ] 20. Admin CORS `: true` fallback → explicit allowlist (admin server.js:945-948)
+- [ ] 21. VAPID send guards require BOTH keys (user server.js:247/273/293/28415)
+- [ ] 22. loadSpeakersFromDB fails open (seed revival on empty DB) — symmetric with schedule
+- [ ] 23. stamp-sw.sh: auto-stamp ?v= busters in user index.html (kill the manual-bump trap); hand-bump split4→split5 this deploy
 
-### Phase 2 — Find (parallel audit agents, ~12 dimensions)
-Security/auth, injection/XSS, invite flows, Stripe/payments/FIRA, email+QR+scanner,
-data integrity, admin correctness, user-frontend UX/perf, admin-frontend UX,
-legacy routes (accelerator/conferences/push), config/deps, cross-portal consistency.
+## Report only (Alen / later)
+- EMAIL_FROM: render.yaml sets noreply@medx.hr — Alen verify domain is verified in the active provider
+- Test data in prod DB (ZZZ task, QA members, sgseg institution, HR/Croatia + USA/United States dropdown dupes)
+- Post-event stubs (certificate/feedback/recordings) hidden until Dec 5 — wire before conference
+- portal.medx.hr DNS/Vercel still unset (Alen's go-live item)
 
-### Phase 3 — Verify (adversarial)
-Every finding adversarially verified (critical/high get 2 independent skeptics).
-Completeness critic looks for under-audited areas → follow-up finders.
-
-### Phase 4 — Triage + Fix (this session, after audit returns)
-- [ ] Triage confirmed findings by severity × user impact
-- [ ] Fix critical/high bugs first (active Plexus flows = priority)
-- [ ] UI/UX improvements batch
-- [ ] Local verification (run both servers + Playwright drive-through)
-- [ ] Logical commits to main; push only verified states (auto-deploy may be on)
-
-### Out of scope (explicitly)
-- Modular split of server.js monoliths
-- Migration-system overhaul
-- Resend domain verification (separate blocked workstream — Vercel DNS)
-
-## Findings log
-Full audit output: tasks/audit-findings-2026-06-10.json (108 confirmed findings:
-6 critical, 35 high, 44 medium, 23 low).
-
-## PROGRESS — 2026-06-10 (resumed after account switch; ALL 6 CRITICALS + most HIGHS done)
-
-### 14 commits on main, NOT YET PUSHED (Alen deploys on Render):
-269f36b DB out of public repo · d4ba74e QR emails hosted+attached · fa730f5 ~130 routes adminOnly
-+ IDOR + admin self-register off + tech fail-closed · 2018e29 boot-wipe data-safety + fresh-DB boot
-· b640e6b scanner undo/standalone/profile-card · 8de660e payments idempotency/gate/IBAN · 5cff401
-invite-success XSS+payment-check+API_BASE · 8b303ee forum-chat IDOR + accel doc gating + reset
-invalidates sessions (password_changed_at) · dc4b7ca ghost dup registrations + gala settings
-data-loss + stale prices · 751a74f dashboard revenue accuracy + email-fail visibility · 88df4dc
-legacy scanner reads regId + no JWT in download URLs · 68ee4e2 CA-gala FIRA+finance · a2d8294
-fixed 3 self-review regressions (travel-order over-gating, wipe column order, scanner dietary col).
-
-### VERIFICATION: ran an 11-agent adversarial review of the full diff → found 3 regressions,
-all fixed + re-verified. Runtime battery green: authz 403/200 correct (incl. applicant routes
-NOT over-gated), QR PNG renders, speaker secrets hidden, scanner 6/6, payment gate, session
-invalidation, mirror no-op (0 rows), fresh-DB boot clean, traveler self-service restored.
-
-### NEXT STEP WHEN RESUMING:
-1. `git push origin main` (Alen authorized commit-to-main).
-2. Alen: Manual Deploy BOTH services on Render; set real MEDX_IBAN + MEDX_VAT_ID; set a strong
-   TECH_PASSWORD; rotate the shared RESEND_API_KEY (shared in chat earlier).
-3. SEPARATE (history): public-repo DB blob still in git history → purge with filter-repo/BFG +
-   force-push, AND rotate the 3 admin-account passwords (offline-crackable).
-
-### REMAINING (lower priority — not launch-blocking), from audit-findings JSON:
-HIGH still open: [6709] interviewer magic-link tokens have no expiry/rotation (accelerator,
-  off-season).
-MEDIUM (44) + LOW (23): mostly polish. Notables: [42] NODE_ENV=development auth auto-admin
-  (dormant in prod, fragile); [44] SVG/HTML upload stored-XSS via /uploads (add type allowlist +
-  Content-Disposition); [52] now moot (mirror is a no-op); [68] viewport user-scalable=no;
-  [69][97][98] REDESIGN WINS (strip embedded admin app from 5.4MB SPA; lightweight ticket page
-  for bare-root/invite visitors; PWA = 'My Ticket'); [70][71] sw.js hygiene + 2.7MB dead images;
-  [72] expired 'Apply by Apr 1 2026' carousel copy. Full list: tasks/audit-findings-2026-06-10.json.
-
-### Local test harness (recreate when resuming):
-- Backends boot on isolated DB via DATABASE_PATH=/tmp/medx_test.db; high ports (4310/4311
-  or 432x) avoid the parallel session on 3000. .env reloads real Stripe TEST + Resend keys
-  via dotenv even with `env -u`, so local Stripe is live-test (harmless).
-- Verified locally this session: authz 403s for non-admin; hosted QR PNG renders; speaker
-  secrets hidden; fresh-DB admin boot starts; real paid + Zagreb-bridges rows survive wipes;
-  scanner 6/6 scenarios; paid register → Stripe checkout (no row pre-payment).
-
-## Review
-(filled in at end — audit ~50% of high-severity findings fixed + verified; criticals 6/6 done)
+## Rules for this pass
+- Croatian strings ship in the same commit for every user-visible string change
+- No new inline handlers; keep existing pattern (script-src-attr 'unsafe-inline' is set here)
+- Bump sw buster: split4→split5 (app.part*.js edits)
+- CI green before done; verify live in real browser EN+HR after Render deploy

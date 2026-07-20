@@ -357,9 +357,6 @@
                                 <button class="pass-modal-btn primary" onclick="PassSystem.downloadPass('${registrationId}', '${eventConfig.event}')">
                                     <i class="fas fa-download"></i> Download Pass
                                 </button>
-                                <button class="pass-modal-btn secondary" onclick="PassSystem.resendEmail('${email}', '${registrationId}')">
-                                    <i class="fas fa-envelope"></i> Resend Email
-                                </button>
                                 <button class="pass-modal-btn secondary" onclick="document.getElementById('passModal').remove()">
                                     <i class="fas fa-check"></i> Done
                                 </button>
@@ -425,10 +422,8 @@
                 }
             },
 
-            // Resend confirmation email
-            resendEmail(email, registrationId) {
-                this.showToast(`Confirmation email resent to ${email}`);
-            },
+            // Resend button removed from the pass modal: it only pretended to resend
+            // (no backend endpoint exists). The original confirmation email is real.
 
             // Show toast notification
             showToast(message) {
@@ -3560,11 +3555,10 @@
             },
 
             goToAdmin() {
+                // The real admin portal is its own deployment — send admins there instead of
+                // the embedded legacy admin app (which carried a fake demo-login fallback).
                 this.closePortalModal();
-                document.getElementById('landingPage').style.display = 'none';
-                document.getElementById('loginPage').style.display = 'flex';
-                // Initialize admin app when switching to admin portal
-                App.init();
+                window.open('https://medx-admin-portal.onrender.com', '_blank', 'noopener');
             },
 
             // Login Modal
@@ -7962,15 +7956,12 @@
                 'professional-late': { name: 'Professional Regular', price: 149 }
             },
 
-            // Package add-ons
+            // Package add-ons — free real items only; paid add-ons were fictional and removed
+            // (the gala seat is sold at its live price through the gala flow, not here)
             packageAddons: {
                 'day1': { name: 'Day 1 - December 4', price: 0 },
                 'day2': { name: 'Day 2 - December 5', price: 0 },
-                'welcome': { name: 'Welcome Reception', price: 0 },
-                'gala': { name: 'Gala Evening', price: 75 },
-                'citytour': { name: 'Zagreb City Tour', price: 25 },
-                'workshop1': { name: 'AI in Medicine Workshop', price: 35 },
-                'workshop2': { name: 'Grant Writing Masterclass', price: 35 }
+                'welcome': { name: 'Welcome Reception', price: 0 }
             },
 
             // Speaker data
@@ -8039,8 +8030,9 @@
             countdownInterval: null,
 
             // Registration counter (simulated)
-            registrationCount: 847,
-            participantCount: 847,
+            // Real value arrives from /api/plexus/stats; never seed a fictional count.
+            registrationCount: 0,
+            participantCount: 0,
             currentSpeakerFilter: 'all',
 
             // Key dates config — edit this array to update the Key Dates card
@@ -8050,15 +8042,10 @@
                 { label: 'Conference', date: 'December 4-5, 2026', color: '#0f172a' }
             ],
 
-            // Testimonials config — placeholder content demonstrating the section design;
-            // swap for real testimonials via the backend (loadPlexusSettings) before launch.
-            testimonials: [
-                { name: 'Dr. Ana Markovic', title: 'Postdoc, Max Planck Institute', year: 'Plexus 2025', quote: 'Plexus changed the trajectory of my career. I connected with my current PhD supervisor during a coffee break and landed a position at his lab in Munich. The quality of speakers and networking opportunities is unmatched.', avatar: 'https://randomuser.me/api/portraits/women/32.jpg' },
-                { name: 'Marco Rossi', title: 'MD Student, University of Milan', year: 'Plexus 2024', quote: 'As a medical student, attending Plexus opened my eyes to the world of biomedical research. The workshop on grant writing was incredibly practical, and I\'ve already used those skills to secure funding for my thesis project.', avatar: 'https://randomuser.me/api/portraits/men/45.jpg' },
-                { name: 'Dr. Sarah Chen', title: 'Assistant Professor, Stanford', year: 'Plexus 2025', quote: 'The Gala Evening was the highlight of my trip. Meeting keynote speakers in person and discussing science over dinner was surreal. Zagreb\'s Christmas market made it even more magical!', avatar: 'https://randomuser.me/api/portraits/women/56.jpg' },
-                { name: 'Luka Horvat', title: 'PhD Candidate, University of Zagreb', year: 'Plexus 2023', quote: 'I presented my first poster at Plexus and the feedback I received was invaluable. The questions from senior researchers helped me refine my methodology significantly. Now I\'m presenting an oral talk!', avatar: 'https://randomuser.me/api/portraits/men/28.jpg' },
-                { name: 'Dr. Emma Mueller', title: 'Research Scientist, ETH Zurich', year: 'Plexus 2024', quote: 'Best organized conference I\'ve attended in Europe. The Med&X team truly understands what young researchers need. The networking app made it so easy to connect with people before the event even started.', avatar: 'https://randomuser.me/api/portraits/women/41.jpg' }
-            ],
+            // Testimonials — REAL consented quotes only, loaded from the backend
+            // (loadPlexusSettings → settings.testimonials). The section hides itself while
+            // this is empty. Never seed fabricated people here.
+            testimonials: [],
 
             // Initialize Plexus portal
             init() {
@@ -8629,10 +8616,14 @@
                 track.innerHTML = cards + '<!-- Duplicate cards for seamless loop -->' + duplicates;
             },
 
-            // Render participant count in Connect section
+            // Render participant count in Connect section — the line stays hidden until a
+            // real non-zero count arrives from /api/plexus/stats (never show a seeded number).
             renderParticipantCount() {
                 const el = document.getElementById('pxParticipantCount');
-                if (el) el.textContent = this.participantCount.toLocaleString();
+                if (!el) return;
+                el.textContent = this.participantCount.toLocaleString();
+                const stats = el.closest('.px-connect-stats');
+                if (stats) stats.style.display = this.participantCount > 0 ? '' : 'none';
             },
 
             // Load plexus settings from API (pricing, key dates, testimonials)
@@ -8757,7 +8748,9 @@
                     const res = await fetch('/api/plexus/speakers');
                     if (!res.ok) return;
                     const dbSpeakers = await res.json();
-                    if (!dbSpeakers || dbSpeakers.length === 0) return;
+                    // An empty answer is truth (same rule as loadScheduleFromDB): an empty
+                    // roster must clear the fictional seed, never leave it on screen.
+                    if (!Array.isArray(dbSpeakers)) return;
 
                     // Map DB speakers to the format used by PlexusPortal.speakers
                     const newSpeakers = {};
@@ -10045,13 +10038,9 @@
                     }
                 } catch (err) {
                     console.error('Abstract submission error:', err);
-                    // Demo mode
-                    Toast.success('Abstract submitted! (Demo mode - backend endpoint not yet implemented)');
-                    // Award rewards points for abstract submission
-                    if (typeof RewardsPortal !== 'undefined') {
-                        RewardsPortal.awardActivityPoints('submitAbstract');
-                    }
-                    this.showTab('mydashboard');
+                    // The endpoint is real — reaching this catch means a network failure or
+                    // cold-start timeout. Report the truth and KEEP the form so nothing is lost.
+                    Toast.error('Could not submit your abstract - please try again in a moment. Your text is still here.');
                 } finally {
                     if (btn) {
                         btn.innerHTML = originalHTML;
@@ -11231,9 +11220,9 @@
                 badgeWindow.document.close();
             },
 
-            // Open venue map
+            // Open venue map — real venue location (Hotel Esplanade Zagreb) in Google Maps
             openVenueMap() {
-                this.showToast('Interactive map coming soon!');
+                window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('Hotel Esplanade Zagreb, Mihanoviceva 1, Zagreb'), '_blank', 'noopener');
             },
 
             // Contact organizers — opens in-portal contact form
@@ -16039,9 +16028,14 @@
                     return;
                 }
 
-                // Demo: just show success
+                // No in-portal concierge inbox yet — hand off to email. Never claim a message
+                // was "sent" unless it actually reaches the team.
+                const cUser = (typeof UserPortal !== 'undefined' && UserPortal.user) ? UserPortal.user : {};
+                const cWho = [cUser.first_name, cUser.last_name].filter(Boolean).join(' ');
+                window.location.href = 'mailto:forum@medx.hr?subject=' + encodeURIComponent('[Forum Concierge] ' + subject) +
+                    '&body=' + encodeURIComponent(message + (cWho ? '\n\n- ' + cWho : ''));
                 this.closeConciergeModal();
-                this.showToast('Message sent to Forum Team. Expect a response within 24 hours.');
+                this.showToast('Your email app has opened with the message addressed to forum@medx.hr.');
 
                 // Clear form
                 document.getElementById('fmConciergeSubject').value = '';
@@ -16294,6 +16288,8 @@
                             if (welcomePhoto) {
                                 welcomePhoto.innerHTML = `<img src="${escapeHtml(event.target.result)}" alt="Profile photo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
                             }
+                            // No photo-save endpoint yet — make clear this is only a preview.
+                            this.showToast('Preview only for now - photo saving is coming soon.');
                         };
                         reader.onerror = () => {
                             this.showToast('Failed to read file. Please try again.');
@@ -16900,8 +16896,9 @@
             _messagePollingTimer:null,_conversationsCache:[],_lastAdminMessageId:null,
             startMessagePolling(){this.stopMessagePolling();this._messagePollingTimer=setInterval(()=>{if(this.currentTab==='messages'){if(this.currentChatUserId)this.pollCurrentChat();else this.loadConversationsList();}},30000);},
             stopMessagePolling(){if(this._messagePollingTimer){clearInterval(this._messagePollingTimer);this._messagePollingTimer=null;}},
-            async loadConversationsList(){const ml=document.querySelector('.network-messages-list');if(!ml)return;const cp=document.getElementById('networkChatPanel');if(cp&&cp.classList.contains('active'))return;try{const cv=await UserPortal.api('/api/messages');const am=await UserPortal.api('/api/user/admin-messages').catch(()=>[]);let it=[];if(Array.isArray(am)&&am.length>0){const la=am[0];const ur=am.filter(m=>!m.is_read).length;it.push({type:'admin',partner_id:'medx-team',partner_name:'Med&X Team',initials:'MX',lastMessage:(la.title?la.title+' — ':'')+(la.content||'')||la.title||'',time:la.created_at,unread:ur>0,unreadCount:ur,avatarStyle:'background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);'});}if(Array.isArray(cv)){const uid=UserPortal.user?.id??null;cv.forEach(c=>{const pn=c.partner_first_name&&c.partner_last_name?`${c.partner_first_name} ${c.partner_last_name}`:'Member';const ini=pn.split(' ').filter(Boolean).map(n=>n[0]).join('').substring(0,2).toUpperCase();it.push({type:'user',partner_id:c.partner_id,partner_name:pn,initials:ini,lastMessage:c.content||'',time:c.created_at,unread:c.sender_id!==uid&&!c.read_at,mine:uid!=null&&c.sender_id===uid,avatarStyle:''});});}this._conversationsCache=it;if(it.length===0){ml.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--up-text-muted,var(--muted));"><div style="font-size:48px;margin-bottom:16px;opacity:0.3;"><i class="fas fa-inbox"></i></div><h3 style="font-size:18px;font-weight:600;color:var(--up-text-secondary,var(--muted));margin-bottom:8px;">'+this._t('net.noMessages')+'</h3><p style="font-size:14px;max-width:300px;margin:0 auto;">'+this._t('net.noMessagesSub')+'</p></div>';return;}ml.innerHTML=it.map(i=>{const ts=i.time?new Date(i.time).toLocaleDateString([],{month:'short',day:'numeric'}):'';const en=(i.partner_name||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const em=(i.lastMessage||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const pv=em.length>60?em.substring(0,60)+'...':em;const bd=i.type==='admin'?'<span style="background:var(--gold);color: var(--ink);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OFFICIAL</span>':'';const cf=i.type==='admin'?'NetworkingPortal.openAdminMessages()':`NetworkingPortal.startConversation('${i.partner_id}','${en.replace(/'/g,"\\'")}','${i.initials}')`;const dot=i.unread?`<span style="display:inline-block;min-width:18px;height:18px;line-height:18px;text-align:center;background:var(--danger);color:#fff;font-size:10px;font-weight:700;border-radius:9px;padding:0 5px;margin-left:6px;">${i.unreadCount&&i.unreadCount>1?i.unreadCount:''}</span>`:'';return`<div class="network-message-item${i.unread?' unread':''}" onclick="${cf}"><div class="network-message-avatar" ${i.avatarStyle?'style="'+i.avatarStyle+'"':''}>${i.initials}</div><div class="network-message-content"><div class="network-message-header"><h4>${en}${bd}</h4><span class="network-message-time">${ts}${dot}</span></div><div class="network-message-preview">${pv}${i.type==='user'?'<span class="msg-status-tag '+(i.mine?'sent':'replied')+'">'+(i.mine?'sent':'replied')+'</span>':''}</div></div></div>`;}).join('');const tu=it.filter(i=>i.unread).length;const cb=document.getElementById('messagesCount');if(cb)cb.textContent=tu||it.length;}catch(err){console.error('Failed to load conversations:',err);this.renderDemoConversations(ml);}},
-            renderDemoConversations(ml){const dc=[{name:'Dr. Sarah Wilson',initials:'SW',preview:'That sounds like a great collaboration opportunity!',time:'2:34 PM',unread:true,status:'replied',id:'sarah-wilson'},{name:'Dr. Thomas Chen',initials:'TC',preview:"I'll share the dataset by Friday.",time:'Yesterday',unread:true,status:'replied',id:'thomas-chen'},{name:'Dr. Anna Larsson',initials:'AL',preview:'Looking forward to the meeting next week.',time:'Mon',unread:false,status:'sent',id:'anna-larsson'},{name:'Med&X Team',initials:'MX',preview:'Welcome to Plexus 2026!',time:'Feb 20',unread:false,id:'medx-team',isAdmin:true}];ml.innerHTML=dc.map(c=>{const b=c.isAdmin?'<span style="background:var(--gold);color: var(--ink);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OFFICIAL</span>':'';const av=c.isAdmin?' style="background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);"':'';const fn=c.isAdmin?'NetworkingPortal.openAdminMessages()':`NetworkingPortal.startConversation('${c.id}','${c.name.replace(/'/g,"\\'")}','${c.initials}')`;return`<div class="network-message-item${c.unread?' unread':''}" onclick="${fn}"><div class="network-message-avatar"${av}>${c.initials}</div><div class="network-message-content"><div class="network-message-header"><h4>${c.name}${b}</h4><span class="network-message-time">${c.time}</span></div><div class="network-message-preview">${c.preview}${c.status?'<span class="msg-status-tag '+c.status+'">'+c.status+'</span>':''}</div></div></div>`;}).join('');},
+            async loadConversationsList(){const ml=document.querySelector('.network-messages-list');if(!ml)return;const cp=document.getElementById('networkChatPanel');if(cp&&cp.classList.contains('active'))return;try{const cv=await UserPortal.api('/api/messages');const am=await UserPortal.api('/api/user/admin-messages').catch(()=>[]);let it=[];if(Array.isArray(am)&&am.length>0){const la=am[0];const ur=am.filter(m=>!m.is_read).length;it.push({type:'admin',partner_id:'medx-team',partner_name:'Med&X Team',initials:'MX',lastMessage:(la.title?la.title+' — ':'')+(la.content||'')||la.title||'',time:la.created_at,unread:ur>0,unreadCount:ur,avatarStyle:'background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);'});}if(Array.isArray(cv)){const uid=UserPortal.user?.id??null;cv.forEach(c=>{const pn=c.partner_first_name&&c.partner_last_name?`${c.partner_first_name} ${c.partner_last_name}`:'Member';const ini=pn.split(' ').filter(Boolean).map(n=>n[0]).join('').substring(0,2).toUpperCase();it.push({type:'user',partner_id:c.partner_id,partner_name:pn,initials:ini,lastMessage:c.content||'',time:c.created_at,unread:c.sender_id!==uid&&!c.read_at,mine:uid!=null&&c.sender_id===uid,avatarStyle:''});});}this._conversationsCache=it;if(it.length===0){const cb0=document.getElementById('messagesCount');if(cb0){cb0.textContent='0';cb0.style.display='none';}ml.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--up-text-muted,var(--muted));"><div style="font-size:48px;margin-bottom:16px;opacity:0.3;"><i class="fas fa-inbox"></i></div><h3 style="font-size:18px;font-weight:600;color:var(--up-text-secondary,var(--muted));margin-bottom:8px;">'+this._t('net.noMessages')+'</h3><p style="font-size:14px;max-width:300px;margin:0 auto;">'+this._t('net.noMessagesSub')+'</p></div>';return;}ml.innerHTML=it.map(i=>{const ts=i.time?new Date(i.time).toLocaleDateString([],{month:'short',day:'numeric'}):'';const en=(i.partner_name||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const em=(i.lastMessage||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const pv=em.length>60?em.substring(0,60)+'...':em;const bd=i.type==='admin'?'<span style="background:var(--gold);color: var(--ink);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OFFICIAL</span>':'';const cf=i.type==='admin'?'NetworkingPortal.openAdminMessages()':`NetworkingPortal.startConversation('${i.partner_id}','${en.replace(/'/g,"\\'")}','${i.initials}')`;const dot=i.unread?`<span style="display:inline-block;min-width:18px;height:18px;line-height:18px;text-align:center;background:var(--danger);color:#fff;font-size:10px;font-weight:700;border-radius:9px;padding:0 5px;margin-left:6px;">${i.unreadCount&&i.unreadCount>1?i.unreadCount:''}</span>`:'';return`<div class="network-message-item${i.unread?' unread':''}" onclick="${cf}"><div class="network-message-avatar" ${i.avatarStyle?'style="'+i.avatarStyle+'"':''}>${i.initials}</div><div class="network-message-content"><div class="network-message-header"><h4>${en}${bd}</h4><span class="network-message-time">${ts}${dot}</span></div><div class="network-message-preview">${pv}${i.type==='user'?'<span class="msg-status-tag '+(i.mine?'sent':'replied')+'">'+(i.mine?'sent':'replied')+'</span>':''}</div></div></div>`;}).join('');const tu=it.filter(i=>i.unread).length;const cb=document.getElementById('messagesCount');if(cb){if(tu>0){cb.textContent=tu;cb.style.display='';}else{cb.textContent='0';cb.style.display='none';}}}catch(err){console.error('Failed to load conversations:',err);ml.innerHTML=MedXState.render({tone:'error',icon:'fa-cloud-arrow-down',body:NetworkingPortal._t('net.loadError'),actionLabel:NetworkingPortal._t('state.retry'),actionOnclick:'NetworkingPortal.loadConversationsList()'});}},
+            // renderDemoConversations removed: it painted a fabricated inbox (fake people,
+            // fake unread messages) whenever the API failed, e.g. on every cold start.
             async pollCurrentChat(){if(!this.currentChatUserId)return;try{const ms=await UserPortal.api(`/api/messages/${encodeURIComponent(this.currentChatUserId)}`);const ct=document.getElementById('networkChatMessages');if(!ct||!Array.isArray(ms))return;const ec=ct.querySelectorAll('.network-chat-message').length;if(ms.length>ec){const uid=UserPortal.user?.id??null;const ae=ct.querySelector('.network-chat-msg-avatar');const ci=ae?ae.textContent:'?';ms.slice(ec).forEach(m=>{const is=m.sender_id===uid;const t=new Date(m.created_at??Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});const e=(m.content??'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const ab=m.sender_type==='admin'?'<span style="background:var(--gold);color: var(--ink);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;">Med&X</span>':'';ct.insertAdjacentHTML('beforeend',is?`<div class="network-chat-message sent"><div class="network-chat-msg-content"><p>${e}</p><span class="network-chat-msg-time">${t}</span></div></div>`:`<div class="network-chat-message received"><div class="network-chat-msg-avatar">${ci}</div><div class="network-chat-msg-content">${ab}<p>${e}</p><span class="network-chat-msg-time">${t}</span></div></div>`);});ct.scrollTop=ct.scrollHeight;}}catch(e){}},
             async openAdminMessages(){const ctr=document.querySelector('.network-messages-container');if(!ctr)return;this.currentChatUserId=null;let cp=document.getElementById('networkChatPanel');if(!cp){cp=document.createElement('div');cp.id='networkChatPanel';cp.className='network-chat-panel';ctr.appendChild(cp);}cp.innerHTML=`<div class="network-chat-header"><button class="network-chat-back" onclick="NetworkingPortal.closeChat()"><i class="fas fa-arrow-left"></i></button><div class="network-chat-user"><div class="network-chat-avatar" style="background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);">MX</div><div class="network-chat-user-info"><h4>Med&X Team <span style="background:var(--gold);color: var(--ink);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-left:6px;">OFFICIAL</span></h4><span class="network-chat-status"><i class="fas fa-shield-alt" style="color:var(--gold);"></i> Official communications</span></div></div></div><div class="network-chat-messages" id="networkChatMessages"><div class="network-chat-loading" style="text-align:center;padding:20px;color:#888;"><i class="fas fa-spinner fa-spin"></i> Loading...</div></div><div class="network-chat-input"><input type="text" id="networkChatInput" placeholder="Reply to Med&X Team..." onkeypress="if(event.key==='Enter') NetworkingPortal.replyToAdmin()" maxlength="2000"><button class="network-chat-send" onclick="NetworkingPortal.replyToAdmin()"><i class="fas fa-paper-plane"></i></button></div>`;cp.classList.add('active');const ml=document.querySelector('.network-messages-list');if(ml)ml.style.display='none';const mc=document.getElementById('networkChatMessages');try{const ms=await UserPortal.api('/api/user/admin-messages');const ld=mc?.querySelector('.network-chat-loading');if(ld)ld.remove();if(Array.isArray(ms)&&ms.length>0){[...ms].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).forEach(m=>{const ia=m.sender_type==='admin';const t=new Date(m.created_at??Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});const d=new Date(m.created_at??Date.now()).toLocaleDateString([],{month:'short',day:'numeric'});const e=(m.content??'').replace(/</g,'&lt;').replace(/>/g,'&gt;');const tt=m.title?`<div style="font-weight:600;margin-bottom:4px;font-size:14px;">${m.title.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:'';if(ia&&!m.is_read)UserPortal.api(`/api/user/admin-messages/${m.id}/read`,{method:'PUT'}).catch(()=>{});if(ia)this._lastAdminMessageId=m.id;mc?.insertAdjacentHTML('beforeend',ia?`<div class="network-chat-message received"><div class="network-chat-msg-avatar" style="background:linear-gradient(135deg,var(--gold),#e8d5a3);color: var(--ink);font-size:11px;">MX</div><div class="network-chat-msg-content"><span style="background:var(--gold);color: var(--ink);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">Med&X Team</span>${tt}<p>${e}</p><span class="network-chat-msg-time">${d} ${t}</span></div></div>`:`<div class="network-chat-message sent"><div class="network-chat-msg-content"><p>${e}</p><span class="network-chat-msg-time">${d} ${t}</span></div></div>`);});}else{mc?.insertAdjacentHTML('beforeend','<div style="text-align:center;padding:40px 20px;color: var(--muted);"><div style="font-size:48px;margin-bottom:16px;opacity:0.4;"><i class="fas fa-shield-alt"></i></div><div style="font-size:16px;font-weight:600;color:#cbd5e1;margin-bottom:8px;">No messages from Med&X Team yet</div></div>');}if(mc)mc.scrollTop=mc.scrollHeight;}catch(err){console.error('Failed to load admin messages:',err);}},
             async replyToAdmin(){const inp=document.getElementById('networkChatInput');if(!inp||!inp.value.trim())return;const msg=inp.value.trim();const mid=this._lastAdminMessageId;if(!mid){this.showToast('No admin message to reply to.');return;}const mc=document.getElementById('networkChatMessages');const ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});const e=msg.replace(/</g,'&lt;').replace(/>/g,'&gt;');mc?.insertAdjacentHTML('beforeend',`<div class="network-chat-message sent"><div class="network-chat-msg-content"><p>${e}</p><span class="network-chat-msg-time">${ts}</span></div></div>`);if(mc)mc.scrollTop=mc.scrollHeight;inp.value='';try{await UserPortal.api(`/api/user/admin-messages/${mid}/reply`,{method:'POST',body:JSON.stringify({content:msg})});}catch(err){console.error('Failed to reply:',err);this.showToast('Reply could not be sent.');}},
@@ -17132,9 +17129,11 @@
                             institution: user.institution,
                             careerStage: 'Professional',
                             isOnline: user.lastActive === 'today',
-                            connections: Math.floor(Math.random() * 200) + 50,
-                            publications: Math.floor(Math.random() * 30) + 5,
-                            citations: Math.floor(Math.random() * 1000) + 100,
+                            // Never invent academic metrics — unknown stats stay null and the
+                            // modal hides them (fabricated numbers on real people is a lie).
+                            connections: null,
+                            publications: null,
+                            citations: null,
                             bio: `${user.name} is a ${user.specialty || 'medical'} professional at ${user.institution}.`,
                             researchTags: user.tags || [],
                             goals: ['General Networking'],
@@ -17155,9 +17154,10 @@
                             country: dir.country,
                             careerStage: dir.careerStage || 'Professional',
                             isOnline: dir.online,
-                            connections: (dir.mutualCount || 0) + 40 + (h % 160),
-                            publications: 6 + (h % 40),
-                            citations: 300 + (h % 50) * 40,
+                            // Unknown stats stay null (see above) — no hash-derived fiction.
+                            connections: (typeof dir.mutualCount === 'number') ? dir.mutualCount : null,
+                            publications: null,
+                            citations: null,
                             bio: dir.bio || `${dir.name} is a ${dir.specialtyLabel || 'medical'} professional at ${dir.institution}.`,
                             researchTags: dir.interests || [],
                             goals: ['General Networking'],
@@ -17182,9 +17182,18 @@
                 document.getElementById('profileAvatar').textContent = p.initials;
                 document.getElementById('profileName').textContent = p.name;
                 document.getElementById('profileTitle').textContent = `${p.title} at ${p.institution}`;
-                document.getElementById('profileConnections').textContent = p.connections;
-                document.getElementById('profilePublications').textContent = p.publications;
-                document.getElementById('profileCitations').textContent = p.citations;
+                // Show a stat only when we actually know it; hide the tile otherwise.
+                [['profileConnections', p.connections], ['profilePublications', p.publications], ['profileCitations', p.citations]].forEach(([id, val]) => {
+                    const statEl = document.getElementById(id);
+                    if (!statEl) return;
+                    const tile = statEl.closest('.profile-stat');
+                    if (val === null || val === undefined) {
+                        if (tile) tile.style.display = 'none';
+                    } else {
+                        if (tile) tile.style.display = '';
+                        statEl.textContent = val;
+                    }
+                });
                 document.getElementById('profileBio').textContent = p.bio;
 
                 // Research tags
@@ -21398,9 +21407,9 @@ ${'='.repeat(70)}
                 if (file.size > 5 * 1024 * 1024) { this.showToast('File too large. Maximum size is 5MB.'); return; }
                 if (!file.type.startsWith('image/')) { this.showToast('Please select an image file.'); return; }
 
-                // In production, would upload to server
-                // For demo, just show success
-                this.showToast('Photo uploaded! (Demo mode)');
+                // No speaker photo upload endpoint yet — never fake a success. Speakers are
+                // asked to email the photo so it actually reaches the team.
+                this.showToast('Photo upload is not available yet. Please email your photo to info@medx.hr.');
             },
 
             saveSpeakerData() {
@@ -23651,12 +23660,13 @@ ${'='.repeat(70)}
                     if (!file) return;
                     if (file.size > 5 * 1024 * 1024) { Toast.error(t('set.tFileLarge')); return; }
 
-                    // TODO: Upload to backend and get URL
-                    // For now, show preview
+                    // No photo-save endpoint yet — show the preview but SAY it is only a
+                    // preview, so nobody believes an unsaved photo was stored.
                     const reader = new FileReader();
                     reader.onload = (event) => {
                         const photoEl = document.getElementById('settingsProfilePhoto');
                         photoEl.innerHTML = `<img src="${escapeHtml(event.target.result)}" alt="Profile">`;
+                        Toast.show(t('set.tPhotoPreview'), 'info');
                     };
                     reader.onerror = () => {
                         Toast.error(t('set.tFileRead'));
@@ -24872,18 +24882,10 @@ ${'='.repeat(70)}
                         document.getElementById('loginError').classList.add('show');
                     }
                 } catch (err) {
-                    // Demo mode - simulate admin login
-                    this.token = 'demo-admin-token';
-                    this.user = {
-                        id: 1,
-                        email: email,
-                        first_name: 'Admin',
-                        last_name: 'User',
-                        role: 'admin'
-                    };
-                    localStorage.setItem('medx_token', this.token);
-                    localStorage.setItem('medx_user', JSON.stringify(this.user));
-                    await this.showApp();
+                    // A failed request must NEVER fabricate an admin session (the old
+                    // demo-admin-token fallback painted a convincing fake admin UI).
+                    console.error('Admin login error:', err);
+                    document.getElementById('loginError').classList.add('show');
                 }
             },
 
@@ -24961,19 +24963,10 @@ ${'='.repeat(70)}
                         document.getElementById('registerError').classList.add('show');
                     }
                 } catch (err) {
-                    // Demo mode - simulate registration
-                    document.getElementById('registerSuccess').style.display = 'block';
-                    this.token = 'demo-admin-token';
-                    this.user = {
-                        id: Date.now(),
-                        email: email,
-                        first_name: firstName,
-                        last_name: lastName,
-                        role: 'admin'
-                    };
-                    localStorage.setItem('medx_token', this.token);
-                    localStorage.setItem('medx_user', JSON.stringify(this.user));
-                    setTimeout(() => this.showApp(), 1000);
+                    // Never fabricate a session on error (see App.login).
+                    console.error('Admin registration error:', err);
+                    document.getElementById('registerError').textContent = 'Registration failed. Please try again.';
+                    document.getElementById('registerError').classList.add('show');
                 }
             },
 
@@ -44249,6 +44242,9 @@ By applying to this program, I give the following consents:
 
         const Toast = {
             show(message, type = 'info', duration = 3000) {
+                // Route through the shared toast localizer (TOAST_HR) like every other
+                // showToast implementation, so global toasts render in Croatian too.
+                message = (window.mxLocalizeToast ? window.mxLocalizeToast(message) : message);
                 const container = document.getElementById('toastContainer');
                 if (!container) return;
 
@@ -44862,7 +44858,9 @@ By applying to this program, I give the following consents:
                 { id: 'schedule', title: 'Build your schedule', desc: 'Bookmark sessions you want to attend', action: 'Browse Sessions', actionFn: () => PlexusPortal.showTab('schedule'), completed: false },
                 { id: 'network', title: 'Connect with attendees', desc: 'Find and connect with 5 people', action: 'Find People', actionFn: () => UserPortal.showSection('network'), completed: false },
                 { id: 'download', title: 'Download welcome guide', desc: 'Get your personalized conference booklet', action: 'Download', actionFn: () => PlexusPortal.downloadWelcomeBooklet(), completed: false },
-                { id: 'travel', title: 'Confirm travel details', desc: 'Share your arrival time for pickup', action: 'Add Details', actionFn: () => this.showTravelModal(), completed: false }
+                // Explicit object reference: `this` inside these arrows is window (classic
+                // script, top-level const), so this.showTravelModal() used to throw.
+                { id: 'travel', title: 'Confirm travel details', desc: 'Share your arrival time for pickup', action: 'Add Details', actionFn: () => PrepChecklist.showTravelModal(), completed: false }
             ],
 
             init() {
@@ -44932,7 +44930,10 @@ By applying to this program, I give the following consents:
             },
 
             showTravelModal() {
-                App.showToast('Please contact admin team for travel arrangements', 'info');
+                // No in-portal travel form yet — hand off to email with a prefilled template
+                // so the CTA does what it promises instead of dead-ending in a toast.
+                window.location.href = 'mailto:info@medx.hr?subject=' + encodeURIComponent('Plexus 2026 - travel details') +
+                    '&body=' + encodeURIComponent('Arrival date and time:\nDeparture date and time:\nAnything we should know:');
             }
         };
 
@@ -46384,16 +46385,13 @@ By applying to this program, I give the following consents:
                         { id: 'professional-early', type: 'professional', name: 'Professional Early Bird', price: 99, earlyBirdPrice: 99, regularPrice: 149, deadline: '2026-09-30', badge: 'Most Popular', featured: true },
                         { id: 'professional-late', type: 'professional', name: 'Professional Regular', price: 149, earlyBirdPrice: 99, regularPrice: 149, deadline: '2026-12-03', badge: '', featured: false }
                     ],
+                    // Only items that actually exist may appear here. The old paid add-ons
+                    // (workshops, certificate, proceedings, €75 gala, city tour) were fiction —
+                    // the real gala seat is sold at its live price through the gala flow only.
                     addons: [
                         { id: 'day1', name: 'Day 1 - December 4', price: 0, description: 'Full access to Day 1', enabled: true, category: 'days' },
                         { id: 'day2', name: 'Day 2 - December 5', price: 0, description: 'Full access to Day 2', enabled: true, category: 'days' },
-                        { id: 'welcome', name: 'Welcome Reception', price: 0, description: 'Evening networking event', enabled: true, category: 'social' },
-                        { id: 'gala', name: 'Gala Evening', price: 75, description: 'Formal dinner & awards', enabled: true, category: 'social' },
-                        { id: 'citytour', name: 'Zagreb City Tour', price: 25, description: 'Guided city tour', enabled: true, category: 'social' },
-                        { id: 'workshop1', name: 'AI in Medicine Workshop', price: 35, description: 'Hands-on AI workshop', enabled: true, category: 'workshop' },
-                        { id: 'workshop2', name: 'Grant Writing Masterclass', price: 35, description: 'Academic writing skills', enabled: true, category: 'workshop' },
-                        { id: 'certificate', name: 'Certificate of Attendance', price: 15, description: 'Official printed certificate', enabled: true, category: 'extras' },
-                        { id: 'proceedings', name: 'Conference Proceedings Digital Copy', price: 10, description: 'Digital copy of all presentations', enabled: true, category: 'extras' }
+                        { id: 'welcome', name: 'Welcome Reception', price: 0, description: 'Evening networking event', enabled: true, category: 'social' }
                     ]
                 };
 
@@ -46403,7 +46401,7 @@ By applying to this program, I give the following consents:
                     { id: 'cathedral', title: 'Zagreb Cathedral', description: 'The tallest building in Croatia with its iconic twin spires. A stunning example of Neo-Gothic architecture that dominates the city skyline.', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Main_fa%C3%A7ade_and_spires_%28108_m.%29_-_Zagreb_Cathedral_%2813023622635%29.jpg/960px-Main_fa%C3%A7ade_and_spires_%28108_m.%29_-_Zagreb_Cathedral_%2813023622635%29.jpg', category: 'Landmark', metaIcon1: 'fas fa-church', metaText1: 'Kaptol', metaIcon2: 'fas fa-clock', metaText2: 'Open daily' },
                     { id: 'dolac', title: 'Dolac Market', description: 'Zagreb\'s most famous open-air market, known as the \'Belly of Zagreb\'. Fresh produce, local cheeses, and traditional Croatian delicacies.', imageUrl: 'https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=600&h=400&fit=crop', category: 'Market', metaIcon1: 'fas fa-shopping-basket', metaText1: 'Local Market', metaIcon2: 'fas fa-utensils', metaText2: 'Food & Culture' },
                     { id: 'upper-town', title: 'Upper Town (Gornji Grad)', description: 'The historic heart of Zagreb with cobblestone streets, the Stone Gate, Lotrscak Tower, and stunning panoramic views of the city below.', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Gornji_Grad_%28Upper_Town%29_%2813023321645%29.jpg/960px-Gornji_Grad_%28Upper_Town%29_%2813023321645%29.jpg', category: 'Historic', metaIcon1: 'fas fa-mountain', metaText1: 'Historic District', metaIcon2: 'fas fa-walking', metaText2: '15 min walk' },
-                    { id: 'museum-broken', title: 'Museum of Broken Relationships', description: 'One of Zagreb\'s most unique attractions \u2014 a museum dedicated to failed love stories and their mementos. Quirky, emotional, and unforgettable.', imageUrl: 'https://images.unsplash.com/photo-1592906209472-a36b1f3782ef?w=600&h=400&fit=crop', category: 'Museum', metaIcon1: 'fas fa-heart-broken', metaText1: 'Unique Museum', metaIcon2: 'fas fa-star', metaText2: 'Top Rated' },
+                    { id: 'museum-broken', title: 'Museum of Broken Relationships', description: 'One of Zagreb\'s most unique attractions \u2014 a museum dedicated to failed love stories and their mementos. Quirky, emotional, and unforgettable.', imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Museum_of_Broken_Relationships_-_Zagreb%2C_Croatia%2C_June_2012.jpg/960px-Museum_of_Broken_Relationships_-_Zagreb%2C_Croatia%2C_June_2012.jpg', category: 'Museum', metaIcon1: 'fas fa-heart-broken', metaText1: 'Unique Museum', metaIcon2: 'fas fa-star', metaText2: 'Top Rated' },
                     { id: 'jarun-lake', title: 'Jarun Lake', description: 'A beautiful recreational area perfect for jogging, cycling, or relaxing by the water. Popular with locals for morning exercise and evening strolls.', imageUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=600&h=400&fit=crop', category: 'Recreation', metaIcon1: 'fas fa-water', metaText1: 'Recreation', metaIcon2: 'fas fa-bicycle', metaText2: 'Outdoor' },
                     { id: 'tkalciceva', title: 'Tkalciceva Street', description: 'Zagreb\'s most popular pedestrian street, lined with cafes, bars, and restaurants. The perfect place to experience Zagreb\'s famous cafe culture.', imageUrl: 'https://images.unsplash.com/photo-1555921015-5532091f6026?w=600&h=400&fit=crop', category: 'Street', metaIcon1: 'fas fa-coffee', metaText1: 'Cafe Street', metaIcon2: 'fas fa-glass-cheers', metaText2: 'Nightlife' }
                 ];

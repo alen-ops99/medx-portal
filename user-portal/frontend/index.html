@@ -37,7 +37,7 @@
          browser blocks the scanner library. Vendored like Font Awesome, no SRI needed same-origin. -->
     <script src="/vendor/jsqr/jsQR.min.js" defer></script>
     <script src="https://js.stripe.com/v3/" async></script>
-    <link rel="stylesheet" href="/assets/app.css?v=split4">
+    <link rel="stylesheet" href="/assets/app.css?v=split5">
 
     <!-- PWA Manifest and Icons — absolute paths so they resolve correctly
          on path-style direct links like /forum/events/<slug> or /invite/<token>. -->
@@ -190,7 +190,7 @@
           .splash-lang-toggle .up-lang-opt.active{background:var(--crimson,#9b1b22);color:#fff;}
           @media(max-width:480px){ .splash-lang-toggle{top:14px;right:14px;} }
         </style>
-        <script src="/assets/app.part1.js?v=split4"></script>
+        <script src="/assets/app.part1.js?v=split5"></script>
 
 
         <!-- Skip Link for Accessibility -->
@@ -1301,7 +1301,7 @@
 
         <!-- Left rail retired — the premium sticky top bar (#upTopbar, defined below) is the desktop nav.
              This script keeps the window.MedXRail contract but repoints it to the top-bar nodes. -->
-        <script src="/assets/app.part2.js?v=split4"></script>
+        <script src="/assets/app.part2.js?v=split5"></script>
 
         <!-- Floating Messages Button (hidden — contact btn is sufficient) -->
         <div class="floating-btns-stack" id="floatingBtnsStack" style="display: none !important;">
@@ -1517,69 +1517,24 @@
                     <!-- default cleared; the real member bio is injected by MemberProfile.render() -->
                 </p>
             </div>
+            <!-- Fake template defaults removed (fabricated interests, achievements,
+                 "shared connections" trio and activity). MemberProfile.render() fills
+                 these containers with real data when this panel is used. -->
             <div class="profile-panel-section">
                 <h4>Interests</h4>
-                <div class="profile-interests" id="profilePanelInterests">
-                    <span class="profile-interest match">Sleep Medicine</span>
-                    <span class="profile-interest match">Neuroscience</span>
-                    <span class="profile-interest">Circadian Rhythms</span>
-                    <span class="profile-interest">Clinical Trials</span>
-                </div>
+                <div class="profile-interests" id="profilePanelInterests"></div>
             </div>
             <div class="profile-panel-section medx-playful">
                 <h4>Achievements</h4>
-                <div class="profile-achievements" id="profilePanelAchievements">
-                    <div class="profile-achievement">
-                        <i class="fas fa-medal"></i>
-                        <span>Plexus Veteran</span>
-                    </div>
-                    <div class="profile-achievement">
-                        <i class="fas fa-crown"></i>
-                        <span>Forum Member</span>
-                    </div>
-                    <div class="profile-achievement">
-                        <i class="fas fa-fire"></i>
-                        <span>30-Day Streak</span>
-                    </div>
-                </div>
+                <div class="profile-achievements" id="profilePanelAchievements"></div>
             </div>
             <div class="profile-panel-section">
-                <h4>Shared Connections (<span id="profilePanelSharedCount">8</span>)</h4>
-                <div class="profile-shared-connections" id="profilePanelShared">
-                    <div class="shared-connection" onclick="MemberProfile.open('user2')">
-                        <div class="shared-connection-avatar">SC</div>
-                        <span class="shared-connection-name">Dr. Sarah Chen</span>
-                    </div>
-                    <div class="shared-connection" onclick="MemberProfile.open('user3')">
-                        <div class="shared-connection-avatar">MT</div>
-                        <span class="shared-connection-name">Dr. Michael Torres</span>
-                    </div>
-                    <div class="shared-connection" onclick="MemberProfile.open('user4')">
-                        <div class="shared-connection-avatar">EJ</div>
-                        <span class="shared-connection-name">Dr. Emily Johnson</span>
-                    </div>
-                </div>
+                <h4>Shared Connections (<span id="profilePanelSharedCount">0</span>)</h4>
+                <div class="profile-shared-connections" id="profilePanelShared"></div>
             </div>
             <div class="profile-panel-section">
                 <h4>Recent Activity</h4>
-                <div class="activity-feed" id="profilePanelActivity">
-                    <div class="activity-item">
-                        <div class="activity-header">
-                            <div class="activity-meta">
-                                <span class="activity-action">Registered for Plexus 2026</span>
-                                <span class="activity-time">2 days ago</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="activity-item">
-                        <div class="activity-header">
-                            <div class="activity-meta">
-                                <span class="activity-action">Earned "Early Bird" achievement</span>
-                                <span class="activity-time">1 week ago</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <div class="activity-feed" id="profilePanelActivity"></div>
             </div>
         </div>
 
@@ -2565,7 +2520,7 @@
             <div class="up-gs-foot"><span><kbd>&#8593;</kbd> <kbd>&#8595;</kbd> navigate</span><span><kbd>&#8629;</kbd> open</span><span><kbd>esc</kbd> close</span></div>
           </div>
         </div>
-        <script src="/assets/app.part3.js?v=split4"></script>
+        <script src="/assets/app.part3.js?v=split5"></script>
 
         <main class="up-main">
             <!-- Soft-gate email confirmation banner (shown until email_verified) -->
@@ -2732,7 +2687,7 @@
 
                     <!-- Your next event hub (personalized from /api/registrations/my) -->
                     <section id="upNextEvent" class="up-next-event" style="margin:0 0 18px;"></section>
-                    <script src="/assets/app.part4.js?v=split4"></script>
+                    <script src="/assets/app.part4.js?v=split5"></script>
 
                     <!-- PROFILE-COMPLETENESS NUDGE — normal members only. Double persona gate
                          (S1 pattern): the medx-playful class hides it under body.medx-quiet, and the
@@ -2749,7 +2704,7 @@
                     @media(max-width:600px){ .up-nudge-card{flex-wrap:wrap;} .up-nudge-btn{width:100%;justify-content:center;} }
                     </style>
                     <section id="upProfileNudge" class="medx-playful" style="display:none;"></section>
-                    <script src="/assets/app.part5.js?v=split4"></script>
+                    <script src="/assets/app.part5.js?v=split5"></script>
 
                     <!-- PROJECT HUB — live status from /api/project-status (admin-owned), get-notified bells persist to notify_topics -->
                     <style>
@@ -2802,7 +2757,7 @@
                         </div>
                         <div class="mx-hub-grid" id="mxProjectHub"></div>
                     </section>
-                    <script src="/assets/app.part6.js?v=split4"></script>
+                    <script src="/assets/app.part6.js?v=split5"></script>
 
                     <!-- NOTIFY-ME ON EACH PROJECT PAGE — a premium toggle row injected near the top of every
                          project section, wired to the SAME notify_topics subscription as the hub bells. The
@@ -2823,11 +2778,11 @@
                     .mx-notify-row.on .mx-notify-switch::after{transform:translateX(19px);}
                     @media(max-width:560px){.mx-notify-sub{display:none;}.mx-notify-row{gap:12px;padding:12px 14px;}}
                     </style>
-                    <script src="/assets/app.part7.js?v=split4"></script>
+                    <script src="/assets/app.part7.js?v=split5"></script>
 
                     <!-- SECTION STATUS BINDING — fills every [data-mx-status="<project>"] element in the section heros
                          from GET /api/project-status (admin-owned). Graceful: if the fetch fails the baked text stays. -->
-                    <script src="/assets/app.part8.js?v=split4"></script>
+                    <script src="/assets/app.part8.js?v=split5"></script>
 
                     <!-- Membership value strip — what belonging includes (quiet, informational) -->
                     <style>
@@ -3347,11 +3302,8 @@
                                         <p style="font-size: 14px; margin: 0;">Personalized recommendations are loading. Complete your profile for better suggestions.</p>
                                     </div>
                                 </div>
-                                <div class="for-you-see-all">
-                                    <button class="for-you-see-all-btn" onclick="ForYouFeed.viewAll()">
-                                        See All Recommendations <i class="fas fa-arrow-right"></i>
-                                    </button>
-                                </div>
+                                <!-- "See All Recommendations" removed: it only toasted "coming soon";
+                                     the grid above already shows the recommendations. -->
                             </div>
                         </div>
 
@@ -4121,8 +4073,8 @@
                                     </div>
                                 </div>
                                 <div class="px-connect-cta">
-                                    <span class="px-connect-stats">
-                                        <i class="fas fa-user-check"></i> <span id="pxParticipantCount">847</span> <span data-i18n="px.connectedTail">participants already connected</span>
+                                    <span class="px-connect-stats" style="display:none;">
+                                        <i class="fas fa-user-check"></i> <span id="pxParticipantCount">0</span> <span data-i18n="px.connectedTail">participants already connected</span>
                                     </span>
                                 </div>
                             </div>
@@ -4387,38 +4339,11 @@
                                                             </div>
                                                             <div class="px-package-price">Free</div>
                                                         </div>
-                                                        <div class="px-package-option" onclick="PlexusPortal.togglePackageOption(this)" data-item="gala" data-price="75">
-                                                            <div class="px-package-checkbox"><i class="fas fa-check"></i></div>
-                                                            <div class="px-package-info">
-                                                                <h4>Gala Evening & Awards</h4>
-                                                                <p>Dec 5, 19:00 - Emerald Ballroom</p>
-                                                            </div>
-                                                            <div class="px-package-price">+€75</div>
-                                                        </div>
-                                                        <div class="px-package-option" onclick="PlexusPortal.togglePackageOption(this)" data-item="citytour" data-price="25">
-                                                            <div class="px-package-checkbox"><i class="fas fa-check"></i></div>
-                                                            <div class="px-package-info">
-                                                                <h4>Zagreb City Tour</h4>
-                                                                <p>Dec 3, 15:00 - Guided tour</p>
-                                                            </div>
-                                                            <div class="px-package-price">+€25</div>
-                                                        </div>
                                                     </div>
                                                 </div>
-
-                                                <div class="px-package-section">
-                                                    <div class="px-package-section-title"><i class="fas fa-chalkboard-teacher"></i> Workshops</div>
-                                                    <div class="px-package-options" id="pxPackageWorkshops">
-                                                        <!-- Dynamically rendered by PlexusPortal.renderPackageAddons() -->
-                                                    </div>
-                                                </div>
-
-                                                <div class="px-package-section">
-                                                    <div class="px-package-section-title"><i class="fas fa-plus-circle"></i> Optional Add-ons</div>
-                                                    <div class="px-package-options" id="pxPackageExtras">
-                                                        <!-- Dynamically rendered by PlexusPortal.renderPackageAddons() -->
-                                                    </div>
-                                                </div>
+                                                <!-- Paid add-ons (workshops, extras, €75 gala, city tour) removed: they were
+                                                     fictional. The real gala seat is booked through the gala flow at its live
+                                                     price. renderPackageAddons() no-ops without its containers. -->
                                             </div>
                                         </div>
 
@@ -5860,7 +5785,7 @@
                                 </div>
                             </div>
                             <div class="px-city-card" data-id="museum-broken">
-                                <div class="px-city-card-image"><img src="https://images.unsplash.com/photo-1592906209472-a36b1f3782ef?w=600&h=400&fit=crop" alt="Museum of Broken Relationships"></div>
+                                <div class="px-city-card-image"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Museum_of_Broken_Relationships_-_Zagreb%2C_Croatia%2C_June_2012.jpg/960px-Museum_of_Broken_Relationships_-_Zagreb%2C_Croatia%2C_June_2012.jpg" alt="Museum of Broken Relationships"></div>
                                 <div class="px-city-card-content">
                                     <h3>Museum of Broken Relationships</h3>
                                     <p>One of Zagreb's most unique attractions &mdash; a museum dedicated to failed love stories and their mementos. Quirky, emotional, and unforgettable.</p>
@@ -9520,88 +9445,14 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="fm-results-toolbar">
-                                        <div class="fm-results-count"><strong>24</strong> connections</div>
-                                        <div class="fm-view-options">
-                                            <select class="fm-sort-select" onchange="ForumPortal.sortConnections(this.value)">
-                                                <option value="recent">Recently Added</option>
-                                                <option value="active">Most Active</option>
-                                                <option value="alpha">Alphabetical</option>
-                                            </select>
-                                        </div>
-                                    </div>
+                                    <!-- Demo connections removed: this tab showed six fabricated people
+                                         and a fake "24 connections" count. Real empty state until the
+                                         Forum network is wired to live data. -->
                                     <div class="fm-connections-grid" id="fmMyConnectionsGrid">
-                                        <div class="fm-connection-card" onclick="ForumPortal.openMemberModal('john-smith')">
-                                            <div class="fm-connection-photo">JS</div>
-                                            <div class="fm-connection-info">
-                                                <div class="fm-connection-name">Dr. John Smith</div>
-                                                <div class="fm-connection-title">Dept. Chair | Yale</div>
-                                                <div class="fm-connection-meta">Connected 3 months ago</div>
-                                            </div>
-                                            <div class="fm-connection-actions">
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.messageMember('john-smith')" title="Message"><i class="fas fa-comment"></i></button>
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.viewProfile('john-smith')" title="View Profile"><i class="fas fa-user"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-connection-card" onclick="ForumPortal.openMemberModal('maria-garcia')">
-                                            <div class="fm-connection-photo">MG</div>
-                                            <div class="fm-connection-info">
-                                                <div class="fm-connection-name">Prof. Maria Garcia</div>
-                                                <div class="fm-connection-title">Director | Max Planck</div>
-                                                <div class="fm-connection-meta">Connected 2 months ago</div>
-                                            </div>
-                                            <div class="fm-connection-actions">
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.messageMember('maria-garcia')" title="Message"><i class="fas fa-comment"></i></button>
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.viewProfile('maria-garcia')" title="View Profile"><i class="fas fa-user"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-connection-card" onclick="ForumPortal.openMemberModal('james-chen')">
-                                            <div class="fm-connection-photo">JC</div>
-                                            <div class="fm-connection-info">
-                                                <div class="fm-connection-name">Dr. James Chen</div>
-                                                <div class="fm-connection-title">VP Research | Pfizer</div>
-                                                <div class="fm-connection-meta">Connected 1 month ago</div>
-                                            </div>
-                                            <div class="fm-connection-actions">
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.messageMember('james-chen')" title="Message"><i class="fas fa-comment"></i></button>
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.viewProfile('james-chen')" title="View Profile"><i class="fas fa-user"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-connection-card" onclick="ForumPortal.openMemberModal('sarah-wilson')">
-                                            <div class="fm-connection-photo">SW</div>
-                                            <div class="fm-connection-info">
-                                                <div class="fm-connection-name">Prof. Sarah Wilson</div>
-                                                <div class="fm-connection-title">Dean | Stanford</div>
-                                                <div class="fm-connection-meta">Connected 2 weeks ago</div>
-                                            </div>
-                                            <div class="fm-connection-actions">
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.messageMember('sarah-wilson')" title="Message"><i class="fas fa-comment"></i></button>
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.viewProfile('sarah-wilson')" title="View Profile"><i class="fas fa-user"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-connection-card" onclick="ForumPortal.openMemberModal('michael-brown')">
-                                            <div class="fm-connection-photo">MB</div>
-                                            <div class="fm-connection-info">
-                                                <div class="fm-connection-name">Dr. Michael Brown</div>
-                                                <div class="fm-connection-title">CMO | Cleveland Clinic</div>
-                                                <div class="fm-connection-meta">Connected 1 week ago</div>
-                                            </div>
-                                            <div class="fm-connection-actions">
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.messageMember('michael-brown')" title="Message"><i class="fas fa-comment"></i></button>
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.viewProfile('michael-brown')" title="View Profile"><i class="fas fa-user"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-connection-card" onclick="ForumPortal.openMemberModal('anna-kowalski')">
-                                            <div class="fm-connection-photo">AK</div>
-                                            <div class="fm-connection-info">
-                                                <div class="fm-connection-name">Dr. Anna Kowalski</div>
-                                                <div class="fm-connection-title">Assoc. Prof. | U. of Zagreb</div>
-                                                <div class="fm-connection-meta">Connected 3 days ago</div>
-                                            </div>
-                                            <div class="fm-connection-actions">
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.messageMember('anna-kowalski')" title="Message"><i class="fas fa-comment"></i></button>
-                                                <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.viewProfile('anna-kowalski')" title="View Profile"><i class="fas fa-user"></i></button>
-                                            </div>
+                                        <div style="grid-column:1/-1;text-align:center;padding:48px 20px;color: var(--muted);">
+                                            <div style="font-size:40px;margin-bottom:12px;opacity:0.35;"><i class="fas fa-user-friends"></i></div>
+                                            <div style="font-size:15px;font-weight:600;margin-bottom:6px;" data-i18n="fm.noConnYet">No connections yet</div>
+                                            <div style="font-size:13px;" data-i18n="fm.noConnYetSub">Connections you make at Forum convenings will appear here.</div>
                                         </div>
                                     </div>
                                 </div>
@@ -9612,60 +9463,15 @@
                                         <div class="fm-network-section-header">
                                             <div>
                                                 <div class="fm-network-section-title"><i class="fas fa-inbox"></i> Pending Requests</div>
-                                                <div class="fm-network-section-subtitle">3 people want to connect with you</div>
+                                                <div class="fm-network-section-subtitle" data-i18n="fm.noPendingReq">No pending requests</div>
                                             </div>
                                         </div>
+                                        <!-- Demo requests removed: three fabricated pending requests with
+                                             invented personal notes. Real empty state. -->
                                         <div id="fmPendingRequests">
-                                            <div class="fm-request-card">
-                                                <div class="fm-request-photo">TL</div>
-                                                <div class="fm-request-info">
-                                                    <div class="fm-request-name">Dr. Thomas Lee</div>
-                                                    <div class="fm-request-title">Director, Genomics Lab | University of Toronto</div>
-                                                    <div style="display:flex;gap:12px;margin:4px 0;font-size:11px;color: var(--muted);">
-                                                        <span><i class="fas fa-dna" style="margin-right:3px;"></i>Genetics</span>
-                                                        <span><i class="fas fa-globe" style="margin-right:3px;"></i>Canada</span>
-                                                        <span><i class="fas fa-clock" style="margin-right:3px;"></i>Sent 3 days ago</span>
-                                                    </div>
-                                                    <div class="fm-request-note">"Would love to discuss potential collaboration on sleep genetics research."</div>
-                                                </div>
-                                                <div class="fm-request-actions">
-                                                    <button class="fm-request-btn fm-request-btn-accept" onclick="ForumPortal.acceptRequest('thomas-lee')"><i class="fas fa-check"></i> <span data-i18n="net.accept">Accept</span></button>
-                                                    <button class="fm-request-btn fm-request-btn-decline" onclick="ForumPortal.declineRequest('thomas-lee')">Decline</button>
-                                                </div>
-                                            </div>
-                                            <div class="fm-request-card">
-                                                <div class="fm-request-photo">NK</div>
-                                                <div class="fm-request-info">
-                                                    <div class="fm-request-name">Dr. Nina Kovac</div>
-                                                    <div class="fm-request-title">Research Fellow | University Hospital Centre Zagreb</div>
-                                                    <div style="display:flex;gap:12px;margin:4px 0;font-size:11px;color: var(--muted);">
-                                                        <span><i class="fas fa-brain" style="margin-right:3px;"></i>Neuroscience</span>
-                                                        <span><i class="fas fa-globe" style="margin-right:3px;"></i>Croatia</span>
-                                                        <span><i class="fas fa-clock" style="margin-right:3px;"></i>Sent 1 day ago</span>
-                                                    </div>
-                                                    <div class="fm-request-note">"We met at last year's Plexus Conference. Great talk on gut-brain axis!"</div>
-                                                </div>
-                                                <div class="fm-request-actions">
-                                                    <button class="fm-request-btn fm-request-btn-accept" onclick="ForumPortal.acceptRequest('nina-kovac')"><i class="fas fa-check"></i> <span data-i18n="net.accept">Accept</span></button>
-                                                    <button class="fm-request-btn fm-request-btn-decline" onclick="ForumPortal.declineRequest('nina-kovac')">Decline</button>
-                                                </div>
-                                            </div>
-                                            <div class="fm-request-card">
-                                                <div class="fm-request-photo">RJ</div>
-                                                <div class="fm-request-info">
-                                                    <div class="fm-request-name">Dr. Robert Jensen</div>
-                                                    <div class="fm-request-title">Chief Scientific Officer | BioTech Innovations</div>
-                                                    <div style="display:flex;gap:12px;margin:4px 0;font-size:11px;color: var(--muted);">
-                                                        <span><i class="fas fa-flask" style="margin-right:3px;"></i>Biotech</span>
-                                                        <span><i class="fas fa-globe" style="margin-right:3px;"></i>United States</span>
-                                                        <span><i class="fas fa-clock" style="margin-right:3px;"></i>Sent today</span>
-                                                    </div>
-                                                    <div class="fm-request-note">"Interested in exploring industry-academia partnerships."</div>
-                                                </div>
-                                                <div class="fm-request-actions">
-                                                    <button class="fm-request-btn fm-request-btn-accept" onclick="ForumPortal.acceptRequest('robert-jensen')"><i class="fas fa-check"></i> <span data-i18n="net.accept">Accept</span></button>
-                                                    <button class="fm-request-btn fm-request-btn-decline" onclick="ForumPortal.declineRequest('robert-jensen')">Decline</button>
-                                                </div>
+                                            <div style="text-align:center;padding:36px 20px;color: var(--muted);">
+                                                <div style="font-size:32px;margin-bottom:10px;opacity:0.35;"><i class="fas fa-inbox"></i></div>
+                                                <div style="font-size:13px;" data-i18n="fm.noPendingReqSub">Connection requests from other members will appear here.</div>
                                             </div>
                                         </div>
                                     </div>
@@ -9674,31 +9480,13 @@
                                         <div class="fm-network-section-header">
                                             <div>
                                                 <div class="fm-network-section-title"><i class="fas fa-paper-plane"></i> Sent Requests</div>
-                                                <div class="fm-network-section-subtitle">2 pending invitations</div>
+                                                <div class="fm-network-section-subtitle" data-i18n="fm.noSentReq">No sent invitations</div>
                                             </div>
                                         </div>
+                                        <!-- Demo sent-requests removed (two fabricated invitations). -->
                                         <div class="fm-connections-grid">
-                                            <div class="fm-connection-card">
-                                                <div class="fm-connection-photo">PW</div>
-                                                <div class="fm-connection-info">
-                                                    <div class="fm-connection-name">Prof. Peter Williams</div>
-                                                    <div class="fm-connection-title">Oxford University</div>
-                                                    <div class="fm-connection-meta">Sent 3 days ago</div>
-                                                </div>
-                                                <div class="fm-connection-actions">
-                                                    <button class="fm-connection-action-btn" onclick="ForumPortal.withdrawRequest('peter-williams')" title="Withdraw"><i class="fas fa-times"></i></button>
-                                                </div>
-                                            </div>
-                                            <div class="fm-connection-card">
-                                                <div class="fm-connection-photo">KT</div>
-                                                <div class="fm-connection-info">
-                                                    <div class="fm-connection-name">Dr. Kenji Tanaka</div>
-                                                    <div class="fm-connection-title">University of Tokyo</div>
-                                                    <div class="fm-connection-meta">Sent 1 week ago</div>
-                                                </div>
-                                                <div class="fm-connection-actions">
-                                                    <button class="fm-connection-action-btn" onclick="ForumPortal.withdrawRequest('kenji-tanaka')" title="Withdraw"><i class="fas fa-times"></i></button>
-                                                </div>
+                                            <div style="grid-column:1/-1;text-align:center;padding:36px 20px;color: var(--muted);">
+                                                <div style="font-size:13px;" data-i18n="fm.noSentReqSub">Invitations you send will appear here until they are accepted.</div>
                                             </div>
                                         </div>
                                     </div>
@@ -10435,12 +10223,12 @@
                         <button class="network-tab" onclick="NetworkingPortal.showTab('requests')">
                             <i class="fas fa-user-plus"></i>
                             <span data-i18n="net.tabRequests">Requests</span>
-                            <span class="network-tab-badge" id="requestsCount">3</span>
+                            <span class="network-tab-badge" id="requestsCount" style="display:none;">0</span>
                         </button>
                         <button class="network-tab" onclick="NetworkingPortal.showTab('messages')">
                             <i class="fas fa-envelope"></i>
                             <span data-i18n="net.tabMessages">Messages</span>
-                            <span class="network-tab-badge" id="messagesCount">3</span>
+                            <span class="network-tab-badge" id="messagesCount" style="display:none;">0</span>
                         </button>
                         <button class="network-tab" onclick="NetworkingPortal.showTab('profile')">
                             <i class="fas fa-id-badge"></i>
@@ -10765,69 +10553,9 @@
                             <!-- Dynamically rendered: New This Week + Active This Week -->
                         </div>
 
-                        <!-- People You May Know - AI-Powered Suggestions -->
-                        <div class="people-you-may-know">
-                            <div class="pymk-header">
-                                <div class="pymk-title">
-                                    <i class="fas fa-sparkles"></i>
-                                    <h3 data-i18n="net.pymkTitle">People You May Know</h3>
-                                </div>
-                                <span class="pymk-powered" data-i18n="net.pymkPowered">AI-powered matches</span>
-                            </div>
-                            <div class="pymk-cards" id="pymkCards">
-                                <div class="pymk-card">
-                                    <div class="pymk-match-score">
-                                        <div class="pymk-score-circle">
-                                            <svg viewBox="0 0 36 36"><circle class="pymk-score-bg" cx="18" cy="18" r="15.5"></circle><circle class="pymk-score-fill" cx="18" cy="18" r="15.5" stroke-dasharray="89 97"></circle><span>91%</span></svg>
-                                        </div>
-                                        <div class="pymk-match-label">Match</div>
-                                    </div>
-                                    <div class="pymk-avatar" style="background: linear-gradient(135deg, #9b1b22, #c2484e);">LT</div>
-                                    <h4>Dr. Lisa Tanaka</h4>
-                                    <span class="pymk-title">Neuroscience &middot; MIT</span>
-                                    <div class="pymk-reasons">
-                                        <div class="pymk-reason"><i class="fas fa-check-circle"></i> Same research area</div>
-                                        <div class="pymk-reason"><i class="fas fa-check-circle"></i> 3 mutual connections</div>
-                                    </div>
-                                    <p class="match-basis"><i class="fas fa-link"></i> Matched on your shared field and research interests</p>
-                                    <button class="pymk-connect"><i class="fas fa-user-plus"></i> Connect</button>
-                                </div>
-                                <div class="pymk-card">
-                                    <div class="pymk-match-score">
-                                        <div class="pymk-score-circle">
-                                            <svg viewBox="0 0 36 36"><circle class="pymk-score-bg" cx="18" cy="18" r="15.5"></circle><circle class="pymk-score-fill" cx="18" cy="18" r="15.5" stroke-dasharray="83 97"></circle><span>85%</span></svg>
-                                        </div>
-                                        <div class="pymk-match-label">Match</div>
-                                    </div>
-                                    <div class="pymk-avatar" style="background: linear-gradient(135deg, #9b1b22, #c9a962);">AM</div>
-                                    <h4>Dr. Ahmed Mansour</h4>
-                                    <span class="pymk-title">Oncology &middot; King's College London</span>
-                                    <div class="pymk-reasons">
-                                        <div class="pymk-reason"><i class="fas fa-check-circle"></i> Plexus 2025 attendee</div>
-                                        <div class="pymk-reason"><i class="fas fa-check-circle"></i> Looking for collaborators</div>
-                                    </div>
-                                    <p class="match-basis"><i class="fas fa-link"></i> Matched on your shared field and research interests</p>
-                                    <button class="pymk-connect"><i class="fas fa-user-plus"></i> Connect</button>
-                                </div>
-                                <div class="pymk-card">
-                                    <div class="pymk-match-score">
-                                        <div class="pymk-score-circle">
-                                            <svg viewBox="0 0 36 36"><circle class="pymk-score-bg" cx="18" cy="18" r="15.5"></circle><circle class="pymk-score-fill" cx="18" cy="18" r="15.5" stroke-dasharray="78 97"></circle><span>80%</span></svg>
-                                        </div>
-                                        <div class="pymk-match-label">Match</div>
-                                    </div>
-                                    <div class="pymk-avatar" style="background: linear-gradient(135deg, #b06a1f, #b06a1f);">CP</div>
-                                    <h4>Dr. Clara Petrov</h4>
-                                    <span class="pymk-title">Immunology &middot; Max Planck Institute</span>
-                                    <div class="pymk-reasons">
-                                        <div class="pymk-reason"><i class="fas fa-check-circle"></i> Shared publication topic</div>
-                                        <div class="pymk-reason"><i class="fas fa-check-circle"></i> Forum member</div>
-                                    </div>
-                                    <p class="match-basis"><i class="fas fa-link"></i> Matched on your shared field and research interests</p>
-                                    <button class="pymk-connect"><i class="fas fa-user-plus"></i> Connect</button>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- "People You May Know" removed: the three cards (Lisa Tanaka / Ahmed
+                             Mansour / Clara Petrov) were fabricated people with invented match
+                             scores. Reinstate only as a real, data-driven suggestion engine. -->
 
                         <div class="network-section-header directory-header" style="margin-top: 32px;">
                             <h3 data-i18n="net.memberDirectory">Member Directory</h3>
@@ -10841,66 +10569,12 @@
                     <!-- Requests Panel -->
                     <div class="network-panel" id="network-panel-requests">
                         <div class="network-section-header">
-                            <h3><span data-i18n="net.pendingRequests">Pending Requests</span> (<span id="pendingRequestsTotal">3</span>)</h3>
+                            <h3><span data-i18n="net.pendingRequests">Pending Requests</span> (<span id="pendingRequestsTotal">0</span>)</h3>
                         </div>
                         <div class="connection-grid" id="requestsGrid">
-                            <div class="connection-card" data-request-id="kenji-osaka">
-                                <div class="connection-card-header">
-                                    <div class="connection-avatar" style="background: linear-gradient(135deg, var(--warning), #fbbf24);">KO</div>
-                                    <div class="connection-info">
-                                        <h4>Dr. Kenji Osaka</h4>
-                                        <p>Internal Medicine &middot; Tokyo University Hospital</p>
-                                        <span style="font-size:11px;color: var(--muted);"><i class="fas fa-globe" style="margin-right:4px;"></i>Japan</span>
-                                    </div>
-                                </div>
-                                <div class="connection-tags">
-                                    <span class="connection-tag">Internal Medicine</span>
-                                    <span class="connection-tag">Research</span>
-                                </div>
-                                <div class="connection-status"><i class="fas fa-clock" style="color: var(--up-gold);"></i> Sent 2 days ago</div>
-                                <div class="connection-actions">
-                                    <button class="connection-btn primary" onclick="NetworkingPortal.acceptRequest('kenji-osaka', this)"><i class="fas fa-check"></i> <span data-i18n="net.accept">Accept</span></button>
-                                    <button class="connection-btn secondary" onclick="NetworkingPortal.declineRequest('kenji-osaka', this)"><i class="fas fa-times"></i> <span data-i18n="net.decline">Decline</span></button>
-                                </div>
-                            </div>
-                            <div class="connection-card" data-request-id="sophie-fischer">
-                                <div class="connection-card-header">
-                                    <div class="connection-avatar" style="background: linear-gradient(135deg, #9b1b22, #c9a962);">SF</div>
-                                    <div class="connection-info">
-                                        <h4>Dr. Sophie Fischer</h4>
-                                        <p>Cardiology &middot; ETH Zurich</p>
-                                        <span style="font-size:11px;color: var(--muted);"><i class="fas fa-globe" style="margin-right:4px;"></i>Switzerland</span>
-                                    </div>
-                                </div>
-                                <div class="connection-tags">
-                                    <span class="connection-tag">Cardiology</span>
-                                    <span class="connection-tag"><i class="fas fa-mug-hot" style="margin-right:4px;"></i>Open to Coffee Chats</span>
-                                </div>
-                                <div class="connection-status"><i class="fas fa-clock" style="color: var(--up-gold);"></i> Sent yesterday</div>
-                                <div class="connection-actions">
-                                    <button class="connection-btn primary" onclick="NetworkingPortal.acceptRequest('sophie-fischer', this)"><i class="fas fa-check"></i> <span data-i18n="net.accept">Accept</span></button>
-                                    <button class="connection-btn secondary" onclick="NetworkingPortal.declineRequest('sophie-fischer', this)"><i class="fas fa-times"></i> <span data-i18n="net.decline">Decline</span></button>
-                                </div>
-                            </div>
-                            <div class="connection-card" data-request-id="miguel-borges">
-                                <div class="connection-card-header">
-                                    <div class="connection-avatar" style="background: linear-gradient(135deg, #9b1b22, #c2484e);">MB</div>
-                                    <div class="connection-info">
-                                        <h4>Dr. Miguel Borges</h4>
-                                        <p>Neurology &middot; University of Lisbon</p>
-                                        <span style="font-size:11px;color: var(--muted);"><i class="fas fa-globe" style="margin-right:4px;"></i>Portugal</span>
-                                    </div>
-                                </div>
-                                <div class="connection-tags">
-                                    <span class="connection-tag">Neurology</span>
-                                    <span class="connection-tag"><i class="fas fa-handshake" style="margin-right:4px;"></i>Looking for Collaborators</span>
-                                </div>
-                                <div class="connection-status"><i class="fas fa-clock" style="color: var(--up-gold);"></i> Sent today</div>
-                                <div class="connection-actions">
-                                    <button class="connection-btn primary" onclick="NetworkingPortal.acceptRequest('miguel-borges', this)"><i class="fas fa-check"></i> <span data-i18n="net.accept">Accept</span></button>
-                                    <button class="connection-btn secondary" onclick="NetworkingPortal.declineRequest('miguel-borges', this)"><i class="fas fa-times"></i> <span data-i18n="net.decline">Decline</span></button>
-                                </div>
-                            </div>
+                            <!-- Static demo request cards removed (Kenji Osaka / Sophie Fischer /
+                                 Miguel Borges were fabricated). loadPendingRequests() renders the
+                                 real list, including the empty state. -->
                         </div>
 
                         <div class="network-section-header" style="margin-top: 32px;">
@@ -12315,38 +11989,8 @@
                             </div>
                         </div>
 
-                        <!-- Testimonials -->
-                        <div class="bb-testimonials">
-                            <div class="bb-section-header">
-                                <div class="bb-section-title" data-i18n="bb.testimonials">What Attendees Say</div>
-                            </div>
-                            <div class="bb-testimonials-grid">
-                                <div class="bb-testimonial-card">
-                                    <div class="bb-testimonial-quote">
-                                        The London event opened doors I never knew existed. I connected with three researchers who became my collaborators on a major EU grant.
-                                    </div>
-                                    <div class="bb-testimonial-author">
-                                        <div class="bb-testimonial-avatar">PN</div>
-                                        <div>
-                                            <div class="bb-testimonial-name">Dr. Petra Novak</div>
-                                            <div class="bb-testimonial-title">University of Split</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="bb-testimonial-card">
-                                    <div class="bb-testimonial-quote">
-                                        Met my research collaborator at Building Bridges New York. We've since published two papers together and secured NIH funding.
-                                    </div>
-                                    <div class="bb-testimonial-author">
-                                        <div class="bb-testimonial-avatar">IM</div>
-                                        <div>
-                                            <div class="bb-testimonial-name">Dr. Ivan Matic</div>
-                                            <div class="bb-testimonial-title">Ruder Boskovic Institute</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- Testimonials removed: the two quotes here (Petra Novak / Ivan Matic)
+                             were fabricated. Reinstate only with real consented quotes. -->
 
                         <!-- Contact Section -->
                         <div class="bb-contact-section">
@@ -20229,7 +19873,7 @@ You can use variables like {first_name} that will be personalized for each recip
         </div>
     </div>
 
-    <script src="/assets/app.part9.js?v=split4"></script>
+    <script src="/assets/app.part9.js?v=split5"></script>
 
     <!-- Floating QR Code Button — always visible -->
     <button id="floatingQRBtn" onclick="showQuickQR()" style="
@@ -20246,10 +19890,10 @@ You can use variables like {first_name} that will be personalized for each recip
 
     <!-- Global install helper so the Settings "Install app" row works on Android (native prompt)
          and iOS (Add to Home Screen instructions). Isolated so it can never break the app. -->
-    <script src="/assets/app.part10.js?v=split4"></script>
+    <script src="/assets/app.part10.js?v=split5"></script>
 
     <!-- Self-contained "Install app" banner (attendee-facing PWA install; iOS-aware). -->
-    <script src="/assets/app.part11.js?v=split4"></script>
+    <script src="/assets/app.part11.js?v=split5"></script>
 
     <!-- ============================================================================
          GuestPass — member-initiated "Bring a colleague" guest passes (bilingual).
@@ -20266,7 +19910,7 @@ You can use variables like {first_name} that will be personalized for each recip
       .gp-card-head .gp-card-btn{ width: 100%; justify-content: center; margin-top: 4px; }
     }
     </style>
-    <script src="/assets/app.part12.js?v=split4"></script>
+    <script src="/assets/app.part12.js?v=split5"></script>
 
         <!-- ===================== MEMBER FAQ ASSISTANT (queue 5a6) ===================== -->
         <!-- Tasteful, grounded member assistant. Retrieval-first answers from the vetted KB with live
@@ -20345,7 +19989,7 @@ You can use variables like {first_name} that will be personalized for each recip
             <button class="mxa-go" id="mxaSend" type="button" data-i18n-aria-label="asst.send" aria-label="Send"><i class="fas fa-paper-plane" aria-hidden="true"></i></button>
           </div>
         </div>
-        <script src="/assets/app.part13.js?v=split4"></script>
+        <script src="/assets/app.part13.js?v=split5"></script>
 
         <!-- Plexus LIVE NOW/NEXT board (cluster 5a5b) — see #pxlbStyles for the design system.
              Self-contained module: reads ConferenceData (single source of truth), computes a
@@ -20354,7 +19998,7 @@ You can use variables like {first_name} that will be personalized for each recip
              API ~60s so admin edits land mid-event, gates itself to the event window with a
              quiet "begins on" card beforehand, and powers a chrome-free ?display=1 projector
              variant. Bilingual via MedXI18n. No inline handlers. -->
-        <script src="/assets/app.part14.js?v=split4"></script>
+        <script src="/assets/app.part14.js?v=split5"></script>
 
 </body>
 

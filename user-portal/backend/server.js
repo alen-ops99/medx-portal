@@ -244,7 +244,9 @@ async function sendEventConfirmation(to, subject, htmlContent, attachments) {
 
 // Send push notification to a specific user
 async function sendPushToUser(userId, payload) {
-    if (!process.env.VAPID_PUBLIC_KEY) return; // Push not configured
+    // Both keys required: setVapidDetails is skipped when either is missing, and sending
+    // without a VAPID identity fails per-subscription with errors the catch below swallows.
+    if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return; // Push not configured
     try {
         const subs = query.all('SELECT * FROM push_subscriptions WHERE user_id = ?', [userId]);
         const message = JSON.stringify(payload);
@@ -270,7 +272,7 @@ async function sendPushToUser(userId, payload) {
 // Broadcast a push to every subscribed device. Used to drain the shared push_outbox that the
 // admin portal writes to (admin has no VAPID/web-push, so the user portal does the sending).
 async function sendPushToAll(payload) {
-    if (!process.env.VAPID_PUBLIC_KEY) return 0;
+    if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return 0;
     let sent = 0;
     try {
         const subs = query.all('SELECT * FROM push_subscriptions');
@@ -290,7 +292,7 @@ async function sendPushToAll(payload) {
 // Drain the shared push_outbox: admin enqueues announcements here; we send + mark sent.
 let _outboxBusy = false;
 async function drainPushOutbox() {
-    if (_outboxBusy || !process.env.VAPID_PUBLIC_KEY) return;
+    if (_outboxBusy || !process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return;
     _outboxBusy = true;
     try {
         let rows = [];
@@ -2974,7 +2976,9 @@ function buildICS(vevents) {
 }
 function calendarEventsFor(slug) {
     const stamp = icsStampUTC(new Date());
-    const baseUrl = (process.env.PUBLIC_BASE_URL || 'https://portal.medx.hr').replace(/\/+$/, '');
+    // portal.medx.hr has no deployment yet — until that DNS goes live it must never be a
+    // default, or every .ics link 404s (matches the /calendar feed fallback at ~:3062).
+    const baseUrl = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
     if (slug === 'plexus') {
         let ps = {};
         try { ps = query.get("SELECT * FROM plexus_settings WHERE id = 'default'") || {}; } catch (e) {}
@@ -8590,16 +8594,23 @@ async function initializeApp() {
             { label: 'Abstract Submission Deadline', date: 'October 15, 2026', color: 'var(--up-warning)' },
             { label: 'Conference', date: 'December 4-5, 2026', color: '#0f172a' }
         ]);
-        const defaultTestimonials = JSON.stringify([
-            { name: 'Dr. Ana Markovic', title: 'Postdoc, Max Planck Institute', year: 'Plexus 2025', quote: 'Plexus changed the trajectory of my career. I connected with my current PhD supervisor during a coffee break and landed a position at his lab in Munich. The quality of speakers and networking opportunities is unmatched.', avatar: 'https://randomuser.me/api/portraits/women/32.jpg' },
-            { name: 'Marco Rossi', title: 'MD Student, University of Milan', year: 'Plexus 2024', quote: 'As a medical student, attending Plexus opened my eyes to the world of biomedical research. The workshop on grant writing was incredibly practical, and I\'ve already used those skills to secure funding for my thesis project.', avatar: 'https://randomuser.me/api/portraits/men/45.jpg' },
-            { name: 'Dr. Sarah Chen', title: 'Assistant Professor, Stanford', year: 'Plexus 2025', quote: 'The Gala Evening was the highlight of my trip. Meeting Nobel laureates in person and discussing science over dinner was surreal. Zagreb\'s Christmas market made it even more magical!', avatar: 'https://randomuser.me/api/portraits/women/56.jpg' },
-            { name: 'Luka Horvat', title: 'PhD Candidate, University of Zagreb', year: 'Plexus 2023', quote: 'I presented my first poster at Plexus and the feedback I received was invaluable. The questions from senior researchers helped me refine my methodology significantly. Now I\'m presenting an oral talk!', avatar: 'https://randomuser.me/api/portraits/men/28.jpg' },
-            { name: 'Dr. Emma Mueller', title: 'Research Scientist, ETH Zurich', year: 'Plexus 2024', quote: 'Best organized conference I\'ve attended in Europe. The Med&X team truly understands what young researchers need. The networking app made it so easy to connect with people before the event even started.', avatar: 'https://randomuser.me/api/portraits/women/41.jpg' }
-        ]);
+        // Testimonials start EMPTY — the portal hides the section until real consented
+        // quotes are added by the admin. Never seed fabricated people.
         db.run("INSERT INTO plexus_settings (id, key_dates_json, testimonials_json) VALUES ('default', ?, ?)",
-            [defaultKeyDates, defaultTestimonials]);
+            [defaultKeyDates, '[]']);
     }
+
+    // One-time cleanup: earlier builds seeded five fabricated testimonials (Ana Markovic /
+    // Marco Rossi / Sarah Chen / Luka Horvat / Emma Mueller). Blank the row only if it still
+    // holds that exact fiction — real quotes added by the admin are never touched. Idempotent.
+    try {
+        const tRow = query.get("SELECT testimonials_json FROM plexus_settings WHERE id = 'default'");
+        if (tRow && tRow.testimonials_json && tRow.testimonials_json.includes('Dr. Ana Markovic')) {
+            db.run("UPDATE plexus_settings SET testimonials_json = '[]' WHERE id = 'default'");
+            saveDb();
+            console.log('[Cleanup] Removed fabricated seed testimonials from plexus_settings');
+        }
+    } catch (e) {}
 
     // Add speakers_json and schedule_json columns to gala_settings
     try { db.run(`ALTER TABLE gala_settings ADD COLUMN speakers_json TEXT`); } catch (e) {}
@@ -28412,7 +28423,7 @@ By applying to this program, I provide the following consents:
         }
 
         // Drain the push outbox every 45s (admin enqueues announcements; we send them).
-        if (process.env.VAPID_PUBLIC_KEY) {
+        if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
             setInterval(() => { drainPushOutbox(); }, 45 * 1000);
             console.log('[Push] Outbox drain every 45s');
         }
