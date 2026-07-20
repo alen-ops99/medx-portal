@@ -1024,6 +1024,18 @@
             padding: 12px 12px 6px;
         }
 
+        /* Collapsible nav groups — headers fold their items like folders. Items keep their
+           display styles (section filtering writes those); folding uses a separate class so
+           the two systems never fight. */
+        .nav-label[data-group] { display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; }
+        .nav-label[data-group]:hover { color: var(--text-secondary); }
+        .nav-label[data-group] > span:first-child { flex: 1; }
+        .nav-label-caret { font-size: 9px; opacity: .5; transition: transform .18s ease; }
+        .nav-label.nav-group-closed .nav-label-caret { transform: rotate(-90deg); }
+        .nav-label-alert { display: none; width: 8px; height: 8px; border-radius: 50%; background: var(--red, #c14b52); flex-shrink: 0; }
+        .nav-label.nav-group-closed .nav-label-alert.on { display: inline-block; }
+        .nav-group-hidden { display: none !important; }
+
         /* Communications group — nav items that carry a short "who this reaches" subtitle. */
         .nav-item.has-sub { align-items: flex-start; padding-top: 8px; padding-bottom: 8px; }
         .nav-item.has-sub > i { margin-top: 3px; }
@@ -7235,14 +7247,14 @@
                 </a>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label">Projects</div>
+                <div class="nav-label" data-group="projects"><span>Projects</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <!-- Project-first IA: each entry opens a PROJECT HOME (numbers + tiles), rendered
                      by renderProjects() with a data-home-nav click that routes to App.showProjectHome. -->
                 <div id="projectsList"></div>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label">Marketing &amp; Content</div>
+                <div class="nav-label" data-group="marketing"><span>Marketing &amp; Content</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <a class="nav-item" data-section="content-studio" onclick="App.showSection('content-studio', this)">
                     <i class="fas fa-th-large" style="color: #c9a962;"></i>
@@ -7260,7 +7272,7 @@
                 </a>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label">Communications</div>
+                <div class="nav-label" data-group="comms"><span>Communications</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <a class="nav-item" data-section="member-ops" onclick="App.showSection('member-ops', this)">
                     <i class="fas fa-sliders-h" style="color: #c9a962;"></i>
@@ -7296,7 +7308,7 @@
                 </a>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label">Events &amp; access</div>
+                <div class="nav-label" data-group="events"><span>Events &amp; access</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <a class="nav-item" data-section="conferences" onclick="App.showSection('conferences', this)">
                     <i class="fas fa-calendar-plus" style="color: #38bdf8;"></i>
@@ -7329,7 +7341,7 @@
                 </a>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label">Finance</div>
+                <div class="nav-label" data-group="finance"><span>Finance</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <a class="nav-item" data-section="finances" onclick="App.showSection('finances', this)">
                     <i class="fas fa-coins" style="color: var(--finances);"></i>
@@ -7342,7 +7354,7 @@
                 </a>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label">Leadership</div>
+                <div class="nav-label" data-group="leadership"><span>Leadership</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <!-- Executive Suite (AI CMO / CFO / COO). CSP-clean: delegated data-adv-nav
                      handler, no inline onclick. -->
@@ -7376,7 +7388,7 @@
                 </a>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label">System</div>
+                <div class="nav-label" data-group="system"><span>System</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <a class="nav-item" data-section="health" onclick="App.showSection('health', this)">
                     <i class="fas fa-heart-pulse" style="color: #22c55e;"></i>
@@ -20119,6 +20131,9 @@ President, Med&amp;X</textarea>
                 }
                 document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
                 sectionEl.classList.add('active');
+
+                // Unfold the sidebar group that owns this section (no-op if already open).
+                try { if (typeof NavGroups !== 'undefined') NavGroups.reveal(sectionId); } catch (e) {}
 
                 // Paint the member-experience umbrella sub-nav for the sections that live under Member Ops.
                 const _expKey = { 'member-feed': 'portal', 'announce': 'announce', 'user-notifications': 'announce', 'messages': 'messages' }[sectionId];
@@ -53685,6 +53700,99 @@ By applying to this program, I give the following consents:
             const act = e.target.closest('[data-adv-act]');
             if (act) { e.preventDefault(); try { AdvisoryBoard.handle(act); } catch (err) { console.error(err); } }
         });
+
+        // ===== COLLAPSIBLE SIDEBAR GROUPS =====
+        // Group headers fold their items like folders. Rarely-used groups start closed so the
+        // sidebar reads at a glance; every section stays reachable (search, Cmd+K, deep links
+        // and sub-navs auto-unfold the owning group via reveal()). State persists per browser.
+        const NavGroups = {
+            KEY: 'medx_admin_nav_groups_v1',
+            DEFAULT_CLOSED: ['events', 'finance', 'leadership', 'system'],
+            state: null,
+            load() {
+                if (this.state) return this.state;
+                try { this.state = JSON.parse(localStorage.getItem(this.KEY) || 'null'); } catch (e) { this.state = null; }
+                if (!this.state || typeof this.state !== 'object' || Array.isArray(this.state)) {
+                    this.state = {};
+                    this.DEFAULT_CLOSED.forEach(k => { this.state[k] = true; });
+                }
+                return this.state;
+            },
+            save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.state)); } catch (e) {} },
+            // A group = the label plus following siblings until the next divider/label
+            // (same flat-walk contract as applySectionFilters' empty-group check).
+            itemsOf(label) {
+                const items = [];
+                let n = label.nextElementSibling;
+                while (n && !n.classList.contains('nav-divider') && !n.classList.contains('nav-label')) {
+                    items.push(n);
+                    n = n.nextElementSibling;
+                }
+                return items;
+            },
+            apply() {
+                this.load();
+                document.querySelectorAll('#sidebarNav .nav-label[data-group]').forEach(label => {
+                    const closed = !!this.state[label.dataset.group];
+                    label.classList.toggle('nav-group-closed', closed);
+                    this.itemsOf(label).forEach(el => el.classList.toggle('nav-group-hidden', closed));
+                });
+                this.refreshAlerts();
+            },
+            toggle(key) {
+                this.load();
+                this.state[key] = !this.state[key];
+                this.save();
+                this.apply();
+            },
+            // Opening a section whose nav entry sits in a closed group unfolds that group,
+            // so nothing ever activates invisibly.
+            reveal(sectionId) {
+                let el = document.querySelector('#sidebarNav .nav-item[data-section="' + sectionId + '"]') ||
+                         document.querySelector('#projectsList [data-project="' + sectionId + '"]');
+                if (!el) return;
+                if (el.closest('#projectsList')) el = document.getElementById('projectsList');
+                let n = el;
+                while (n && !(n.classList && n.classList.contains('nav-label'))) n = n.previousElementSibling;
+                if (n && n.dataset.group && this.load()[n.dataset.group]) {
+                    this.state[n.dataset.group] = false;
+                    this.save();
+                    this.apply();
+                }
+            },
+            // A closed group must not hide urgency: any live badge or status dot inside it
+            // rolls up to a red dot on the group header. Badges are the spans that manage
+            // their own inline display (outbox count, team-chat unread, health dot, …).
+            refreshAlerts() {
+                document.querySelectorAll('#sidebarNav .nav-label[data-group]').forEach(label => {
+                    const alert = label.querySelector('.nav-label-alert');
+                    if (!alert) return;
+                    let hot = false;
+                    if (label.classList.contains('nav-group-closed')) {
+                        this.itemsOf(label).forEach(item => {
+                            item.querySelectorAll('span[id]').forEach(b => {
+                                const inline = b.getAttribute('style') || '';
+                                if (!inline.includes('display')) return;
+                                if (b.style.display === 'none') return;
+                                const t = (b.textContent || '').trim();
+                                if (t === '' || t !== '0') hot = true;
+                            });
+                        });
+                    }
+                    alert.classList.toggle('on', hot);
+                });
+            }
+        };
+        window.NavGroups = NavGroups;
+
+        // Delegated header clicks (CSP-clean) + initial fold + a slow alert-roll-up tick.
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest) return;
+            const label = e.target.closest('#sidebarNav .nav-label[data-group]');
+            if (label) NavGroups.toggle(label.dataset.group);
+        });
+        try { NavGroups.apply(); } catch (e) { console.error(e); }
+        setInterval(function () { try { NavGroups.refreshAlerts(); } catch (e) {} }, 8000);
 
         // ===== PROJECT HOMES (project-first IA) — live numbers strips + tile routing =====
         // Every number comes from an EXISTING read-only admin endpoint and fails quiet to an
