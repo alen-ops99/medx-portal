@@ -38,3 +38,16 @@
 
 - 2026-07-17 (signup-forms build): shared tables MUST go INSIDE the SCHEMA-MIRROR:BEGIN/END markers in BOTH server.js files, byte-identical including comments — CI (Boot smoke → scripts/check-schema-sync.sh) fails the deploy gate otherwise. Run the script locally before any schema push.
 - 2026-07-17 (guest-pass build): admin-portal/ contains a VESTIGIAL NESTED .git repo — a commit run with cwd inside admin-portal/ lands there silently (wrong identity, no origin). Always run git from the MedX repo ROOT. Also: table name guest_passes is TAKEN (member +1 guest tickets) — the VIP capability links live in vip_passes.
+
+## 2026-07-20 — fake-content sweeps need a person-name gate
+The broken-things sweep found ~25 separate fabricated organs in the member portal
+(fake people, fake stats, fake-success buttons). Six auditor agents + adversarial
+verify still missed a second layer (static Timeline program, My Events demo card,
+Forum projects, Today's Match) that only surfaced when a live browser pass compared
+rendered names against reality and a follow-up trace walked every remaining
+fabricated-name hit. LESSON: for demo-mockup-turned-product codebases, the finisher
+gate is a plain grep for person-name patterns (Dr./Prof. + FirstName LastName) over
+SERVED files, then a reachability verdict per hit — auditors organized by feature
+area will miss organs that sit outside any feature's happy path. Also: fixes via
+raw bash/python rewrites invalidate the Edit tool's read state — re-Read before
+mixing the two.
