@@ -45073,84 +45073,99 @@ By applying to this program, I give the following consents:
         };
 
         // =========================================
-        // PHASE 3: LIVE Q&A QUEUE
+        // PHASE 3: LIVE Q&A — REAL. Questions persist via /api/plexus/qa, land in the
+        // organizers' admin view, and answers / organizer-posed questions render back
+        // here. Refreshes every 25s while the panel is on screen.
         // =========================================
         const LiveQA = {
-            questions: [
-                { id: 'q1', author: 'Dr. Anna Schmidt', text: 'What are the main challenges in translating these findings to clinical practice?', votes: 12, voted: false, position: 1 },
-                { id: 'q2', author: 'John Peterson', text: 'Could you elaborate on the methodology used for the control group?', votes: 8, voted: false, position: 2 },
-                { id: 'q3', author: 'Dr. Maria Garcia', text: 'Are there any ongoing collaborations with industry partners?', votes: 5, voted: false, position: 3 }
-            ],
-            myQuestionId: null,
+            _items: [],
+            _timer: null,
+
+            t(k, fb) { try { const v = window.MedXI18n && MedXI18n.t(k); if (v && v !== k) return v; } catch (e) {} return fb; },
+
+            api(path, opts = {}) {
+                const tok = localStorage.getItem('medx_user_token');
+                return fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok, ...(opts.headers || {}) } });
+            },
 
             init() {
-                this.render();
+                const input = document.getElementById('qaInput');
+                if (input) {
+                    input.placeholder = this.t('qa.placeholder', 'Ask a question...');
+                    input.onkeydown = (e) => { if (e.key === 'Enter') this.submit(); };
+                }
+                this.load();
+                if (!this._timer) {
+                    this._timer = setInterval(() => {
+                        if (!document.hidden && document.getElementById('qaList')) this.load();
+                    }, 25000);
+                }
+            },
+
+            async load() {
+                try {
+                    const r = await this.api('/api/plexus/qa');
+                    if (!r.ok) return;
+                    this._items = await r.json();
+                    this.render();
+                } catch (e) {}
+            },
+
+            async submit() {
+                const input = document.getElementById('qaInput');
+                const text = ((input && input.value) || '').trim();
+                if (text.length < 5) { Toast.info(this.t('qa.tooShort', 'Please write a little more.')); return; }
+                try {
+                    const r = await this.api('/api/plexus/qa', { method: 'POST', body: JSON.stringify({ text }) });
+                    if (r.ok) {
+                        input.value = '';
+                        Toast.success(this.t('qa.sent', 'Question sent to the organizers.'));
+                        this.load();
+                    } else {
+                        Toast.info(this.t('qa.failed', 'Could not send — please try again.'));
+                    }
+                } catch (e) {
+                    Toast.info(this.t('qa.failed', 'Could not send — please try again.'));
+                }
+            },
+
+            async vote(id) {
+                try {
+                    const r = await this.api('/api/plexus/questions/' + id + '/upvote', { method: 'POST' });
+                    if (r.ok) this.load();
+                } catch (e) {}
             },
 
             render() {
-                const container = document.getElementById('qaQuestionsList');
-                const countBadge = document.getElementById('qaQueueCount');
-
-                if (!container) return;
-                if (countBadge) countBadge.textContent = this.questions.length;
-
-                container.innerHTML = this.questions.map(q => `
-                    <div class="qa-question ${q.id === this.myQuestionId ? 'mine' : ''}">
-                        <div class="qa-question-header">
-                            <span class="qa-question-author">${q.author}</span>
-                            <span class="qa-question-position">#${q.position}</span>
-                        </div>
-                        <div class="qa-question-text">${q.text}</div>
-                        <div class="qa-question-votes">
-                            <button class="qa-vote-btn ${q.voted ? 'voted' : ''}" onclick="LiveQA.vote('${q.id}')">
-                                <i class="fas fa-arrow-up"></i> ${q.votes}
+                const list = document.getElementById('qaList');
+                const badge = document.getElementById('qaCount');
+                if (!list) return;
+                if (badge) {
+                    badge.textContent = this._items.length;
+                    badge.style.display = this._items.length ? '' : 'none';
+                }
+                if (!this._items.length) {
+                    list.innerHTML = '<p style="font-size:13px;color:var(--up-text-secondary,#86868b);margin:0;">' + escapeHtml(this.t('qa.empty', 'No questions yet — yours can be the first.')) + '</p>';
+                    return;
+                }
+                list.innerHTML = this._items.map(q => `
+                    <div style="padding:12px 0;border-bottom:1px solid var(--up-border,#eee);">
+                        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+                            <span style="font-size:12px;font-weight:600;color:${q.is_from_admin ? 'var(--up-gold,var(--gold))' : 'var(--up-text-secondary,#86868b)'};">
+                                ${q.is_from_admin ? '<i class="fas fa-star" style="font-size:10px;"></i> ' + escapeHtml(this.t('qa.organizers', 'From the organizers')) : escapeHtml(q.author || '')}
+                            </span>
+                            <button onclick="LiveQA.vote('${q.id}')" style="border:none;background:${q.upvoted ? 'var(--up-gold,var(--gold))' : 'var(--up-bg-tertiary,#f0f0f0)'};color:${q.upvoted ? '#000' : 'var(--up-text,#1d1d1f)'};border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;white-space:nowrap;">
+                                <i class="fas fa-arrow-up"></i> ${q.upvotes || 0}
                             </button>
                         </div>
+                        <div style="font-size:13.5px;color:var(--up-text,#1d1d1f);margin-top:4px;line-height:1.4;">${escapeHtml(q.text)}</div>
+                        ${q.is_answered && q.answer_text ? `
+                        <div style="margin-top:8px;padding:9px 12px;background:rgba(201,169,98,.1);border-left:3px solid var(--up-gold,var(--gold));border-radius:0 8px 8px 0;">
+                            <div style="font-size:11px;font-weight:700;color:var(--up-gold,var(--gold));margin-bottom:3px;"><i class="fas fa-check"></i> ${escapeHtml(this.t('qa.answered', 'Answered'))}</div>
+                            <div style="font-size:13px;color:var(--up-text,#1d1d1f);line-height:1.4;">${escapeHtml(q.answer_text)}</div>
+                        </div>` : ''}
                     </div>
                 `).join('');
-            },
-
-            submitQuestion() {
-                const input = document.getElementById('qaInput');
-                if (!input || !input.value.trim()) return;
-
-                const question = {
-                    id: 'q' + Date.now(),
-                    author: 'You',
-                    text: input.value.trim(),
-                    votes: 1,
-                    voted: true,
-                    position: this.questions.length + 1
-                };
-
-                this.questions.push(question);
-                this.myQuestionId = question.id;
-                input.value = '';
-
-                this.render();
-
-                if (typeof ConnectionSystem !== 'undefined') {
-                    ConnectionSystem.showToast('Question submitted!');
-                }
-            },
-
-            vote(questionId) {
-                const question = this.questions.find(q => q.id === questionId);
-                if (!question) return;
-
-                if (question.voted) {
-                    question.votes--;
-                    question.voted = false;
-                } else {
-                    question.votes++;
-                    question.voted = true;
-                }
-
-                // Re-sort by votes
-                this.questions.sort((a, b) => b.votes - a.votes);
-                this.questions.forEach((q, i) => q.position = i + 1);
-
-                this.render();
             }
         };
 
@@ -45177,7 +45192,15 @@ By applying to this program, I give the following consents:
                 'px.wifiDesk':     { en: 'Wi-Fi details are available at the registration desk.', hr: 'Podaci za Wi-Fi dostupni su na registracijskom pultu.' },
                 'px.supportLbl':   { en: 'Support:', hr: 'Podrška:' },
                 'pxsch.prepTitle': { en: 'Program in preparation', hr: 'Program u pripremi' },
-                'pxsch.prep':      { en: 'The detailed schedule will appear here as soon as it is published.', hr: 'Detaljan raspored pojavit će se ovdje čim bude objavljen.' }
+                'pxsch.prep':      { en: 'The detailed schedule will appear here as soon as it is published.', hr: 'Detaljan raspored pojavit će se ovdje čim bude objavljen.' },
+                'qa.title':        { en: 'Live Q&A', hr: 'Pitanja uživo' },
+                'qa.placeholder':  { en: 'Ask a question...', hr: 'Postavite pitanje...' },
+                'qa.sent':         { en: 'Question sent to the organizers.', hr: 'Pitanje je poslano organizatorima.' },
+                'qa.tooShort':     { en: 'Please write a little more.', hr: 'Molimo napišite nešto više.' },
+                'qa.failed':       { en: 'Could not send — please try again.', hr: 'Slanje nije uspjelo — pokušajte ponovno.' },
+                'qa.empty':        { en: 'No questions yet — yours can be the first.', hr: 'Još nema pitanja — vaše može biti prvo.' },
+                'qa.answered':     { en: 'Answered', hr: 'Odgovoreno' },
+                'qa.organizers':   { en: 'From the organizers', hr: 'Od organizatora' }
             });
         } catch (e) {}
 

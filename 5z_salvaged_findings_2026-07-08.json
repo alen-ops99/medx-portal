@@ -1,0 +1,124 @@
+{
+ "member": {
+  "surface": "member",
+  "findings": [
+   {
+    "severity": "blocker",
+    "where": "Bottom nav 'Profile' tab (#upBottomNav button[data-tab=\"profile\"], onclick UserPortal.toggleUserMenu) \u2014 every page of the member SPA",
+    "what": "Tapping Profile does nothing at 390x844. It toggles #upFloatUserDropdown, which lives inside .up-float-expanded \u2014 that parent is visibility:hidden and 0x0 at mobile width (it's the desktop floating user chip). Dropdown gets .active + visibility:visible but renders 0x0 at (0,0). Profile/settings are unreachable from the primary mobile nav. Evidence: /tmp/5z/member/10-profile-tab.png, 10b-profile-menu.png"
+   },
+   {
+    "severity": "major",
+    "where": "Notification panel (#notificationPanel), opened from the header bell \u2014 dashboard and all pages",
+    "what": "Panel background-color computes to rgba(0,0,0,0) (transparent). Item titles (.notification-title, rgb(21,17,15)) and body text (rgb(64,58,54)) sit directly over the 50% black backdrop + page content \u2192 near-unreadable dark-on-dark. Only elements with their own backgrounds (Mark all read pill, EARLIER group header, footer) are legible. Evidence: /tmp/5z/member/02-notifications-panel.png"
+   },
+   {
+    "severity": "major",
+    "where": "Top-bar avatar account menu (#hubAccountDropdown) \u2014 the only remaining path to profile/settings on mobile",
+    "what": "Menu item labels 'Edit profile' and 'Notifications' render in color rgba(255,255,255,0.12) on the white dropdown \u2014 invisible (icon-only rows). Only 'Sign out' (red) is legible. Combined with the dead Profile tab, members cannot see how to reach Edit profile/Settings at 390px. Evidence: /tmp/5z/member/10c-account-menu.png"
+   },
+   {
+    "severity": "major",
+    "where": "MyMedX (#mymedx) 'Bring a colleague' guest-pass cards (both Plexus Conference 2026 and Building Bridges cards)",
+    "what": "Card layout collapses at 390px: the description text container ('Invite a colleague as your guest\u2026') is 22px wide \u2192 one word per line, making the card enormously tall; the red 'Bring a colleague' button is positioned over the card title, covering 'Conference 2026' / 'Bridges\u2026'. Parent chain widths 22\u219222\u219276\u2192256\u2192298px. Evidence: /tmp/5z/member/03b-mymedx-bring-colleague-broken.png"
+   },
+   {
+    "severity": "major",
+    "where": "Forum wing header (forum-wing.html at /forum), brand span.mk + EN/HR language toggle",
+    "what": "At 390px the EN/HR toggle (x 241\u2013276) renders directly on top of the 'Biomedical Forum' wordmark (span.mk, x 159\u2013298), obscuring 'Forum'. EN/HR buttons are also 35x20px tap targets. Rest of wing entry (personal link + request consideration + signed-in notice) renders correctly. Evidence: /tmp/5z/member/09b-forum-wing-header-overlap.png"
+   },
+   {
+    "severity": "minor",
+    "where": "SPA hash routing on cold load (tested /#af26 and /#settings)",
+    "what": "Deep links do not survive page load \u2014 the portal always boots to #dashboard regardless of the URL hash (hash even gets rewritten to #dashboard for #settings). Shared links and pull-to-refresh lose the member's place; in-app navigation works fine."
+   },
+   {
+    "severity": "minor",
+    "where": "Plexus registration wizard stepper (.px-wizard-step-number), Register tab step 2 'Your Info'",
+    "what": "The ACTIVE step number is invisible: color rgb(29,29,31) on background rgb(20,17,15) (contrast ~1.0). Steps 1 and 3 are fine. Label under the dot remains readable. Evidence: /tmp/5z/member/05d-plexus-yourinfo-full.jpeg"
+   },
+   {
+    "severity": "minor",
+    "where": "AF26 page (UserPortal.showSection('af26')) hero date pill and event data object",
+    "what": "Content inconsistency: AF26 page says 'May 25-27, 2027 | Split & Zagreb' (3 occurrences incl. the JS data object) while the page title, dashboard spotlight and news all say Annual Forum 2026, May 25-27. Also the .af-steps stepper overflows its card (scrollWidth 337 vs clientWidth 314; '3 Confirmed' label spills to x=371, under the ? FAB). Evidence: /tmp/5z/member/07b-af26-real-full.jpeg"
+   },
+   {
+    "severity": "minor",
+    "where": "Stacked floating buttons bottom-right: #mxaFab (56x56) + div.floating-help-btn '?' (44x44), fixed above the bottom nav",
+    "what": "Two overlapping-purpose FABs occupy the lower-right corner and ride over content \u2014 at page bottom the '?' button sits on top of the footer 'Terms of Service' link, and on MyMedX the FAB overlaps the second card's 'Bring a colleague' button. The dismissible PWA install banner additionally covers the footer + onboarding strip until dismissed. Evidence: /tmp/5z/member/01b-dashboard-bottom-nobanner.png, 01-dashboard-bottom.png"
+   },
+   {
+    "severity": "minor",
+    "where": "Sub-40px tap targets on primary actions (recurring)",
+    "what": "Notification panel: 'Mark all read' 98x32, close 32x32, 'Notification Preferences' link 165x16. MyMedX member card flip buttons .mlc-flip 'Passport'/'Card' 91x23 at 9px font (core card interaction). Dashboard hero 'Show ticket' 125x38, nudge 'Add a photo' 274x34, dismiss \u00d7 25x27. Notify toggles .mx-notify-switch 44x26. Forum wing EN/HR 35x20."
+   },
+   {
+    "severity": "minor",
+    "where": "Sub-11px text: MyMedX member card and global chrome",
+    "what": "Member card: .mlc-label 8px, .mlc-eyebrow 'Member card' 8.5px, .mlc-back-sub 'A seal for every gathering' 7.5px, .mlc-since 10px, passport 'PLEXUS' textpath 8px, seal-count label 9.5px \u2014 unreadably small on device. Global: bottom-nav labels 10px, announcement chips 10px, hero 'Paid' status 10px. Evidence: /tmp/5z/member/03-mymedx-full.jpeg, 03c-mymedx-passport-flip.png"
+   },
+   {
+    "severity": "minor",
+    "where": "Settings page tab strip (nav.settings-nav) at #settings",
+    "what": "5 tabs (Profile, Account & Security, Notifications, Appearance, Privacy) in a 298px container with 731px content \u2014 3 of 5 tabs are off-screen with no visible scroll affordance (strip is overflow-x:auto so they are reachable, just undiscoverable). Evidence: /tmp/5z/member/11-settings-full.jpeg"
+   },
+   {
+    "severity": "minor",
+    "where": "GET /favicon.ico on the /forum wing route",
+    "what": "404 \u2014 the only console error produced across the entire session (main SPA pages are console-clean)."
+   }
+  ],
+  "notes": "Method: real member JWT minted for test user Ivan Horvat (09da831d-6f52-4068-806d-aa4be6920830, ivan.horvat@test.medx.hr) against user-portal JWT_SECRET; Playwright chromium at 390x844; per-page probe for scrollWidth/overflow/tap-targets/font-size/broken-images. 26 evidence files in /tmp/5z/member/. CLEAN results worth knowing: no horizontal document overflow on any page (scrollWidth <= 390 everywhere); zero broken images (the Building Bridges 'Moments' mosaic that looks blank in full-page shots is just loading=lazy \u2014 loads fine on scroll); Gala page is the cleanest surface; Plexus register flow works end-to-end to the payment gate (pass select -> package builder -> Your Info prefilled -> Order Summary Student Early Bird EUR 39 correct; stopped before 'Proceed to Payment' per frozen-surface rule); FAQ assistant FAB opens a clean full-screen sheet and answered a test question correctly; forum wing correctly recognizes the member session ('signed in, but not yet within the circle'). Structural caveats: (1) the notification panel's -8px x-offset when open is a desktop-scrollbar artifact (panel width 100vw vs clientWidth) and will not reproduce on real phones \u2014 do NOT ship a fix for that; the transparent background is real regardless. (2) CME view could not be audited visually: #pxCmeSection ('Continuing Medical Education', OIB/DOB consent) exists in the Plexus registration form but is display:none because the dev Plexus event is not flagged HLK-accredited \u2014 needs a flagged event to test. (3) fullPage screenshots show the fixed bottom nav mid-image; that is a screenshot artifact, cross-checked all overlap findings in live viewport. (4) The two account-menu/profile findings compound: the ONLY visibly working account action on mobile is Sign out. DB hygiene: my single test write (assistant_faq_log row from the FAQ question) was deleted and deletion verified (table back to 0 rows); no other rows created (register flow never POSTed, notifications are group-based with no per-user rows for the test user)."
+ },
+ "admin": {
+  "surface": "admin",
+  "findings": [
+   {
+    "severity": "major",
+    "where": "Gala command center + Plexus Post-event cards \u2014 #postEventStats-gala / #surveyStats-gala (index.html:12484,12501) and #postEventStats-plexus / #surveyStats-plexus (8121,8138)",
+    "what": "The 4-up stat grids use inline style grid-template-columns:repeat(4,minmax(90px,1fr)) -> minimum row width 390px+gaps inside a ~326px card at 390px viewport. The 4th stat ('Avg score', '0 / 0 Responses') is clipped mid-number by the card edge with no scroll path (parent overflow-x:visible, canScroll=false \u2014 verified by probe). Event-night check-in/survey numbers are unreadable on a phone. Evidence: 05c-gala-bottom.png (shows '0 /' cut at card edge)."
+   },
+   {
+    "severity": "major",
+    "where": "Gala command center tab strip \u2014 unclassed flex row containing #galaTabGuests\u2026#galaTabSettings (parent of #galaTabProgram), #section-gala",
+    "what": "8 tabs, scrollWidth 981px vs 358px visible. 'Program', 'Awaiting payment', 'Seating', 'Links' and 'Settings' sit fully off-screen right with zero visual affordance \u2014 the row ends cleanly after 'Institutions' (no partial tab, no fade, no arrow). It IS overflow-x:auto and swipe-scrollable (probe confirmed), but on event night an admin on a phone has no cue that Awaiting-payment/Seating even exist. Evidence: 14-gala-tabrow.png, 05b-gala-ops-toolbar.png."
+   },
+   {
+    "severity": "major",
+    "where": "Global QR scanner FAB #globalQRBtn (z-index 900, rect x328-374 y780-826) vs iOS install banner #medxStaffInstall (z-index 99999, fixed bottom:12px, ~80px tall) \u2014 banner script at index.html:47213-47250",
+    "what": "On iOS UA the 'Install the Staff app' banner auto-shows 4s after every load until dismissed and completely covers the global scanner FAB \u2014 the primary event-day control \u2014 plus the bottom of the staff-share consent sheet, the open nav drawer, and the scanner modal's search-results area (all screenshots show it). Dismissal persists in localStorage, but every fresh device/private session (exactly the borrowed-phone-at-the-door scenario) hits it first. Suggest capping z-index below FABs or auto-hiding when a scanner/panel is open."
+   },
+   {
+    "severity": "minor",
+    "where": "Auction paddle-entry modal #auctionModal (AuctionAdmin.modal/openStaffBid, index.html:~33560-33580)",
+    "what": "No Escape-close handler (global QR scanner modal has one at 24783) \u2014 only Cancel and backdrop-click close it. It also stays mounted across SPA section switches: after hash/section navigation the modal remained overlaid on Live Ops Map, CME, and Print Suite (screenshots 07/08/09/11 of first run). Otherwise the modal itself renders excellently at 390px (inputs 40px tall, clear Cancel/Add bid)."
+   },
+   {
+    "severity": "minor",
+    "where": "Event-day text inputs: #pxCheckinInput (14px), paddle modal #acSbName/#acSbPaddle/#acSbAmount (14px), global scanner manual-entry input, email-blast filters #blastFilterTicket/#blastFilterCountry (13px)",
+    "what": "Font-size below 16px triggers iOS Safari's focus auto-zoom (viewport meta has no maximum-scale), so the screen jumps/zooms every time staff tap the check-in or paddle field mid-rush. Bumping these inputs to 16px kills the zoom without harming layout."
+   },
+   {
+    "severity": "minor",
+    "where": "FAB stack bottom-right: #staffShareBtn (y668-714), #assistantFab (y724-770), #globalQRBtn (y780-826), all 46px at x328-374, z 900",
+    "what": "Three stacked FABs consume ~160px of the right edge; at common scroll positions they cover right-aligned controls \u2014 the teal share FAB directly overlaps the red 'Check In' button in Plexus Quick Check-in (13b-plexus-checkin-camera.png), and the lower FAB half-hides behind the install banner. Consider collapsing to a single expandable FAB on <768px."
+   },
+   {
+    "severity": "minor",
+    "where": "Dashboard Action Center \u2014 .ac-assign-btn ('Assign to me'), 4 instances visible on load",
+    "what": "Tap target measures 107x18px (well under the 44px minimum). Adjacent 'Open / Mark done / Dismiss' are fine; only the ghost assign button is thumb-hostile. Evidence: 01-dashboard.png."
+   },
+   {
+    "severity": "minor",
+    "where": "Consequential checkboxes: gala bulk-select #bsAllGala + per-row .bs-cb (15x15), gala survey auto-send #surveyAuto-gala (13x13), CME/HLK 'Accredited by HLK' toggle (18x18, #section-cme .cme-toggle input)",
+    "what": "All measure under 20px with no enlarged label hit-area padding on the bs-cb cases \u2014 hard to hit on a phone, and the HLK toggle is a consequential accreditation switch. The .cme-toggle at least has a clickable label; the guest-list checkboxes do not."
+   },
+   {
+    "severity": "minor",
+    "where": "Plexus Conference > Check-in tab (#plexus-checkin), section-plexus",
+    "what": "On mobile the Quick Check-in card (camera toggle + manual entry) lands below the fold: the always-visible share-link cards and the 'Plexus Experience registrations' table (403px wide, header row clipped at first paint though horizontally scrollable) render above it, so door staff must scroll past unrelated cards to reach the camera. Evidence: 04-plexus-checkin.png vs 13-plexus-checkin-card.png. The global QR FAB mitigates, but the in-tab flow buries the scanner."
+   }
+  ],
+  "notes": "Method: real admin JWT (minted with backend JWT_SECRET for juginovic.alen@gmail.com, validated via /api/auth/me), Playwright chromium 390x844 iPhone UA + fake camera device, both portals healthy on 3001/3002. 38 artifacts in /tmp/5z/admin/ (screenshots + report.json + fixup-report.json). Structural observations: (1) No document-level horizontal overflow anywhere \u2014 all 24 audited states report overflowX=0; the 768px media block (index.html:3861-3968) already converts .data-table to display:block/overflow-x:auto with fixed thead/tbody layout, and .plexus-tabs wrap \u2014 wide tables scroll correctly on gala/plexus. (2) The event-day core is genuinely strong on mobile: global Quick Check-in modal (offline-cache count, per-event progress, camera+search+manual entry, Escape closes), auction admin, paddle modal, Live Ops Map settings, staff-share bottom sheet, CME/HLK, outbox approval cards, content studio, and the print suite (full-screen single-column sheet, live 8-up badge preview) all render cleanly at 390px. (3) Print suite showed 'Print engine ready' \u2014 CHROME_PATH resolves on this Mac so the 503 gate wasn't exercised; the 'Print engine off' warn chip state exists (index.html:44017) and the server returns a clean print_engine_unavailable 503 (server.js:25196). (4) Live Ops Map tiles come from a/b/c.tile.openstreetmap.org \u2014 loads failed here only because the sandbox blocks external network (net::ERR_FAILED, also fonts.gstatic.com), not a portal bug, but it is an external runtime dependency worth verifying on venue Wi-Fi. (5) Mobile nav rail is a 260px slide-in drawer with overlay; item heights 41-64px (all pass), inner #sidebarNav scrolls; note the drawer only lists sections enabled in the per-user 'Manage sections' preference \u2014 this admin account currently exposes Communications+2 Organization items, so Gala/Auctions/Live Ops/CME were reached programmatically; on a phone they'd need the command palette or section prefs (config, not a defect). (6) Sidebar uses height:100vh on mobile \u2014 consider 100dvh for iOS URL-bar chrome. (7) Frozen surfaces untouched; zero code changes. Test data: one ZZZ-MobileAudit-Test auction+item created to exercise paddle entry, deleted via API afterwards and verified (GET /api/admin/auctions returns 0 auctions); no check-ins, bids, or sends were performed."
+ }
+}

@@ -14098,6 +14098,24 @@ President, Med&amp;X</textarea>
                     </div>
                     <div id="confCreateForm" style="display:none;"></div>
                     <div id="confList"><div style="text-align:center;padding:30px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
+
+                    <!-- LIVE Q&A — questions members ask on the portal's Live tab land here.
+                         Talks to the USER portal API (where member questions live), like the
+                         gala refund flow. -->
+                    <div style="margin-top:28px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+                            <div>
+                                <h3 style="margin:0;font-size:17px;display:flex;align-items:center;gap:9px;"><i class="fas fa-question-circle" style="color:#c9a962;"></i> Live Q&amp;A</h3>
+                                <p style="margin:5px 0 0;color:var(--text-muted);font-size:12.5px;">Questions members ask on the Live tab during the conference. Respond here — the answer appears on their phones within seconds. Refreshes automatically while this page is open.</p>
+                            </div>
+                            <button class="btn btn-secondary" onclick="QAAdmin.load()"><i class="fas fa-rotate"></i> Refresh</button>
+                        </div>
+                        <div style="display:flex;gap:10px;margin-bottom:16px;">
+                            <input type="text" id="qaAdminAsk" maxlength="500" placeholder="Ask the audience a question — it shows highlighted on every phone..." style="flex:1;min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:13px;">
+                            <button class="btn btn-primary" onclick="QAAdmin.ask()"><i class="fas fa-bullhorn"></i> Post</button>
+                        </div>
+                        <div id="qaAdminList"><div style="text-align:center;padding:24px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
+                    </div>
                 </div>
 
                 <!-- EXECUTIVE ADVISORY BOARD (AI CMO / CFO / COO). Body is rendered by AdvisoryBoard.render()
@@ -20252,6 +20270,7 @@ President, Med&amp;X</textarea>
                     this.currentView = 'conferences';
                     this.switchChatPanel('team');
                     if (typeof ConfApp !== 'undefined') ConfApp.load();
+                    if (typeof QAAdmin !== 'undefined') QAAdmin.init();
                 } else if (sectionId === 'email-blast') {
                     this.currentView = 'email-blast';
                     this.switchChatPanel('team');
@@ -49990,6 +50009,88 @@ By applying to this program, I give the following consents:
         };
 
         // ==================== MULTI-YEAR CONFERENCES ====================
+        // ===== LIVE Q&A ADMIN — talks to the USER portal (member questions live in its
+        // DB), same cross-portal pattern as the gala refund flow. =====
+        const QAAdmin = {
+            _timer: null,
+            _items: [],
+            base() { const h = location.hostname; return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:3001' : 'https://medx-user-portal.onrender.com'; },
+            api(path, opts = {}) {
+                return fetch(this.base() + path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
+            },
+            init() {
+                this.load();
+                if (!this._timer) {
+                    this._timer = setInterval(() => {
+                        const el = document.getElementById('qaAdminList');
+                        if (el && !document.hidden && el.closest('.section')?.classList.contains('active')) this.load();
+                    }, 30000);
+                }
+            },
+            async load() {
+                const el = document.getElementById('qaAdminList');
+                if (!el) return;
+                try {
+                    const r = await this.api('/api/admin/plexus/qa');
+                    if (!r.ok) { el.innerHTML = `<div style="padding:18px;color:var(--text-muted);font-size:13px;">Could not reach the member portal (${r.status}). Questions live there — try again in a moment.</div>`; return; }
+                    this._items = await r.json();
+                    this.render();
+                } catch (e) {
+                    el.innerHTML = '<div style="padding:18px;color:var(--text-muted);font-size:13px;">Could not reach the member portal. It may be waking up — try again in ~30 seconds.</div>';
+                }
+            },
+            async ask() {
+                const input = document.getElementById('qaAdminAsk');
+                const text = (input?.value || '').trim();
+                if (!text) return;
+                const r = await this.api('/api/admin/plexus/qa/ask', { method: 'POST', body: JSON.stringify({ text }) });
+                if (r.ok) { input.value = ''; Toast.success("Posted to every member's Live tab"); this.load(); }
+                else Toast.error('Could not post — try again');
+            },
+            toggleAnswer(id) {
+                const box = document.getElementById('qaAns-' + id);
+                if (box) { box.style.display = box.style.display === 'none' ? 'block' : 'none'; box.querySelector('textarea')?.focus(); }
+            },
+            async answer(id) {
+                const ta = document.querySelector('#qaAns-' + id + ' textarea');
+                const text = (ta?.value || '').trim();
+                if (!text) return;
+                const r = await this.api('/api/admin/plexus/qa/' + id + '/answer', { method: 'POST', body: JSON.stringify({ answer_text: text }) });
+                if (r.ok) { Toast.success('Answer sent — visible to members now'); this.load(); }
+                else Toast.error('Could not save the answer');
+            },
+            async hide(id, hidden) {
+                const r = await this.api('/api/admin/plexus/qa/' + id + '/hide', { method: 'POST', body: JSON.stringify({ hidden }) });
+                if (r.ok) this.load(); else Toast.error('Could not update');
+            },
+            render() {
+                const el = document.getElementById('qaAdminList');
+                if (!el) return;
+                if (!this._items.length) { el.innerHTML = '<div style="padding:18px;color:var(--text-muted);font-size:13px;">No questions yet. They appear here the moment a member asks one on the Live tab.</div>'; return; }
+                el.innerHTML = this._items.map(q => `
+                    <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;${q.is_hidden ? 'opacity:.55;' : ''}background:var(--bg-secondary);">
+                        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline;">
+                            <div style="font-size:12px;color:var(--text-muted);">
+                                ${q.is_from_admin ? '<span style="color:#c9a962;font-weight:700;"><i class="fas fa-star"></i> Posted by the team</span>' : `<b style="color:var(--text-primary);">${escapeHtml(q.author_name)}</b> · ${escapeHtml(q.author_email)}`}
+                                · <i class="fas fa-arrow-up"></i> ${q.upvotes}
+                                ${q.is_hidden ? ' · <span style="color:#c14b52;font-weight:600;">hidden from members</span>' : ''}
+                            </div>
+                            <div style="display:flex;gap:6px;">
+                                ${!q.is_from_admin ? `<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="QAAdmin.toggleAnswer('${q.id}')"><i class="fas fa-reply"></i> ${q.is_answered ? 'Edit answer' : 'Respond'}</button>` : ''}
+                                <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="QAAdmin.hide('${q.id}', ${q.is_hidden ? 0 : 1})"><i class="fas fa-eye${q.is_hidden ? '' : '-slash'}"></i> ${q.is_hidden ? 'Show' : 'Hide'}</button>
+                            </div>
+                        </div>
+                        <div style="font-size:14px;color:var(--text-primary);margin-top:7px;line-height:1.45;">${escapeHtml(q.text)}</div>
+                        ${q.is_answered && q.answer_text ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(201,169,98,.08);border-left:3px solid #c9a962;border-radius:0 8px 8px 0;font-size:13px;color:var(--text-primary);"><b style="color:#c9a962;font-size:11.5px;">ANSWERED${q.answered_by ? ' · ' + escapeHtml(q.answered_by) : ''}</b><br>${escapeHtml(q.answer_text)}</div>` : ''}
+                        <div id="qaAns-${q.id}" style="display:none;margin-top:10px;">
+                            <textarea rows="2" placeholder="Write the answer members will see..." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;resize:vertical;">${q.answer_text ? escapeHtml(q.answer_text) : ''}</textarea>
+                            <button class="btn btn-primary" style="margin-top:6px;padding:6px 14px;font-size:12.5px;" onclick="QAAdmin.answer('${q.id}')"><i class="fas fa-paper-plane"></i> Send answer</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        };
+
         const ConfApp = {
             _list: [],
             esc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },

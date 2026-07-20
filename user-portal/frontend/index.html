@@ -37,7 +37,7 @@
          browser blocks the scanner library. Vendored like Font Awesome, no SRI needed same-origin. -->
     <script src="/vendor/jsqr/jsQR.min.js" defer></script>
     <script src="https://js.stripe.com/v3/" async></script>
-    <link rel="stylesheet" href="/assets/app.css?v=split3">
+    <link rel="stylesheet" href="/assets/app.css?v=split4">
 
     <!-- PWA Manifest and Icons — absolute paths so they resolve correctly
          on path-style direct links like /forum/events/<slug> or /invite/<token>. -->
@@ -190,7 +190,7 @@
           .splash-lang-toggle .up-lang-opt.active{background:var(--crimson,#9b1b22);color:#fff;}
           @media(max-width:480px){ .splash-lang-toggle{top:14px;right:14px;} }
         </style>
-        <script src="/assets/app.part1.js?v=split3"></script>
+        <script src="/assets/app.part1.js?v=split4"></script>
 
 
         <!-- Skip Link for Accessibility -->
@@ -1301,7 +1301,7 @@
 
         <!-- Left rail retired — the premium sticky top bar (#upTopbar, defined below) is the desktop nav.
              This script keeps the window.MedXRail contract but repoints it to the top-bar nodes. -->
-        <script src="/assets/app.part2.js?v=split3"></script>
+        <script src="/assets/app.part2.js?v=split4"></script>
 
         <!-- Floating Messages Button (hidden — contact btn is sufficient) -->
         <div class="floating-btns-stack" id="floatingBtnsStack" style="display: none !important;">
@@ -2565,7 +2565,7 @@
             <div class="up-gs-foot"><span><kbd>&#8593;</kbd> <kbd>&#8595;</kbd> navigate</span><span><kbd>&#8629;</kbd> open</span><span><kbd>esc</kbd> close</span></div>
           </div>
         </div>
-        <script src="/assets/app.part3.js?v=split3"></script>
+        <script src="/assets/app.part3.js?v=split4"></script>
 
         <main class="up-main">
             <!-- Soft-gate email confirmation banner (shown until email_verified) -->
@@ -2732,7 +2732,7 @@
 
                     <!-- Your next event hub (personalized from /api/registrations/my) -->
                     <section id="upNextEvent" class="up-next-event" style="margin:0 0 18px;"></section>
-                    <script src="/assets/app.part4.js?v=split3"></script>
+                    <script src="/assets/app.part4.js?v=split4"></script>
 
                     <!-- PROFILE-COMPLETENESS NUDGE — normal members only. Double persona gate
                          (S1 pattern): the medx-playful class hides it under body.medx-quiet, and the
@@ -2749,7 +2749,7 @@
                     @media(max-width:600px){ .up-nudge-card{flex-wrap:wrap;} .up-nudge-btn{width:100%;justify-content:center;} }
                     </style>
                     <section id="upProfileNudge" class="medx-playful" style="display:none;"></section>
-                    <script src="/assets/app.part5.js?v=split3"></script>
+                    <script src="/assets/app.part5.js?v=split4"></script>
 
                     <!-- PROJECT HUB — live status from /api/project-status (admin-owned), get-notified bells persist to notify_topics -->
                     <style>
@@ -2802,7 +2802,7 @@
                         </div>
                         <div class="mx-hub-grid" id="mxProjectHub"></div>
                     </section>
-                    <script src="/assets/app.part6.js?v=split3"></script>
+                    <script src="/assets/app.part6.js?v=split4"></script>
 
                     <!-- NOTIFY-ME ON EACH PROJECT PAGE — a premium toggle row injected near the top of every
                          project section, wired to the SAME notify_topics subscription as the hub bells. The
@@ -2823,11 +2823,11 @@
                     .mx-notify-row.on .mx-notify-switch::after{transform:translateX(19px);}
                     @media(max-width:560px){.mx-notify-sub{display:none;}.mx-notify-row{gap:12px;padding:12px 14px;}}
                     </style>
-                    <script src="/assets/app.part7.js?v=split3"></script>
+                    <script src="/assets/app.part7.js?v=split4"></script>
 
                     <!-- SECTION STATUS BINDING — fills every [data-mx-status="<project>"] element in the section heros
                          from GET /api/project-status (admin-owned). Graceful: if the fetch fails the baked text stays. -->
-                    <script src="/assets/app.part8.js?v=split3"></script>
+                    <script src="/assets/app.part8.js?v=split4"></script>
 
                     <!-- Membership value strip — what belonging includes (quiet, informational) -->
                     <style>
@@ -6426,6 +6426,24 @@
                                             <p data-i18n="px.wifiDesk">Wi-Fi details are available at the registration desk.</p>
                                             <p><span data-i18n="px.supportLbl">Support:</span> <a href="mailto:info@medx.hr" style="color: var(--up-gold, var(--gold));">info@medx.hr</a></p>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <!-- Live Q&A — REAL: questions go to the organizers' admin portal;
+                                     answers and organizer-posed questions come back here. -->
+                                <div class="up-card" style="margin-top: 24px;">
+                                    <div class="up-card-header">
+                                        <h3 class="up-card-title"><i class="fas fa-question-circle" style="margin-right: 8px;"></i> <span data-i18n="qa.title">Live Q&amp;A</span></h3>
+                                        <span class="px-msg-badge" id="qaCount" style="display: none;">0</span>
+                                    </div>
+                                    <div class="up-card-body">
+                                        <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+                                            <input type="text" id="qaInput" maxlength="500" placeholder="Ask a question..." style="flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--up-border, #ddd); border-radius: 8px; font-size: 13px; background: var(--up-bg, #fff); color: var(--up-text, #1d1d1f);">
+                                            <button onclick="LiveQA.submit()" title="Send" style="padding: 10px 14px; border: none; border-radius: 8px; background: var(--up-gold, var(--gold)); color: #000; cursor: pointer;">
+                                                <i class="fas fa-paper-plane"></i>
+                                            </button>
+                                        </div>
+                                        <div id="qaList"></div>
                                     </div>
                                 </div>
                             </div>
@@ -20211,7 +20229,7 @@ You can use variables like {first_name} that will be personalized for each recip
         </div>
     </div>
 
-    <script src="/assets/app.part9.js?v=split3"></script>
+    <script src="/assets/app.part9.js?v=split4"></script>
 
     <!-- Floating QR Code Button — always visible -->
     <button id="floatingQRBtn" onclick="showQuickQR()" style="
@@ -20228,10 +20246,10 @@ You can use variables like {first_name} that will be personalized for each recip
 
     <!-- Global install helper so the Settings "Install app" row works on Android (native prompt)
          and iOS (Add to Home Screen instructions). Isolated so it can never break the app. -->
-    <script src="/assets/app.part10.js?v=split3"></script>
+    <script src="/assets/app.part10.js?v=split4"></script>
 
     <!-- Self-contained "Install app" banner (attendee-facing PWA install; iOS-aware). -->
-    <script src="/assets/app.part11.js?v=split3"></script>
+    <script src="/assets/app.part11.js?v=split4"></script>
 
     <!-- ============================================================================
          GuestPass — member-initiated "Bring a colleague" guest passes (bilingual).
@@ -20248,7 +20266,7 @@ You can use variables like {first_name} that will be personalized for each recip
       .gp-card-head .gp-card-btn{ width: 100%; justify-content: center; margin-top: 4px; }
     }
     </style>
-    <script src="/assets/app.part12.js?v=split3"></script>
+    <script src="/assets/app.part12.js?v=split4"></script>
 
         <!-- ===================== MEMBER FAQ ASSISTANT (queue 5a6) ===================== -->
         <!-- Tasteful, grounded member assistant. Retrieval-first answers from the vetted KB with live
@@ -20327,7 +20345,7 @@ You can use variables like {first_name} that will be personalized for each recip
             <button class="mxa-go" id="mxaSend" type="button" data-i18n-aria-label="asst.send" aria-label="Send"><i class="fas fa-paper-plane" aria-hidden="true"></i></button>
           </div>
         </div>
-        <script src="/assets/app.part13.js?v=split3"></script>
+        <script src="/assets/app.part13.js?v=split4"></script>
 
         <!-- Plexus LIVE NOW/NEXT board (cluster 5a5b) — see #pxlbStyles for the design system.
              Self-contained module: reads ConferenceData (single source of truth), computes a
@@ -20336,7 +20354,7 @@ You can use variables like {first_name} that will be personalized for each recip
              API ~60s so admin edits land mid-event, gates itself to the event window with a
              quiet "begins on" card beforehand, and powers a chrome-free ?display=1 projector
              variant. Bilingual via MedXI18n. No inline handlers. -->
-        <script src="/assets/app.part14.js?v=split3"></script>
+        <script src="/assets/app.part14.js?v=split4"></script>
 
 </body>
 

@@ -1,0 +1,32 @@
+node_modules/
+.env
+*.db
+*.db-shm
+*.db-wal
+uploads/
+.DS_Store
+medx-portal-backups/
+medx-app/
+MedX_Davos_2026/
+MedX-2026-Partner-Presentation/
+medx-files/
+medx promo designer/
+*.zip
+*.xlsx
+*.docx
+*.docx.md
+
+# Orphan root-level copies (real code is in admin-portal/ and user-portal/)
+/backend/
+/frontend/
+
+# Backups and test artifacts
+MedX_Backup/
+test-screenshots/
+
+# Misc
+MedX_Gift_Catalog.html
+create-backup.sh
+medx_portal_requirements_form.md
+team-testing-email.md
+team-testing-feedback.md

@@ -1,0 +1,32 @@
+;; medx.hr — BIND zone file for Cloudflare import
+;; Built 2026-06-10 from live DNS (dig @1.1.1.1 and @8.8.8.8, cross-checked)
+;; Import in Cloudflare: DNS → Records → Import and Export → Import DNS records
+;;
+;; Placeholders filled 2026-06-10 with real values from the Resend dashboard (region eu-west-1).
+;;
+;; !! After import, set EVERY record to "DNS only" (grey cloud, proxy OFF) in Cloudflare.
+
+$ORIGIN medx.hr.
+$TTL 300
+
+;; ── Website (Squarespace) ── exactly as live today
+@               IN  A       198.185.159.144
+@               IN  A       198.185.159.145
+@               IN  A       198.49.23.144
+www             IN  CNAME   ext-cust.squarespace.com.
+
+;; ── Email for @medx.hr inboxes (Microsoft 365) ── exactly as live today
+@               IN  MX      0  medx-hr.mail.protection.outlook.com.
+@               IN  TXT     "v=spf1 include:spf.protection.outlook.com -all"
+autodiscover    IN  CNAME   autodiscover.outlook.com.
+
+;; ── TLS certificate authorities (CAA) ── exactly as live today
+@               IN  CAA     0 issue "sectigo.com"
+@               IN  CAA     0 issue "letsencrypt.org"
+@               IN  CAA     0 issue "pki.goog"
+
+;; ── NEW: Resend sender domain (portal QR emails) ──
+send            IN  MX      10 feedback-smtp.eu-west-1.amazonses.com.
+send            IN  TXT     "v=spf1 include:amazonses.com ~all"
+resend._domainkey IN TXT    "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqCtlRwGDwdA5K5KZhVlPUgF1D+Kz4iZjV1rkJEnPHHZpvWB1ByS4QRZcAHpooNIj0n0705JaaJdVWT/KCVf4cWnZQ0pl97GCyo41GNbk2DAnnRDLMGPieCNo1g9t5rl/WXZPDa2/cJii8rWpDYXRrgEi7VFS1J4a3dQVAHnOoLQIDAQAB"
+_dmarc          IN  TXT     "v=DMARC1; p=none;"

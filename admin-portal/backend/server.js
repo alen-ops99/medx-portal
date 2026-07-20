@@ -3168,6 +3168,16 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // Live Q&A: answers, moderation, organizer-posed questions, conference-wide scope.
+    // session_id NULL + conference_id set = general floor question, not tied to one talk.
+    // Declared IDENTICALLY in both portal server.js files (outside the SCHEMA-MIRROR block).
+    try { db.run(`ALTER TABLE session_questions ADD COLUMN answer_text TEXT`); } catch (e) { /* column may already exist */ }
+    try { db.run(`ALTER TABLE session_questions ADD COLUMN answered_by TEXT`); } catch (e) { /* column may already exist */ }
+    try { db.run(`ALTER TABLE session_questions ADD COLUMN answered_at TEXT`); } catch (e) { /* column may already exist */ }
+    try { db.run(`ALTER TABLE session_questions ADD COLUMN is_hidden INTEGER DEFAULT 0`); } catch (e) { /* column may already exist */ }
+    try { db.run(`ALTER TABLE session_questions ADD COLUMN is_from_admin INTEGER DEFAULT 0`); } catch (e) { /* column may already exist */ }
+    try { db.run(`ALTER TABLE session_questions ADD COLUMN conference_id TEXT`); } catch (e) { /* column may already exist */ }
+
     db.run(`CREATE TABLE IF NOT EXISTS connections (
         id TEXT PRIMARY KEY, requester_id TEXT, requestee_id TEXT,
         status TEXT DEFAULT 'pending', message TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -18248,6 +18258,64 @@ By applying to this program, I provide the following consents:
 
         const count = query.get('SELECT COUNT(*) as c FROM question_upvotes WHERE question_id = ?', [req.params.id])?.c || 0;
         res.json({ success: true, upvotes: count, upvoted: !existing });
+    });
+
+    // ===== LIVE Q&A admin ops (mirror of the user-portal endpoints; the admin SPA
+    // talks to the USER portal in production since member questions land in its DB,
+    // but these keep both servers API-symmetric like the sessions CRUD). =====
+    app.get('/api/admin/plexus/qa', auth, adminOnly, (req, res) => {
+        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        if (!conf) return res.json([]);
+        const rows = query.all(`SELECT q.*, u.first_name, u.last_name, u.email,
+                (SELECT COUNT(*) FROM question_upvotes v WHERE v.question_id = q.id) AS upvotes_live
+            FROM session_questions q LEFT JOIN users u ON q.user_id = u.id
+            WHERE q.conference_id = ?
+            ORDER BY q.is_answered ASC, upvotes_live DESC, q.created_at DESC`, [conf.id]);
+        res.json(rows.map(q => ({
+            id: q.id,
+            text: q.question_text,
+            author_name: [q.first_name || '', q.last_name || ''].join(' ').trim() || '—',
+            author_email: q.email || '',
+            upvotes: q.upvotes_live || 0,
+            is_answered: !!q.is_answered,
+            answer_text: q.answer_text || null,
+            answered_by: q.answered_by || null,
+            is_hidden: !!q.is_hidden,
+            is_from_admin: !!q.is_from_admin,
+            created_at: q.created_at
+        })));
+    });
+
+    app.post('/api/admin/plexus/qa/:id/answer', auth, adminOnly, (req, res) => {
+        const text = String(req.body.answer_text || '').trim();
+        if (!text) return res.status(400).json({ error: 'Answer text required' });
+        const q = query.get('SELECT id FROM session_questions WHERE id = ?', [req.params.id]);
+        if (!q) return res.status(404).json({ error: 'Question not found' });
+        const by = [req.user.first_name || '', req.user.last_name || ''].join(' ').trim() || 'Med&X';
+        db.run('UPDATE session_questions SET answer_text = ?, answered_by = ?, answered_at = ?, is_answered = 1 WHERE id = ?',
+            [text, by, new Date().toISOString(), req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.post('/api/admin/plexus/qa/:id/hide', auth, adminOnly, (req, res) => {
+        const q = query.get('SELECT id FROM session_questions WHERE id = ?', [req.params.id]);
+        if (!q) return res.status(404).json({ error: 'Question not found' });
+        db.run('UPDATE session_questions SET is_hidden = ? WHERE id = ?', [req.body.hidden ? 1 : 0, req.params.id]);
+        saveDb();
+        res.json({ success: true });
+    });
+
+    app.post('/api/admin/plexus/qa/ask', auth, adminOnly, (req, res) => {
+        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        if (!conf) return res.status(400).json({ error: 'Conference plexus-2026 not found' });
+        const text = String(req.body.text || '').trim();
+        if (!text) return res.status(400).json({ error: 'Question text required' });
+        const id = uuidv4();
+        db.run('INSERT INTO session_questions (id, session_id, conference_id, user_id, question_text, is_from_admin) VALUES (?, NULL, ?, ?, ?, 1)',
+            [id, conf.id, req.user.id, text]);
+        saveDb();
+        res.json({ success: true, question_id: id });
     });
 
     // Submit poll response
