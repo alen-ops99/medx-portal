@@ -8600,6 +8600,20 @@ async function initializeApp() {
             [defaultKeyDates, '[]']);
     }
 
+    // One-time copy fix (team feedback, Miro 2026-07): the stored Bridges description on the
+    // public /plexus page called it "an invitation-only networking event" while the card is
+    // open for anyone to pre-register. Rewrite ONLY that contradictory phrase; the rest of the
+    // admin's copy is preserved. Idempotent — once the phrase is gone this never fires again.
+    try {
+        const bRow = query.get("SELECT bridges_desc FROM plexus_page_settings WHERE id = 'default'");
+        if (bRow && bRow.bridges_desc && bRow.bridges_desc.includes('An invitation-only networking event')) {
+            db.run("UPDATE plexus_page_settings SET bridges_desc = ? WHERE id = 'default'",
+                [bRow.bridges_desc.replace('An invitation-only networking event', 'A networking event')]);
+            saveDb();
+            console.log('[Cleanup] Bridges description: removed the invitation-only contradiction');
+        }
+    } catch (e) {}
+
     // One-time cleanup: earlier builds seeded five fabricated testimonials (Ana Markovic /
     // Marco Rossi / Sarah Chen / Luka Horvat / Emma Mueller). Blank the row only if it still
     // holds that exact fiction — real quotes added by the admin are never touched. Idempotent.

@@ -95,8 +95,8 @@
             'footer.terms':     {en:'Terms of Service', hr:'Uvjeti korištenja'},
             'footer.refund':    {en:'Refund Policy',    hr:'Pravila povrata'},
             'footer.contact':   {en:'Contact',          hr:'Kontakt'},
-            'footer.legal':     {en:'Med&X is a registered non-profit organization (OIB: pending). Personal data processed under GDPR.',
-                                 hr:'Med&X je registrirana neprofitna organizacija (OIB: u obradi). Osobni podaci obrađuju se u skladu s GDPR-om.'},
+            'footer.legal':     {en:'Med&X is a registered non-profit organization (OIB 72154554718). Personal data processed under GDPR.',
+                                 hr:'Med&X je registrirana neprofitna organizacija (OIB 72154554718). Osobni podaci obrađuju se u skladu s GDPR-om.'},
 
             // ===== Cluster HR2: onboarding + auth + member home =====
 
