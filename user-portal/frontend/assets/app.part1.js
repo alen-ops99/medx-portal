@@ -268,7 +268,7 @@
             'wt.s4title':       {en:'What would you like to explore?', hr:'Što biste željeli istražiti?'},
             'wt.s4sub':         {en:"Select the programs you're most interested in.", hr:'Odaberite programe koji vas najviše zanimaju.'},
             'wt.progPlexus':    {en:'Plexus Conference', hr:'Konferencija Plexus'},
-            'wt.progPlexusDesc':{en:'The largest biomedical conference in Central Europe. 2,500+ attendees, 10 keynote speakers, 30+ countries.', hr:'Najveća biomedicinska konferencija u srednjoj Europi. Više od 2.500 sudionika, 10 glavnih predavača i više od 30 zemalja.'},
+            'wt.progPlexusDesc':{en:'The largest biomedical conference in Central Europe. 2,500+ attendees, 50+ speakers, 30+ countries.', hr:'Najveća biomedicinska konferencija u srednjoj Europi. Više od 2.500 sudionika, 10 glavnih predavača i više od 30 zemalja.'},
             'wt.tagPlexusDate': {en:'Dec 4-5, 2026', hr:'4.–5. prosinca 2026.'},
             'wt.progAccel':     {en:'Accelerator Program', hr:'Program Accelerator'},
             'wt.progAccelDesc': {en:'Research internships at Harvard, Yale, MIT, Mayo Clinic, and other world-leading institutions.', hr:'Istraživački staževi na Harvardu, Yaleu, MIT-u, klinici Mayo i drugim vodećim svjetskim ustanovama.'},

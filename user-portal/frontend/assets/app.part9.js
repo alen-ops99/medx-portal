@@ -10398,9 +10398,6 @@
                 kevinsmith: { name:'Dr Kevin Smith', role:'President and CEO', org:'University Health Network', img:'assets/gala/gala_keynote_kevin_smith.jpg', aiDraftKey:'plexus.keynote.kevinsmith', aiDraft:'',
                     tags:['Research hospitals','Innovation','Canada'],
                     bio:'Dr Kevin Smith is President and CEO of University Health Network, Canada\u2019s largest research hospital network and a global leader in transplant, cardiac, and cancer care. He has spent his career building systems where research and patient care reinforce each other. At Plexus he addresses how discovery hospitals stay at the frontier.' },
-                anderson: { name:'Dr Paul Anderson', role:'Chief Academic Officer', org:'Mass General Brigham', img:'assets/gala/gala_keynote_anderson.jpg', aiDraftKey:'plexus.keynote.anderson', aiDraft:'',
-                    tags:['Academic medicine','Research strategy','Harvard Medical School'],
-                    bio:'Dr Paul Anderson is Chief Academic Officer of Mass General Brigham and a professor at Harvard Medical School, overseeing research and education across one of the largest academic medical enterprises in the world. A physician-scientist, he has shaped how a major system sets its research agenda. His keynote considers where biomedical research heads next.' },
             },
 
             showKeynoteBio(id) {
