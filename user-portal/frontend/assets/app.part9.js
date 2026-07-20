@@ -7105,6 +7105,10 @@
                 const container = document.getElementById('myEventsList');
                 if (!container) return;
 
+                // Real events are arriving — drop the "no events yet" placeholder.
+                const emptyState = container.querySelector('.my-events-empty');
+                if (emptyState) emptyState.remove();
+
                 // Check if BB events are already rendered
                 if (container.querySelector('.hub-event-card.building-bridges')) return;
 
@@ -16500,30 +16504,15 @@
             currentChatUserId: null,
             researchTags: ['Sleep Research', 'Gut-Brain Axis', 'Neuroscience'],
 
-            // Sample data for demo
-            todaysMatch: {
-                id: 'sarah-wilson',
-                name: 'Dr. Sarah Wilson',
-                initials: 'SW',
-                title: 'Sleep Researcher',
-                institution: 'Stanford Medicine',
-                reason: 'Sarah is researching sleep deprivation effects on cognitive function - directly complementary to your gut-brain-sleep research. She\'s also looking for collaborators on an upcoming NIH grant.',
-                tags: ['Sleep Research', 'Neuroscience', 'Open to Collaborate'],
-                photo: null
-            },
+            // No fabricated match — null until a real matching engine exists. The static
+            // card in index.html shows the truthful "No new suggestions" state.
+            todaysMatch: null,
 
-            connections: [
-                { id: 'maria-garcia', name: 'Dr. Maria Garcia', initials: 'MG', specialty: 'Neurology', institution: 'Harvard Medical School', tags: ['Neurology', 'Sleep'], lastActive: 'today' },
-                { id: 'james-kim', name: 'Dr. James Kim', initials: 'JK', specialty: 'Oncology', institution: 'Mayo Clinic', tags: ['Oncology', 'Research'], lastActive: 'yesterday' },
-                { id: 'thomas-chen', name: 'Dr. Thomas Chen', initials: 'TC', specialty: 'Cardiology', institution: 'Cleveland Clinic', tags: ['Cardiology', 'Industry'], lastActive: '3 days ago' },
-                { id: 'anna-larsson', name: 'Dr. Anna Larsson', initials: 'AL', specialty: 'Immunology', institution: 'Karolinska Institute', tags: ['Immunology', 'Mentor'], lastActive: 'today' }
-            ],
+            // Real data only: these are filled from the API (loadConnections /
+            // loadPendingRequests), never seeded with fictional people.
+            connections: [],
 
-            pendingRequests: [
-                { id: 'kenji-osaka', name: 'Dr. Kenji Osaka', initials: 'KO', specialty: 'Internal Medicine', institution: 'Tokyo University Hospital', tags: ['Internal Medicine', 'Research'], sentAgo: '2 days ago' },
-                { id: 'sophie-fischer', name: 'Dr. Sophie Fischer', initials: 'SF', specialty: 'Cardiology', institution: 'ETH Zurich', tags: ['Cardiology', 'Open to Coffee Chats'], sentAgo: 'yesterday' },
-                { id: 'miguel-borges', name: 'Dr. Miguel Borges', initials: 'MB', specialty: 'Neurology', institution: 'University of Lisbon', tags: ['Neurology', 'Looking for Collaborators'], sentAgo: 'today' }
-            ],
+            pendingRequests: [],
 
             init() {
                 this.discoverUsers = [];
@@ -16922,6 +16911,7 @@
 
             connectWithMatch() {
                 const match = this.todaysMatch;
+                if (!match) return;
                 this.sendConnectionRequest(match.id);
 
                 // Update button to show sent
@@ -18201,12 +18191,9 @@
                 }, 3000);
             },
 
-            // AI-driven match suggestions (demo implementation)
+            // Match suggestions — empty until a real matching engine exists
             generateMatches() {
-                // In production, this would call an AI matching algorithm
-                // considering: complementary research interests, career stage compatibility,
-                // goals alignment, geographic proximity, mutual connections, activity level
-                return [this.todaysMatch];
+                return this.todaysMatch ? [this.todaysMatch] : [];
             }
         };
 

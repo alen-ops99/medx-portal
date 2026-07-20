@@ -1591,6 +1591,11 @@
             'fm.noPendingReqSub': {en:'Connection requests from other members will appear here.', hr:'Zahtjevi za povezivanje drugih članova prikazat će se ovdje.'},
             'fm.noSentReq':       {en:'No sent invitations', hr:'Nema poslanih pozivnica'},
             'fm.noSentReqSub':    {en:'Invitations you send will appear here until they are accepted.', hr:'Pozivnice koje pošaljete prikazivat će se ovdje dok ne budu prihvaćene.'},
+            'fm.noRecentActive':  {en:'Member activity will appear here as the Forum community grows.', hr:'Aktivnost članova prikazivat će se ovdje kako zajednica Foruma bude rasla.'},
+            'fm.noProjectsYet':   {en:'Member-led projects will be listed here. Have one to propose? Email forum@medx.hr.', hr:'Projekti koje vode članovi bit će navedeni ovdje. Želite li predložiti projekt? Pišite na forum@medx.hr.'},
+            'hub.noEventsYet':    {en:'Events you register for will appear here.', hr:'Događaji na koje se prijavite prikazat će se ovdje.'},
+            'px.programPrep':     {en:'Program in preparation', hr:'Program u pripremi'},
+            'px.programPrepSub':  {en:'The detailed schedule will be published here.', hr:'Detaljan raspored bit će objavljen ovdje.'},
 
             // === HR long tail (final batch): AF26 schedule + speakers, Bridges peer cards,
             // === Gala pricing/register labels, Plexus chrome + registration consent sentences ===

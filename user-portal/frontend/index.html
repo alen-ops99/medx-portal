@@ -1443,13 +1443,6 @@
                         <span data-i18n="notif.demo2hAgo">2 hours ago</span>
                     </div>
                 </div>
-                <div class="up-notif-item unread">
-                    <div class="up-notif-icon"><i class="fas fa-user-plus"></i></div>
-                    <div class="up-notif-content">
-                        <p data-i18n="notif.demoWantsConnect"><strong>Dr. Sarah Wilson</strong> wants to connect</p>
-                        <span data-i18n="notif.demoYesterday">Yesterday</span>
-                    </div>
-                </div>
             </div>
             <div class="up-notif-settings">
                 <h4 data-i18n="notif.subscribe">Subscribe to Updates</h4>
@@ -3390,24 +3383,14 @@
                                             <i class="fas fa-calendar-alt"></i>
                                             <h4>My Events</h4>
                                         </div>
-                                        <span class="my-events-count" id="myEventsCount">2 items</span>
+                                        <span class="my-events-count" id="myEventsCount">0 items</span>
                                     </div>
                                     <div class="my-events-list" id="myEventsList">
-                                        <div class="my-event-item pending" onclick="UserPortal.showSection('af26')">
-                                            <div class="my-event-icon gala"><i class="fas fa-glass-cheers"></i></div>
-                                            <div class="my-event-content">
-                                                <h5>Gala Evening</h5>
-                                                <p><i class="fas fa-calendar"></i> Dec 5 <i class="fas fa-map-marker-alt"></i> Zagreb</p>
-                                            </div>
-                                            <span class="my-event-status pending">Payment Due</span>
-                                        </div>
-                                        <div class="my-event-item interested" onclick="UserPortal.showSection('forum'); setTimeout(() => ForumPortal.showTab('events'), 100);">
-                                            <div class="my-event-icon workshop"><i class="fas fa-chalkboard-teacher"></i></div>
-                                            <div class="my-event-content">
-                                                <h5>AI in Medicine Workshop</h5>
-                                                <p><i class="fas fa-calendar"></i> Mar 15 <i class="fas fa-video"></i> Virtual</p>
-                                            </div>
-                                            <span class="my-event-status interested">Interested</span>
+                                        <!-- Fabricated demo events removed ("Gala Payment Due", nonexistent
+                                             "AI in Medicine Workshop"). Real registrations render here. -->
+                                        <div class="my-events-empty" style="text-align:center;padding:28px 12px;color: var(--up-text-muted, var(--muted));">
+                                            <div style="font-size:28px;margin-bottom:8px;opacity:0.4;"><i class="fas fa-calendar-plus"></i></div>
+                                            <div style="font-size:13px;" data-i18n="hub.noEventsYet">Events you register for will appear here.</div>
                                         </div>
                                     </div>
                                     <button class="my-events-browse-btn" onclick="UserPortal.showSection('forum'); setTimeout(() => ForumPortal.showTab('events'), 100);">
@@ -4920,7 +4903,7 @@
                                     <button class="px-view-btn active" id="pxListViewBtn" onclick="PlexusPortal.toggleScheduleView('list')" style="padding: 8px 16px; border: none; background: var(--up-bg); border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--up-text); display: flex; align-items: center; gap: 6px;">
                                         <i class="fas fa-list"></i> List
                                     </button>
-                                    <button class="px-view-btn" id="pxTimelineViewBtn" onclick="PlexusPortal.toggleScheduleView('timeline')" style="padding: 8px 16px; border: none; background: transparent; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--up-text-muted); display: flex; align-items: center; gap: 6px;">
+                                    <button class="px-view-btn" id="pxTimelineViewBtn" onclick="PlexusPortal.toggleScheduleView('timeline')" style="padding: 8px 16px; border: none; background: transparent; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--up-text-muted); display: none; align-items: center; gap: 6px;">
                                         <i class="fas fa-th"></i> Timeline
                                     </button>
                                 </div>
@@ -4937,596 +4920,23 @@
 
                         <!-- Visual Timeline View (hidden by default) -->
                         <div class="px-timeline-container" id="pxTimelineView" style="display: none;">
-                            <!-- Day 1 Timeline -->
-                            <div class="px-timeline-day">
-                                <div class="px-timeline-day-header">
-                                    <div class="px-timeline-day-badge">
-                                        <span class="day-num">4</span>
-                                        <span class="day-month">Dec</span>
-                                    </div>
-                                    <div class="px-timeline-day-info">
-                                        <h3>Day 1 - Opening & Keynotes</h3>
-                                        <p>December 4, 2026 | Main Venue</p>
-                                    </div>
-                                    <div class="px-timeline-day-actions">
-                                        <button class="px-select-day-btn" onclick="PlexusPortal.selectAllDay(1)">
-                                            <i class="fas fa-check-double"></i> Select All
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="px-timeline-grid">
-                                    <div class="px-timeline-header">
-                                        <div>Time</div>
-                                        <div>Main Hall</div>
-                                        <div>Room A</div>
-                                        <div>Room B</div>
-                                    </div>
-                                    <!-- 08:00 Row -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">08:00</div>
-                                        <div class="px-timeline-cell" style="grid-column: span 3;">
-                                            <div class="px-timeline-event break selectable" data-event="day1-registration" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Registration & Welcome Coffee</div>
-                                                <div class="px-timeline-event-speaker">Main Lobby</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <!-- 09:00 Row -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">09:00</div>
-                                        <div class="px-timeline-cell">
-                                            <div class="px-timeline-event keynote selectable" data-event="day1-opening" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Opening Ceremony</div>
-                                                <div class="px-timeline-event-speaker">Dr. Alen Juginovic</div>
-                                            </div>
-                                        </div>
-                                        <div class="px-timeline-cell"></div>
-                                        <div class="px-timeline-cell"></div>
-                                    </div>
-                                    <!-- 09:30 Row -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">09:30</div>
-                                        <div class="px-timeline-cell">
-                                            <div class="px-timeline-event keynote selectable" data-event="day1-keynote" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Keynote: Future of Precision Medicine</div>
-                                                <div class="px-timeline-event-speaker">Keynote Speaker</div>
-                                            </div>
-                                        </div>
-                                        <div class="px-timeline-cell"></div>
-                                        <div class="px-timeline-cell"></div>
-                                    </div>
-                                    <!-- 11:00 Row -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">11:00</div>
-                                        <div class="px-timeline-cell" style="grid-column: span 3;">
-                                            <div class="px-timeline-event networking selectable" data-event="day1-networking" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Coffee Break & Networking</div>
-                                                <div class="px-timeline-event-speaker">Exhibition Area</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <!-- 14:00 Row - Workshops -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">14:00</div>
-                                        <div class="px-timeline-cell"></div>
-                                        <div class="px-timeline-cell">
-                                            <div class="px-timeline-event workshop selectable" data-event="day1-workshop-ai" data-price="35" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">AI in Clinical Practice</div>
-                                                <div class="px-timeline-event-speaker">Dr. Sarah Chen</div>
-                                                <div class="px-timeline-event-price">+€35</div>
-                                            </div>
-                                        </div>
-                                        <div class="px-timeline-cell">
-                                            <div class="px-timeline-event workshop selectable" data-event="day1-workshop-grant" data-price="35" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Grant Writing Masterclass</div>
-                                                <div class="px-timeline-event-speaker">Prof. J. Wilson</div>
-                                                <div class="px-timeline-event-price">+€35</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Day 2 Timeline -->
-                            <div class="px-timeline-day">
-                                <div class="px-timeline-day-header">
-                                    <div class="px-timeline-day-badge">
-                                        <span class="day-num">5</span>
-                                        <span class="day-month">Dec</span>
-                                    </div>
-                                    <div class="px-timeline-day-info">
-                                        <h3>Day 2 - Research & Gala</h3>
-                                        <p>December 5, 2026 | Main Venue</p>
-                                    </div>
-                                    <div class="px-timeline-day-actions">
-                                        <button class="px-select-day-btn" onclick="PlexusPortal.selectAllDay(2)">
-                                            <i class="fas fa-check-double"></i> Select All
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="px-timeline-grid">
-                                    <div class="px-timeline-header">
-                                        <div>Time</div>
-                                        <div>Main Hall</div>
-                                        <div>Exhibition Hall</div>
-                                        <div>Special</div>
-                                    </div>
-                                    <!-- 09:00 Row -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">09:00</div>
-                                        <div class="px-timeline-cell">
-                                            <div class="px-timeline-event oral selectable" data-event="day2-oral" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Oral Presentations</div>
-                                                <div class="px-timeline-event-speaker">Selected Abstracts</div>
-                                            </div>
-                                        </div>
-                                        <div class="px-timeline-cell"></div>
-                                        <div class="px-timeline-cell"></div>
-                                    </div>
-                                    <!-- 11:30 Row -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">11:30</div>
-                                        <div class="px-timeline-cell"></div>
-                                        <div class="px-timeline-cell">
-                                            <div class="px-timeline-event networking selectable" data-event="day2-poster" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Poster Session & Lunch</div>
-                                                <div class="px-timeline-event-speaker">90 minutes</div>
-                                            </div>
-                                        </div>
-                                        <div class="px-timeline-cell"></div>
-                                    </div>
-                                    <!-- 15:00 Row -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">15:00</div>
-                                        <div class="px-timeline-cell">
-                                            <div class="px-timeline-event keynote selectable" data-event="day2-closing" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Closing Keynote & Awards</div>
-                                                <div class="px-timeline-event-speaker">Distinguished Speaker</div>
-                                            </div>
-                                        </div>
-                                        <div class="px-timeline-cell"></div>
-                                        <div class="px-timeline-cell"></div>
-                                    </div>
-                                    <!-- 16:30 Row -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">16:30</div>
-                                        <div class="px-timeline-cell"></div>
-                                        <div class="px-timeline-cell"></div>
-                                        <div class="px-timeline-cell">
-                                            <div class="px-timeline-event workshop selectable" data-event="day2-city-tour" data-price="25" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Zagreb City Tour</div>
-                                                <div class="px-timeline-event-speaker">Guided Tour</div>
-                                                <div class="px-timeline-event-price">+€25</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <!-- 19:00 Row -->
-                                    <div class="px-timeline-row">
-                                        <div class="px-timeline-time">19:00</div>
-                                        <div class="px-timeline-cell" style="grid-column: span 3;">
-                                            <div class="px-timeline-event networking selectable" data-event="day2-gala" data-price="75" onclick="PlexusPortal.toggleTimelineEvent(this)">
-                                                <div class="px-timeline-event-title">Gala Evening & Awards Ceremony</div>
-
-                        <!-- Pre-Event Prep Checklist -->
-                        <div class="prep-checklist-card" style="margin-top: 24px;">
-                            <div class="prep-checklist-header">
-                                <h3><i class="fas fa-clipboard-check"></i> Your Pre-Event Checklist</h3>
-                                <p>Complete these items before the conference</p>
-                                <div class="prep-checklist-progress">
-                                    <div class="prep-progress-bar">
-                                        <div class="prep-progress-fill" style="width: 40%"></div>
-                                    </div>
-                                    <span class="prep-progress-text">2/5</span>
-                                </div>
-                            </div>
-                            <div class="prep-checklist-items">
-                                <!-- Items populated by JavaScript -->
-                            </div>
-                        </div>
-
-                        <!-- My Schedule / Agenda Builder -->
-                        <div class="up-card" style="margin-top: 24px;">
-                            <div class="up-card-header">
-                                <h3 class="up-card-title" data-i18n="px.mySchedule"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
-                                <div class="calendar-dropdown">
-                                    <button class="calendar-dropdown-btn" data-i18n="px.addToCalendar" onclick="EventCalendar.toggleDropdown()">
-                                        <i class="fas fa-calendar-plus"></i> Add to Calendar
-                                    </button>
-                                    <div class="calendar-dropdown-menu">
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('google')">
-                                            <div class="calendar-option-icon google"><i class="fab fa-google"></i></div>
-                                            <span class="calendar-option-text">Google Calendar</span>
-                                        </div>
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('apple')">
-                                            <div class="calendar-option-icon apple"><i class="fab fa-apple"></i></div>
-                                            <span class="calendar-option-text">Apple Calendar</span>
-                                        </div>
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('outlook')">
-                                            <div class="calendar-option-icon outlook"><i class="fab fa-microsoft"></i></div>
-                                            <span class="calendar-option-text">Outlook</span>
-                                        </div>
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('ics')">
-                                            <div class="calendar-option-icon ics"><i class="fas fa-download"></i></div>
-                                            <span class="calendar-option-text">Download .ics</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="up-card-body">
-                                <div style="display: flex; flex-direction: column; gap: 12px;">
-                                    <!-- Populated by JavaScript -->
-                                </div>
-                                <div style="text-align: center; padding: 32px; color: var(--up-text-muted);">
-                                    <i class="far fa-bookmark" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
-                                    <p>No sessions bookmarked yet</p>
-                                    <button class="px-hero-btn px-hero-btn-secondary" style="margin-top: 12px;" onclick="PlexusPortal.showTab('schedule')">
-                                        Browse Schedule
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Post-Event Section (shown after conference) -->
-                        <div class="post-event-section" style="margin-top: 24px; display: none;">
-                            <div class="post-event-header">
-                                <div class="post-event-icon">
-                                    <i class="fas fa-trophy"></i>
-                                </div>
-                                <div class="post-event-info">
-                                    <h3>Thanks for Attending Plexus 2026!</h3>
-                                    <p>Access your recordings, certificate, and connect with fellow attendees</p>
-                                </div>
-                            </div>
-                            <div class="post-event-grid">
-                                <div class="post-event-card" onclick="PostEvent.viewRecordings()">
-                                    <i class="fas fa-video"></i>
-                                    <h4>Session Recordings</h4>
-                                    <p>Watch any session you missed</p>
-                                </div>
-                                <div class="post-event-card" onclick="PostEvent.downloadCertificate()">
-                                    <i class="fas fa-certificate"></i>
-                                    <h4>Certificate</h4>
-                                    <p>Download your attendance certificate</p>
-                                </div>
-                                <div class="post-event-card" onclick="PostEvent.showConnections()">
-                                    <i class="fas fa-user-friends"></i>
-                                    <h4>Connect with Attendees</h4>
-                                    <p>12 suggested connections</p>
-                                </div>
-                                <div class="post-event-card" onclick="PostEvent.giveFeedback()">
-                                    <i class="fas fa-star"></i>
-                                    <h4>Give Feedback</h4>
-                                    <p>Help us improve for next year</p>
-                                </div>
-                            </div>
-                            <!-- Certificate Card -->
-                            <div class="certificate-card" style="margin-top: 20px;">
-                                <div class="certificate-preview">
-                                    <i class="fas fa-award"></i>
-                                </div>
-                                <div class="certificate-info">
-                                    <h4>Certificate of Attendance</h4>
-                                    <p>Plexus Conference 2026 - Dec 4-5, Zagreb</p>
-                                </div>
-                                <button class="certificate-download-btn" onclick="PostEvent.downloadCertificate()">
-                                    <i class="fas fa-download"></i> Download PDF
-                                </button>
-                            </div>
-                        </div>
-
-                                                <div class="px-timeline-event-speaker">Emerald Ballroom | Formal Attire</div>
-                                                <div class="px-timeline-event-price">+€75</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Legend -->
-                            <div class="px-timeline-legend">
-                                <div class="px-timeline-legend-item">
-                                    <div class="px-timeline-legend-dot keynote"></div>
-                                    <span>Keynotes</span>
-                                </div>
-                                <div class="px-timeline-legend-item">
-                                    <div class="px-timeline-legend-dot workshop"></div>
-                                    <span>Workshops</span>
-                                </div>
-                                <div class="px-timeline-legend-item">
-                                    <div class="px-timeline-legend-dot networking"></div>
-                                    <span>Networking</span>
-                                </div>
-                                <div class="px-timeline-legend-item">
-                                    <div class="px-timeline-legend-dot break"></div>
-                                    <span>Breaks</span>
-                                </div>
-                                <div class="px-timeline-legend-item">
-                                    <div class="px-timeline-legend-dot oral"></div>
-                                    <span>Presentations</span>
-                                </div>
+                            <!-- Static fabricated timeline (fake sessions/speakers) removed. The List view
+                                 is server truth; this view stays hidden until it is data-driven. -->
+                            <div style="text-align:center;padding:48px 20px;color: var(--up-text-muted, var(--muted));">
+                                <div style="font-size:36px;margin-bottom:12px;opacity:0.4;"><i class="fas fa-calendar-alt"></i></div>
+                                <h4 data-i18n="px.programPrep" style="margin:0 0 6px;">Program in preparation</h4>
+                                <p data-i18n="px.programPrepSub" style="font-size:13px;margin:0;">The detailed schedule will be published here.</p>
                             </div>
                         </div>
 
                         <!-- List View (default) -->
                         <div class="px-schedule-list-view" id="pxListView">
-                        <!-- Day 1 -->
-                        <div class="px-schedule-day">
-                            <div class="px-schedule-day-header">
-                                <div class="px-schedule-day-date">
-                                    <div class="px-schedule-day-num">4</div>
-                                    <div class="px-schedule-day-month">Dec</div>
-                                </div>
-                                <div class="px-schedule-day-title">Day 1 - Opening & Keynotes</div>
-                                <button class="px-select-day-btn" onclick="PlexusPortal.selectAllDay(1)">
-                                    <i class="fas fa-check-double"></i> Select All Day 1
-                                </button>
+                            <!-- Static placeholder program removed (fake sessions/speakers flashed before
+                                 the server-truth render). renderScheduleFromData() paints the real one. -->
+                            <div style="text-align:center;padding:48px 20px;color: var(--up-text-muted, var(--muted));">
+                                <h4 data-i18n="px.programPrep" style="margin:0 0 6px;">Program in preparation</h4>
+                                <p data-i18n="px.programPrepSub" style="font-size:13px;margin:0;">The detailed schedule will be published here.</p>
                             </div>
-                            <div class="px-schedule-items">
-                                <div class="px-schedule-item selectable" data-event="day1-registration" data-day="1" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">08:00</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Registration & Welcome Coffee</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Main Lobby</span>
-                                            <span class="px-item-included"><i class="fas fa-ticket-alt"></i> Included</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="px-schedule-item selectable" data-event="day1-opening" data-day="1" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">09:00</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Opening Ceremony</div>
-                                        <div class="px-schedule-item-speaker">Dr. Alen Juginovic & Med&X Leadership</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Main Hall</span>
-                                            <span><i class="fas fa-clock"></i> 30 min</span>
-                                            <span class="px-item-included"><i class="fas fa-ticket-alt"></i> Included</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="px-schedule-item selectable" data-event="day1-keynote" data-day="1" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">09:30</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Keynote: The Future of Precision Medicine</div>
-                                        <div class="px-schedule-item-speaker">Keynote Speaker (TBA)</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Main Hall</span>
-                                            <span><i class="fas fa-clock"></i> 60 min</span>
-                                            <span class="px-item-included"><i class="fas fa-ticket-alt"></i> Included</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="px-schedule-item selectable" data-event="day1-networking" data-day="1" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">11:00</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Coffee Break & Networking</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Exhibition Area</span>
-                                            <span><i class="fas fa-clock"></i> 30 min</span>
-                                            <span class="px-item-included"><i class="fas fa-ticket-alt"></i> Included</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="px-schedule-item selectable addon" data-event="day1-workshop-ai" data-day="1" data-price="35" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">14:00</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Workshop: AI in Clinical Practice</div>
-                                        <div class="px-schedule-item-speaker">Dr. Sarah Chen, MIT</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Room A</span>
-                                            <span><i class="fas fa-clock"></i> 3 hours</span>
-                                            <span class="px-item-addon"><i class="fas fa-plus-circle"></i> +€35</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="px-schedule-item selectable addon" data-event="day1-workshop-grant" data-day="1" data-price="35" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">14:00</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Workshop: Grant Writing Masterclass</div>
-                                        <div class="px-schedule-item-speaker">Prof. James Wilson, Stanford</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Room B</span>
-                                            <span><i class="fas fa-clock"></i> 3 hours</span>
-                                            <span class="px-item-addon"><i class="fas fa-plus-circle"></i> +€35</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Day 2 -->
-                        <div class="px-schedule-day">
-                            <div class="px-schedule-day-header">
-                                <div class="px-schedule-day-date">
-                                    <div class="px-schedule-day-num">5</div>
-                                    <div class="px-schedule-day-month">Dec</div>
-                                </div>
-                                <div class="px-schedule-day-title">Day 2 - Research & Gala</div>
-                                <button class="px-select-day-btn" onclick="PlexusPortal.selectAllDay(2)">
-                                    <i class="fas fa-check-double"></i> Select All Day 2
-                                </button>
-                            </div>
-                            <div class="px-schedule-items">
-                                <div class="px-schedule-item selectable" data-event="day2-oral" data-day="2" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">09:00</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Oral Presentations - Session A</div>
-                                        <div class="px-schedule-item-speaker">Selected Abstracts</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Main Hall</span>
-                                            <span><i class="fas fa-clock"></i> 2 hours</span>
-                                            <span class="px-item-included"><i class="fas fa-ticket-alt"></i> Included</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="px-schedule-item selectable" data-event="day2-poster" data-day="2" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">11:30</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Poster Session & Lunch</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Exhibition Hall</span>
-                                            <span><i class="fas fa-clock"></i> 90 min</span>
-                                            <span class="px-item-included"><i class="fas fa-ticket-alt"></i> Included</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="px-schedule-item selectable" data-event="day2-closing" data-day="2" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">15:00</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Closing Keynote & Awards</div>
-                                        <div class="px-schedule-item-speaker">Distinguished Speaker (TBA)</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Main Hall</span>
-                                            <span><i class="fas fa-clock"></i> 45 min</span>
-                                            <span class="px-item-included"><i class="fas fa-ticket-alt"></i> Included</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="px-schedule-item selectable addon" data-event="day2-city-tour" data-day="2" data-price="25" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">16:30</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Zagreb City Tour</div>
-                                        <div class="px-schedule-item-speaker">Guided Historical Walking Tour</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Meet at Hotel Lobby</span>
-                                            <span><i class="fas fa-clock"></i> 2 hours</span>
-                                            <span class="px-item-addon"><i class="fas fa-plus-circle"></i> +€25</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="px-schedule-item selectable addon" data-event="day2-gala" data-day="2" data-price="75" onclick="PlexusPortal.toggleEventSelection(this)">
-                                    <div class="px-schedule-item-checkbox"><i class="fas fa-check"></i></div>
-                                    <div class="px-schedule-item-time">19:00</div>
-                                    <div class="px-schedule-item-content">
-                                        <div class="px-schedule-item-title">Gala Evening & Awards Ceremony</div>
-
-                        <!-- Pre-Event Prep Checklist -->
-                        <div class="prep-checklist-card" style="margin-top: 24px;">
-                            <div class="prep-checklist-header">
-                                <h3><i class="fas fa-clipboard-check"></i> Your Pre-Event Checklist</h3>
-                                <p>Complete these items before the conference</p>
-                                <div class="prep-checklist-progress">
-                                    <div class="prep-progress-bar">
-                                        <div class="prep-progress-fill" style="width: 40%"></div>
-                                    </div>
-                                    <span class="prep-progress-text">2/5</span>
-                                </div>
-                            </div>
-                            <div class="prep-checklist-items">
-                                <!-- Items populated by JavaScript -->
-                            </div>
-                        </div>
-
-                        <!-- My Schedule / Agenda Builder -->
-                        <div class="up-card" style="margin-top: 24px;">
-                            <div class="up-card-header">
-                                <h3 class="up-card-title" data-i18n="px.mySchedule"><i class="fas fa-bookmark" style="margin-right: 8px; color: var(--up-gold);"></i> My Schedule</h3>
-                                <div class="calendar-dropdown">
-                                    <button class="calendar-dropdown-btn" data-i18n="px.addToCalendar" onclick="EventCalendar.toggleDropdown()">
-                                        <i class="fas fa-calendar-plus"></i> Add to Calendar
-                                    </button>
-                                    <div class="calendar-dropdown-menu">
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('google')">
-                                            <div class="calendar-option-icon google"><i class="fab fa-google"></i></div>
-                                            <span class="calendar-option-text">Google Calendar</span>
-                                        </div>
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('apple')">
-                                            <div class="calendar-option-icon apple"><i class="fab fa-apple"></i></div>
-                                            <span class="calendar-option-text">Apple Calendar</span>
-                                        </div>
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('outlook')">
-                                            <div class="calendar-option-icon outlook"><i class="fab fa-microsoft"></i></div>
-                                            <span class="calendar-option-text">Outlook</span>
-                                        </div>
-                                        <div class="calendar-option" onclick="EventCalendar.addTo('ics')">
-                                            <div class="calendar-option-icon ics"><i class="fas fa-download"></i></div>
-                                            <span class="calendar-option-text">Download .ics</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="up-card-body">
-                                <div style="display: flex; flex-direction: column; gap: 12px;">
-                                    <!-- Populated by JavaScript -->
-                                </div>
-                                <div style="text-align: center; padding: 32px; color: var(--up-text-muted);">
-                                    <i class="far fa-bookmark" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
-                                    <p>No sessions bookmarked yet</p>
-                                    <button class="px-hero-btn px-hero-btn-secondary" style="margin-top: 12px;" onclick="PlexusPortal.showTab('schedule')">
-                                        Browse Schedule
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Post-Event Section (shown after conference) -->
-                        <div class="post-event-section" style="margin-top: 24px; display: none;">
-                            <div class="post-event-header">
-                                <div class="post-event-icon">
-                                    <i class="fas fa-trophy"></i>
-                                </div>
-                                <div class="post-event-info">
-                                    <h3>Thanks for Attending Plexus 2026!</h3>
-                                    <p>Access your recordings, certificate, and connect with fellow attendees</p>
-                                </div>
-                            </div>
-                            <div class="post-event-grid">
-                                <div class="post-event-card" onclick="PostEvent.viewRecordings()">
-                                    <i class="fas fa-video"></i>
-                                    <h4>Session Recordings</h4>
-                                    <p>Watch any session you missed</p>
-                                </div>
-                                <div class="post-event-card" onclick="PostEvent.downloadCertificate()">
-                                    <i class="fas fa-certificate"></i>
-                                    <h4>Certificate</h4>
-                                    <p>Download your attendance certificate</p>
-                                </div>
-                                <div class="post-event-card" onclick="PostEvent.showConnections()">
-                                    <i class="fas fa-user-friends"></i>
-                                    <h4>Connect with Attendees</h4>
-                                    <p>12 suggested connections</p>
-                                </div>
-                                <div class="post-event-card" onclick="PostEvent.giveFeedback()">
-                                    <i class="fas fa-star"></i>
-                                    <h4>Give Feedback</h4>
-                                    <p>Help us improve for next year</p>
-                                </div>
-                            </div>
-                            <!-- Certificate Card -->
-                            <div class="certificate-card" style="margin-top: 20px;">
-                                <div class="certificate-preview">
-                                    <i class="fas fa-award"></i>
-                                </div>
-                                <div class="certificate-info">
-                                    <h4>Certificate of Attendance</h4>
-                                    <p>Plexus Conference 2026 - Dec 4-5, Zagreb</p>
-                                </div>
-                                <button class="certificate-download-btn" onclick="PostEvent.downloadCertificate()">
-                                    <i class="fas fa-download"></i> Download PDF
-                                </button>
-                            </div>
-                        </div>
-
-                                        <div class="px-schedule-item-speaker">Networking Dinner, Live Music, Awards</div>
-                                        <div class="px-schedule-item-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Emerald Ballroom</span>
-                                            <span><i class="fas fa-glass-cheers"></i> Formal Attire</span>
-                                            <span class="px-item-addon"><i class="fas fa-plus-circle"></i> +€75</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                         </div><!-- End List View -->
 
                         <!-- Floating Selection Bar -->
@@ -8621,56 +8031,6 @@
                                     </div>
                                     <button class="fm-connect-btn" onclick="event.stopPropagation(); ForumPortal.connectMember('alen-juginovic')">Connect</button>
                                 </div>
-                                <div class="fm-member-card-compact" data-specialty="oncology" data-region="north-america" data-looking-for="collaborators,mentorship" data-open-to="advisory" data-member-id="john-smith" onclick="ForumPortal.openMemberModal('john-smith')">
-                                    <div class="fm-member-photo"><i class="fas fa-user"></i></div>
-                                    <div class="fm-member-name">Dr. John Smith</div>
-                                    <div class="fm-member-title">Department Chair | Yale School of Medicine</div>
-                                    <div class="fm-member-tags">
-                                        <span class="fm-member-tag">Oncology</span>
-                                        <span class="fm-member-tag">Clinical Trials</span>
-                                    </div>
-                                    <button class="fm-connect-btn" onclick="event.stopPropagation(); ForumPortal.connectMember('john-smith')">Connect</button>
-                                </div>
-                                <div class="fm-member-card-compact" data-specialty="neuroscience" data-region="europe" data-looking-for="collaborators,speaking" data-open-to="coffee,research" data-member-id="maria-garcia" onclick="ForumPortal.openMemberModal('maria-garcia')">
-                                    <div class="fm-member-photo"><i class="fas fa-user"></i></div>
-                                    <div class="fm-member-name">Prof. Maria Garcia</div>
-                                    <div class="fm-member-title">Institute Director | Max Planck</div>
-                                    <div class="fm-member-tags">
-                                        <span class="fm-member-tag">CRISPR</span>
-                                        <span class="fm-member-tag">Neurodegeneration</span>
-                                    </div>
-                                    <button class="fm-connect-btn" onclick="event.stopPropagation(); ForumPortal.connectMember('maria-garcia')">Connect</button>
-                                </div>
-                                <div class="fm-member-card-compact" data-specialty="biotech" data-region="north-america" data-looking-for="investment,speaking" data-open-to="advisory" data-member-id="james-chen" onclick="ForumPortal.openMemberModal('james-chen')">
-                                    <div class="fm-member-photo"><i class="fas fa-user"></i></div>
-                                    <div class="fm-member-name">Dr. James Chen</div>
-                                    <div class="fm-member-title">VP Research | Pfizer</div>
-                                    <div class="fm-member-tags">
-                                        <span class="fm-member-tag">Biotech</span>
-                                        <span class="fm-member-tag">Drug Development</span>
-                                    </div>
-                                    <button class="fm-connect-btn" onclick="event.stopPropagation(); ForumPortal.connectMember('james-chen')">Connect</button>
-                                </div>
-                                <div class="fm-member-card-compact" data-specialty="public-health" data-region="north-america" data-looking-for="collaborators,mentorship" data-open-to="coffee,advisory" data-member-id="sarah-wilson" onclick="ForumPortal.openMemberModal('sarah-wilson')">
-                                    <div class="fm-member-photo"><i class="fas fa-user"></i></div>
-                                    <div class="fm-member-name">Prof. Sarah Wilson</div>
-                                    <div class="fm-member-title">Dean of Research | Stanford</div>
-                                    <div class="fm-member-tags">
-                                        <span class="fm-member-tag">Public Health</span>
-                                        <span class="fm-member-tag">Policy</span>
-                                    </div>
-                                    <button class="fm-connect-btn" onclick="event.stopPropagation(); ForumPortal.connectMember('sarah-wilson')">Connect</button>
-                                </div>
-                                <div class="fm-member-card-compact" data-specialty="cardiology" data-region="north-america" data-looking-for="speaking" data-open-to="research,advisory" data-member-id="michael-brown" onclick="ForumPortal.openMemberModal('michael-brown')">
-                                    <div class="fm-member-photo"><i class="fas fa-user"></i></div>
-                                    <div class="fm-member-name">Dr. Michael Brown</div>
-                                    <div class="fm-member-title">CMO | Cleveland Clinic</div>
-                                    <div class="fm-member-tags">
-                                        <span class="fm-member-tag">Cardiology</span>
-                                        <span class="fm-member-tag">Leadership</span>
-                                    </div>
-                                    <button class="fm-connect-btn" onclick="event.stopPropagation(); ForumPortal.connectMember('michael-brown')">Connect</button>
-                                </div>
                             </div>
 
                             <!-- Footer -->
@@ -8767,80 +8127,10 @@
                                 </button>
                             </div>
                             <div class="fm-projects-grid">
-                                <div class="fm-project-card" data-project="sleep-cardio">
-                                    <div class="fm-project-header">
-                                        <div class="fm-project-icon">
-                                            <i class="fas fa-heartbeat"></i>
-                                        </div>
-                                        <div class="fm-project-info">
-                                            <h4>Sleep & Cardiovascular Health Study</h4>
-                                            <div class="fm-project-lead">Dr. Alen Juginovic, Harvard Medical School</div>
-                                        </div>
-                                    </div>
-                                    <div class="fm-project-desc">
-                                        Multi-center study investigating the relationship between sleep spindle density and cardiovascular outcomes in European populations.
-                                    </div>
-                                    <div class="fm-project-skills">
-                                        <div class="fm-project-skills-label">Looking for</div>
-                                        <div class="fm-project-skills-tags">
-                                            <span class="fm-project-skill-tag">Cardiologists</span>
-                                            <span class="fm-project-skill-tag">Statisticians</span>
-                                            <span class="fm-project-skill-tag">Sleep Centers</span>
-                                        </div>
-                                    </div>
-                                    <button class="fm-project-btn" onclick="ForumPortal.expressProjectInterest('sleep-cardio', this)">
-                                        <i class="fas fa-hand-paper"></i> Express Interest
-                                    </button>
-                                </div>
-                                <div class="fm-project-card" data-project="ai-healthcare">
-                                    <div class="fm-project-header">
-                                        <div class="fm-project-icon">
-                                            <i class="fas fa-robot"></i>
-                                        </div>
-                                        <div class="fm-project-info">
-                                            <h4>AI in Croatian Healthcare</h4>
-                                            <div class="fm-project-lead">Prof. Maria Garcia, Max Planck Institute</div>
-                                        </div>
-                                    </div>
-                                    <div class="fm-project-desc">
-                                        Initiative to implement AI diagnostics in Croatian hospitals, starting with radiology and pathology departments.
-                                    </div>
-                                    <div class="fm-project-skills">
-                                        <div class="fm-project-skills-label">Looking for</div>
-                                        <div class="fm-project-skills-tags">
-                                            <span class="fm-project-skill-tag">Data Scientists</span>
-                                            <span class="fm-project-skill-tag">Policy Experts</span>
-                                            <span class="fm-project-skill-tag">Radiologists</span>
-                                        </div>
-                                    </div>
-                                    <button class="fm-project-btn" onclick="ForumPortal.expressProjectInterest('ai-healthcare', this)">
-                                        <i class="fas fa-hand-paper"></i> Express Interest
-                                    </button>
-                                </div>
-                                <div class="fm-project-card" data-project="biotech-accelerator">
-                                    <div class="fm-project-header">
-                                        <div class="fm-project-icon">
-                                            <i class="fas fa-rocket"></i>
-                                        </div>
-                                        <div class="fm-project-info">
-                                            <h4>Biotech Startup Accelerator</h4>
-                                            <div class="fm-project-lead">Dr. James Chen, Pfizer</div>
-                                        </div>
-                                    </div>
-                                    <div class="fm-project-desc">
-                                        Mentorship program connecting early-stage biotech founders with industry leaders and investors.
-                                    </div>
-                                    <div class="fm-project-skills">
-                                        <div class="fm-project-skills-label">Looking for</div>
-                                        <div class="fm-project-skills-tags">
-                                            <span class="fm-project-skill-tag">Mentors</span>
-                                            <span class="fm-project-skill-tag">Investors</span>
-                                            <span class="fm-project-skill-tag">Founders</span>
-                                        </div>
-                                    </div>
-                                    <button class="fm-project-btn" onclick="ForumPortal.expressProjectInterest('biotech-accelerator', this)">
-                                        <i class="fas fa-hand-paper"></i> Express Interest
-                                    </button>
+                                <!-- Fabricated demo projects removed (fake leads, fake studies). -->
+                                <div style="grid-column:1/-1;text-align:center;padding:36px 20px;color: var(--muted);">
+                                    <div style="font-size:32px;margin-bottom:10px;opacity:0.35;"><i class="fas fa-flask"></i></div>
+                                    <div style="font-size:13px;" data-i18n="fm.noProjectsYet">Member-led projects will be listed here. Have one to propose? Email forum@medx.hr.</div>
                                 </div>
                             </div>
                         </div>
@@ -8975,179 +8265,18 @@
                                     </div>
 
                                     <!-- Card 2 -->
-                                    <div class="fm-directory-card" data-member="john-smith" data-specialty="oncology" data-region="north-america" data-looking="mentorship" onclick="ForumPortal.openDirectoryProfile('john-smith')">
-                                        <div class="fm-directory-card-header">
-                                            <div class="fm-directory-card-photo has-initials">JS</div>
-                                            <div class="fm-directory-card-info">
-                                                <div class="fm-directory-card-name">Dr. John Smith</div>
-                                                <div class="fm-directory-card-title">Department Chair, Oncology</div>
-                                                <div class="fm-directory-card-company"><i class="fas fa-building"></i> Yale School of Medicine</div>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card-tags">
-                                            <span class="fm-directory-card-tag">Oncology</span>
-                                            <span class="fm-directory-card-tag">Clinical Trials</span>
-                                            <span class="fm-directory-card-tag">Cancer Research</span>
-                                        </div>
-                                        <div class="fm-directory-card-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> New Haven, CT</span>
-                                            <span><i class="fas fa-chalkboard-teacher"></i> Open to mentor</span>
-                                        </div>
-                                        <div class="fm-directory-card-actions">
-                                            <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('john-smith')"><i class="fas fa-user-plus"></i> Connect</button>
-                                            <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('john-smith')"><i class="fas fa-comment"></i> Message</button>
-                                        </div>
-                                    </div>
 
                                     <!-- Card 3 -->
-                                    <div class="fm-directory-card" data-member="maria-garcia" data-specialty="neuroscience" data-region="europe" data-looking="collaborators,speaking" onclick="ForumPortal.openDirectoryProfile('maria-garcia')">
-                                        <div class="fm-directory-card-header">
-                                            <div class="fm-directory-card-photo has-initials">MG</div>
-                                            <div class="fm-directory-card-info">
-                                                <div class="fm-directory-card-name">Prof. Maria Garcia</div>
-                                                <div class="fm-directory-card-title">Institute Director, Neural Engineering</div>
-                                                <div class="fm-directory-card-company"><i class="fas fa-building"></i> Max Planck Institute</div>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card-tags">
-                                            <span class="fm-directory-card-tag">Neuroscience</span>
-                                            <span class="fm-directory-card-tag">CRISPR</span>
-                                            <span class="fm-directory-card-tag">Gene Therapy</span>
-                                        </div>
-                                        <div class="fm-directory-card-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Munich, Germany</span>
-                                            <span><i class="fas fa-handshake"></i> Open to collaborate</span>
-                                        </div>
-                                        <div class="fm-directory-card-actions">
-                                            <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('maria-garcia')"><i class="fas fa-user-plus"></i> Connect</button>
-                                            <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('maria-garcia')"><i class="fas fa-comment"></i> Message</button>
-                                        </div>
-                                    </div>
 
                                     <!-- Card 4 -->
-                                    <div class="fm-directory-card" data-member="james-chen" data-specialty="biotech" data-region="north-america" data-looking="investment,speaking" onclick="ForumPortal.openDirectoryProfile('james-chen')">
-                                        <div class="fm-directory-card-header">
-                                            <div class="fm-directory-card-photo has-initials">JC</div>
-                                            <div class="fm-directory-card-info">
-                                                <div class="fm-directory-card-name">Dr. James Chen</div>
-                                                <div class="fm-directory-card-title">Vice President, Research</div>
-                                                <div class="fm-directory-card-company"><i class="fas fa-building"></i> Pfizer</div>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card-tags">
-                                            <span class="fm-directory-card-tag">Biotech</span>
-                                            <span class="fm-directory-card-tag">Drug Development</span>
-                                            <span class="fm-directory-card-tag">Industry</span>
-                                        </div>
-                                        <div class="fm-directory-card-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Cambridge, MA</span>
-                                            <span><i class="fas fa-microphone"></i> Available to speak</span>
-                                        </div>
-                                        <div class="fm-directory-card-actions">
-                                            <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('james-chen')"><i class="fas fa-user-plus"></i> Connect</button>
-                                            <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('james-chen')"><i class="fas fa-comment"></i> Message</button>
-                                        </div>
-                                    </div>
 
                                     <!-- Card 5 -->
-                                    <div class="fm-directory-card" data-member="sarah-wilson" data-specialty="public-health" data-region="north-america" data-looking="collaborators,mentorship" onclick="ForumPortal.openDirectoryProfile('sarah-wilson')">
-                                        <div class="fm-directory-card-header">
-                                            <div class="fm-directory-card-photo has-initials">SW</div>
-                                            <div class="fm-directory-card-info">
-                                                <div class="fm-directory-card-name">Prof. Sarah Wilson</div>
-                                                <div class="fm-directory-card-title">Dean of Research</div>
-                                                <div class="fm-directory-card-company"><i class="fas fa-building"></i> Stanford Medicine</div>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card-tags">
-                                            <span class="fm-directory-card-tag">Public Health</span>
-                                            <span class="fm-directory-card-tag">Health Policy</span>
-                                            <span class="fm-directory-card-tag">Epidemiology</span>
-                                        </div>
-                                        <div class="fm-directory-card-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Palo Alto, CA</span>
-                                            <span><i class="fas fa-chalkboard-teacher"></i> Open to mentor</span>
-                                        </div>
-                                        <div class="fm-directory-card-actions">
-                                            <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('sarah-wilson')"><i class="fas fa-user-plus"></i> Connect</button>
-                                            <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('sarah-wilson')"><i class="fas fa-comment"></i> Message</button>
-                                        </div>
-                                    </div>
 
                                     <!-- Card 6 -->
-                                    <div class="fm-directory-card" data-member="michael-brown" data-specialty="cardiology" data-region="north-america" data-looking="speaking" onclick="ForumPortal.openDirectoryProfile('michael-brown')">
-                                        <div class="fm-directory-card-header">
-                                            <div class="fm-directory-card-photo has-initials">MB</div>
-                                            <div class="fm-directory-card-info">
-                                                <div class="fm-directory-card-name">Dr. Michael Brown</div>
-                                                <div class="fm-directory-card-title">Chief Medical Officer</div>
-                                                <div class="fm-directory-card-company"><i class="fas fa-building"></i> Cleveland Clinic</div>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card-tags">
-                                            <span class="fm-directory-card-tag">Cardiology</span>
-                                            <span class="fm-directory-card-tag">Clinical Leadership</span>
-                                            <span class="fm-directory-card-tag">Healthcare Admin</span>
-                                        </div>
-                                        <div class="fm-directory-card-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Cleveland, OH</span>
-                                            <span><i class="fas fa-microphone"></i> Available to speak</span>
-                                        </div>
-                                        <div class="fm-directory-card-actions">
-                                            <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('michael-brown')"><i class="fas fa-user-plus"></i> Connect</button>
-                                            <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('michael-brown')"><i class="fas fa-comment"></i> Message</button>
-                                        </div>
-                                    </div>
 
                                     <!-- Card 7 -->
-                                    <div class="fm-directory-card" data-member="anna-kowalski" data-specialty="neuroscience" data-region="europe" data-looking="collaborators" onclick="ForumPortal.openDirectoryProfile('anna-kowalski')">
-                                        <div class="fm-directory-card-header">
-                                            <div class="fm-directory-card-photo has-initials">AK</div>
-                                            <div class="fm-directory-card-info">
-                                                <div class="fm-directory-card-name">Dr. Anna Kowalski</div>
-                                                <div class="fm-directory-card-title">Associate Professor, Cognitive Science</div>
-                                                <div class="fm-directory-card-company"><i class="fas fa-building"></i> University of Zagreb</div>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card-tags">
-                                            <span class="fm-directory-card-tag">Cognitive Science</span>
-                                            <span class="fm-directory-card-tag">Memory</span>
-                                            <span class="fm-directory-card-tag">Aging</span>
-                                        </div>
-                                        <div class="fm-directory-card-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Zagreb, Croatia</span>
-                                            <span><i class="fas fa-handshake"></i> Open to collaborate</span>
-                                        </div>
-                                        <div class="fm-directory-card-actions">
-                                            <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('anna-kowalski')"><i class="fas fa-user-plus"></i> Connect</button>
-                                            <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('anna-kowalski')"><i class="fas fa-comment"></i> Message</button>
-                                        </div>
-                                    </div>
 
                                     <!-- Card 8 -->
-                                    <div class="fm-directory-card" data-member="thomas-mueller" data-specialty="biotech" data-region="europe" data-looking="investment" onclick="ForumPortal.openDirectoryProfile('thomas-mueller')">
-                                        <div class="fm-directory-card-header">
-                                            <div class="fm-directory-card-photo has-initials">TM</div>
-                                            <div class="fm-directory-card-info">
-                                                <div class="fm-directory-card-name">Dr. Thomas Mueller</div>
-                                                <div class="fm-directory-card-title">CEO & Co-founder</div>
-                                                <div class="fm-directory-card-company"><i class="fas fa-building"></i> BioNova Therapeutics</div>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card-tags">
-                                            <span class="fm-directory-card-tag">Biotech Startup</span>
-                                            <span class="fm-directory-card-tag">Immunotherapy</span>
-                                            <span class="fm-directory-card-tag">Entrepreneurship</span>
-                                        </div>
-                                        <div class="fm-directory-card-meta">
-                                            <span><i class="fas fa-map-marker-alt"></i> Zurich, Switzerland</span>
-                                            <span><i class="fas fa-search-dollar"></i> Seeking investment</span>
-                                        </div>
-                                        <div class="fm-directory-card-actions">
-                                            <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('thomas-mueller')"><i class="fas fa-user-plus"></i> Connect</button>
-                                            <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('thomas-mueller')"><i class="fas fa-comment"></i> Message</button>
-                                        </div>
-                                    </div>
 
                                     <!-- Card 9 -->
                                     <div class="fm-directory-card" data-member="david-park" data-specialty="policy" data-region="north-america" data-looking="speaking" onclick="ForumPortal.openDirectoryProfile('david-park')">
@@ -9390,38 +8519,9 @@
                                             </div>
                                         </div>
                                         <div class="fm-connections-grid">
-                                            <div class="fm-connection-card" onclick="ForumPortal.openMemberModal('maria-garcia')">
-                                                <div class="fm-connection-photo">MG</div>
-                                                <div class="fm-connection-info">
-                                                    <div class="fm-connection-name">Prof. Maria Garcia</div>
-                                                    <div class="fm-connection-title">Max Planck Institute</div>
-                                                    <div class="fm-connection-meta"><i class="fas fa-circle" style="color: #2f6b3a; font-size: 10px;"></i> Active now</div>
-                                                </div>
-                                                <div class="fm-connection-actions">
-                                                    <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.messageMember('maria-garcia')"><i class="fas fa-comment"></i></button>
-                                                </div>
-                                            </div>
-                                            <div class="fm-connection-card" onclick="ForumPortal.openMemberModal('john-smith')">
-                                                <div class="fm-connection-photo">JS</div>
-                                                <div class="fm-connection-info">
-                                                    <div class="fm-connection-name">Dr. John Smith</div>
-                                                    <div class="fm-connection-title">Yale School of Medicine</div>
-                                                    <div class="fm-connection-meta"><i class="fas fa-circle" style="color: #2f6b3a; font-size: 10px;"></i> Active 2h ago</div>
-                                                </div>
-                                                <div class="fm-connection-actions">
-                                                    <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.messageMember('john-smith')"><i class="fas fa-comment"></i></button>
-                                                </div>
-                                            </div>
-                                            <div class="fm-connection-card" onclick="ForumPortal.openMemberModal('sarah-wilson')">
-                                                <div class="fm-connection-photo">SW</div>
-                                                <div class="fm-connection-info">
-                                                    <div class="fm-connection-name">Prof. Sarah Wilson</div>
-                                                    <div class="fm-connection-title">Stanford Medicine</div>
-                                                    <div class="fm-connection-meta">Active 1d ago</div>
-                                                </div>
-                                                <div class="fm-connection-actions">
-                                                    <button class="fm-connection-action-btn" onclick="event.stopPropagation(); ForumPortal.messageMember('sarah-wilson')"><i class="fas fa-comment"></i></button>
-                                                </div>
+                                            <!-- Fabricated "recently active" members removed. -->
+                                            <div style="grid-column:1/-1;text-align:center;padding:32px 20px;color: var(--muted);">
+                                                <div style="font-size:13px;" data-i18n="fm.noRecentActive">Member activity will appear here as the Forum community grows.</div>
                                             </div>
                                         </div>
                                     </div>
@@ -9641,116 +8741,6 @@
                                             <div class="fm-directory-card-actions">
                                                 <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('alen-juginovic')"><i class="fas fa-user-plus"></i> Connect</button>
                                                 <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('alen-juginovic')"><i class="fas fa-comment"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card" data-member="maria-garcia" data-specialty="neuroscience" data-region="europe" data-country="germany" data-industry="academia" data-seniority="senior" data-looking="collaborators,speaking" onclick="ForumPortal.openDirectoryProfile('maria-garcia')">
-                                            <div class="fm-directory-card-header">
-                                                <div class="fm-directory-card-photo has-initials">MG</div>
-                                                <div class="fm-directory-card-info">
-                                                    <div class="fm-directory-card-name">Prof. Maria Garcia</div>
-                                                    <div class="fm-directory-card-title">Institute Director</div>
-                                                    <div class="fm-directory-card-company"><i class="fas fa-building"></i> Max Planck Institute</div>
-                                                </div>
-                                            </div>
-                                            <div class="fm-directory-card-tags">
-                                                <span class="fm-directory-card-tag">Neuroscience</span>
-                                                <span class="fm-directory-card-tag">CRISPR</span>
-                                            </div>
-                                            <div class="fm-directory-card-meta">
-                                                <span><i class="fas fa-map-marker-alt"></i> Munich, Germany</span>
-                                                <span><i class="fas fa-handshake"></i> Open to collaborate</span>
-                                            </div>
-                                            <div class="fm-directory-card-actions">
-                                                <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('maria-garcia')"><i class="fas fa-user-plus"></i> Connect</button>
-                                                <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('maria-garcia')"><i class="fas fa-comment"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card" data-member="james-chen" data-specialty="biotech" data-region="north-america" data-country="usa" data-industry="pharma" data-seniority="executive" data-looking="investment,speaking" onclick="ForumPortal.openDirectoryProfile('james-chen')">
-                                            <div class="fm-directory-card-header">
-                                                <div class="fm-directory-card-photo has-initials">JC</div>
-                                                <div class="fm-directory-card-info">
-                                                    <div class="fm-directory-card-name">Dr. James Chen</div>
-                                                    <div class="fm-directory-card-title">VP Research</div>
-                                                    <div class="fm-directory-card-company"><i class="fas fa-building"></i> Pfizer</div>
-                                                </div>
-                                            </div>
-                                            <div class="fm-directory-card-tags">
-                                                <span class="fm-directory-card-tag">Drug Development</span>
-                                                <span class="fm-directory-card-tag">Industry</span>
-                                            </div>
-                                            <div class="fm-directory-card-meta">
-                                                <span><i class="fas fa-map-marker-alt"></i> Cambridge, USA</span>
-                                                <span><i class="fas fa-microphone"></i> Available to speak</span>
-                                            </div>
-                                            <div class="fm-directory-card-actions">
-                                                <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('james-chen')"><i class="fas fa-user-plus"></i> Connect</button>
-                                                <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('james-chen')"><i class="fas fa-comment"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card" data-member="ivan-petrov" data-specialty="cardiology" data-region="europe" data-country="croatia" data-industry="academia" data-seniority="mid" data-looking="collaborators" onclick="ForumPortal.openDirectoryProfile('ivan-petrov')">
-                                            <div class="fm-directory-card-header">
-                                                <div class="fm-directory-card-photo has-initials">IP</div>
-                                                <div class="fm-directory-card-info">
-                                                    <div class="fm-directory-card-name">Dr. Ivan Petrov</div>
-                                                    <div class="fm-directory-card-title">Cardiology Research Lead</div>
-                                                    <div class="fm-directory-card-company"><i class="fas fa-building"></i> University of Zagreb</div>
-                                                </div>
-                                            </div>
-                                            <div class="fm-directory-card-tags">
-                                                <span class="fm-directory-card-tag">Cardiology</span>
-                                                <span class="fm-directory-card-tag">Sleep Medicine</span>
-                                            </div>
-                                            <div class="fm-directory-card-meta">
-                                                <span><i class="fas fa-map-marker-alt"></i> Zagreb, Croatia</span>
-                                                <span><i class="fas fa-handshake"></i> Open to collaborate</span>
-                                            </div>
-                                            <div class="fm-directory-card-actions">
-                                                <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('ivan-petrov')"><i class="fas fa-user-plus"></i> Connect</button>
-                                                <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('ivan-petrov')"><i class="fas fa-comment"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card" data-member="sarah-wilson" data-specialty="public-health" data-region="north-america" data-country="usa" data-industry="academia" data-seniority="executive" data-looking="mentorship,collaborators" onclick="ForumPortal.openDirectoryProfile('sarah-wilson')">
-                                            <div class="fm-directory-card-header">
-                                                <div class="fm-directory-card-photo has-initials">SW</div>
-                                                <div class="fm-directory-card-info">
-                                                    <div class="fm-directory-card-name">Prof. Sarah Wilson</div>
-                                                    <div class="fm-directory-card-title">Dean of Research</div>
-                                                    <div class="fm-directory-card-company"><i class="fas fa-building"></i> Stanford Medicine</div>
-                                                </div>
-                                            </div>
-                                            <div class="fm-directory-card-tags">
-                                                <span class="fm-directory-card-tag">Public Health</span>
-                                                <span class="fm-directory-card-tag">Policy</span>
-                                            </div>
-                                            <div class="fm-directory-card-meta">
-                                                <span><i class="fas fa-map-marker-alt"></i> Palo Alto, USA</span>
-                                                <span><i class="fas fa-chalkboard-teacher"></i> Open to mentor</span>
-                                            </div>
-                                            <div class="fm-directory-card-actions">
-                                                <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('sarah-wilson')"><i class="fas fa-user-plus"></i> Connect</button>
-                                                <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('sarah-wilson')"><i class="fas fa-comment"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="fm-directory-card" data-member="thomas-mueller" data-specialty="biotech" data-region="europe" data-country="switzerland" data-industry="startup" data-seniority="executive" data-looking="investment" onclick="ForumPortal.openDirectoryProfile('thomas-mueller')">
-                                            <div class="fm-directory-card-header">
-                                                <div class="fm-directory-card-photo has-initials">TM</div>
-                                                <div class="fm-directory-card-info">
-                                                    <div class="fm-directory-card-name">Dr. Thomas Mueller</div>
-                                                    <div class="fm-directory-card-title">CEO & Co-founder</div>
-                                                    <div class="fm-directory-card-company"><i class="fas fa-building"></i> BioNova Therapeutics</div>
-                                                </div>
-                                            </div>
-                                            <div class="fm-directory-card-tags">
-                                                <span class="fm-directory-card-tag">Biotech Startup</span>
-                                                <span class="fm-directory-card-tag">Immunotherapy</span>
-                                            </div>
-                                            <div class="fm-directory-card-meta">
-                                                <span><i class="fas fa-map-marker-alt"></i> Zurich, Switzerland</span>
-                                                <span><i class="fas fa-search-dollar"></i> Seeking investment</span>
-                                            </div>
-                                            <div class="fm-directory-card-actions">
-                                                <button class="fm-directory-btn fm-directory-btn-primary" onclick="event.stopPropagation(); ForumPortal.connectMember('thomas-mueller')"><i class="fas fa-user-plus"></i> Connect</button>
-                                                <button class="fm-directory-btn fm-directory-btn-secondary" onclick="event.stopPropagation(); ForumPortal.messageMember('thomas-mueller')"><i class="fas fa-comment"></i></button>
                                             </div>
                                         </div>
                                     </div>
@@ -10250,29 +9240,12 @@
                     <div class="network-panel" id="network-panel-connections">
                         <!-- Suggested Connection Card -->
                         <div class="todays-match-card" id="todaysMatchCard">
-                            <div class="todays-match-header">
-                                <div class="todays-match-label"><i class="fas fa-sparkles"></i> <span data-i18n="net.todaysMatch">Today's Match</span></div>
-                                <button class="todays-match-skip" onclick="NetworkingPortal.skipMatch()"><i class="fas fa-forward"></i> <span data-i18n="net.skip">Skip</span></button>
-                            </div>
-                            <div class="todays-match-content">
-                                <div class="todays-match-photo">SW</div>
-                                <div class="todays-match-info">
-                                    <div class="todays-match-name">Dr. Sarah Wilson</div>
-                                    <div class="todays-match-title">Sleep Researcher &middot; Stanford Medicine</div>
-                                    <div class="todays-match-reason">
-                                        <div class="todays-match-reason-label"><i class="fas fa-lightbulb"></i> <span data-i18n="net.whyMatched">Why we matched you</span></div>
-                                        <p>Sarah is researching sleep deprivation effects on cognitive function &mdash; directly complementary to your gut-brain-sleep research. She's also looking for collaborators on an upcoming NIH grant.</p>
-                                    </div>
-                                    <div class="todays-match-tags">
-                                        <span class="todays-match-tag">Sleep Research</span>
-                                        <span class="todays-match-tag">Neuroscience</span>
-                                        <span class="todays-match-tag">Open to Collaborate</span>
-                                    </div>
-                                    <div class="todays-match-actions">
-                                        <button class="todays-match-btn primary" onclick="NetworkingPortal.viewProfile('sarah-wilson')"><i class="fas fa-user"></i> <span data-i18n="net.viewProfile">View Profile</span></button>
-                                        <button class="todays-match-btn primary" onclick="NetworkingPortal.messageConnection('sarah-wilson', 'Dr. Sarah Wilson', 'SW')" style="margin-left:8px;"><i class="fas fa-comment"></i> <span data-i18n="net.message">Message</span></button>
-                                    </div>
-                                </div>
+                            <!-- Fabricated "Today's Match" (Dr. Sarah Wilson) removed. Truthful empty
+                                 state until a real matching engine exists. -->
+                            <div class="network-empty" style="padding: 40px 20px;">
+                                <i class="fas fa-check-circle" style="color: var(--up-gold);"></i>
+                                <h3 data-i18n="net.noSuggestions">No new suggestions</h3>
+                                <p data-i18n="net.noSuggestionsSub">We'll notify you when we find relevant connections for you.</p>
                             </div>
                         </div>
 
@@ -10355,114 +9328,8 @@
                         <div class="saved-search-row" id="savedSearchRow"></div>
 
                         <div class="connection-grid" id="connectionsGrid">
-                            <div class="connection-card" onclick="NetworkingPortal.viewProfile('maria-garcia')" style="cursor:pointer;">
-                                <div class="connection-card-header">
-                                    <div class="connection-avatar" style="background: linear-gradient(135deg, var(--gold), #d4af6a);">MG</div>
-                                    <div class="connection-info">
-                                        <h4>Dr. Maria Garcia</h4>
-                                        <p>Neurology &middot; Harvard Medical School</p>
-                                    </div>
-                                </div>
-                                <div class="connection-tags">
-                                    <span class="connection-tag">Neurology</span>
-                                    <span class="connection-tag">Sleep</span>
-                                </div>
-                                <div class="connection-status"><i class="fas fa-circle"></i> Active today</div>
-                                <div class="connection-actions">
-                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('maria-garcia')"><i class="fas fa-user"></i> View profile</button>
-                                    <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('maria-garcia', 'Dr. Maria Garcia', 'MG')"><i class="fas fa-comment"></i> Message</button>
-                                </div>
-                            </div>
-                            <div class="connection-card" onclick="NetworkingPortal.viewProfile('james-kim')" style="cursor:pointer;">
-                                <div class="connection-card-header">
-                                    <div class="connection-avatar" style="background: linear-gradient(135deg, #9b1b22, #c2484e);">JK</div>
-                                    <div class="connection-info">
-                                        <h4>Dr. James Kim</h4>
-                                        <p>Oncology &middot; Mayo Clinic</p>
-                                    </div>
-                                </div>
-                                <div class="connection-tags">
-                                    <span class="connection-tag">Oncology</span>
-                                    <span class="connection-tag">Research</span>
-                                </div>
-                                <div class="connection-status"><i class="fas fa-circle"></i> Active yesterday</div>
-                                <div class="connection-actions">
-                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('james-kim')"><i class="fas fa-user"></i> View profile</button>
-                                    <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('james-kim', 'Dr. James Kim', 'JK')"><i class="fas fa-comment"></i> Message</button>
-                                </div>
-                            </div>
-                            <div class="connection-card" onclick="NetworkingPortal.viewProfile('thomas-chen')" style="cursor:pointer;">
-                                <div class="connection-card-header">
-                                    <div class="connection-avatar" style="background: linear-gradient(135deg, #9b1b22, #c9a962);">TC</div>
-                                    <div class="connection-info">
-                                        <h4>Dr. Thomas Chen</h4>
-                                        <p>Cardiology &middot; Cleveland Clinic</p>
-                                    </div>
-                                </div>
-                                <div class="connection-tags">
-                                    <span class="connection-tag">Cardiology</span>
-                                    <span class="connection-tag">Industry</span>
-                                </div>
-                                <div class="connection-status"><i class="fas fa-circle" style="color: var(--muted);"></i> Active 3 days ago</div>
-                                <div class="connection-actions">
-                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('thomas-chen')"><i class="fas fa-user"></i> View profile</button>
-                                    <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('thomas-chen', 'Dr. Thomas Chen', 'TC')"><i class="fas fa-comment"></i> Message</button>
-                                </div>
-                            </div>
-                            <div class="connection-card" onclick="NetworkingPortal.viewProfile('anna-larsson')" style="cursor:pointer;">
-                                <div class="connection-card-header">
-                                    <div class="connection-avatar" style="background: linear-gradient(135deg, #b06a1f, #b06a1f);">AL</div>
-                                    <div class="connection-info">
-                                        <h4>Dr. Anna Larsson</h4>
-                                        <p>Immunology &middot; Karolinska Institute</p>
-                                    </div>
-                                </div>
-                                <div class="connection-tags">
-                                    <span class="connection-tag">Immunology</span>
-                                    <span class="connection-tag">Mentor</span>
-                                </div>
-                                <div class="connection-status"><i class="fas fa-circle"></i> Active today</div>
-                                <div class="connection-actions">
-                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('anna-larsson')"><i class="fas fa-user"></i> View profile</button>
-                                    <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('anna-larsson', 'Dr. Anna Larsson', 'AL')"><i class="fas fa-comment"></i> Message</button>
-                                </div>
-                            </div>
-                            <div class="connection-card" onclick="NetworkingPortal.viewProfile('raj-patel')" style="cursor:pointer;">
-                                <div class="connection-card-header">
-                                    <div class="connection-avatar" style="background: linear-gradient(135deg, var(--warning), #fbbf24);">RP</div>
-                                    <div class="connection-info">
-                                        <h4>Dr. Raj Patel</h4>
-                                        <p>Sleep Medicine &middot; Johns Hopkins</p>
-                                    </div>
-                                </div>
-                                <div class="connection-tags">
-                                    <span class="connection-tag">Sleep</span>
-                                    <span class="connection-tag">Research</span>
-                                </div>
-                                <div class="connection-status"><i class="fas fa-circle"></i> Active today</div>
-                                <div class="connection-actions">
-                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('raj-patel')"><i class="fas fa-user"></i> View profile</button>
-                                    <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('raj-patel', 'Dr. Raj Patel', 'RP')"><i class="fas fa-comment"></i> Message</button>
-                                </div>
-                            </div>
-                            <div class="connection-card" onclick="NetworkingPortal.viewProfile('elena-weber')" style="cursor:pointer;">
-                                <div class="connection-card-header">
-                                    <div class="connection-avatar" style="background: linear-gradient(135deg, #9b1b22, #c2484e);">EW</div>
-                                    <div class="connection-info">
-                                        <h4>Dr. Elena Weber</h4>
-                                        <p>Neurology &middot; Charité Berlin</p>
-                                    </div>
-                                </div>
-                                <div class="connection-tags">
-                                    <span class="connection-tag">Neurology</span>
-                                    <span class="connection-tag">Open to Collaborate</span>
-                                </div>
-                                <div class="connection-status"><i class="fas fa-circle"></i> Active yesterday</div>
-                                <div class="connection-actions">
-                                    <button class="connection-btn" onclick="event.stopPropagation(); NetworkingPortal.viewProfile('elena-weber')"><i class="fas fa-user"></i> View profile</button>
-                                    <button class="connection-btn primary" onclick="event.stopPropagation(); NetworkingPortal.messageConnection('elena-weber', 'Dr. Elena Weber', 'EW')"><i class="fas fa-comment"></i> Message</button>
-                                </div>
-                            </div>
+                            <!-- Static demo connection cards removed (fabricated people). -->
+                            <!-- NetworkingPortal.loadConnections() renders the real list at load. -->
                         </div>
                     </div>
 
