@@ -12777,6 +12777,25 @@ President, Med&amp;X</textarea>
 
                     <!-- Seating / Table Plan Tab (item 21) -->
                     <div id="galaSeatingTab" style="display: none;">
+                        <!-- Live table picker (plexus-tables.netlify.app): guests choose their
+                             own tables via personal invite links; layouts come from the 3D
+                             Smaragdna dvorana planner (Export → Tlocrt za odabir stolova). -->
+                        <div class="card" style="padding:0;margin-bottom:16px;border-left:5px solid #9b1b22;overflow:hidden;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--border);">
+                                <div>
+                                    <div style="font-weight:700;font-size:14px;">Odabir stolova uživo · Live table picker</div>
+                                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Gosti sami biraju stol putem osobnih poveznica — uvezi CSV registriranih, pošalji pozivnice, prati odabire uživo. QR ulaznice po osobi.</div>
+                                </div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <a class="btn btn-secondary" href="https://plexus-tables.netlify.app/" target="_blank" rel="noopener" style="font-size:12px;"><i class="fas fa-external-link-alt"></i> Guest page</a>
+                                    <a class="btn btn-primary" href="https://plexus-tables.netlify.app/admin.html?key=medx-smaragdna-x7k9q4t2" target="_blank" rel="noopener" style="font-size:12px;background:linear-gradient(135deg,#9b1b22,#7e151b);border:none;"><i class="fas fa-expand"></i> Konzola u novom prozoru</a>
+                                </div>
+                            </div>
+                            <iframe src="https://plexus-tables.netlify.app/admin.html?key=medx-smaragdna-x7k9q4t2"
+                                title="Konzola organizatora — odabir stolova"
+                                style="display:block;width:100%;height:78vh;border:0;background:#fbf9f6;"
+                                loading="lazy"></iframe>
+                        </div>
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
                             <div id="galaSeatingStats" style="font-size:13px;color:var(--text-muted);">Loading seating…</div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
