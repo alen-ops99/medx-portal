@@ -24097,9 +24097,12 @@ ${'='.repeat(70)}
                 const bioEl = document.getElementById('profilePanelBio');
                 if (bioEl) {
                     const bio = String(u.bio || '').trim();
+                    const _t = (k, fb) => { try { const v = (window.MedXI18n && MedXI18n.t) ? MedXI18n.t(k) : k; return (v && v !== k) ? v : fb; } catch (e) { return fb; } };
+                    const bioPrompt = _t('pp.bioPrompt', 'Add a short bio so other members know your work.');
+                    const compProfile = _t('net.completeProfile', 'Complete your profile');
                     bioEl.innerHTML = bio
                         ? esc(bio)
-                        : '<span style="color:var(--up-text-muted,#6e6e73)">Add a short bio so other members know your work. <a href="#" onclick="UserPortal.showSection(\'settings\');return false;" style="color:var(--crimson,#9b1b22);font-weight:600">Complete your profile</a></span>';
+                        : '<span style="color:var(--up-text-muted,#6e6e73)">' + bioPrompt + ' <a href="#" onclick="UserPortal.showSection(\'settings\');return false;" style="color:var(--crimson,#9b1b22);font-weight:600">' + compProfile + '</a></span>';
                 }
             }
 

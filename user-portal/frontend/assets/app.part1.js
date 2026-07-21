@@ -479,6 +479,7 @@
             'pp.achievements': {en:'Achievements', hr:'Postignuća'},
             'pp.shared':       {en:'Shared Connections', hr:'Zajedničke veze'},
             'pp.activity':     {en:'Recent Activity', hr:'Nedavna aktivnost'},
+            'pp.bioPrompt':    {en:'Add a short bio so other members know your work.', hr:'Dodajte kratak opis kako bi drugi članovi znali čime se bavite.'},
             'cm.title':        {en:'Connect with this member', hr:'Povežite se s ovim članom'},
             'cm.note':         {en:'Add a personal note (optional)', hr:'Dodajte osobnu poruku (nije obavezno)'},
             'cm.placeholder':  {en:"Hi, I noticed we share research interests. I'd love to connect and discuss potential collaboration.", hr:'Pozdrav, primijetio sam da dijelimo istraživačke interese. Rado bih se povezao i porazgovarao o mogućoj suradnji.'},
