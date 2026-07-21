@@ -491,6 +491,7 @@
             'pwa.iosGotIt':    {en:'Got it', hr:'U redu'},
 
             // --- Dashboard customize panel: card-picker + widget-library labels (HR pass) ---
+            'wid.panelTitle':  {en:'Widgets', hr:'Widgeti'},
             'wid.projects':    {en:'Projects', hr:'Projekti'},
             'wid.whatsNext':   {en:"What's Next", hr:'Što slijedi'},
             'wid.myEvents':    {en:'My Events', hr:'Moji događaji'},
