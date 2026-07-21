@@ -194,7 +194,7 @@
 
 
         <!-- Skip Link for Accessibility -->
-        <a href="#main-content" class="skip-link">Skip to main content</a>
+        <a href="#main-content" class="skip-link" data-i18n="a11y.skip">Skip to main content</a>
 
         <!-- User Portal Command Palette -->
         <div class="cmd-palette" id="userCmdPalette" role="dialog" aria-modal="true" aria-label="Command palette">
@@ -1484,28 +1484,28 @@
                 <div class="profile-panel-stats">
                     <div class="profile-stat">
                         <div class="profile-stat-value" id="profilePanelConnections">6</div>
-                        <div class="profile-stat-label">Connections</div>
+                        <div class="profile-stat-label" data-i18n="pp.connections">Connections</div>
                     </div>
                     <div class="profile-stat">
                         <div class="profile-stat-value" id="profilePanelMutual">8</div>
-                        <div class="profile-stat-label">Mutual</div>
+                        <div class="profile-stat-label" data-i18n="pp.mutual">Mutual</div>
                     </div>
                     <div class="profile-stat">
                         <div class="profile-stat-value" id="profilePanelEvents">12</div>
-                        <div class="profile-stat-label">Events</div>
+                        <div class="profile-stat-label" data-i18n="pp.events">Events</div>
                     </div>
                 </div>
             </div>
             <div class="profile-panel-actions">
                 <button class="profile-panel-action primary" id="profilePanelConnectBtn" onclick="MemberProfile.connect()">
-                    <i class="fas fa-user-plus"></i> Connect
+                    <i class="fas fa-user-plus"></i> <span data-i18n="pp.connect">Connect</span>
                 </button>
                 <button class="profile-panel-action secondary" onclick="MemberProfile.message()">
-                    <i class="fas fa-envelope"></i> Message
+                    <i class="fas fa-envelope"></i> <span data-i18n="pp.message">Message</span>
                 </button>
             </div>
             <div class="profile-panel-section">
-                <h4>About</h4>
+                <h4 data-i18n="pp.about">About</h4>
                 <p class="profile-bio" id="profilePanelBio">
                     <!-- default cleared; the real member bio is injected by MemberProfile.render() -->
                 </p>
@@ -1514,19 +1514,19 @@
                  "shared connections" trio and activity). MemberProfile.render() fills
                  these containers with real data when this panel is used. -->
             <div class="profile-panel-section">
-                <h4>Interests</h4>
+                <h4 data-i18n="pp.interests">Interests</h4>
                 <div class="profile-interests" id="profilePanelInterests"></div>
             </div>
             <div class="profile-panel-section medx-playful">
-                <h4>Achievements</h4>
+                <h4 data-i18n="pp.achievements">Achievements</h4>
                 <div class="profile-achievements" id="profilePanelAchievements"></div>
             </div>
             <div class="profile-panel-section">
-                <h4>Shared Connections (<span id="profilePanelSharedCount">0</span>)</h4>
+                <h4><span data-i18n="pp.shared">Shared Connections</span> (<span id="profilePanelSharedCount">0</span>)</h4>
                 <div class="profile-shared-connections" id="profilePanelShared"></div>
             </div>
             <div class="profile-panel-section">
-                <h4>Recent Activity</h4>
+                <h4 data-i18n="pp.activity">Recent Activity</h4>
                 <div class="activity-feed" id="profilePanelActivity"></div>
             </div>
         </div>
@@ -1537,18 +1537,18 @@
                 <div class="connect-modal-header">
                     <div class="connect-modal-avatar" id="connectModalAvatar">JD</div>
                     <div class="connect-modal-info">
-                        <h3 id="connectModalName">Connect with this member</h3>
+                        <h3 id="connectModalName" data-i18n="cm.title">Connect with this member</h3>
                         <p id="connectModalTitle">Professor of Medicine</p>
                     </div>
                 </div>
                 <div class="connect-modal-body">
-                    <label for="connectMessage">Add a personal note (optional)</label>
-                    <textarea id="connectMessage" placeholder="Hi Dr. Doe, I noticed we share interests in sleep research. I'd love to connect and discuss potential collaboration opportunities..." maxlength="2000"></textarea>
+                    <label for="connectMessage" data-i18n="cm.note">Add a personal note (optional)</label>
+                    <textarea id="connectMessage" data-i18n-placeholder="cm.placeholder" placeholder="Hi, I noticed we share research interests. I'd love to connect and discuss potential collaboration." maxlength="2000"></textarea>
                 </div>
                 <div class="connect-modal-footer">
-                    <button class="connect-modal-btn cancel" onclick="ConnectionSystem.closeModal()">Cancel</button>
+                    <button class="connect-modal-btn cancel" onclick="ConnectionSystem.closeModal()" data-i18n="cm.cancel">Cancel</button>
                     <button class="connect-modal-btn send" onclick="ConnectionSystem.sendRequest()">
-                        <i class="fas fa-paper-plane"></i> Send Request
+                        <i class="fas fa-paper-plane"></i> <span data-i18n="cm.send">Send Request</span>
                     </button>
                 </div>
             </div>
@@ -2068,7 +2068,7 @@
                                         <span>Forum</span>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Projects</div>
+                                <div class="card-picker-name" data-i18n="wid.projects">Projects</div>
                                 <div class="card-picker-desc">Quick access to Plexus, Accelerator & Biomedical Forum</div>
                             </div>
                             <!-- What's Next Widget -->
@@ -2081,7 +2081,7 @@
                                     </div>
                                     <button class="preview-btn">Do it</button>
                                 </div>
-                                <div class="card-picker-name">What's Next</div>
+                                <div class="card-picker-name" data-i18n="wid.whatsNext">What's Next</div>
                                 <div class="card-picker-desc">Your upcoming tasks, deadlines, and actions</div>
                             </div>
                             <!-- Events Widget -->
@@ -2112,7 +2112,7 @@
                                         <div class="preview-event-badge">Interested</div>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">My Events</div>
+                                <div class="card-picker-name" data-i18n="wid.myEvents">My Events</div>
                                 <div class="card-picker-desc">Events you're registered for or interested in</div>
                             </div>
                             <!-- Rewards Widget -->
@@ -2127,7 +2127,7 @@
                                         <div class="preview-points-label">points</div>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Rewards & Status</div>
+                                <div class="card-picker-name" data-i18n="wid.rewards">Rewards & Status</div>
                                 <div class="card-picker-desc">Your membership tier and points balance</div>
                             </div>
                         </div>
@@ -2149,7 +2149,7 @@
                                     </div>
                                     <div class="preview-text"><strong>3 new</strong> connection suggestions</div>
                                 </div>
-                                <div class="card-picker-name">My Network</div>
+                                <div class="card-picker-name" data-i18n="wid.myNetwork">My Network</div>
                                 <div class="card-picker-desc">Your connections and people you may know</div>
                             </div>
                             <!-- Messages Widget -->
@@ -2172,7 +2172,7 @@
                                         <div class="preview-msg-dot"></div>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Messages</div>
+                                <div class="card-picker-name" data-i18n="wid.messages">Messages</div>
                                 <div class="card-picker-desc">Recent conversations and unread messages</div>
                             </div>
                             <!-- For You Widget -->
@@ -2184,7 +2184,7 @@
                                     </div>
                                     <div class="preview-suggestion">Apply for the Accelerator program - matches your research interests</div>
                                 </div>
-                                <div class="card-picker-name">For You</div>
+                                <div class="card-picker-name" data-i18n="wid.forYou">For You</div>
                                 <div class="card-picker-desc">Personalized recommendations and opportunities</div>
                             </div>
                             <!-- My Network Summary Card -->
@@ -2200,7 +2200,7 @@
                                         <div><div style="font-size: 18px; font-weight: 700; color: var(--ink);">2</div><div style="font-size: 10px; color: var(--muted);">Messages</div></div>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Network Summary</div>
+                                <div class="card-picker-name" data-i18n="wid.netSummary">Network Summary</div>
                                 <div class="card-picker-desc">Quick view of connections, requests, and messages</div>
                             </div>
                             <!-- News Widget -->
@@ -2215,7 +2215,7 @@
                                         <div style="font-size: 10px; color: var(--muted);">2 hours ago</div>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Med&amp;X News</div>
+                                <div class="card-picker-name" data-i18n="wid.news">Med&amp;X News</div>
                                 <div class="card-picker-desc">Latest announcements and updates from Med&amp;X</div>
                             </div>
                         </div>
@@ -2243,7 +2243,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Achievements</div>
+                                <div class="card-picker-name" data-i18n="pp.achievements">Achievements</div>
                                 <div class="card-picker-desc">Your badges, points, and milestones</div>
                             </div>
                             <!-- Profile Strength Widget -->
@@ -2257,7 +2257,7 @@
                                         <div class="preview-title">Add your bio to complete</div>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Profile Card</div>
+                                <div class="card-picker-name" data-i18n="wid.profileCard">Profile Card</div>
                                 <div class="card-picker-desc">Your achievements, notes, and personal tasks</div>
                             </div>
                         </div>
@@ -2280,7 +2280,7 @@
                                         <span style="padding: 2px 6px; background: #2f6b3a; border-radius: 10px; font-size: 10px; color: #fff;">5-day streak</span>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Daily Quiz</div>
+                                <div class="card-picker-name" data-i18n="wid.dailyQuiz">Daily Quiz</div>
                                 <div class="card-picker-desc">Test knowledge with 5 daily questions</div>
                             </div>
                             <!-- Countdown Widget -->
@@ -2290,7 +2290,7 @@
                                     <div style="font-size: 14px; font-weight: 600; color: var(--paper-2); margin: 4px 0;">Plexus 2026</div>
                                     <div style="font-size: 28px; font-weight: 700; color: var(--gold);">306</div>
                                 </div>
-                                <div class="card-picker-name">Event Countdown</div>
+                                <div class="card-picker-name" data-i18n="wid.countdown">Event Countdown</div>
                                 <div class="card-picker-desc">Days until next Med&amp;X event</div>
                             </div>
                             <!-- Quick Links Widget -->
@@ -2303,7 +2303,7 @@
                                         <span style="padding: 6px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 10px; color: var(--muted); text-align: center;"><i class="fas fa-user" style="color: #10b981;"></i> Profile</span>
                                     </div>
                                 </div>
-                                <div class="card-picker-name">Quick Links</div>
+                                <div class="card-picker-name" data-i18n="wid.quickLinks">Quick Links</div>
                                 <div class="card-picker-desc">Fast access to your favorite sections</div>
                             </div>
                             <!-- News Widget -->
@@ -2316,7 +2316,7 @@
                                     </div>
                                     <div style="font-size: 10px; color: var(--muted); line-height: 1.4;">Early Bird Extended • New Partner Announced</div>
                                 </div>
-                                <div class="card-picker-name">Med&amp;X News</div>
+                                <div class="card-picker-name" data-i18n="wid.news">Med&amp;X News</div>
                                 <div class="card-picker-desc">Latest announcements and updates</div>
                             </div>
                         </div>
@@ -2336,7 +2336,7 @@
                                     </div>
                                     <div style="font-size: 10px; color: var(--muted); margin-top: 8px;">Live updates from the Med&amp;X community</div>
                                 </div>
-                                <div class="card-picker-name">Activity Feed</div>
+                                <div class="card-picker-name" data-i18n="wid.activityFeed">Activity Feed</div>
                                 <div class="card-picker-desc">Real-time community activity</div>
                             </div>
                             <!-- Quick Poll Widget -->
@@ -2348,7 +2348,7 @@
                                     </div>
                                     <div style="font-size: 10px; color: var(--muted); margin-top: 8px;">Vote and see what others think</div>
                                 </div>
-                                <div class="card-picker-name">Quick Poll</div>
+                                <div class="card-picker-name" data-i18n="wid.quickPoll">Quick Poll</div>
                                 <div class="card-picker-desc">Daily polls with points</div>
                             </div>
                             <!-- Member Spotlight Widget -->
@@ -2360,7 +2360,7 @@
                                     </div>
                                     <div style="font-size: 10px; color: var(--muted); margin-top: 8px;">Connect with featured members</div>
                                 </div>
-                                <div class="card-picker-name">Member Spotlight</div>
+                                <div class="card-picker-name" data-i18n="wid.spotlight">Member Spotlight</div>
                                 <div class="card-picker-desc">Featured community member</div>
                             </div>
                             <!-- Featured Speakers Widget -->
@@ -2372,7 +2372,7 @@
                                     </div>
                                     <div style="font-size: 10px; color: var(--muted); margin-top: 8px;">Preview Plexus 2026 speakers</div>
                                 </div>
-                                <div class="card-picker-name">Speaker Preview</div>
+                                <div class="card-picker-name" data-i18n="wid.speakerPreview">Speaker Preview</div>
                                 <div class="card-picker-desc">Featured conference speakers</div>
                             </div>
                             <!-- Profile Completeness Widget -->
@@ -2384,7 +2384,7 @@
                                     </div>
                                     <div style="font-size: 10px; color: var(--muted); margin-top: 8px;">Complete your profile for rewards</div>
                                 </div>
-                                <div class="card-picker-name">Profile Completeness</div>
+                                <div class="card-picker-name" data-i18n="wid.profileComplete">Profile Completeness</div>
                                 <div class="card-picker-desc">Track and complete your profile</div>
                             </div>
                         </div>
@@ -11944,7 +11944,7 @@
                         <div class="admin-widget-card selected" data-widget="actions" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-lightbulb" style="color: var(--warning);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Smart Actions</div>
+                                <div class="widget-name" data-i18n="wid.smartActions">Smart Actions</div>
                                 <div class="widget-desc">AI-powered task suggestions based on pending items across all projects</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -11952,7 +11952,7 @@
                         <div class="admin-widget-card selected" data-widget="activity" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-bolt" style="color: var(--accent-gold);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Activity Feed</div>
+                                <div class="widget-name" data-i18n="wid.activityFeed">Activity Feed</div>
                                 <div class="widget-desc">Real-time updates: new registrations, payments, applications, messages</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -11960,7 +11960,7 @@
                         <div class="admin-widget-card selected" data-widget="tasks-sequences" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-tasks" style="color: #9b1b22;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Tasks & Sequences</div>
+                                <div class="widget-name" data-i18n="wid.tasks">Tasks & Sequences</div>
                                 <div class="widget-desc">Your personal to-do list and automated workflow sequences</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -11968,7 +11968,7 @@
                         <div class="admin-widget-card selected" data-widget="timeline" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-calendar" style="color: var(--crimson);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Timeline</div>
+                                <div class="widget-name" data-i18n="wid.timeline">Timeline</div>
                                 <div class="widget-desc">Upcoming events, deadlines, and important dates across all projects</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -11980,7 +11980,7 @@
                         <div class="admin-widget-card selected" data-widget="support" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-headset" style="color: #9b1b22;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Support Inbox</div>
+                                <div class="widget-name" data-i18n="wid.supportInbox">Support Inbox</div>
                                 <div class="widget-desc">Member support messages and inquiries requiring your attention</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -11988,7 +11988,7 @@
                         <div class="admin-widget-card" data-widget="user-submissions" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-inbox" style="color: #9b1b22;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">User Submissions</div>
+                                <div class="widget-name" data-i18n="wid.userSubs">User Submissions</div>
                                 <div class="widget-desc">New applications, abstracts, and forms submitted by users</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -11996,7 +11996,7 @@
                         <div class="admin-widget-card" data-widget="chat" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-comments" style="color: #b06a1f;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Team Chat</div>
+                                <div class="widget-name" data-i18n="wid.teamChat">Team Chat</div>
                                 <div class="widget-desc">Quick messaging with other admins and team members</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12004,7 +12004,7 @@
                         <div class="admin-widget-card" data-widget="announcements" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-bullhorn" style="color: #f97316;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Announcements</div>
+                                <div class="widget-name" data-i18n="wid.announcements">Announcements</div>
                                 <div class="widget-desc">Internal team announcements and organization updates</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12016,7 +12016,7 @@
                         <div class="admin-widget-card" data-widget="plexus-stats" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-users" style="color: #c2484e;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Plexus Stats</div>
+                                <div class="widget-name" data-i18n="wid.plexusStats">Plexus Stats</div>
                                 <div class="widget-desc">Conference registration count, abstract submissions, revenue</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12024,7 +12024,7 @@
                         <div class="admin-widget-card" data-widget="accelerator-stats" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-rocket" style="color: #b06a1f;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Accelerator Stats</div>
+                                <div class="widget-name" data-i18n="wid.axStats">Accelerator Stats</div>
                                 <div class="widget-desc">Applications received, interview progress, placement rate</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12032,7 +12032,7 @@
                         <div class="admin-widget-card" data-widget="forum-stats" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-landmark" style="color: #fb923c;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Forum Stats</div>
+                                <div class="widget-name" data-i18n="wid.forumStats">Forum Stats</div>
                                 <div class="widget-desc">Member count, event attendance, engagement metrics</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12040,7 +12040,7 @@
                         <div class="admin-widget-card" data-widget="bridges-stats" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-globe-europe" style="color: #c9a962;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Building Bridges Stats</div>
+                                <div class="widget-name" data-i18n="wid.bbStats">Building Bridges Stats</div>
                                 <div class="widget-desc">Event attendance, city coverage, networking connections</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12052,7 +12052,7 @@
                         <div class="admin-widget-card" data-widget="notes" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-sticky-note" style="color: #2f6b3a;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Quick Notes</div>
+                                <div class="widget-name" data-i18n="wid.quickNotes">Quick Notes</div>
                                 <div class="widget-desc">Personal notes, reminders, and quick thoughts</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12060,7 +12060,7 @@
                         <div class="admin-widget-card" data-widget="travel" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-plane-departure" style="color: var(--warning);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">My Travel</div>
+                                <div class="widget-name" data-i18n="wid.myTravel">My Travel</div>
                                 <div class="widget-desc">Your assigned travel orders and upcoming trips</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12068,7 +12068,7 @@
                         <div class="admin-widget-card" data-widget="calendar" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-calendar-day" style="color: var(--crimson);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">My Calendar</div>
+                                <div class="widget-name" data-i18n="wid.myCalendar">My Calendar</div>
                                 <div class="widget-desc">Your personal schedule and meeting reminders</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12076,7 +12076,7 @@
                         <div class="admin-widget-card" data-widget="bookmarks" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-bookmark" style="color: #9b1b22;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Bookmarks</div>
+                                <div class="widget-name" data-i18n="wid.bookmarks">Bookmarks</div>
                                 <div class="widget-desc">Quick links to frequently used pages and documents</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12088,7 +12088,7 @@
                         <div class="admin-widget-card" data-widget="finance" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-coins" style="color: var(--finances);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Finance Overview</div>
+                                <div class="widget-name" data-i18n="wid.finance">Finance Overview</div>
                                 <div class="widget-desc">Bank balance, income/expenses summary, budget status</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12096,7 +12096,7 @@
                         <div class="admin-widget-card" data-widget="revenue-chart" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-chart-line" style="color: #2f6b3a;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Revenue Chart</div>
+                                <div class="widget-name" data-i18n="wid.revenue">Revenue Chart</div>
                                 <div class="widget-desc">Visual graph of income trends over time</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12104,7 +12104,7 @@
                         <div class="admin-widget-card" data-widget="kpi-dashboard" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-tachometer-alt" style="color: #9b1b22;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">KPI Dashboard</div>
+                                <div class="widget-name" data-i18n="wid.kpi">KPI Dashboard</div>
                                 <div class="widget-desc">Key performance indicators across all projects</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12112,7 +12112,7 @@
                         <div class="admin-widget-card" data-widget="geographic" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-map-marked-alt" style="color: var(--ink);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Geographic Map</div>
+                                <div class="widget-name" data-i18n="wid.geoMap">Geographic Map</div>
                                 <div class="widget-desc">World map showing member and attendee distribution</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12124,7 +12124,7 @@
                         <div class="admin-widget-card" data-widget="pending-payments" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-credit-card" style="color: var(--danger);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Pending Payments</div>
+                                <div class="widget-name" data-i18n="wid.pendPay">Pending Payments</div>
                                 <div class="widget-desc">Registrations awaiting payment confirmation</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12132,7 +12132,7 @@
                         <div class="admin-widget-card" data-widget="pending-reviews" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-file-alt" style="color: var(--warning);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Pending Reviews</div>
+                                <div class="widget-name" data-i18n="wid.pendRev">Pending Reviews</div>
                                 <div class="widget-desc">Abstracts and applications awaiting your review</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12140,7 +12140,7 @@
                         <div class="admin-widget-card" data-widget="pending-approvals" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-check-circle" style="color: #2f6b3a;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Pending Approvals</div>
+                                <div class="widget-name" data-i18n="wid.pendApp">Pending Approvals</div>
                                 <div class="widget-desc">Items requiring your approval or signature</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12148,7 +12148,7 @@
                         <div class="admin-widget-card" data-widget="speaker-status" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-microphone-alt" style="color: #10b981;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Speaker Status</div>
+                                <div class="widget-name" data-i18n="wid.speakerStatus">Speaker Status</div>
                                 <div class="widget-desc">Speaker confirmations and missing documents</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12160,7 +12160,7 @@
                         <div class="admin-widget-card" data-widget="team-activity" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-users-cog" style="color: #9b1b22;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Team Activity</div>
+                                <div class="widget-name" data-i18n="wid.teamActivity">Team Activity</div>
                                 <div class="widget-desc">What other admins are working on right now</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12168,7 +12168,7 @@
                         <div class="admin-widget-card" data-widget="automation-log" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-robot" style="color: #9b1b22;"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">Automation Log</div>
+                                <div class="widget-name" data-i18n="wid.autoLog">Automation Log</div>
                                 <div class="widget-desc">Recent automated workflow executions and results</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12176,7 +12176,7 @@
                         <div class="admin-widget-card" data-widget="system-health" onclick="AdminDashboardCustomizer.toggleWidget(this)">
                             <div class="widget-icon"><i class="fas fa-heartbeat" style="color: var(--danger);"></i></div>
                             <div class="widget-info">
-                                <div class="widget-name">System Health</div>
+                                <div class="widget-name" data-i18n="wid.sysHealth">System Health</div>
                                 <div class="widget-desc">API status, email delivery, and system alerts</div>
                             </div>
                             <div class="widget-check"><i class="fas fa-check"></i></div>
@@ -12334,7 +12334,7 @@
             <h3>Widgets</h3>
             <button class="modal-close" onclick="DashboardCustomizer.closeLibrary()"><i class="fas fa-times"></i></button>
         </div>
-        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Drag widgets to add them to your dashboard</p>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;" data-i18n="wid.drag">Drag widgets to add them to your dashboard</p>
         <div id="widgetLibraryItems">
             <div class="widget-library-item" draggable="true" data-widget="finance">
                 <i class="fas fa-coins"></i>

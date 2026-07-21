@@ -10,6 +10,23 @@
                       function PNM(k){ try{ if(window.MedXI18n&&MedXI18n.get&&MedXI18n.get()==='hr'&&NAMES_HR[k]) return NAMES_HR[k]; }catch(e){} return NAMES[k]||k; }
                       var CTA_HR={'Register':'proj.ctaRegister','Reserve seat':'proj.ctaReserve','Learn more':'proj.ctaLearnMore','Enter code':'proj.ctaEnterCode','View program':'proj.ctaViewProgram','Apply':'proj.ctaApply','Open':'home.ctaOpen'};
                       function CTA(label){ if(!label) return MX('home.ctaOpen'); try{ if(window.MedXI18n&&MedXI18n.get&&MedXI18n.get()==='hr'&&CTA_HR[label]) return MX(CTA_HR[label]); }catch(e){} return label; }
+                      // Status chip + detail line are admin-editable, but the canonical defaults are a
+                      // known set — translate those to HR so the default hub is not half-English. Any
+                      // custom admin text passes through unchanged (until bilingual fields exist).
+                      var STATUS_HR={
+                        'Pre-registration open':'Predregistracija otvorena','Reserve your seat':'Rezervirajte svoje mjesto',
+                        'Applications open in November':'Prijave se otvaraju u studenome','By invitation':'Na poziv',
+                        'Registration open':'Prijave otvorene','Applications open':'Prijave otvorene','Coming soon':'Uskoro',
+                        'Boston - September 2026':'Boston - rujan 2026.'
+                      };
+                      var DETAIL_HR={
+                        'December 4-5, 2026 - Zagreb - Free entry':'4.-5. prosinca 2026. - Zagreb - Besplatan ulaz',
+                        'Saturday December 5 - Hotel Esplanade - EUR 150 through 1 Sep':'Subota 5. prosinca - Hotel Esplanade - 150 EUR do 1. rujna',
+                        'Placements across partner labs and clinics - November 2026':'Stažiranja u partnerskim laboratorijima i klinikama - studeni 2026.',
+                        'Biomedical Forum gathering - May 2027':'Okupljanje Biomedicinskog foruma - svibanj 2027.',
+                        'Building Bridges at Harvard Medical School':'Building Bridges na Harvard Medical School'
+                      };
+                      function HRmap(map,val){ if(!val) return val; try{ if(window.MedXI18n&&MedXI18n.get&&MedXI18n.get()==='hr'&&map[val]) return map[val]; }catch(e){} return val; }
                       var KINDS={open:'open',soon:'soon',info:'info',closed:'closed'};
                       var NOTIFY_KEY='medx_notify_topics';
                       var STATUS_KEY='medx_project_status';
@@ -49,8 +66,8 @@
                               +'<div class="mx-hub-top"><div class="mx-hub-idname"><div class="mx-hub-ico"><i class="fas '+ico+'"></i></div>'
                               +'<div class="mx-hub-name">'+esc(PNM(k))+'</div></div>'
                               +'<button class="mx-hub-bell'+(on?' on':'')+'" title="'+(on?MX('home.notifyOn'):MX('home.notifyOff'))+'" aria-pressed="'+(on?'true':'false')+'" onclick="event.stopPropagation();MedXProjectHub.toggle(\''+esc(k)+'\',this)"><i class="fas fa-bell"></i></button></div>'
-                              +'<span class="mx-hub-chip '+kind+'">'+esc(p.status_label||'')+'</span>'
-                              +'<div class="mx-hub-detail">'+esc(p.detail_line||'')+'</div>'
+                              +'<span class="mx-hub-chip '+kind+'">'+esc(HRmap(STATUS_HR,p.status_label)||'')+'</span>'
+                              +'<div class="mx-hub-detail">'+esc(HRmap(DETAIL_HR,p.detail_line)||'')+'</div>'
                               +'<button class="mx-hub-cta" onclick="event.stopPropagation();MedXProjectHub.go(\''+esc(target)+'\')">'+esc(CTA(p.cta_label))+' <i class="fas fa-arrow-right"></i></button>'
                               +'</div>';
                           }).join(''); },

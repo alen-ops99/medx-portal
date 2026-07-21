@@ -16640,7 +16640,7 @@
                 return {
                     id: u.id, first_name: first, last_name: last, name, initials,
                     photo: u.photo_url || u.photo || '',
-                    title: u.title || u.career_stage || 'Med&X member',
+                    title: u.title || u.career_stage || ((window.MedXI18n && MedXI18n.get && MedXI18n.get()==='hr') ? 'Med&X član' : 'Med&X member'),
                     institution: u.institution || '',
                     city: u.city || '',
                     country: u.country || '',
