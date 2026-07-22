@@ -1198,3 +1198,61 @@ golden band, "December 4-5, 2026" + "4. – 5. prosinca 2026.", Zagreb Croatia, 
 client-side, no cards/send or asset POST ever fired. Evidence (studio UI, three deployed
 artifacts rasterised, all three roll-up templates, mobile, dev+prod results JSON) in
 ~/Documents/Claude_Code_Projects/MedX_Signage_2026-07-10/.
+
+## 2026-07-22 — GAME DAY MODE: focused event-day dashboard, ops chat, volunteer magic-link invites — 0a79740 + 9a29c25 (branch gameday-mode, PR pending)
+
+Replaces the event-day WhatsApp sprawl with ONE in-portal surface. A mode setting (off |
+auto | test) resolves ONE live event — auto activates for whichever event's date window
+covers today in Europe/Zagreb (conferences.start_date/end_date + gala_settings.date), test
+pins an event for rehearsals. While active, entering the admin portal lands EVERYONE on a
+game-day dashboard scoped to that event only; core admins escape with one "Puni portal /
+Full portal" button (sessionStorage, so reloads mid-work don't re-trap); scanner staff land
+there too (endpoints are staffOrAdmin). Magic-link volunteers (?gd=TOKEN) get a separate
+DOWNGRADED session (JWT kind 'gameday_volunteer', no users.id, invite row re-checked per
+request so Revoke kills live sessions within one poll) and are LOCKED to the game-day view
+— sidebar and all admin chrome hidden, never finances, never other events.
+
+### Schema (admin-only, guarded, OUTSIDE the SCHEMA-MIRROR block — admin server.js only)
+- gameday_settings — one row (CHECK id=1): mode off|auto|test, test_event_key, updated_by/at.
+- gameday_messages — ops chat; channel is a FIXED key ('glavni' + organizacija, registracija,
+  tehnika, catering, security, volonteri), rowid is the polling cursor, indexed on
+  (channel, created_at).
+- gameday_invites — token UNIQUE (24 random bytes hex), name/email/team, grants_json
+  (per-volunteer permissions checklist: registrations-view, program-view, speakers-view,
+  meals-view, recent-checkins, team-roster), last_seen_at presence stamp, revoked.
+
+### Backend (admin server.js, all after SCHEMA-MIRROR:END, registered BEFORE the /api 404 catch-all)
+/api/admin/gameday/{status,settings GET/PUT,dashboard,messages GET/POST,invites CRUD +
+revoke} (status/dashboard/chat staffOrAdmin, the rest adminOnly, all audited) and
+/api/gameday/volunteer/{login,status,dashboard,messages GET/POST,checkin} (login limiter
+30/min/IP; data limiter 120/min keyed PER INVITE, not per IP — the whole crew polls chat
+from one venue Wi-Fi). The dashboard aggregate reuses the EXISTING check-in columns
+(registrations.checked_in / gala_registrations + payment gate) and the sessions day-offset
+/ gala schedule_json, so numbers always agree with the frozen scanner. The volunteer door
+scan is a separate ADDITIVE endpoint mirroring /api/admin/checkin/verify semantics
+(uuid / JSON-v2 QR payload / short-code prefix / email, gala not_paid refusal) and writing
+the same checked_in columns — the frozen Stripe/checkout, POST /api/registrations, QR
+generation and scanner internals are byte-untouched.
+
+### Frontend (index.html, all additive)
+section-gameday + section-gameday-settings, "Game Day" nav item (Events & access) with a
+pulsing live dot, GameDay/GameDaySettings modules wired via the wireDiscover-style
+showSection decorator. Dashboard is HR-first (gala-tooling register): Dan X/Y pill,
+countdown to the next programme item, SADA/SLJEDEĆE schedule highlighting, scanned/expected
+stat tiles, 4s polling chat with team rooms (volunteers see glavni + their own room only),
+team roster with online dots, quick links (skener / raspored stolova + tlocrt via the
+existing plexus-tables console / door list), grant-gated cards. Dashboard polls 12s; card
+repaints SKIP while an input is focused (door staff never lose a half-typed code) and the
+last scan result survives repaints. Settings chrome stays English per admin convention.
+
+### Verified E2E (local boot exactly like CI: NODE_ENV=test, scratch db, port 3102)
+Playwright, 34/34: admin lands on gameday when auto-active, escape + no re-trap on reload,
+off/test/auto toggling flips the nav dot, invite created with grants via UI, volunteer
+magic link in a fresh context → locked view + name pre-set + granted cards only + scoped
+channels, cross-context polling delivery both directions, volunteer door scan (new + dupe),
+revoke → lockout screen on next poll, wrong token rejected, mobile 390w no horizontal
+scroll. API-level: volunteer JWT 401s on admin routes, grant/channel scoping, uuid/JSON-v2/
+short-code scans, gala not_paid refusal. Gates: node --check both servers, check-schema-sync
+512 lines byte-identical, check-api-contract OK, 8/8 inline script blocks parse, CI boot
+trio (/ 200, /health 200, bad-creds login 401). Evidence (8 screenshots desktop+mobile):
+~/Documents/Claude_Code_Projects/MedX/MedX_GameDay_2026-07-22/.

@@ -4620,6 +4620,52 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // ========================================================================
+    // GAME DAY MODE — ADMIN-ONLY, OUTSIDE the SCHEMA-MIRROR block.
+    // A focused event-day operations layer: while an event (a conference row or the Gala)
+    // is live, the admin portal lands everyone on ONE dashboard for THAT event only, with a
+    // polling ops chat (one main channel + fixed team rooms) and magic-link volunteer invites
+    // that open a locked-down game-day view with per-invite permission grants. Only the admin
+    // portal reads/writes these tables; the shared Turso DB gets them on admin boot. The user
+    // portal never reads them (scripts/check-schema-sync.sh stays green).
+    db.run(`CREATE TABLE IF NOT EXISTS gameday_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        mode TEXT DEFAULT 'off',
+        test_event_key TEXT,
+        updated_by TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run("INSERT OR IGNORE INTO gameday_settings (id, mode) VALUES (1, 'off')");
+
+    // Ops chat. channel is a fixed key ('glavni' or a team key) — no channels table needed;
+    // the catalog lives in code (GAMEDAY_TEAMS/GAMEDAY_CHANNELS) so both roles stay in sync.
+    db.run(`CREATE TABLE IF NOT EXISTS gameday_messages (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL,
+        author_name TEXT,
+        author_kind TEXT DEFAULT 'admin',
+        team TEXT,
+        body TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_gameday_messages_channel ON gameday_messages(channel, created_at)`);
+
+    // Volunteer magic-link invites. token is the whole credential (crypto-random hex, unique);
+    // grants_json is a JSON array of extra-permission keys from GAMEDAY_GRANTS. revoked=1 kills
+    // the link AND any live session (the volunteer auth middleware re-checks this row per request).
+    db.run(`CREATE TABLE IF NOT EXISTS gameday_invites (
+        id TEXT PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT,
+        team TEXT,
+        grants_json TEXT DEFAULT '[]',
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at TEXT,
+        revoked INTEGER DEFAULT 0
+    )`);
+
     // ADMIN-ONLY: Content studio — a log of pieces made in the creation studio (graphics, slideshow
     // videos, PDFs). Not shared with the user portal. The generated file lives under
     // /uploads/content-studio; this row records it for the "recent creations" gallery and links a piece
@@ -39250,6 +39296,475 @@ ${extraCss || ''}
         logAudit(req, 'advisor_feedback', 'review ' + reviewId + ' obs ' + idx + ' -> ' + verdict);
         res.json({ ok: true });
     }));
+
+    // ============================ GAME DAY MODE ============================
+    // Event-day operations: mode resolution (off | auto | test), the one-screen dashboard
+    // aggregate, the polling ops chat, volunteer magic-link invites with per-invite grants,
+    // and the token-authenticated volunteer surface. Admin tables only (created after
+    // SCHEMA-MIRROR:END); FROZEN surfaces (Stripe/checkout, POST /api/registrations, QR
+    // generation + the existing scanner endpoints) are never touched — the volunteer door
+    // scan below is a separate additive endpoint that writes the same checked_in columns.
+
+    const GAMEDAY_TEAMS = [
+        { key: 'organizacija', label: 'Organizacija' },
+        { key: 'registracija', label: 'Registracija' },
+        { key: 'tehnika', label: 'Tehnika · AV' },
+        { key: 'catering', label: 'Catering' },
+        { key: 'security', label: 'Security' },
+        { key: 'volonteri', label: 'Volonteri' },
+    ];
+    const GAMEDAY_CHANNELS = [{ key: 'glavni', label: 'Glavni kanal' }]
+        .concat(GAMEDAY_TEAMS.map(t => ({ key: t.key, label: t.label })));
+    // Extra portal items a core admin can grant per volunteer (base = dashboard + chat +
+    // door scan + seating). Everything derives ONLY from the resolved active event —
+    // finances and other events are structurally out of reach regardless of grants.
+    const GAMEDAY_GRANTS = [
+        { key: 'registrations-view', label: 'Participant list (read-only)', label_hr: 'Popis sudionika' },
+        { key: 'program-view', label: 'Full programme (all days)', label_hr: 'Cijeli program' },
+        { key: 'speakers-view', label: 'Speakers', label_hr: 'Predavači' },
+        { key: 'meals-view', label: 'Dietary / catering needs', label_hr: 'Prehrana i posebne potrebe' },
+        { key: 'recent-checkins', label: 'Live check-in feed', label_hr: 'Zadnja skeniranja' },
+        { key: 'team-roster', label: 'Team roster + contacts', label_hr: 'Popis tima' },
+    ];
+    const GAMEDAY_SEATING_URL = 'https://plexus-tables.netlify.app/admin.html?key=medx-smaragdna-x7k9q4t2';
+
+    function gamedayZagrebNow() {
+        const now = new Date();
+        const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zagreb' }).format(now);
+        const hhmm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Zagreb', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+        return { date, hhmm, iso: now.toISOString() };
+    }
+
+    // Candidate events = every dated conference row + the Gala (from gala_settings.date).
+    function gamedayListEvents() {
+        const events = [];
+        try {
+            for (const c of query.all('SELECT id, name, slug, start_date, end_date, venue_name, venue_city FROM conferences WHERE start_date IS NOT NULL ORDER BY start_date DESC')) {
+                events.push({
+                    key: 'conf:' + (c.slug || c.id), kind: 'conference', conference_id: c.id,
+                    name: c.name, start_date: c.start_date, end_date: c.end_date || c.start_date,
+                    venue: [c.venue_name, c.venue_city].filter(Boolean).join(', '),
+                });
+            }
+        } catch (e) { /* conferences table always exists; belt and braces */ }
+        try {
+            const g = query.get("SELECT title, date, time, venue FROM gala_settings WHERE id = 'default'");
+            if (g && g.date) {
+                events.push({ key: 'gala', kind: 'gala', name: g.title || 'Gala Evening', start_date: g.date, end_date: g.date, venue: g.venue || '', time: g.time || '' });
+            }
+        } catch (e) { /* gala settings optional */ }
+        return events;
+    }
+
+    // Resolve the ONE live event: test mode pins an event by key; auto activates for
+    // whichever event's date window covers today (Europe/Zagreb — the events run in Croatia).
+    function gamedayResolve() {
+        const s = query.get('SELECT * FROM gameday_settings WHERE id = 1') || { mode: 'off', test_event_key: null };
+        const events = gamedayListEvents();
+        const nowZg = gamedayZagrebNow();
+        let ev = null;
+        if (s.mode === 'test' && s.test_event_key) {
+            ev = events.find(e => e.key === s.test_event_key) || null;
+        } else if (s.mode === 'auto') {
+            ev = events.find(e => nowZg.date >= e.start_date && nowZg.date <= (e.end_date || e.start_date)) || null;
+        }
+        if (!ev) return { active: false, mode: s.mode, settings: s, now: nowZg };
+        const DAY = 86400000;
+        const d0 = Date.parse(ev.start_date + 'T00:00:00Z');
+        const d1 = Date.parse((ev.end_date || ev.start_date) + 'T00:00:00Z');
+        const dT = Date.parse(nowZg.date + 'T00:00:00Z');
+        const dayTotal = Math.max(1, Math.round((d1 - d0) / DAY) + 1);
+        const day = Math.min(dayTotal, Math.max(1, Math.round((dT - d0) / DAY) + 1));
+        return { active: true, mode: s.mode, settings: s, now: nowZg, event: Object.assign({}, ev, { day, day_total: dayTotal }) };
+    }
+
+    function gamedayParseGrants(json) {
+        try {
+            const arr = JSON.parse(json || '[]');
+            const known = new Set(GAMEDAY_GRANTS.map(g => g.key));
+            return Array.isArray(arr) ? arr.filter(k => known.has(k)) : [];
+        } catch (e) { return []; }
+    }
+
+    // Today's programme for the resolved event. Conference sessions carry a 1-based `day`
+    // offset (no absolute date); the Gala schedule lives in gala_settings.schedule_json.
+    function gamedaySchedule(ev, allDays) {
+        if (ev.kind === 'conference') {
+            const params = allDays ? [ev.conference_id] : [ev.conference_id, ev.day];
+            return query.all(`SELECT id, title, session_type, day, start_time, end_time, room
+                FROM sessions WHERE conference_id = ?${allDays ? '' : ' AND day = ?'}
+                ORDER BY day, start_time`, params)
+                .map(s => ({ id: s.id, title: s.title, type: s.session_type || 'talk', day: s.day, start: s.start_time || '', end: s.end_time || '', room: s.room || '' }));
+        }
+        try {
+            const g = query.get("SELECT schedule_json FROM gala_settings WHERE id = 'default'");
+            const sched = JSON.parse((g && g.schedule_json) || '[]');
+            return (Array.isArray(sched) ? sched : []).map((it, i) => ({ id: 'gala-' + i, title: it.title || '', type: 'gala', day: 1, start: it.time || '', end: '', room: it.description || '' }));
+        } catch (e) { return []; }
+    }
+
+    // Scanned vs expected, from the SAME columns the existing scanner writes, so numbers
+    // always agree with the frozen check-in surfaces.
+    function gamedayCheckinStats(ev) {
+        if (ev.kind === 'conference') {
+            const total = query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ?', [ev.conference_id]);
+            const scanned = query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ? AND checked_in = 1', [ev.conference_id]);
+            return { expected: (total && total.c) || 0, scanned: (scanned && scanned.c) || 0, label_hr: 'Prijavljeni na ulazu' };
+        }
+        const total = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE payment_status IN ('paid', 'vip-comp')");
+        const scanned = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE payment_status IN ('paid', 'vip-comp') AND checked_in = 1");
+        return { expected: (total && total.c) || 0, scanned: (scanned && scanned.c) || 0, label_hr: 'Gosti na ulazu' };
+    }
+
+    function gamedayRecentCheckins(ev, limit) {
+        const n = Math.min(Math.max(parseInt(limit, 10) || 8, 1), 25);
+        if (ev.kind === 'conference') {
+            return query.all(`SELECT first_name, last_name, checked_in_at FROM registrations
+                WHERE conference_id = ? AND checked_in = 1 AND checked_in_at IS NOT NULL
+                ORDER BY checked_in_at DESC LIMIT ?`, [ev.conference_id, n])
+                .map(r => ({ name: [r.first_name, r.last_name].filter(Boolean).join(' '), at: r.checked_in_at }));
+        }
+        return query.all(`SELECT first_name, last_name, checked_in_at FROM gala_registrations
+            WHERE checked_in = 1 AND checked_in_at IS NOT NULL
+            ORDER BY checked_in_at DESC LIMIT ?`, [n])
+            .map(r => ({ name: [r.first_name, r.last_name].filter(Boolean).join(' '), at: r.checked_in_at }));
+    }
+
+    // Volunteer roster grouped for the staff overview card. "Online" = seen in the last 10 min
+    // (the volunteer auth middleware stamps last_seen_at, throttled to once a minute).
+    function gamedayRoster(includeContacts) {
+        const cutoff = Date.now() - 10 * 60 * 1000;
+        return query.all('SELECT id, name, email, team, last_seen_at, revoked FROM gameday_invites WHERE revoked = 0 ORDER BY team, name')
+            .map(v => ({
+                name: v.name, team: v.team || 'volonteri',
+                email: includeContacts ? (v.email || '') : undefined,
+                online: !!(v.last_seen_at && Date.parse(v.last_seen_at.replace(' ', 'T') + 'Z') > cutoff),
+            }));
+    }
+
+    // One aggregate for the one-screen dashboard. role: 'admin' (everything) or
+    // 'volunteer' (base blocks + granted extras only, always scoped to the active event).
+    function gamedayDashboardPayload(resolved, role, grants) {
+        const ev = resolved.event;
+        const granted = k => role === 'admin' || (grants || []).includes(k);
+        const out = {
+            active: true, mode: resolved.mode, now: resolved.now, event: ev,
+            channels: GAMEDAY_CHANNELS, teams: GAMEDAY_TEAMS,
+            checkin: gamedayCheckinStats(ev),
+            schedule: gamedaySchedule(ev, false),
+            seating_url: ev.kind === 'gala' ? GAMEDAY_SEATING_URL : null,
+        };
+        if (granted('recent-checkins')) out.recent_checkins = gamedayRecentCheckins(ev, 8);
+        if (granted('team-roster')) out.roster = gamedayRoster(role === 'admin');
+        if (granted('program-view')) out.full_program = gamedaySchedule(ev, true);
+        if (granted('speakers-view') && ev.kind === 'conference') {
+            out.speakers = query.all('SELECT name, title, institution, talk_title, is_keynote FROM speakers WHERE conference_id = ? ORDER BY is_keynote DESC, sort_order', [ev.conference_id]);
+        }
+        if (granted('meals-view')) {
+            out.meals = ev.kind === 'conference'
+                ? query.all(`SELECT first_name, last_name, dietary_requirements as diet FROM registrations
+                    WHERE conference_id = ? AND dietary_requirements IS NOT NULL AND TRIM(dietary_requirements) != ''
+                    ORDER BY last_name LIMIT 300`, [ev.conference_id])
+                    .map(r => ({ name: [r.first_name, r.last_name].filter(Boolean).join(' '), diet: r.diet }))
+                : query.all(`SELECT first_name, last_name, dietary as diet FROM gala_registrations
+                    WHERE payment_status IN ('paid', 'vip-comp') AND dietary IS NOT NULL AND TRIM(dietary) != ''
+                    ORDER BY last_name LIMIT 300`)
+                    .map(r => ({ name: [r.first_name, r.last_name].filter(Boolean).join(' '), diet: r.diet }));
+        }
+        if (granted('registrations-view')) {
+            out.registrations = ev.kind === 'conference'
+                ? query.all(`SELECT first_name, last_name, institution, checked_in FROM registrations
+                    WHERE conference_id = ? ORDER BY last_name, first_name LIMIT 500`, [ev.conference_id])
+                    .map(r => ({ name: [r.first_name, r.last_name].filter(Boolean).join(' '), institution: r.institution || '', checked_in: !!r.checked_in }))
+                : query.all(`SELECT first_name, last_name, institution, seat_number, checked_in FROM gala_registrations
+                    WHERE payment_status IN ('paid', 'vip-comp') ORDER BY last_name, first_name LIMIT 500`)
+                    .map(r => ({ name: [r.first_name, r.last_name].filter(Boolean).join(' '), institution: r.institution || '', seat: r.seat_number || '', checked_in: !!r.checked_in }));
+        }
+        return out;
+    }
+
+    function gamedayAuthorName(req) {
+        try {
+            const u = query.get('SELECT first_name, last_name, email FROM users WHERE id = ?', [req.user.id]);
+            if (u && (u.first_name || u.last_name)) return [u.first_name, u.last_name].filter(Boolean).join(' ');
+            return (req.user.email || 'Admin').split('@')[0];
+        } catch (e) { return 'Admin'; }
+    }
+
+    function gamedayMessages(channel, since) {
+        const rows = query.all(`SELECT rowid as seq, id, channel, author_name, author_kind, team, body, created_at
+            FROM gameday_messages WHERE channel = ? AND rowid > ? ORDER BY rowid ASC LIMIT 200`,
+            [channel, Math.max(0, parseInt(since, 10) || 0)]);
+        return rows;
+    }
+
+    function gamedayPostMessage(channel, authorName, authorKind, team, body) {
+        const text = String(body || '').trim().slice(0, 2000);
+        if (!text) return null;
+        const id = require('crypto').randomUUID();
+        db.run('INSERT INTO gameday_messages (id, channel, author_name, author_kind, team, body) VALUES (?,?,?,?,?,?)',
+            [id, channel, String(authorName || '').slice(0, 120), authorKind, team || null, text]);
+        saveDb();
+        return query.get('SELECT rowid as seq, id, channel, author_name, author_kind, team, body, created_at FROM gameday_messages WHERE id = ?', [id]);
+    }
+
+    function gamedayInviteLink(req, token) {
+        const base = process.env.ADMIN_PORTAL_URL || (req.protocol + '://' + req.get('host'));
+        return base.replace(/\/$/, '') + '/?gd=' + token;
+    }
+
+    function gamedayInviteToJson(req, inv) {
+        const cutoff = Date.now() - 10 * 60 * 1000;
+        return {
+            id: inv.id, name: inv.name, email: inv.email || '', team: inv.team || 'volonteri',
+            grants: gamedayParseGrants(inv.grants_json),
+            created_at: inv.created_at, last_seen_at: inv.last_seen_at || null,
+            online: !!(inv.last_seen_at && Date.parse(String(inv.last_seen_at).replace(' ', 'T') + 'Z') > cutoff),
+            revoked: !!inv.revoked, magic_link: inv.revoked ? null : gamedayInviteLink(req, inv.token),
+        };
+    }
+
+    // -------- Admin endpoints --------
+
+    // Status is the boot probe: every portal user (admins AND scanner staff) calls it on
+    // login to decide the game-day landing, so it is staffOrAdmin, not adminOnly.
+    app.get('/api/admin/gameday/status', auth, staffOrAdmin, (req, res) => {
+        const r = gamedayResolve();
+        res.json({
+            active: r.active, mode: r.mode, now: r.now,
+            event: r.active ? r.event : null,
+            role: req.user.is_admin ? 'admin' : 'staff',
+        });
+    });
+
+    app.get('/api/admin/gameday/settings', auth, adminOnly, (req, res) => {
+        const r = gamedayResolve();
+        const nowZg = gamedayZagrebNow();
+        res.json({
+            settings: { mode: r.mode, test_event_key: r.settings.test_event_key || null, updated_by: r.settings.updated_by || null, updated_at: r.settings.updated_at || null },
+            active: r.active, event: r.active ? r.event : null,
+            events: gamedayListEvents().map(e => Object.assign({}, e, { live_today: nowZg.date >= e.start_date && nowZg.date <= (e.end_date || e.start_date) })),
+            teams: GAMEDAY_TEAMS, grants: GAMEDAY_GRANTS, channels: GAMEDAY_CHANNELS,
+        });
+    });
+
+    app.put('/api/admin/gameday/settings', auth, adminOnly, (req, res) => {
+        const { mode, test_event_key } = req.body || {};
+        if (!['off', 'auto', 'test'].includes(mode)) return res.status(400).json({ error: "mode must be 'off', 'auto' or 'test'" });
+        let evKey = null;
+        if (mode === 'test') {
+            evKey = String(test_event_key || '');
+            if (!gamedayListEvents().some(e => e.key === evKey)) return res.status(400).json({ error: 'test_event_key does not match any event' });
+        }
+        db.run("UPDATE gameday_settings SET mode = ?, test_event_key = ?, updated_by = ?, updated_at = datetime('now') WHERE id = 1",
+            [mode, evKey, req.user.email || null]);
+        saveDb();
+        logAudit(req, 'gameday.settings', mode + (evKey ? ' -> ' + evKey : ''));
+        const r = gamedayResolve();
+        res.json({ ok: true, active: r.active, mode: r.mode, event: r.active ? r.event : null });
+    });
+
+    app.get('/api/admin/gameday/dashboard', auth, staffOrAdmin, (req, res) => {
+        const r = gamedayResolve();
+        if (!r.active) return res.json({ active: false, mode: r.mode, now: r.now });
+        res.json(gamedayDashboardPayload(r, 'admin', null));
+    });
+
+    app.get('/api/admin/gameday/messages', auth, staffOrAdmin, (req, res) => {
+        const channel = String(req.query.channel || 'glavni');
+        if (!GAMEDAY_CHANNELS.some(c => c.key === channel)) return res.status(400).json({ error: 'Unknown channel' });
+        res.json({ channel, messages: gamedayMessages(channel, req.query.since) });
+    });
+
+    app.post('/api/admin/gameday/messages', auth, staffOrAdmin, (req, res) => {
+        const { channel, body } = req.body || {};
+        const ch = String(channel || 'glavni');
+        if (!GAMEDAY_CHANNELS.some(c => c.key === ch)) return res.status(400).json({ error: 'Unknown channel' });
+        const msg = gamedayPostMessage(ch, gamedayAuthorName(req), 'admin', null, body);
+        if (!msg) return res.status(400).json({ error: 'Message body required' });
+        res.json({ ok: true, message: msg });
+    });
+
+    app.get('/api/admin/gameday/invites', auth, adminOnly, (req, res) => {
+        const rows = query.all('SELECT * FROM gameday_invites ORDER BY revoked, team, name');
+        res.json({ invites: rows.map(inv => gamedayInviteToJson(req, inv)), teams: GAMEDAY_TEAMS, grants: GAMEDAY_GRANTS });
+    });
+
+    app.post('/api/admin/gameday/invites', auth, adminOnly, (req, res) => {
+        const { name, email, team, grants } = req.body || {};
+        const cleanName = String(name || '').trim().slice(0, 120);
+        if (!cleanName) return res.status(400).json({ error: 'Name required' });
+        const cleanTeam = GAMEDAY_TEAMS.some(t => t.key === team) ? team : 'volonteri';
+        const known = new Set(GAMEDAY_GRANTS.map(g => g.key));
+        const cleanGrants = (Array.isArray(grants) ? grants : []).filter(k => known.has(k));
+        const id = require('crypto').randomUUID();
+        const token = require('crypto').randomBytes(24).toString('hex');
+        db.run('INSERT INTO gameday_invites (id, token, name, email, team, grants_json, created_by) VALUES (?,?,?,?,?,?,?)',
+            [id, token, cleanName, String(email || '').trim().slice(0, 200) || null, cleanTeam, JSON.stringify(cleanGrants), req.user.email || null]);
+        saveDb();
+        logAudit(req, 'gameday.invite.create', cleanName + ' (' + cleanTeam + ')');
+        res.json({ ok: true, invite: gamedayInviteToJson(req, query.get('SELECT * FROM gameday_invites WHERE id = ?', [id])) });
+    });
+
+    app.put('/api/admin/gameday/invites/:id', auth, adminOnly, (req, res) => {
+        const inv = query.get('SELECT * FROM gameday_invites WHERE id = ?', [req.params.id]);
+        if (!inv) return res.status(404).json({ error: 'Invite not found' });
+        const { name, email, team, grants, revoked } = req.body || {};
+        const known = new Set(GAMEDAY_GRANTS.map(g => g.key));
+        const next = {
+            name: name !== undefined ? (String(name).trim().slice(0, 120) || inv.name) : inv.name,
+            email: email !== undefined ? (String(email).trim().slice(0, 200) || null) : inv.email,
+            team: (team !== undefined && GAMEDAY_TEAMS.some(t => t.key === team)) ? team : inv.team,
+            grants_json: grants !== undefined ? JSON.stringify((Array.isArray(grants) ? grants : []).filter(k => known.has(k))) : inv.grants_json,
+            revoked: revoked !== undefined ? (revoked ? 1 : 0) : inv.revoked,
+        };
+        db.run('UPDATE gameday_invites SET name = ?, email = ?, team = ?, grants_json = ?, revoked = ? WHERE id = ?',
+            [next.name, next.email, next.team, next.grants_json, next.revoked, inv.id]);
+        saveDb();
+        logAudit(req, 'gameday.invite.update', inv.name);
+        res.json({ ok: true, invite: gamedayInviteToJson(req, query.get('SELECT * FROM gameday_invites WHERE id = ?', [inv.id])) });
+    });
+
+    app.post('/api/admin/gameday/invites/:id/revoke', auth, adminOnly, (req, res) => {
+        const inv = query.get('SELECT * FROM gameday_invites WHERE id = ?', [req.params.id]);
+        if (!inv) return res.status(404).json({ error: 'Invite not found' });
+        db.run('UPDATE gameday_invites SET revoked = 1 WHERE id = ?', [inv.id]);
+        saveDb();
+        logAudit(req, 'gameday.invite.revoke', inv.name);
+        res.json({ ok: true });
+    });
+
+    // -------- Volunteer (magic-link) surface --------
+    // Separate, downgraded auth: the magic link token buys a short-lived JWT whose kind is
+    // 'gameday_volunteer'. That JWT carries NO users.id, so it can never pass the admin
+    // auth middleware; conversely every request here re-checks the invite row, so revoking
+    // an invite kills live sessions within one request.
+
+    const gamedayLoginLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many attempts — please wait a moment.' } });
+    // Volunteers poll chat every ~4s from shared venue Wi-Fi (one IP), so the data limiter
+    // keys by invite id (set by the auth middleware that runs before it), never by IP.
+    const gamedayVolunteerLimiter = rateLimit({
+        windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false,
+        keyGenerator: (req) => 'gdvol:' + ((req.volunteer && req.volunteer.id) || 'anon'),
+        message: { error: 'Too many requests — please slow down a moment.' },
+    });
+
+    function gamedayVolunteerAuth(req, res, next) {
+        const token = req.headers.authorization ? req.headers.authorization.replace('Bearer ', '') : '';
+        if (!token) return res.status(401).json({ error: 'Volunteer session required' });
+        try {
+            const d = jwt.verify(token, JWT_SECRET);
+            if (d.kind !== 'gameday_volunteer' || !d.invite_id) throw new Error('wrong token kind');
+            const inv = query.get('SELECT * FROM gameday_invites WHERE id = ?', [d.invite_id]);
+            if (!inv || inv.revoked) return res.status(401).json({ error: 'Access revoked' });
+            req.volunteer = { id: inv.id, name: inv.name, team: inv.team || 'volonteri', grants: gamedayParseGrants(inv.grants_json) };
+            try {
+                if (!inv.last_seen_at || (Date.now() - Date.parse(String(inv.last_seen_at).replace(' ', 'T') + 'Z')) > 60 * 1000) {
+                    db.run("UPDATE gameday_invites SET last_seen_at = datetime('now') WHERE id = ?", [inv.id]);
+                    saveDb();
+                }
+            } catch (e) { /* presence stamping is best-effort */ }
+            return next();
+        } catch (e) { return res.status(401).json({ error: 'Invalid or expired volunteer session' }); }
+    }
+
+    function gamedayVolunteerChannels(vol) {
+        return GAMEDAY_CHANNELS.filter(c => c.key === 'glavni' || c.key === vol.team);
+    }
+
+    app.post('/api/gameday/volunteer/login', gamedayLoginLimiter, (req, res) => {
+        const token = String((req.body && req.body.token) || '').trim();
+        if (!/^[0-9a-f]{16,128}$/i.test(token)) return res.status(400).json({ error: 'Invalid link' });
+        const inv = query.get('SELECT * FROM gameday_invites WHERE token = ?', [token]);
+        if (!inv || inv.revoked) return res.status(401).json({ error: 'This invitation link is not valid (revoked or unknown).' });
+        db.run("UPDATE gameday_invites SET last_seen_at = datetime('now') WHERE id = ?", [inv.id]);
+        saveDb();
+        const session = jwt.sign({ kind: 'gameday_volunteer', invite_id: inv.id }, JWT_SECRET, { expiresIn: '3d' });
+        const r = gamedayResolve();
+        const vol = { id: inv.id, name: inv.name, team: inv.team || 'volonteri', grants: gamedayParseGrants(inv.grants_json) };
+        res.json({
+            ok: true, session,
+            me: { name: vol.name, team: vol.team, team_label: (GAMEDAY_TEAMS.find(t => t.key === vol.team) || {}).label || vol.team, grants: vol.grants },
+            channels: gamedayVolunteerChannels(vol),
+            active: r.active, event: r.active ? r.event : null,
+        });
+    });
+
+    app.get('/api/gameday/volunteer/status', gamedayVolunteerAuth, gamedayVolunteerLimiter, (req, res) => {
+        const r = gamedayResolve();
+        res.json({
+            active: r.active, now: r.now, event: r.active ? r.event : null,
+            me: { name: req.volunteer.name, team: req.volunteer.team, team_label: (GAMEDAY_TEAMS.find(t => t.key === req.volunteer.team) || {}).label || req.volunteer.team, grants: req.volunteer.grants },
+            channels: gamedayVolunteerChannels(req.volunteer),
+        });
+    });
+
+    app.get('/api/gameday/volunteer/dashboard', gamedayVolunteerAuth, gamedayVolunteerLimiter, (req, res) => {
+        const r = gamedayResolve();
+        if (!r.active) return res.json({ active: false, mode: r.mode, now: r.now });
+        const out = gamedayDashboardPayload(r, 'volunteer', req.volunteer.grants);
+        out.channels = gamedayVolunteerChannels(req.volunteer);
+        out.me = { name: req.volunteer.name, team: req.volunteer.team, grants: req.volunteer.grants };
+        res.json(out);
+    });
+
+    app.get('/api/gameday/volunteer/messages', gamedayVolunteerAuth, gamedayVolunteerLimiter, (req, res) => {
+        const r = gamedayResolve();
+        if (!r.active) return res.status(403).json({ error: 'Game day nije aktivan.' });
+        const channel = String(req.query.channel || 'glavni');
+        if (!gamedayVolunteerChannels(req.volunteer).some(c => c.key === channel)) return res.status(403).json({ error: 'No access to this channel' });
+        res.json({ channel, messages: gamedayMessages(channel, req.query.since) });
+    });
+
+    app.post('/api/gameday/volunteer/messages', gamedayVolunteerAuth, gamedayVolunteerLimiter, (req, res) => {
+        const r = gamedayResolve();
+        if (!r.active) return res.status(403).json({ error: 'Game day nije aktivan.' });
+        const { channel, body } = req.body || {};
+        const ch = String(channel || 'glavni');
+        if (!gamedayVolunteerChannels(req.volunteer).some(c => c.key === ch)) return res.status(403).json({ error: 'No access to this channel' });
+        const msg = gamedayPostMessage(ch, req.volunteer.name, 'volunteer', req.volunteer.team, body);
+        if (!msg) return res.status(400).json({ error: 'Message body required' });
+        res.json({ ok: true, message: msg });
+    });
+
+    // Volunteer door scan — ADDITIVE. Mirrors the semantics of the existing (frozen)
+    // /api/admin/checkin/verify for the two game-day event kinds and writes the SAME
+    // checked_in columns, without touching that endpoint or the QR internals. Scope is
+    // structurally limited to the resolved active event.
+    app.post('/api/gameday/volunteer/checkin', gamedayVolunteerAuth, gamedayVolunteerLimiter, (req, res) => {
+        const r = gamedayResolve();
+        if (!r.active) return res.status(403).json({ error: 'Game day nije aktivan.' });
+        let code = String((req.body && req.body.code) || '').trim();
+        if (!code) return res.status(400).json({ error: 'code required' });
+        try { // ticket QRs may carry JSON ({id,...} v2) — unwrap to the registration id
+            const parsed = JSON.parse(code);
+            code = String(parsed.id || parsed.reg_id || parsed.registration_id || code);
+        } catch (e) { /* plain id / short code / email */ }
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
+        const codeNorm = code.toLowerCase().replace(/[^0-9a-f]/g, '');
+        const isShort = !isUuid && !code.includes('@') && codeNorm.length >= 4 && codeNorm.length <= 12;
+        const now = new Date().toISOString();
+        const table = r.event.kind === 'conference' ? 'registrations' : 'gala_registrations';
+        let reg = null;
+        if (isUuid) reg = query.get(`SELECT * FROM ${table} WHERE id = ?`, [code]);
+        if (!reg && code.includes('@')) reg = query.get(`SELECT * FROM ${table} WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1`, [code]);
+        if (!reg && isShort) reg = query.get(`SELECT * FROM ${table} WHERE replace(lower(id), '-', '') LIKE ? ORDER BY created_at DESC LIMIT 1`, [codeNorm + '%']);
+        if (reg && r.event.kind === 'conference' && reg.conference_id !== r.event.conference_id) reg = null; // other-event tickets never resolve
+        if (!reg) return res.json({ valid: false, reason: 'not_found', message: 'Nema registracije za ovaj kod.' });
+        if (r.event.kind === 'gala' && !['paid', 'vip-comp'].includes(reg.payment_status)) {
+            return res.json({ valid: false, reason: 'not_paid', message: 'NIJE PLAĆENO — ne puštati bez potvrde s registracije.', registrant: { name: [reg.first_name, reg.last_name].filter(Boolean).join(' ') } });
+        }
+        const already = !!reg.checked_in;
+        if (!already) {
+            db.run(`UPDATE ${table} SET checked_in = 1, checked_in_at = ? WHERE id = ?`, [now, reg.id]);
+            saveDb();
+        }
+        res.json({
+            valid: true, already_checked_in: already,
+            checked_in_at: already ? reg.checked_in_at : now,
+            registrant: { name: [reg.first_name, reg.last_name].filter(Boolean).join(' '), institution: reg.institution || '', seat: reg.seat_number || '' },
+        });
+    });
 
     // API 404 handler — prevent unmatched API routes from returning HTML
     app.use('/api', (req, res) => {
