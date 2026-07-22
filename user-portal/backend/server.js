@@ -6418,29 +6418,8 @@ async function initializeApp() {
         FOREIGN KEY (parent_id) REFERENCES forum_comments(id)
     )`);
 
-    // Forum direct messages
-    db.run(`CREATE TABLE IF NOT EXISTS forum_messages (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT,
-        sender_id TEXT,
-        recipient_id TEXT,
-        content TEXT NOT NULL,
-        attachments TEXT,
-        is_read INTEGER DEFAULT 0,
-        read_at TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (sender_id) REFERENCES forum_members(id),
-        FOREIGN KEY (recipient_id) REFERENCES forum_members(id)
-    )`);
-
-    // Forum conversations (for grouping messages)
-    db.run(`CREATE TABLE IF NOT EXISTS forum_conversations (
-        id TEXT PRIMARY KEY,
-        participant_ids TEXT,
-        last_message_id TEXT,
-        last_message_at TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )`);
+    // (forum_messages / forum_conversations were never read or written anywhere —
+    // DMs live in direct_messages. Their CREATEs are gone; coherence audit 2026-07-22.)
 
     // Forum events
     db.run(`CREATE TABLE IF NOT EXISTS forum_events (
@@ -9096,7 +9075,7 @@ async function initializeApp() {
     // Byte-identical in both portal server.js files (shared Turso DB in prod).
     // member_type: student | physician | senior_forum | alumni.
     // standing: good_standing | pending | lapsed.
-    // Bronze/Platinum gamification lives ONLY in member_rewards, never here.
+    // Bronze/Platinum gamification lives ONLY in points_ledger, never here.
     db.run(`CREATE TABLE IF NOT EXISTS member_meta (
         user_id TEXT PRIMARY KEY,
         member_type TEXT DEFAULT 'student',
@@ -9967,19 +9946,8 @@ async function initializeApp() {
     try { db.run(`UPDATE gala_settings SET speakers_json = '[]' WHERE speakers_json LIKE '%randomuser.me%'`); } catch (e) {}
     try { db.run(`UPDATE gala_settings SET schedule_json = REPLACE(REPLACE(schedule_json, 'Dr. Elizabeth Chen: "The Next Decade of Cancer Research"', 'Keynote address to be announced'), 'Dr. Elizabeth Chen: The Next Decade of Cancer Research', 'Keynote address to be announced') WHERE schedule_json LIKE '%Elizabeth Chen%'`); } catch (e) {}
 
-    db.run(`CREATE TABLE IF NOT EXISTS member_rewards (
-        id TEXT PRIMARY KEY,
-        user_id TEXT UNIQUE NOT NULL,
-        total_points_earned INTEGER DEFAULT 0,
-        points_balance INTEGER DEFAULT 0,
-        points_redeemed INTEGER DEFAULT 0,
-        tier TEXT DEFAULT 'bronze',
-        referral_code TEXT,
-        referrals INTEGER DEFAULT 0,
-        tier_upgrade_date TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )`);
+    // (member_rewards was an orphan stub — zero reads/writes anywhere; the live points
+    // system is points_ledger. CREATE removed in the coherence audit 2026-07-22.)
 
     db.run(`CREATE TABLE IF NOT EXISTS rewards_history (
         id TEXT PRIMARY KEY,
@@ -19853,6 +19821,10 @@ By applying to this program, I provide the following consents:
                     // Log to Google Sheets — Gala tab (events:['gala']) so EVERY paid Gala (this
                     // standalone/direct checkout, the invite link, and the Plexus link) lands in the
                     // SAME Gala sheet. Previously this handler skipped Sheets entirely.
+                    // NOTE (coherence audit 2026-07-22): every GOOGLE_SHEETS_WEBHOOK call in this
+                    // file is a SECONDARY, best-effort mirror for staff visibility — fire-and-forget,
+                    // never awaited, fires only AFTER the DB row is committed, and a failure never
+                    // touches the registration. The database is the only source of truth.
                     try {
                         const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
                         if (sheetsWebhook) {

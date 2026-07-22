@@ -3575,29 +3575,8 @@ async function initializeApp() {
         FOREIGN KEY (parent_id) REFERENCES forum_comments(id)
     )`);
 
-    // Forum direct messages
-    db.run(`CREATE TABLE IF NOT EXISTS forum_messages (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT,
-        sender_id TEXT,
-        recipient_id TEXT,
-        content TEXT NOT NULL,
-        attachments TEXT,
-        is_read INTEGER DEFAULT 0,
-        read_at TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (sender_id) REFERENCES forum_members(id),
-        FOREIGN KEY (recipient_id) REFERENCES forum_members(id)
-    )`);
-
-    // Forum conversations (for grouping messages)
-    db.run(`CREATE TABLE IF NOT EXISTS forum_conversations (
-        id TEXT PRIMARY KEY,
-        participant_ids TEXT,
-        last_message_id TEXT,
-        last_message_at TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )`);
+    // (forum_messages / forum_conversations were never read or written anywhere —
+    // DMs live in direct_messages. Their CREATEs are gone; coherence audit 2026-07-22.)
 
     // Forum events
     db.run(`CREATE TABLE IF NOT EXISTS forum_events (
@@ -4073,7 +4052,7 @@ async function initializeApp() {
     // Byte-identical in both portal server.js files (shared Turso DB in prod).
     // member_type: student | physician | senior_forum | alumni.
     // standing: good_standing | pending | lapsed.
-    // Bronze/Platinum gamification lives ONLY in member_rewards, never here.
+    // Bronze/Platinum gamification lives ONLY in points_ledger, never here.
     db.run(`CREATE TABLE IF NOT EXISTS member_meta (
         user_id TEXT PRIMARY KEY,
         member_type TEXT DEFAULT 'student',
