@@ -1246,6 +1246,11 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         const galaVenue = galaSettings.venue || 'Hotel Esplanade Zagreb';
         const galaPriceLabel = isEarly ? ('&euro;' + galaPrice + ' &middot; early-bird until ' + fmtD(ebDeadline)) : ('&euro;' + galaPrice);
 
+        // "Vec imate racun?" member-card toggle for this fixed page (admin -> Sign-up Forms ->
+        // fixed-page toggles; rewards_settings key member_card_page-plexus, absent = ON). OFF hides
+        // the signed-in note + prefill only — PLEX_AUTH (account linking on submit) is unchanged.
+        const showMemberCard = rewardsSetting('member_card_page-plexus', '1') !== '0';
+
         // Admin-editable copy (lede + per-event descriptions) from plexus_page_settings, with the
         // launch defaults as fallback. {venue} in the Gala description resolves to the live venue.
         const pps = query.get("SELECT * FROM plexus_page_settings WHERE id = 'default'") || {};
@@ -1340,8 +1345,8 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 <div class="card form-col">
                     <form id="plexForm" onsubmit="return plexSubmit(event)">
                         <div class="section-label" style="margin-top:0;">Your details</div>
-                        <!-- Account linking: filled by the inline script when a portal login exists on this device -->
-                        <div id="plexLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(34,197,94,.35);border-radius:10px;background:rgba(34,197,94,.07);font-size:12.5px;color:#a7f3d0;line-height:1.5;"></div>
+                        <!-- Account linking: filled by the inline script when a portal login exists on this device (omitted when the member-card toggle for this page is OFF) -->
+                        ${showMemberCard ? `<div id="plexLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(34,197,94,.35);border-radius:10px;background:rgba(34,197,94,.07);font-size:12.5px;color:#a7f3d0;line-height:1.5;"></div>` : ''}
                         <div class="form-grid">
                             <div class="form-row">
                                 <div><label>First name *</label><input id="pf_first" required maxlength="100" value="${prefFirst}"></div>
@@ -1386,18 +1391,23 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         // their account (Authorization header -> optionalAuth) and the form prefills — fields
         // stay editable, and the anonymous flow is completely unchanged when no login exists.
         var PLEX_AUTH = null;
+        var PLEX_SHOW_CARD = ${JSON.stringify(showMemberCard)};
         try {
             PLEX_AUTH = localStorage.getItem('medx_user_token');
             var plexU = JSON.parse(localStorage.getItem('medx_user_data') || 'null');
             if (PLEX_AUTH && plexU) {
-                var plexName = ((plexU.first_name || '') + ' ' + (plexU.last_name || '')).trim() || plexU.email || '';
-                var plexNote = document.getElementById('plexLinkNote');
-                if (plexNote) { plexNote.style.display = 'block'; plexNote.innerHTML = 'You are signed in as <strong>' + plexEsc(plexName) + '</strong> \\u2014 this registration will be linked to your Med&amp;X account.'; }
-                var pxF = document.getElementById('pf_first'), pxL = document.getElementById('pf_last'), pxE = document.getElementById('pf_email'), pxI = document.getElementById('pf_inst');
-                if (pxF && !pxF.value) pxF.value = plexU.first_name || '';
-                if (pxL && !pxL.value) pxL.value = plexU.last_name || '';
-                if (pxE && !pxE.value) pxE.value = plexU.email || '';
-                if (pxI && !pxI.value && plexU.institution) pxI.value = plexU.institution;
+                // The visible card + prefill respect the per-page toggle; PLEX_AUTH survives
+                // either way so a signed-in submit still links the registration to the account.
+                if (PLEX_SHOW_CARD) {
+                    var plexName = ((plexU.first_name || '') + ' ' + (plexU.last_name || '')).trim() || plexU.email || '';
+                    var plexNote = document.getElementById('plexLinkNote');
+                    if (plexNote) { plexNote.style.display = 'block'; plexNote.innerHTML = 'You are signed in as <strong>' + plexEsc(plexName) + '</strong> \\u2014 this registration will be linked to your Med&amp;X account.'; }
+                    var pxF = document.getElementById('pf_first'), pxL = document.getElementById('pf_last'), pxE = document.getElementById('pf_email'), pxI = document.getElementById('pf_inst');
+                    if (pxF && !pxF.value) pxF.value = plexU.first_name || '';
+                    if (pxL && !pxL.value) pxL.value = plexU.last_name || '';
+                    if (pxE && !pxE.value) pxE.value = plexU.email || '';
+                    if (pxI && !pxI.value && plexU.institution) pxI.value = plexU.institution;
+                }
             } else { PLEX_AUTH = null; }
         } catch (e) { PLEX_AUTH = null; }
         function plexRecompute(){
@@ -1536,6 +1546,11 @@ const PUBLIC_EVENT_PAGES = {
 function renderPublicEventPage(slug) {
     const cfg = PUBLIC_EVENT_PAGES[slug];
     const factLine = cfg.facts.map(f => `<span>${f}</span>`).join('<span class="dot">&middot;</span>');
+    // "Vec imate racun?" member-card toggle for this fixed page (admin -> Sign-up Forms ->
+    // fixed-page toggles; rewards_settings key member_card_page-<slug>, absent = ON). OFF hides
+    // the signed-in note + prefill only — the Authorization header on submit (account linking)
+    // and the anonymous flow are unchanged in both states.
+    const showMemberCard = rewardsSetting('member_card_page-' + slug, '1') !== '0';
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${cfg.pageTitle}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>
@@ -1601,8 +1616,8 @@ function renderPublicEventPage(slug) {
         <div class="card" id="peCard">
             <form id="peForm" onsubmit="return peSubmit(event)">
                 <div class="section-label">Your details</div>
-                <!-- Account linking: filled by the inline script when a portal login exists on this device -->
-                <div id="peLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(34,197,94,.35);border-radius:10px;background:rgba(34,197,94,.07);font-size:12.5px;color:#a7f3d0;line-height:1.5;"></div>
+                <!-- Account linking: filled by the inline script when a portal login exists on this device (omitted when the member-card toggle for this page is OFF) -->
+                ${showMemberCard ? `<div id="peLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(34,197,94,.35);border-radius:10px;background:rgba(34,197,94,.07);font-size:12.5px;color:#a7f3d0;line-height:1.5;"></div>` : ''}
                 <div class="form-grid">
                     <div class="form-row">
                         <div><label for="pe_first">First name</label><input id="pe_first" name="first_name" autocomplete="given-name" required maxlength="100"></div>
@@ -1629,18 +1644,23 @@ function renderPublicEventPage(slug) {
     // their account (Authorization header -> optionalAuth) and the form prefills — fields
     // stay editable, and the anonymous flow is completely unchanged when no login exists.
     var PE_TOKEN = null;
+    var PE_SHOW_CARD = ${JSON.stringify(showMemberCard)};
     try {
         PE_TOKEN = localStorage.getItem('medx_user_token');
         var peU = JSON.parse(localStorage.getItem('medx_user_data') || 'null');
         if (PE_TOKEN && peU) {
-            var peName = ((peU.first_name || '') + ' ' + (peU.last_name || '')).trim() || peU.email || '';
-            var peNote = document.getElementById('peLinkNote');
-            if (peNote) { peNote.style.display = 'block'; peNote.innerHTML = 'You are signed in as <strong>' + peEsc(peName) + '</strong> \\u2014 this registration will be linked to your Med&amp;X account.'; }
-            var peF = document.getElementById('pe_first'), peL = document.getElementById('pe_last'), peE = document.getElementById('pe_email'), peI = document.getElementById('pe_inst');
-            if (peF && !peF.value) peF.value = peU.first_name || '';
-            if (peL && !peL.value) peL.value = peU.last_name || '';
-            if (peE && !peE.value) peE.value = peU.email || '';
-            if (peI && !peI.value && peU.institution) peI.value = peU.institution;
+            // The visible card + prefill respect the per-page toggle; PE_TOKEN survives either
+            // way so a signed-in submit still links the registration to the account.
+            if (PE_SHOW_CARD) {
+                var peName = ((peU.first_name || '') + ' ' + (peU.last_name || '')).trim() || peU.email || '';
+                var peNote = document.getElementById('peLinkNote');
+                if (peNote) { peNote.style.display = 'block'; peNote.innerHTML = 'You are signed in as <strong>' + peEsc(peName) + '</strong> \\u2014 this registration will be linked to your Med&amp;X account.'; }
+                var peF = document.getElementById('pe_first'), peL = document.getElementById('pe_last'), peE = document.getElementById('pe_email'), peI = document.getElementById('pe_inst');
+                if (peF && !peF.value) peF.value = peU.first_name || '';
+                if (peL && !peL.value) peL.value = peU.last_name || '';
+                if (peE && !peE.value) peE.value = peU.email || '';
+                if (peI && !peI.value && peU.institution) peI.value = peU.institution;
+            }
         } else { PE_TOKEN = null; }
     } catch (e) { PE_TOKEN = null; }
     async function peSubmit(ev){
@@ -1677,6 +1697,15 @@ function renderPublicEventPage(slug) {
 
 app.get('/building-bridges', (req, res) => res.send(renderPublicEventPage('building-bridges')));
 app.get('/donor-night', (req, res) => res.send(renderPublicEventPage('donor-night')));
+
+// "Vec imate racun?" member-card visibility for the SPA surfaces (Plexus wizard + Gala form).
+// Public read of the admin-managed toggles (rewards_settings member_card_spa-*, absent = ON);
+// the server-rendered pages read the same rows directly at render time. Fail-open: on any
+// error the SPA keeps today's behavior and shows the card.
+app.get('/api/member-card-visibility', (req, res) => {
+    const on = (surface) => rewardsSetting('member_card_' + surface, '1') !== '0';
+    res.json({ plexus: on('spa-plexus'), gala: on('spa-gala') });
+});
 
 // ========== EMAIL PREFERENCES (one-click unsubscribe + a small choices page) ==========
 // Signed links (HMAC of the address) — no login needed, and nobody can change another
@@ -1818,6 +1847,10 @@ const SIGNUP_FORM_I18N = {
         ticketLabel: 'Your entry QR code',
         ticketNote: 'Also in your confirmation email. Show it at the entrance.',
         manualCode: 'MANUAL CODE',
+        memberCardQ: 'Already have a Med&X account?',
+        memberCardAction: 'Sign in',
+        memberCardHint: 'Sign in on the member portal and your details fill in automatically.',
+        memberCardSignedIn: 'You are signed in as',
         reminderSubject: 'See you tomorrow: {title}',
         reminderTitle: 'See you tomorrow',
         reminderLine: 'A friendly reminder that <strong>{title}</strong> takes place tomorrow.',
@@ -1868,6 +1901,10 @@ const SIGNUP_FORM_I18N = {
         ticketLabel: 'Vaš QR kod za ulaz',
         ticketNote: 'Nalazi se i u e-poruci s potvrdom. Pokažite ga na ulazu.',
         manualCode: 'RUČNI KOD',
+        memberCardQ: 'Već imate Med&X račun?',
+        memberCardAction: 'Prijavite se',
+        memberCardHint: 'Prijavite se na članskom portalu i vaši će se podaci automatski ispuniti.',
+        memberCardSignedIn: 'Prijavljeni ste kao',
         reminderSubject: 'Vidimo se sutra: {title}',
         reminderTitle: 'Vidimo se sutra',
         reminderLine: 'Podsjećamo Vas da se <strong>{title}</strong> održava sutra.',
@@ -2009,6 +2046,11 @@ function renderSignupFormPage(form, state, confirmedCount) {
             <p class="confirm-line">${body}</p>
         </div>`;
 
+    // Per-form "Vec imate racun?" member card (signup_forms.show_member_card, default ON;
+    // NULL on rows older than the column counts as ON). Purely a sign-in nudge + prefill —
+    // the anonymous submit pipeline below is identical whether the card renders or not.
+    const showMemberCard = !!form && form.show_member_card !== 0;
+
     let cardHtml = '';
     if (state === 'notfound') {
         cardHtml = noticeCard(svgLock, T.notFoundTitle, T.notFoundBody);
@@ -2019,11 +2061,14 @@ function renderSignupFormPage(form, state, confirmedCount) {
     } else {
         const waitlistNote = state === 'waitlist'
             ? `<div class="amber-note">${T.waitlistNote}</div>` : '';
+        const memberCardSlot = showMemberCard
+            ? `<div id="sfMemberCard" style="display:none;margin-bottom:16px;"></div>` : '';
         cardHtml = `
         <div class="card" id="sfCard">
             ${waitlistNote}
             <form id="sfForm" onsubmit="return sfSubmit(event)">
                 <div class="section-label">${T.yourDetails}</div>
+                ${memberCardSlot}
                 <div class="form-grid">
                     <div><label for="sf_name">${T.fullName} <span class="req">*</span></label><input id="sf_name" name="name" autocomplete="name" required maxlength="200"></div>
                     <div><label for="sf_email">${T.email} <span class="req">*</span></label><input id="sf_email" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="200"></div>
@@ -2060,7 +2105,34 @@ function renderSignupFormPage(form, state, confirmedCount) {
     var SF_T = ${JSON.stringify(T).replace(/</g, '\\u003c')};
     var SF_WAITLIST_STATE = ${JSON.stringify(state === 'waitlist')};
     var SF_HAS_DATE = ${JSON.stringify(!!(form && form.event_date))};
+    var SF_SHOW_MEMBER_CARD = ${JSON.stringify(showMemberCard)};
     function sfErr(m){ var e = document.getElementById('sfMsg'); e.className = 'msg err'; e.textContent = m; }
+    // "Vec imate racun?" member card: this page is served from the portal origin, so a member
+    // logged in to the portal on this device is recognised via localStorage. Signed in -> a
+    // small "signed in as" note + name/email prefill (fields stay editable). Signed out -> a
+    // sign-in nudge linking to the portal. Hidden entirely when the form's toggle is OFF, and
+    // the submit flow is byte-identical in every case.
+    (function(){
+      if (!SF_SHOW_MEMBER_CARD) return;
+      var slot = document.getElementById('sfMemberCard');
+      if (!slot) return;
+      var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); };
+      var tok = null, u = null;
+      try { tok = localStorage.getItem('medx_user_token'); u = JSON.parse(localStorage.getItem('medx_user_data') || 'null'); } catch (e) {}
+      if (tok && u) {
+        var nm = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || u.email || '';
+        slot.innerHTML = '<div style="padding:11px 14px;border:1px solid rgba(34,197,94,.35);border-radius:10px;background:rgba(34,197,94,.07);font-size:12.5px;color:#a7f3d0;line-height:1.5;">' + SF_T.memberCardSignedIn + ' <strong>' + esc(nm) + '</strong></div>';
+        var nEl = document.getElementById('sf_name'), eEl = document.getElementById('sf_email');
+        if (nEl && !nEl.value && nm) nEl.value = nm;
+        if (eEl && !eEl.value && u.email) eEl.value = u.email;
+      } else {
+        slot.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid rgba(201,169,98,.35);border-radius:10px;background:rgba(201,169,98,.07);">'
+          + '<div style="min-width:0;"><div style="font-size:13px;font-weight:600;color:#e2e8f0;">' + SF_T.memberCardQ + '</div>'
+          + '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">' + SF_T.memberCardHint + '</div></div>'
+          + '<a href="/" style="white-space:nowrap;padding:8px 16px;border:1px solid #c9a962;border-radius:999px;background:rgba(201,169,98,.12);color:#e2e8f0;font-size:12.5px;font-weight:600;text-decoration:none;">' + SF_T.memberCardAction + '</a></div>';
+      }
+      slot.style.display = 'block';
+    })();
     (function(){
       var b = document.getElementById('sfShareBtn');
       if (b && navigator.share) {
@@ -8957,6 +9029,7 @@ async function initializeApp() {
         reminder_plan TEXT DEFAULT '',
         ics_sequence INTEGER DEFAULT 0,
         fields_json TEXT DEFAULT '[]',
+        show_member_card INTEGER DEFAULT 1,
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -8985,6 +9058,8 @@ async function initializeApp() {
     try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN ics_sequence INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run("ALTER TABLE signup_forms ADD COLUMN reminder_plan TEXT DEFAULT ''"); } catch(e) {}
+    // Per-form "Vec imate racun?" member-card visibility (default ON; stored explicitly on create).
+    try { db.run('ALTER TABLE signup_forms ADD COLUMN show_member_card INTEGER DEFAULT 1'); } catch(e) {}
 
     // Email preferences: a row means this address OPTED OUT of the listed categories
     // ('reminders','newsletter' — comma separated). Tickets/confirmations always send.

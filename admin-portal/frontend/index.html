@@ -14142,6 +14142,8 @@ President, Med&amp;X</textarea>
                             <button class="btn btn-primary" onclick="SignupFormsApp.createForm()"><i class="fas fa-plus"></i> New form</button>
                         </div>
                         <div id="sfFormsList"></div>
+                        <!-- "Vec imate racun?" member-card visibility for the fixed (non-builder) pages -->
+                        <div id="sfMemberCardPanel"></div>
                     </div>
 
                     <!-- Editor view -->
@@ -48693,6 +48695,61 @@ By applying to this program, I give the following consents:
                 document.getElementById('sfEditorView').style.display = 'none';
                 document.getElementById('sfListView').style.display = '';
                 await this.loadForms();
+                this.loadMemberCardToggles();
+            },
+
+            // ===== "Vec imate racun?" member-card toggles for the FIXED (non-builder) surfaces =====
+            // Builder forms carry their own checkbox in the Settings tab; these five hardcoded
+            // surfaces are controlled here so EVERY page with the card has an off switch.
+            memberCardToggles: null,
+            MEMBER_CARD_SURFACES: [
+                ['spa-plexus', 'Plexus registration — portal wizard'],
+                ['spa-gala', 'Gala registration — portal form'],
+                ['page-plexus', '/plexus public page'],
+                ['page-building-bridges', '/building-bridges public page'],
+                ['page-donor-night', '/donor-night public page']
+            ],
+
+            renderMemberCardPanel() {
+                const host = document.getElementById('sfMemberCardPanel');
+                if (!host) return;
+                const tg = this.memberCardToggles;
+                host.innerHTML = `
+                    <div class="card" style="padding:18px 22px;margin-top:16px;max-width:760px;">
+                        <div style="font-weight:600;margin-bottom:2px;">Prikaži "Već imate račun?" karticu — stalne stranice</div>
+                        <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:12px;">These pages are not driven by the form builder. Untick one to hide the member sign-in card there — sign-ups and account linking keep working either way. Builder forms have their own checkbox under Settings.</div>
+                        ${tg ? `
+                        <div style="display:grid;gap:8px;">
+                            ${this.MEMBER_CARD_SURFACES.map(([key, label]) => `
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfMC-${key}" ${tg[key] !== false ? 'checked' : ''}> ${label}</label>`).join('')}
+                        </div>
+                        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+                            <button class="btn btn-primary" onclick="SignupFormsApp.saveMemberCardToggles()"><i class="fas fa-floppy-disk"></i> Save card visibility</button>
+                        </div>` : `<div style="color:var(--text-muted);font-size:12.5px;">Loading…</div>`}
+                    </div>`;
+            },
+
+            async loadMemberCardToggles() {
+                this.renderMemberCardPanel();
+                try {
+                    const d = await App.api('/api/admin/member-card-toggles');
+                    this.memberCardToggles = (d && d.toggles) || {};
+                } catch(e) { this.memberCardToggles = {}; }
+                this.renderMemberCardPanel();
+            },
+
+            async saveMemberCardToggles() {
+                const toggles = {};
+                this.MEMBER_CARD_SURFACES.forEach(([key]) => {
+                    const el = document.getElementById('sfMC-' + key);
+                    if (el) toggles[key] = el.checked;
+                });
+                try {
+                    const d = await App.api('/api/admin/member-card-toggles', { method: 'PUT', body: JSON.stringify({ toggles }) });
+                    this.memberCardToggles = (d && d.toggles) || toggles;
+                    this.renderMemberCardPanel();
+                    Toast.success('Card visibility saved');
+                } catch(e) { alert('Could not save: ' + e.message); }
             },
 
             async loadForms() {
@@ -48982,6 +49039,10 @@ By applying to this program, I give the following consents:
                             </select></div>
                             <div style="grid-column:1 / -1;"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfSetWaitlist" ${c.waitlist_enabled ? 'checked' : ''}> Enable a waiting list when the event is full</label></div>
                             <div style="grid-column:1 / -1;">
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfSetMemberCard" ${c.show_member_card !== 0 ? 'checked' : ''}> Prikaži "Već imate račun?" karticu / Show the "Already have an account?" card</label>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:4px;margin-left:24px;">Signed-out visitors see a sign-in nudge on the public page; signed-in members see "Prijavljeni ste kao…" with their details pre-filled. Turning it off never blocks anyone from signing up.</div>
+                            </div>
+                            <div style="grid-column:1 / -1;">
                                 <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Reminder emails</div>
                                 <div style="display:flex;gap:18px;flex-wrap:wrap;">
                                     <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;"><input type="checkbox" id="sfRem7" ${sfPlan.includes('7') ? 'checked' : ''}> 7 days before</label>
@@ -49045,6 +49106,7 @@ By applying to this program, I give the following consents:
                     venue: v('sfSetVenue').trim(),
                     capacity,
                     waitlist_enabled: document.getElementById('sfSetWaitlist').checked,
+                    show_member_card: document.getElementById('sfSetMemberCard').checked,
                     reminder_plan: ['7','2','0'].filter(d => document.getElementById('sfRem' + d).checked).join(','),
                     reminder_enabled: ['7','2','0'].some(d => document.getElementById('sfRem' + d).checked),
                     registration_deadline: v('sfSetDeadline'),
@@ -49056,7 +49118,7 @@ By applying to this program, I give the following consents:
                 try {
                     const resp = await App.api('/api/admin/signup-forms/' + this.current.id, { method: 'PUT', body: JSON.stringify(patch) });
                     if (resp && resp.calendar_updates) alert('Saved. ' + resp.calendar_updates + ' guest calendar(s) were sent the corrected invitation.');
-                    Object.assign(this.current, patch, { waitlist_enabled: patch.waitlist_enabled ? 1 : 0 });
+                    Object.assign(this.current, patch, { waitlist_enabled: patch.waitlist_enabled ? 1 : 0, show_member_card: patch.show_member_card ? 1 : 0 });
                     this.renderEditorHeader();
                     const idx = this.forms.findIndex(f => f.id === this.current.id);
                     if (idx >= 0) Object.assign(this.forms[idx], this.current);
