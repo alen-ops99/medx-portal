@@ -4047,6 +4047,7 @@ async function initializeApp() {
         reminder_plan TEXT DEFAULT '',
         ics_sequence INTEGER DEFAULT 0,
         fields_json TEXT DEFAULT '[]',
+        show_member_card INTEGER DEFAULT 1,
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -4075,6 +4076,8 @@ async function initializeApp() {
     try { db.run('ALTER TABLE signup_forms ADD COLUMN reminder_enabled INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE signup_forms ADD COLUMN ics_sequence INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run("ALTER TABLE signup_forms ADD COLUMN reminder_plan TEXT DEFAULT ''"); } catch(e) {}
+    // Per-form "Vec imate racun?" member-card visibility (default ON; stored explicitly on create).
+    try { db.run('ALTER TABLE signup_forms ADD COLUMN show_member_card INTEGER DEFAULT 1'); } catch(e) {}
 
     // Email preferences: a row means this address OPTED OUT of the listed categories
     // ('reminders','newsletter' — comma separated). Tickets/confirmations always send.
@@ -28902,6 +28905,41 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         };
     }
 
+    // ===== "Vec imate racun?" member-card toggles for the FIXED (non-builder) surfaces =====
+    // The five hardcoded surfaces that render the member-link card are not driven by the form
+    // builder, so their visibility lives as rewards_settings keys (member_card_<surface>, '1'/'0',
+    // absent = ON). Builder forms carry their own signup_forms.show_member_card column instead.
+    // The user portal reads these same rows (shared DB): server-rendered pages directly at render
+    // time, the SPA via GET /api/member-card-visibility.
+    const MEMBER_CARD_SURFACES = ['spa-plexus', 'spa-gala', 'page-plexus', 'page-building-bridges', 'page-donor-night'];
+    const memberCardToggleValue = (surface) => {
+        try {
+            const row = query.get('SELECT value FROM rewards_settings WHERE key = ?', ['member_card_' + surface]);
+            return !(row && row.value === '0');
+        } catch (e) { return true; }
+    };
+
+    app.get('/api/admin/member-card-toggles', auth, adminOnly, (req, res) => {
+        const toggles = {};
+        MEMBER_CARD_SURFACES.forEach(s => { toggles[s] = memberCardToggleValue(s); });
+        res.json({ toggles });
+    });
+
+    app.put('/api/admin/member-card-toggles', auth, adminOnly, (req, res) => {
+        const body = (req.body && typeof req.body.toggles === 'object' && req.body.toggles) || {};
+        const bad = Object.keys(body).filter(k => !MEMBER_CARD_SURFACES.includes(k));
+        if (bad.length) return res.status(400).json({ error: 'unknown surface: ' + bad.join(', ') });
+        Object.entries(body).forEach(([surface, on]) => {
+            db.run('INSERT OR REPLACE INTO rewards_settings (key, value) VALUES (?, ?)',
+                ['member_card_' + surface, on ? '1' : '0']);
+        });
+        saveDb();
+        logAudit(req, 'member_card_toggles', Object.entries(body).map(([k, v]) => `${k}=${v ? 'on' : 'off'}`).join(', '));
+        const toggles = {};
+        MEMBER_CARD_SURFACES.forEach(s => { toggles[s] = memberCardToggleValue(s); });
+        res.json({ success: true, toggles });
+    });
+
     app.get('/api/admin/signup-forms', auth, adminOnly, (req, res) => {
         const forms = query.all('SELECT * FROM signup_forms ORDER BY created_at DESC');
         res.json(forms.map(f => ({ ...f, url: signupFormPublicUrl(f.slug), ...signupFormCounts(f.id) })));
@@ -28912,7 +28950,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         if (title.length > 200) return res.status(400).json({ error: 'title too long (max 200 characters)' });
         const id = require('crypto').randomUUID();
         const slug = generateSignupFormSlug();
-        db.run('INSERT INTO signup_forms (id, slug, title, created_by) VALUES (?, ?, ?, ?)',
+        // show_member_card stored EXPLICITLY (not just the column default) so every form row
+        // carries its own answer — default ON for new event/registration forms.
+        db.run('INSERT INTO signup_forms (id, slug, title, created_by, show_member_card) VALUES (?, ?, ?, ?, 1)',
             [id, slug, title, req.user?.email || null]);
         saveDb();
         logAudit(req, 'signup_form_create', title);
@@ -28957,6 +28997,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         if (b.capacity !== undefined) patch.capacity = b.capacity;
         if (b.waitlist_enabled !== undefined) patch.waitlist_enabled = b.waitlist_enabled ? 1 : 0;
         if (b.reminder_enabled !== undefined) patch.reminder_enabled = b.reminder_enabled ? 1 : 0;
+        if (b.show_member_card !== undefined) patch.show_member_card = b.show_member_card ? 1 : 0;
         if (b.reminder_plan !== undefined) {
             // CSV of day-offsets; only 7, 2 and 0 (day-of) are valid.
             patch.reminder_plan = String(b.reminder_plan || '').split(',').map(x => x.trim()).filter(x => ['7', '2', '0'].includes(x)).join(',');

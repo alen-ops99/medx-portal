@@ -28,10 +28,35 @@
         // =========================================
         const MemberLinkCard = {
             _rendered: {},
+            // Admin-controlled visibility (Sign-up Forms -> fixed-page toggles). Loaded once from
+            // the public read endpoint; fail-open (any error keeps today's always-show behavior).
+            _vis: null,
+            _visP: null,
+            _surfaces: { pxMemberLinkCard: 'plexus', galaMemberLinkCard: 'gala' },
+            _loadVisibility() {
+                if (this._vis) return Promise.resolve(this._vis);
+                if (!this._visP) {
+                    var self = this;
+                    var apiBase = typeof API_BASE !== 'undefined' ? API_BASE : '';
+                    this._visP = fetch(apiBase + '/api/member-card-visibility')
+                        .then(function(r){ return r.ok ? r.json() : {}; })
+                        .catch(function(){ return {}; })
+                        .then(function(v){ self._vis = v || {}; return self._vis; });
+                }
+                return this._visP;
+            },
             render(containerId) {
                 var el = document.getElementById(containerId);
                 if (!el) return;
                 this._rendered[containerId] = 1;
+                // Respect the admin toggle for this surface before painting anything.
+                if (!this._vis) {
+                    var self = this;
+                    this._loadVisibility().then(function(){ self.render(containerId); });
+                    return;
+                }
+                var surface = this._surfaces[containerId];
+                if (surface && this._vis[surface] === false) { el.innerHTML = ''; return; }
                 var user = (typeof UserPortal !== 'undefined' && UserPortal.user) || null;
                 var token = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
                 if (token && user) {
