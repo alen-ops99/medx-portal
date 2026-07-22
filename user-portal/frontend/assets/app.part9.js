@@ -19,6 +19,45 @@
         window.AF26_EVENT_START = window.MEDX_DATES.af26.start;
 
         // =========================================
+        // ACCOUNT LINKING — optional member-login card on public registration forms.
+        // Unobtrusive: logged-out visitors see "Već imate Med&X ili Forum račun? Prijavite
+        // se..." with a button that opens the EXISTING auth modal; logged-in members see
+        // "Prijavljeni ste kao <name> — prijava će biti povezana s vašim računom". The
+        // anonymous path is never blocked — the card is informational, the backend links
+        // via the JWT the form submit already carries (optionalAuth routes).
+        // =========================================
+        const MemberLinkCard = {
+            _rendered: {},
+            render(containerId) {
+                var el = document.getElementById(containerId);
+                if (!el) return;
+                this._rendered[containerId] = 1;
+                var user = (typeof UserPortal !== 'undefined' && UserPortal.user) || null;
+                var token = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
+                if (token && user) {
+                    var name = ((user.first_name || '') + ' ' + (user.last_name || '')).trim() || user.email || '';
+                    el.innerHTML = '<div style="display:flex;align-items:center;gap:10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:12px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--up-text);">'
+                        + '<i class="fas fa-link" style="color:#22c55e;flex-shrink:0;"></i>'
+                        + '<span>' + t('lnk.signedInAs') + ' <strong>' + escapeHtml(name) + '</strong> ' + t('lnk.willLink') + '</span>'
+                        + '</div>';
+                } else {
+                    el.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:rgba(201,169,98,.07);border:1px solid rgba(201,169,98,.35);border-radius:12px;padding:12px 16px;margin-bottom:20px;">'
+                        + '<span style="font-size:13px;color:var(--up-text-muted);"><i class="fas fa-user-circle" style="margin-right:7px;color:#c9a962;"></i>' + t('lnk.haveAccount') + '</span>'
+                        + '<button type="button" onclick="MemberLinkCard.login()" style="background:transparent;border:1px solid #c9a962;color:var(--up-text);border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;">' + t('lnk.login') + '</button>'
+                        + '</div>';
+                }
+            },
+            login() {
+                if (typeof UserPortal !== 'undefined' && UserPortal.openLoginModal) UserPortal.openLoginModal();
+            },
+            // After a successful login, every card rendered on this page flips to the linked state.
+            refreshAll() {
+                for (var id in this._rendered) this.render(id);
+            }
+        };
+        window.MemberLinkCard = MemberLinkCard;
+
+        // =========================================
         // XSS PROTECTION UTILITY
         // =========================================
         function escapeHtml(str) {
@@ -947,14 +986,26 @@
                 var self = this;
                 var token = (typeof UserPortal !== 'undefined' && UserPortal.token) || localStorage.getItem('medx_user_token');
                 var apiBase = typeof API_BASE !== 'undefined' ? API_BASE : '';
+                var authHeaders = token ? { 'Authorization': 'Bearer ' + token } : {};
                 var wc = document.getElementById('mymedxQRCodes');
                 if (wc) wc.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--muted);font-size:13px;">' + t('mmx.loadingTickets') + '</div>';
-                fetch(apiBase + '/api/registrations/my', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
+                // Wallet completeness (account-linking pack): gala tickets + the member's table
+                // load alongside conference tickets so the wallet shows EVERYTHING in one place.
+                // Both are best-effort — a failure renders the conference wallet exactly as before.
+                var galaP = fetch(apiBase + '/api/gala/my', { headers: authHeaders })
+                    .then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; });
+                var seatP = fetch(apiBase + '/api/gala/my-seat', { headers: authHeaders })
+                    .then(function(r){ return r.ok ? r.json() : { assigned: false }; }).catch(function(){ return { assigned: false }; });
+                fetch(apiBase + '/api/registrations/my', { headers: authHeaders })
                     .then(function(r){ return r.ok ? r.json() : Promise.reject('err'); })
                     .then(function(regs){
                         self._regs = Array.isArray(regs) ? regs : [];
                         self._saveTicketCache(self._regs);
-                        self.renderRecognition(self._regs); self._renderWalletCards(self._regs); self.renderPurchases(self._regs);
+                        return Promise.all([galaP, seatP]).then(function(gs){
+                            self._galaRegs = Array.isArray(gs[0]) ? gs[0] : [];
+                            self._galaSeat = gs[1] || { assigned: false };
+                            self.renderRecognition(self._regs); self._renderWalletCards(self._regs); self.renderPurchases(self._regs);
+                        });
                     })
                     .catch(function(){
                         // R3-3 offline ticket suite: the API is unreachable (event-day dead spots,
@@ -1343,11 +1394,12 @@
             _renderWalletCards(regs, offline) {
                 var container = document.getElementById('mymedxQRCodes');
                 if (!container) return;
+                var galaRegs = (!offline && Array.isArray(this._galaRegs)) ? this._galaRegs : [];
                 if (regs === null) {
                     container.innerHTML = MedXState.render({ gridSpan: true, tone: 'error', icon: 'fa-cloud-arrow-down', body: t('tk.loadError'), actionLabel: t('state.retry'), actionOnclick: 'MyMedXPortal.renderQRCodes()' });
                     return;
                 }
-                if (!regs.length) {
+                if (!regs.length && !galaRegs.length) {
                     container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:28px 20px;border:1px dashed var(--line);border-radius:12px;">'
                         + '<div style="font-size:26px;margin-bottom:8px;">🎟️</div>'
                         + '<div style="font-weight:700;color:var(--ink);margin-bottom:4px;font-family:var(--serif);">' + t('tk.noTickets') + '</div>'
@@ -1400,6 +1452,45 @@
                         + '<div style="text-align:center;font-size:11px;color:var(--muted);margin-top:2px;"><i class="fas fa-circle-check" style="color:var(--success);"></i> ' + t('tk.offlineReady') + '</div>'
                     + '</div>';
                 }).join('');
+                // Wallet completeness (account-linking pack): standalone Gala Evening tickets
+                // (gala_registrations linked by user_id or account email) render as their own
+                // cards after the conference tickets. The QR is the HOSTED frozen payload
+                // (/qr/:id.png — byte-identical to what the gala scanner verifies), so no QR
+                // logic is duplicated client-side. Shows the member's table when one is known.
+                if (galaRegs.length) {
+                    var seat = this._galaSeat || { assigned: false };
+                    container.insertAdjacentHTML('beforeend', galaRegs.map(function(g){
+                        var st = String(g.status || '').toLowerCase();
+                        var gPaid = (g.payment_status === 'paid');
+                        var gComp = (st === 'confirmed' || st === 'vip-comp');
+                        var gPending = (st === 'pending');
+                        var gStatusLabel = gPaid ? t('tk.paid') : (gComp ? t('tk.confirmed') : (gPending ? t('tk.pendingApproval') : t('tk.paymentPending')));
+                        var gStatusColor = (gPaid || gComp) ? 'var(--success)' : 'var(--warning)';
+                        var gName = ((g.first_name || '') + ' ' + (g.last_name || '')).trim();
+                        var gDate = MyMedXPortal._fmtDateRange(g.event_date, null);
+                        var gAmount = (g.amount_paid != null && Number(g.amount_paid) > 0) ? ('€' + Number(g.amount_paid).toFixed(2)) : '';
+                        var gChecked = !!g.checked_in;
+                        var qrSrc = (g.qr_url || ('/qr/' + g.id + '.png'));
+                        return '<div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow-sm);">'
+                            + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'
+                                + '<div style="min-width:0;"><div style="font-size:15px;font-weight:700;color:var(--ink);font-family:var(--serif);line-height:1.2;">' + escapeHtml(g.event_title || 'Gala Evening') + '</div>'
+                                + '<div style="font-size:12px;color:var(--muted);margin-top:2px;">' + t('tk.galaTicket') + (gName ? (' · ' + escapeHtml(gName)) : '') + '</div></div>'
+                                + '<span style="white-space:nowrap;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:' + gStatusColor + ';background:var(--paper-2);border:1px solid var(--line);padding:4px 9px;border-radius:999px;">' + gStatusLabel + '</span>'
+                            + '</div>'
+                            + (gDate ? '<div style="font-size:12px;color:var(--ink-soft);"><i class="fas fa-calendar" style="width:16px;color:var(--muted);"></i> ' + escapeHtml(gDate) + '</div>' : '')
+                            + (g.venue ? '<div style="font-size:12px;color:var(--ink-soft);"><i class="fas fa-location-dot" style="width:16px;color:var(--muted);"></i> ' + escapeHtml(g.venue) + '</div>' : '')
+                            + (seat.assigned && seat.table_label ? '<div style="font-size:12px;color:var(--ink);font-weight:700;"><i class="fas fa-chair" style="width:16px;color:#c9a962;"></i> ' + t('tk.table') + ': ' + escapeHtml(seat.table_label) + (seat.seat_note ? (' · ' + escapeHtml(seat.seat_note)) : '') + '</div>' : '')
+                            + '<div style="background:#ffffff;border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:6px;">'
+                                + '<img src="' + qrSrc + '" alt="QR" style="width:148px;height:148px;object-fit:contain;" loading="lazy">'
+                                + '<div style="font-size:11px;color:var(--muted);">' + (gChecked ? '<span style="color:var(--success);font-weight:700;"><i class="fas fa-check-circle"></i> ' + t('tk.checkedIn') + '</span>' : t('tk.showAtCheckin')) + '</div>'
+                            + '</div>'
+                            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+                                + '<div style="font-size:12px;color:var(--muted);">' + (gAmount ? ('<strong style="color:var(--ink);">' + gAmount + '</strong>') : '') + (g.invoice_number ? (' · #' + escapeHtml(g.invoice_number)) : '') + '</div>'
+                                + '<a href="' + qrSrc + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;background:#14110f;color:#e8d5a8;border:1px solid #14110f;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;"><i class="fas fa-qrcode"></i> ' + t('tk.openQr') + '</a>'
+                            + '</div>'
+                        + '</div>';
+                    }).join(''));
+                }
                 // Render REAL QR codes from the ticket_qr_code value
                 if (typeof QRCode !== 'undefined') {
                     jobs.forEach(function(job){
@@ -3801,6 +3892,13 @@
                         // Store credentials for biometric login (WebAuthn placeholder)
                         this.storeBiometricCredentials(email);
                         this.closeLoginModal();
+                        // Account linking: an open public form (Plexus/Gala) flips to the
+                        // "signed in as" linked state and prefills right after login.
+                        try {
+                            if (typeof MemberLinkCard !== 'undefined') MemberLinkCard.refreshAll();
+                            if (typeof PlexusPortal !== 'undefined' && PlexusPortal.prefillUserData) PlexusPortal.prefillUserData();
+                            if (typeof GalaPortal !== 'undefined' && GalaPortal.prefillUserData) GalaPortal.prefillUserData();
+                        } catch (e) { /* card refresh is cosmetic — never block login */ }
                         // Show welcome animation on fresh login
                         this.showUserPortal(true, false);
                     } else if (data.needsVerification) {
@@ -9330,6 +9428,8 @@
 
             // Prefill user data from logged-in user
             prefillUserData() {
+                // Account linking: the optional member-login card sits above the form fields.
+                if (typeof MemberLinkCard !== 'undefined') MemberLinkCard.render('pxMemberLinkCard');
                 if (UserPortal.user) {
                     document.getElementById('pxRegFirstName').value = UserPortal.user.first_name || '';
                     document.getElementById('pxRegLastName').value = UserPortal.user.last_name || '';
@@ -11954,6 +12054,8 @@
 
             // Prefill user data
             prefillUserData() {
+                // Account linking: the optional member-login card sits above the form fields.
+                if (typeof MemberLinkCard !== 'undefined') MemberLinkCard.render('galaMemberLinkCard');
                 if (UserPortal.user) {
                     const firstName = document.getElementById('galaFirstName');
                     const lastName = document.getElementById('galaLastName');

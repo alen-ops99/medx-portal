@@ -1256,3 +1256,40 @@ short-code scans, gala not_paid refusal. Gates: node --check both servers, check
 512 lines byte-identical, check-api-contract OK, 8/8 inline script blocks parse, CI boot
 trio (/ 200, /health 200, bad-creds login 401). Evidence (8 screenshots desktop+mobile):
 ~/Documents/Claude_Code_Projects/MedX/MedX_GameDay_2026-07-22/.
+
+## 2026-07-22 — ACCOUNT LINKING + TICKET WALLET COMPLETENESS — 9fe2f40 (branch account-linking, PR #36)
+
+Guests keep registering via the public forms with no account; members get "everything in
+one place". (1) Optional member-login card on the public forms — SPA gala form + Plexus
+wizard reuse the existing auth modal (MemberLinkCard, flips to "Prijavljeni ste kao …"
+after login and prefills); the server-rendered /plexus, /building-bridges and /donor-night
+pages show a signed-in banner + prefill from the portal localStorage login and send the
+JWT. /api/gala/register, /api/public-events/register and /api/croatians-abroad/register
+take optionalAuth and stamp user_id; the anonymous path is untouched (invalid/absent
+token still registers, user_id NULL). (2) Retroactive claiming —
+claimRegistrationsForUser() on signup/login/email-verify attaches guest rows across
+registrations / gala_registrations / bridges_registrations /
+croatians_abroad_registrations by lower(email) WHERE user_id IS NULL, plus a one-time
+drip_log-guarded backfill (kind account_claim_backfill_v1) for all existing users.
+GOTCHA fixed en route: db.run() WITHOUT params goes through exec(), so the
+getRowsModified() polyfill reads 0 — count before update for unparameterized DML.
+(3) Wallet — new GET /api/gala/my feeds gala ticket cards in My Med&X (status chip incl.
+pending approval, gala_settings date/venue, hosted frozen /qr/:id.png). (4) Stol N —
+NEW email-keyed gala_table_assignments INSIDE the SCHEMA-MIRROR block in BOTH server.js
+(user reads, admin writes; 524 lines byte-identical); admin Gala → Seating "Uvezi stolove
+iz konzole (CSV)" card upserts the picker console's exported CSV by lower(email)
+(re-import updates, audited) — Firestore console stays decoupled; /api/gala/my-seat
+prefers the console import, falls back to the in-portal seating plan. Google Wallet
+verdict: REAL signed savetowallet JWT implementation, needs owner env
+(GOOGLE_WALLET_ISSUER_ID + GOOGLE_WALLET_SA_KEY) — until then a clean bilingual gate.
+
+### Verified E2E (local boot exactly like CI: NODE_ENV=test, scratch db, 3101/3102)
+API 33/33: anonymous paths user_id NULL, logged-in submits linked, claim on signup
+(mixed-case email) + on login, CSV import insert/skip + case-insensitive upsert on
+re-import, my-seat "Stol 15", Google Wallet gate; DB-level: backfill attaches legacy
+NULL rows with true counts, guard blocks re-runs. Playwright 18/18: card → auth modal →
+linked state + prefill, wallet desktop + mobile 390w (conference + gala + Stol 15, no
+h-scroll, no page errors), donor-night banner, admin import via UI. Gates: node --check
+both servers, check-schema-sync 524 lines byte-identical, check-api-contract OK, 3/3
+public-page inline script blocks parse, CI boot trio. Evidence (7 screenshots + test
+scripts): ~/Documents/Claude_Code_Projects/MedX/MedX_AccountLinking_2026-07-22/.

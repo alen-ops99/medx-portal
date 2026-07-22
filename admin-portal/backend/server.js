@@ -4201,6 +4201,18 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // Gala table assignments imported from the seating picker console's CSV export (admin
+    // Gala → Seating). Email-keyed (stored lowercased) so the member wallet can show
+    // "Stol N" by account-email match with no Firebase coupling. The admin portal writes it
+    // (CSV upsert) and the user portal reads it — hence it lives in the shared mirror block.
+    db.run(`CREATE TABLE IF NOT EXISTS gala_table_assignments (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        table_no TEXT,
+        guest_name TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     db.run(`CREATE TABLE IF NOT EXISTS event_waitlist (
         id TEXT PRIMARY KEY,
         section TEXT NOT NULL DEFAULT 'plexus',
@@ -7881,6 +7893,10 @@ async function initializeApp() {
     // Mirror of the user-portal migration: 'source' distinguishes public Plexus Experience rows
     // (source='plexus') from diaspora Croatians Abroad rows so the admin lists stay separate.
     try { db.run("ALTER TABLE croatians_abroad_registrations ADD COLUMN source TEXT DEFAULT 'croatians-abroad'"); } catch(e) {}
+    // Account linking: a public Plexus Experience / Croatians Abroad registration made while
+    // logged in (or claimed retroactively by email) attaches to the member's account.
+    // Nullable — the anonymous path is untouched. Declared identically in BOTH portals.
+    try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN user_id TEXT'); } catch(e) {}
 
     // Denormalized "what they applied for" + answers + link token on every registration table.
     // Runs HERE (not in the early migration block) because gala/forum/bridges/CA are created above.
@@ -8199,6 +8215,10 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN price REAL DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN payment_status TEXT DEFAULT 'n/a'`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN amount_paid REAL`); } catch(e) {}
+    // Account linking: a public Bridges/Donor Night registration made while logged in (or
+    // claimed retroactively by email) attaches to the member's account. Nullable — the
+    // anonymous path is untouched. Declared identically in BOTH portal server.js files.
+    try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN user_id TEXT`); } catch(e) {}
 
     // Phase 8: composable per-link pricing — selectable, individually-priced components
     // per event (admin edits prices; user portal reads them at checkout). Same table in
@@ -12258,6 +12278,82 @@ async function initializeApp() {
         db.run('DELETE FROM gala_seat_assignments WHERE registration_id = ?', [regId]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // ===== GALA TABLE ASSIGNMENTS — CSV import from the picker console (account-linking pack) =====
+    // The live table picker (plexus-tables.netlify.app, Firestore-backed) exports a CSV whose
+    // columns include table,name,email. This upserts it into the shared, email-keyed
+    // gala_table_assignments table (mirror block) so the member wallet can show "Stol N" by
+    // account-email match — the Firestore system stays fully decoupled (no Firebase creds here).
+    // Upsert by lower(email): a re-import UPDATES table numbers, never duplicates rows.
+    app.get('/api/admin/gala/table-assignments', auth, adminOnly, (req, res) => {
+        try { res.json(query.all('SELECT * FROM gala_table_assignments ORDER BY lower(email) ASC')); }
+        catch (e) { res.json([]); }
+    });
+
+    app.post('/api/admin/gala/table-assignments/import', auth, adminOnly, (req, res) => {
+        try {
+            const csv = String((req.body && req.body.csv) || '');
+            if (!csv.trim()) return res.status(400).json({ error: 'Paste or upload the console CSV first.' });
+            // Quote-aware CSV split (same approach as the speakers importer).
+            const splitLine = (line) => {
+                const out = []; let cur = ''; let inQ = false;
+                for (let i = 0; i < line.length; i++) {
+                    const ch = line[i];
+                    if (ch === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+                    else if (ch === ',' && !inQ) { out.push(cur); cur = ''; }
+                    else cur += ch;
+                }
+                out.push(cur);
+                return out.map(s => s.trim());
+            };
+            const lines = csv.split(/\r?\n/).filter(l => l.trim());
+            if (lines.length < 2) return res.status(400).json({ error: 'The CSV needs a header row and at least one guest row.' });
+            const header = splitLine(lines[0]).map(h => h.toLowerCase().replace(/^﻿/, ''));
+            const findCol = (...names) => header.findIndex(h => names.includes(h));
+            const emailIdx = findCol('email', 'e-mail', 'mail');
+            const tableIdx = findCol('table', 'stol', 'table_no', 'table no', 'tablenumber', 'table number');
+            const nameIdx = findCol('name', 'ime', 'guest', 'guest name', 'ime i prezime');
+            if (emailIdx < 0 || tableIdx < 0) {
+                return res.status(400).json({ error: 'Could not find the "table" and "email" columns in the CSV header. Export the guest list from the picker console and try again.' });
+            }
+            let inserted = 0, updated = 0, skipped = 0;
+            const now = new Date().toISOString();
+            for (let i = 1; i < lines.length; i++) {
+                const cols = splitLine(lines[i]);
+                const email = String(cols[emailIdx] || '').trim().toLowerCase();
+                const tableNo = String(cols[tableIdx] || '').trim();
+                const guestName = nameIdx >= 0 ? String(cols[nameIdx] || '').trim() : '';
+                if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !tableNo) { skipped++; continue; }
+                const existing = query.get('SELECT id FROM gala_table_assignments WHERE lower(email) = ?', [email]);
+                if (existing) {
+                    db.run('UPDATE gala_table_assignments SET table_no = ?, guest_name = COALESCE(NULLIF(?, \'\'), guest_name), updated_at = ? WHERE id = ?',
+                        [tableNo, guestName, now, existing.id]);
+                    updated++;
+                } else {
+                    db.run('INSERT INTO gala_table_assignments (id, email, table_no, guest_name, updated_at) VALUES (?,?,?,?,?)',
+                        [uuidv4(), email, tableNo, guestName || null, now]);
+                    inserted++;
+                }
+            }
+            saveDb();
+            try {
+                db.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)',
+                    [uuidv4(), req.user.id, req.user.email, 'gala_tables_csv_import', `inserted=${inserted} updated=${updated} skipped=${skipped}`]);
+            } catch (e) { /* best-effort audit */ }
+            res.json({ success: true, inserted, updated, skipped, total: inserted + updated });
+        } catch (e) {
+            console.error('[gala table import] failed:', e.message);
+            res.status(500).json({ error: 'Import failed — check the CSV format and try again.' });
+        }
+    });
+
+    app.delete('/api/admin/gala/table-assignments/:id', auth, adminOnly, (req, res) => {
+        try {
+            db.run('DELETE FROM gala_table_assignments WHERE id = ?', [req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: 'Delete failed' }); }
     });
 
     // ========== TICKET WAITLIST (item 26) ==========
