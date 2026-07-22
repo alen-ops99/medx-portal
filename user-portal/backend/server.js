@@ -13,7 +13,7 @@ const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
 const faqKb = require('./faq-kb'); // Member FAQ Assistant grounding corpus + deterministic retrieval (queue 5a6)
-const nodemailer = require('nodemailer');
+// (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const webpush = require('web-push');
 const firaService = require('./fira-service');
 const rateLimit = require('express-rate-limit');
@@ -63,20 +63,26 @@ function asyncHandler(fn) {
     };
 }
 
-// Email configuration — supports Resend API (recommended for cloud hosting) or SMTP fallback
-// attachments: optional array of { filename, content: Buffer, type? } — converted per provider below
+// Email delivery — SINGLE PROVIDER PATH (coherence audit 2026-07-22): every email this
+// portal sends goes out through the Brevo HTTP API (BREVO_API_KEY + EMAIL_FROM on Render).
+// The old SendGrid / Resend / Gmail-SMTP fallback chain is gone on purpose: none of those
+// keys exist in the Render env, and a silent multi-provider chain is exactly how mail
+// quietly stops flowing. No BREVO_API_KEY => mock success in dev (link is logged), loud
+// FAILURE in production — never a silent no-op.
+// attachments: optional array of { filename, content: Buffer, type? }.
+function mailProviderReady() { return !!process.env.BREVO_API_KEY; }
 async function sendEmail(to, subject, htmlContent, attachments, cc, replyTo) {
-    const fromAddress = process.env.EMAIL_FROM || 'Med&X <onboarding@resend.dev>';
+    const fromAddress = process.env.EMAIL_FROM || 'Med&X <noreply@medx.hr>';
     const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
     const ccList = cc ? (Array.isArray(cc) ? cc : [cc]).filter(Boolean) : null;
     const replyAddr = replyTo ? String(replyTo) : null;
 
-    // Option -1: Brevo (Sendinblue) — HTTP API, works on Render, single-sender (no DNS)
+    // Brevo (Sendinblue) — HTTP API, works on Render, single-sender (no DNS)
     if (process.env.BREVO_API_KEY) {
         try {
-            // Honor EMAIL_FROM ("Med&X <president@medx.hr>"); parse "Name <email>".
+            // Honor EMAIL_FROM ("Med&X <noreply@medx.hr>"); parse "Name <email>".
             const fromMatch = /<([^>]+)>/.exec(fromAddress);
-            const bvFromEmail = (fromMatch && fromMatch[1]) || process.env.SMTP_USER || 'onboarding@resend.dev';
+            const bvFromEmail = (fromMatch && fromMatch[1]) || 'noreply@medx.hr';
             const bvFromName = fromAddress.replace(/<[^>]*>/, '').trim() || 'Med&X';
             const bvBody = {
                 sender: { email: bvFromEmail, name: bvFromName },
@@ -114,113 +120,12 @@ async function sendEmail(to, subject, htmlContent, attachments, cc, replyTo) {
         }
     }
 
-    // Option 0: SendGrid (works on Render, no domain verification needed)
-    if (process.env.SENDGRID_API_KEY) {
-        try {
-            // Honor EMAIL_FROM ("Med&X <noreply@medx.hr>") instead of a hardcoded personal
-            // Gmail. Parse the address out of the "Name <email>" form; fall back to SMTP_USER.
-            const fromMatch = /<([^>]+)>/.exec(fromAddress);
-            const sgFromEmail = (fromMatch && fromMatch[1]) || process.env.SMTP_USER || 'onboarding@resend.dev';
-            const sgFromName = fromAddress.replace(/<[^>]*>/, '').trim() || 'Med&X';
-            const sgBody = {
-                personalizations: [{ to: [{ email: to }], ...(ccList && ccList.length ? { cc: ccList.map(e => ({ email: e })) } : {}) }],
-                ...(replyAddr ? { reply_to: { email: replyAddr } } : {}),
-                from: { email: sgFromEmail, name: sgFromName },
-                subject,
-                content: [{ type: 'text/html', value: htmlContent }]
-            };
-            if (atts.length) {
-                sgBody.attachments = atts.map(a => ({
-                    content: Buffer.from(a.content).toString('base64'),
-                    filename: a.filename,
-                    type: a.type || 'application/octet-stream',
-                    disposition: 'attachment'
-                }));
-            }
-            const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(sgBody)
-            });
-            if (response.ok || response.status === 202) {
-                console.log(`[Email Sent via SendGrid] To: ${to}, Subject: ${subject}`);
-                return { success: true };
-            }
-            const errData = await response.text();
-            console.error('SendGrid error:', response.status, errData);
-            return { success: false, error: errData };
-        } catch (err) {
-            console.error('SendGrid error:', err.message);
-            return { success: false, error: err.message };
-        }
+    // No email provider configured. In production this is an ERROR, not a quiet mock —
+    // report failure loudly so callers and logs never pretend mail went out.
+    if (process.env.NODE_ENV === 'production') {
+        console.error(`[EMAIL DROPPED] No email provider configured (BREVO_API_KEY missing) — NOT sent. To: ${to}, Subject: ${subject}`);
+        return { success: false, mock: true, error: 'No email provider configured (BREVO_API_KEY missing)' };
     }
-
-    // Option 1: Resend API (HTTP-based, works on all hosting platforms)
-    if (process.env.RESEND_API_KEY) {
-        try {
-            const resendBody = { from: fromAddress, to, subject, html: htmlContent };
-            if (ccList && ccList.length) resendBody.cc = ccList;
-            if (replyAddr) resendBody.reply_to = replyAddr;
-            if (atts.length) {
-                resendBody.attachments = atts.map(a => ({
-                    filename: a.filename,
-                    content: Buffer.from(a.content).toString('base64')
-                }));
-            }
-            const response = await fetch('https://api.resend.com/emails', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(resendBody)
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                console.error('Resend error:', data);
-                return { success: false, error: data.message || 'Resend API error' };
-            }
-            console.log(`[Email Sent via Resend] To: ${to}, Subject: ${subject}`);
-            return { success: true };
-        } catch (err) {
-            console.error('Resend error:', err);
-            return { success: false, error: err.message };
-        }
-    }
-
-    // Option 2: SMTP (nodemailer)
-    if (process.env.SMTP_USER) {
-        try {
-            const transporter = nodemailer.createTransport({
-                host: process.env.SMTP_HOST || 'smtp.gmail.com',
-                port: parseInt(process.env.SMTP_PORT || '465'),
-                secure: process.env.SMTP_PORT ? process.env.SMTP_PORT === '465' : true,
-                connectionTimeout: 10000,
-                greetingTimeout: 10000,
-                socketTimeout: 10000,
-                auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-            });
-            // Gmail SMTP requires FROM to match the authenticated user
-            const smtpFrom = `Med&X <${process.env.SMTP_USER}>`;
-            const mailOpts = { from: smtpFrom, to, subject, html: htmlContent };
-            if (replyAddr) mailOpts.replyTo = replyAddr;
-            if (ccList && ccList.length) mailOpts.cc = ccList;
-            if (atts.length) {
-                mailOpts.attachments = atts.map(a => ({ filename: a.filename, content: a.content }));
-            }
-            await transporter.sendMail(mailOpts);
-            console.log(`[Email Sent via SMTP] To: ${to}, Subject: ${subject}`);
-            return { success: true };
-        } catch (err) {
-            console.error('SMTP error:', err);
-            return { success: false, error: err.message };
-        }
-    }
-
-    // No email provider configured
     console.log(`[Email Mock] To: ${to}, Subject: ${subject}`);
     if (atts.length) {
         console.log(`[Email Mock] Attachments: ${atts.map(a => `${a.filename} (${Buffer.from(a.content).length}b)`).join(', ')}`);
@@ -715,8 +620,7 @@ app.use(helmet({
             "connect-src": [
                 "'self'",
                 "https://api.stripe.com", "https://m.stripe.network", "https://r.stripe.com",
-                "https://*.cloudinary.com",
-                "https://api.resend.com"
+                "https://*.cloudinary.com"
             ],
             "frame-src": [
                 "'self'",
@@ -1128,7 +1032,7 @@ app.get('/privacy', (req, res) => {
         <p>Your data is accessed only by authorised Med&amp;X staff and, where strictly necessary, by trusted processors who help us run our operations:</p>
         <ul>
             <li><strong>Stripe</strong> &mdash; payment processing (paid registrations only)</li>
-            <li><strong>Resend</strong> &mdash; transactional email delivery (confirmations, tickets)</li>
+            <li><strong>Brevo</strong> &mdash; transactional email delivery (confirmations, tickets)</li>
             <li><strong>Render</strong> &mdash; cloud hosting of this portal</li>
             <li><strong>Turso</strong> &mdash; database hosting</li>
             <li><strong>Google Workspace</strong> &mdash; spreadsheet record of registrations</li>
@@ -4293,7 +4197,7 @@ app.post('/api/forum/wing/request-link', forumWingLimiter, async (req, res) => {
             <p style="color:#6a625a;font-size:13px;margin-top:22px;">Held with discretion — the Office of the Forum, an initiative of Med&amp;X.</p>
         `);
         try { await sendEmail(email, 'Your personal link to the Biomedical Forum', html); } catch (e) { console.error('[forum-wing] link email:', e && e.message); }
-        const mailReady = !!(process.env.RESEND_API_KEY || process.env.BREVO_API_KEY || process.env.SENDGRID_API_KEY);
+        const mailReady = mailProviderReady();
         const out = { success: true, message: 'A personal link is on its way to ' + email + '.' };
         if (!mailReady) out.devLink = enterUrl;
         res.json(out);
@@ -10787,7 +10691,10 @@ async function initializeApp() {
             // When no email provider is configured the verification link can never be delivered,
             // so create the account already-verified — otherwise login would dead-end forever (see
             // /api/auth/login). When a provider IS set, create it unverified and let the link flip it.
-            const emailEnabled = !!(process.env.RESEND_API_KEY || process.env.SMTP_USER);
+            // COHERENCE FIX 2026-07-22: this used to check RESEND_API_KEY/SMTP_USER only, so a
+            // Brevo-only prod deploy was treated as "dev" — accounts were born pre-verified and
+            // the whole verification gate was silently OFF in production.
+            const emailEnabled = mailProviderReady();
             db.run(`INSERT INTO users (id, email, password_hash, first_name, last_name, institution, country, email_verified, verification_token)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, email, hash, first_name, last_name, institution, country, emailEnabled ? 0 : 1, null]);
             // Adopt the locale the member chose on the portal (additive — used for member-facing emails).
@@ -10807,9 +10714,9 @@ async function initializeApp() {
             const token = jwt.sign({ id, email, is_admin: 0 }, JWT_SECRET, { expiresIn: '7d' });
             // Dev/demo delivery hint: when no mail provider is configured the verification email
             // cannot actually send, so we hand the signed-in link straight back to the UI. This keeps
-            // signup from dead-ending before RESEND_API_KEY is added. In production (provider set) the
+            // signup from dead-ending before BREVO_API_KEY is added. In production (provider set) the
             // link is NEVER returned — the member gets it by email only.
-            const mailReady = !!process.env.RESEND_API_KEY;
+            const mailReady = mailProviderReady();
             res.json({
                 success: true,
                 token,
@@ -10837,12 +10744,12 @@ async function initializeApp() {
             }
             // Email verification can only be enforced when an email provider is actually
             // configured to deliver the verification link. On a service with no provider
-            // (no RESEND_API_KEY / SMTP_USER) the link is never sent, so gating login on
+            // (no BREVO_API_KEY) the link is never sent, so gating login on
             // email_verified would permanently lock out EVERY user — including the seeded
             // admin — with no way to ever heal. In that case we skip the check and self-heal
             // the flag on a successful password login. When a provider IS configured the
             // gate stays fully enforced.
-            const emailEnabled = !!(process.env.RESEND_API_KEY || process.env.SMTP_USER);
+            const emailEnabled = mailProviderReady();
             if (emailEnabled && !user.email_verified) {
                 return res.status(403).json({ error: 'Email not verified', needsVerification: true, email: user.email });
             }
@@ -11406,7 +11313,9 @@ async function initializeApp() {
             let devVerifyUrl;
             if (user && !user.email_verified) {
                 const verifyUrl = await issueEmailVerification(user, req);
-                if (!process.env.RESEND_API_KEY) devVerifyUrl = verifyUrl;
+                // Only in dev (no provider) may the link be surfaced in the response —
+                // in a Brevo-configured prod this endpoint must never leak the verify URL.
+                if (!mailProviderReady()) devVerifyUrl = verifyUrl;
             }
             // In dev/demo (no mail provider) surface the fresh link so the pending screen never dead-ends.
             return res.json({
@@ -11414,7 +11323,7 @@ async function initializeApp() {
                 message: devVerifyUrl
                     ? 'Email sending is not active yet, so here is your confirmation link.'
                     : 'If that account still needs confirming, a link is on its way. Check your inbox.',
-                emailDelivery: process.env.RESEND_API_KEY ? 'sent' : 'dev',
+                emailDelivery: mailProviderReady() ? 'sent' : 'dev',
                 devVerifyUrl
             });
         } catch (e) {
@@ -26807,13 +26716,13 @@ By applying to this program, I provide the following consents:
             const sendResult = await sendEmail(email, 'Scanner Test QR — Plexus 2026', html, testQrAtts);
             if (sendResult && sendResult.mock) {
                 return res.status(500).json({
-                    error: 'NO EMAIL PROVIDER CONFIGURED on Render — the registration was created (visible in Croatians Abroad) but no email was sent. Set RESEND_API_KEY (or SENDGRID_API_KEY) in Render → medx-user-portal → Environment → Save Changes → redeploy.',
+                    error: 'NO EMAIL PROVIDER CONFIGURED on Render — the registration was created (visible in Croatians Abroad) but no email was sent. Set BREVO_API_KEY in Render → medx-user-portal → Environment → Save Changes → redeploy.',
                     test_registration_id: testId, mock: true
                 });
             }
             if (sendResult && sendResult.success === false) {
                 return res.status(500).json({
-                    error: `Email provider rejected the send: ${sendResult.error || 'unknown'}. Common cause: EMAIL_FROM is not verified with the provider. Resend's default onboarding@resend.dev only delivers to the Resend account owner.`,
+                    error: `Email provider rejected the send: ${sendResult.error || 'unknown'}. Common cause: the EMAIL_FROM sender address is not verified in Brevo (Senders & IP → Senders).`,
                     test_registration_id: testId
                 });
             }
@@ -26901,7 +26810,7 @@ By applying to this program, I provide the following consents:
             `), bundleQrAtts);
             if (sendResult && sendResult.mock) {
                 return res.status(500).json({
-                    error: 'NO EMAIL PROVIDER CONFIGURED on Render — the test registration was created in the database but no email was sent. Set RESEND_API_KEY (or SENDGRID_API_KEY) in Render → medx-user-portal → Environment, then redeploy.',
+                    error: 'NO EMAIL PROVIDER CONFIGURED on Render — the test registration was created in the database but no email was sent. Set BREVO_API_KEY in Render → medx-user-portal → Environment, then redeploy.',
                     ca_registration_id: caRegId, gala_registration_id: galaRegId, invoice_number: invoiceNumber, mock: true
                 });
             }
