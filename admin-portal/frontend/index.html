@@ -6937,6 +6937,68 @@
         }
       }
     </style>
+    <style id="gamedayStyles">
+      /* ===== GAME DAY MODE (additive) — reuses the portal's tokens/.card/.btn system ===== */
+      .gd-live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); margin-left: auto; flex: none; animation: gdPulse 1.6s ease-in-out infinite; }
+      @keyframes gdPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+      .gd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+      .gd-head h2 { margin: 0; font-size: 22px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .gd-day-pill { background: var(--accent-primary); color: #fff; border-radius: 999px; padding: 3px 12px; font-size: 12px; font-weight: 700; letter-spacing: .3px; }
+      .gd-test-pill { background: #b06a1f; color: #fff; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+      .gd-sub { margin: 6px 0 0; color: var(--text-muted); font-size: 13px; }
+      .gd-countdown { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent-primary); }
+      .gd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+      .gd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; align-items: start; }
+      .gd-card-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+      .gd-sched-row { display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; align-items: baseline; }
+      .gd-sched-row + .gd-sched-row { margin-top: 2px; }
+      .gd-sched-time { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; color: var(--text-secondary); flex: none; width: 92px; }
+      .gd-sched-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+      .gd-sched-room { font-size: 12px; color: var(--text-muted); }
+      .gd-sched-row.gd-now { background: rgba(var(--red-rgb), .08); box-shadow: inset 3px 0 0 var(--accent-primary); }
+      .gd-sched-row.gd-past { opacity: .5; }
+      .gd-badge-now, .gd-badge-next { border-radius: 999px; padding: 1px 8px; font-size: 10px; font-weight: 800; letter-spacing: .5px; vertical-align: 1px; }
+      .gd-badge-now { background: var(--accent-primary); color: #fff; }
+      .gd-badge-next { background: var(--gold, #c9a962); color: #fff; }
+      .gd-chat-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+      .gd-chat-tab { border: 1px solid var(--border); background: var(--bg-tertiary); color: var(--text-secondary); border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+      .gd-chat-tab.active { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
+      .gd-chat-msgs { height: 300px; overflow-y: auto; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+      .gd-msg { margin-bottom: 10px; }
+      .gd-msg-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+      .gd-msg-author { font-size: 12.5px; font-weight: 700; color: var(--text-primary); }
+      .gd-msg-team { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 7px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); }
+      .gd-msg-team.gd-kind-admin { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
+      .gd-msg-time { font-size: 10.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+      .gd-msg-body { font-size: 13px; color: var(--text-primary); overflow-wrap: anywhere; }
+      .gd-compose { display: flex; gap: 8px; }
+      .gd-compose input { flex: 1; min-width: 0; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); border-radius: 8px; padding: 9px 12px; font-size: 13px; }
+      .gd-roster-team { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin: 10px 0 4px; }
+      .gd-roster-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; color: var(--text-primary); }
+      .gd-online { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex: none; }
+      .gd-offline { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex: none; }
+      .gd-links { display: flex; gap: 10px; flex-wrap: wrap; }
+      .gd-list { max-height: 320px; overflow-y: auto; }
+      .gd-list-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 5px 2px; border-bottom: 1px solid var(--border); }
+      .gd-list-row:last-child { border-bottom: none; }
+      .gd-muted { color: var(--text-muted); font-size: 12px; }
+      .gd-scan-result { border-radius: 10px; padding: 12px; margin-top: 10px; font-weight: 700; display: none; }
+      .gd-scan-ok { background: rgba(34,197,94,.12); color: #15803d; box-shadow: inset 3px 0 0 #22c55e; }
+      .gd-scan-warn { background: rgba(234,179,8,.14); color: #a16207; box-shadow: inset 3px 0 0 #eab308; }
+      .gd-scan-bad { background: rgba(var(--red-rgb), .1); color: var(--accent-primary); box-shadow: inset 3px 0 0 var(--accent-primary); }
+      .gd-invite-grants label { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--text-secondary); padding: 3px 0; cursor: pointer; }
+      .gd-fullscreen { position: fixed; inset: 0; z-index: 4000; background: var(--bg-primary); display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+      /* Volunteer lock-down: game-day view only — no sidebar, no admin chrome */
+      body.gd-volunteer .sidebar, body.gd-volunteer .sidebar-overlay, body.gd-volunteer .mobile-header,
+      body.gd-volunteer .chat-panel, body.gd-volunteer .qr-fab, body.gd-volunteer .assist-fab,
+      body.gd-volunteer .share-fab, body.gd-volunteer .share-indicator, body.gd-volunteer .breadcrumbs { display: none !important; }
+      body.gd-volunteer .main-wrapper { margin-left: 0 !important; }
+      body.gd-volunteer .main { padding-top: 14px !important; }
+      @media (max-width: 640px){
+        .gd-chat-msgs { height: 240px; }
+        .gd-sched-time { width: 74px; }
+      }
+    </style>
 </head>
 <body class="theme-fresh">
     <script>
@@ -7309,6 +7371,12 @@
 
                 <div class="nav-divider"></div>
                 <div class="nav-label" data-group="events"><span>Events &amp; access</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
+
+                <a class="nav-item" data-section="gameday" onclick="App.showSection('gameday', this)">
+                    <i class="fas fa-tower-broadcast" style="color: #9b1b22;"></i>
+                    <span>Game Day</span>
+                    <span class="gd-live-dot" id="gamedayNavDot" style="display:none;"></span>
+                </a>
 
                 <a class="nav-item" data-section="conferences" onclick="App.showSection('conferences', this)">
                     <i class="fas fa-calendar-plus" style="color: #38bdf8;"></i>
@@ -14502,6 +14570,33 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
+                <!-- GAME DAY — one-screen live-event dashboard (admins + staff + invited volunteers).
+                     Content is rendered by the GameDay module (script at the end of the file);
+                     volunteer sessions lock the whole app down to this section only. -->
+                <div class="section" id="section-gameday">
+                    <div id="gamedayContent">
+                        <div style="text-align:center; padding:60px 20px; color:var(--text-muted);">
+                            <i class="fas fa-tower-broadcast" style="font-size:28px; color:var(--accent-primary);"></i>
+                            <p style="margin-top:12px;">Učitavanje Game Day nadzorne ploče…</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GAME DAY SETTINGS — mode toggle + volunteer invites with per-invite grants (core admins) -->
+                <div class="section" id="section-gameday-settings">
+                    <div class="back-link" onclick="App.showSection('gameday')"><i class="fas fa-arrow-left"></i> Back to Game Day</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+                        <div>
+                            <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-sliders" style="color:#9b1b22;"></i> Game Day — Settings</h2>
+                            <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">Mode, volunteer magic-link invites and per-volunteer permissions. Volunteers never see finances or other events.</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="GameDaySettings.open()"><i class="fas fa-sync"></i> Refresh</button>
+                    </div>
+                    <div id="gamedaySettingsContent">
+                        <div style="text-align:center; padding:40px; color:var(--text-muted);">Loading…</div>
+                    </div>
+                </div>
+
             </main>
 
             <!-- Chat Panel -->
@@ -16994,6 +17089,17 @@ President, Med&amp;X</textarea>
             dashboardPrefs: {},
 
             async init() {
+                // GAME DAY volunteer magic link (?gd=TOKEN): a separate, downgraded session that
+                // never touches admin auth. Handled BEFORE the admin token path so a volunteer
+                // opening the link on a shared device can never land in someone's admin session UI.
+                try {
+                    const gdToken = new URLSearchParams(window.location.search).get('gd');
+                    if (gdToken) { await GameDay.volunteerBoot(gdToken); return; }
+                    if (sessionStorage.getItem('medxGdVolSession')) {
+                        const resumed = await GameDay.volunteerResume();
+                        if (resumed) return;
+                    }
+                } catch (e) { console.error('gameday volunteer boot', e); }
                 const savedToken = localStorage.getItem('medx_token');
                 const savedUser = localStorage.getItem('medx_user');
                 if (savedToken && savedUser) {
@@ -17260,6 +17366,10 @@ President, Med&amp;X</textarea>
                 // bootstrap below. Their scanner FAB + offline check-in queue are already wired up.
                 if (this.user && this.user.is_staff && !this.user.is_admin) {
                     this.initClock();
+                    // Game day active -> scanner staff land on the event dashboard too (its
+                    // endpoints are staffOrAdmin, so nothing 403s for them).
+                    const gdStaff = await GameDay.bootStatus();
+                    if (gdStaff && gdStaff.active) { this.showSection('gameday', document.querySelector('.nav-item[data-section=gameday]'), true); return; }
                     this.showSection('health', null, true);
                     return;
                 }
@@ -17342,6 +17452,17 @@ President, Med&amp;X</textarea>
                     if (this.user && this.user.is_admin && !localStorage.getItem('medxDiscoverSeen')) {
                         localStorage.setItem('medxDiscoverSeen', '1');
                         this.showSection('discover', document.querySelector('.nav-item[data-section=discover]'));
+                    }
+                } catch (e) {}
+
+                // GAME DAY landing: while an event is live, every entry into the portal lands on
+                // the game-day dashboard for THAT event. Core admins escape with the one
+                // "Puni portal" button (sessionStorage flag, so a reload mid-work doesn't re-trap).
+                // Runs last so it wins the visible section on boot.
+                try {
+                    const gd = await GameDay.bootStatus();
+                    if (gd && gd.active && !sessionStorage.getItem('medxGdEscaped')) {
+                        this.showSection('gameday', document.querySelector('.nav-item[data-section=gameday]'), true);
                     }
                 } catch (e) {}
             },
@@ -17708,7 +17829,7 @@ President, Med&amp;X</textarea>
                 // 'speaker-itineraries' is a Plexus Week sub-surface reached via the project home tile,
                 // Cmd+K and #speaker-itineraries (no top-level sidebar anchor — same pattern as auctions /
                 // postevent). Listed here so section filtering never hides it if a nav entry is ever added.
-                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'files', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover', 'speaker-itineraries', 'signup-forms', 'guest-passes', 'conferences', 'year-calendar', 'cme', 'transparency', 'health', 'audit', 'team'];
+                const OPS_ALWAYS_VISIBLE = ['team-chat', 'member-ops', 'content-studio', 'resources', 'files', 'merch-studio', 'outbox', 'email-blast', 'announce', 'messages', 'newsletter', 'editions', 'advisors', 'discover', 'speaker-itineraries', 'signup-forms', 'guest-passes', 'conferences', 'year-calendar', 'cme', 'transparency', 'health', 'audit', 'team', 'gameday'];
                 // Item 11/13: 'user-notifications' merged into "Message members" (announce); Portal Content,
                 // Website content and Member Feed merged into "Content studio". IA restructure: 'announce'
                 // (Message members) and 'messages' now live UNDER Member Ops, so their top-level nav entries
@@ -20150,7 +20271,9 @@ President, Med&amp;X</textarea>
                     'health': 'System Health',
                     'tech': 'Tech Dashboard',
                     'discover': 'Discover',
-                    'settings': 'Settings'
+                    'settings': 'Settings',
+                    'gameday': 'Game Day',
+                    'gameday-settings': 'Game Day Settings'
                 };
                 document.title = `${sectionNames[sectionId] || sectionId} — Med&X Admin`;
 
@@ -52268,6 +52391,585 @@ By applying to this program, I give the following consents:
 
         // Initialize UnsavedChanges after DOM ready
         setTimeout(() => UnsavedChanges.init(), 500);
+
+        // ===================================================================================
+        // GAME DAY MODE (frontend) — one-screen live-event dashboard + ops chat + volunteer
+        // magic-link sessions. Defined BEFORE App.init() so the volunteer boot path in init()
+        // can run. Event-day labels are HR-first (like the gala tooling); the settings screen
+        // keeps the admin portal's English chrome. All additive — no existing section touched.
+        // ===================================================================================
+        const GameDay = {
+            mode: 'admin',            // 'admin' (portal session) | 'volunteer' (magic link)
+            status: null,             // last /status or /login payload
+            data: null,               // last dashboard payload
+            volSession: null, me: null,
+            channels: [{ key: 'glavni', label: 'Glavni kanal' }],
+            channel: 'glavni', lastSeq: 0,
+            dashTimer: null, chatTimer: null, tickTimer: null, dotTimer: null,
+            _skeletonFor: null, _revoked: false,
+
+            esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
+
+            async api(path, options = {}) {
+                if (this.mode === 'volunteer') {
+                    const res = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.volSession, ...(options.headers || {}) } });
+                    if (res.status === 401) { this.onVolunteerRevoked(); throw new Error('volunteer session ended'); }
+                    if (!res.ok) throw new Error('Request failed: ' + res.status);
+                    return res.json();
+                }
+                return App.api(path, options);
+            },
+
+            // ---- Admin/staff boot probe: resolves game-day state + drives the sidebar live dot.
+            async bootStatus() {
+                try {
+                    const s = await App.api('/api/admin/gameday/status');
+                    this.status = s;
+                    const dot = document.getElementById('gamedayNavDot');
+                    if (dot) dot.style.display = s.active ? '' : 'none';
+                    if (!this.dotTimer) this.dotTimer = setInterval(() => { if (!document.hidden && App.token) this.bootStatus().catch(() => {}); }, 60000);
+                    return s;
+                } catch (e) { return null; }
+            },
+
+            // ---- Section lifecycle (wired through the App.showSection decorator below) ----
+            open() {
+                this.refresh(true).catch(() => {});
+                this.loadChat(true).catch(() => {});
+                if (!this.dashTimer) this.dashTimer = setInterval(() => { if (this.pollable()) this.refresh(false).catch(() => {}); }, 12000);
+                if (!this.chatTimer) this.chatTimer = setInterval(() => { if (this.pollable()) this.loadChat(false).catch(() => {}); }, 4000);
+                if (!this.tickTimer) this.tickTimer = setInterval(() => { if (this.pollable()) this.paintClockDependent(); }, 1000);
+            },
+            onLeave() {
+                if (this.mode === 'volunteer') return; // volunteers never leave game day
+                if (this.dashTimer) { clearInterval(this.dashTimer); this.dashTimer = null; }
+                if (this.chatTimer) { clearInterval(this.chatTimer); this.chatTimer = null; }
+                if (this.tickTimer) { clearInterval(this.tickTimer); this.tickTimer = null; }
+            },
+            pollable() {
+                if (document.hidden || this._revoked) return false;
+                const sec = document.getElementById('section-gameday');
+                return !!(sec && sec.classList.contains('active'));
+            },
+
+            // ---- Volunteer session ----
+            async volunteerBoot(token) {
+                document.getElementById('loginPage').style.display = 'none';
+                try {
+                    const res = await fetch('/api/gameday/volunteer/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
+                    const data = await res.json();
+                    if (!res.ok || !data.ok) { this.showFullscreen('Poveznica nije važeća', (data && data.error) || 'Provjerite s organizatorima da vam pošalju novu poveznicu.'); return; }
+                    try { history.replaceState({}, '', window.location.pathname); } catch (e) {}
+                    this.enterVolunteerMode(data);
+                } catch (e) {
+                    this.showFullscreen('Nema veze s poslužiteljem', 'Provjerite internet i osvježite stranicu.');
+                }
+            },
+            async volunteerResume() {
+                try {
+                    const saved = JSON.parse(sessionStorage.getItem('medxGdVolSession') || 'null');
+                    if (!saved || !saved.session) return false;
+                    this.volSession = saved.session;
+                    const res = await fetch('/api/gameday/volunteer/status', { headers: { 'Authorization': 'Bearer ' + saved.session } });
+                    if (!res.ok) { sessionStorage.removeItem('medxGdVolSession'); this.volSession = null; return false; }
+                    const data = await res.json();
+                    document.getElementById('loginPage').style.display = 'none';
+                    this.enterVolunteerMode({ ...data, session: saved.session, ok: true });
+                    return true;
+                } catch (e) { return false; }
+            },
+            enterVolunteerMode(data) {
+                this.mode = 'volunteer';
+                this.volSession = data.session;
+                this.me = data.me || null;
+                this.channels = data.channels || this.channels;
+                this.status = { active: data.active, event: data.event };
+                sessionStorage.setItem('medxGdVolSession', JSON.stringify({ session: data.session }));
+                document.body.classList.add('gd-volunteer');
+                document.getElementById('mainApp').classList.add('active');
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                document.getElementById('section-gameday').classList.add('active');
+                document.title = 'Game Day — Med&X';
+                this.open();
+            },
+            onVolunteerRevoked() {
+                if (this._revoked) return;
+                this._revoked = true;
+                this.onLeaveHard();
+                sessionStorage.removeItem('medxGdVolSession');
+                this.showFullscreen('Pristup je opozvan', 'Vaša Game Day poveznica više ne vrijedi. Javite se organizatorima.');
+            },
+            onLeaveHard() {
+                [this.dashTimer, this.chatTimer, this.tickTimer].forEach(t => t && clearInterval(t));
+                this.dashTimer = this.chatTimer = this.tickTimer = null;
+            },
+            showFullscreen(title, msg) {
+                let el = document.getElementById('gdFullscreen');
+                if (!el) { el = document.createElement('div'); el.id = 'gdFullscreen'; el.className = 'gd-fullscreen'; document.body.appendChild(el); }
+                el.innerHTML = '<div class="card" style="max-width:420px;padding:28px;">' +
+                    '<i class="fas fa-tower-broadcast" style="font-size:26px;color:var(--accent-primary);"></i>' +
+                    '<h2 style="margin:12px 0 8px;font-size:20px;">' + this.esc(title) + '</h2>' +
+                    '<p style="margin:0;color:var(--text-muted);font-size:14px;">' + this.esc(msg) + '</p></div>';
+                el.style.display = 'flex';
+            },
+
+            // ---- Dashboard data + render ----
+            async refresh(first) {
+                const d = await this.api(this.mode === 'volunteer' ? '/api/gameday/volunteer/dashboard' : '/api/admin/gameday/dashboard');
+                this.data = d;
+                if (d && d.channels && this.mode === 'volunteer') this.channels = d.channels;
+                else if (d && d.channels && this.mode !== 'volunteer') this.channels = d.channels;
+                this.render(first);
+            },
+            escapeToFullPortal() {
+                sessionStorage.setItem('medxGdEscaped', '1');
+                App.showSection('dashboard', document.querySelector('.nav-item[data-section=dashboard]') || document.querySelector('.nav-item'));
+            },
+
+            hmNow() { const n = new Date(); return String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); },
+            // now/next against 'HH:MM' strings (venue-local clocks — everyone is at the event)
+            markSchedule(items) {
+                const now = this.hmNow();
+                let nextIdx = -1;
+                items.forEach((it, i) => {
+                    it._past = !!(it.end ? it.end <= now : it.start && it.start < now && i < items.length - 1 && items[i + 1].start && items[i + 1].start <= now);
+                    it._now = !!(it.start && it.start <= now && (it.end ? now < it.end : (i + 1 < items.length && items[i + 1].start ? now < items[i + 1].start : true)));
+                    if (nextIdx < 0 && it.start && it.start > now) nextIdx = i;
+                });
+                items.forEach((it, i) => { it._next = i === nextIdx; if (it._now) it._past = false; });
+                return items;
+            },
+            countdownTo(items) {
+                const next = items.find(it => it._next);
+                if (!next || !next.start) return null;
+                const [h, m] = next.start.split(':').map(Number);
+                const t = new Date(); const target = new Date(t); target.setHours(h, m, 0, 0);
+                let diff = Math.floor((target - t) / 1000);
+                if (diff < 0) return null;
+                const hh = Math.floor(diff / 3600), mm = Math.floor((diff % 3600) / 60), ss = diff % 60;
+                return { title: next.title, txt: (hh ? hh + ':' : '') + String(mm).padStart(2, '0') + ':' + String(ss).padStart(2, '0') };
+            },
+
+            render(first) {
+                const d = this.data;
+                const root = document.getElementById('gamedayContent');
+                if (!root) return;
+                if (!d || !d.active) {
+                    this._skeletonFor = null;
+                    root.innerHTML = '<div class="card" style="max-width:560px;margin:40px auto;padding:28px;text-align:center;">' +
+                        '<i class="fas fa-tower-broadcast" style="font-size:26px;color:var(--text-muted);"></i>' +
+                        '<h2 style="margin:12px 0 6px;font-size:20px;">Game Day nije aktivan</h2>' +
+                        '<p class="gd-muted" style="margin:0;">Aktivira se automatski na dan događanja (auto) ili ručno u testnom načinu.</p>' +
+                        (this.mode !== 'volunteer' && App.user && App.user.is_admin
+                            ? '<button class="btn btn-primary" style="margin-top:16px;" onclick="App.showSection(\'gameday-settings\')"><i class="fas fa-sliders"></i> Open Game Day settings</button>'
+                            : '') +
+                        '</div>';
+                    return;
+                }
+                if (this._skeletonFor !== d.event.key) { this.buildSkeleton(d); this._skeletonFor = d.event.key; }
+                this.paintHeader(d);
+                this.paintStats(d);
+                this.paintSchedule(d);
+                this.paintCards(d);
+            },
+
+            buildSkeleton(d) {
+                const root = document.getElementById('gamedayContent');
+                const isVol = this.mode === 'volunteer';
+                const isAdmin = !isVol && App.user && App.user.is_admin;
+                root.innerHTML =
+                    '<div class="gd-head" id="gdHeader"></div>' +
+                    '<div class="gd-stats" id="gdStats"></div>' +
+                    '<div class="gd-grid">' +
+                    '  <div class="card" style="padding:16px;"><div class="gd-card-title"><i class="fas fa-calendar-day"></i> Danas na programu</div><div id="gdSchedule"></div></div>' +
+                    '  <div class="card" style="padding:16px;"><div class="gd-card-title"><i class="fas fa-comments"></i> Game Day chat' + (isVol && this.me ? ' <span class="gd-muted" style="text-transform:none;letter-spacing:0;">— ' + this.esc(this.me.name) + '</span>' : '') + '</div>' +
+                    '    <div class="gd-chat-tabs" id="gdChatTabs"></div>' +
+                    '    <div class="gd-chat-msgs" id="gdChatMsgs"><div class="gd-muted" style="text-align:center;padding:30px 0;">Učitavanje poruka…</div></div>' +
+                    '    <div class="gd-compose"><input id="gdChatInput" maxlength="2000" placeholder="Poruka timu…" onkeydown="if(event.key===\'Enter\'){GameDay.sendChat();}">' +
+                    '    <button class="btn btn-primary" onclick="GameDay.sendChat()"><i class="fas fa-paper-plane"></i></button></div></div>' +
+                    '  <div id="gdSideCards"></div>' +
+                    '</div>';
+                this.renderChatTabs();
+                this.lastSeq = 0;
+                const msgs = document.getElementById('gdChatMsgs'); if (msgs) msgs.innerHTML = '';
+                this.loadChat(true).catch(() => {});
+            },
+
+            paintHeader(d) {
+                const el = document.getElementById('gdHeader'); if (!el) return;
+                const ev = d.event;
+                const isVol = this.mode === 'volunteer';
+                const isAdmin = !isVol && App.user && App.user.is_admin;
+                const dates = ev.start_date === ev.end_date ? ev.start_date : ev.start_date + ' → ' + ev.end_date;
+                el.innerHTML =
+                    '<div><h2><i class="fas fa-tower-broadcast" style="color:var(--accent-primary);"></i> ' + this.esc(ev.name) +
+                    ' <span class="gd-day-pill">Dan ' + ev.day + ' / ' + ev.day_total + '</span>' +
+                    (d.mode === 'test' ? ' <span class="gd-test-pill">TEST</span>' : '') + '</h2>' +
+                    '<p class="gd-sub">' + this.esc(dates) + (ev.venue ? ' · ' + this.esc(ev.venue) : '') +
+                    (isVol && this.me ? ' · <strong>' + this.esc(this.me.name) + '</strong> (' + this.esc((this.channels.find(c => c.key === this.me.team) || {}).label || this.me.team) + ')' : '') + '</p>' +
+                    '<p class="gd-sub" id="gdCountdown"></p></div>' +
+                    '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+                    (isAdmin ? '<button class="btn btn-secondary" onclick="App.showSection(\'gameday-settings\')"><i class="fas fa-sliders"></i> Postavke</button>' : '') +
+                    (!isVol ? '<button class="btn btn-primary" onclick="GameDay.escapeToFullPortal()"><i class="fas fa-door-open"></i> Puni portal / Full portal</button>' : '') +
+                    '</div>';
+                this.paintClockDependent();
+            },
+            paintClockDependent() {
+                const d = this.data; if (!d || !d.active) return;
+                const items = this.markSchedule((d.schedule || []).slice());
+                const cd = this.countdownTo(items);
+                const el = document.getElementById('gdCountdown');
+                if (el) el.innerHTML = cd
+                    ? 'Sljedeće: <strong>' + this.esc(cd.title) + '</strong> za <span class="gd-countdown">' + cd.txt + '</span>'
+                    : (items.some(i => i._now) ? 'Program je u tijeku.' : 'Nema više točaka programa danas.');
+                // refresh now/next flags on the schedule rows without a full re-render
+                const rows = document.querySelectorAll('#gdSchedule .gd-sched-row');
+                rows.forEach((row, i) => {
+                    const it = items[i]; if (!it) return;
+                    row.classList.toggle('gd-now', !!it._now);
+                    row.classList.toggle('gd-past', !!it._past && !it._now);
+                    const b = row.querySelector('.gd-badges');
+                    if (b) b.innerHTML = (it._now ? ' <span class="gd-badge-now">SADA</span>' : '') + (it._next ? ' <span class="gd-badge-next">SLJEDEĆE</span>' : '');
+                });
+            },
+            paintStats(d) {
+                const el = document.getElementById('gdStats'); if (!el) return;
+                const c = d.checkin || { expected: 0, scanned: 0 };
+                const pct = c.expected ? Math.round(100 * c.scanned / c.expected) : 0;
+                const online = (d.roster || []).filter(v => v.online).length;
+                el.innerHTML =
+                    '<div class="stat-item"><div class="stat-value">' + c.scanned + ' / ' + c.expected + '</div><div class="stat-label">' + this.esc(c.label_hr || 'Prijavljeni na ulazu') + '</div></div>' +
+                    '<div class="stat-item"><div class="stat-value">' + pct + '%</div><div class="stat-label">Stiglo</div></div>' +
+                    '<div class="stat-item"><div class="stat-value">' + (d.schedule || []).length + '</div><div class="stat-label">Točaka programa danas</div></div>' +
+                    (d.roster ? '<div class="stat-item"><div class="stat-value">' + online + ' / ' + d.roster.length + '</div><div class="stat-label">Volontera online</div></div>' : '');
+            },
+            paintSchedule(d) {
+                const el = document.getElementById('gdSchedule'); if (!el) return;
+                const items = this.markSchedule((d.schedule || []).slice());
+                if (!items.length) { el.innerHTML = '<p class="gd-muted">Nema unesenog programa za danas.</p>'; return; }
+                el.innerHTML = items.map(it =>
+                    '<div class="gd-sched-row' + (it._now ? ' gd-now' : (it._past ? ' gd-past' : '')) + '">' +
+                    '<div class="gd-sched-time">' + this.esc(it.start) + (it.end ? '–' + this.esc(it.end) : '') + '</div>' +
+                    '<div><span class="gd-sched-title">' + this.esc(it.title) + '</span><span class="gd-badges">' +
+                    (it._now ? ' <span class="gd-badge-now">SADA</span>' : '') + (it._next ? ' <span class="gd-badge-next">SLJEDEĆE</span>' : '') + '</span>' +
+                    (it.room ? '<div class="gd-sched-room">' + this.esc(it.room) + '</div>' : '') + '</div></div>'
+                ).join('');
+                this.paintClockDependent();
+            },
+            paintCards(d) {
+                const el = document.getElementById('gdSideCards'); if (!el) return;
+                // Never re-render under someone's fingers: a door volunteer mid-scan or a
+                // search-in-progress would lose the input on every 12s poll otherwise.
+                if (el.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
+                const isVol = this.mode === 'volunteer';
+                const isAdmin = !isVol && App.user && App.user.is_admin;
+                const cards = [];
+                // Quick links (base for everyone; content depends on role/event)
+                let links = '';
+                if (!isVol) links += '<button class="btn btn-secondary" onclick="App.openGlobalQRScanner()"><i class="fas fa-qrcode"></i> Skener</button>';
+                if (d.seating_url) links += '<a class="btn btn-secondary" href="' + this.esc(d.seating_url) + '" target="_blank" rel="noopener"><i class="fas fa-chair"></i> Raspored stolova</a>' +
+                    '<a class="btn btn-secondary" href="' + this.esc(d.seating_url) + '" target="_blank" rel="noopener"><i class="fas fa-print"></i> Tlocrt (ispis)</a>';
+                if (isAdmin && d.event.kind === 'gala' && typeof GalaAdmin !== 'undefined') links += '<button class="btn btn-secondary" onclick="GalaAdmin.printDoorList()"><i class="fas fa-list-check"></i> Door list</button>';
+                if (links) cards.push('<div class="card" style="padding:16px;margin-bottom:14px;"><div class="gd-card-title"><i class="fas fa-bolt"></i> Brze poveznice</div><div class="gd-links">' + links + '</div></div>');
+                // Volunteer door scan (base volunteer permission — additive endpoint, not the admin scanner)
+                if (isVol) {
+                    const ls = this._lastScan;
+                    cards.push('<div class="card" style="padding:16px;margin-bottom:14px;"><div class="gd-card-title"><i class="fas fa-qrcode"></i> Skeniranje ulaznica</div>' +
+                        '<div class="gd-compose"><input id="gdScanInput" placeholder="Kod s ulaznice / e-mail" onkeydown="if(event.key===\'Enter\'){GameDay.scanSubmit();}">' +
+                        '<button class="btn btn-primary" onclick="GameDay.scanSubmit()"><i class="fas fa-check"></i></button></div>' +
+                        (typeof Html5Qrcode !== 'undefined' ? '<button class="btn btn-secondary" style="margin-top:8px;" id="gdCamBtn" onclick="GameDay.toggleCamera()"><i class="fas fa-camera"></i> Kamera</button><div id="gdScanVideo" style="margin-top:8px;"></div>' : '') +
+                        '<div id="gdScanResult" class="gd-scan-result' + (ls ? ' ' + ls.cls : '') + '"' + (ls ? ' style="display:block;"' : '') + '>' + (ls ? this.esc(ls.txt) : '') + '</div></div>');
+                }
+                // Staff / team overview
+                if (d.roster) {
+                    const byTeam = {};
+                    d.roster.forEach(v => { (byTeam[v.team] = byTeam[v.team] || []).push(v); });
+                    const teams = (d.teams || []).filter(t => byTeam[t.key]);
+                    cards.push('<div class="card" style="padding:16px;margin-bottom:14px;"><div class="gd-card-title"><i class="fas fa-people-group"></i> Tim danas</div>' +
+                        (teams.length ? teams.map(t =>
+                            '<div class="gd-roster-team">' + this.esc(t.label) + '</div>' +
+                            byTeam[t.key].map(v => '<div class="gd-roster-row"><span class="' + (v.online ? 'gd-online' : 'gd-offline') + '"></span>' + this.esc(v.name) +
+                                (v.email ? ' <span class="gd-muted">' + this.esc(v.email) + '</span>' : '') + '</div>').join('')
+                        ).join('') : '<p class="gd-muted">Još nema pozvanih volontera.' + (isAdmin ? ' Pozovite ih u postavkama.' : '') + '</p>') + '</div>');
+                }
+                if (d.recent_checkins) {
+                    cards.push('<div class="card" style="padding:16px;margin-bottom:14px;"><div class="gd-card-title"><i class="fas fa-person-walking-arrow-right"></i> Zadnja skeniranja</div>' +
+                        (d.recent_checkins.length ? d.recent_checkins.map(r => '<div class="gd-list-row"><span>' + this.esc(r.name) + '</span><span class="gd-muted">' + this.esc(String(r.at || '').replace('T', ' ').slice(11, 16)) + '</span></div>').join('') : '<p class="gd-muted">Još nitko nije skeniran.</p>') + '</div>');
+                }
+                if (d.registrations) {
+                    cards.push('<div class="card" style="padding:16px;margin-bottom:14px;"><div class="gd-card-title"><i class="fas fa-users"></i> Popis sudionika (' + d.registrations.length + ')</div>' +
+                        '<div class="gd-compose" style="margin-bottom:8px;"><input placeholder="Traži…" oninput="GameDay.filterList(this, \'gdRegList\')"></div>' +
+                        '<div class="gd-list" id="gdRegList">' + d.registrations.map(r => '<div class="gd-list-row"><span>' + this.esc(r.name) + (r.seat ? ' <span class="gd-muted">stol ' + this.esc(r.seat) + '</span>' : '') + '</span><span class="gd-muted">' + (r.checked_in ? '✓ tu' : this.esc(r.institution || '')) + '</span></div>').join('') + '</div></div>');
+                }
+                if (d.meals) {
+                    cards.push('<div class="card" style="padding:16px;margin-bottom:14px;"><div class="gd-card-title"><i class="fas fa-utensils"></i> Prehrana i posebne potrebe (' + d.meals.length + ')</div>' +
+                        '<div class="gd-list">' + (d.meals.length ? d.meals.map(r => '<div class="gd-list-row"><span>' + this.esc(r.name) + '</span><span class="gd-muted">' + this.esc(r.diet) + '</span></div>').join('') : '<p class="gd-muted">Nema posebnih zahtjeva.</p>') + '</div></div>');
+                }
+                if (d.speakers) {
+                    cards.push('<div class="card" style="padding:16px;margin-bottom:14px;"><div class="gd-card-title"><i class="fas fa-microphone"></i> Predavači (' + d.speakers.length + ')</div>' +
+                        '<div class="gd-list">' + d.speakers.map(s => '<div class="gd-list-row"><span>' + (s.is_keynote ? '★ ' : '') + this.esc(s.name) + '</span><span class="gd-muted">' + this.esc(s.talk_title || s.institution || '') + '</span></div>').join('') + '</div></div>');
+                }
+                if (d.full_program && this.mode === 'volunteer') {
+                    cards.push('<div class="card" style="padding:16px;margin-bottom:14px;"><div class="gd-card-title"><i class="fas fa-calendar-week"></i> Cijeli program</div>' +
+                        '<div class="gd-list">' + d.full_program.map(it => '<div class="gd-list-row"><span><span class="gd-muted">D' + it.day + ' ' + this.esc(it.start) + '</span> ' + this.esc(it.title) + '</span><span class="gd-muted">' + this.esc(it.room || '') + '</span></div>').join('') + '</div></div>');
+                }
+                el.innerHTML = cards.join('');
+            },
+            filterList(input, listId) {
+                const q = input.value.toLowerCase();
+                document.querySelectorAll('#' + listId + ' .gd-list-row').forEach(row => {
+                    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+                });
+            },
+
+            // ---- Chat ----
+            renderChatTabs() {
+                const el = document.getElementById('gdChatTabs'); if (!el) return;
+                el.innerHTML = this.channels.map(c =>
+                    '<button class="gd-chat-tab' + (c.key === this.channel ? ' active' : '') + '" onclick="GameDay.switchChannel(\'' + c.key + '\')">' + this.esc(c.label) + '</button>').join('');
+            },
+            switchChannel(key) {
+                if (!this.channels.some(c => c.key === key)) return;
+                this.channel = key; this.lastSeq = 0;
+                const msgs = document.getElementById('gdChatMsgs'); if (msgs) msgs.innerHTML = '';
+                this.renderChatTabs();
+                this.loadChat(true).catch(() => {});
+            },
+            async loadChat(first) {
+                if (!this.channels.some(c => c.key === this.channel)) this.channel = 'glavni';
+                const base = this.mode === 'volunteer' ? '/api/gameday/volunteer/messages' : '/api/admin/gameday/messages';
+                let data;
+                try { data = await this.api(base + '?channel=' + encodeURIComponent(this.channel) + '&since=' + this.lastSeq); }
+                catch (e) { return; }
+                const box = document.getElementById('gdChatMsgs'); if (!box || !data || !data.messages) return;
+                if (first && !data.messages.length) { box.innerHTML = '<div class="gd-muted" style="text-align:center;padding:30px 0;">Još nema poruka — pošaljite prvu!</div>'; return; }
+                if (data.messages.length) {
+                    if (first || this.lastSeq === 0) box.innerHTML = '';
+                    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+                    for (const m of data.messages) {
+                        this.lastSeq = Math.max(this.lastSeq, m.seq || 0);
+                        const teamLabel = m.author_kind === 'admin' ? 'Med&X' : ((this.channels.find(c => c.key === m.team) || {}).label || m.team || 'Tim');
+                        const div = document.createElement('div');
+                        div.className = 'gd-msg';
+                        div.innerHTML = '<div class="gd-msg-head"><span class="gd-msg-author">' + this.esc(m.author_name || '—') + '</span>' +
+                            '<span class="gd-msg-team' + (m.author_kind === 'admin' ? ' gd-kind-admin' : '') + '">' + this.esc(teamLabel) + '</span>' +
+                            '<span class="gd-msg-time">' + this.esc(String(m.created_at || '').replace('T', ' ').slice(11, 16)) + '</span></div>' +
+                            '<div class="gd-msg-body">' + this.esc(m.body) + '</div>';
+                        box.appendChild(div);
+                    }
+                    if (first || nearBottom) box.scrollTop = box.scrollHeight;
+                }
+            },
+            async sendChat() {
+                const input = document.getElementById('gdChatInput'); if (!input) return;
+                const body = input.value.trim(); if (!body) return;
+                input.value = '';
+                const base = this.mode === 'volunteer' ? '/api/gameday/volunteer/messages' : '/api/admin/gameday/messages';
+                try {
+                    await this.api(base, { method: 'POST', body: JSON.stringify({ channel: this.channel, body }) });
+                    await this.loadChat(false);
+                } catch (e) { input.value = body; }
+            },
+
+            // ---- Volunteer door scan (separate additive endpoint; admin scanner stays frozen) ----
+            _cam: null, _lastScan: null,
+            showScanResult(cls, txt) {
+                this._lastScan = { cls, txt }; // survives the periodic card re-render
+                const out = document.getElementById('gdScanResult');
+                if (out) { out.style.display = 'block'; out.className = 'gd-scan-result ' + cls; out.textContent = txt; }
+            },
+            async scanSubmit(codeArg) {
+                const input = document.getElementById('gdScanInput');
+                const code = codeArg || (input ? input.value.trim() : '');
+                if (!code) return;
+                if (input && !codeArg) { input.value = ''; input.blur(); }
+                try {
+                    const r = await this.api('/api/gameday/volunteer/checkin', { method: 'POST', body: JSON.stringify({ code }) });
+                    if (r.valid && !r.already_checked_in) this.showScanResult('gd-scan-ok', '✓ ' + (r.registrant.name || 'Gost') + ' — dobrodošli!');
+                    else if (r.valid) this.showScanResult('gd-scan-warn', '⚠ ' + (r.registrant.name || 'Gost') + ' — već skeniran (' + String(r.checked_in_at || '').replace('T', ' ').slice(11, 16) + ')');
+                    else this.showScanResult('gd-scan-bad', '✕ ' + (r.message || 'Kod nije pronađen.'));
+                    this.refresh(false).catch(() => {});
+                } catch (e) { this.showScanResult('gd-scan-bad', '✕ Greška veze — pokušajte ponovno.'); }
+            },
+            async toggleCamera() {
+                const btn = document.getElementById('gdCamBtn');
+                if (this._cam) { try { await this._cam.stop(); } catch (e) {} this._cam = null; if (btn) btn.innerHTML = '<i class="fas fa-camera"></i> Kamera'; return; }
+                if (typeof Html5Qrcode === 'undefined') return;
+                try {
+                    this._cam = new Html5Qrcode('gdScanVideo');
+                    let last = 0;
+                    await this._cam.start({ facingMode: 'environment' }, { fps: 6, qrbox: 220 }, (text) => {
+                        const now = Date.now();
+                        if (now - last < 2500) return; last = now;
+                        this.scanSubmit(text);
+                    }, () => {});
+                    if (btn) btn.innerHTML = '<i class="fas fa-camera"></i> Zaustavi kameru';
+                } catch (e) { this._cam = null; const out = document.getElementById('gdScanResult'); if (out) { out.style.display = 'block'; out.className = 'gd-scan-result gd-scan-bad'; out.textContent = '✕ Kamera nije dostupna — upišite kod ručno.'; } }
+            },
+        };
+
+        // ---- Game Day settings + volunteer invite management (core admins only) ----
+        const GameDaySettings = {
+            state: null, invites: [],
+            esc(s) { return GameDay.esc(s); },
+            async open() {
+                const root = document.getElementById('gamedaySettingsContent'); if (!root) return;
+                if (!App.user || !App.user.is_admin) { root.innerHTML = '<p class="gd-muted">Core admin access required.</p>'; return; }
+                try {
+                    const [settings, invites] = await Promise.all([
+                        App.api('/api/admin/gameday/settings'),
+                        App.api('/api/admin/gameday/invites'),
+                    ]);
+                    this.state = settings; this.invites = invites.invites || [];
+                    this.render();
+                } catch (e) { root.innerHTML = '<p class="gd-muted">Failed to load Game Day settings.</p>'; }
+            },
+            render() {
+                const root = document.getElementById('gamedaySettingsContent');
+                const s = this.state; const mode = s.settings.mode;
+                const evOpts = s.events.map(e =>
+                    '<option value="' + this.esc(e.key) + '"' + (s.settings.test_event_key === e.key ? ' selected' : '') + '>' +
+                    this.esc(e.name) + ' (' + this.esc(e.start_date) + (e.end_date !== e.start_date ? ' → ' + this.esc(e.end_date) : '') + ')' + (e.live_today ? ' — TODAY' : '') + '</option>').join('');
+                const radio = (val, label, desc) =>
+                    '<label style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;cursor:pointer;">' +
+                    '<input type="radio" name="gdMode" value="' + val + '"' + (mode === val ? ' checked' : '') + ' onchange="document.getElementById(\'gdTestEventRow\').style.display = this.value === \'test\' ? \'\' : \'none\';" style="margin-top:3px;">' +
+                    '<span><strong>' + label + '</strong><br><span class="gd-muted">' + desc + '</span></span></label>';
+                root.innerHTML =
+                    '<div class="gd-grid">' +
+                    '<div class="card" style="padding:18px;">' +
+                    '  <div class="gd-card-title"><i class="fas fa-toggle-on"></i> Mode</div>' +
+                    radio('off', 'Off', 'Game day never activates.') +
+                    radio('auto', 'Auto', 'Activates for whichever event\'s date window covers today (conference dates + gala date, Europe/Zagreb).') +
+                    radio('test', 'Test', 'Force game day for a chosen event regardless of date — for rehearsals.') +
+                    '  <div id="gdTestEventRow" style="' + (mode === 'test' ? '' : 'display:none;') + 'margin:8px 0 4px;"><select id="gdTestEvent" class="gd-compose" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:9px;background:var(--bg-secondary);color:var(--text-primary);">' + evOpts + '</select></div>' +
+                    '  <div style="display:flex;align-items:center;gap:10px;margin-top:12px;"><button class="btn btn-primary" onclick="GameDaySettings.save()"><i class="fas fa-save"></i> Save mode</button><span class="gd-muted" id="gdSettingsMsg">' +
+                    (s.active ? 'ACTIVE now — ' + this.esc(s.event.name) : 'Not active right now.') + '</span></div>' +
+                    (s.settings.updated_by ? '<p class="gd-muted" style="margin:10px 0 0;">Last change: ' + this.esc(s.settings.updated_by) + ' · ' + this.esc(s.settings.updated_at || '') + '</p>' : '') +
+                    '</div>' +
+                    '<div class="card" style="padding:18px;">' +
+                    '  <div class="gd-card-title"><i class="fas fa-user-plus"></i> Invite a volunteer</div>' +
+                    '  <div style="display:grid;gap:8px;">' +
+                    '    <input id="gdInvName" placeholder="Full name *" style="border:1px solid var(--border);border-radius:8px;padding:9px;background:var(--bg-secondary);color:var(--text-primary);">' +
+                    '    <input id="gdInvEmail" placeholder="Email (optional)" style="border:1px solid var(--border);border-radius:8px;padding:9px;background:var(--bg-secondary);color:var(--text-primary);">' +
+                    '    <select id="gdInvTeam" style="border:1px solid var(--border);border-radius:8px;padding:9px;background:var(--bg-secondary);color:var(--text-primary);">' +
+                    s.teams.map(t => '<option value="' + this.esc(t.key) + '"' + (t.key === 'volonteri' ? ' selected' : '') + '>' + this.esc(t.label) + '</option>').join('') + '</select>' +
+                    '    <div class="gd-invite-grants" style="border:1px solid var(--border);border-radius:8px;padding:10px;">' +
+                    '      <div class="gd-muted" style="margin-bottom:4px;">Extra permissions (base: dashboard + chat + door scan + seating):</div>' +
+                    s.grants.map(g => '<label><input type="checkbox" class="gdInvGrant" value="' + this.esc(g.key) + '"> ' + this.esc(g.label) + ' <span class="gd-muted">(' + this.esc(g.label_hr) + ')</span></label>').join('') +
+                    '    </div>' +
+                    '    <button class="btn btn-primary" onclick="GameDaySettings.createInvite()"><i class="fas fa-wand-magic-sparkles"></i> Create magic link</button>' +
+                    '    <div id="gdInvCreated"></div>' +
+                    '  </div>' +
+                    '</div>' +
+                    '</div>' +
+                    '<div class="card" style="padding:18px;margin-top:14px;">' +
+                    '  <div class="gd-card-title"><i class="fas fa-id-badge"></i> Volunteer invites (' + this.invites.length + ')</div>' +
+                    '  <div id="gdInvList">' + this.renderInvites() + '</div>' +
+                    '</div>';
+            },
+            renderInvites() {
+                if (!this.invites.length) return '<p class="gd-muted">No invites yet.</p>';
+                const s = this.state;
+                return this.invites.map(inv => {
+                    const teamLabel = (s.teams.find(t => t.key === inv.team) || {}).label || inv.team;
+                    return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;' + (inv.revoked ? 'opacity:.55;' : '') + '">' +
+                        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                        '<span class="' + (inv.online ? 'gd-online' : 'gd-offline') + '" title="' + (inv.online ? 'Online' : 'Offline') + '"></span>' +
+                        '<strong>' + this.esc(inv.name) + '</strong>' +
+                        '<span class="gd-msg-team">' + this.esc(teamLabel) + '</span>' +
+                        (inv.email ? '<span class="gd-muted">' + this.esc(inv.email) + '</span>' : '') +
+                        (inv.revoked ? '<span class="gd-msg-team" style="background:var(--danger);border-color:var(--danger);color:#fff;">REVOKED</span>' : '') +
+                        '<span style="margin-left:auto;display:flex;gap:6px;">' +
+                        (!inv.revoked ? '<button class="btn btn-secondary btn-sm" onclick="GameDaySettings.copyLink(\'' + inv.id + '\')"><i class="fas fa-link"></i> Copy link</button>' +
+                            '<button class="btn btn-danger btn-sm" onclick="GameDaySettings.revoke(\'' + inv.id + '\')"><i class="fas fa-ban"></i> Revoke</button>'
+                            : '<button class="btn btn-secondary btn-sm" onclick="GameDaySettings.restore(\'' + inv.id + '\')"><i class="fas fa-rotate-left"></i> Restore</button>') +
+                        '</span></div>' +
+                        '<div class="gd-invite-grants" style="margin-top:8px;display:flex;gap:2px 16px;flex-wrap:wrap;">' +
+                        this.state.grants.map(g => '<label><input type="checkbox" ' + (inv.grants.includes(g.key) ? 'checked' : '') + (inv.revoked ? ' disabled' : '') +
+                            ' onchange="GameDaySettings.toggleGrant(\'' + inv.id + '\', \'' + g.key + '\', this.checked)"> ' + this.esc(g.label) + '</label>').join('') +
+                        '</div>' +
+                        (inv.last_seen_at ? '<div class="gd-muted" style="margin-top:6px;">Last seen: ' + this.esc(inv.last_seen_at) + '</div>' : '') +
+                        '</div>';
+                }).join('');
+            },
+            async save() {
+                const mode = (document.querySelector('input[name=gdMode]:checked') || {}).value || 'off';
+                const body = { mode };
+                if (mode === 'test') body.test_event_key = (document.getElementById('gdTestEvent') || {}).value;
+                const msg = document.getElementById('gdSettingsMsg');
+                try {
+                    const r = await App.api('/api/admin/gameday/settings', { method: 'PUT', body: JSON.stringify(body) });
+                    if (msg) msg.textContent = r.active ? 'Saved — ACTIVE: ' + r.event.name : 'Saved — not active right now.';
+                    GameDay.bootStatus().catch(() => {});
+                } catch (e) { if (msg) msg.textContent = 'Save failed: ' + e.message; }
+            },
+            async createInvite() {
+                const name = (document.getElementById('gdInvName') || {}).value || '';
+                const email = (document.getElementById('gdInvEmail') || {}).value || '';
+                const team = (document.getElementById('gdInvTeam') || {}).value || 'volonteri';
+                const grants = Array.from(document.querySelectorAll('.gdInvGrant:checked')).map(c => c.value);
+                const out = document.getElementById('gdInvCreated');
+                if (!name.trim()) { if (out) out.innerHTML = '<p class="gd-muted">Name is required.</p>'; return; }
+                try {
+                    const r = await App.api('/api/admin/gameday/invites', { method: 'POST', body: JSON.stringify({ name, email, team, grants }) });
+                    this.invites.unshift(r.invite);
+                    document.getElementById('gdInvList').innerHTML = this.renderInvites();
+                    if (out) out.innerHTML = '<div class="gd-scan-result gd-scan-ok" style="display:block;font-weight:600;overflow-wrap:anywhere;">Magic link for ' + this.esc(r.invite.name) + ':<br><code style="font-size:12px;">' + this.esc(r.invite.magic_link) + '</code><br>' +
+                        '<button class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="GameDaySettings.copyLink(\'' + r.invite.id + '\')"><i class="fas fa-link"></i> Copy</button></div>';
+                    ['gdInvName', 'gdInvEmail'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                    document.querySelectorAll('.gdInvGrant:checked').forEach(c => { c.checked = false; });
+                } catch (e) { if (out) out.innerHTML = '<p class="gd-muted">Create failed: ' + this.esc(e.message) + '</p>'; }
+            },
+            async toggleGrant(id, key, checked) {
+                const inv = this.invites.find(i => i.id === id); if (!inv) return;
+                const grants = checked ? Array.from(new Set([...inv.grants, key])) : inv.grants.filter(g => g !== key);
+                try {
+                    const r = await App.api('/api/admin/gameday/invites/' + id, { method: 'PUT', body: JSON.stringify({ grants }) });
+                    inv.grants = r.invite.grants;
+                } catch (e) { document.getElementById('gdInvList').innerHTML = this.renderInvites(); }
+            },
+            async revoke(id) {
+                try {
+                    await App.api('/api/admin/gameday/invites/' + id + '/revoke', { method: 'POST' });
+                    const inv = this.invites.find(i => i.id === id); if (inv) { inv.revoked = true; inv.magic_link = null; }
+                    document.getElementById('gdInvList').innerHTML = this.renderInvites();
+                } catch (e) {}
+            },
+            async restore(id) {
+                try {
+                    const r = await App.api('/api/admin/gameday/invites/' + id, { method: 'PUT', body: JSON.stringify({ revoked: false }) });
+                    const idx = this.invites.findIndex(i => i.id === id); if (idx >= 0) this.invites[idx] = r.invite;
+                    document.getElementById('gdInvList').innerHTML = this.renderInvites();
+                } catch (e) {}
+            },
+            copyLink(id) {
+                const inv = this.invites.find(i => i.id === id);
+                if (!inv || !inv.magic_link) return;
+                // Clipboard can be blocked (see the 2026-07-10 QR-modal lesson): handle the
+                // promise, and fall back to a prompt showing the link for manual copying.
+                try {
+                    navigator.clipboard.writeText(inv.magic_link).then(
+                        () => { const m = document.getElementById('gdSettingsMsg'); if (m) m.textContent = 'Link copied for ' + inv.name + '.'; },
+                        () => { window.prompt('Copy the magic link:', inv.magic_link); }
+                    );
+                } catch (e) { window.prompt('Copy the magic link:', inv.magic_link); }
+            },
+        };
+
+        // Wire the two game-day sections into showSection (same additive decorator pattern
+        // as wireDiscover / wireAdvisors) and probe status once per admin session for the dot.
+        (function wireGameday() {
+            const _prev = App.showSection.bind(App);
+            App.showSection = function (id, nav, skip) {
+                const r = _prev(id, nav, skip);
+                try {
+                    if (id === 'gameday') GameDay.open();
+                    else if (id === 'gameday-settings') { GameDay.onLeave(); GameDaySettings.open(); }
+                    else GameDay.onLeave();
+                } catch (e) { console.error(e); }
+                return r;
+            };
+        })();
 
         // Initialize app
         App.init();
