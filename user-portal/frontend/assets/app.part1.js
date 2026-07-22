@@ -1024,6 +1024,15 @@
             'tk.dlMemberCard':{en:'Download membership card', hr:'Preuzmite člansku iskaznicu'},
             'tk.preparingCard':{en:'Preparing your membership card…', hr:'Pripremamo vašu člansku iskaznicu…'},
             'tk.qrNote':     {en:'Your QR carries your key info for fast check-in at Med&X events.', hr:'Vaš QR nosi ključne podatke za brzu prijavu na Med&X događajima.'},
+            // --- Account-linking pack: gala wallet card + member-login card on public forms ---
+            'tk.galaTicket': {en:'Gala Evening ticket', hr:'Ulaznica za Gala večer'},
+            'tk.pendingApproval':{en:'Pending approval', hr:'Čeka odobrenje'},
+            'tk.table':      {en:'Table', hr:'Stol'},
+            'tk.openQr':     {en:'Open QR ticket', hr:'Otvorite QR ulaznicu'},
+            'lnk.haveAccount':{en:'Already have a Med&X or Forum account? Log in — all your registrations in one place.', hr:'Već imate Med&X ili Forum račun? Prijavite se — sve prijave na jednom mjestu.'},
+            'lnk.login':     {en:'Log in', hr:'Prijavite se'},
+            'lnk.signedInAs':{en:'You are signed in as', hr:'Prijavljeni ste kao'},
+            'lnk.willLink':  {en:'— this registration will be linked to your account.', hr:'— prijava će biti povezana s vašim računom.'},
             // ================= CLUSTER HR-MYMEDX (MyMedX / Rewards / Settings / Notifications) =================
             // --- MyMedX page: section headers + hero ---
             'mmx.title':          {en:'My Med&X', hr:'Moj Med&X'},

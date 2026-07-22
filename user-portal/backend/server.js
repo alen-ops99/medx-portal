@@ -1436,6 +1436,8 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 <div class="card form-col">
                     <form id="plexForm" onsubmit="return plexSubmit(event)">
                         <div class="section-label" style="margin-top:0;">Your details</div>
+                        <!-- Account linking: filled by the inline script when a portal login exists on this device -->
+                        <div id="plexLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(34,197,94,.35);border-radius:10px;background:rgba(34,197,94,.07);font-size:12.5px;color:#a7f3d0;line-height:1.5;"></div>
                         <div class="form-grid">
                             <div class="form-row">
                                 <div><label>First name *</label><input id="pf_first" required maxlength="100" value="${prefFirst}"></div>
@@ -1475,6 +1477,25 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         var PLEX_TOKEN = ${JSON.stringify(token || '')};
         var plexDiscount = 0, plexDiscountType = '';
         function plexEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+        // Account linking: this page is served from the portal origin, so a member logged in to
+        // the portal on this device is recognised via localStorage. Their registration links to
+        // their account (Authorization header -> optionalAuth) and the form prefills — fields
+        // stay editable, and the anonymous flow is completely unchanged when no login exists.
+        var PLEX_AUTH = null;
+        try {
+            PLEX_AUTH = localStorage.getItem('medx_user_token');
+            var plexU = JSON.parse(localStorage.getItem('medx_user_data') || 'null');
+            if (PLEX_AUTH && plexU) {
+                var plexName = ((plexU.first_name || '') + ' ' + (plexU.last_name || '')).trim() || plexU.email || '';
+                var plexNote = document.getElementById('plexLinkNote');
+                if (plexNote) { plexNote.style.display = 'block'; plexNote.innerHTML = 'You are signed in as <strong>' + plexEsc(plexName) + '</strong> \\u2014 this registration will be linked to your Med&amp;X account.'; }
+                var pxF = document.getElementById('pf_first'), pxL = document.getElementById('pf_last'), pxE = document.getElementById('pf_email'), pxI = document.getElementById('pf_inst');
+                if (pxF && !pxF.value) pxF.value = plexU.first_name || '';
+                if (pxL && !pxL.value) pxL.value = plexU.last_name || '';
+                if (pxE && !pxE.value) pxE.value = plexU.email || '';
+                if (pxI && !pxI.value && plexU.institution) pxI.value = plexU.institution;
+            } else { PLEX_AUTH = null; }
+        } catch (e) { PLEX_AUTH = null; }
         function plexRecompute(){
             var total = 0, galaUnit = 0, galaSel = false;
             document.querySelectorAll('.event-option.selected').forEach(function(o){
@@ -1535,7 +1556,9 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 selected_conference: sel.conference, selected_bridges: sel.bridges, selected_gala: sel.gala
             };
             try {
-                var r = await fetch('/api/croatians-abroad/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+                var plexHeaders = { 'Content-Type': 'application/json' };
+                if (PLEX_AUTH) plexHeaders['Authorization'] = 'Bearer ' + PLEX_AUTH; // account linking (optionalAuth)
+                var r = await fetch('/api/croatians-abroad/register', { method:'POST', headers: plexHeaders, body: JSON.stringify(body) });
                 var d = await r.json();
                 if(!r.ok){
                     if(r.status >= 500){ plexPayFallback(); } else { plexErr(d.error || 'Registration failed. Please try again.'); }
@@ -1674,6 +1697,8 @@ function renderPublicEventPage(slug) {
         <div class="card" id="peCard">
             <form id="peForm" onsubmit="return peSubmit(event)">
                 <div class="section-label">Your details</div>
+                <!-- Account linking: filled by the inline script when a portal login exists on this device -->
+                <div id="peLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(34,197,94,.35);border-radius:10px;background:rgba(34,197,94,.07);font-size:12.5px;color:#a7f3d0;line-height:1.5;"></div>
                 <div class="form-grid">
                     <div class="form-row">
                         <div><label for="pe_first">First name</label><input id="pe_first" name="first_name" autocomplete="given-name" required maxlength="100"></div>
@@ -1695,6 +1720,25 @@ function renderPublicEventPage(slug) {
     var PE_SLUG = ${JSON.stringify(slug)};
     function peEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
     function peErr(m){ var e = document.getElementById('peMsg'); e.className = 'msg err'; e.textContent = m; }
+    // Account linking: this page is served from the portal origin, so a member logged in to
+    // the portal on this device is recognised via localStorage. Their registration links to
+    // their account (Authorization header -> optionalAuth) and the form prefills — fields
+    // stay editable, and the anonymous flow is completely unchanged when no login exists.
+    var PE_TOKEN = null;
+    try {
+        PE_TOKEN = localStorage.getItem('medx_user_token');
+        var peU = JSON.parse(localStorage.getItem('medx_user_data') || 'null');
+        if (PE_TOKEN && peU) {
+            var peName = ((peU.first_name || '') + ' ' + (peU.last_name || '')).trim() || peU.email || '';
+            var peNote = document.getElementById('peLinkNote');
+            if (peNote) { peNote.style.display = 'block'; peNote.innerHTML = 'You are signed in as <strong>' + peEsc(peName) + '</strong> \\u2014 this registration will be linked to your Med&amp;X account.'; }
+            var peF = document.getElementById('pe_first'), peL = document.getElementById('pe_last'), peE = document.getElementById('pe_email'), peI = document.getElementById('pe_inst');
+            if (peF && !peF.value) peF.value = peU.first_name || '';
+            if (peL && !peL.value) peL.value = peU.last_name || '';
+            if (peE && !peE.value) peE.value = peU.email || '';
+            if (peI && !peI.value && peU.institution) peI.value = peU.institution;
+        } else { PE_TOKEN = null; }
+    } catch (e) { PE_TOKEN = null; }
     async function peSubmit(ev){
         ev.preventDefault();
         var btn = document.getElementById('peBtn'); btn.disabled = true; btn.textContent = 'One moment\\u2026';
@@ -1709,7 +1753,9 @@ function renderPublicEventPage(slug) {
             dietary: diet ? diet.value.trim() : ''
         };
         try {
-            var r = await fetch('/api/public-events/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+            var peHeaders = { 'Content-Type': 'application/json' };
+            if (PE_TOKEN) peHeaders['Authorization'] = 'Bearer ' + PE_TOKEN; // account linking (optionalAuth)
+            var r = await fetch('/api/public-events/register', { method:'POST', headers: peHeaders, body: JSON.stringify(body) });
             var d = await r.json();
             if (!r.ok) { peErr(d.error || 'Something went wrong. Please try again.'); btn.disabled = false; btn.textContent = ${JSON.stringify(cfg.submitLabel)}; return false; }
             document.getElementById('peCard').innerHTML =
@@ -6843,6 +6889,10 @@ async function initializeApp() {
     try { db.run(`ALTER TABLE bridges_events ADD COLUMN price REAL DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN payment_status TEXT DEFAULT 'n/a'`); } catch(e) {}
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN amount_paid REAL`); } catch(e) {}
+    // Account linking: a public Bridges/Donor Night registration made while logged in (or
+    // claimed retroactively by email) attaches to the member's account. Nullable — the
+    // anonymous path is untouched. Declared identically in BOTH portal server.js files.
+    try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN user_id TEXT`); } catch(e) {}
 
     // Phase 8: composable per-link pricing — selectable, individually-priced components
     // per event. A registration link can include any subset; the charged price is the SUM
@@ -8501,6 +8551,10 @@ async function initializeApp() {
     // (source='plexus') from the diaspora "Croatians Abroad" ones (default). Both share this
     // table + the linked gala_registrations row so Gala data stays unified across entry points.
     try { db.run("ALTER TABLE croatians_abroad_registrations ADD COLUMN source TEXT DEFAULT 'croatians-abroad'"); } catch(e) {}
+    // Account linking: a public Plexus Experience / Croatians Abroad registration made while
+    // logged in (or claimed retroactively by email) attaches to the member's account.
+    // Nullable — the anonymous path is untouched. Declared identically in BOTH portals.
+    try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN user_id TEXT'); } catch(e) {}
 
     // Gala invite links — admin-generated shareable URLs (generic paid + VIP free)
     db.run(`CREATE TABLE IF NOT EXISTS gala_invite_links (
@@ -9172,6 +9226,18 @@ async function initializeApp() {
         registration_id TEXT NOT NULL,
         seat_note TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Gala table assignments imported from the seating picker console's CSV export (admin
+    // Gala → Seating). Email-keyed (stored lowercased) so the member wallet can show
+    // "Stol N" by account-email match with no Firebase coupling. The admin portal writes it
+    // (CSV upsert) and the user portal reads it — hence it lives in the shared mirror block.
+    db.run(`CREATE TABLE IF NOT EXISTS gala_table_assignments (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        table_no TEXT,
+        guest_name TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
 
     db.run(`CREATE TABLE IF NOT EXISTS event_waitlist (
@@ -10635,6 +10701,68 @@ async function initializeApp() {
         legacyHeaders: false
     });
 
+    // ===== ACCOUNT LINKING — retroactive claiming (queue: member wallet completeness) =====
+    // Attaches past GUEST registrations (rows whose user_id is NULL) to a member's account by
+    // exact case-insensitive email match, so "everything is in one place — my wallet, my
+    // tickets". Claiming keys on AUTHENTICATED moments only: account creation (when the
+    // account is born already-verified), every successful login, and the email-verification
+    // click — control of the account/mailbox is proven before any ticket attaches. Covers the
+    // reg-like tables that carry BOTH user_id and email: registrations (conference),
+    // gala_registrations, bridges_registrations. forum_event_registrations already links
+    // through forum_members.user_id at insert time, so it needs no claim pass.
+    function claimRegistrationsForUser(userId, email) {
+        if (!userId || !email) return 0;
+        let total = 0;
+        const claim = (table, label) => {
+            try {
+                db.run(`UPDATE ${table} SET user_id = ? WHERE user_id IS NULL AND email IS NOT NULL AND lower(email) = lower(?)`, [userId, email]);
+                const n = db.getRowsModified();
+                if (n > 0) { total += n; console.log(`[Account linking] Claimed ${n} ${label} row(s) for ${email}`); }
+            } catch (e) { /* table/column absent on an older DB — claiming must never break auth */ }
+        };
+        claim('registrations', 'conference registration');
+        claim('gala_registrations', 'gala registration');
+        claim('bridges_registrations', 'bridges/donor-night registration');
+        claim('croatians_abroad_registrations', 'Plexus Experience registration');
+        if (total > 0) { try { saveDb(); } catch (e) {} }
+        return total;
+    }
+
+    // One-time retroactive backfill for ALL existing accounts (guarded by a drip_log kind,
+    // the repo's standard exactly-once key): long-standing members see their pre-account
+    // guest tickets without having to log in again first. Set-based UPDATEs, then the guard
+    // row is written so no future boot repeats the work. User portal only — both portals
+    // boot the same DB, so one runner is enough.
+    try {
+        if (!query.get("SELECT 1 AS x FROM drip_log WHERE kind = 'account_claim_backfill_v1'")) {
+            const backfill = (table, label) => {
+                try {
+                    // Count first — db.run() without params goes through exec(), which cannot
+                    // report a changes count (see shared/db.js getRowsModified polyfill).
+                    const n = (query.get(`SELECT COUNT(*) AS c FROM ${table}
+                            WHERE user_id IS NULL AND email IS NOT NULL
+                              AND EXISTS (SELECT 1 FROM users u WHERE lower(u.email) = lower(${table}.email))`) || {}).c || 0;
+                    if (n > 0) {
+                        db.run(`UPDATE ${table} SET user_id = (
+                                    SELECT u.id FROM users u WHERE lower(u.email) = lower(${table}.email) LIMIT 1)
+                                WHERE user_id IS NULL AND email IS NOT NULL
+                                  AND EXISTS (SELECT 1 FROM users u WHERE lower(u.email) = lower(${table}.email))`);
+                        console.log(`[Account linking] Backfill attached ${n} ${label} row(s)`);
+                    }
+                    return n;
+                } catch (e) { return 0; }
+            };
+            const claimed = backfill('registrations', 'conference registration')
+                + backfill('gala_registrations', 'gala registration')
+                + backfill('bridges_registrations', 'bridges/donor-night registration')
+                + backfill('croatians_abroad_registrations', 'Plexus Experience registration');
+            db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?,?,?,?)",
+                [uuidv4(), null, null, 'account_claim_backfill_v1']);
+            saveDb();
+            console.log(`[Account linking] One-time backfill complete — ${claimed} guest row(s) attached to existing accounts.`);
+        }
+    } catch (e) { console.error('[Account linking] Backfill failed (non-fatal):', e.message); }
+
     app.post('/api/auth/register', authLimiter, async (req, res) => {
         try {
             const { email, password, first_name, last_name, institution, country, locale } = req.body;
@@ -10666,6 +10794,11 @@ async function initializeApp() {
             const signupLocale = (locale === 'hr' || locale === 'en') ? locale : null;
             if (signupLocale) { try { db.run('UPDATE users SET locale = ? WHERE id = ?', [signupLocale, id]); } catch (e) { /* locale column added by HR1 migration */ } }
             saveDb();
+
+            // Account linking: when the account is born already-verified (no mail provider),
+            // attach past guest registrations for this email right now. With a provider set,
+            // the account starts unverified and the claim runs at the verification click.
+            if (!emailEnabled) { try { claimRegistrationsForUser(id, email); } catch (e) {} }
 
             const verifyUrl = await issueEmailVerification({ id, email, first_name, locale: signupLocale }, req);
             // WELCOME DRIP (#5): T+0 welcome + T+3 interests, idempotent per user (drip_log).
@@ -10725,6 +10858,9 @@ async function initializeApp() {
                 db.run('UPDATE users SET last_login = ? WHERE id = ?', [new Date().toISOString(), user.id]);
                 saveDb();
             } catch (e) { /* best-effort */ }
+            // Account linking: every successful login sweeps up guest registrations that
+            // arrived for this email since the last visit. Idempotent, best-effort.
+            try { claimRegistrationsForUser(user.id, user.email); } catch (e) {}
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
             res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin, quiet: quietFlagFor(user) }});
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
@@ -11302,6 +11438,11 @@ async function initializeApp() {
                 db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [legacy.id]);
                 awardPoints(legacy.id, rewardsSettingNum('earn_verify', 25), 'verify', 'email:' + legacy.id, 'Email verified');
                 saveDb();
+                // Account linking: the mailbox is now proven — attach guest registrations.
+                try {
+                    const lu = query.get('SELECT email FROM users WHERE id = ?', [legacy.id]);
+                    if (lu) claimRegistrationsForUser(legacy.id, lu.email);
+                } catch (e) {}
                 return res.redirect('/?verified=true');
             }
             if (row.used_at) return res.redirect('/?verified=already');
@@ -11314,6 +11455,11 @@ async function initializeApp() {
             db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [user.id]);
             awardPoints(user.id, rewardsSettingNum('earn_verify', 25), 'verify', 'email:' + user.id, 'Email verified');
             saveDb();
+            // Account linking: the mailbox is now proven — attach guest registrations.
+            try {
+                const vu = query.get('SELECT email FROM users WHERE id = ?', [user.id]);
+                if (vu) claimRegistrationsForUser(user.id, vu.email);
+            } catch (e) {}
             console.log(`[Auth] Email confirmed for ${row.email || user.id}`);
             return res.redirect('/?verified=true');
         } catch (e) {
@@ -12539,8 +12685,19 @@ async function submitReset(e){
         try {
             const user = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
             if (!user) return res.json({ assigned: false });
+            // Picker-console import first (gala_table_assignments, email-keyed, admin Gala →
+            // Seating CSV upsert) — freshest source in gala week. Falls back to the in-portal
+            // seating plan (gala_tables/gala_seat_assignments) below.
+            try {
+                const ta = query.get('SELECT table_no FROM gala_table_assignments WHERE lower(email) = lower(?) ORDER BY updated_at DESC LIMIT 1', [user.email || '']);
+                if (ta && String(ta.table_no || '').trim()) {
+                    const raw = String(ta.table_no).trim();
+                    const label = /^\d+$/.test(raw) ? ('Stol ' + raw) : raw;
+                    return res.json({ assigned: true, table_label: label, seat_note: null, source: 'console' });
+                }
+            } catch (e) { /* table absent on an older DB — fall through to the seating plan */ }
             const ids = [];
-            query.all('SELECT id FROM gala_registrations WHERE LOWER(email) = LOWER(?)', [user.email || '']).forEach(r => ids.push(r.id));
+            query.all('SELECT id FROM gala_registrations WHERE user_id = ? OR LOWER(email) = LOWER(?)', [user.id, user.email || '']).forEach(r => ids.push(r.id));
             query.all("SELECT id FROM registrations WHERE user_id = ? AND (registration_type = 'gala' OR includes_gala = 1)", [user.id]).forEach(r => ids.push(r.id));
             if (!ids.length) return res.json({ assigned: false });
             const placeholders = ids.map(() => '?').join(',');
@@ -25950,16 +26107,18 @@ By applying to this program, I provide the following consents:
 
     // ========== GALA REGISTRATION (with approval) ==========
 
-    // Submit gala registration (public — pending approval)
-    app.post('/api/gala/register', (req, res) => {
+    // Submit gala registration (public — pending approval). optionalAuth: a logged-in member's
+    // JWT links the row to their account (user_id) so it lands in their wallet immediately;
+    // the anonymous path is byte-for-byte unchanged (user_id stays NULL until claimed).
+    app.post('/api/gala/register', optionalAuth, (req, res) => {
         const { first_name, last_name, email, institution, title, dietary, requests, pricing } = req.body;
         if (!first_name || !last_name || !email) {
             return res.status(400).json({ error: 'Name and email are required' });
         }
         const id = require('crypto').randomUUID();
-        db.run(`INSERT INTO gala_registrations (id, first_name, last_name, email, institution, title, dietary, requests, pricing, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-            [id, first_name, last_name, email, institution || '', title || '', dietary || '', requests || '', pricing || '']);
+        db.run(`INSERT INTO gala_registrations (id, first_name, last_name, email, institution, title, dietary, requests, pricing, status, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            [id, first_name, last_name, email, institution || '', title || '', dietary || '', requests || '', pricing || '', (req.user && req.user.id) || null]);
         saveDb();
 
         // Send gala invitation request confirmation email
@@ -26821,6 +26980,33 @@ By applying to this program, I provide the following consents:
         res.json({ registered: true, registration: reg });
     });
 
+    // ACCOUNT LINKING / wallet completeness: every gala registration on this account — linked
+    // by user_id (set at submit time or claimed retroactively) OR by account-email match —
+    // shaped for the My Med&X ticket wallet: event facts from gala_settings, the hosted frozen
+    // QR (/qr/:id.png — same payload the scanner verifies), payment + check-in state. Read-only.
+    app.get('/api/gala/my', auth, (req, res) => {
+        try {
+            const me = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
+            if (!me) return res.json([]);
+            let settings = {};
+            try { settings = query.get("SELECT title, date, venue FROM gala_settings WHERE id = 'default'") || {}; } catch (e) {}
+            const rows = query.all(
+                `SELECT id, first_name, last_name, email, institution, status, payment_status, amount_paid,
+                        checked_in, checked_in_at, invoice_number, pricing, created_at
+                 FROM gala_registrations
+                 WHERE (user_id = ? OR lower(email) = lower(?))
+                   AND COALESCE(status, '') NOT IN ('rejected', 'declined', 'cancelled')
+                 ORDER BY created_at DESC`, [me.id, me.email || '']);
+            res.json(rows.map(r => ({
+                ...r,
+                event_title: settings.title || 'Plexus 2026 — Gala Evening',
+                event_date: settings.date || null,
+                venue: settings.venue || null,
+                qr_url: '/qr/' + r.id + '.png'
+            })));
+        } catch (e) { console.error('[gala my] error:', e.message); res.json([]); }
+    });
+
     // ========== GALA STRIPE CHECKOUT ==========
 
     // Create Stripe checkout session for gala ticket
@@ -27141,7 +27327,9 @@ By applying to this program, I provide the following consents:
     // ========== CROATIANS ABROAD — multi-event registration ==========
     // Free-only sign-ups confirmed immediately; Gala goes through Stripe (same
     // gala_registrations table reused for QR/check-in compatibility).
-    app.post('/api/croatians-abroad/register', registrationLimiter, async (req, res) => {
+    // optionalAuth (account linking): a logged-in member's JWT attaches both the CA row and
+    // the linked gala row to their account at submit time; anonymous flow is untouched.
+    app.post('/api/croatians-abroad/register', registrationLimiter, optionalAuth, async (req, res) => {
         try {
             const { invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
                     selected_conference, selected_bridges, selected_gala } = req.body || {};
@@ -27226,12 +27414,13 @@ By applying to this program, I provide the following consents:
 
             // If Gala selected, create a gala_registrations row too (status='awaiting_payment')
             // so QR/check-in works through the existing Gala scanner once payment confirms.
+            const linkedUserId = (req.user && req.user.id) || null; // account linking (optionalAuth)
             if (finalGala) {
                 galaRegistrationId = require('crypto').randomUUID();
                 db.run(
-                    `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests)
-                     VALUES (?, ?, ?, ?, ?, 'awaiting_payment', 'pending', ?, ?)`,
-                    [galaRegistrationId, first_name, last_name || '', email, institution || '', dietary || null, notes || null]
+                    `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id)
+                     VALUES (?, ?, ?, ?, ?, 'awaiting_payment', 'pending', ?, ?, ?)`,
+                    [galaRegistrationId, first_name, last_name || '', email, institution || '', dietary || null, notes || null, linkedUserId]
                 );
             }
 
@@ -27239,15 +27428,15 @@ By applying to this program, I provide the following consents:
                 `INSERT INTO croatians_abroad_registrations
                  (id, invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
                   selected_conference, selected_bridges, selected_gala,
-                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, source)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, source, user_id)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
                 [regId, invite_link_id || null, first_name, last_name || '', email, institution || '', country || '', role || '', dietary || '', notes || '',
                  finalConf ? 1 : 0, finalBridges ? 1 : 0, finalGala ? 1 : 0,
                  finalConf ? 'pre-registered' : null,
                  finalBridges ? 'pre-registered' : null,
                  finalGala ? 'awaiting_payment' : null,
                  finalGala ? 'pending' : null,
-                 galaRegistrationId, regSource]
+                 galaRegistrationId, regSource, linkedUserId]
             );
             saveDb();
 
@@ -27877,7 +28066,9 @@ By applying to this program, I provide the following consents:
     // inbox. In-memory is fine — worst case after a redeploy is one extra re-send.
     const PUBLIC_EVENT_RESEND_WINDOW_MS = 15 * 60 * 1000;
     const publicEventLastSend = new Map();
-    app.post('/api/public-events/register', registrationLimiter, async (req, res) => {
+    // optionalAuth (account linking): a logged-in member's JWT attaches the seat to their
+    // account at submit time; anonymous registrations are untouched (user_id NULL → claimable).
+    app.post('/api/public-events/register', registrationLimiter, optionalAuth, async (req, res) => {
         try {
             const slug = String(req.body.event || '');
             const cfg = Object.hasOwn(PUBLIC_EVENT_REG, slug) ? PUBLIC_EVENT_REG[slug] : null;
@@ -27948,9 +28139,9 @@ By applying to this program, I provide the following consents:
                 }
             }
             const regId = uuidv4();
-            db.run(`INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, position, dietary_requirements, status, payment_status, registered_at)
-                VALUES (?,?,?,?,?,?,?,?,'registered','n/a',CURRENT_TIMESTAMP)`,
-                [regId, evt.id, first_name, last_name, email, institution, role, dietary || null]);
+            db.run(`INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, position, dietary_requirements, status, payment_status, registered_at, user_id)
+                VALUES (?,?,?,?,?,?,?,?,'registered','n/a',CURRENT_TIMESTAMP,?)`,
+                [regId, evt.id, first_name, last_name, email, institution, role, dietary || null, (req.user && req.user.id) || null]);
             saveDb();
             flushDb(); // durability: a confirmed seat must survive a redeploy
 

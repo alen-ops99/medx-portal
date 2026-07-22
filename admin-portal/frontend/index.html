@@ -12864,6 +12864,30 @@ President, Med&amp;X</textarea>
                                 style="display:block;width:100%;height:78vh;border:0;background:#fbf9f6;"
                                 loading="lazy"></iframe>
                         </div>
+                        <!-- CSV bridge from the picker console → member wallet "Stol N" (account-linking pack).
+                             The console's exported guest CSV (columns include table,name,email) upserts the
+                             email-keyed gala_table_assignments table; the user portal wallet reads it by
+                             account-email match. Re-import UPDATES table numbers — safe to run repeatedly. -->
+                        <div class="card" style="margin-bottom:16px;">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <div>
+                                    <h3 class="card-title" style="margin:0;"><i class="fas fa-file-import" style="color:#9b1b22;margin-right:6px;"></i>Uvezi stolove iz konzole (CSV)</h3>
+                                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Izvezi popis gostiju iz konzole (CSV sa stupcima table, name, email) i uvezi ga ovdje — članovi u svom walletu odmah vide "Stol N". Ponovni uvoz ažurira brojeve stolova.</div>
+                                </div>
+                                <span id="galaTableImportCount" style="font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
+                            </div>
+                            <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                                    <input type="file" id="galaTableImportFile" accept=".csv,.txt" style="font-size:12px;" onchange="GalaAdmin.onTableImportFile(event)">
+                                    <span style="font-size:11px;color:var(--text-muted);">ili zalijepi CSV ispod</span>
+                                </div>
+                                <textarea id="galaTableImportText" rows="4" placeholder="table,name,email&#10;12,Ana Anić,ana.anic@example.com" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);"></textarea>
+                                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                    <button class="btn btn-primary" onclick="GalaAdmin.importTableAssignments()" style="font-size:12px;"><i class="fas fa-upload"></i> Uvezi stolove</button>
+                                    <span id="galaTableImportResult" style="font-size:12px;color:var(--text-muted);"></span>
+                                </div>
+                            </div>
+                        </div>
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
                             <div id="galaSeatingStats" style="font-size:13px;color:var(--text-muted);">Loading seating…</div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -40110,12 +40134,52 @@ By applying to this program, I give the following consents:
             async loadSeating() {
                 const grid = document.getElementById('galaTablesGrid');
                 if (grid) grid.innerHTML = '<div style="color:var(--text-muted);padding:20px;">Loading…</div>';
+                this.refreshTableImportCount(); // fire-and-forget — the CSV-import card's counter
                 const r = await this.seatApi('/api/admin/gala/seating');
                 if (!r.ok) { if (grid) grid.innerHTML = '<div style="padding:20px;color:#ef4444;">Failed to load seating.</div>'; return; }
                 this._seat = r.d;
                 // Drop the selected guest if they are no longer unassigned.
                 if (this._selectedGuest && !this._seat.unassigned.some(g => g.registration_id === this._selectedGuest)) this._selectedGuest = null;
                 this.renderSeating();
+            },
+
+            // ===== Picker-console CSV import (account-linking pack) =====
+            // Reads the console's exported guest CSV (columns include table,name,email) into the
+            // textarea (file input) and POSTs the raw text — the server does the quote-aware
+            // parsing + email-keyed upsert into gala_table_assignments. Members then see
+            // "Stol N" on their gala wallet card by account-email match.
+            onTableImportFile(evt) {
+                const file = evt && evt.target && evt.target.files && evt.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const ta = document.getElementById('galaTableImportText');
+                    if (ta) ta.value = String(e.target.result || '');
+                };
+                reader.readAsText(file);
+            },
+            async importTableAssignments() {
+                const ta = document.getElementById('galaTableImportText');
+                const out = document.getElementById('galaTableImportResult');
+                const csv = (ta && ta.value || '').trim();
+                if (!csv) { if (out) out.textContent = 'Zalijepi ili odaberi CSV iz konzole.'; return; }
+                if (out) out.textContent = 'Uvoz u tijeku…';
+                const r = await this.seatApi('/api/admin/gala/table-assignments/import', { method: 'POST', body: JSON.stringify({ csv }) });
+                if (r.ok && r.d && r.d.success) {
+                    if (out) out.innerHTML = `<span style="color:#22c55e;">Uvezeno: ${r.d.inserted} novih · ${r.d.updated} ažurirano${r.d.skipped ? ' · ' + r.d.skipped + ' preskočeno' : ''}</span>`;
+                    Toast.success('Stolovi uvezeni');
+                    this.refreshTableImportCount();
+                } else {
+                    if (out) out.innerHTML = `<span style="color:#ef4444;">${this.esc((r.d && r.d.error) || 'Uvoz nije uspio')}</span>`;
+                    Toast.error((r.d && r.d.error) || 'Uvoz nije uspio');
+                }
+            },
+            async refreshTableImportCount() {
+                try {
+                    const r = await this.seatApi('/api/admin/gala/table-assignments');
+                    const el = document.getElementById('galaTableImportCount');
+                    if (el && r.ok && Array.isArray(r.d)) el.textContent = r.d.length ? (r.d.length + ' dodijeljenih stolova u bazi') : 'Još nema uvezenih stolova';
+                } catch (e) { /* non-blocking */ }
             },
             renderSeating() {
                 const s = this._seat; if (!s) return;
