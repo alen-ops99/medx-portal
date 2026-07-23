@@ -882,13 +882,25 @@ app.get('/invite-success', async (req, res) => {
 
     const successLede = `Your registration for <strong>${escapeHtml(eventName)}</strong> is confirmed. A confirmation email with your QR code has been sent${customerEmail ? ' to <strong>' + escapeHtml(customerEmail) + '</strong>' : ''}. If you don't see it within a few minutes, please check your spam folder.`;
 
+    // Add-to-calendar chips for whichever events this person actually registered for.
+    const SUCCESS_CAL = [
+        { kw: 'gala', href: '/calendar/gala.ics', label: 'Gala Evening' },
+        { kw: 'conference', href: '/calendar/plexus.ics', label: 'Conference' },
+        { kw: 'bridges', href: '/calendar/building-bridges.ics', label: 'Bridges' }
+    ];
+    const calHay = (eventName + ' ' + itemsList.join(' ')).toLowerCase();
+    const calTargets = SUCCESS_CAL.filter(m => calHay.includes(m.kw));
+    const calBlock = calTargets.length ? `<div style="margin-top:26px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;margin-bottom:11px;">Add to your calendar</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${calTargets.map(m => `<a href="${m.href}" download style="display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border:1px solid rgba(201,169,98,0.4);border-radius:10px;color:#e8c97a;text-decoration:none;font-size:13px;font-weight:600;"><i class="fas fa-calendar-plus"></i> ${escapeHtml(m.label)}</a>`).join('')}</div></div>` : '';
+
     res.send(premiumPage({
         title: 'Registration Confirmed — Med&X',
         tone: 'success',
         kicker: 'Registration confirmed',
         headline: "You're all set",
         lede: successLede,
-        bodyHtml: `<div class="facts">${factsRows}</div>${qrBlock}<script>
+        bodyHtml: `<div class="facts">${factsRows}</div>${qrBlock}${calBlock}<script>
 function downloadQR() {
     const img = document.getElementById('qrImg');
     const S = 2; // 2x resolution for crisp output
@@ -1321,7 +1333,11 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         const galaTitle = pps.gala_title || 'Plexus Gala Evening';
         const galaStatus = pps.gala_status || '';
         const galaDate = (pps.gala_date || '').replace(/\{venue\}/g, galaVenue);
-        const galaDesc = (pps.gala_desc || '5 December 2026 · {venue} · black-tie evening with four keynote speakers, a fireside panel, and live music. Limited places.').replace(/\{venue\}/g, galaVenue);
+        // Computed from live gala_settings so the card always shows the start time AND all four
+        // keynotes. (The admin gala_desc DB field still holds old single-keynote copy with no time.)
+        // Anchor to local noon so date-only strings never roll back a day across timezones.
+        const galaWhen = galaSettings.date ? fmtD(String(galaSettings.date).slice(0, 10) + 'T12:00:00') : '5 December 2026';
+        const galaDesc = `${galaWhen}${galaSettings.time ? ' · ' + galaSettings.time : ''} · ${galaVenue} · Black-tie evening with four keynote speakers from leading universities and hospitals (listed below), a fireside panel, and live music. Limited places.`;
         // Admin-configurable mandatory fields (plexus_page_settings.req_*). 'required' => the
         // browser enforces it (the form is a real <form onsubmit>) AND the server re-checks it.
         const reqStar = (k) => (pps['req_' + k] === 'required') ? ' <span style="color:#c9a962;">*</span>' : '';
