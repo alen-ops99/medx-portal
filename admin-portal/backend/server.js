@@ -17272,12 +17272,13 @@ By applying to this program, I provide the following consents:
 
     // Registration trends endpoint — returns daily counts for the last 30 days
     app.get('/api/dashboard/trends', auth, adminOnly, (req, res) => {
-        const eventFilter = req.query.event || 'all'; // 'plexus', 'accelerator', or 'all'
+        const eventFilter = req.query.event || 'all'; // 'plexus', 'accelerator', 'events', or 'all'
         const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
         const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
 
         let plexusTrends = [];
         let acceleratorTrends = [];
+        let eventTrends = [];
 
         if (eventFilter === 'all' || eventFilter === 'plexus') {
             plexusTrends = query.all(
@@ -17293,9 +17294,33 @@ By applying to this program, I provide the following consents:
             ) || [];
         }
 
+        // "Event registrations" — a combined daily series across every event sign-up table
+        // (Gala, Building Bridges / Donor, Croatians Abroad, Forum events, sign-up forms), so a
+        // real Gala booking actually moves the 30-day slope. Previously the chart only drew the
+        // conference + accelerator tables, so Gala/other-event signups were invisible. Each table
+        // is summed with its OWN timestamp column and guarded independently so a table missing on a
+        // fresh replica never blanks the whole series.
+        if (eventFilter === 'all' || eventFilter === 'events') {
+            const dateMap = {};
+            const addDaily = (sql) => {
+                try {
+                    (query.all(sql) || []).forEach((r) => {
+                        if (r && r.date) dateMap[r.date] = (dateMap[r.date] || 0) + (Number(r.count) || 0);
+                    });
+                } catch (e) { /* table absent on this DB — skip */ }
+            };
+            addDaily("SELECT date(created_at) as date, count(*) as count FROM gala_registrations WHERE created_at > datetime('now', '-30 days') GROUP BY date(created_at)");
+            addDaily("SELECT date(registered_at) as date, count(*) as count FROM bridges_registrations WHERE registered_at > datetime('now', '-30 days') GROUP BY date(registered_at)");
+            addDaily("SELECT date(created_at) as date, count(*) as count FROM croatians_abroad_registrations WHERE created_at > datetime('now', '-30 days') GROUP BY date(created_at)");
+            addDaily("SELECT date(registered_at) as date, count(*) as count FROM forum_event_registrations WHERE registered_at > datetime('now', '-30 days') GROUP BY date(registered_at)");
+            addDaily("SELECT date(created_at) as date, count(*) as count FROM signup_form_responses WHERE created_at > datetime('now', '-30 days') GROUP BY date(created_at)");
+            eventTrends = Object.keys(dateMap).sort().map((d) => ({ date: d, count: dateMap[d] }));
+        }
+
         res.json({
             plexus: plexusTrends,
-            accelerator: acceleratorTrends
+            accelerator: acceleratorTrends,
+            events: eventTrends
         });
     });
 
@@ -27911,8 +27936,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         // Gala — seats remaining (checked before the guests count so "seats left" wins).
         if (has('gala') && has('seat', 'seats', 'space', 'spaces', 'spot', 'spots', 'capacity', 'left', 'remain', 'available', 'fit', 'sold out', 'room for')) {
             const cap = assistCount("SELECT capacity c FROM gala_settings WHERE id='default'");
-            const confirmed = assistCount("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status IN ('paid','vip-comp')");
-            const registered = assistCount('SELECT COUNT(*) c FROM gala_registrations');
+            // Seats are people: count each booking plus its plus-one guests (1 + guest_count).
+            const confirmed = assistCount("SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)),0) c FROM gala_registrations WHERE payment_status IN ('paid','vip-comp')");
+            const registered = assistCount('SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)),0) c FROM gala_registrations');
             const hold = Math.max(0, registered - confirmed);
             const remain = Math.max(0, (cap || 0) - confirmed);
             let a = `The Gala has ${cap} seats. ${confirmed} ${confirmed === 1 ? 'guest is' : 'guests are'} confirmed`;
@@ -27954,7 +27980,8 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         // Checked-in / attendance.
         if (has('checked in', 'checked-in', 'attendance', 'arrived', 'at the door', 'turned up', 'showed up')) {
             const c = assistCount('SELECT COUNT(*) c FROM registrations WHERE checked_in=1');
-            const g = assistCount('SELECT COUNT(*) c FROM gala_registrations WHERE checked_in=1');
+            // Gala head count in the room = checked-in bookings plus the plus-ones who came with them.
+            const g = assistCount('SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)),0) c FROM gala_registrations WHERE checked_in=1');
             return { kind:'data', pending:[], answer:`${c} Plexus ${c === 1 ? 'registrant has' : 'registrants have'} checked in, and ${g} at the Gala.`, deepLink:{ label:'Open Plexus registrations', target:'plexus' } };
         }
         // Unpaid registrants (count only — the draft path is handled earlier).
@@ -31797,7 +31824,12 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             // per-event check-in columns), NOT the legacy `registrations` table.
             const conference = query.get('SELECT COUNT(*) as total, COALESCE(SUM(conference_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_conference = 1') || { total: 0, checked_in: 0 };
             const bridges = query.get('SELECT COUNT(*) as total, COALESCE(SUM(bridges_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_bridges = 1') || { total: 0, checked_in: 0 };
-            const gala = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM gala_registrations') || { total: 0, checked_in: 0 };
+            // Gala plus-ones have no seat/QR of their own — a booking with guest_count=N is N+1
+            // people who enter together on the ONE registrant QR. So the door head count (expected)
+            // and the admitted head count (checked_in) are PEOPLE, not bookings: SUM(1 + guests).
+            // Admission logic (the frozen verify route) is untouched; this only fixes the displayed
+            // totals so "X of N" reflects real bodies in the room. `bookings` keeps the row count.
+            const gala = query.get("SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)), 0) as total, COALESCE(SUM(CASE WHEN checked_in = 1 THEN 1 + COALESCE(guest_count,0) ELSE 0 END), 0) as checked_in, COUNT(*) as bookings FROM gala_registrations") || { total: 0, checked_in: 0, bookings: 0 };
             const forum = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM forum_members') || { total: 0, checked_in: 0 };
             // Regional Building Bridges (Zurich/DC/Boston) — a SEPARATE program from Croatian Biomedical Bridges.
             const regionalBridges = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM bridges_registrations') || { total: 0, checked_in: 0 };
@@ -40112,8 +40144,11 @@ ${extraCss || ''}
             const scanned = query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ? AND checked_in = 1', [ev.conference_id]);
             return { expected: (total && total.c) || 0, scanned: (scanned && scanned.c) || 0, label_hr: 'Prijavljeni na ulazu' };
         }
-        const total = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE payment_status IN ('paid', 'vip-comp')");
-        const scanned = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE payment_status IN ('paid', 'vip-comp') AND checked_in = 1");
+        // Head count, not booking count: a paid booking with guest_count=N seats N+1 people who
+        // arrive on the one registrant QR (plus-ones have no seat/QR of their own). Expected and
+        // scanned are therefore SUM(1 + guests); the frozen admission route is untouched.
+        const total = query.get("SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)), 0) as c FROM gala_registrations WHERE payment_status IN ('paid', 'vip-comp')");
+        const scanned = query.get("SELECT COALESCE(SUM(CASE WHEN checked_in = 1 THEN 1 + COALESCE(guest_count,0) ELSE 0 END), 0) as c FROM gala_registrations WHERE payment_status IN ('paid', 'vip-comp')");
         return { expected: (total && total.c) || 0, scanned: (scanned && scanned.c) || 0, label_hr: 'Gosti na ulazu' };
     }
 
