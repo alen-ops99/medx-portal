@@ -1157,7 +1157,8 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     * { margin:0; padding:0; box-sizing:border-box; }
     body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif; color:#e2e8f0; padding:32px 16px; }
     /* Wide on desktop (was a fixed 640px strip — that's why it didn't use desktop space). */
-    .container { max-width:1040px; margin:0 auto; }
+    .container { max-width:1080px; margin:0 auto; }
+    @media (min-width:1280px) { .container { max-width:1200px; } }
     .logo { text-align:center; margin-bottom:24px; }
     .logo img { height:38px; width:auto; display:inline-block; filter:brightness(0) invert(1); }
     .logo span { font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px; }
@@ -1350,19 +1351,16 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
 
         const cardConference = `<div class="event-option evt-conference" data-key="conference" data-price="0" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
-            <div class="event-icon"><i class="fas fa-dna"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">${escapeHtml(confTitle)}</span><span class="event-price free">FREE</span></div>
             ${evtHead(confStatus, confDate)}
             <div class="event-meta">${formatRichText(confDesc)}</div></div></div>`;
         const cardBridges = `<div class="event-option evt-bridges" data-key="bridges" data-price="0" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
-            <div class="event-icon"><i class="fas fa-handshake-angle"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">${escapeHtml(bridgesTitle)}</span><span class="event-price free">FREE</span></div>
             ${evtHead(bridgesStatus, bridgesDate)}
             <div class="event-meta">${formatRichText(bridgesDesc)}</div></div></div>`;
         const cardGala = `<div class="event-option evt-gala" data-key="gala" data-price="${galaPrice}" onclick="plexToggle(this)">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
-            <div class="event-icon"><i class="fas fa-champagne-glasses"></i></div>
             <div class="event-body"><div class="event-title-row"><span class="event-name">${escapeHtml(galaTitle)}</span><span class="event-price">${galaPriceLabel}</span></div>
             ${evtHead(galaStatus, galaDate)}
             <div class="event-meta">${formatRichText(galaDesc)}</div></div></div>`;
@@ -3404,7 +3402,6 @@ app.get('/invite/:data', async (req, res) => {
 
         <div class="event-option evt-conf" id="evtConference" data-event="conference" onclick="toggleEvent('conference')">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
-            <div class="event-icon"><i class="fas fa-microscope"></i></div>
             <div style="flex:1;min-width:0;">
                 <div class="event-title-row">
                     <span class="event-name">Plexus Conference</span>
@@ -3417,7 +3414,6 @@ app.get('/invite/:data', async (req, res) => {
 
         <div class="event-option evt-bridges" id="evtBridges" data-event="bridges" onclick="toggleEvent('bridges')">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
-            <div class="event-icon"><i class="fas fa-handshake"></i></div>
             <div style="flex:1;min-width:0;">
                 <div class="event-title-row">
                     <span class="event-name">Croatian Biomedical Bridges</span>
@@ -3430,7 +3426,6 @@ app.get('/invite/:data', async (req, res) => {
 
         <div class="event-option evt-gala" id="evtGala" data-event="gala" onclick="toggleEvent('gala')">
             <div class="event-checkbox"><i class="fas fa-check"></i></div>
-            <div class="event-icon"><i class="fas fa-glass-cheers"></i></div>
             <div style="flex:1;min-width:0;">
                 <div class="event-title-row">
                     <span class="event-name">Plexus Gala Evening</span>
