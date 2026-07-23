@@ -12640,7 +12640,7 @@ President, Med&amp;X</textarea>
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
                             <i class="fas fa-utensils" style="color:#9b1b22; font-size:18px;"></i>
                             <span style="font-size:16px; font-weight:700;">Dinner headcount for the caterer</span>
-                            <span style="font-size:11px; color:var(--text-muted); font-weight:600;">confirmed guests (some unpaid) · read-only</span>
+                            <span style="font-size:11px; color:var(--text-muted); font-weight:600;">confirmed guests incl. plus-ones (some unpaid) · read-only</span>
                         </div>
                         <div id="galaCateringLine" style="font-size:22px; font-weight:700; color:var(--text-primary); line-height:1.4;">—</div>
                         <div id="galaAllergyDetail" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--border); font-size:13px; color:var(--text-secondary); line-height:1.7;"></div>
@@ -17542,11 +17542,15 @@ President, Med&amp;X</textarea>
                     }
                     const plexusMap = {}; (trends.plexus || []).forEach(r => { plexusMap[r.date] = r.count; });
                     const accMap = {}; (trends.accelerator || []).forEach(r => { accMap[r.date] = r.count; });
+                    // Combined event sign-ups (Gala + Bridges/Donor + Croatians Abroad + Forum
+                    // events + sign-up forms) so a real Gala booking shows on the trend line.
+                    const evMap = {}; (trends.events || []).forEach(r => { evMap[r.date] = r.count; });
 
                     // Series: which lines to draw for the current filter.
                     const series = [];
                     if (filter === 'all' || filter === 'plexus') series.push({ label: 'Plexus registrations', color: '#9b1b22', map: plexusMap });
                     if (filter === 'all' || filter === 'accelerator') series.push({ label: 'Accelerator applications', color: '#b06a1f', map: accMap });
+                    if (filter === 'all' || filter === 'events') series.push({ label: 'Event registrations', color: '#0369a1', map: evMap });
 
                     // Cumulative totals per series along the axis.
                     let grandTotal = 0, peak = 1;
@@ -40007,8 +40011,16 @@ By applying to this program, I give the following consents:
                 if (paidOnlyEl) paidOnlyEl.textContent = paidCount;
                 const revEl = document.getElementById('galaStatPaidRevenue');
                 if (revEl) revEl.textContent = '· ' + eur(revenue);
+                // Head count of the confirmed room = bookings + their plus-one guests. Shown next
+                // to "confirmed" so the true number of people (not bookings) is visible at a glance.
+                const attendingPeople = this.registrations
+                    .filter(r => r.payment_status === 'paid' || r.status === 'confirmed')
+                    .reduce((s, r) => s + 1 + (Number(r.guest_count) || 0), 0);
                 const summaryEl = document.getElementById('galaSummaryLine');
-                if (summaryEl) summaryEl.textContent = `${total} request${total === 1 ? '' : 's'} · ${paid} confirmed · ${paidCount} paid · ${eur(revenue)} collected`;
+                if (summaryEl) {
+                    const peopleNote = attendingPeople !== paid ? ` (${attendingPeople} people incl. guests)` : '';
+                    summaryEl.textContent = `${total} request${total === 1 ? '' : 's'} · ${paid} confirmed${peopleNote} · ${paidCount} paid · ${eur(revenue)} collected`;
+                }
 
                 // Catering headline + attendance (items 5 & 6) — read-only, from dietary/checked_in.
                 this.updateCateringAndAttendance();
@@ -40047,9 +40059,13 @@ By applying to this program, I give the following consents:
                 let offMenu = 0, allergies = 0;
                 const allergyDetails = [];
                 attending.forEach(r => {
+                    // A booking with guest_count=N feeds N+1 mouths. Plus-ones have no separate
+                    // dietary record, so they share the registrant's meal choice — the caterer
+                    // head count must still count them (this was under-counting the dinner).
+                    const party = 1 + (Number(r.guest_count) || 0);
                     const m = this.classifyMeal(r);
-                    if (m.offMenu) offMenu++;
-                    else mealCounts[m.label] = (mealCounts[m.label] || 0) + 1;
+                    if (m.offMenu) offMenu += party;
+                    else mealCounts[m.label] = (mealCounts[m.label] || 0) + party;
                     const extra = (String(r.dietary || '') + ' ' + String(r.requests || '')).toLowerCase();
                     if (/allerg|gluten|coeliac|celiac|lactose|nut allergy|peanut|shellfish|dairy-free|dairy free|halal|kosher/.test(extra)) {
                         allergies++;
@@ -40084,11 +40100,17 @@ By applying to this program, I give the following consents:
                 // Keep an already-open detail panel in sync after a data refresh.
                 const detailEl = document.getElementById('galaAllergyDetail');
                 if (detailEl && detailEl.style.display === 'block') { detailEl.style.display = 'none'; this.toggleAllergyDetail(); }
-                const checkedIn = attending.filter(r => r.checked_in == 1 || r.checked_in === true).length;
+                // Head count, not booking count: each checked-in booking admits its plus-ones on
+                // the same QR, so "checked in" and "yet to arrive" are people (1 + guest_count).
+                const partyOf = (r) => 1 + (Number(r.guest_count) || 0);
+                const attendingPeople = attending.reduce((s, r) => s + partyOf(r), 0);
+                const checkedIn = attending
+                    .filter(r => r.checked_in == 1 || r.checked_in === true)
+                    .reduce((s, r) => s + partyOf(r), 0);
                 const ci = document.getElementById('galaStatCheckedIn');
                 const ta = document.getElementById('galaStatToArrive');
                 if (ci) ci.textContent = checkedIn;
-                if (ta) ta.textContent = Math.max(0, attending.length - checkedIn);
+                if (ta) ta.textContent = Math.max(0, attendingPeople - checkedIn);
             },
 
             // Expand the caterer allergy count into the specific allergens per guest (item 14).
