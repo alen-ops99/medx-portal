@@ -665,10 +665,10 @@ function formatRichText(str) {
 // registration/invite pages. Kept as a static list here because gala_settings only
 // models a single keynote; this supersedes that single card without a schema change.
 const GALA_KEYNOTES_2026 = [
-    { name: 'Lord Smith of Finsbury (Chris Smith)', role: 'Chancellor, University of Cambridge', place: 'United Kingdom', img: '/assets/gala/gala_keynote_smith_finsbury.jpg' },
-    { name: 'Marcela del Carmen, MD', role: 'President, Massachusetts General Hospital', place: 'United States', img: '/assets/gala/gala_keynote_delcarmen.jpg' },
-    { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', place: 'United States', img: '/assets/gala/gala_keynote_spisso.jpg' },
-    { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada', img: '/assets/gala/gala_keynote_kevin_smith.jpg' }
+    { name: 'Lord Smith of Finsbury (Chris Smith)', role: 'Chancellor, University of Cambridge', place: 'United Kingdom', img: '/assets/gala/kn512_smith_finsbury.jpg' },
+    { name: 'Marcela del Carmen, MD', role: 'President, Massachusetts General Hospital', place: 'United States', img: '/assets/gala/kn512_delcarmen.jpg' },
+    { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', place: 'United States', img: '/assets/gala/kn512_spisso.jpg' },
+    { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada', img: '/assets/gala/kn512_kevin_smith.jpg' }
 ];
 // Fully self-contained (inline styles only) so it renders identically on every public
 // surface — the /plexus page, the croatians-abroad invite, and the gala invite — none of
@@ -679,7 +679,7 @@ function galaKeynoteBlock() {
     // fills the whole circle (no gap inside the ring); object-position:center top keeps faces framed.
     const cards = GALA_KEYNOTES_2026.map(k => `
             <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:16px 12px;background:rgba(255,255,255,0.025);border:1px solid rgba(201,169,98,0.16);border-radius:14px;">
-                <img src="${k.img}" alt="${escapeHtml(k.name)}" loading="lazy" style="width:106px;height:106px;border-radius:50%;object-fit:cover;object-position:center top;border:3px solid #c9a962;background:#1e293b;display:block;box-shadow:0 4px 14px rgba(0,0,0,0.28);" onerror="this.style.visibility='hidden'">
+                <img src="${k.img}" alt="${escapeHtml(k.name)}" loading="lazy" style="width:90px;height:90px;border-radius:50%;object-fit:cover;object-position:center;border:3px solid #c9a962;background:#1e293b;display:block;box-shadow:0 4px 14px rgba(0,0,0,0.28);" onerror="this.style.visibility='hidden'">
                 <div style="font-size:14.5px;font-weight:600;color:#fff;line-height:1.25;margin-top:13px;">${escapeHtml(k.name)}</div>
                 <div style="font-size:12px;font-style:italic;color:#e8c97a;margin-top:4px;line-height:1.4;">${escapeHtml(k.role)}${k.place ? '<br>' + escapeHtml(k.place) : ''}</div>
             </div>`).join('');
@@ -688,8 +688,8 @@ function galaKeynoteBlock() {
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:12px;">${cards}</div>
             <div style="margin-top:16px;padding-top:15px;border-top:1px solid rgba(201,169,98,0.18);display:flex;gap:14px;align-items:center;justify-content:center;">
                 <div style="display:flex;align-items:center;">
-                    <img src="/assets/gala/gala_perform_singer.jpg" alt="Tatiana Cameron" loading="lazy" style="width:58px;height:58px;border-radius:50%;object-fit:cover;object-position:center top;border:2.5px solid #c9a962;background:#1e293b;" onerror="this.style.visibility='hidden'">
-                    <img src="/assets/gala/gala_perform_guitarist.jpg" alt="Ante Gelo" loading="lazy" style="width:58px;height:58px;border-radius:50%;object-fit:cover;object-position:center top;border:2.5px solid #c9a962;background:#1e293b;margin-left:-18px;" onerror="this.style.visibility='hidden'">
+                    <img src="/assets/gala/mus512_singer.jpg" alt="Tatiana Cameron" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:#1e293b;" onerror="this.style.visibility='hidden'">
+                    <img src="/assets/gala/mus512_guitarist.jpg" alt="Ante Gelo" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:#1e293b;margin-left:-16px;" onerror="this.style.visibility='hidden'">
                 </div>
                 <div>
                     <div style="${label}margin-bottom:3px;">Live Music</div>
