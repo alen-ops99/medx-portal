@@ -5,6 +5,8 @@
   "scripts": {
     "smoke": "node tests/smoke.js",
     "smoke:local": "MEDX_BASE_URL=http://localhost:2011 MEDX_ADMIN_URL=http://localhost:2012 node tests/smoke.js",
-    "test:member-card": "node tests/member-card-toggle.test.js"
+    "test:member-card": "node tests/member-card-toggle.test.js",
+    "test:wallet": "node tests/wallet-checkin.test.js",
+    "test:wallet-ui": "python3 tests/wallet-checkin-ui.py"
   }
 }

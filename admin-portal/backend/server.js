@@ -13,6 +13,7 @@ const fs = require('fs');
 const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
+const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
@@ -2943,6 +2944,10 @@ async function initializeApp() {
         early_bird_deadline TEXT, regular_deadline TEXT, abstract_deadline TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Google Wallet event-ticket class id for this conference (get-or-created on demand; the approved
+    // Plexus Week 2026 class is reused verbatim). Declared identically in the user portal. Outside the
+    // SCHEMA-MIRROR block, so not sync-checked — kept in step by hand.
+    try { db.run('ALTER TABLE conferences ADD COLUMN wallet_class_id TEXT'); } catch(e) {}
 
     db.run(`CREATE TABLE IF NOT EXISTS ticket_types (
         id TEXT PRIMARY KEY, conference_id TEXT, name TEXT, name_hr TEXT,
@@ -2971,6 +2976,15 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
     try { db.run('ALTER TABLE registrations ADD COLUMN package_items TEXT'); } catch(e) {}
+    // Non-guessable admission credential (crypto 48-hex). This — NOT the reg UUID or ticket_qr_code —
+    // is what every ticket format (Google Wallet, future Apple .pkpass, printed/email QR) encodes as
+    // its barcode, and what the door scanner resolves. Backfilled below. Mirrored in the user portal.
+    try { db.run('ALTER TABLE registrations ADD COLUMN checkin_token TEXT'); } catch(e) {}
+    try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_registrations_checkin_token ON registrations(checkin_token) WHERE checkin_token IS NOT NULL'); } catch(e) {}
+    // Ticket revocation (door reject + Google Wallet object → INACTIVE). Separate from `status` so it
+    // doesn't perturb finance/registration semantics. Mirrored in the user portal.
+    try { db.run('ALTER TABLE registrations ADD COLUMN revoked INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE registrations ADD COLUMN revoked_at TEXT'); } catch(e) {}
 
     // ===== Custom questions + denormalized "what they applied for" (shared with user portal via Turso) =====
     try { db.run(`CREATE TABLE IF NOT EXISTS event_custom_fields (
@@ -4424,6 +4438,80 @@ async function initializeApp() {
         updated_at TEXT
     )`);
     // ====================== SCHEMA-MIRROR:END ======================
+
+    // ====================== UNIFIED PER-EVENT CHECK-IN + WALLET (admin-only) ======================
+    // These three tables live OUTSIDE the SCHEMA-MIRROR block (admin portal owns the door scanner).
+    //  - checkin_events : the gate list a Plexus Week pass can be scanned at (the scanner's event
+    //    selector + per-gate validity windows for the not-yet-active / expired states).
+    //  - event_checkins : the per-(registration,event) check-in. UNIQUE(reg,event) makes each scan an
+    //    atomic single-winner insert, so two devices can't double-admit the same ticket+event, and
+    //    scanning at Conference never consumes Gala access.
+    //  - checkin_scans  : the append-only audit of EVERY scan attempt (valid/invalid/already/…),
+    //    with the token, attendee, event, admin, device and manual-override info.
+    db.run(`CREATE TABLE IF NOT EXISTS checkin_events (
+        id TEXT PRIMARY KEY,
+        event_key TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        conference_slug TEXT DEFAULT 'plexus-2026',
+        starts_at TEXT, ends_at TEXT,
+        valid_from TEXT, valid_until TEXT,
+        is_active INTEGER DEFAULT 1,
+        sort_order INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now'))
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS event_checkins (
+        id TEXT PRIMARY KEY,
+        registration_id TEXT NOT NULL,
+        event_key TEXT NOT NULL,
+        checkin_token TEXT,
+        checked_in_at TEXT DEFAULT (datetime('now')),
+        admin_id TEXT, admin_email TEXT,
+        device TEXT,
+        method TEXT DEFAULT 'qr',
+        override_reason TEXT,
+        UNIQUE(registration_id, event_key)
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS checkin_scans (
+        id TEXT PRIMARY KEY,
+        token TEXT, registration_id TEXT, event_key TEXT,
+        result TEXT,
+        method TEXT DEFAULT 'qr',
+        admin_id TEXT, admin_email TEXT,
+        device TEXT,
+        is_override INTEGER DEFAULT 0, override_reason TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+    )`);
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_event_checkins_reg ON event_checkins(registration_id)'); } catch(e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_checkin_scans_reg ON checkin_scans(registration_id, created_at)'); } catch(e) {}
+
+    // Seed the four Plexus Week 2026 gates (idempotent by event_key). starts_at/ends_at are the event
+    // schedule (they drive the scanner's default-gate selection by date). valid_from/valid_until are the
+    // OPTIONAL scan-enforcement window and are intentionally left NULL by default: a gate always admits
+    // until the owner explicitly sets a window, so a stale/future date can never lock out the real door.
+    // The owner opts into the not-yet-active / expired states per gate via PUT /api/admin/checkin/events.
+    const _seedGates = [
+        ['conference', 'Plexus Week — Conference', '2026-12-04T08:00:00', '2026-12-05T20:00:00', 1],
+        ['gala',       'Plexus Gala Evening',      '2026-12-05T19:00:00', '2026-12-05T23:59:00', 2],
+        ['donor',      'Plexus Donor Night',       '2026-12-04T19:00:00', '2026-12-04T23:00:00', 3],
+        ['bridges',    'Building Bridges',         null, null, 4]
+    ];
+    for (const g of _seedGates) {
+        try {
+            if (!query.get('SELECT 1 x FROM checkin_events WHERE event_key = ?', [g[0]])) {
+                db.run(`INSERT INTO checkin_events (id, event_key, label, starts_at, ends_at, sort_order)
+                        VALUES (?,?,?,?,?,?)`, [require('crypto').randomUUID(), g[0], g[1], g[2], g[3], g[4]]);
+            }
+        } catch(e) { /* one gate failing never blocks boot */ }
+    }
+
+    // Backfill the crypto admission token for every existing registration missing one (one-time; NULL-only).
+    try {
+        const _needTok = query.all("SELECT id FROM registrations WHERE checkin_token IS NULL OR checkin_token = ''");
+        for (const r of _needTok) {
+            db.run('UPDATE registrations SET checkin_token = ? WHERE id = ?', [require('crypto').randomBytes(24).toString('hex'), r.id]);
+        }
+        if (_needTok.length) { saveDb(); console.log('[checkin] backfilled ' + _needTok.length + ' registration token(s)'); }
+    } catch(e) { console.error('[checkin] token backfill skipped:', e.message); }
 
     // ====================== CME / HLK ACCREDITATION (queue 5a5c) ======================
     // Croatian Medical Chamber (Hrvatska liječnička komora / HLK) CME accreditation. These two
@@ -10549,6 +10637,10 @@ async function initializeApp() {
                  early_bird_deadline || null, regular_deadline || null]);
             saveDb();
             logAudit(req, 'conference.create', `${name} (${year}) [${cleanSlug}]`);
+            // Event-agnostic Google Wallet: derive the deterministic class id now (the approved Plexus
+            // Week class is reused; any other event mints <ISSUER>.<slug>) and get-or-create it in Google
+            // in the background — no console visit, never blocks conference creation.
+            ensureWalletClassForConference(id, { fireAndForget: true });
             res.json({ success: true, id, slug: cleanSlug });
         } catch (e) { console.error('[Conf] create failed:', e.message); res.status(500).json({ error: e.message }); }
     });
@@ -30455,6 +30547,372 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             var result = performCarryover(src, ans, req);
             res.json(Object.assign({ success: true }, result));
         } catch (e) { console.error('[editions] carryover', e.message); res.status(500).json({ error: e.message }); }
+    });
+
+    // ================= UNIFIED PER-EVENT TICKET CHECK-IN (token + Google Wallet) =================
+    // Additive layer over the existing scanner: the EventCheckin modal calls these. The FROZEN
+    // /api/admin/checkin/verify below is left untouched. Every legacy QR format still resolves here.
+
+    function newCheckinToken() { return require('crypto').randomBytes(24).toString('hex'); }
+
+    function ensureRegToken(reg) {
+        if (reg && reg.checkin_token) return reg.checkin_token;
+        const tok = newCheckinToken();
+        db.run('UPDATE registrations SET checkin_token = ? WHERE id = ?', [tok, reg.id]); saveDb();
+        reg.checkin_token = tok;
+        return tok;
+    }
+
+    // Resolve a scanned string to a registrations row. Accepts the new checkin_token AND every legacy
+    // format (raw uuid, JSON {id|reg_id|regId}, "MEDX:"+uuid, /qr/<uuid>.png, dashless short prefix)
+    // so printed/email/Apple tickets keep working — all resolve to the same record + token.
+    function resolveRegFromCode(code) {
+        if (!code && code !== 0) return null;
+        const s = String(code).trim();
+        if (!s) return null;
+        let reg = query.get('SELECT * FROM registrations WHERE checkin_token = ?', [s]);
+        if (reg) return reg;
+        if (s[0] === '{') {
+            try { const j = JSON.parse(s); const id = j.id || j.reg_id || j.regId;
+                if (id) { reg = query.get('SELECT * FROM registrations WHERE id = ?', [String(id)]); if (reg) return reg; } } catch (e) {}
+        }
+        const m = s.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
+        if (m) { reg = query.get('SELECT * FROM registrations WHERE id = ?', [m[1]]); if (reg) return reg; }
+        const norm = s.toLowerCase().replace(/[^0-9a-f]/g, '');
+        if (norm.length >= 4 && norm.length <= 32) {
+            reg = query.get("SELECT * FROM registrations WHERE replace(lower(id),'-','') LIKE ? ORDER BY created_at DESC LIMIT 1", [norm + '%']);
+            if (reg) return reg;
+        }
+        return null;
+    }
+
+    // The events a registration is permitted to enter (drives the wallet "included events" field and
+    // the wrong-event rejection). Conference always; others by includes_gala / a matching reg by email.
+    function passAccess(reg) {
+        const set = new Set(['conference']);
+        let email = (reg.email || '').toLowerCase();
+        if (!email && reg.user_id) { try { const u = query.get('SELECT email FROM users WHERE id=?', [reg.user_id]); if (u && u.email) email = u.email.toLowerCase(); } catch (e) {} }
+        try { if (Number(reg.includes_gala)) set.add('gala'); } catch (e) {}
+        if (email) {
+            try { if (query.get('SELECT 1 x FROM gala_registrations WHERE lower(email)=? LIMIT 1', [email])) set.add('gala'); } catch (e) {}
+            try { if (query.get('SELECT 1 x FROM bridges_registrations WHERE lower(email)=? LIMIT 1', [email])) set.add('bridges'); } catch (e) {}
+            try {
+                const ca = query.get('SELECT selected_gala, selected_bridges FROM croatians_abroad_registrations WHERE lower(email)=? ORDER BY created_at DESC LIMIT 1', [email]);
+                if (ca) { if (Number(ca.selected_gala)) set.add('gala'); if (Number(ca.selected_bridges)) set.add('bridges'); }
+            } catch (e) {}
+        }
+        return set;
+    }
+
+    function galaTableFor(email) {
+        if (!email) return null;
+        try {
+            const ta = query.get('SELECT table_no FROM gala_table_assignments WHERE lower(email)=lower(?) ORDER BY updated_at DESC LIMIT 1', [email]);
+            if (ta && String(ta.table_no || '').trim()) { const raw = String(ta.table_no).trim(); return /^\d+$/.test(raw) ? ('Stol ' + raw) : raw; }
+        } catch (e) {}
+        return null;
+    }
+
+    function gateWindowState(gate) {
+        const now = Date.now();
+        if (gate && gate.valid_from) { const t = Date.parse(gate.valid_from); if (!isNaN(t) && now < t) return 'not_active'; }
+        if (gate && gate.valid_until) { const t = Date.parse(gate.valid_until); if (!isNaN(t) && now > t) return 'expired'; }
+        return 'ok';
+    }
+
+    function recordScan(o) {
+        try {
+            db.run(`INSERT INTO checkin_scans (id, token, registration_id, event_key, result, method, admin_id, admin_email, device, is_override, override_reason)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+                [require('crypto').randomUUID(), o.token || null, o.registration_id || null, o.event_key || null, o.result || null,
+                 o.method || 'qr', o.admin_id || null, o.admin_email || null, o.device || null, o.is_override ? 1 : 0, o.override_reason || null]);
+            saveDb();
+        } catch (e) { console.error('[checkin] audit write failed:', e.message); }
+    }
+
+    // Rich display bag the scanner shows (name, photo, reg no, category, events, gala table, per-event state).
+    function enrichReg(reg) {
+        const u = reg.user_id ? query.get('SELECT first_name,last_name,email,photo_url FROM users WHERE id=?', [reg.user_id]) : null;
+        const name = (((reg.first_name || (u && u.first_name) || '') + ' ' + (reg.last_name || (u && u.last_name) || '')).trim()) || 'Guest';
+        const email = reg.email || (u && u.email) || '';
+        const tt = reg.ticket_type_id ? query.get('SELECT name FROM ticket_types WHERE id=?', [reg.ticket_type_id]) : null;
+        const done = {};
+        try { for (const ec of query.all('SELECT event_key, checked_in_at, admin_email, device, method FROM event_checkins WHERE registration_id=?', [reg.id])) done[ec.event_key] = ec; } catch (e) {}
+        return {
+            registration_id: reg.id,
+            name, email,
+            photo_url: (u && u.photo_url) || null,
+            registration_number: reg.invoice_number || String(reg.id).slice(0, 8).toUpperCase(),
+            access_category: (tt && tt.name) || reg.registration_type || 'General',
+            status: reg.status, payment_status: reg.payment_status, revoked: !!Number(reg.revoked || 0),
+            events: [...passAccess(reg)],
+            gala_table: galaTableFor(email),
+            checkins: done
+        };
+    }
+
+    // ---- Google Wallet provisioning (server-side only; env-gated; fire-and-forget) ----
+    function walletBaseOrigin() {
+        return (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+    }
+    function eventLabelMap(k) { return ({ conference: 'Conference', gala: 'Gala Evening', donor: 'Donor Night', bridges: 'Building Bridges' })[k] || k; }
+
+    function ensureWalletClassForConference(confId, opts) {
+        opts = opts || {};
+        try {
+            const conf = query.get('SELECT * FROM conferences WHERE id = ?', [confId]);
+            if (!conf || !wallet.isConfigured()) return null;
+            const classId = wallet.classIdFor(conf.slug);
+            if (!classId) return null;
+            if (conf.wallet_class_id !== classId) { db.run('UPDATE conferences SET wallet_class_id = ? WHERE id = ?', [classId, confId]); saveDb(); }
+            const origin = walletBaseOrigin();
+            const classBody = wallet.buildEventTicketClass({
+                classId, issuerName: 'Med&X', eventName: conf.name || 'Med&X Event',
+                venue: [conf.venue_name, conf.venue_city].filter(Boolean).join(', ') || null,
+                startISO: conf.start_date ? (conf.start_date + 'T00:00:00Z') : null,
+                endISO: conf.end_date ? (conf.end_date + 'T23:59:00Z') : null,
+                logoUri: origin + '/assets/images/medx-logo.png',
+                hexBackgroundColor: '#14100d', homepageUri: origin
+            });
+            const run = () => wallet.ensureEventClass(classBody)
+                .then(r => console.log('[wallet] class ' + (r.created ? 'created' : 'exists') + ': ' + classId))
+                .catch(err => console.error('[wallet] ensureClass failed:', err.message));
+            if (opts.fireAndForget) { Promise.resolve().then(run); return classId; }
+            return run().then(() => classId);
+        } catch (e) { console.error('[wallet] ensureWalletClassForConference:', e.message); return null; }
+    }
+
+    function buildWalletBagForReg(reg) {
+        const info = enrichReg(reg);
+        const conf = reg.conference_id ? query.get('SELECT * FROM conferences WHERE id = ?', [reg.conference_id]) : null;
+        const slug = (conf && conf.slug) || 'plexus-2026';
+        const classId = (conf && conf.wallet_class_id) || wallet.classIdFor(slug);
+        const token = ensureRegToken(reg);
+        const statusLabel = Number(reg.revoked) ? 'Revoked'
+            : (reg.payment_status === 'paid' ? 'Paid' : (!Number(reg.amount_paid || 0) ? 'Confirmed' : 'Payment pending'));
+        return {
+            objectId: wallet.objectIdFor(reg.id), classId, token,
+            name: info.name, registrationNumber: info.registration_number, category: info.access_category,
+            events: (info.events || []).map(eventLabelMap),
+            galaTable: info.gala_table, statusLabel,
+            state: Number(reg.revoked) ? 'INACTIVE' : 'ACTIVE',
+            logoUri: walletBaseOrigin() + '/assets/images/medx-logo.png', hexBackgroundColor: '#14100d'
+        };
+    }
+
+    function provisionWalletObjectForReg(reg, opts) {
+        opts = opts || {};
+        if (!wallet.isConfigured()) return null;
+        try {
+            if (reg.conference_id) {
+                const conf = query.get('SELECT id, wallet_class_id FROM conferences WHERE id=?', [reg.conference_id]);
+                if (conf && !conf.wallet_class_id) ensureWalletClassForConference(conf.id, { fireAndForget: true });
+            }
+            const bag = buildWalletBagForReg(reg);
+            const obj = wallet.buildEventTicketObject(bag);
+            const run = () => wallet.ensureEventObject(obj).catch(err => console.error('[wallet] ensureObject failed:', err.message));
+            if (opts.fireAndForget) { Promise.resolve().then(run); return bag; }
+            return run().then(() => bag);
+        } catch (e) { console.error('[wallet] provisionWalletObjectForReg:', e.message); return null; }
+    }
+
+    // Preselect the gate for the scanner by SCHEDULE (starts_at/ends_at): the one happening now, else
+    // the nearest upcoming, else the lowest sort order. Independent of the optional enforcement window.
+    function defaultGateKey(gates) {
+        const now = Date.now();
+        const H = 3 * 3600 * 1000;
+        const dated = gates.filter(g => g.starts_at && !isNaN(Date.parse(g.starts_at)));
+        const activeNow = dated.filter(g => {
+            const s = Date.parse(g.starts_at); const e = g.ends_at && !isNaN(Date.parse(g.ends_at)) ? Date.parse(g.ends_at) : s + 12 * 3600 * 1000;
+            return now >= s - H && now <= e + H;
+        });
+        if (activeNow.length) return activeNow.sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0].event_key;
+        const upcoming = dated.filter(g => Date.parse(g.starts_at) > now).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+        if (upcoming.length) return upcoming[0].event_key;
+        return gates.length ? gates.slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))[0].event_key : 'conference';
+    }
+
+    // GET the scanner's event/gate list + the default gate (staff or admin).
+    app.get('/api/admin/checkin/events', auth, staffOrAdmin, (req, res) => {
+        try {
+            const gates = query.all('SELECT * FROM checkin_events WHERE is_active = 1 ORDER BY sort_order, label');
+            const out = gates.map(g => ({
+                event_key: g.event_key, label: g.label,
+                starts_at: g.starts_at, ends_at: g.ends_at,
+                window_state: gateWindowState(g)
+            }));
+            res.json({ events: out, default_event: defaultGateKey(gates) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Upsert a gate (owner manages the scanner event list + validity windows). Admin only.
+    app.put('/api/admin/checkin/events/:key', auth, adminOnly, (req, res) => {
+        try {
+            const key = String(req.params.key || '').trim();
+            if (!key) return res.status(400).json({ error: 'event_key required' });
+            const b = req.body || {};
+            const existing = query.get('SELECT * FROM checkin_events WHERE event_key = ?', [key]);
+            const val = (k, fb) => (b[k] !== undefined ? b[k] : fb);
+            if (existing) {
+                db.run(`UPDATE checkin_events SET label=?, starts_at=?, ends_at=?, valid_from=?, valid_until=?, is_active=?, sort_order=? WHERE event_key=?`,
+                    [val('label', existing.label), val('starts_at', existing.starts_at), val('ends_at', existing.ends_at),
+                     val('valid_from', existing.valid_from), val('valid_until', existing.valid_until),
+                     b.is_active !== undefined ? (b.is_active ? 1 : 0) : existing.is_active,
+                     b.sort_order !== undefined ? (parseInt(b.sort_order) || 0) : existing.sort_order, key]);
+            } else {
+                db.run(`INSERT INTO checkin_events (id, event_key, label, starts_at, ends_at, valid_from, valid_until, is_active, sort_order)
+                        VALUES (?,?,?,?,?,?,?,?,?)`,
+                    [require('crypto').randomUUID(), key, b.label || key, b.starts_at || null, b.ends_at || null,
+                     b.valid_from || null, b.valid_until || null, b.is_active === false ? 0 : 1, parseInt(b.sort_order) || 0]);
+            }
+            saveDb();
+            res.json({ success: true, event_key: key });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Resolve/preview a scanned code WITHOUT marking (for the pre-admit display).
+    app.get('/api/admin/checkin/resolve', auth, staffOrAdmin, (req, res) => {
+        try {
+            const reg = resolveRegFromCode(req.query.code);
+            if (!reg) return res.json({ found: false });
+            res.json({ found: true, ticket: enrichReg(reg) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // THE unified per-event check-in. Body: { code, event, mark=true, method='qr', device, override, override_reason }.
+    // Returns a clear result: valid | already_checked_in | invalid | revoked | wrong_event | not_active | expired.
+    app.post('/api/admin/checkin/ticket', auth, staffOrAdmin, (req, res) => {
+        try {
+            const b = req.body || {};
+            const eventKey = String(b.event || '').trim();
+            const method = b.method === 'manual' ? 'manual' : 'qr';
+            const device = (b.device ? String(b.device).slice(0, 120) : (req.headers['user-agent'] || '').slice(0, 120)) || null;
+            const override = !!b.override;
+            const overrideReason = b.override_reason ? String(b.override_reason).slice(0, 300) : null;
+            const mark = b.mark !== false; // default true
+            const adminId = req.user.id, adminEmail = req.user.email;
+
+            const gate = query.get('SELECT * FROM checkin_events WHERE event_key = ? AND is_active = 1', [eventKey]);
+            if (!gate) return res.status(400).json({ valid: false, result: 'bad_event', message: 'Unknown or inactive event: ' + eventKey });
+
+            const reg = resolveRegFromCode(b.code);
+            const respond = (result, message, extra) => {
+                recordScan({ token: reg ? reg.checkin_token : (b.code || null), registration_id: reg ? reg.id : null, event_key: eventKey, result, method, admin_id: adminId, admin_email: adminEmail, device, is_override: override, override_reason: overrideReason });
+                res.json(Object.assign({ valid: result === 'valid', result, message, event: eventKey, event_label: gate.label }, extra || {}));
+            };
+
+            if (!reg) return respond('invalid', 'Invalid ticket — no matching registration.', {});
+            const ticket = enrichReg(reg);
+
+            if (Number(reg.revoked)) return respond('revoked', 'Cancelled or revoked — do NOT admit.', { ticket });
+            if (String(reg.status || '').toLowerCase() === 'cancelled') return respond('revoked', 'Cancelled or revoked — do NOT admit.', { ticket });
+
+            if (!override) {
+                if (!passAccess(reg).has(eventKey)) return respond('wrong_event', 'Not valid for ' + gate.label + '.', { ticket });
+                const w = gateWindowState(gate);
+                if (w === 'not_active') return respond('not_active', gate.label + ' check-in is not open yet.', { ticket });
+                if (w === 'expired') return respond('expired', gate.label + ' check-in has closed.', { ticket });
+            }
+
+            // Already-checked-in preview or non-marking resolve.
+            const existing = query.get('SELECT * FROM event_checkins WHERE registration_id = ? AND event_key = ?', [reg.id, eventKey]);
+            if (existing) {
+                return respond('already_checked_in', 'Already checked in for ' + gate.label + '.', {
+                    ticket, checked_in_at: existing.checked_in_at, checked_in_by: existing.admin_email, checked_in_device: existing.device, checked_in_method: existing.method
+                });
+            }
+            if (!mark) {
+                return respond('valid', 'Valid — ready to admit.', { ticket, preview: true });
+            }
+
+            // Atomic single-winner insert: UNIQUE(registration_id, event_key) guarantees exactly one of two
+            // concurrent scans succeeds. getRowsModified()===1 means WE admitted; 0 means someone just did.
+            const tok = ensureRegToken(reg);
+            const cid = require('crypto').randomUUID();
+            db.run(`INSERT OR IGNORE INTO event_checkins (id, registration_id, event_key, checkin_token, admin_id, admin_email, device, method, override_reason)
+                    VALUES (?,?,?,?,?,?,?,?,?)`, [cid, reg.id, eventKey, tok, adminId, adminEmail, device, method, overrideReason]);
+            const won = db.getRowsModified() === 1;
+            saveDb();
+            if (!won) {
+                const ex = query.get('SELECT * FROM event_checkins WHERE registration_id = ? AND event_key = ?', [reg.id, eventKey]);
+                return respond('already_checked_in', 'Already checked in for ' + gate.label + '.', {
+                    ticket, checked_in_at: ex && ex.checked_in_at, checked_in_by: ex && ex.admin_email, checked_in_device: ex && ex.device, checked_in_method: ex && ex.method
+                });
+            }
+            // Compatibility mirror: the conference gate also flips the legacy registrations.checked_in flag.
+            if (eventKey === 'conference') {
+                try { db.run('UPDATE registrations SET checked_in = 1, checked_in_at = COALESCE(checked_in_at, ?) WHERE id = ?', [new Date().toISOString(), reg.id]); saveDb(); } catch (e) {}
+            }
+            const fresh = query.get('SELECT * FROM event_checkins WHERE id = ?', [cid]);
+            return respond('valid', 'Valid — admit to ' + gate.label + '.', {
+                ticket, checked_in_at: fresh && fresh.checked_in_at, checked_in_by: adminEmail, is_override: override
+            });
+        } catch (e) { console.error('[checkin] ticket error:', e); res.status(500).json({ valid: false, result: 'error', error: e.message }); }
+    });
+
+    // Manual lookup (QR won't scan): search by name / email / registration (invoice) number / id prefix.
+    app.get('/api/admin/checkin/lookup', auth, staffOrAdmin, (req, res) => {
+        try {
+            const q = String(req.query.q || '').trim();
+            if (q.length < 2) return res.json({ results: [] });
+            const like = '%' + q.toLowerCase() + '%';
+            const rows = query.all(
+                `SELECT r.* FROM registrations r LEFT JOIN users u ON r.user_id = u.id
+                 WHERE lower(COALESCE(r.email,u.email,'')) LIKE ?
+                    OR lower(COALESCE(r.first_name,u.first_name,'') || ' ' || COALESCE(r.last_name,u.last_name,'')) LIKE ?
+                    OR lower(COALESCE(r.invoice_number,'')) LIKE ?
+                    OR replace(lower(r.id),'-','') LIKE ?
+                 ORDER BY r.created_at DESC LIMIT 25`,
+                [like, like, like, q.toLowerCase().replace(/[^0-9a-f]/g, '') + '%']);
+            res.json({ results: rows.map(enrichReg) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Recent scan audit (admin only).
+    app.get('/api/admin/checkin/audit', auth, adminOnly, (req, res) => {
+        try {
+            const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 100));
+            const rows = query.all('SELECT * FROM checkin_scans ORDER BY created_at DESC LIMIT ?', [limit]);
+            res.json({ scans: rows });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Revoke / restore a ticket. Sets registrations.revoked and PATCHes the Google Wallet object state.
+    app.post('/api/admin/tickets/:id/revoke', auth, adminOnly, (req, res) => {
+        try {
+            const reg = query.get('SELECT * FROM registrations WHERE id = ?', [req.params.id]);
+            if (!reg) return res.status(404).json({ error: 'Registration not found' });
+            const restore = (req.body && req.body.action) === 'restore';
+            db.run('UPDATE registrations SET revoked = ?, revoked_at = ? WHERE id = ?', [restore ? 0 : 1, restore ? null : new Date().toISOString(), reg.id]);
+            saveDb();
+            logAudit(req, restore ? 'ticket.restore' : 'ticket.revoke', reg.id + (req.body && req.body.reason ? ' — ' + req.body.reason : ''));
+            recordScan({ token: reg.checkin_token, registration_id: reg.id, event_key: null, result: restore ? 'restored' : 'revoked', method: 'manual', admin_id: req.user.id, admin_email: req.user.email, is_override: 1, override_reason: (req.body && req.body.reason) || null });
+            // Fire-and-forget: flip the Google Wallet EventTicketObject state (never blocks the revoke).
+            let walletPatch = 'skipped';
+            if (wallet.isConfigured()) {
+                walletPatch = 'queued';
+                Promise.resolve().then(() => wallet.patchObjectState(wallet.objectIdFor(reg.id), restore ? 'ACTIVE' : 'INACTIVE'))
+                    .catch(err => console.error('[wallet] revoke patch failed:', err.message));
+            }
+            res.json({ success: true, revoked: !restore, wallet_patch: walletPatch });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Backfill Google Wallet class + objects for a conference (idempotent; get-or-create). Owner utility.
+    app.post('/api/admin/wallet/provision', auth, adminOnly, (req, res) => {
+        try {
+            if (!wallet.isConfigured()) {
+                return res.json({ configured: false, message: 'Google Wallet is not configured. Set GOOGLE_WALLET_ISSUER_ID and GOOGLE_WALLET_SA_KEY.' });
+            }
+            const confId = (req.body && req.body.conference_id) || null;
+            const conf = confId ? query.get('SELECT * FROM conferences WHERE id=?', [confId]) : getActiveConference();
+            if (!conf) return res.status(404).json({ error: 'Conference not found' });
+            ensureWalletClassForConference(conf.id, { fireAndForget: true });
+            const regs = query.all('SELECT * FROM registrations WHERE conference_id = ?', [conf.id]);
+            let queued = 0;
+            for (const r of regs) { provisionWalletObjectForReg(r, { fireAndForget: true }); queued++; }
+            res.json({ configured: true, conference: conf.slug, class_id: wallet.classIdFor(conf.slug), objects_queued: queued });
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
     // ========== UNIVERSAL EVENT CHECK-IN VERIFY (mirror of user-portal endpoint) ==========
