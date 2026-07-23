@@ -653,6 +653,24 @@ function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// Best-effort mirror of a registration into the Google Sheets staff log — the SAME secondary,
+// fire-and-forget visibility mirror the paid Stripe/invite paths already use. The database is the
+// only source of truth: this is never awaited, only runs AFTER the row is committed, and a failure
+// (or an unset GOOGLE_SHEETS_WEBHOOK) never affects the registration. Centralised here so the
+// registration paths that historically skipped the Sheet — free Forum sign-ups, the Annual Forum
+// (AF26) form, and the direct-link path — get the same coverage as the paid and invite paths
+// without each re-implementing the fetch. `events` drives which sheet tab the row lands in.
+function mirrorToSheets(payload) {
+    try {
+        const webhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+        if (!webhook || !payload) return;
+        fetch(webhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ timestamp: new Date().toISOString(), ...payload }),
+        }).catch((err) => console.warn('[Sync] Sheets mirror POST failed:', err.message));
+    } catch (e) { /* a mirror failure must never block a registration */ }
+}
 // Render admin-typed copy with line breaks + bullets preserved (XSS-safe). Escapes first, then
 // turns newlines into <br> and lines starting with -, *, or • into "• " bullets.
 function formatRichText(str) {
@@ -16894,6 +16912,23 @@ By applying to this program, I provide the following consents:
             db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [event.id]);
             saveDb();
 
+            // Mirror free Forum sign-ups to the staff Sheet (Forum tab). Paid Forum registrations are
+            // finalised in the Stripe webhook, so they are intentionally not mirrored here.
+            if (!isPaid) {
+                mirrorToSheets({
+                    events: ['forum'],
+                    name: name || '',
+                    email: email || '',
+                    institution: institution || '',
+                    event: event.title || 'Med&X Forum',
+                    event_type: 'forum',
+                    applied_for: event.title || 'Forum',
+                    amount: 0,
+                    payment: 'Free',
+                    registration_id: id,
+                });
+            }
+
             // Send confirmation email (non-blocking — registration succeeds even if email fails)
             if (email && !isPaid) {
                 const eventDate = event.start_date
@@ -18082,6 +18117,21 @@ By applying to this program, I provide the following consents:
 
         db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [event.id]);
         saveDb();
+
+        // Mirror the Annual Forum sign-up to the staff Sheet (Forum tab) — this form had no coverage.
+        mirrorToSheets({
+            events: ['forum'],
+            name: `${firstName} ${lastName}`.trim(),
+            email,
+            institution: institution || '',
+            event: 'Annual Forum 2026',
+            event_type: 'forum',
+            applied_for: 'Annual Forum 2026',
+            dietary: dietary || '',
+            amount: 0,
+            payment: 'Free',
+            registration_id: id,
+        });
 
         res.json({ success: true, id, qr_code: qrCode });
     });
@@ -28287,6 +28337,28 @@ By applying to this program, I provide the following consents:
             // Increment uses
             db.run('UPDATE registration_links SET uses = uses + 1 WHERE token = ?', [req.params.token]);
             saveDb();
+
+            // Mirror this direct-link (free) registration to the staff Sheet — this legacy path had no
+            // coverage. event_type drives the tab, matching the invite path's routing. This is a
+            // Sheets visibility mirror only; the gala row insert above is untouched.
+            const dlEvents = link.event_type === 'plexus' ? ['conference']
+                : link.event_type === 'gala' ? ['gala']
+                : link.event_type === 'forum' ? ['forum']
+                : link.event_type === 'bridges' ? ['bridges']
+                : [link.event_type];
+            mirrorToSheets({
+                events: dlEvents,
+                name: `${first_name} ${last_name || ''}`.trim(),
+                email,
+                institution: institution || '',
+                country: country || '',
+                event: link.event_name || link.event_type,
+                event_type: link.event_type,
+                applied_for: link.event_name || link.event_type,
+                amount: 0,
+                payment: 'Free',
+                registration_id: regId,
+            });
 
             // Send confirmation email
             try {

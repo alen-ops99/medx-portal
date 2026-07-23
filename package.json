@@ -5,6 +5,8 @@
   "scripts": {
     "smoke": "node tests/smoke.js",
     "smoke:local": "MEDX_BASE_URL=http://localhost:2011 MEDX_ADMIN_URL=http://localhost:2012 node tests/smoke.js",
-    "test:member-card": "node tests/member-card-toggle.test.js"
+    "test:member-card": "node tests/member-card-toggle.test.js",
+    "test:post-event": "node tests/post-event-autorun.test.js",
+    "test:sheets": "node tests/sheets-mirror.test.js"
   }
 }
