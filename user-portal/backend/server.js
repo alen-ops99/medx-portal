@@ -665,27 +665,37 @@ function formatRichText(str) {
 // registration/invite pages. Kept as a static list here because gala_settings only
 // models a single keynote; this supersedes that single card without a schema change.
 const GALA_KEYNOTES_2026 = [
-    { name: 'Lord Smith of Finsbury (Chris Smith)', role: 'Chancellor, University of Cambridge', place: 'United Kingdom' },
-    { name: 'Marcela del Carmen, MD', role: 'President, Massachusetts General Hospital', place: 'United States' },
-    { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', place: 'United States' },
-    { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada' }
+    { name: 'Lord Smith of Finsbury (Chris Smith)', role: 'Chancellor, University of Cambridge', place: 'United Kingdom', img: '/assets/gala/gala_keynote_smith_finsbury.jpg' },
+    { name: 'Marcela del Carmen, MD', role: 'President, Massachusetts General Hospital', place: 'United States', img: '/assets/gala/gala_keynote_delcarmen.jpg' },
+    { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', place: 'United States', img: '/assets/gala/gala_keynote_spisso.jpg' },
+    { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada', img: '/assets/gala/gala_keynote_kevin_smith.jpg' }
 ];
 // Fully self-contained (inline styles only) so it renders identically on every public
 // surface — the /plexus page, the croatians-abroad invite, and the gala invite — none of
 // which share the same CSS class definitions.
 function galaKeynoteBlock() {
     const label = 'font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;';
-    const items = GALA_KEYNOTES_2026.map(k => `
-            <div style="padding:9px 0 3px;border-top:1px solid rgba(201,169,98,0.18);">
-                <div style="font-size:15px;font-weight:600;color:#fff;line-height:1.25;">${escapeHtml(k.name)}</div>
-                <div style="font-size:12.5px;font-style:italic;color:#e8c97a;margin-top:2px;">${escapeHtml(k.role)}${k.place ? ' &middot; ' + escapeHtml(k.place) : ''}</div>
+    const avatar = (src, alt, size) => `<img src="${src}" alt="${escapeHtml(alt)}" loading="lazy" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;object-position:center 20%;border:2px solid #c9a962;flex-shrink:0;background:#1e293b;" onerror="this.style.visibility='hidden'">`;
+    const cards = GALA_KEYNOTES_2026.map(k => `
+            <div style="display:flex;gap:12px;align-items:center;padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid rgba(201,169,98,0.15);border-radius:12px;">
+                ${avatar(k.img, k.name, 54)}
+                <div style="min-width:0;">
+                    <div style="font-size:13.5px;font-weight:600;color:#fff;line-height:1.2;">${escapeHtml(k.name)}</div>
+                    <div style="font-size:11.5px;font-style:italic;color:#e8c97a;margin-top:2px;line-height:1.3;">${escapeHtml(k.role)}${k.place ? ' &middot; ' + escapeHtml(k.place) : ''}</div>
+                </div>
             </div>`).join('');
     return `<div style="background:linear-gradient(135deg,rgba(201,169,98,0.10),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.28);border-radius:14px;padding:16px 18px;margin:14px 0 20px;">
-            <div style="${label}margin-bottom:2px;">Gala Evening &middot; Keynote Speakers</div>
-            ${items}
-            <div style="margin-top:11px;padding-top:9px;border-top:1px solid rgba(201,169,98,0.18);">
-                <div style="${label}margin-bottom:3px;">Live Music</div>
-                <div style="font-size:14px;font-weight:600;color:#fff;">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
+            <div style="${label}margin-bottom:11px;">Gala Evening &middot; Keynote Speakers</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:10px;">${cards}</div>
+            <div style="margin-top:15px;padding-top:12px;border-top:1px solid rgba(201,169,98,0.18);display:flex;gap:12px;align-items:center;">
+                <div style="display:flex;align-items:center;">
+                    ${avatar('/assets/gala/gala_perform_singer.jpg', 'Tatiana Cameron', 44)}
+                    <span style="margin-left:-14px;">${avatar('/assets/gala/gala_perform_guitarist.jpg', 'Ante Gelo', 44)}</span>
+                </div>
+                <div>
+                    <div style="${label}margin-bottom:2px;">Live Music</div>
+                    <div style="font-size:13.5px;font-weight:600;color:#fff;">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
+                </div>
             </div>
         </div>`;
 }
@@ -3811,8 +3821,12 @@ async function submitCA(e) {
         /* Responsive: single column on phones, event-info + form side-by-side on wider screens */
         .invite-grid { display:grid; gap:22px; }
         @media(min-width:880px) {
-            .container { max-width:900px; }
-            .invite-grid { grid-template-columns:1fr 1fr; gap:36px; align-items:start; }
+            .container { max-width:1080px; }
+            .invite-grid { grid-template-columns:1fr 1fr; gap:40px; align-items:start; }
+        }
+        @media(min-width:1280px) {
+            .container { max-width:1200px; }
+            .invite-grid { grid-template-columns:1.15fr 1fr; gap:48px; }
         }
     </style>
 </head>
