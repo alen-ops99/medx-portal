@@ -66,6 +66,16 @@ services:
         sync: false
       - key: TURSO_AUTH_TOKEN
         sync: false
+      # Google Wallet event tickets. Issuer id + approved event-ticket class id are NOT secrets
+      # (safe to commit); the service-account JSON is a secret → set it in the Render dashboard.
+      # Until GOOGLE_WALLET_SA_KEY is set, wallet endpoints return {configured:false} and nothing
+      # breaks. Both portals need these (user builds passes; admin provisions classes + revokes).
+      - key: GOOGLE_WALLET_ISSUER_ID
+        value: "3388000000023175280"
+      - key: GOOGLE_WALLET_EVENT_CLASS_ID
+        value: "3388000000023175280.3388000000023175280.plexus_week_2026"
+      - key: GOOGLE_WALLET_SA_KEY
+        sync: false
     plan: free
 
   - type: web
@@ -119,6 +129,16 @@ services:
       - key: TURSO_DATABASE_URL
         sync: false
       - key: TURSO_AUTH_TOKEN
+        sync: false
+      # Google Wallet event tickets. Issuer id + approved event-ticket class id are NOT secrets
+      # (safe to commit); the service-account JSON is a secret → set it in the Render dashboard.
+      # Until GOOGLE_WALLET_SA_KEY is set, wallet endpoints return {configured:false} and nothing
+      # breaks. Both portals need these (user builds passes; admin provisions classes + revokes).
+      - key: GOOGLE_WALLET_ISSUER_ID
+        value: "3388000000023175280"
+      - key: GOOGLE_WALLET_EVENT_CLASS_ID
+        value: "3388000000023175280.3388000000023175280.plexus_week_2026"
+      - key: GOOGLE_WALLET_SA_KEY
         sync: false
     plan: free
 

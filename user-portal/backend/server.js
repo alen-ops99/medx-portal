@@ -12,6 +12,7 @@ const fs = require('fs');
 const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
+const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
 const faqKb = require('./faq-kb'); // Member FAQ Assistant grounding corpus + deterministic retrieval (queue 5a6)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const webpush = require('web-push');
@@ -6014,6 +6015,8 @@ async function initializeApp() {
         early_bird_deadline TEXT, regular_deadline TEXT, abstract_deadline TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Google Wallet class id for this conference (mirror of admin portal; outside SCHEMA-MIRROR).
+    try { db.run('ALTER TABLE conferences ADD COLUMN wallet_class_id TEXT'); } catch(e) {}
 
     db.run(`CREATE TABLE IF NOT EXISTS ticket_types (
         id TEXT PRIMARY KEY, conference_id TEXT, name TEXT, name_hr TEXT,
@@ -8920,6 +8923,12 @@ async function initializeApp() {
     try { db.run('ALTER TABLE registrations ADD COLUMN country TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE registrations ADD COLUMN includes_gala INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE registrations ADD COLUMN package_items TEXT'); } catch(e) {}
+    // Unified check-in / wallet columns (mirror of admin portal; outside SCHEMA-MIRROR). The crypto
+    // checkin_token is the single admission credential encoded in every ticket format.
+    try { db.run('ALTER TABLE registrations ADD COLUMN checkin_token TEXT'); } catch(e) {}
+    try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_registrations_checkin_token ON registrations(checkin_token) WHERE checkin_token IS NOT NULL'); } catch(e) {}
+    try { db.run('ALTER TABLE registrations ADD COLUMN revoked INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE registrations ADD COLUMN revoked_at TEXT'); } catch(e) {}
     // Gala registration payment & user tracking columns
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN payment_status TEXT DEFAULT \'unpaid\''); } catch(e) {}
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN amount_paid REAL'); } catch(e) {}
@@ -13010,17 +13019,43 @@ async function submitReset(e){
     });
 
     // ===== R3-3 EVENT-DAY TICKET SUITE — per-ticket wallet passes =====
-    // GET /api/member/wallet/google/ticket/:regId — a signed generic-pass JWT for ONE of the
-    // member's own event tickets. The pass barcode carries the EXACT value the on-screen wallet
-    // card and the check-in scanner already use (registrations.ticket_qr_code, falling back to
-    // 'MEDX:'+id) — the frozen payload is REUSED byte-for-byte, never regenerated. Unconfigured
-    // environments get the same clean owner-action gate as the membership pass above.
+    // ---- member-side wallet field helpers (compact mirror of the admin scanner logic) ----
+    function memberEnsureRegToken(reg) {
+        if (reg && reg.checkin_token) return reg.checkin_token;
+        const tok = require('crypto').randomBytes(24).toString('hex');
+        db.run('UPDATE registrations SET checkin_token = ? WHERE id = ?', [tok, reg.id]); saveDb();
+        reg.checkin_token = tok; return tok;
+    }
+    function memberPassAccess(reg) {
+        const set = new Set(['conference']);
+        let email = (reg.email || '').toLowerCase();
+        if (!email && reg.user_id) { try { const u = query.get('SELECT email FROM users WHERE id=?', [reg.user_id]); if (u && u.email) email = u.email.toLowerCase(); } catch (e) {} }
+        try { if (Number(reg.includes_gala)) set.add('gala'); } catch (e) {}
+        if (email) {
+            try { if (query.get('SELECT 1 x FROM gala_registrations WHERE lower(email)=? LIMIT 1', [email])) set.add('gala'); } catch (e) {}
+            try { if (query.get('SELECT 1 x FROM bridges_registrations WHERE lower(email)=? LIMIT 1', [email])) set.add('bridges'); } catch (e) {}
+            try { const ca = query.get('SELECT selected_gala, selected_bridges FROM croatians_abroad_registrations WHERE lower(email)=? ORDER BY created_at DESC LIMIT 1', [email]);
+                if (ca) { if (Number(ca.selected_gala)) set.add('gala'); if (Number(ca.selected_bridges)) set.add('bridges'); } } catch (e) {}
+        }
+        return [...set];
+    }
+    function memberGalaTable(email) {
+        if (!email) return null;
+        try { const ta = query.get('SELECT table_no FROM gala_table_assignments WHERE lower(email)=lower(?) ORDER BY updated_at DESC LIMIT 1', [email]);
+            if (ta && String(ta.table_no || '').trim()) { const raw = String(ta.table_no).trim(); return /^\d+$/.test(raw) ? ('Stol ' + raw) : raw; } } catch (e) {}
+        return null;
+    }
+    const memberEventLabel = (k) => ({ conference: 'Conference', gala: 'Gala Evening', donor: 'Donor Night', bridges: 'Building Bridges' })[k] || k;
+
+    // GET /api/member/wallet/google/ticket/:regId — a signed savetowallet JWT for ONE of the member's
+    // own event tickets, as a real Google Wallet EventTicketObject. The barcode carries the crypto
+    // checkin_token (the single admission credential shared by every ticket format), and the pass
+    // lists the attendee, registration number, access category, included Plexus Week events, gala
+    // table and status. The class + object are ALSO get-or-created server-side (REST, fire-and-forget)
+    // so revoke can later PATCH the object to INACTIVE. Unconfigured environments get a clean gate.
     app.get('/api/member/wallet/google/ticket/:regId', auth, (req, res) => {
         try {
-            const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID;
-            const saKeyRaw = process.env.GOOGLE_WALLET_SA_KEY;
-            const classId = process.env.GOOGLE_WALLET_TICKET_CLASS_ID || (issuerId ? (issuerId + '.medx_event_ticket') : '');
-            if (!issuerId || !saKeyRaw) {
+            if (!wallet.isConfigured()) {
                 return res.json({
                     configured: false,
                     owner_action: 'Set GOOGLE_WALLET_ISSUER_ID and GOOGLE_WALLET_SA_KEY (a Google Wallet API service-account JSON) in the server environment. Create the issuer at pay.google.com/business/console and the service account in Google Cloud, then grant it Wallet access.',
@@ -13028,50 +13063,43 @@ async function submitReset(e){
                     message_hr: 'Google Wallet još nije postavljen. Vaš ga tim može uskoro omogućiti.'
                 });
             }
-            let sa;
-            try { sa = typeof saKeyRaw === 'string' ? JSON.parse(saKeyRaw) : saKeyRaw; }
-            catch (e) { return res.status(500).json({ error: 'Google Wallet service account key is not valid JSON.' }); }
             // Ownership is enforced in the WHERE clause — a member can only mint their own ticket.
-            const reg = query.get(`SELECT r.*, c.name AS conference_name, c.start_date, c.end_date, c.venue_name, c.venue_city, t.name AS ticket_name
+            const reg = query.get(`SELECT r.*, c.name AS conference_name, c.slug AS conference_slug, c.wallet_class_id, c.start_date, c.end_date, c.venue_name, c.venue_city, t.name AS ticket_name
                 FROM registrations r JOIN conferences c ON r.conference_id = c.id JOIN ticket_types t ON r.ticket_type_id = t.id
                 WHERE r.id = ? AND r.user_id = ?`, [req.params.regId, req.user.id]);
             if (!reg) return res.status(404).json({ error: 'We could not find that ticket on your account.' });
             const user = query.get('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || {};
             const name = (((reg.first_name || user.first_name || '') + ' ' + (reg.last_name || user.last_name || '')).trim()) || 'Med&X Guest';
-            const qrValue = reg.ticket_qr_code || ('MEDX:' + reg.id); // frozen ticket payload, reused as-is
+            const email = reg.email || user.email || '';
+            const token = memberEnsureRegToken(reg); // barcode.value — the admission credential
             const origin = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
-            const dates = reg.start_date
-                ? (reg.end_date && reg.end_date !== reg.start_date ? `${reg.start_date} – ${reg.end_date}` : reg.start_date)
-                : '';
             const venue = [reg.venue_name, reg.venue_city].filter(Boolean).join(', ');
-            const statusLabel = reg.payment_status === 'paid' ? 'Paid' : (!Number(reg.amount_paid || 0) ? 'Confirmed' : 'Payment pending');
-            const genericObject = {
-                id: `${issuerId}.medx-ticket-${String(reg.id).replace(/[^a-zA-Z0-9]/g, '')}`,
-                classId: classId,
-                genericType: 'GENERIC_TYPE_UNSPECIFIED',
-                hexBackgroundColor: '#14100d',
-                logo: { sourceUri: { uri: origin + '/assets/images/medx-logo.png' } },
-                cardTitle: { defaultValue: { language: 'en', value: reg.conference_name || 'Med&X Event' } },
-                subheader: { defaultValue: { language: 'en', value: reg.ticket_name || reg.registration_type || 'Ticket' } },
-                header: { defaultValue: { language: 'en', value: name } },
-                barcode: { type: 'QR_CODE', value: qrValue, alternateText: String(reg.id).slice(0, 8).toUpperCase() },
-                textModulesData: [
-                    dates ? { id: 'dates', header: 'Dates', body: dates } : null,
-                    venue ? { id: 'venue', header: 'Venue', body: venue } : null,
-                    reg.seat_number ? { id: 'seat', header: 'Seat', body: String(reg.seat_number) } : null,
-                    { id: 'status', header: 'Status', body: statusLabel },
-                    reg.invoice_number ? { id: 'invoice', header: 'Invoice', body: '#' + reg.invoice_number } : null
-                ].filter(Boolean)
-            };
-            const claims = {
-                iss: sa.client_email,
-                aud: 'google',
-                typ: 'savetowallet',
-                origins: [origin],
-                payload: { genericObjects: [genericObject] }
-            };
-            const token = jwt.sign(claims, sa.private_key, { algorithm: 'RS256' });
-            res.json({ configured: true, save_url: 'https://pay.google.com/gp/v/save/' + token });
+            const statusLabel = Number(reg.revoked) ? 'Revoked'
+                : (reg.payment_status === 'paid' ? 'Paid' : (!Number(reg.amount_paid || 0) ? 'Confirmed' : 'Payment pending'));
+            const classId = reg.wallet_class_id || wallet.classIdFor(reg.conference_slug)
+                || process.env.GOOGLE_WALLET_TICKET_CLASS_ID || (process.env.GOOGLE_WALLET_ISSUER_ID + '.medx_event_ticket');
+            const classBody = wallet.buildEventTicketClass({
+                classId, issuerName: 'Med&X', eventName: reg.conference_name || 'Med&X Event',
+                venue: venue || null,
+                startISO: reg.start_date ? (reg.start_date + 'T00:00:00Z') : null,
+                endISO: reg.end_date ? (reg.end_date + 'T23:59:00Z') : null,
+                logoUri: origin + '/assets/images/medx-logo.png', hexBackgroundColor: '#14100d', homepageUri: origin
+            });
+            const object = wallet.buildEventTicketObject({
+                objectId: wallet.objectIdFor(reg.id), classId, token,
+                name, registrationNumber: reg.invoice_number || String(reg.id).slice(0, 8).toUpperCase(),
+                category: reg.ticket_name || reg.registration_type || 'General',
+                events: memberPassAccess(reg).map(memberEventLabel),
+                galaTable: memberGalaTable(email), statusLabel,
+                state: Number(reg.revoked) ? 'INACTIVE' : 'ACTIVE',
+                logoUri: origin + '/assets/images/medx-logo.png', hexBackgroundColor: '#14100d'
+            });
+            // The savetowallet JWT carries both class + object → Google upserts them on save (idempotent;
+            // an existing/approved class is used as-is). Also provision via REST in the background.
+            const { saveUrl } = wallet.buildSaveUrl({ classes: [classBody], objects: [object], origins: [origin] });
+            Promise.resolve().then(() => wallet.ensureEventClass(classBody)).then(() => wallet.ensureEventObject(object))
+                .catch(err => console.error('[wallet] provision-on-view failed:', err.message));
+            res.json({ configured: true, save_url: saveUrl });
         } catch (e) { console.error('google wallet ticket failed:', e); res.status(500).json({ error: 'Failed to build Google Wallet pass' }); }
     });
 

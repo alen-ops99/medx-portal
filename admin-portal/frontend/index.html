@@ -41664,9 +41664,23 @@ By applying to this program, I give the following consents:
             lastScanTime: 0,
             markMode: true, // if true, auto-mark checked in on valid scan
             torchOn: false, // flashlight state for the dim-ballroom torch toggle
+            defaultEvent: null, // the active-by-date gate (preselected)
+            gateLabels: null,   // {event_key: label} from the backend gate list
 
-            open() {
+            async open() {
                 this.event = null;
+                // Load the gate list + the active-by-date default so the scanner opens straight into the
+                // event happening now (R8). Graceful: on any error we fall back to the manual picker.
+                try {
+                    const res = await fetch('/api/admin/checkin/events', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (res.ok) {
+                        const d = await res.json();
+                        this.gateLabels = {};
+                        (d.events || []).forEach(e => { this.gateLabels[e.event_key] = e.label; });
+                        this.defaultEvent = d.default_event || null;
+                        if (this.defaultEvent) this.event = this.defaultEvent; // preselect the active gate
+                    }
+                } catch (e) { /* picker fallback */ }
                 this.renderModal();
             },
 
@@ -41709,7 +41723,7 @@ By applying to this program, I give the following consents:
                                     <button onclick="EventCheckin.selectEvent('${ev}')" style="display:flex;align-items:center;gap:14px;padding:18px 20px;border:2px solid ${eventColor[ev]};background:rgba(255,255,255,0.03);border-radius:12px;color:var(--text-primary);cursor:pointer;text-align:left;font-family:inherit;">
                                         <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;background:${eventColor[ev]}33;color:${eventColor[ev]};font-size:18px;flex-shrink:0;"><i class="fas ${eventIcon[ev]}"></i></span>
                                         <div style="flex:1;">
-                                            <div style="font-size:15px;font-weight:600;">${eventLabel[ev]}</div>
+                                            <div style="font-size:15px;font-weight:600;">${eventLabel[ev]}${this.defaultEvent === ev ? ' <span style="font-size:10px;font-weight:700;color:#22c55e;background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.4);border-radius:20px;padding:1px 8px;margin-left:6px;vertical-align:middle;">ACTIVE NOW</span>' : ''}</div>
                                             <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Check guests in for this event</div>
                                         </div>
                                         <i class="fas fa-chevron-right" style="color:var(--text-muted);"></i>
@@ -41729,12 +41743,20 @@ By applying to this program, I give the following consents:
                                 <button type="button" id="eventCheckinTorch" onclick="EventCheckin.toggleTorch()" aria-label="Toggle flashlight" aria-pressed="false" title="Flashlight" style="display:none;position:absolute;top:10px;right:10px;z-index:3;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.35);background:rgba(0,0,0,0.55);color:#fff;font-size:16px;cursor:pointer;align-items:center;justify-content:center;"><i class="fas fa-bolt"></i></button>
                             </div>
                             <div style="display:flex;gap:8px;margin-bottom:10px;">
-                                <input id="eventCheckinManual" type="text" placeholder="Or paste regId / email" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:13px;font-family:monospace;">
+                                <input id="eventCheckinManual" type="text" placeholder="Or paste QR value / regId / email" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:13px;font-family:monospace;">
                                 <button onclick="EventCheckin.verifyManual()" class="btn btn-primary" style="padding:10px 16px;font-size:13px;">Verify</button>
                             </div>
-                            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+                            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);cursor:pointer;margin-bottom:10px;">
                                 <input type="checkbox" id="eventCheckinMark" ${this.markMode ? 'checked' : ''} onchange="EventCheckin.markMode=this.checked;"> Auto-mark as checked in on valid scan
                             </label>
+                            <details style="border-top:1px dashed var(--border);padding-top:10px;">
+                                <summary style="font-size:12px;color:var(--text-muted);cursor:pointer;"><i class="fas fa-user-magnifying-glass" style="margin-right:6px;"></i>QR won't scan? Look up by name / email / reg number</summary>
+                                <div style="display:flex;gap:8px;margin-top:10px;">
+                                    <input id="eventCheckinLookup" type="text" placeholder="Search name, email or PLX26-…" oninput="EventCheckin._lookupDebounced()" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:13px;">
+                                    <button onclick="EventCheckin.manualLookup()" class="btn btn-secondary" style="padding:10px 16px;font-size:13px;">Search</button>
+                                </div>
+                                <div id="eventCheckinLookupResults" style="margin-top:10px;"></div>
+                            </details>
                         `}
                     </div>
                 `;
@@ -41819,10 +41841,28 @@ By applying to this program, I give the following consents:
 
             verifyManual() {
                 const v = document.getElementById('eventCheckinManual')?.value?.trim();
-                if (v) this.verifyCode(v);
+                if (v) this.verifyCode(v, 'manual');
             },
 
-            async verifyCode(raw) {
+            async verifyCode(raw, method) {
+                method = method || 'qr';
+                // UNIFIED WALLET-PASS CHECK-IN FIRST: the crypto token (or any legacy QR format) is resolved
+                // against the registrations pass with atomic per-event marking + audit. Only if there is NO
+                // registrations pass at all ('invalid') do we fall through to the existing per-event verify
+                // (gala_registrations / bridges_registrations / signup-form), so every ticket keeps working.
+                try {
+                    const res = await fetch('/api/admin/checkin/ticket', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+                        body: JSON.stringify({ code: String(raw).trim(), event: this.event, mark: this.markMode, method, device: (navigator.userAgent || '').slice(0, 80) })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.result && data.result !== 'invalid' && data.result !== 'bad_event') {
+                        this.showTicketResult(data);
+                        return;
+                    }
+                } catch (e) { /* fall through to the legacy verify path (also handles offline queueing) */ }
+
                 // Extract regId / caRegId / email from QR payload (which may be JSON) or use raw
                 let code = raw.trim();
                 try {
@@ -41853,6 +41893,88 @@ By applying to this program, I give the following consents:
                         Toast.error('Verification request failed');
                     }
                 }
+            },
+
+            // Rich result renderer for the UNIFIED wallet-pass check-in (POST /api/admin/checkin/ticket).
+            // Large success/reject state + attendee name, photo, reg number, access category, included
+            // events (current one highlighted), gala table, and — if already scanned — who/when/device.
+            showTicketResult(data) {
+                const area = document.getElementById('eventCheckinResultArea');
+                if (!area) return;
+                const t = data.ticket || {};
+                const STATE = {
+                    valid: { c: '#22c55e', bg: 'rgba(34,197,94,0.10)', bd: 'rgba(34,197,94,0.45)', icon: 'fa-check', label: (this.markMode ? 'ADMIT ✓' : 'VALID ✓') },
+                    already_checked_in: { c: '#f59e0b', bg: 'rgba(245,158,11,0.10)', bd: 'rgba(245,158,11,0.45)', icon: 'fa-user-clock', label: 'ALREADY CHECKED IN' },
+                    wrong_event: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-ban', label: 'NOT VALID FOR THIS EVENT' },
+                    revoked: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-xmark', label: 'CANCELLED / REVOKED' },
+                    not_active: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-hourglass-start', label: 'NOT OPEN YET' },
+                    expired: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-hourglass-end', label: 'CHECK-IN CLOSED' },
+                    invalid: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-xmark', label: 'INVALID TICKET' }
+                };
+                const s = STATE[data.result] || STATE.invalid;
+                const evChip = (k) => {
+                    const on = k === data.event;
+                    return `<span style="font-size:11px;font-weight:700;border-radius:20px;padding:3px 10px;${on ? 'color:#fff;background:' + s.c + ';' : 'color:var(--text-muted);background:rgba(255,255,255,0.05);border:1px solid var(--border);'}">${escapeHtml((this.gateLabels && this.gateLabels[k]) || k)}${on ? ' •' : (t.checkins && t.checkins[k] ? ' ✓' : '')}</span>`;
+                };
+                const photo = t.photo_url ? `<img src="${escapeHtml(t.photo_url)}" alt="" style="width:52px;height:52px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${s.c};">`
+                    : `<span style="display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;background:${s.c};color:#fff;font-size:26px;flex-shrink:0;"><i class="fas ${s.icon}"></i></span>`;
+                area.innerHTML = `
+                    <div style="padding:18px;background:${s.bg};border:2px solid ${s.bd};border-radius:12px;">
+                        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+                            ${photo}
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:20px;font-weight:800;color:${s.c};line-height:1.1;">${s.label}</div>
+                                <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${escapeHtml(data.event_label || data.event || '')}</div>
+                            </div>
+                        </div>
+                        <div style="font-size:17px;font-weight:700;color:var(--text-primary);">${escapeHtml(t.name || '—')}</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(t.email || '')}</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center;">
+                            ${t.registration_number ? `<span style="font-size:12px;font-weight:700;color:var(--text-primary);background:rgba(255,255,255,0.06);border-radius:6px;padding:3px 9px;font-family:monospace;">#${escapeHtml(t.registration_number)}</span>` : ''}
+                            ${t.access_category ? `<span style="font-size:11px;font-weight:700;color:#c9a962;background:rgba(201,169,98,0.12);border:1px solid rgba(201,169,98,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-ticket"></i> ${escapeHtml(t.access_category)}</span>` : ''}
+                        </div>
+                        ${Array.isArray(t.events) && t.events.length ? `<div style="margin-top:10px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Pass includes</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${t.events.map(evChip).join('')}</div></div>` : ''}
+                        ${t.gala_table ? `<div style="font-size:14px;color:#fff;margin-top:10px;font-weight:700;background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.5);border-radius:8px;padding:7px 12px;"><i class="fas fa-chair" style="margin-right:6px;"></i>Gala table: ${escapeHtml(t.gala_table)}</div>` : ''}
+                        ${(data.result === 'already_checked_in' && (data.checked_in_at || (t.checkins && t.checkins[data.event]))) ? (() => { const ci = (t.checkins && t.checkins[data.event]) || {}; const when = data.checked_in_at || ci.checked_in_at; const who = data.checked_in_by || ci.admin_email; const dev = data.checked_in_device || ci.device; return `<div style="font-size:11px;color:var(--text-muted);margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;"><i class="fas fa-clock" style="margin-right:5px;"></i>First checked in ${when ? new Date(when).toLocaleString() : ''}${who ? ' · by ' + escapeHtml(who) : ''}${dev ? ' · <span style="opacity:.7;">' + escapeHtml(String(dev).slice(0, 40)) + '</span>' : ''}${ci.method === 'manual' ? ' · <span style="color:#f59e0b;">manual</span>' : ''}</div>`; })() : ''}
+                        ${(data.result !== 'valid' && data.result !== 'already_checked_in' && data.message) ? `<div style="font-size:13px;color:var(--text-primary);margin-top:10px;">${escapeHtml(data.message)}</div>` : ''}
+                        ${data.is_override ? `<div style="font-size:11px;color:#f59e0b;margin-top:8px;"><i class="fas fa-triangle-exclamation"></i> Manual override recorded</div>` : ''}
+                    </div>
+                `;
+            },
+
+            _lookupDebounced() {
+                clearTimeout(this._lookupTimer);
+                this._lookupTimer = setTimeout(() => this.manualLookup(), 300);
+            },
+
+            async manualLookup() {
+                const q = document.getElementById('eventCheckinLookup')?.value?.trim();
+                const box = document.getElementById('eventCheckinLookupResults');
+                if (!box) return;
+                if (!q || q.length < 2) { box.innerHTML = ''; return; }
+                try {
+                    const res = await fetch('/api/admin/checkin/lookup?q=' + encodeURIComponent(q), { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const d = await res.json();
+                    const rows = (d && d.results) || [];
+                    if (!rows.length) { box.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">No matches.</div>'; return; }
+                    box.innerHTML = rows.slice(0, 12).map(r => {
+                        const done = r.checkins && r.checkins[this.event];
+                        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;">
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${escapeHtml(r.name || '—')}${r.revoked ? ' <span style="color:#ef4444;font-size:10px;">REVOKED</span>' : ''}</div>
+                                <div style="font-size:11px;color:var(--text-muted);">${escapeHtml(r.email || '')} · #${escapeHtml(r.registration_number || '')}</div>
+                            </div>
+                            <button onclick="EventCheckin.checkinFromLookup('${r.registration_id}')" class="btn ${done ? 'btn-secondary' : 'btn-primary'}" style="padding:7px 12px;font-size:12px;white-space:nowrap;">${done ? 'Checked ✓' : 'Check in'}</button>
+                        </div>`;
+                    }).join('');
+                } catch (e) { box.innerHTML = '<div style="font-size:12px;color:#ef4444;padding:6px 0;">Lookup failed.</div>'; }
+            },
+
+            checkinFromLookup(regId) {
+                // Manual lookup → same validated check-in path, flagged as manual in the audit.
+                this.verifyCode(regId, 'manual');
+                const box = document.getElementById('eventCheckinLookupResults');
+                if (box) box.innerHTML = '';
             },
 
             showResult(data) {
