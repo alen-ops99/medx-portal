@@ -12845,6 +12845,24 @@ President, Med&amp;X</textarea>
 
                     <!-- Seating / Table Plan Tab (item 21) -->
                     <div id="galaSeatingTab" style="display: none;">
+                        <!-- Automatic invite sync with the table picker (Firestore plexus-gala-tables).
+                             The portal is the source of truth: paid/confirmed gala guests get a personal
+                             invite link automatically, refunds lose theirs, refunded guests who already
+                             booked a table are flagged. Invitation e-mails stage only when the organizer
+                             clicks "Pošalji pozivnice" (approve-once; sent from president@medx.hr). -->
+                        <div class="card" style="margin-bottom:16px;border-left:5px solid #c9a962;">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <div>
+                                    <h3 class="card-title" style="margin:0;"><i class="fas fa-rotate" style="color:#c9a962;margin-right:6px;"></i>Sinkronizacija s odabirom stolova</h3>
+                                    <div id="galaPickerSyncMeta" style="font-size:12px;color:var(--text-muted);margin-top:2px;">Plaćeni gosti automatski dobivaju osobnu poveznicu za odabir stola; povrati je gube. Sinkronizacija se pokreće sama nakon svake promjene i svakih 30 minuta.</div>
+                                </div>
+                                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                    <button class="btn btn-primary" id="galaPickerSyncBtn" onclick="GalaAdmin.runPickerSync(this)" style="font-size:12px;"><i class="fas fa-rotate"></i> Sinkroniziraj s odabirom stolova</button>
+                                    <button class="btn btn-secondary" id="galaPickerSendBtn" onclick="GalaAdmin.sendPickerInvites(this)" style="font-size:12px;display:none;"></button>
+                                </div>
+                            </div>
+                            <div id="galaPickerSyncResult" style="display:none;margin:0 16px 14px;padding:12px 14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:8px;font-size:13px;line-height:1.6;"></div>
+                        </div>
                         <!-- Live table picker (plexus-tables.netlify.app): guests choose their
                              own tables via personal invite links; layouts come from the 3D
                              Smaragdna dvorana planner (Export → Tlocrt za odabir stolova). -->
@@ -40137,12 +40155,91 @@ By applying to this program, I give the following consents:
                 const grid = document.getElementById('galaTablesGrid');
                 if (grid) grid.innerHTML = '<div style="color:var(--text-muted);padding:20px;">Loading…</div>';
                 this.refreshTableImportCount(); // fire-and-forget — the CSV-import card's counter
+                this.refreshPickerSync();       // fire-and-forget — the auto-sync card's status line
                 const r = await this.seatApi('/api/admin/gala/seating');
                 if (!r.ok) { if (grid) grid.innerHTML = '<div style="padding:20px;color:#ef4444;">Failed to load seating.</div>'; return; }
                 this._seat = r.d;
                 // Drop the selected guest if they are no longer unassigned.
                 if (this._selectedGuest && !this._seat.unassigned.some(g => g.registration_id === this._selectedGuest)) this._selectedGuest = null;
                 this.renderSeating();
+            },
+
+            // ===== Automatic invite sync with the table picker (Firestore) =====
+            // The backend engine keeps the picker's invites collection mirrored to paid
+            // gala guests (create on payment, delete on refund while unpicked, flag when
+            // a refunded guest already booked a table). This card surfaces status, a
+            // manual run, and the approval-gated "Pošalji pozivnice (N novih)" button.
+            async refreshPickerSync() {
+                try {
+                    const r = await this.seatApi('/api/admin/gala/picker-sync');
+                    if (!r.ok) return;
+                    this._pickerSync = r.d;
+                    const meta = document.getElementById('galaPickerSyncMeta');
+                    const send = document.getElementById('galaPickerSendBtn');
+                    const runBtn = document.getElementById('galaPickerSyncBtn');
+                    if (!r.d.configured) {
+                        if (meta) meta.innerHTML = '<span style="color:#ef4444;">Sinkronizacija nije konfigurirana</span> — dodaj PICKER_ADMIN_EMAIL i PICKER_ADMIN_PASSWORD u Render okruženje admin servisa.';
+                        if (runBtn) runBtn.disabled = true;
+                        if (send) send.style.display = 'none';
+                        return;
+                    }
+                    if (runBtn) runBtn.disabled = false;
+                    if (meta) {
+                        const last = r.d.last;
+                        if (last && last.ranAt) {
+                            const when = new Date(last.ranAt).toLocaleString('en-GB');
+                            const bits = [`Zadnja sinkronizacija ${when} (${this.esc(last.trigger || 'auto')})`,
+                                `+${(last.created || []).length} novih`, `−${(last.revoked || []).length} opozvanih`];
+                            if ((last.flagged || []).length) bits.push(`<span style="color:#f59e0b;">${last.flagged.length} za odluku</span>`);
+                            meta.innerHTML = bits.join(' · ');
+                        } else meta.textContent = 'Još nije sinkronizirano — pokreni prvu sinkronizaciju.';
+                    }
+                    if (send) {
+                        const n = r.d.pending_invite_emails || 0;
+                        send.style.display = n ? '' : 'none';
+                        send.innerHTML = `<i class="fas fa-paper-plane"></i> Pošalji pozivnice (${n} novih)`;
+                    }
+                } catch (e) { /* non-blocking */ }
+            },
+            async runPickerSync(btn) {
+                const box = document.getElementById('galaPickerSyncResult');
+                if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+                try {
+                    const r = await this.seatApi('/api/admin/gala/picker-sync/run', { method: 'POST' });
+                    const d = r.d || {};
+                    if (!r.ok || d.error || d.configured === false) {
+                        Toast.error((d.errors && d.errors[0]) || d.error || 'Sinkronizacija nije uspjela');
+                        if (box) box.style.display = 'none';
+                        return;
+                    }
+                    const li = (arr, f) => arr.map(x => `<li>${f(x)}</li>`).join('');
+                    let html = `<i class="fas fa-check-circle" style="color:#10b981;"></i> Sinkronizirano: <strong>${(d.created || []).length}</strong> novih pozivnica · <strong>${(d.revoked || []).length}</strong> opozvanih · <strong>${d.unchanged || 0}</strong> nepromijenjenih`;
+                    if ((d.created || []).length) html += `<div style="margin-top:6px;"><strong>Nove pozivnice:</strong><ul style="margin:4px 0 0 18px;">${li(d.created, x => this.esc(x.name || x.email))}</ul></div>`;
+                    if ((d.revoked || []).length) html += `<div style="margin-top:6px;"><strong>Opozvano (poveznica ugašena):</strong><ul style="margin:4px 0 0 18px;">${li(d.revoked, x => this.esc(x.name || x.email))}</ul></div>`;
+                    if ((d.flagged || []).length) html += `<div style="margin-top:6px;color:#b45309;"><strong><i class="fas fa-triangle-exclamation"></i> Za odluku organizatora</strong> (povrat, a stol je već rezerviran — ukloni ih ručno u konzoli ako treba):<ul style="margin:4px 0 0 18px;">${li(d.flagged, x => this.esc(x.name || x.email) + (x.table ? ' — stol ' + this.esc(x.table) : ''))}</ul></div>`;
+                    if ((d.errors || []).length) html += `<div style="margin-top:6px;color:#ef4444;"><strong>Greške:</strong><ul style="margin:4px 0 0 18px;">${li(d.errors, x => this.esc(x))}</ul></div>`;
+                    if (box) { box.style.display = 'block'; box.innerHTML = html; }
+                    Toast.success(`Sinkronizirano — ${(d.created || []).length} novih, ${(d.revoked || []).length} opozvanih`);
+                    this.refreshPickerSync();
+                } catch (e) {
+                    Toast.error('Sinkronizacija nije uspjela');
+                } finally { if (btn) { btn.disabled = false; btn.style.opacity = '1'; } }
+            },
+            async sendPickerInvites(btn) {
+                const n = (this._pickerSync && this._pickerSync.pending_invite_emails) || 0;
+                if (!n) { Toast.info('Nema novih pozivnica za slanje'); return; }
+                if (!(await adminConfirm({ title: 'Pošalji pozivnice', message: `Poslati ${n} pozivnica za odabir stola (s president@medx.hr)? Šalju se odmah po potvrdi.`, confirmText: 'Pošalji' }))) return;
+                if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+                try {
+                    const r = await this.seatApi('/api/admin/gala/picker-sync/send-invites', { method: 'POST' });
+                    if (r.ok && r.d && r.d.success) {
+                        Toast.success(`${r.d.staged} pozivnica poslano u outbox`);
+                        const box = document.getElementById('galaPickerSyncResult');
+                        if (box) { box.style.display = 'block'; box.innerHTML = `<i class="fas fa-paper-plane" style="color:#10b981;"></i> <strong>${r.d.staged}</strong> pozivnica "Odaberite svoj stol" poslano u outbox (šalju se unutar minute, s president@medx.hr).`; }
+                    } else Toast.error((r.d && r.d.error) || 'Slanje nije uspjelo');
+                    this.refreshPickerSync();
+                } catch (e) { Toast.error('Slanje nije uspjelo'); }
+                finally { if (btn) { btn.disabled = false; btn.style.opacity = '1'; } }
             },
 
             // ===== Picker-console CSV import (account-linking pack) =====

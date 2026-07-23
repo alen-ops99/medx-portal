@@ -106,6 +106,15 @@ services:
         sync: false
       - key: AMADEUS_ENV
         value: test
+      # Gala → table-picker invite sync (Firestore plexus-gala-tables). The organizer
+      # console account (president@medx.hr) — same credentials used to sign into the live
+      # picker admin console. Set BOTH in the Render dashboard to turn the sync on; until
+      # then the engine is a clean no-op (the Seating card shows "sync not configured" and
+      # the manual/auto runs do nothing). Never blocks registrations either way.
+      - key: PICKER_ADMIN_EMAIL
+        sync: false
+      - key: PICKER_ADMIN_PASSWORD
+        sync: false
       # Turso cloud database (persistent SQLite)
       - key: TURSO_DATABASE_URL
         sync: false
