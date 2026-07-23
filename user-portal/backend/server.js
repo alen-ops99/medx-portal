@@ -670,20 +670,22 @@ const GALA_KEYNOTES_2026 = [
     { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', place: 'United States' },
     { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada' }
 ];
-// Reuses the existing .keynote-card / .kc-label / .kc-name / .kc-role styling that both
-// public pages already define; overrides display to stack the four speakers vertically.
+// Fully self-contained (inline styles only) so it renders identically on every public
+// surface — the /plexus page, the croatians-abroad invite, and the gala invite — none of
+// which share the same CSS class definitions.
 function galaKeynoteBlock() {
+    const label = 'font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;';
     const items = GALA_KEYNOTES_2026.map(k => `
             <div style="padding:9px 0 3px;border-top:1px solid rgba(201,169,98,0.18);">
-                <div class="kc-name">${escapeHtml(k.name)}</div>
-                <div class="kc-role">${escapeHtml(k.role)}${k.place ? ' &middot; ' + escapeHtml(k.place) : ''}</div>
+                <div style="font-size:15px;font-weight:600;color:#fff;line-height:1.25;">${escapeHtml(k.name)}</div>
+                <div style="font-size:12.5px;font-style:italic;color:#e8c97a;margin-top:2px;">${escapeHtml(k.role)}${k.place ? ' &middot; ' + escapeHtml(k.place) : ''}</div>
             </div>`).join('');
-    return `<div class="keynote-card" style="display:block;">
-            <div class="kc-label">Gala Evening &middot; Keynote Speakers</div>
+    return `<div style="background:linear-gradient(135deg,rgba(201,169,98,0.10),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.28);border-radius:14px;padding:16px 18px;margin:14px 0 20px;">
+            <div style="${label}margin-bottom:2px;">Gala Evening &middot; Keynote Speakers</div>
             ${items}
             <div style="margin-top:11px;padding-top:9px;border-top:1px solid rgba(201,169,98,0.18);">
-                <div class="kc-label">Live Music</div>
-                <div class="kc-name" style="font-size:13.5px;">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
+                <div style="${label}margin-bottom:3px;">Live Music</div>
+                <div style="font-size:14px;font-weight:600;color:#fff;">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
             </div>
         </div>`;
 }
@@ -3829,15 +3831,7 @@ async function submitCA(e) {
                 ${eventType === 'gala' && eventInfo.dress_code ? '<div style="margin-top:4px;"><i class="fas fa-tshirt"></i>' + escapeHtml(String(eventInfo.dress_code)) + '</div>' : ''}
             </div>
             ${eventInfo.description ? '<div style="font-size:14px;color:#cbd5e1;line-height:1.55;margin:0 0 18px;">' + formatRichText(eventInfo.description) + '</div>' : ''}
-            ${eventType === 'gala' && eventInfo.keynote_name ? `
-            <div style="background:linear-gradient(135deg,rgba(201,169,98,0.08),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:16px;margin-bottom:20px;display:flex;gap:14px;align-items:center;">
-                ${eventInfo.keynote_image_url ? `<img src="${escapeHtml(eventInfo.keynote_image_url)}" alt="${escapeHtml(eventInfo.keynote_name)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:center 22%;flex-shrink:0;border:2px solid #c9a962;" onerror="this.style.display='none'">` : ''}
-                <div style="flex:1;min-width:0;">
-                    <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;margin-bottom:4px;">Featured Keynote Guest</div>
-                    <div style="font-size:16px;font-weight:600;color:#fff;line-height:1.2;">${escapeHtml(eventInfo.keynote_name)}</div>
-                    ${eventInfo.keynote_role ? '<div style="font-size:13px;font-style:italic;color:#e8c97a;margin-top:2px;">' + escapeHtml(eventInfo.keynote_role) + '</div>' : ''}
-                </div>
-            </div>` : ''}
+            ${eventType === 'gala' ? galaKeynoteBlock() : ''}
             ${packageHtml ? '<div class="items-section"><div class="items-label">Your Registration Includes:</div>' + packageHtml + '</div>' : ''}
             ${isVipInvite ? `
             <div style="padding:18px 20px;background:linear-gradient(135deg,rgba(168,85,247,0.14),rgba(168,85,247,0.04));border:1px solid rgba(168,85,247,0.35);border-radius:14px;margin-bottom:24px;text-align:center;">
