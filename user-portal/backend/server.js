@@ -661,6 +661,32 @@ function formatRichText(str) {
         .map(line => line.replace(/^\s*[-*•]\s+/, '• '))
         .join('<br>');
 }
+// The Gala's four confirmed keynote speakers + live music, shown on the public
+// registration/invite pages. Kept as a static list here because gala_settings only
+// models a single keynote; this supersedes that single card without a schema change.
+const GALA_KEYNOTES_2026 = [
+    { name: 'Lord Smith of Finsbury (Chris Smith)', role: 'Chancellor, University of Cambridge', place: 'United Kingdom' },
+    { name: 'Marcela del Carmen, MD', role: 'President, Massachusetts General Hospital', place: 'United States' },
+    { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', place: 'United States' },
+    { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada' }
+];
+// Reuses the existing .keynote-card / .kc-label / .kc-name / .kc-role styling that both
+// public pages already define; overrides display to stack the four speakers vertically.
+function galaKeynoteBlock() {
+    const items = GALA_KEYNOTES_2026.map(k => `
+            <div style="padding:9px 0 3px;border-top:1px solid rgba(201,169,98,0.18);">
+                <div class="kc-name">${escapeHtml(k.name)}</div>
+                <div class="kc-role">${escapeHtml(k.role)}${k.place ? ' &middot; ' + escapeHtml(k.place) : ''}</div>
+            </div>`).join('');
+    return `<div class="keynote-card" style="display:block;">
+            <div class="kc-label">Gala Evening &middot; Keynote Speakers</div>
+            ${items}
+            <div style="margin-top:11px;padding-top:9px;border-top:1px solid rgba(201,169,98,0.18);">
+                <div class="kc-label">Live Music</div>
+                <div class="kc-name" style="font-size:13.5px;">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
+            </div>
+        </div>`;
+}
 
 // CSV formula-injection guard: a leading =,+,-,@ (or tab/CR) makes Excel/Sheets execute the
 // cell as a formula. Prefix with a single quote to neutralize. Mirrors the admin backend.
@@ -1266,7 +1292,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         const galaTitle = pps.gala_title || 'Plexus Gala Evening';
         const galaStatus = pps.gala_status || '';
         const galaDate = (pps.gala_date || '').replace(/\{venue\}/g, galaVenue);
-        const galaDesc = (pps.gala_desc || '5 December 2026 · {venue} · black-tie evening, keynote by Lord Smith of Finsbury (Chancellor, University of Cambridge), fireside panel. Limited places.').replace(/\{venue\}/g, galaVenue);
+        const galaDesc = (pps.gala_desc || '5 December 2026 · {venue} · black-tie evening with four keynote speakers, a fireside panel, and live music. Limited places.').replace(/\{venue\}/g, galaVenue);
         // Admin-configurable mandatory fields (plexus_page_settings.req_*). 'required' => the
         // browser enforces it (the form is a real <form onsubmit>) AND the server re-checks it.
         const reqStar = (k) => (pps['req_' + k] === 'required') ? ' <span style="color:#c9a962;">*</span>' : '';
@@ -1307,18 +1333,9 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             offered.includes('bridges') ? calItem('/calendar/building-bridges.ics', 'Bridges') : ''
         ].join('');
 
-        // Gala keynote highlight — shown when the Gala is offered (pulled from gala_settings).
-        const kName = galaSettings.keynote_name || '';
-        const kRole = galaSettings.keynote_role || '';
-        const kImg = galaSettings.keynote_image_url || '';
-        const keynoteCard = (offered.includes('gala') && kName) ? `<div class="keynote-card">
-            ${kImg ? `<img src="${escapeHtml(kImg)}" alt="${escapeHtml(kName)}" onerror="this.style.display='none'">` : ''}
-            <div>
-                <div class="kc-label">Gala Evening Keynote</div>
-                <div class="kc-name">${escapeHtml(kName)}</div>
-                <div class="kc-role">${escapeHtml(kRole)}</div>
-            </div>
-        </div>` : '';
+        // Gala keynote highlight — shown when the Gala is offered. Four confirmed keynotes
+        // + live music (see galaKeynoteBlock); supersedes the single gala_settings keynote.
+        const keynoteCard = offered.includes('gala') ? galaKeynoteBlock() : '';
 
         // One-click prefill from the Forum wing (/plexus?fn=..&ln=..&email=..&inst=..&src=forum).
         // These are REFLECTED query values echoed into value="" attributes — escape rigorously (XSS).
@@ -3379,14 +3396,7 @@ app.get('/invite/:data', async (req, res) => {
             </div>
         </div>
 
-        ${caKeynoteName ? `<div class="keynote-card">
-            ${caKeynoteImg ? `<img src="${escapeHtml(caKeynoteImg)}" alt="${escapeHtml(caKeynoteName)}" onerror="this.style.display='none'">` : ''}
-            <div style="flex:1;min-width:0;">
-                <div class="kc-label">Featured Keynote Guest (Gala Evening)</div>
-                <div class="kc-name">${escapeHtml(caKeynoteName)}</div>
-                ${caKeynoteRole ? '<div class="kc-role">' + escapeHtml(caKeynoteRole) + '</div>' : ''}
-            </div>
-        </div>` : ''}
+        ${galaKeynoteBlock()}
 
         <form id="caForm" onsubmit="submitCA(event)">
             <input type="hidden" id="caInviteId" value="${escapeHtml(data.i || '')}">
