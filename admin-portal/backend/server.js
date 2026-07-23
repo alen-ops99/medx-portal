@@ -2910,6 +2910,33 @@ function surveyAutoStageDue() {
     return out;
 }
 
+// Post-event ROUND auto-runner — the timer twin of the manual "Run round" button (the one post-event
+// job that lacked an auto-runner). Once a supported event has ENDED it stages the certificate +
+// thank-you + missed + feedback batches on its own — into the SAME approval outbox, so nothing is
+// delivered until the owner approves each batch; the button stays as the early/manual path. Idempotent
+// two ways: a drip_log marker makes it fire at most once per event, and runPostEventRound is itself
+// idempotent (post_event_log markers), so a restart — or overlap with a manual run — never re-issues a
+// certificate or re-stages an email. Mirrors surveyAutoStageDue: reuses the same end-of-event check
+// and no-ops entirely until the event date has passed (so it does nothing in dev or before the event).
+function postEventAutoRunDue() {
+    const out = [];
+    for (const ek of Object.keys(POST_EVENT_EVENTS)) {
+        try {
+            if (!postEventCfg(ek)) continue;
+            if (!surveyEventEnded(ek)) continue; // same end-date logic the survey auto-send uses
+            const marker = `postevent-auto:${ek}`;
+            const already = query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'post-event' AND kind = ?", [marker]);
+            if (already) continue;
+            const r = runPostEventRound(ek, null);
+            db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'post-event', NULL, ?)", [require('crypto').randomUUID(), marker]);
+            saveDb();
+            const staged = r && r.batches ? Object.values(r.batches).reduce((a, b) => a + (b.count || 0), 0) : 0;
+            out.push({ event_key: ek, certs: (r && r.certs && r.certs.issued) || 0, staged });
+        } catch (e) { /* one event failing never blocks the others */ }
+    }
+    return out;
+}
+
 async function initializeApp() {
     // Ensure DB directory exists
     const sharedDir = path.dirname(DB_PATH);
@@ -4712,6 +4739,26 @@ async function initializeApp() {
         created_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT
+    )`);
+
+    // ADMIN-ONLY: Gala → table-picker invite sync ledger. One row per invite this portal
+    // created (or revoked) in the picker's Firestore `invites` collection (project
+    // plexus-gala-tables; doc id = the guest's personal 16-hex token, link =
+    // https://plexus-tables.netlify.app/?t=<token>). email is stored lowercased.
+    // invited_email_sent gates the approval-gated "Odaberite svoj stol" mail (0 = invite
+    // exists but the guest has not been mailed yet); revoked_at is stamped when a refund/
+    // rejection/deletion makes the guest ineligible and the engine deletes the Firestore
+    // doc. Also the future feed for send_invites-style mailing audits. NOT shared with the
+    // user portal (OUTSIDE the SCHEMA-MIRROR block, so check-schema-sync.sh stays green).
+    db.run(`CREATE TABLE IF NOT EXISTS gala_picker_invites (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        name TEXT,
+        token TEXT NOT NULL,
+        max_party INTEGER DEFAULT 3,
+        invited_email_sent INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        revoked_at TEXT
     )`);
 
     // ADMIN-ONLY: Council Invitations settings (key/value — currently only 'signature_url', the
@@ -12336,6 +12383,173 @@ async function initializeApp() {
             saveDb();
             res.json({ success: true });
         } catch (e) { res.status(500).json({ error: 'Delete failed' }); }
+    });
+
+    // ========== GALA -> TABLE-PICKER AUTOMATIC INVITE SYNC ==========
+    // The live table picker (plexus-tables.netlify.app) keeps guest invites in Firestore
+    // (project plexus-gala-tables, collection invites/{token} — the doc id IS the guest's
+    // personal link credential). This engine replaces the manual CSV export/import loop:
+    // the PORTAL is the source of truth. Eligibility mirrors the seating "confirmed-paid"
+    // filter (galaGuestPaid above) plus 'vip-comp' (the gala stats + QR flows count VIP
+    // comps as confirmed guests), and skips TEST-tagged rows (same rule as the bulk-mail
+    // collector and the TEST_GALA_WHERE wipes). Behaviour per diff:
+    //   - newly paid/confirmed guest      -> invite doc created (link works immediately)
+    //                                        + ledger row in gala_picker_invites
+    //   - refunded/rejected/deleted guest, invite UNPICKED -> invite doc deleted (link
+    //                                        dies instantly), revoked_at stamped
+    //   - refunded guest who already PICKED a table -> never auto-deleted; flagged in the
+    //                                        sync report for an organizer decision
+    //   - invites whose e-mail the portal has never seen (console-created specials)
+    //                                     -> left untouched ("foreign")
+    // Firestore writes run through the picker's own security rules, signed in as the
+    // organizer account: creds from PICKER_ADMIN_EMAIL / PICKER_ADMIN_PASSWORD (Render env
+    // vars on the admin service). Without them the engine is a configured:false no-op.
+    const pickerSync = require('./picker-sync');
+    const galaPickerClient = new pickerSync.PickerClient();
+
+    const galaPickerEligible = () => {
+        const rows = query.all('SELECT first_name, last_name, email, status, payment_status, requests, invoice_number FROM gala_registrations');
+        const out = [];
+        for (const r of rows) {
+            const email = pickerSync.normEmail(r.email);
+            if (!email) continue;
+            if (/TEST/i.test(`${r.requests || ''} ${r.invoice_number || ''}`)) continue; // test rows never reach the real picker
+            const st = String(r.status || '').toLowerCase();
+            // Refund lever: the portal has no delete endpoint for gala rows — the organizer
+            // rejects the registration instead. payment_status stays 'paid' on such rows, so
+            // rejected/cancelled must override the paid rule or a refund could never revoke.
+            if (st === 'rejected' || st === 'cancelled') continue;
+            const eligible = r.payment_status === 'paid' || r.payment_status === 'vip-comp'
+                || ['confirmed', 'paid'].includes(st);
+            if (eligible) out.push({ email, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || email });
+        }
+        return out;
+    };
+
+    // Every e-mail the portal knows about — any gala registration (any status) or any invite
+    // this engine ever created. Firestore invites OUTSIDE this set are foreign (organizer-made
+    // specials, e.g. a sponsor's guest added straight in the console) and are never revoked.
+    const galaPickerKnownEmails = () => {
+        const known = new Set();
+        for (const r of query.all('SELECT email FROM gala_registrations')) { const e = pickerSync.normEmail(r.email); if (e) known.add(e); }
+        for (const r of query.all('SELECT email FROM gala_picker_invites')) { const e = pickerSync.normEmail(r.email); if (e) known.add(e); }
+        return known;
+    };
+
+    const galaPickerPendingCount = () => {
+        try { const r = query.get('SELECT COUNT(*) AS c FROM gala_picker_invites WHERE invited_email_sent = 0 AND revoked_at IS NULL'); return (r && r.c) || 0; }
+        catch (e) { return 0; }
+    };
+
+    let galaPickerSyncBusy = false;
+    async function syncGalaPicker(trigger) {
+        if (!galaPickerClient.configured) {
+            return { ok: false, configured: false, trigger, created: [], revoked: [], flagged: [], foreign: [], unchanged: 0,
+                     errors: ['sync not configured — set PICKER_ADMIN_EMAIL / PICKER_ADMIN_PASSWORD'], ranAt: new Date().toISOString() };
+        }
+        if (galaPickerSyncBusy) return { ok: false, configured: true, trigger, skipped: 'sync already running' };
+        galaPickerSyncBusy = true;
+        try {
+            const report = await pickerSync.runInviteSync({
+                getEligible: async () => galaPickerEligible(),
+                getPortalEmails: async () => galaPickerKnownEmails(),
+                client: galaPickerClient,
+                maxParty: parseInt(getAutomationConfig('gala_picker_max_party', '3'), 10) || 3,
+                onCreated: async ({ email, name, token, maxParty }) => {
+                    db.run('INSERT INTO gala_picker_invites (id, email, name, token, max_party) VALUES (?,?,?,?,?)',
+                        [require('crypto').randomUUID(), email, name || null, token, maxParty]);
+                },
+                onRevoked: async ({ email, token }) => {
+                    const hit = query.get('SELECT id FROM gala_picker_invites WHERE lower(email) = ? AND revoked_at IS NULL', [email]);
+                    if (hit) db.run("UPDATE gala_picker_invites SET revoked_at = datetime('now') WHERE id = ?", [hit.id]);
+                    // Console-imported invite the ledger never saw: keep a tombstone so the revocation is auditable.
+                    else db.run("INSERT INTO gala_picker_invites (id, email, name, token, invited_email_sent, revoked_at) VALUES (?,?,NULL,?,1,datetime('now'))",
+                        [require('crypto').randomUUID(), email, token]);
+                },
+            });
+            report.trigger = trigger;
+            db.run("INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES ('gala_picker_sync_last', ?, ?)",
+                [JSON.stringify(report), new Date().toISOString()]);
+            saveDb();
+            console.log(`[GalaPickerSync] ${trigger}: +${report.created.length} invited, -${report.revoked.length} revoked, `
+                + `${report.flagged.length} flagged, ${report.unchanged} unchanged`
+                + (report.errors.length ? ` — errors: ${report.errors.join('; ')}` : ''));
+            return report;
+        } finally { galaPickerSyncBusy = false; }
+    }
+
+    // Fire-and-forget, post-commit — same never-block rule as the Sheets webhook mirror: a
+    // registration/status response never waits on (or fails because of) Firestore. Debounced
+    // so a burst of admin edits coalesces into one pass. Called from the gala mutation paths
+    // below; the 30-min sweep (registered at boot, next to the outbox drainer) catches
+    // everything else (e.g. Stripe payments confirmed on the USER portal).
+    let galaPickerQueueTimer = null;
+    function queueGalaPickerSync(trigger) {
+        if (!galaPickerClient.configured || galaPickerQueueTimer) return;
+        galaPickerQueueTimer = setTimeout(() => {
+            galaPickerQueueTimer = null;
+            syncGalaPicker(trigger).catch((e) => console.warn('[GalaPickerSync] background run failed:', e.message));
+        }, 1500);
+        if (galaPickerQueueTimer.unref) galaPickerQueueTimer.unref();
+    }
+
+    // Status for the Gala -> Seating sync card: config state, last report, pending mails.
+    app.get('/api/admin/gala/picker-sync', auth, adminOnly, (req, res) => {
+        try {
+            let last = null;
+            const row = query.get("SELECT value FROM app_state WHERE key = 'gala_picker_sync_last'");
+            if (row && row.value) { try { last = JSON.parse(row.value); } catch (e) {} }
+            res.json({
+                configured: galaPickerClient.configured,
+                default_max_party: parseInt(getAutomationConfig('gala_picker_max_party', '3'), 10) || 3,
+                pending_invite_emails: galaPickerPendingCount(),
+                invites: query.all('SELECT email, name, token, max_party, invited_email_sent, created_at, revoked_at FROM gala_picker_invites ORDER BY created_at DESC LIMIT 500'),
+                last,
+            });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Manual "Sinkroniziraj s odabirom stolova" — full pass, returns the report inline.
+    app.post('/api/admin/gala/picker-sync/run', auth, adminOnly, async (req, res) => {
+        try {
+            const report = await syncGalaPicker('manual');
+            if (!report.configured) return res.status(503).json(report);
+            logAudit(req, 'gala.picker_sync', `manual: +${report.created.length} -${report.revoked.length} flagged ${report.flagged.length}`);
+            res.json(report);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // Approval-gated invitation mail. Invites exist (links live) from the moment sync ran, but
+    // the "Odaberite svoj stol" e-mail goes out only when the organizer clicks "Pošalji
+    // pozivnice (N novih)" — that click IS the approval (approve-once), so rows stage straight
+    // as 'scheduled' with From president@medx.hr and the outbox drainer sends within ~60s.
+    // invited_email_sent flips per row, so a re-click can never double-mail anyone. The
+    // per-language table-choice deadlines come from the picker's public config/settings at
+    // send time (chooseDeadlineHr/En — sentence drops when unset, exactly like send_invites.py).
+    app.post('/api/admin/gala/picker-sync/send-invites', auth, adminOnly, async (req, res) => {
+        try {
+            const rows = query.all('SELECT * FROM gala_picker_invites WHERE invited_email_sent = 0 AND revoked_at IS NULL ORDER BY created_at ASC');
+            if (!rows.length) return res.json({ success: true, staged: 0 });
+            const dl = await pickerSync.fetchChooseDeadlines();
+            const batchId = 'gala-picker-invite-' + Date.now();
+            let staged = 0;
+            for (const r of rows) {
+                const mail = pickerSync.buildInviteEmail({
+                    name: r.name || '', link: pickerSync.inviteLink(r.token),
+                    deadlineHr: dl.hr, deadlineEn: dl.en,
+                });
+                db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, approved_by, created_by, created_at)
+                        VALUES (?, 'scheduled', ?, 'gala-picker-invite', 'gala_picker_invite', ?, ?, ?, ?, ?, datetime('now'))`,
+                    [require('crypto').randomUUID(), batchId,
+                     JSON.stringify({ to: r.email, subject: mail.subject, html: mail.html, from: 'president@medx.hr', reply_to: 'pr@medx.hr' }),
+                     r.email, mail.subject, req.user?.email || 'admin', req.user?.email || 'admin']);
+                db.run('UPDATE gala_picker_invites SET invited_email_sent = 1 WHERE id = ?', [r.id]);
+                staged++;
+            }
+            saveDb();
+            logAudit(req, 'gala.picker_invite_mail', `staged ${staged} invitation email(s), batch ${batchId}`);
+            res.json({ success: true, staged, batch_id: batchId, deadline_hr: dl.hr, deadline_en: dl.en });
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
     // ========== TICKET WAITLIST (item 26) ==========
@@ -25515,6 +25729,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
                 db.run("UPDATE gala_registrations SET payment_status = 'paid', amount_paid = COALESCE(amount_paid, ?) WHERE id = ?",
                     [reg.pricing === 'bundle' ? 174 : 95, reg.id]);
+                queueGalaPickerSync('finance-confirm'); // post-commit, fire-and-forget — table-picker invite for the newly paid guest
 
                 paymentMethod = reg.stripe_session_id ? 'card' : 'bank_transfer';
                 attendeeName = `${reg.first_name} ${reg.last_name}`;
@@ -28409,6 +28624,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         db.run(`UPDATE gala_registrations SET status = ?, admin_notes = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?`,
             [status, admin_notes || '', req.user.email, new Date().toISOString(), req.params.id]);
         saveDb();
+        queueGalaPickerSync('gala-status-change'); // post-commit, fire-and-forget — never blocks this response
         const updated = query.get(`SELECT * FROM gala_registrations WHERE id = ?`, [req.params.id]);
         res.json({ success: true, registration: updated });
     });
@@ -33245,6 +33461,10 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         if (cols.has('status')) sets.push(`status = CASE WHEN LOWER(COALESCE(status,'')) IN ('','pending','registered','unpaid','submitted','unconfirmed') THEN 'confirmed' ELSE status END`);
         if (!sets.length) return { ok: false, error: 'This registrant type has no payment column to mark.' };
         db.run(`UPDATE ${t.table} SET ${sets.join(', ')} WHERE id = ?`, [id]);
+        // Post-commit, fire-and-forget: a newly paid gala guest gets their table-picker
+        // invite (covers the manual mark-paid endpoint AND bank reconciliation, which both
+        // route through here). Never blocks or fails the caller's response.
+        if (t.table === 'gala_registrations') queueGalaPickerSync('mark-paid');
         return { ok: true, row: t.row, table: t.table };
     }
 
@@ -40453,6 +40673,19 @@ app.get('*', (req, res) => {
         setInterval(() => { drainScheduledEmails().catch(() => {}); }, 60 * 1000);
         console.log('[Outbox] Send drainer active (60s)');
 
+        // GALA -> TABLE-PICKER SYNC safety sweep. The mutation-path hooks (status change,
+        // mark-paid, finance confirm) fire instantly; this 30-min pass catches everything
+        // else — above all Stripe payments confirmed on the USER portal, plus hard-deleted
+        // rows. The diff is idempotent, so overlapping runs are harmless (and a busy-flag
+        // makes them skip anyway). First pass ~30s after boot so cold start stays fast.
+        if (galaPickerClient.configured) {
+            setTimeout(() => { syncGalaPicker('boot').catch(() => {}); }, 30 * 1000);
+            setInterval(() => { syncGalaPicker('sweep').catch(() => {}); }, 30 * 60 * 1000);
+            console.log('[GalaPickerSync] Auto sweep active (30m)');
+        } else {
+            console.log('[GalaPickerSync] Not configured (PICKER_ADMIN_EMAIL / PICKER_ADMIN_PASSWORD) — sync idle');
+        }
+
         // CONFIRM-SEAT (#3) + WAITLIST AUTO-OFFER (#6). The auto scheduler fires the confirm/reminder
         // rounds (approval-gated) and the T-3 release+offers relative to the conference date; it is a
         // no-op until the event is within the T-offset window (so nothing fires in dev). The offer
@@ -40465,6 +40698,13 @@ app.get('*', (req, res) => {
         // drip marker makes it fire at most once.
         try { surveyAutoStageDue(); } catch (e) { console.warn('[EventSurvey] boot skipped:', e.message); }
         setInterval(() => { try { surveyAutoStageDue(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+
+        // POST-EVENT ROUND auto-runner: the timer twin of the manual "Run round" button. Once the
+        // event has ended it stages the certificate + thank-you + missed + feedback batches once
+        // (approval-gated; drip-marker idempotent). No-op until the event date has passed.
+        try { postEventAutoRunDue(); } catch (e) { console.warn('[PostEvent] boot skipped:', e.message); }
+        setInterval(() => { try { postEventAutoRunDue(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+        console.log('[PostEvent] Post-event round auto-runner active (24h)');
 
         // BIOMEDICAL FORUM INVITATION CAMPAIGN — daily invite + follow-up ticks. Both are no-ops
         // until the campaign is approved (dev seeds it as 'draft') and paused by the kill switch;

@@ -654,6 +654,24 @@ function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// Best-effort mirror of a registration into the Google Sheets staff log — the SAME secondary,
+// fire-and-forget visibility mirror the paid Stripe/invite paths already use. The database is the
+// only source of truth: this is never awaited, only runs AFTER the row is committed, and a failure
+// (or an unset GOOGLE_SHEETS_WEBHOOK) never affects the registration. Centralised here so the
+// registration paths that historically skipped the Sheet — free Forum sign-ups, the Annual Forum
+// (AF26) form, and the direct-link path — get the same coverage as the paid and invite paths
+// without each re-implementing the fetch. `events` drives which sheet tab the row lands in.
+function mirrorToSheets(payload) {
+    try {
+        const webhook = process.env.GOOGLE_SHEETS_WEBHOOK;
+        if (!webhook || !payload) return;
+        fetch(webhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ timestamp: new Date().toISOString(), ...payload }),
+        }).catch((err) => console.warn('[Sync] Sheets mirror POST failed:', err.message));
+    } catch (e) { /* a mirror failure must never block a registration */ }
+}
 // Render admin-typed copy with line breaks + bullets preserved (XSS-safe). Escapes first, then
 // turns newlines into <br> and lines starting with -, *, or • into "• " bullets.
 function formatRichText(str) {
@@ -666,10 +684,10 @@ function formatRichText(str) {
 // registration/invite pages. Kept as a static list here because gala_settings only
 // models a single keynote; this supersedes that single card without a schema change.
 const GALA_KEYNOTES_2026 = [
-    { name: 'Lord Smith of Finsbury (Chris Smith)', role: 'Chancellor, University of Cambridge', place: 'United Kingdom', img: '/assets/gala/gala_keynote_smith_finsbury.jpg' },
-    { name: 'Marcela del Carmen, MD', role: 'President, Massachusetts General Hospital', place: 'United States', img: '/assets/gala/gala_keynote_delcarmen.jpg' },
-    { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', place: 'United States', img: '/assets/gala/gala_keynote_spisso.jpg' },
-    { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada', img: '/assets/gala/gala_keynote_kevin_smith.jpg' }
+    { name: 'Lord Smith of Finsbury (Chris Smith)', role: 'Chancellor, University of Cambridge', place: 'United Kingdom', img: '/assets/gala/kn512_smith_finsbury.jpg' },
+    { name: 'Marcela del Carmen, MD', role: 'President, Massachusetts General Hospital', place: 'United States', img: '/assets/gala/kn512_delcarmen.jpg' },
+    { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', place: 'United States', img: '/assets/gala/kn512_spisso.jpg' },
+    { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada', img: '/assets/gala/kn512_kevin_smith.jpg' }
 ];
 // Fully self-contained (inline styles only) so it renders identically on every public
 // surface — the /plexus page, the croatians-abroad invite, and the gala invite — none of
@@ -680,7 +698,7 @@ function galaKeynoteBlock() {
     // fills the whole circle (no gap inside the ring); object-position:center top keeps faces framed.
     const cards = GALA_KEYNOTES_2026.map(k => `
             <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:16px 12px;background:rgba(255,255,255,0.025);border:1px solid rgba(201,169,98,0.16);border-radius:14px;">
-                <img src="${k.img}" alt="${escapeHtml(k.name)}" loading="lazy" style="width:106px;height:106px;border-radius:50%;object-fit:cover;object-position:center top;border:3px solid #c9a962;background:#1e293b;display:block;box-shadow:0 4px 14px rgba(0,0,0,0.28);" onerror="this.style.visibility='hidden'">
+                <img src="${k.img}" alt="${escapeHtml(k.name)}" loading="lazy" style="width:90px;height:90px;border-radius:50%;object-fit:cover;object-position:center;border:3px solid #c9a962;background:#1e293b;display:block;box-shadow:0 4px 14px rgba(0,0,0,0.28);" onerror="this.style.visibility='hidden'">
                 <div style="font-size:14.5px;font-weight:600;color:#fff;line-height:1.25;margin-top:13px;">${escapeHtml(k.name)}</div>
                 <div style="font-size:12px;font-style:italic;color:#e8c97a;margin-top:4px;line-height:1.4;">${escapeHtml(k.role)}${k.place ? '<br>' + escapeHtml(k.place) : ''}</div>
             </div>`).join('');
@@ -689,8 +707,8 @@ function galaKeynoteBlock() {
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:12px;">${cards}</div>
             <div style="margin-top:16px;padding-top:15px;border-top:1px solid rgba(201,169,98,0.18);display:flex;gap:14px;align-items:center;justify-content:center;">
                 <div style="display:flex;align-items:center;">
-                    <img src="/assets/gala/gala_perform_singer.jpg" alt="Tatiana Cameron" loading="lazy" style="width:58px;height:58px;border-radius:50%;object-fit:cover;object-position:center top;border:2.5px solid #c9a962;background:#1e293b;" onerror="this.style.visibility='hidden'">
-                    <img src="/assets/gala/gala_perform_guitarist.jpg" alt="Ante Gelo" loading="lazy" style="width:58px;height:58px;border-radius:50%;object-fit:cover;object-position:center top;border:2.5px solid #c9a962;background:#1e293b;margin-left:-18px;" onerror="this.style.visibility='hidden'">
+                    <img src="/assets/gala/mus512_singer.jpg" alt="Tatiana Cameron" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:#1e293b;" onerror="this.style.visibility='hidden'">
+                    <img src="/assets/gala/mus512_guitarist.jpg" alt="Ante Gelo" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:#1e293b;margin-left:-16px;" onerror="this.style.visibility='hidden'">
                 </div>
                 <div>
                     <div style="${label}margin-bottom:3px;">Live Music</div>
@@ -865,13 +883,25 @@ app.get('/invite-success', async (req, res) => {
 
     const successLede = `Your registration for <strong>${escapeHtml(eventName)}</strong> is confirmed. A confirmation email with your QR code has been sent${customerEmail ? ' to <strong>' + escapeHtml(customerEmail) + '</strong>' : ''}. If you don't see it within a few minutes, please check your spam folder.`;
 
+    // Add-to-calendar chips for whichever events this person actually registered for.
+    const SUCCESS_CAL = [
+        { kw: 'gala', href: '/calendar/gala.ics', label: 'Gala Evening' },
+        { kw: 'conference', href: '/calendar/plexus.ics', label: 'Conference' },
+        { kw: 'bridges', href: '/calendar/building-bridges.ics', label: 'Bridges' }
+    ];
+    const calHay = (eventName + ' ' + itemsList.join(' ')).toLowerCase();
+    const calTargets = SUCCESS_CAL.filter(m => calHay.includes(m.kw));
+    const calBlock = calTargets.length ? `<div style="margin-top:26px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;margin-bottom:11px;">Add to your calendar</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">${calTargets.map(m => `<a href="${m.href}" download style="display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border:1px solid rgba(201,169,98,0.4);border-radius:10px;color:#e8c97a;text-decoration:none;font-size:13px;font-weight:600;"><i class="fas fa-calendar-plus"></i> ${escapeHtml(m.label)}</a>`).join('')}</div></div>` : '';
+
     res.send(premiumPage({
         title: 'Registration Confirmed — Med&X',
         tone: 'success',
         kicker: 'Registration confirmed',
         headline: "You're all set",
         lede: successLede,
-        bodyHtml: `<div class="facts">${factsRows}</div>${qrBlock}<script>
+        bodyHtml: `<div class="facts">${factsRows}</div>${qrBlock}${calBlock}<script>
 function downloadQR() {
     const img = document.getElementById('qrImg');
     const S = 2; // 2x resolution for crisp output
@@ -1304,7 +1334,11 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         const galaTitle = pps.gala_title || 'Plexus Gala Evening';
         const galaStatus = pps.gala_status || '';
         const galaDate = (pps.gala_date || '').replace(/\{venue\}/g, galaVenue);
-        const galaDesc = (pps.gala_desc || '5 December 2026 · {venue} · black-tie evening with four keynote speakers, a fireside panel, and live music. Limited places.').replace(/\{venue\}/g, galaVenue);
+        // Computed from live gala_settings so the card always shows the start time AND all four
+        // keynotes. (The admin gala_desc DB field still holds old single-keynote copy with no time.)
+        // Anchor to local noon so date-only strings never roll back a day across timezones.
+        const galaWhen = galaSettings.date ? fmtD(String(galaSettings.date).slice(0, 10) + 'T12:00:00') : '5 December 2026';
+        const galaDesc = `${galaWhen}${galaSettings.time ? ' · ' + galaSettings.time : ''} · ${galaVenue} · Black-tie evening with four keynote speakers from leading universities and hospitals (listed below), a fireside panel, and live music. Limited places.`;
         // Admin-configurable mandatory fields (plexus_page_settings.req_*). 'required' => the
         // browser enforces it (the form is a real <form onsubmit>) AND the server re-checks it.
         const reqStar = (k) => (pps['req_' + k] === 'required') ? ' <span style="color:#c9a962;">*</span>' : '';
@@ -16922,6 +16956,23 @@ By applying to this program, I provide the following consents:
             db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [event.id]);
             saveDb();
 
+            // Mirror free Forum sign-ups to the staff Sheet (Forum tab). Paid Forum registrations are
+            // finalised in the Stripe webhook, so they are intentionally not mirrored here.
+            if (!isPaid) {
+                mirrorToSheets({
+                    events: ['forum'],
+                    name: name || '',
+                    email: email || '',
+                    institution: institution || '',
+                    event: event.title || 'Med&X Forum',
+                    event_type: 'forum',
+                    applied_for: event.title || 'Forum',
+                    amount: 0,
+                    payment: 'Free',
+                    registration_id: id,
+                });
+            }
+
             // Send confirmation email (non-blocking — registration succeeds even if email fails)
             if (email && !isPaid) {
                 const eventDate = event.start_date
@@ -18110,6 +18161,21 @@ By applying to this program, I provide the following consents:
 
         db.run(`UPDATE forum_events SET registrations_count = registrations_count + 1 WHERE id = ?`, [event.id]);
         saveDb();
+
+        // Mirror the Annual Forum sign-up to the staff Sheet (Forum tab) — this form had no coverage.
+        mirrorToSheets({
+            events: ['forum'],
+            name: `${firstName} ${lastName}`.trim(),
+            email,
+            institution: institution || '',
+            event: 'Annual Forum 2026',
+            event_type: 'forum',
+            applied_for: 'Annual Forum 2026',
+            dietary: dietary || '',
+            amount: 0,
+            payment: 'Free',
+            registration_id: id,
+        });
 
         res.json({ success: true, id, qr_code: qrCode });
     });
@@ -28315,6 +28381,28 @@ By applying to this program, I provide the following consents:
             // Increment uses
             db.run('UPDATE registration_links SET uses = uses + 1 WHERE token = ?', [req.params.token]);
             saveDb();
+
+            // Mirror this direct-link (free) registration to the staff Sheet — this legacy path had no
+            // coverage. event_type drives the tab, matching the invite path's routing. This is a
+            // Sheets visibility mirror only; the gala row insert above is untouched.
+            const dlEvents = link.event_type === 'plexus' ? ['conference']
+                : link.event_type === 'gala' ? ['gala']
+                : link.event_type === 'forum' ? ['forum']
+                : link.event_type === 'bridges' ? ['bridges']
+                : [link.event_type];
+            mirrorToSheets({
+                events: dlEvents,
+                name: `${first_name} ${last_name || ''}`.trim(),
+                email,
+                institution: institution || '',
+                country: country || '',
+                event: link.event_name || link.event_type,
+                event_type: link.event_type,
+                applied_for: link.event_name || link.event_type,
+                amount: 0,
+                payment: 'Free',
+                registration_id: regId,
+            });
 
             // Send confirmation email
             try {
