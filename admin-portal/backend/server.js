@@ -2909,6 +2909,33 @@ function surveyAutoStageDue() {
     return out;
 }
 
+// Post-event ROUND auto-runner — the timer twin of the manual "Run round" button (the one post-event
+// job that lacked an auto-runner). Once a supported event has ENDED it stages the certificate +
+// thank-you + missed + feedback batches on its own — into the SAME approval outbox, so nothing is
+// delivered until the owner approves each batch; the button stays as the early/manual path. Idempotent
+// two ways: a drip_log marker makes it fire at most once per event, and runPostEventRound is itself
+// idempotent (post_event_log markers), so a restart — or overlap with a manual run — never re-issues a
+// certificate or re-stages an email. Mirrors surveyAutoStageDue: reuses the same end-of-event check
+// and no-ops entirely until the event date has passed (so it does nothing in dev or before the event).
+function postEventAutoRunDue() {
+    const out = [];
+    for (const ek of Object.keys(POST_EVENT_EVENTS)) {
+        try {
+            if (!postEventCfg(ek)) continue;
+            if (!surveyEventEnded(ek)) continue; // same end-date logic the survey auto-send uses
+            const marker = `postevent-auto:${ek}`;
+            const already = query.get("SELECT 1 AS x FROM drip_log WHERE user_id = 'post-event' AND kind = ?", [marker]);
+            if (already) continue;
+            const r = runPostEventRound(ek, null);
+            db.run("INSERT OR IGNORE INTO drip_log (id, user_id, email, kind) VALUES (?, 'post-event', NULL, ?)", [require('crypto').randomUUID(), marker]);
+            saveDb();
+            const staged = r && r.batches ? Object.values(r.batches).reduce((a, b) => a + (b.count || 0), 0) : 0;
+            out.push({ event_key: ek, certs: (r && r.certs && r.certs.issued) || 0, staged });
+        } catch (e) { /* one event failing never blocks the others */ }
+    }
+    return out;
+}
+
 async function initializeApp() {
     // Ensure DB directory exists
     const sharedDir = path.dirname(DB_PATH);
@@ -40213,6 +40240,13 @@ app.get('*', (req, res) => {
         // drip marker makes it fire at most once.
         try { surveyAutoStageDue(); } catch (e) { console.warn('[EventSurvey] boot skipped:', e.message); }
         setInterval(() => { try { surveyAutoStageDue(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+
+        // POST-EVENT ROUND auto-runner: the timer twin of the manual "Run round" button. Once the
+        // event has ended it stages the certificate + thank-you + missed + feedback batches once
+        // (approval-gated; drip-marker idempotent). No-op until the event date has passed.
+        try { postEventAutoRunDue(); } catch (e) { console.warn('[PostEvent] boot skipped:', e.message); }
+        setInterval(() => { try { postEventAutoRunDue(); } catch (e) {} }, 24 * 60 * 60 * 1000);
+        console.log('[PostEvent] Post-event round auto-runner active (24h)');
 
         // BIOMEDICAL FORUM INVITATION CAMPAIGN — daily invite + follow-up ticks. Both are no-ops
         // until the campaign is approved (dev seeds it as 'draft') and paused by the kill switch;
