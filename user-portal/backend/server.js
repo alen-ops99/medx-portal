@@ -675,26 +675,25 @@ const GALA_KEYNOTES_2026 = [
 // which share the same CSS class definitions.
 function galaKeynoteBlock() {
     const label = 'font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;';
-    const avatar = (src, alt, size) => `<img src="${src}" alt="${escapeHtml(alt)}" loading="lazy" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;object-position:center 20%;border:2px solid #c9a962;flex-shrink:0;background:#1e293b;" onerror="this.style.visibility='hidden'">`;
+    // Centered card: large circular photo on top, name + role/place beneath. object-fit:cover
+    // fills the whole circle (no gap inside the ring); object-position:center top keeps faces framed.
     const cards = GALA_KEYNOTES_2026.map(k => `
-            <div style="display:flex;gap:12px;align-items:center;padding:10px 12px;background:rgba(255,255,255,0.02);border:1px solid rgba(201,169,98,0.15);border-radius:12px;">
-                ${avatar(k.img, k.name, 54)}
-                <div style="min-width:0;">
-                    <div style="font-size:13.5px;font-weight:600;color:#fff;line-height:1.2;">${escapeHtml(k.name)}</div>
-                    <div style="font-size:11.5px;font-style:italic;color:#e8c97a;margin-top:2px;line-height:1.3;">${escapeHtml(k.role)}${k.place ? ' &middot; ' + escapeHtml(k.place) : ''}</div>
-                </div>
+            <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:16px 12px;background:rgba(255,255,255,0.025);border:1px solid rgba(201,169,98,0.16);border-radius:14px;">
+                <img src="${k.img}" alt="${escapeHtml(k.name)}" loading="lazy" style="width:106px;height:106px;border-radius:50%;object-fit:cover;object-position:center top;border:3px solid #c9a962;background:#1e293b;display:block;box-shadow:0 4px 14px rgba(0,0,0,0.28);" onerror="this.style.visibility='hidden'">
+                <div style="font-size:14.5px;font-weight:600;color:#fff;line-height:1.25;margin-top:13px;">${escapeHtml(k.name)}</div>
+                <div style="font-size:12px;font-style:italic;color:#e8c97a;margin-top:4px;line-height:1.4;">${escapeHtml(k.role)}${k.place ? '<br>' + escapeHtml(k.place) : ''}</div>
             </div>`).join('');
-    return `<div style="background:linear-gradient(135deg,rgba(201,169,98,0.10),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.28);border-radius:14px;padding:16px 18px;margin:14px 0 20px;">
-            <div style="${label}margin-bottom:11px;">Gala Evening &middot; Keynote Speakers</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:10px;">${cards}</div>
-            <div style="margin-top:15px;padding-top:12px;border-top:1px solid rgba(201,169,98,0.18);display:flex;gap:12px;align-items:center;">
+    return `<div style="background:linear-gradient(135deg,rgba(201,169,98,0.10),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.28);border-radius:14px;padding:18px;margin:0 0 20px;">
+            <div style="${label}margin-bottom:14px;text-align:center;">Gala Evening &middot; Keynote Speakers</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:12px;">${cards}</div>
+            <div style="margin-top:16px;padding-top:15px;border-top:1px solid rgba(201,169,98,0.18);display:flex;gap:14px;align-items:center;justify-content:center;">
                 <div style="display:flex;align-items:center;">
-                    ${avatar('/assets/gala/gala_perform_singer.jpg', 'Tatiana Cameron', 44)}
-                    <span style="margin-left:-14px;">${avatar('/assets/gala/gala_perform_guitarist.jpg', 'Ante Gelo', 44)}</span>
+                    <img src="/assets/gala/gala_perform_singer.jpg" alt="Tatiana Cameron" loading="lazy" style="width:58px;height:58px;border-radius:50%;object-fit:cover;object-position:center top;border:2.5px solid #c9a962;background:#1e293b;" onerror="this.style.visibility='hidden'">
+                    <img src="/assets/gala/gala_perform_guitarist.jpg" alt="Ante Gelo" loading="lazy" style="width:58px;height:58px;border-radius:50%;object-fit:cover;object-position:center top;border:2.5px solid #c9a962;background:#1e293b;margin-left:-18px;" onerror="this.style.visibility='hidden'">
                 </div>
                 <div>
-                    <div style="${label}margin-bottom:2px;">Live Music</div>
-                    <div style="font-size:13.5px;font-weight:600;color:#fff;">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
+                    <div style="${label}margin-bottom:3px;">Live Music</div>
+                    <div style="font-size:14px;font-weight:600;color:#fff;">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
                 </div>
             </div>
         </div>`;
@@ -3844,8 +3843,8 @@ async function submitCA(e) {
                 ${eventInfo.venue ? '<div><i class="fas fa-map-marker-alt"></i>' + escapeHtml(String(eventInfo.venue)) + '</div>' : ''}
                 ${eventType === 'gala' && eventInfo.dress_code ? '<div style="margin-top:4px;"><i class="fas fa-tshirt"></i>' + escapeHtml(String(eventInfo.dress_code)) + '</div>' : ''}
             </div>
-            ${eventInfo.description ? '<div style="font-size:14px;color:#cbd5e1;line-height:1.55;margin:0 0 18px;">' + formatRichText(eventInfo.description) + '</div>' : ''}
             ${eventType === 'gala' ? galaKeynoteBlock() : ''}
+            ${eventInfo.description ? '<div style="font-size:14px;color:#cbd5e1;line-height:1.55;margin:0 0 18px;">' + formatRichText(eventInfo.description) + '</div>' : ''}
             ${packageHtml ? '<div class="items-section"><div class="items-label">Your Registration Includes:</div>' + packageHtml + '</div>' : ''}
             ${isVipInvite ? `
             <div style="padding:18px 20px;background:linear-gradient(135deg,rgba(168,85,247,0.14),rgba(168,85,247,0.04));border:1px solid rgba(168,85,247,0.35);border-radius:14px;margin-bottom:24px;text-align:center;">
