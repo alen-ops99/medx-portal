@@ -1039,7 +1039,7 @@ function auth(req, res, next) {
     if (token && token !== 'auto-login') {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const user = query.get("SELECT id, email, is_admin, is_staff, is_founder, must_change_password FROM users WHERE id = ?", [decoded.id]);
+            const user = query.get("SELECT id, email, is_admin, is_staff, is_founder, must_change_password, allowed_sections FROM users WHERE id = ?", [decoded.id]);
             if (user) {
                 // Invite flow (Team Access): an account still on its temporary invite password can
                 // do NOTHING until it sets its own. Distinct 401 variant carries mustChangePassword
@@ -1047,6 +1047,12 @@ function auth(req, res, next) {
                 // /api/auth/me stays reachable so the SPA can identify the account mid-flow.
                 if (user.must_change_password && req.path !== '/api/auth/change-password' && req.path !== '/api/auth/me') {
                     return res.status(401).json({ error: 'Password change required before the portal can be used', mustChangePassword: true });
+                }
+                // Per-admin section permissions — ONE gate for every authenticated route (see
+                // SECTION_ROUTE_MAP). 403 carries { section } so the SPA shows its locked state.
+                const blocked = sectionDenied(user, req.path);
+                if (blocked) {
+                    return res.status(403).json({ error: "You don't have access to this section yet — ask Alen to unlock it for you.", section: blocked });
                 }
                 req.user = user; return next();
             }
@@ -1099,6 +1105,129 @@ function staffOrAdmin(req, res, next) {
 function founderOnly(req, res, next) {
     if (req.user?.is_admin && req.user?.is_founder) return next();
     return res.status(403).json({ error: 'Founder access only' });
+}
+
+// ==================== PER-ADMIN SECTION PERMISSIONS (Team Access) ====================
+// users.allowed_sections: NULL = FULL access (every pre-existing admin keeps working exactly as
+// before), otherwise a JSON array of section ids from PERMISSION_SECTIONS. New invitees start at
+// '[]' (Home only) and the founder grants sections afterwards from Team Access → Permissions
+// (GET/PUT /api/admin/team/permissions, founderOnly). Enforcement happens in ONE place — the
+// auth() middleware calls sectionDenied() on every authenticated request, so no individual route
+// needed editing. Deny = 403 { error, section } so the SPA can show a clean locked state (the
+// SPA also hides nav items it lacks — but THAT is just UX, THIS is the boundary).
+//
+// Section ids are the SPA's own nav / admin_section_preferences ids (one shared language).
+// Sub-surfaces ride with their parent module (Gala, auctions, check-in, sponsors, volunteers,
+// event ops → plexus; Newsletter + Content studio → pr-media; Board pack → finances; System
+// Health + Audit Log → tech; Resources → files).
+const PERMISSION_SECTIONS = [
+    { id: 'plexus',        label: 'Plexus Week 2026',      group: 'Projects',        desc: 'Conference, Gala, ticketing, check-in, sponsors, volunteers, auctions' },
+    { id: 'accelerator',   label: 'Med&X Accelerator',     group: 'Projects',        desc: 'Applications, reviews, interviews, sites' },
+    { id: 'forum',         label: 'Biomedical Forum',      group: 'Projects',        desc: 'Members, events, mentorship, council' },
+    { id: 'bridges',       label: 'Building Bridges',      group: 'Projects',        desc: 'Events, speakers, Croatians abroad' },
+    { id: 'gameday',       label: 'Game Day',              group: 'Events & access', desc: 'Event-day staff console & tracking' },
+    { id: 'conferences',   label: 'Conferences',           group: 'Events & access', desc: 'Conference & ticket-type management' },
+    { id: 'editions',      label: 'Editions',              group: 'Events & access', desc: 'Past & future editions' },
+    { id: 'signup-forms',  label: 'Sign-up Forms',         group: 'Events & access', desc: 'Public sign-up pages for short events' },
+    { id: 'guest-passes',  label: 'Guest Passes',          group: 'Events & access', desc: 'Personal VIP access links' },
+    { id: 'year-calendar', label: 'Year Calendar',         group: 'Events & access', desc: 'Season planning' },
+    { id: 'cme',           label: 'CME / HLK',             group: 'Events & access', desc: 'CME points & attendee exports' },
+    { id: 'pr-media',      label: 'Marketing & Content',   group: 'Marketing',       desc: 'PR & Media, Content studio, Newsletter, Merch' },
+    { id: 'member-ops',    label: 'Member Ops & Comms',    group: 'Communications',  desc: 'Messages, announcements, email blasts, outbox' },
+    { id: 'finances',      label: 'Finance',               group: 'Finance',         desc: 'Finances, invoices, travel orders, board pack' },
+    { id: 'contacts',      label: 'My Network',            group: 'Network',         desc: 'Contacts & Outlook threads' },
+    { id: 'advisors',      label: 'Executive Suite',       group: 'Leadership',      desc: 'AI CMO / CFO / COO weekly review' },
+    { id: 'files',         label: 'Files & Resources',     group: 'System',          desc: 'Shared files & resource library' },
+    { id: 'team',          label: 'Team Access',           group: 'System',          desc: 'Team list, invites, roles' },
+    { id: 'tech',          label: 'System & Tech',         group: 'System',          desc: 'System health, audit log, tech dashboard' },
+];
+
+// Route-prefix → section map. Matching is boundary-aware (the prefix must be the whole path or
+// be followed by '/'), first match wins — deeper prefixes are listed before shallower ones where
+// a family overlaps (e.g. /api/admin/export/forum-registrations before /api/admin/export). The
+// policy is DENY-only-what-is-mapped: anything not listed here (auth, me, section prefs, team
+// chat, heartbeat, notifications bell, dashboard prefs, tasks, pinned, projects meta, public
+// routes, portal-member self-service like /api/registrations + /api/abstracts, cross-section
+// reads like /api/conferences) stays reachable for every signed-in admin. Correct-by-prefix,
+// not exhaustive-by-route.
+const SECTION_ROUTE_MAP = [
+    ['/api/admin/export/forum-registrations', 'forum'],
+    // — Plexus Week (incl. Gala, ticketing, check-in, sponsors, volunteers, auctions, event ops) —
+    ['/api/plexus', 'plexus'], ['/api/admin/plexus', 'plexus'], ['/api/admin/plexus-experience', 'plexus'],
+    ['/api/gala', 'plexus'], ['/api/admin/gala', 'plexus'],
+    ['/api/checkin', 'plexus'], ['/api/admin/checkin', 'plexus'], ['/api/admin/scan-context', 'plexus'],
+    ['/api/admin/auctions', 'plexus'], ['/api/admin/auction-summary', 'plexus'],
+    ['/api/admin/speaker-itineraries', 'plexus'], ['/api/admin/speaker-kits', 'plexus'],
+    ['/api/admin/sponsor-reports', 'plexus'], ['/api/admin/sponsor-tiers', 'plexus'],
+    ['/api/admin/talks', 'plexus'], ['/api/admin/sessions', 'plexus'], ['/api/admin/spatial', 'plexus'],
+    ['/api/admin/abstracts', 'plexus'], ['/api/admin/registrant', 'plexus'], ['/api/admin/registrant-emails', 'plexus'],
+    ['/api/admin/registrations', 'plexus'], ['/api/admin/registration-links', 'plexus'],
+    ['/api/admin/seat-confirmations', 'plexus'], ['/api/admin/waitlist', 'plexus'], ['/api/admin/waitlist-offers', 'plexus'],
+    ['/api/admin/early-bird', 'plexus'], ['/api/admin/coupons', 'plexus'], ['/api/admin/tickets', 'plexus'],
+    ['/api/admin/event-invites', 'plexus'], ['/api/admin/event-reminders', 'plexus'],
+    ['/api/admin/event-survey', 'plexus'], ['/api/admin/event-components', 'plexus'],
+    ['/api/admin/post-event', 'plexus'], ['/api/admin/testimonials', 'plexus'],
+    ['/api/admin/print', 'plexus'], ['/api/admin/wallet', 'plexus'], ['/api/admin/analytics', 'plexus'],
+    ['/api/admin/export', 'plexus'],
+    // — Accelerator —
+    ['/api/accelerator', 'accelerator'], ['/api/admin/accelerator', 'accelerator'], ['/api/admin/accelerator-sites', 'accelerator'],
+    ['/api/applicant', 'accelerator'], ['/api/admin/review', 'accelerator'], ['/api/review-access', 'accelerator'],
+    ['/api/admin/opportunities', 'accelerator'], ['/api/admin/research', 'accelerator'],
+    // — Forum —
+    ['/api/forum', 'forum'], ['/api/admin/forum', 'forum'], ['/api/admin/council', 'forum'],
+    // — Bridges —
+    ['/api/bridges', 'bridges'], ['/api/admin/bridges', 'bridges'], ['/api/admin/croatians-abroad', 'bridges'],
+    // — Events & access —
+    ['/api/gameday', 'gameday'], ['/api/admin/gameday', 'gameday'], ['/api/staff-tracking', 'gameday'], ['/api/admin/staff-tracking', 'gameday'],
+    ['/api/admin/conferences', 'conferences'],
+    ['/api/admin/editions', 'editions'],
+    ['/api/admin/signup-forms', 'signup-forms'],
+    ['/api/admin/guest-passes', 'guest-passes'], ['/api/admin/guest-pass-events', 'guest-passes'],
+    ['/api/admin/year-calendar', 'year-calendar'],
+    ['/api/admin/cme', 'cme'],
+    // — Marketing & Content (PR & Media + Newsletter + Content studio) —
+    ['/api/pr', 'pr-media'], ['/api/admin/pr', 'pr-media'], ['/api/admin/pr-newsletters', 'pr-media'],
+    ['/api/admin/newsletters', 'pr-media'], ['/api/admin/newsletter-interests', 'pr-media'], ['/api/admin/newsletter-segments', 'pr-media'],
+    ['/api/admin/audiences', 'pr-media'], ['/api/admin/content', 'pr-media'], ['/api/admin/content-blocks', 'pr-media'],
+    ['/api/admin/content-checklist', 'pr-media'], ['/api/admin/feed-items', 'pr-media'], ['/api/admin/digest', 'pr-media'],
+    ['/api/sequences', 'pr-media'],
+    // — Member ops / communications —
+    ['/api/admin/messages', 'member-ops'], ['/api/admin/member-announcements', 'member-ops'], ['/api/admin/announcements', 'member-ops'],
+    ['/api/admin/member-meta', 'member-ops'], ['/api/admin/member-card-toggles', 'member-ops'], ['/api/admin/bulk-email', 'member-ops'],
+    ['/api/admin/outbox', 'member-ops'], ['/api/admin/rewards', 'member-ops'], ['/api/admin/users', 'member-ops'],
+    ['/api/admin/notifications', 'member-ops'],
+    // — Finance —
+    ['/api/finance', 'finances'], ['/api/admin/transparency', 'finances'],
+    // — Network / Leadership —
+    ['/api/contacts', 'contacts'], ['/api/admin/outlook', 'contacts'],
+    ['/api/admin/advisors', 'advisors'],
+    // — Files / Team / System —
+    ['/api/files', 'files'], ['/api/folders', 'files'], ['/api/admin/files', 'files'], ['/api/upload', 'files'],
+    ['/api/admin/team', 'team'],
+    ['/api/admin/tech', 'tech'], ['/api/admin/system-health', 'tech'], ['/api/admin/health', 'tech'], ['/api/admin/audit-log', 'tech'],
+];
+
+function sectionForPath(path) {
+    for (const [prefix, section] of SECTION_ROUTE_MAP) {
+        if (path === prefix || path.startsWith(prefix + '/')) return section;
+    }
+    return null;
+}
+
+// NULL / unparseable → full access (backwards compatible).
+function parseAllowedSections(text) {
+    if (text === null || text === undefined) return null;
+    try { const a = JSON.parse(text); return Array.isArray(a) ? a : null; } catch (e) { return null; }
+}
+
+// Returns the blocked section id, or null when the request may proceed. The founder is never
+// restricted (belt-and-braces on top of the PUT guard that refuses to set founder permissions).
+function sectionDenied(user, path) {
+    if (!user || user.is_founder) return null;
+    const allowed = parseAllowedSections(user.allowed_sections);
+    if (allowed === null) return null; // NULL = full access
+    const section = sectionForPath(path);
+    return (section && !allowed.includes(section)) ? section : null;
 }
 
 // Record a consequential admin action. Best-effort — never throws into the request path.
@@ -4607,6 +4736,11 @@ async function initializeApp() {
     // Guarded, additive ALTERs — same pattern as the login-visibility pass.
     try { db.run('ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE users ADD COLUMN is_founder INTEGER DEFAULT 0'); } catch(e) {}
+    // users.allowed_sections: per-admin section permissions (see PERMISSION_SECTIONS /
+    // sectionDenied next to the auth middleware). NULL = full access — every admin that existed
+    // before this feature keeps working exactly as before; '[]' = Home only (new invitees);
+    // otherwise a JSON array of section ids the founder granted from Team Access → Permissions.
+    try { db.run('ALTER TABLE users ADD COLUMN allowed_sections TEXT'); } catch(e) {}
 
     // Per-admin per-UTC-day portal presence, accumulated from visible-tab heartbeats (~60s
     // cadence — see POST /api/team/heartbeat). Each beat credits the real elapsed gap since the
@@ -10601,12 +10735,15 @@ async function initializeApp() {
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
             // mustChangePassword: the account is still on its temporary invite password — the SPA
             // shows the set-new-password screen and every other API call 401s until it is changed.
-            res.json({ success: true, token, mustChangePassword: !!user.must_change_password, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin, is_staff: user.is_staff || 0, is_founder: user.is_founder || 0 }});
+            // allowed_sections (array | null): null = full access; the SPA hides nav it lacks.
+            res.json({ success: true, token, mustChangePassword: !!user.must_change_password, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin, is_staff: user.is_staff || 0, is_founder: user.is_founder || 0, allowed_sections: user.is_founder ? null : parseAllowedSections(user.allowed_sections) }});
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
     });
 
     app.get('/api/auth/me', auth, (req, res) => {
-        const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_staff, is_founder, must_change_password, is_public_profile FROM users WHERE id = ?', [req.user.id]);
+        const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_staff, is_founder, must_change_password, allowed_sections, is_public_profile FROM users WHERE id = ?', [req.user.id]);
+        // allowed_sections goes out parsed (array | null) so the SPA never JSON-parses it itself.
+        if (user) user.allowed_sections = user.is_founder ? null : parseAllowedSections(user.allowed_sections);
         res.json(user);
     });
 
@@ -33587,7 +33724,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // ==================== TEAM ACCESS (super-admin only) ====================
     app.get('/api/admin/team', auth, adminOnly, (req, res) => {
         try {
-            res.json(query.all("SELECT id, email, first_name, last_name, is_admin, is_staff, COALESCE(is_founder, 0) AS is_founder, COALESCE(must_change_password, 0) AS must_change_password, last_login FROM users WHERE is_admin = 1 OR is_staff = 1 ORDER BY is_admin DESC, email"));
+            res.json(query.all("SELECT id, email, first_name, last_name, is_admin, is_staff, COALESCE(is_founder, 0) AS is_founder, COALESCE(must_change_password, 0) AS must_change_password, allowed_sections, last_login FROM users WHERE is_admin = 1 OR is_staff = 1 ORDER BY is_admin DESC, email").map(r => ({ ...r, allowed_sections: r.is_founder ? null : parseAllowedSections(r.allowed_sections) })));
         } catch (e) { res.json([]); }
     });
 
@@ -33609,6 +33746,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             <p style="margin: 0 0 6px;">Your temporary password:</p>
             <p style="text-align: center; margin: 6px 0 18px;"><code style="display: inline-block; background: #eef1f6; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 18px; font-size: 17px; letter-spacing: 1px; font-family: 'Courier New', monospace;">${tempPassword}</code></p>
             <p>Use it together with this email address the first time you sign in. <strong>You will be asked to choose your own password (at least 8 characters) before anything else</strong> — the temporary one stops working the moment you do.</p>
+            <p>Once your account is set up, you'll be given access to the specific events, projects and folders you need — so your workspace may look nearly empty at first. That's expected.</p>
             <p style="color: #64748b; font-size: 13px;">If you were not expecting this, please ignore this email or reply to let us know.</p>
         `);
     }
@@ -33626,16 +33764,25 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         const hash = await bcrypt.hash(tempPassword, 10);
         if (existing) {
             // An existing member (or a still-pending invite): promote to admin and re-arm the flow.
-            db.run('UPDATE users SET is_admin = 1, password_hash = ?, must_change_password = 1 WHERE id = ?', [hash, existing.id]);
+            // COALESCE keeps any sections the founder already granted to a pending invite; a plain
+            // member being promoted has NULL and starts locked to Home ('[]') like every invitee.
+            db.run("UPDATE users SET is_admin = 1, password_hash = ?, must_change_password = 1, allowed_sections = COALESCE(allowed_sections, '[]') WHERE id = ?", [hash, existing.id]);
         } else {
-            db.run('INSERT INTO users (id, email, password_hash, first_name, last_name, is_admin, must_change_password) VALUES (?,?,?,?,?,1,1)',
+            // New invitees start with NO section access ('[]', Home only) — the president grants
+            // events/projects/folders afterwards from Team Access → Permissions. Existing admins
+            // are untouched (their NULL = full access stays NULL).
+            db.run("INSERT INTO users (id, email, password_hash, first_name, last_name, is_admin, must_change_password, allowed_sections) VALUES (?,?,?,?,?,1,1,'[]')",
                 [uuidv4(), cleanEmail, hash, first_name || null, last_name || null]);
         }
         saveDb();
-        const result = await sendEmail(cleanEmail, "You've been added to the Med&X Admin Portal", buildAdminInviteEmail(first_name, tempPassword));
-        // Dev mock only: surface the temp password in the server log so the invite flow is fully
-        // testable with no BREVO_API_KEY. Never logged in production.
-        if (result && result.mock && process.env.NODE_ENV !== 'production') console.log(`[Team Invite] (dev mock) temp password for ${cleanEmail}: ${tempPassword}`);
+        const inviteHtml = buildAdminInviteEmail(first_name, tempPassword);
+        const result = await sendEmail(cleanEmail, "You've been added to the Med&X Admin Portal", inviteHtml);
+        // Dev mock only: surface the temp password AND the built email body in the server log so
+        // the whole invite flow (wording included) is testable with no BREVO_API_KEY. Never in prod.
+        if (result && result.mock && process.env.NODE_ENV !== 'production') {
+            console.log(`[Team Invite] (dev mock) temp password for ${cleanEmail}: ${tempPassword}`);
+            console.log(`[Team Invite] (dev mock) email body for ${cleanEmail}:\n${inviteHtml}`);
+        }
         logAudit(req, 'team.invite', `${cleanEmail} invited as admin (temp password emailed)`);
         res.json({ success: true, emailed: !(result && result.success === false) });
     }));
@@ -33659,6 +33806,47 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         logAudit(req, 'team.invite_resend', `${cleanEmail} re-issued a temp password`);
         res.json({ success: true, emailed: !(result && result.success === false) });
     }));
+
+    // ---- Per-admin section permissions (founderOnly) ----
+    // The president's control panel behind Team Access → Permissions. catalog = the canonical
+    // section vocabulary (id/label/group/desc, single source of truth for the SPA's checkboxes);
+    // admins = every admin/staff account with allowed_sections parsed (null = full access).
+    app.get('/api/admin/team/permissions', auth, adminOnly, founderOnly, (req, res) => {
+        try {
+            const rows = query.all("SELECT id, email, first_name, last_name, is_admin, is_staff, COALESCE(is_founder, 0) AS is_founder, allowed_sections FROM users WHERE is_admin = 1 OR is_staff = 1 ORDER BY is_admin DESC, email");
+            res.json({
+                catalog: PERMISSION_SECTIONS,
+                admins: rows.map(r => ({ ...r, allowed_sections: r.is_founder ? null : parseAllowedSections(r.allowed_sections) }))
+            });
+        } catch (e) { console.error('[Team] permissions list failed:', e.message); res.status(500).json({ error: 'Failed to load permissions' }); }
+    });
+
+    // Set one member's sections. allowed_sections: null = full access, [] = Home only, otherwise
+    // an array of PERMISSION_SECTIONS ids. The founder can NEVER be restricted (not even by
+    // themselves) — the sectionDenied() gate also short-circuits on is_founder as belt-and-braces.
+    app.put('/api/admin/team/permissions', auth, adminOnly, founderOnly, (req, res) => {
+        try {
+            const { user_id, allowed_sections } = req.body || {};
+            if (!user_id) return res.status(400).json({ error: 'user_id required' });
+            const target = query.get('SELECT id, email, COALESCE(is_founder, 0) AS is_founder FROM users WHERE id = ? AND (is_admin = 1 OR is_staff = 1)', [user_id]);
+            if (!target) return res.status(404).json({ error: 'No team member found for that id' });
+            if (target.is_founder || target.id === req.user.id) {
+                return res.status(400).json({ error: 'The founder account always keeps full access — it cannot be restricted.' });
+            }
+            let value = null; // null = full access
+            if (allowed_sections !== null && allowed_sections !== undefined) {
+                if (!Array.isArray(allowed_sections)) return res.status(400).json({ error: 'allowed_sections must be null (full access) or an array of section ids' });
+                const valid = new Set(PERMISSION_SECTIONS.map(s => s.id));
+                const bad = allowed_sections.filter(s => !valid.has(s));
+                if (bad.length) return res.status(400).json({ error: 'Unknown section id(s): ' + bad.join(', ') });
+                value = JSON.stringify([...new Set(allowed_sections)]);
+            }
+            db.run('UPDATE users SET allowed_sections = ? WHERE id = ?', [value, target.id]);
+            saveDb();
+            logAudit(req, 'team.permissions', `${target.email} → ${value === null ? 'full access' : (value === '[]' ? 'no sections (Home only)' : value)}`);
+            res.json({ success: true, user_id: target.id, allowed_sections: value === null ? null : JSON.parse(value) });
+        } catch (e) { console.error('[Team] permissions update failed:', e.message); res.status(500).json({ error: 'Failed to update permissions' }); }
+    });
 
     // ---- Founder usage stats ----
     // Portal-presence heartbeat: the SPA posts every ~60s while the tab is VISIBLE (plus one on

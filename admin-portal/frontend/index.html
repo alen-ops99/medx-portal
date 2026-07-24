@@ -14396,12 +14396,18 @@ President, Med&amp;X</textarea>
                     </div>
                     <div class="card" style="padding:18px;max-width:620px;margin-bottom:18px;">
                         <h3 style="margin:0 0 6px;font-size:15px;"><i class="fas fa-envelope-open-text" style="color:#fbbf24;margin-right:7px;"></i>Invite an admin by email</h3>
-                        <p style="margin:0 0 12px;font-size:12px;color:var(--text-muted);">They receive a <strong>temporary password</strong> by email and must set their own (8+ characters) at first sign-in. No password to think up or pass around.</p>
+                        <p style="margin:0 0 12px;font-size:12px;color:var(--text-muted);">They receive a <strong>temporary password</strong> by email and must set their own (8+ characters) at first sign-in. New invitees start with <strong>Home only</strong> — grant sections afterwards with the Permissions button on their row.</p>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                             <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Email</label><input id="inviteEmail" type="email" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
                             <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">First name</label><input id="inviteFirst" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
                         </div>
                         <button class="btn btn-primary" style="margin-top:14px;" id="inviteBtn" onclick="TeamApp.invite()"><i class="fas fa-paper-plane"></i> Send invite</button>
+                        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--border);">
+                            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Bulk invite — one per line: <code>email</code> or <code>First Last &lt;email&gt;</code></label>
+                            <textarea id="inviteBulk" rows="4" placeholder="laura.rodman@medx.hr&#10;Miro Vukovic &lt;vp@medx.hr&gt;" style="width:100%;margin-top:6px;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-family:inherit;font-size:13px;resize:vertical;"></textarea>
+                            <button class="btn btn-secondary" style="margin-top:10px;" id="inviteBulkBtn" onclick="TeamApp.inviteBulk()"><i class="fas fa-paper-plane"></i> Send all invites</button>
+                            <div id="inviteBulkResults" style="margin-top:10px;font-size:12px;"></div>
+                        </div>
                     </div>
                     <div id="teamList"><div style="text-align:center;padding:24px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
                     <!-- Founder-only usage panel. Hidden for everyone else — and the backing
@@ -17192,7 +17198,9 @@ President, Med&amp;X</textarea>
                         }
                         // Refresh the role flags from the server — a stored user from before a
                         // role change (or before is_founder existed) must not gate the UI stale.
-                        this.user = { ...this.user, is_admin: meData.is_admin, is_staff: meData.is_staff || 0, is_founder: meData.is_founder || 0 };
+                        // allowed_sections rides along so a permission grant/restriction applies
+                        // on the next load without re-login (array = restricted, null = full).
+                        this.user = { ...this.user, is_admin: meData.is_admin, is_staff: meData.is_staff || 0, is_founder: meData.is_founder || 0, allowed_sections: Array.isArray(meData.allowed_sections) ? meData.allowed_sections : null };
                         localStorage.setItem('medx_user', JSON.stringify(this.user));
                     } catch (e) {
                         localStorage.removeItem('medx_token');
@@ -17866,9 +17874,86 @@ President, Med&amp;X</textarea>
 
             userSections: null, // null = all visible (backwards compat), array = filtered
 
+            // ---- Per-admin section PERMISSIONS (granted by the founder in Team Access) ----
+            // Server-enforced in the auth middleware (403 { error, section }); everything here is
+            // just the matching UX: hide nav the member lacks, show a clean locked state on entry.
+            // Nav/data-section id → permission-section id (PERMISSION_SECTIONS on the server).
+            // Sub-surfaces ride with their parent module; anything unlisted maps to itself.
+            NAV_TO_PERM: {
+                gala: 'plexus', auctions: 'plexus', postevent: 'plexus', 'event-invites': 'plexus',
+                'event-reminders': 'plexus', 'event-tracking': 'plexus', 'speaker-itineraries': 'plexus',
+                'gameday-settings': 'gameday',
+                'content-studio': 'pr-media', newsletter: 'pr-media', 'merch-studio': 'pr-media',
+                'portal-content': 'pr-media', 'website-content': 'pr-media', 'member-feed': 'pr-media',
+                outbox: 'member-ops', messages: 'member-ops', announce: 'member-ops',
+                'email-blast': 'member-ops', 'user-notifications': 'member-ops',
+                transparency: 'finances',
+                health: 'tech', audit: 'tech',
+                resources: 'files',
+                network: 'contacts'
+            },
+            // Friendly names for the locked state + permission editor summaries.
+            PERM_LABELS: {
+                plexus: 'Plexus Week 2026', accelerator: 'Med&X Accelerator', forum: 'Biomedical Forum',
+                bridges: 'Building Bridges', gameday: 'Game Day', conferences: 'Conferences',
+                editions: 'Editions', 'signup-forms': 'Sign-up Forms', 'guest-passes': 'Guest Passes',
+                'year-calendar': 'Year Calendar', cme: 'CME / HLK', 'pr-media': 'Marketing & Content',
+                'member-ops': 'Member Ops & Comms', finances: 'Finance', contacts: 'My Network',
+                advisors: 'Executive Suite', files: 'Files & Resources', team: 'Team Access', tech: 'System & Tech'
+            },
+            // Always-allowed surfaces (mirrors the server's unmapped/common routes).
+            PERM_ALWAYS: ['dashboard', 'discover', 'team-chat', 'settings'],
+            // id may be a nav data-section id or a project id. null allowed_sections = full access.
+            hasSectionAccess(id) {
+                const a = this.user && this.user.allowed_sections;
+                if (!Array.isArray(a)) return true;
+                if (this.PERM_ALWAYS.includes(id)) return true;
+                return a.includes(this.NAV_TO_PERM[id] || id);
+            },
+
+            // Clean locked state for a section the signed-in member has no permission for. Deep
+            // links, stale localStorage nav or a raw 403 all land here — never a broken screen.
+            showLockedSection(navId) {
+                const permId = this.NAV_TO_PERM[navId] || navId;
+                const label = this.PERM_LABELS[permId] || permId;
+                const dash = document.getElementById('section-dashboard');
+                if (!dash) return;
+                let el = document.getElementById('section-locked');
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = 'section-locked';
+                    el.className = 'section';
+                    dash.parentElement.appendChild(el);
+                }
+                el.innerHTML = `
+                    <div class="card" style="max-width:520px;margin:70px auto;padding:38px 34px;text-align:center;">
+                        <div style="width:64px;height:64px;border-radius:50%;background:rgba(201,169,98,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+                            <i class="fas fa-lock" style="font-size:24px;color:var(--gold);"></i>
+                        </div>
+                        <h2 style="margin:0 0 10px;font-size:19px;">You don't have access to this section yet</h2>
+                        <p style="margin:0 0 6px;font-size:14px;color:var(--text-secondary);"><strong>${label}</strong> hasn't been unlocked for your account.</p>
+                        <p style="margin:0 0 22px;font-size:13px;color:var(--text-muted);">Ask Alen — he grants access per section, and it appears here the moment he does.</p>
+                        <button class="btn btn-primary" onclick="App.showSection('dashboard')"><i class="fas fa-home"></i> Back to Home</button>
+                    </div>`;
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                el.classList.add('active');
+                document.querySelector('.main-wrapper')?.classList.remove('hidden-for-section');
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                document.querySelectorAll('.sidebar-project').forEach(n => n.classList.remove('active'));
+                document.title = 'No access yet — Med&X Admin';
+            },
+
             async checkOnboarding() {
                 try {
                     const prefs = await this.api('/api/admin/sections');
+                    // Permission-restricted members skip the "choose your sections" onboarding —
+                    // their nav is defined by what the founder granted, not by self-chosen prefs
+                    // (the modal would offer sections they cannot open).
+                    if (this.user && Array.isArray(this.user.allowed_sections)) {
+                        if (prefs.onboarded) this.userSections = prefs.sections;
+                        this.applySectionFilters();
+                        return;
+                    }
                     if (!prefs.onboarded) {
                         this.showOnboardingModal();
                     } else {
@@ -17947,15 +18032,25 @@ President, Med&amp;X</textarea>
             },
 
             applySectionFilters() {
-                if (!this.userSections) return; // null = show everything
+                // Two independent filters compose here:
+                //   prefs — self-chosen visibility (this.userSections); null = show everything
+                //   permissions — founder-granted access (this.user.allowed_sections); null = full
+                // An item renders only when BOTH allow it; permissions are additionally enforced
+                // server-side, so hiding here is pure UX.
+                const prefs = this.userSections;
+                const restricted = !!(this.user && Array.isArray(this.user.allowed_sections));
+                if (!prefs && !restricted) return; // nothing to filter
+                const can = (id) => this.hasSectionAccess(id);
 
                 // Filter project items in sidebar
                 const CORE_PROJECTS = ['plexus', 'accelerator', 'forum', 'bridges'];
                 document.querySelectorAll('#projectsList .sidebar-project').forEach(el => {
                     const projectId = el.dataset.project;
-                    // Core projects never disappear: saved section prefs from before the
-                    // Projects IA don't contain project ids and were emptying the group.
-                    el.style.display = (CORE_PROJECTS.includes(projectId) || this.userSections.includes(projectId)) ? '' : 'none';
+                    // Core projects never disappear on the PREFS axis: saved section prefs from
+                    // before the Projects IA don't contain project ids and were emptying the
+                    // group. Permission-restricted members only see projects they were granted.
+                    const prefOk = !prefs || CORE_PROJECTS.includes(projectId) || prefs.includes(projectId);
+                    el.style.display = (prefOk && can(projectId)) ? '' : 'none';
                 });
 
                 // Filter static nav items (Finances, PR & Media). Core member-ops tools
@@ -17975,13 +18070,15 @@ President, Med&amp;X</textarea>
                 const MERGED_HIDDEN = ['user-notifications', 'portal-content', 'website-content', 'member-feed'];
                 document.querySelectorAll('#sidebarNav [data-section]').forEach(el => {
                     if (MERGED_HIDDEN.includes(el.dataset.section)) { el.style.display = 'none'; return; }
-                    el.style.display = (OPS_ALWAYS_VISIBLE.includes(el.dataset.section) || this.userSections.includes(el.dataset.section)) ? '' : 'none';
+                    const s = el.dataset.section;
+                    const prefOk = !prefs || OPS_ALWAYS_VISIBLE.includes(s) || prefs.includes(s);
+                    el.style.display = (prefOk && can(s)) ? '' : 'none';
                 });
 
                 // Filter My Network button
                 const networkEl = document.getElementById('networkSection');
                 if (networkEl) {
-                    networkEl.style.display = this.userSections.includes('contacts') ? '' : 'none';
+                    networkEl.style.display = ((!prefs || prefs.includes('contacts')) && can('contacts')) ? '' : 'none';
                 }
 
                 // Hide any nav-label group whose children are all filtered out.
@@ -20387,6 +20484,9 @@ President, Med&amp;X</textarea>
 
             // ===== NAVIGATION =====
             showSection(sectionId, navItem, skipHistory = false) {
+                // Per-admin permissions: deep links, Cmd+K and stale UI can still target a locked
+                // section — land on the clean locked state instead (the server 403s regardless).
+                if (!this.hasSectionAccess(sectionId)) return this.showLockedSection(sectionId);
                 try { setTimeout(() => { if (typeof MxHints !== 'undefined') MxHints.maybeShow(sectionId); }, 450); } catch (e) {}
                 const sectionNames = {
                     'resources': 'Resources',
@@ -20642,6 +20742,7 @@ President, Med&amp;X</textarea>
             },
 
             showProject(projectId, navItem, skipHistory = false) {
+                if (!this.hasSectionAccess(projectId)) return this.showLockedSection(projectId);
                 const sectionEl = document.getElementById('section-' + projectId);
                 if (!sectionEl) { this.showSection('dashboard', null, true); return; }
                 document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -20725,6 +20826,7 @@ President, Med&amp;X</textarea>
             // Project-first IA: open a PROJECT HOME (numbers strip + tiles). Falls back to the
             // project workspace (showProject) for projects without a dedicated home (e.g. general).
             showProjectHome(projectId, navItem, skipHistory = false) {
+                if (!this.hasSectionAccess(projectId)) return this.showLockedSection(projectId);
                 const homeId = 'home-' + projectId;
                 const sectionEl = document.getElementById('section-' + homeId);
                 if (!sectionEl) { return this.showProject(projectId, navItem, skipHistory); }
@@ -43143,12 +43245,22 @@ By applying to this program, I give the following consents:
                     el.innerHTML = '<div class="card" style="padding:0;overflow:hidden;">' + (rows.length ? rows.map(r => {
                         const isAdmin = r.is_admin === 1 || r.is_admin === '1';
                         const pending = r.must_change_password === 1 || r.must_change_password === '1';
+                        const isFounder = r.is_founder === 1 || r.is_founder === '1';
                         let badge = isAdmin ? '<span style="font-size:10px;font-weight:700;color:#15803d;border:1px solid rgba(34,197,94,0.4);border-radius:20px;padding:2px 8px;">ADMIN</span>' : '<span style="font-size:10px;font-weight:700;color:#fbbf24;border:1px solid rgba(251,191,36,0.4);border-radius:20px;padding:2px 8px;">SCANNER STAFF</span>';
                         if (pending) badge += ' <span style="font-size:10px;font-weight:700;color:#b45309;border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:2px 8px;">INVITE PENDING</span>';
+                        // Compact permission summary: null = full access, [] = locked to Home,
+                        // otherwise how many sections the founder granted. Server truth, pure display.
+                        const permSummary = isFounder ? 'Founder — full access'
+                            : (!Array.isArray(r.allowed_sections) ? 'Full access'
+                            : (r.allowed_sections.length === 0 ? 'No access yet'
+                            : r.allowed_sections.length + (r.allowed_sections.length === 1 ? ' section' : ' sections')));
                         const resendBtn = pending ? `<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="TeamApp.resend('${this.esc(r.email)}')"><i class="fas fa-rotate-right"></i> Resend invite</button>` : '';
+                        // Founder-only per-member permission editor (never on the founder's own row —
+                        // the API refuses to restrict the founder account anyway).
+                        const permBtn = (App.user && App.user.is_founder && !isFounder) ? `<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="TeamApp.openPerms('${this.esc(r.id)}')"><i class="fas fa-key"></i> Permissions</button>` : '';
                         return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);">
-                            <div><div style="font-weight:600;font-size:14px;">${this.esc((r.first_name || '') + ' ' + (r.last_name || '')) || this.esc(r.email)} ${badge}</div><div style="font-size:12px;color:var(--text-muted);">${this.esc(r.email)}</div></div>
-                            <div style="display:flex;gap:8px;flex-shrink:0;">${resendBtn}<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="TeamApp.revoke('${this.esc(r.email)}')"><i class="fas fa-user-slash"></i> Revoke</button></div>
+                            <div><div style="font-weight:600;font-size:14px;">${this.esc((r.first_name || '') + ' ' + (r.last_name || '')) || this.esc(r.email)} ${badge}</div><div style="font-size:12px;color:var(--text-muted);">${this.esc(r.email)} · <i class="fas fa-key" style="font-size:10px;"></i> ${permSummary}</div></div>
+                            <div style="display:flex;gap:8px;flex-shrink:0;">${permBtn}${resendBtn}<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="TeamApp.revoke('${this.esc(r.email)}')"><i class="fas fa-user-slash"></i> Revoke</button></div>
                         </div>`;
                     }).join('') : '<div style="padding:18px;color:var(--text-muted);">No team members yet.</div>') + '</div>';
                 } catch (e) { el.innerHTML = '<div class="card" style="padding:16px;">Failed to load the team.</div>'; }
@@ -43196,6 +43308,117 @@ By applying to this program, I give the following consents:
                     } else Toast.error(d.error || 'Failed');
                 } catch (e) { Toast.error('Failed'); }
                 finally { if (btn) btn.disabled = false; }
+            },
+            // ---- Bulk invite: one entry per line, "email" or "First Last <email>" ----
+            parseInviteLine(line) {
+                const t = line.trim();
+                if (!t) return null;
+                const m = /^(.*?)\s*<([^<>]+)>\s*$/.exec(t);
+                if (m) {
+                    const parts = m[1].trim().split(/\s+/).filter(Boolean);
+                    return { email: m[2].trim(), first_name: parts[0] || '', last_name: parts.slice(1).join(' ') };
+                }
+                return { email: t, first_name: '', last_name: '' };
+            },
+            async inviteBulk() {
+                const ta = document.getElementById('inviteBulk');
+                const out = document.getElementById('inviteBulkResults');
+                const btn = document.getElementById('inviteBulkBtn');
+                const lines = (ta.value || '').split('\n').map(l => l.trim()).filter(Boolean);
+                if (!lines.length) { Toast.warning('Add at least one line — "email" or "First Last <email>".'); return; }
+                if (btn) btn.disabled = true;
+                const results = [];
+                const paint = () => { out.innerHTML = results.map(r => `
+                    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--border);">
+                        <i class="fas ${r.ok ? 'fa-circle-check' : 'fa-circle-xmark'}" style="color:${r.ok ? '#15803d' : '#dc2626'};"></i>
+                        <span style="font-weight:600;">${this.esc(r.line)}</span>
+                        <span style="color:var(--text-muted);">— ${this.esc(r.msg)}</span>
+                    </div>`).join(''); };
+                // Sequential on purpose: per-line result reporting + no bcrypt/email burst.
+                for (const line of lines) {
+                    const p = this.parseInviteLine(line);
+                    try {
+                        const res = await fetch('/api/admin/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify(p) });
+                        const d = await res.json().catch(() => ({}));
+                        results.push({ line, ok: !!d.success, msg: d.success ? ('invited ' + p.email) : (d.error || 'failed') });
+                    } catch (e) { results.push({ line, ok: false, msg: 'network error' }); }
+                    paint();
+                }
+                if (btn) btn.disabled = false;
+                const okCount = results.filter(r => r.ok).length;
+                Toast[okCount === results.length ? 'success' : 'warning'](`Bulk invite: ${okCount}/${results.length} sent`);
+                if (okCount) {
+                    // Keep only the failed lines in the box so a fixed typo can be re-sent alone.
+                    ta.value = lines.filter((l, i) => !results[i].ok).join('\n');
+                    this.load();
+                }
+            },
+            // ---- Per-member permission editor (founder only; server enforces founderOnly) ----
+            async openPerms(userId) {
+                try {
+                    const res = await fetch('/api/admin/team/permissions', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) { Toast.error(data.error || 'Failed to load permissions'); return; }
+                    const member = (data.admins || []).find(a => a.id === userId);
+                    if (!member) { Toast.error('Member not found'); return; }
+                    this.renderPermsModal(member, data.catalog || []);
+                } catch (e) { Toast.error('Failed to load permissions'); }
+            },
+            renderPermsModal(member, catalog) {
+                document.getElementById('permModal')?.remove();
+                const overlay = document.createElement('div');
+                overlay.id = 'permModal';
+                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+                const full = !Array.isArray(member.allowed_sections);
+                const have = new Set(Array.isArray(member.allowed_sections) ? member.allowed_sections : []);
+                const groups = [];
+                catalog.forEach(s => { let g = groups.find(x => x.name === s.group); if (!g) { g = { name: s.group, items: [] }; groups.push(g); } g.items.push(s); });
+                const name = ((member.first_name || '') + ' ' + (member.last_name || '')).trim() || member.email;
+                overlay.innerHTML = `
+                    <div class="card" style="max-width:580px;width:100%;max-height:85vh;overflow-y:auto;padding:22px;">
+                        <h3 style="margin:0 0 4px;font-size:16px;"><i class="fas fa-key" style="color:#fbbf24;margin-right:7px;"></i>Permissions — ${this.esc(name)}</h3>
+                        <p style="margin:0 0 14px;font-size:12px;color:var(--text-muted);">${this.esc(member.email)} · Home is always available; everything else is unlocked per section.</p>
+                        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:14px;cursor:pointer;background:var(--bg-primary);">
+                            <input type="checkbox" id="permFullAccess" ${full ? 'checked' : ''} onchange="TeamApp.togglePermFull(this.checked)">
+                            <span style="font-weight:700;font-size:13px;">Full access</span>
+                            <span style="font-size:12px;color:var(--text-muted);">— everything, like before permissions existed</span>
+                        </label>
+                        <div id="permGrid" style="${full ? 'opacity:0.45;pointer-events:none;' : ''}">
+                            ${groups.map(g => `
+                                <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);margin:12px 0 6px;">${this.esc(g.name)}</div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                                    ${g.items.map(s => `
+                                        <label style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;">
+                                            <input type="checkbox" class="perm-cb" value="${this.esc(s.id)}" ${have.has(s.id) ? 'checked' : ''} style="margin-top:2px;">
+                                            <span><span style="font-weight:600;">${this.esc(s.label)}</span><br><span style="font-size:11px;color:var(--text-muted);">${this.esc(s.desc)}</span></span>
+                                        </label>`).join('')}
+                                </div>`).join('')}
+                        </div>
+                        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('permModal').remove()">Cancel</button>
+                            <button class="btn btn-primary" id="permSaveBtn" onclick="TeamApp.savePerms('${this.esc(member.id)}')"><i class="fas fa-check"></i> Save permissions</button>
+                        </div>
+                    </div>`;
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+                document.body.appendChild(overlay);
+            },
+            togglePermFull(checked) {
+                const grid = document.getElementById('permGrid');
+                if (grid) { grid.style.opacity = checked ? '0.45' : ''; grid.style.pointerEvents = checked ? 'none' : ''; }
+            },
+            async savePerms(userId) {
+                const full = document.getElementById('permFullAccess')?.checked;
+                const allowed_sections = full ? null : Array.from(document.querySelectorAll('#permModal .perm-cb:checked')).map(cb => cb.value);
+                const btn = document.getElementById('permSaveBtn'); if (btn) btn.disabled = true;
+                try {
+                    const res = await fetch('/api/admin/team/permissions', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ user_id: userId, allowed_sections }) });
+                    const d = await res.json().catch(() => ({}));
+                    if (d.success) {
+                        Toast.success(allowed_sections === null ? 'Full access granted.' : (allowed_sections.length ? `Access set: ${allowed_sections.length} section${allowed_sections.length === 1 ? '' : 's'}.` : 'Locked to Home only.'));
+                        document.getElementById('permModal')?.remove();
+                        this.load();
+                    } else { Toast.error(d.error || 'Failed'); if (btn) btn.disabled = false; }
+                } catch (e) { Toast.error('Failed'); if (btn) btn.disabled = false; }
             },
             async resend(email) {
                 if (!(await adminConfirm({ title: "Resend invite", message: 'Issue a fresh temporary password for ' + email + ' and email it again? The old one stops working.', confirmText: "Resend" }))) return;
