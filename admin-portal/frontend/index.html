@@ -7440,7 +7440,7 @@
                 <div class="nav-divider"></div>
                 <div class="nav-label" data-group="leadership"><span>Leadership</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
-                <!-- Executive Suite (AI CMO / CFO / COO). CSP-clean: delegated data-adv-nav
+                <!-- Executive Suite (AI CMO / CFO / COO / CLO). CSP-clean: delegated data-adv-nav
                      handler, no inline onclick. -->
                 <a class="nav-item" data-section="advisors" data-adv-nav="1">
                     <i class="fas fa-user-tie" style="color: #7c3aed;"></i>
@@ -7668,7 +7668,7 @@
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <span class="card-title">
                                 <i class="fas fa-user-tie" style="color:#7c3aed; margin-right:6px;"></i> Executive Suite
-                                <span style="font-weight:400; color:var(--text-muted); font-size:12px;">&mdash; this week from your CMO, CFO and COO</span>
+                                <span style="font-weight:400; color:var(--text-muted); font-size:12px;">&mdash; this week from your CMO, CFO, COO and CLO</span>
                             </span>
                             <a class="btn btn-secondary" data-adv-act="open" style="font-size: 11px; padding: 5px 12px; cursor:pointer;" title="Open the Executive Suite">
                                 <i class="fas fa-arrow-right"></i> Open
@@ -14265,7 +14265,7 @@ President, Med&amp;X</textarea>
                     </div>
                 </div>
 
-                <!-- EXECUTIVE ADVISORY BOARD (AI CMO / CFO / COO). Body is rendered by AdvisoryBoard.render()
+                <!-- EXECUTIVE ADVISORY BOARD (AI CMO / CFO / COO / CLO). Body is rendered by AdvisoryBoard.render()
                      with delegated data-adv-* handlers — no inline onclick in this section. -->
                 <div class="section" id="section-advisors">
                     <div id="advisoryBoardBody">
@@ -17868,7 +17868,7 @@ President, Med&amp;X</textarea>
                 { id: 'signup-forms', label: 'Sign-up Forms', icon: 'fa-clipboard-check', color: '#059669', desc: 'Public sign-up pages for short events' },
                 { id: 'guest-passes', label: 'Guest Passes', icon: 'fa-id-badge', color: '#a78bfa', desc: 'Personal VIP access links for one event' },
                 { id: 'tech', label: 'Tech', icon: 'fa-server', color: '#c14b52', desc: 'System health & deployment' },
-                { id: 'advisors', label: 'Executive Suite', icon: 'fa-user-tie', color: '#7c3aed', desc: 'AI CMO / CFO / COO weekly review' },
+                { id: 'advisors', label: 'Executive Suite', icon: 'fa-user-tie', color: '#7c3aed', desc: 'AI CMO / CFO / COO / CLO weekly review' },
                 { id: 'discover', label: 'Discover', icon: 'fa-compass', color: '#c9a962', desc: 'What this portal replaces — a 2-minute tour', alwaysOn: true },
             ],
 
@@ -52849,7 +52849,7 @@ By applying to this program, I give the following consents:
                 { title: 'Team Chat', sub: 'Internal team messaging', icon: 'fa-comments', color: '#9b1b22', group: 'Sections', action: () => App.showSection('team-chat', document.querySelector('.nav-item[data-section=team-chat]')) },
                 { title: 'Member Ops', sub: 'Member experience umbrella', icon: 'fa-sliders-h', color: '#c9a962', group: 'Sections', action: () => App.showSection('member-ops', document.querySelector('.nav-item[data-section=member-ops]')) },
                 { title: 'Settings', sub: 'Profile, security, sections', icon: 'fa-cog', color: 'var(--text-muted)', group: 'Sections', action: () => App.openSettings() },
-                { title: 'Executive Suite', sub: 'AI CMO / CFO / COO weekly review', icon: 'fa-user-tie', color: '#7c3aed', group: 'Sections', action: () => App.showSection('advisors', document.querySelector('.nav-item[data-section=advisors]')) },
+                { title: 'Executive Suite', sub: 'AI CMO / CFO / COO / CLO weekly review', icon: 'fa-user-tie', color: '#7c3aed', group: 'Sections', action: () => App.showSection('advisors', document.querySelector('.nav-item[data-section=advisors]')) },
 
                 // Projects (open the project HOME — numbers strip + tiles to every surface)
                 { title: 'Plexus Week 2026', sub: 'Project home', icon: 'fa-microscope', color: 'var(--plexus)', group: 'Projects', action: () => App.showProjectHome('plexus') },
@@ -55312,7 +55312,7 @@ By applying to this program, I give the following consents:
     })();
     </script>
 
-    <!-- ==================== EXECUTIVE ADVISORY BOARD (AI CMO / CFO / COO) ==================== -->
+    <!-- ==================== EXECUTIVE ADVISORY BOARD (AI CMO / CFO / COO / CLO) ==================== -->
     <!-- Advice only. CSP-clean: one delegated click listener on data-adv-* attributes, zero inline
          onclick. The admin UI chrome is English (the admin portal has no i18n layer); the data pack
          carries label_hr for the future, and the rule-based badge shows its Croatian variant. -->
@@ -55322,11 +55322,13 @@ By applying to this program, I give the following consents:
             SEATS: [
                 { key: 'CMO', full: 'Chief Marketing Officer', icon: 'fa-bullhorn', color: '#9b1b22', blurb: 'Campaigns, newsletter reach, social calendar and press activity.' },
                 { key: 'CFO', full: 'Chief Financial Officer', icon: 'fa-coins', color: '#0ea5a4', blurb: 'Registration money — collected revenue, unpaid approvals and reconciliation.' },
-                { key: 'COO', full: 'Chief Operating Officer', icon: 'fa-clipboard-check', color: '#7c3aed', blurb: 'Event readiness — pace vs capacity, the content checklist and the task backlog.' }
+                { key: 'COO', full: 'Chief Operating Officer', icon: 'fa-clipboard-check', color: '#7c3aed', blurb: 'Event readiness — pace vs capacity, the content checklist and the task backlog.' },
+                { key: 'CLO', full: 'Chief Legal Officer', icon: 'fa-scale-balanced', color: '#b45309', blurb: 'Brand and logo permissions, photo consent and GDPR, contracts and event liability.' }
             ],
             _data: null, _seat: 'CMO', _busy: false,
+            _ask: { q: '', busy: false, answer: null, historyOpen: false, history: null },
             _esc(v) { return (typeof escapeHtml === 'function') ? escapeHtml(v == null ? '' : String(v)) : String(v == null ? '' : v); },
-            _valid: ['dashboard', 'conferences', 'finances', 'gala', 'outbox', 'event-invites', 'event-reminders', 'newsletter', 'pr-media', 'content-studio', 'postevent', 'forum', 'health', 'croatians-abroad', 'member-ops', 'transparency', 'advisors'],
+            _valid: ['dashboard', 'conferences', 'finances', 'gala', 'outbox', 'event-invites', 'event-reminders', 'newsletter', 'pr-media', 'content-studio', 'postevent', 'forum', 'health', 'croatians-abroad', 'member-ops', 'transparency', 'advisors', 'cme'],
             api(endpoint, options = {}) {
                 return fetch(endpoint, { ...options, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token, ...(options.headers || {}) } })
                     .then(async res => { if (!res.ok) { const t = await res.text().catch(() => 'Error'); throw new Error(res.status + ': ' + t); } return res.json(); });
@@ -55373,9 +55375,103 @@ By applying to this program, I give the following consents:
                     '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">'
                     + '<div><h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-user-tie" style="color:#7c3aed;"></i> Executive Suite</h2></div>'
                     + '</div>'
-                    + '<p style="margin:8px 0 16px;color:var(--text-muted);font-size:13.5px;max-width:760px;line-height:1.55;">Three veteran advisors review your real numbers each week and suggest what to do next. Advice only &mdash; they never send, edit or change anything. Every point cites the live figure behind it and links to where you would act.</p>'
+                    + '<p style="margin:8px 0 16px;color:var(--text-muted);font-size:13.5px;max-width:760px;line-height:1.55;">Four veteran advisors review your real numbers each week and suggest what to do next. Advice only &mdash; they never send, edit or change anything. Every point cites the live figure behind it and links to where you would act.</p>'
+                    + this._askBlock()
                     + '<div style="display:flex;gap:9px;flex-wrap:wrap;">' + tabs + '</div>'
                     + panel;
+            },
+            // ---- "Ask the board" (routes to the right seat, answers in persona) ----
+            _seatChip(key) {
+                const s = this.SEATS.find(x => x.key === key);
+                if (!s) return '<span style="font-weight:700;font-size:12px;color:var(--text-secondary);">' + this._esc(key || '') + '</span>';
+                return '<span style="display:inline-flex;align-items:center;gap:7px;background:var(--bg-secondary);border:1px solid ' + s.color + ';border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--text-primary);"><i class="fas ' + s.icon + '" style="color:' + s.color + ';"></i> ' + this._esc(s.key) + ' &middot; ' + this._esc(s.full) + '</span>';
+            },
+            _askBlock() {
+                const esc = (v) => this._esc(v);
+                const a = this._ask;
+                let html = '<div style="border:1px solid var(--border);border-radius:12px;padding:15px 17px;margin:0 0 18px;background:var(--bg-secondary);">';
+                html += '<div style="font-weight:700;font-size:14.5px;color:var(--text-primary);margin-bottom:9px;"><i class="fas fa-comments" style="color:#7c3aed;margin-right:7px;"></i>Ask the board</div>';
+                html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+                    + '<input type="text" id="advAskInput" maxlength="600" value="' + esc(a.q || '') + '" placeholder="Ask anything &mdash; e.g. can we publish partner X&#39;s logo on medx.hr?" style="flex:1;min-width:240px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;">'
+                    + '<button type="button" data-adv-act="board-ask" class="btn btn-primary" style="font-size:12.5px;padding:8px 16px;"' + (a.busy ? ' disabled' : '') + '><i class="fas ' + (a.busy ? 'fa-spinner fa-spin' : 'fa-paper-plane') + '"></i> ' + (a.busy ? 'Asking the board&hellip;' : 'Ask') + '</button></div>';
+                html += '<div style="font-size:11.5px;color:var(--text-muted);margin-top:7px;">The board routes your question to the right seat &mdash; marketing, finance, operations or legal &mdash; and answers with a verdict, the reasoning and the next steps.</div>';
+                if (a.answer) html += this._answerCard(a.answer);
+                html += '<div style="margin-top:12px;">'
+                    + '<button type="button" data-adv-act="board-history" class="btn btn-secondary" style="font-size:12px;padding:6px 12px;"><i class="fas fa-chevron-' + (a.historyOpen ? 'up' : 'down') + '"></i> ' + (a.historyOpen ? 'Hide previous questions' : 'Previous questions') + '</button>';
+                if (a.historyOpen) {
+                    if (a.history === null) html += '<div style="padding:14px 4px;color:var(--text-muted);font-size:12.5px;"><i class="fas fa-spinner fa-spin"></i> Loading&hellip;</div>';
+                    else if (!a.history.length) html += '<div style="padding:14px 4px;color:var(--text-muted);font-size:12.5px;">No questions asked yet.</div>';
+                    else {
+                        html += '<div style="margin-top:10px;">';
+                        a.history.forEach((qa, i) => { html += this._historyRow(qa, i); });
+                        html += '</div>';
+                    }
+                }
+                html += '</div></div>';
+                return html;
+            },
+            _historyRow(qa, i) {
+                const esc = (v) => this._esc(v);
+                const s = this.SEATS.find(x => x.key === qa.seat);
+                return '<div data-adv-act="board-hist-item" data-adv-hidx="' + i + '" style="border-top:1px solid var(--border);padding:9px 4px;cursor:pointer;display:flex;gap:10px;align-items:baseline;" title="Show this answer">'
+                    + '<span style="flex-shrink:0;width:38px;font-weight:700;font-size:11.5px;color:' + ((s && s.color) || 'var(--text-secondary)') + ';">' + esc(qa.seat) + '</span>'
+                    + '<span style="flex:1;font-size:12.5px;color:var(--text-secondary);line-height:1.4;">' + esc(qa.question) + '</span>'
+                    + '<span style="flex-shrink:0;font-size:11px;color:var(--text-muted);">' + esc(qa.created_at ? new Date(qa.created_at).toLocaleDateString() : '') + '</span></div>';
+            },
+            _answerCard(item) {
+                const esc = (v) => this._esc(v);
+                const ans = item.answer || {};
+                let html = '<div style="border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:12px;background:var(--bg-primary);">';
+                html += '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px;">' + this._seatChip(item.seat)
+                    + (ans.is_mock ? '<span title="Pravilo-utemeljen odgovor (AI ključ nije postavljen)" style="display:inline-flex;align-items:center;gap:6px;background:rgba(180,83,9,0.12);border:1px solid rgba(180,83,9,0.4);color:#b45309;border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:600;"><i class="fas fa-scale-balanced"></i> Rule-based answer (AI key not set)</span>' : '')
+                    + (item.created_at ? '<span style="font-size:11px;color:var(--text-muted);margin-left:auto;">' + esc(new Date(item.created_at).toLocaleString()) + '</span>' : '') + '</div>';
+                if (item.question) html += '<div style="font-size:12.5px;color:var(--text-muted);margin-bottom:8px;">&ldquo;' + esc(item.question) + '&rdquo;</div>';
+                if (ans.verdict) html += '<div style="font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:7px;">' + esc(ans.verdict) + '</div>';
+                if (ans.reasoning) html += '<div style="font-size:13.5px;color:var(--text-secondary);line-height:1.55;margin-bottom:10px;">' + esc(ans.reasoning) + '</div>';
+                if (Array.isArray(ans.next_steps) && ans.next_steps.length) {
+                    html += '<div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:5px;">Next steps</div><ol style="margin:0 0 10px;padding-left:20px;">'
+                        + ans.next_steps.map(st => '<li style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:3px;">' + esc(st) + '</li>').join('') + '</ol>';
+                }
+                if (ans.research && (ans.research.summary || (Array.isArray(ans.research.findings) && ans.research.findings.length))) {
+                    html += '<div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:5px;">What the research found</div>'
+                        + '<div style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">' + esc(ans.research.summary || '')
+                        + (Array.isArray(ans.research.findings) ? ans.research.findings.map(f => {
+                            const ev = (Array.isArray(f.evidence) ? f.evidence : []).filter(e => e && e.url);
+                            return '<div style="margin-top:5px;">&bull; ' + esc((f.name || f.organization || '')) + (f.role_or_desc ? ' &mdash; ' + esc(f.role_or_desc) : '')
+                                + ev.map(e => ' <a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:#7c3aed;font-size:11.5px;">' + esc((e.url || '').replace(/^https?:\/\//, '').slice(0, 60)) + '</a>').join('') + '</div>';
+                        }).join('') : '') + '</div>';
+                }
+                if (ans.email_draft) {
+                    html += '<div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:5px;">Ready-to-send permission request</div>'
+                        + '<div style="border:1px solid var(--border);border-radius:10px;padding:11px 13px;background:var(--bg-secondary);font-size:12.5px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.55;margin-bottom:10px;">'
+                        + '<div style="font-weight:600;color:var(--text-primary);margin-bottom:6px;">Subject: ' + esc(ans.email_draft.subject || '') + '</div>' + esc(ans.email_draft.body || '') + '</div>';
+                }
+                if (ans.disclaimer) html += '<div style="font-size:11.5px;color:var(--text-muted);font-style:italic;">' + esc(ans.disclaimer) + '</div>';
+                html += '</div>';
+                return html;
+            },
+            async boardAsk() {
+                if (this._ask.busy) return;
+                const input = document.getElementById('advAskInput');
+                const q = (input ? input.value : '').trim();
+                if (!q) { if (typeof Toast !== 'undefined') Toast.error('Type a question for the board first.'); return; }
+                this._ask.q = q; this._ask.busy = true; this._ask.answer = null; this.render();
+                try {
+                    const r = await this.api('/api/admin/advisors/ask', { method: 'POST', body: JSON.stringify({ question: q }) });
+                    this._ask.answer = r;
+                    if (Array.isArray(this._ask.history)) this._ask.history.unshift(r);
+                    if (typeof Toast !== 'undefined') Toast.success('The ' + (r.seat || 'board') + ' answered' + (r.answer && r.answer.is_mock ? ' (rule-based)' : ''));
+                } catch (e) { if (typeof Toast !== 'undefined') Toast.error('The board could not answer: ' + (e.message || '')); }
+                finally { this._ask.busy = false; this.render(); }
+            },
+            async toggleHistory() {
+                this._ask.historyOpen = !this._ask.historyOpen;
+                if (this._ask.historyOpen && this._ask.history === null) {
+                    this.render();
+                    try { const r = await this.api('/api/admin/advisors/questions'); this._ask.history = r.questions || []; }
+                    catch (e) { this._ask.history = []; }
+                }
+                this.render();
             },
             _obsCard(reviewId, idx, o) {
                 const esc = (v) => this._esc(v);
@@ -55401,6 +55497,13 @@ By applying to this program, I give the following consents:
                 if (act === 'tab') { this._seat = el.getAttribute('data-adv-seat') || 'CMO'; this.render(); return; }
                 if (act === 'run') { this.runSeat(el.getAttribute('data-adv-seat')); return; }
                 if (act === 'ask') { this.askSeat(el.getAttribute('data-adv-seat')); return; }
+                if (act === 'board-ask') { this.boardAsk(); return; }
+                if (act === 'board-history') { this.toggleHistory(); return; }
+                if (act === 'board-hist-item') {
+                    const i = parseInt(el.getAttribute('data-adv-hidx'), 10);
+                    if (Array.isArray(this._ask.history) && this._ask.history[i]) { this._ask.answer = this._ask.history[i]; this._ask.q = this._ask.history[i].question || ''; this.render(); }
+                    return;
+                }
                 if (act === 'deeplink') { this.deepLink(el.getAttribute('data-adv-section')); return; }
                 if (act === 'feedback') { this.feedback(parseInt(el.getAttribute('data-adv-review'), 10), parseInt(el.getAttribute('data-adv-idx'), 10), el.getAttribute('data-adv-verdict')); return; }
             },

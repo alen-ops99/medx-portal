@@ -1136,7 +1136,7 @@ const PERMISSION_SECTIONS = [
     { id: 'member-ops',    label: 'Member Ops & Comms',    group: 'Communications',  desc: 'Messages, announcements, email blasts, outbox' },
     { id: 'finances',      label: 'Finance',               group: 'Finance',         desc: 'Finances, invoices, travel orders, board pack' },
     { id: 'contacts',      label: 'My Network',            group: 'Network',         desc: 'Contacts & Outlook threads' },
-    { id: 'advisors',      label: 'Executive Suite',       group: 'Leadership',      desc: 'AI CMO / CFO / COO weekly review' },
+    { id: 'advisors',      label: 'Executive Suite',       group: 'Leadership',      desc: 'AI CMO / CFO / COO / CLO weekly review + Ask the board' },
     { id: 'files',         label: 'Files & Resources',     group: 'System',          desc: 'Shared files & resource library' },
     { id: 'team',          label: 'Team Access',           group: 'System',          desc: 'Team list, invites, roles' },
     { id: 'tech',          label: 'System & Tech',         group: 'System',          desc: 'System health, audit log, tech dashboard' },
@@ -5695,8 +5695,8 @@ async function initializeApp() {
     } catch (e) { console.error('[review-engine] seed', e.message); }
 
     // ====================== EXECUTIVE ADVISORY BOARD (admin-only) ======================
-    // Three standing AI advisor personas (CMO / CFO / COO) review REAL portal data each week and
-    // record grounded, ADVICE-ONLY observations with deep links. Nothing here ever sends, edits
+    // Four standing AI advisor personas (CMO / CFO / COO / CLO) review REAL portal data each week
+    // and record grounded, ADVICE-ONLY observations with deep links. Nothing here ever sends, edits
     // money/tickets, or bypasses an approval gate — the boundary is read-only aggregation plus a
     // persisted note. These two tables live OUTSIDE the SCHEMA-MIRROR block by design: they are
     // ADMIN-ONLY (the user portal never reads or writes them), so there is nothing to mirror and
@@ -5731,6 +5731,20 @@ async function initializeApp() {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
     try { db.run('CREATE INDEX IF NOT EXISTS idx_advisor_feedback_review ON advisor_feedback(review_id)'); } catch (e) {}
+    // advisor_questions: the "Ask the board" history — one row per question an admin asked the
+    // board (POST /api/admin/advisors/ask). seat is the advisor that answered after routing;
+    // answer is the structured JSON reply {verdict, reasoning, next_steps, email_draft, research,
+    // disclaimer, is_mock, model, routed_by}. ADMIN-ONLY, OUTSIDE the SCHEMA-MIRROR block — the
+    // user portal never reads or writes it (nothing to mirror, check-schema-sync stays green).
+    db.run(`CREATE TABLE IF NOT EXISTS advisor_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        question TEXT NOT NULL,
+        seat TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_advisor_questions_created ON advisor_questions(created_at)'); } catch (e) {}
 
     // ====================== THE BIOMEDICAL FORUM — WING schema ======================
     // The Forum wing (/forum) is a dignified, invitation-only experience convened under Med&X.
@@ -40138,14 +40152,14 @@ ${extraCss || ''}
     });
 
     // ============================ EXECUTIVE ADVISORY BOARD ============================
-    // Three standing advisor personas (CMO / CFO / COO) review REAL portal data weekly and record
-    // grounded, ADVICE-ONLY observations with deep links. Nothing here ever sends, edits money or
-    // tickets, or bypasses an approval gate — the boundary is read-only aggregation plus a persisted
-    // note. Packs are cheap COUNT/SUM aggregates over EXISTING tables (well under 200ms). Compose:
-    // persona prompt -> Anthropic (reuses the existing key + ASSISTANT_MODEL routing) -> JSON
-    // observations -> CITE-OR-DROP post-filter (any number not present in the pack is dropped). With
-    // no key it degrades to deterministic threshold observations (is_mock=1) that are ALWAYS useful.
-    const ADVISOR_SEATS = ['CMO', 'CFO', 'COO'];
+    // Four standing advisor personas (CMO / CFO / COO / CLO) review REAL portal data weekly and
+    // record grounded, ADVICE-ONLY observations with deep links. Nothing here ever sends, edits
+    // money or tickets, or bypasses an approval gate — the boundary is read-only aggregation plus a
+    // persisted note. Packs are cheap COUNT/SUM aggregates over EXISTING tables (well under 200ms).
+    // Compose: persona prompt -> Anthropic (reuses the existing key + ASSISTANT_MODEL routing) ->
+    // JSON observations -> CITE-OR-DROP post-filter (any number not present in the pack is dropped).
+    // With no key it degrades to deterministic threshold observations (is_mock=1) — ALWAYS useful.
+    const ADVISOR_SEATS = ['CMO', 'CFO', 'COO', 'CLO'];
 
     // Small helpers. advNum runs a single-value COUNT/SUM query and always returns a finite number.
     function advNum(sql, params) {
@@ -40269,14 +40283,39 @@ ${extraCss || ''}
         return pack;
     }
 
+    // CLO: legal exposure — sponsor paper trail and published logos, the consent trails the portal
+    // does and does NOT keep (missing ones ride along as 'note' values so the persona can flag the
+    // gap honestly), the sensitive CME store (OIB + date of birth: consent + at-rest encryption),
+    // and marketing-consent hygiene. Same cheap COUNT aggregates as the other seats.
+    function advCloPack() {
+        const pack = [];
+        pack.push(advVal('sponsors_total', 'Sponsors on file', 'Sponzora u evidenciji', advNum("SELECT COUNT(*) c FROM sponsors")));
+        pack.push(advVal('sponsor_logos_published', 'Sponsor logos displayed publicly', 'Javno prikazanih logotipa sponzora', advNum("SELECT COUNT(*) c FROM sponsors WHERE logo_url IS NOT NULL AND TRIM(logo_url) <> ''")));
+        pack.push(advVal('sponsor_tasks_open', 'Open sponsor benefit obligations', 'Otvorenih sponzorskih obveza', advNum("SELECT COUNT(*) c FROM sponsor_tasks WHERE COALESCE(is_completed, 0) = 0")));
+        pack.push(advVal('agreement_register', 'Signed sponsor and logo-use agreements', 'Potpisani ugovori o sponzorstvu i logotipima', 'no register kept in the portal', 'note'));
+        pack.push(advVal('gala_guests', 'Gala guests registered', 'Prijavljenih gostiju Gale', advNum("SELECT COUNT(*) c FROM gala_registrations WHERE COALESCE(status, '') != 'cancelled'")));
+        pack.push(advVal('photo_consent_field', 'Photo and filming consent at registration', 'Privola za fotografiranje pri prijavi', 'not collected (no consent trail)', 'note'));
+        pack.push(advVal('cme_sensitive_rows', 'CME records holding OIB and birth date', 'CME zapisa s OIB-om i datumom rođenja', advNum("SELECT COUNT(*) c FROM cme_submissions")));
+        pack.push(advVal('cme_missing_consent', 'CME records without recorded consent', 'CME zapisa bez zabilježene privole', advNum("SELECT COUNT(*) c FROM cme_submissions WHERE COALESCE(consent, 0) = 0")));
+        pack.push(advVal('cme_plaintext_rows', 'CME records stored unencrypted', 'CME zapisa pohranjenih nekriptirano', advNum("SELECT COUNT(*) c FROM cme_submissions WHERE COALESCE(enc, 0) = 0")));
+        pack.push(advVal('cme_encryption_on', 'CME at-rest encryption key set', 'Ključ za enkripciju CME podataka postavljen', process.env.CME_ENC_KEY ? 1 : 0, 'bool'));
+        pack.push(advVal('newsletter_optouts', 'Newsletter opt-outs honored', 'Poštovanih odjava s biltena', advNum("SELECT COUNT(*) c FROM pr_subscribers WHERE status = 'unsubscribed'")));
+        pack.push(advVal('volunteers_on_file', 'Volunteers on file', 'Volontera u evidenciji', advNum("SELECT COUNT(*) c FROM volunteers")));
+        return pack;
+    }
+
+    // One persona paragraph per seat — shared by the weekly-review prompt AND the Ask-the-board
+    // prompt below, so a seat always speaks with one voice.
+    const ADVISOR_PERSONA = {
+        CMO: 'You are a seasoned Chief Marketing Officer advising Med&X, a Croatian biomedical NGO that runs the Plexus conference, a Gala evening, an email newsletter, a senior Biomedical Forum and press outreach. You review the marketing numbers the way a veteran would: specific, useful, direct but courteous.',
+        CFO: 'You are a veteran nonprofit Chief Financial Officer advising Med&X, a Croatian biomedical NGO. You review only real registration money — collected revenue, approved-but-unpaid guests, payments awaiting settlement, reconciliation backlog and discount usage. You are precise, calm and direct but courteous.',
+        COO: 'You are a veteran conference-operations Chief Operating Officer advising Med&X, a Croatian biomedical NGO whose flagship is the Plexus conference. You review event readiness: registration pace against capacity and date, the content checklist, the Action Center backlog, overdue tasks and system readiness. You are practical, calm and direct but courteous.',
+        CLO: 'You are a veteran legal counsel (Chief Legal Officer) advising Med&X, a Croatian biomedical nonprofit association (udruga) that runs the Plexus conference, a Gala evening and international programs. Your domains: brand, trademark and logo use and the permissions they require, image and personality rights and photo consent, GDPR in its EU and Croatian flavor, event liability and venue, caterer and sponsor contracts, volunteer and donation rules, and HLK/CME compliance touchpoints. You are precise, calm and direct but courteous, and you always say when something needs a qualified lawyer.'
+    };
+
     // Persona system prompts (direct-but-courteous veteran register, 3-5 observations, EN output).
     function advSystemPrompt(seat) {
-        const persona = {
-            CMO: 'You are a seasoned Chief Marketing Officer advising Med&X, a Croatian biomedical NGO that runs the Plexus conference, a Gala evening, an email newsletter, a senior Biomedical Forum and press outreach. You review the marketing numbers the way a veteran would: specific, useful, direct but courteous.',
-            CFO: 'You are a veteran nonprofit Chief Financial Officer advising Med&X, a Croatian biomedical NGO. You review only real registration money — collected revenue, approved-but-unpaid guests, payments awaiting settlement, reconciliation backlog and discount usage. You are precise, calm and direct but courteous.',
-            COO: 'You are a veteran conference-operations Chief Operating Officer advising Med&X, a Croatian biomedical NGO whose flagship is the Plexus conference. You review event readiness: registration pace against capacity and date, the content checklist, the Action Center backlog, overdue tasks and system readiness. You are practical, calm and direct but courteous.'
-        }[seat] || '';
-        return persona + '\n\n' +
+        return (ADVISOR_PERSONA[seat] || '') + '\n\n' +
             'You will be given this week\'s DATA PACK: an array of {key, label, value, unit}. These numbers are the ONLY facts you may use. Never invent a number, name, date or amount that is not in the pack.\n\n' +
             'Return ONLY a JSON array of 3 to 5 observations. Each observation is an object:\n' +
             '{ "headline": short (max 8 words), "detail": 1-3 plain sentences of advice a veteran would give, "evidence": [ { "label": short, "value": a number copied EXACTLY from a pack value } ], "link_section": one of the allowed link_section values, "link_label": short (max 4 words) }\n\n' +
@@ -40375,6 +40414,17 @@ ${extraCss || ''}
                 out.push({ headline: 'Bank lines to reconcile', detail: 'Bank statement lines are unmatched. Reconciling them now keeps the paid-status ledger accurate.', evidence: [ev('Unmatched lines', g('bank_unmatched'))], link_section: 'finances', link_label: 'Open Finances' });
             if (!out.length)
                 out.push({ headline: 'Collections look clean', detail: 'No unpaid backlog stands out this week. Collected registration revenue is tracking and nothing is aging.', evidence: [ev('Revenue collected (EUR)', g('paid_revenue_total')), ev('Paid registrations', g('paid_count_total'))], link_section: 'finances', link_label: 'Open Finances' });
+        } else if (seat === 'CLO') {
+            if (g('sponsor_logos_published') > 0)
+                out.push({ headline: 'Published sponsor logos need agreements on file', detail: 'Sponsor logos are displayed publicly but the portal keeps no register of signed logo-use permissions. Confirm each display is covered by a written clause in the sponsorship agreement and file the documents.', evidence: [ev('Logos displayed', g('sponsor_logos_published')), ev('Sponsors on file', g('sponsors_total'))], link_section: 'conferences', link_label: 'Open sponsors' });
+            if (g('gala_guests') > 0)
+                out.push({ headline: 'No photo consent trail for gala guests', detail: 'Guests are registered but registration collects no photo or filming consent. Add a consent line before the event so publishing event photos rests on a recorded lawful basis under GDPR and Croatian image-rights practice.', evidence: [ev('Gala guests', g('gala_guests'))], link_section: 'gala', link_label: 'Open Gala' });
+            if (g('cme_missing_consent') > 0)
+                out.push({ headline: 'Sensitive CME data without recorded consent', detail: 'CME records hold OIB and date of birth without a recorded consent flag. Chase the missing consents or remove the data — this is the most sensitive personal data the portal holds.', evidence: [ev('Missing consent', g('cme_missing_consent')), ev('CME records', g('cme_sensitive_rows'))], link_section: 'cme', link_label: 'Open CME' });
+            if (g('cme_sensitive_rows') > 0 && g('cme_encryption_on') === 0)
+                out.push({ headline: 'OIB and birth dates stored unencrypted', detail: 'The CME store holds OIB and dates of birth with no at-rest encryption key set. Set CME_ENC_KEY so the most sensitive rows are encrypted at rest.', evidence: [ev('Unencrypted records', g('cme_plaintext_rows')), ev('Encryption key set', g('cme_encryption_on'))], link_section: 'cme', link_label: 'Open CME' });
+            if (!out.length)
+                out.push({ headline: 'No legal red flags this week', detail: 'Nothing legal-flavored stands out in the portal data. Keep contracts, consents and permissions filed as they arrive so the paper trail stays complete.', evidence: [ev('Sponsors on file', g('sponsors_total')), ev('Volunteers on file', g('volunteers_on_file'))], link_section: 'dashboard', link_label: 'Open dashboard' });
         } else {
             if (g('days_to_event') > 0 && g('days_to_event') < 60 && g('checklist_done') < g('checklist_total'))
                 out.push({ headline: 'Content still owed close to the event', detail: 'The content checklist is incomplete with under two months to go. Close the open items before they become event-week fires.', evidence: [ev('Days to event', g('days_to_event')), ev('Completed', g('checklist_done')), ev('Total', g('checklist_total'))], link_section: 'dashboard', link_label: 'Open checklist' });
@@ -40393,7 +40443,8 @@ ${extraCss || ''}
     const ADVISOR_SEAT_META = {
         CMO: { pack: advCmoPack, sections: ['event-invites', 'newsletter', 'pr-media', 'content-studio', 'forum', 'outbox'], default_section: 'pr-media' },
         CFO: { pack: advCfoPack, sections: ['finances', 'gala', 'outbox', 'event-reminders', 'conferences'], default_section: 'finances' },
-        COO: { pack: advCooPack, sections: ['conferences', 'dashboard', 'health', 'postevent', 'content-studio', 'event-reminders'], default_section: 'conferences' }
+        COO: { pack: advCooPack, sections: ['conferences', 'dashboard', 'health', 'postevent', 'content-studio', 'event-reminders'], default_section: 'conferences' },
+        CLO: { pack: advCloPack, sections: ['conferences', 'gala', 'cme', 'finances', 'pr-media', 'dashboard'], default_section: 'dashboard' }
     };
     function advSeatPack(seat) { const m = ADVISOR_SEAT_META[seat]; return m ? m.pack() : []; }
 
@@ -40510,6 +40561,187 @@ ${extraCss || ''}
         logAudit(req, 'advisor_feedback', 'review ' + reviewId + ' obs ' + idx + ' -> ' + verdict);
         res.json({ ok: true });
     }));
+
+    // ---------------------------- ASK THE BOARD ----------------------------
+    // The president's ask: "people ask the assistant and then it figures out how to answer it
+    // based on the question." One question box in the Executive Suite: a routing step picks the
+    // right seat (AI-classified when a key is set, deterministic keywords otherwise), the seat
+    // answers IN PERSONA with a structured reply (short verdict -> reasoning -> concrete next
+    // steps), and every Q&A persists into advisor_questions. Brand/logo-use questions get the
+    // full legal treatment: live research into the third party's brand guidelines (reuses
+    // advResearchSearch — the existing web-research path, never a new AI client), what permission
+    // is needed and from whom, a ready-to-send permission-request email draft, and a closing
+    // this-is-preliminary-research-not-legal-advice line. ADVICE ONLY — nothing here sends,
+    // posts, signs or publishes; the endpoints live under /api/admin/advisors so the 'advisors'
+    // section permission gate (SECTION_ROUTE_MAP) covers them with no extra wiring.
+    const ADVISOR_LEGAL_DISCLAIMER = 'This is preliminary research by your AI advisory board, not legal advice.';
+
+    // Deterministic routing — also the no-key path. Checked in order: legal beats money beats
+    // marketing, so "invoice for the logo license" still lands with the lawyer.
+    function advRouteFallback(q) {
+        const s = ' ' + String(q || '').toLowerCase() + ' ';
+        if (/legal|lawyer|brand|logo|trademark|copyright|contract|agreement|gdpr|privacy|consent|liabilit|permission|licen[cs]|compliance|dispute|terms of/.test(s)) return 'CLO';
+        if (/budget|invoice|money|price|pricing|cost|revenue|payment|refund|financ|donat|vat\b|tax\b|euro|eur\b/.test(s)) return 'CFO';
+        if (/marketing|post\b|posts\b|press|social|newsletter|campaign|instagram|linkedin|facebook|announce|promot|outreach|media\b/.test(s)) return 'CMO';
+        return 'COO';
+    }
+    // Route a question to a seat: one tiny classification call when a key is set (12s cap via
+    // advCallAnthropic, never throws), keyword fallback otherwise or on any failure.
+    async function advRouteQuestion(q) {
+        const fallback = advRouteFallback(q);
+        if (!process.env.ANTHROPIC_API_KEY) return { seat: fallback, routed_by: 'keywords' };
+        const system = 'You route an internal question from a Croatian biomedical NGO to ONE of four advisors. CMO: marketing, campaigns, press, social media, newsletter. CFO: money, budgets, invoices, payments, revenue. COO: operations, event readiness, logistics, tasks, systems. CLO: anything legal — brand and logo use, permissions, contracts, GDPR and privacy, consent, liability, compliance. Reply with exactly one word: CMO, CFO, COO or CLO.';
+        let text = '';
+        try { text = await advCallAnthropic(system, String(q).slice(0, 600), 16); } catch (e) { text = ''; }
+        const m = String(text || '').toUpperCase().match(/\b(CMO|CFO|COO|CLO)\b/);
+        return m ? { seat: m[1], routed_by: 'ai' } : { seat: fallback, routed_by: 'keywords' };
+    }
+
+    // A CLO question about using someone's brand/logo/imagery gets the research + email-draft path.
+    function advIsBrandUse(q) {
+        return /logo|brand|trademark|wordmark|emblem|likeness|(publish|use|using|put|display|show).{0,40}(photo|image|picture|name)/i.test(String(q || ''));
+    }
+
+    // Parse the model's ask-answer JSON object into the stored shape, or null when unusable.
+    function advParseAskAnswer(text) {
+        let obj = null;
+        try { const m = String(text || '').match(/\{[\s\S]*\}/); if (m) obj = JSON.parse(m[0]); } catch (e) { obj = null; }
+        if (!obj || typeof obj !== 'object') return null;
+        const verdict = String(obj.verdict || '').trim().slice(0, 400);
+        const reasoning = String(obj.reasoning || '').trim().slice(0, 2400);
+        if (!verdict || !reasoning) return null;
+        const next_steps = (Array.isArray(obj.next_steps) ? obj.next_steps : []).map(s => String(s || '').trim().slice(0, 300)).filter(Boolean).slice(0, 6);
+        let email_draft = null;
+        if (obj.email_draft && typeof obj.email_draft === 'object') {
+            const subject = String(obj.email_draft.subject || '').trim().slice(0, 200);
+            const body = String(obj.email_draft.body || '').trim().slice(0, 4000);
+            if (subject && body) email_draft = { subject, body };
+        }
+        return { verdict, reasoning, next_steps, email_draft };
+    }
+
+    // The seat answers ONE question in persona. Same structure instructions for every seat;
+    // brand-use questions additionally demand the what-permission-from-whom statement plus the
+    // ready-to-send email draft grounded in the researched guidelines.
+    function advAskSystemPrompt(seat, brandUse) {
+        return (ADVISOR_PERSONA[seat] || '') + '\n\n'
+            + 'A Med&X admin asks you ONE question. Answer it in persona, grounded ONLY in the question, the DATA PACK numbers you are given' + (brandUse ? ' and the LIVE WEB RESEARCH findings' : '') + '. Never invent a number, name, URL or policy.\n\n'
+            + 'Return ONLY one JSON object — no markdown fences, no commentary before or after:\n'
+            + '{ "verdict": one or two short sentences answering the question head-on, "reasoning": 2 to 6 plain sentences explaining why, "next_steps": [2 to 5 short concrete actions]' + (brandUse ? ', "email_draft": { "subject": string, "body": a complete ready-to-send permission-request email from Alen Juginovic, President of Med&X, with [square-bracket placeholders] for anything unknown }' : '') + ' }\n\n'
+            + (brandUse ? 'This is a brand or logo use question: state plainly in the verdict or reasoning WHAT permission is needed and FROM WHOM (name the owner and the team to contact if the research found it), ground the reasoning in the researched guidelines, and make the email draft specific to this request. ' : '')
+            + 'No emojis. No semicolons. Money is euros. Output the JSON object and nothing else.';
+    }
+
+    // Deterministic structured answers — the no-key (or failed-AI) path. Every seat still returns
+    // the full verdict/reasoning/next-steps structure; what an offline rule engine cannot know is
+    // CLEARLY LABELED as placeholder analysis, and the live pack numbers it CAN cite, it cites.
+    function advAskFallback(seat, question, pack, brandUse) {
+        const g = (k) => advGet(pack, k);
+        const base = { next_steps: [], email_draft: null, research: null, disclaimer: seat === 'CLO' ? ADVISOR_LEGAL_DISCLAIMER : null, is_mock: 1, model: null };
+        if (seat === 'CLO' && brandUse) {
+            return { ...base,
+                verdict: 'Treat written permission from the brand owner as required — do not publish a third party\'s logo or imagery until you have it in writing.',
+                reasoning: '[Placeholder analysis — no AI key is set, so the live check of the brand owner\'s published logo guidelines did not run.] A logo is protected by trademark and usually copyright, so displaying it on medx.hr, posters or slides needs either an existing written clause (for example in a sponsorship or partnership agreement) or fresh written permission from the owner\'s brand or communications team. Many organizations publish logo-use guidelines that spell out exactly who approves requests and under what conditions.',
+                next_steps: [
+                    'Identify the exact owner of the logo and look up their published brand or logo usage guidelines.',
+                    'Check whether an agreement already on file (sponsorship, partnership, media) covers this exact use and placement.',
+                    'If nothing covers it, send the permission-request email below and wait for written confirmation before publishing.',
+                    'File the written reply with the sponsor or partner record so the permission trail stays on record.'
+                ],
+                email_draft: {
+                    subject: 'Permission to use the [Organization] logo — Med&X',
+                    body: 'Dear [Brand / Communications team],\n\nI am writing on behalf of Med&X, a Croatian biomedical nonprofit association that runs the Plexus conference and related programs (medx.hr).\n\nWe would like to display the [Organization] logo on [medx.hr / the specific page or material], in the context of [partner listing / sponsor acknowledgement / event programme], from [start date] to [end date].\n\nCould you confirm whether this use is permitted, and if so under which conditions (approved logo files, size and clear-space rules, required wording)? We will of course follow your brand guidelines exactly and send a preview before anything goes live.\n\nWith thanks and best regards,\nAlen Juginovic, MD\nPresident, Med&X'
+                } };
+        }
+        if (seat === 'CLO') {
+            return { ...base,
+                verdict: 'Here is the standing legal checklist — a tailored reading of your question needs the AI key.',
+                reasoning: '[Placeholder analysis — AI key not set, so I cannot reason about the wording of your question offline.] The portal\'s live legal picture: ' + g('sponsors_total') + ' sponsors on file with ' + g('sponsor_logos_published') + ' logos displayed publicly, ' + g('gala_guests') + ' gala guests registered with no photo-consent trail collected at registration, and ' + g('cme_sensitive_rows') + ' CME records holding OIB and birth dates. For a Croatian udruga the standing rules are: written agreements before logos or names are published, a recorded lawful basis (usually consent) before photos of identifiable people go out, and GDPR-grade care for OIB and birth-date data.',
+                next_steps: [
+                    'Restate the question with the specific party, document or data involved.',
+                    'Check whether a signed agreement or recorded consent already covers it.',
+                    'For anything binding — contracts, liability, data breaches — involve a qualified Croatian lawyer.'
+                ] };
+        }
+        if (seat === 'CFO') {
+            return { ...base,
+                verdict: 'Here is the live money picture — a tailored answer needs the AI key.',
+                reasoning: '[Placeholder analysis — AI key not set, so I cannot reason about the wording of your question offline.] This week\'s real registration money: EUR ' + g('paid_revenue_total') + ' collected across ' + g('paid_count_total') + ' paid registrations, ' + g('gala_approved_unpaid') + ' gala guests approved but unpaid (about EUR ' + g('gala_approved_unpaid_value') + '), and ' + g('bank_unmatched') + ' unmatched bank statement lines. Read your question against these numbers.',
+                next_steps: ['Open Finances for the full ledgers and reconciliation view.', 'Chase approved-but-unpaid guests before new spending decisions.'] };
+        }
+        if (seat === 'CMO') {
+            return { ...base,
+                verdict: 'Here is the live marketing picture — a tailored answer needs the AI key.',
+                reasoning: '[Placeholder analysis — AI key not set, so I cannot reason about the wording of your question offline.] This week\'s reach: ' + g('subs_all') + ' active newsletter subscribers, ' + g('invites_sent') + ' invitations sent so far (' + g('invites_sent_7d') + ' in the last 7 days), and ' + g('social_scheduled_7d') + ' social posts scheduled for the coming week. Read your question against these numbers.',
+                next_steps: ['Open PR & Media for the calendar and campaign detail.', 'Keep a steady posting cadence while the question is decided.'] };
+        }
+        return { ...base,
+            verdict: 'Here is the live operations picture — a tailored answer needs the AI key.',
+            reasoning: '[Placeholder analysis — AI key not set, so I cannot reason about the wording of your question offline.] Event readiness right now: ' + g('registrations_total') + ' registrations against a capacity of ' + g('capacity') + ' (' + g('capacity_pct') + ' percent) with ' + g('days_to_event') + ' days to the event, ' + g('tasks_overdue') + ' overdue team tasks and ' + g('nag_open') + ' open Action Center items. Read your question against these numbers.',
+            next_steps: ['Open the conference view for pace against capacity.', 'Clear overdue tasks before they compound.'] };
+    }
+
+    // Compose one answer: route already chose the seat. AI path = (optional brand-guideline
+    // research via advResearchSearch) -> persona ask-prompt -> parsed JSON; any failure falls back
+    // to the deterministic structure above. The CLO disclaimer is attached SERVER-SIDE on every
+    // legal answer — never left to the model. Never throws.
+    async function advComposeAsk(seat, question) {
+        const brandUse = seat === 'CLO' && advIsBrandUse(question);
+        const pack = advSeatPack(seat);
+        const fallback = advAskFallback(seat, question, pack, brandUse);
+        if (!process.env.ANTHROPIC_API_KEY) return fallback;
+        const model = process.env.ASSISTANT_MODEL || 'claude-haiku-4-5';
+        let research = null;
+        if (brandUse) {
+            try {
+                const r = await advResearchSearch('Brand and logo usage guidelines, permission requirements and the right permission contact (brand or communications team) for the third party referred to in this question: "' + question + '"');
+                if (r && r.ok) research = { summary: r.summary, findings: (r.findings || []).slice(0, 5) };
+            } catch (e) { research = null; }
+        }
+        const packForModel = (pack || []).map(v => ({ key: v.key, label: v.label_en, value: v.value, unit: v.unit }));
+        const userText = 'QUESTION from a Med&X admin:\n' + String(question).slice(0, 600)
+            + '\n\nThis week\'s DATA PACK for your seat (live portal numbers you may cite):\n' + JSON.stringify(packForModel)
+            + (research ? '\n\nLIVE WEB RESEARCH on the third party\'s brand and logo rules (cite these URLs, never invent others):\n' + JSON.stringify(research) : '')
+            + '\n\nReturn ONLY the JSON object.';
+        let text = '';
+        try { text = await advCallAnthropic(advAskSystemPrompt(seat, brandUse), userText, 1600); } catch (e) { text = ''; }
+        const parsed = advParseAskAnswer(text);
+        if (!parsed) { if (research) fallback.research = research; return fallback; }
+        return { ...parsed, research, disclaimer: seat === 'CLO' ? ADVISOR_LEGAL_DISCLAIMER : null, is_mock: 0, model };
+    }
+
+    function advPersistQuestion(userId, question, seat, answerObj) {
+        db.run("INSERT INTO advisor_questions (user_id, question, seat, answer, created_at) VALUES (?,?,?,?,?)",
+            [userId || null, question, seat, JSON.stringify(answerObj), new Date().toISOString()]);
+        saveDb();
+        const row = query.get('SELECT last_insert_rowid() AS id');
+        return row ? row.id : null;
+    }
+
+    // Ask the board. advisorLimiter (20/min/IP) protects Anthropic spend — a brand-use question can
+    // cost a routing call, a web research run and a compose call.
+    app.post('/api/admin/advisors/ask', advisorLimiter, auth, adminOnly, asyncHandler(async (req, res) => {
+        const q = String((req.body && req.body.question) || '').trim().slice(0, 600);
+        if (!q) return res.status(400).json({ error: 'Type a question for the board first.' });
+        const route = await advRouteQuestion(q);
+        const answer = await advComposeAsk(route.seat, q);
+        answer.routed_by = route.routed_by;
+        const id = advPersistQuestion(req.user && req.user.id, q, route.seat, answer);
+        logAudit(req, 'advisor_question', route.seat + ' "' + q.slice(0, 120) + '"' + (answer.is_mock ? ' (rule-based)' : ''));
+        res.json({ id, seat: route.seat, question: q, answer, created_at: new Date().toISOString() });
+    }));
+
+    // Q&A history (newest first).
+    app.get('/api/admin/advisors/questions', auth, adminOnly, (req, res) => {
+        try {
+            const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 50);
+            const rows = query.all("SELECT * FROM advisor_questions ORDER BY created_at DESC, id DESC LIMIT ?", [limit]);
+            res.json({ questions: rows.map(r => {
+                let a = null; try { a = JSON.parse(r.answer); } catch (e) {}
+                return { id: r.id, user_id: r.user_id, question: r.question, seat: r.seat, answer: a, created_at: r.created_at };
+            }) });
+        } catch (e) { console.error('[Advisors] questions failed:', e.message); res.status(500).json({ error: 'Failed to load the question history' }); }
+    });
 
     // ============================ GAME DAY MODE ============================
     // Event-day operations: mode resolution (off | auto | test), the one-screen dashboard
