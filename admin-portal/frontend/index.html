@@ -7057,7 +7057,7 @@
 
             <div class="login-error" id="loginError">Invalid email or password</div>
 
-            <form class="login-form" onsubmit="event.preventDefault(); try{App.login(event)}catch(err){console.error(err);document.getElementById('loginError').textContent=err.message;document.getElementById('loginError').classList.add('show')}; return false;">
+            <form class="login-form" id="loginForm" onsubmit="event.preventDefault(); try{App.login(event)}catch(err){console.error(err);document.getElementById('loginError').textContent=err.message;document.getElementById('loginError').classList.add('show')}; return false;">
                 <div class="form-group">
                     <label class="form-label">Email</label>
                     <input type="email" class="form-input" id="loginEmail" placeholder="you@medx.hr" required>
@@ -7067,6 +7067,22 @@
                     <input type="password" class="form-input" id="loginPassword" placeholder="Enter your password" required>
                 </div>
                 <button type="submit" class="login-btn">Sign In</button>
+            </form>
+
+            <!-- Invite flow: forced first-login password change. Shown INSTEAD of the login form
+                 when /api/auth/login answers mustChangePassword — the API rejects everything else
+                 until the new password is set, so there is nothing to skip to. -->
+            <form class="login-form" id="pwChangeForm" style="display:none;" onsubmit="event.preventDefault(); App.completePasswordChange(event); return false;">
+                <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">Welcome! You signed in with a <strong>temporary password</strong>. Choose your own password to finish setting up your account.</div>
+                <div class="form-group">
+                    <label class="form-label">New password</label>
+                    <input type="password" class="form-input" id="pwChangeNew" placeholder="At least 8 characters" minlength="8" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Repeat new password</label>
+                    <input type="password" class="form-input" id="pwChangeRepeat" placeholder="Repeat it" minlength="8" required>
+                </div>
+                <button type="submit" class="login-btn">Set password &amp; enter</button>
             </form>
         </div>
     </div>
@@ -14378,7 +14394,19 @@ President, Med&amp;X</textarea>
                         <button class="btn btn-primary" style="margin-top:14px;" onclick="TeamApp.grant()"><i class="fas fa-user-plus"></i> Save member</button>
                         <p style="margin:12px 0 0;font-size:12px;color:var(--text-muted);"><i class="fas fa-circle-info" style="margin-right:6px;color:#fbbf24;"></i>New teammates sign in at <strong id="teamLoginUrl">this same web address</strong> using the email and password you set here.</p>
                     </div>
+                    <div class="card" style="padding:18px;max-width:620px;margin-bottom:18px;">
+                        <h3 style="margin:0 0 6px;font-size:15px;"><i class="fas fa-envelope-open-text" style="color:#fbbf24;margin-right:7px;"></i>Invite an admin by email</h3>
+                        <p style="margin:0 0 12px;font-size:12px;color:var(--text-muted);">They receive a <strong>temporary password</strong> by email and must set their own (8+ characters) at first sign-in. No password to think up or pass around.</p>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">Email</label><input id="inviteEmail" type="email" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                            <div><label style="font-size:12px;font-weight:600;color:var(--text-secondary);">First name</label><input id="inviteFirst" style="width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);"></div>
+                        </div>
+                        <button class="btn btn-primary" style="margin-top:14px;" id="inviteBtn" onclick="TeamApp.invite()"><i class="fas fa-paper-plane"></i> Send invite</button>
+                    </div>
                     <div id="teamList"><div style="text-align:center;padding:24px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i></div></div>
+                    <!-- Founder-only usage panel. Hidden for everyone else — and the backing
+                         endpoint (GET /api/team/usage) 403s non-founders server-side regardless. -->
+                    <div id="teamUsagePanel" style="display:none;margin-top:22px;"></div>
                 </div>
 
                 <!-- AUDIT LOG -->
@@ -17162,6 +17190,10 @@ President, Med&amp;X</textarea>
                         if (!meData.is_admin && !meData.is_staff) {
                             throw new Error('Not admin');
                         }
+                        // Refresh the role flags from the server — a stored user from before a
+                        // role change (or before is_founder existed) must not gate the UI stale.
+                        this.user = { ...this.user, is_admin: meData.is_admin, is_staff: meData.is_staff || 0, is_founder: meData.is_founder || 0 };
+                        localStorage.setItem('medx_user', JSON.stringify(this.user));
                     } catch (e) {
                         localStorage.removeItem('medx_token');
                         localStorage.removeItem('medx_user');
@@ -17321,6 +17353,17 @@ President, Med&amp;X</textarea>
                             errEl.classList.add('show');
                             return;
                         }
+                        // Invited admin still on the temporary password: the API refuses everything
+                        // except the password change, so swap the form for the set-new-password
+                        // screen. The token stays OUT of localStorage until the change succeeds.
+                        if (data.mustChangePassword) {
+                            this._pendingPwUser = data.user;
+                            this._pendingPwToken = data.token;
+                            document.getElementById('loginForm').style.display = 'none';
+                            document.getElementById('pwChangeForm').style.display = '';
+                            document.getElementById('pwChangeNew').focus();
+                            return;
+                        }
                         this.token = data.token;
                         this.user = data.user;
                         localStorage.setItem('medx_token', data.token);
@@ -17339,11 +17382,53 @@ President, Med&amp;X</textarea>
                 }
             },
 
+            // Second step of the invite flow: POST the self-chosen password with the pending token,
+            // then finish the normal login (store token + user, enter the app).
+            async completePasswordChange(e) {
+                const errEl = document.getElementById('loginError');
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+                errEl.classList.remove('show');
+                const pw = document.getElementById('pwChangeNew').value;
+                const pw2 = document.getElementById('pwChangeRepeat').value;
+                if (pw.length < 8) { errEl.textContent = 'The new password must be at least 8 characters.'; errEl.classList.add('show'); return; }
+                if (pw !== pw2) { errEl.textContent = 'The two passwords do not match.'; errEl.classList.add('show'); return; }
+                if (submitBtn) submitBtn.disabled = true;
+                try {
+                    const res = await fetch('/api/auth/change-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this._pendingPwToken}` },
+                        body: JSON.stringify({ newPassword: pw })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.success) {
+                        errEl.textContent = data.error || 'Could not set the password. Please try again.';
+                        errEl.classList.add('show');
+                        return;
+                    }
+                    this.token = this._pendingPwToken;
+                    this.user = { ...this._pendingPwUser, must_change_password: 0 };
+                    this._pendingPwToken = null; this._pendingPwUser = null;
+                    localStorage.setItem('medx_token', this.token);
+                    localStorage.setItem('medx_user', JSON.stringify(this.user));
+                    document.getElementById('pwChangeForm').style.display = 'none';
+                    document.getElementById('loginForm').style.display = '';
+                    document.getElementById('pwChangeNew').value = ''; document.getElementById('pwChangeRepeat').value = '';
+                    await this.showApp();
+                    if (typeof Toast !== 'undefined') Toast.success('Password set — welcome aboard!');
+                } catch (err) {
+                    errEl.textContent = err.message || 'Network error. Please try again.';
+                    errEl.classList.add('show');
+                } finally {
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+            },
+
             logout() {
                 localStorage.removeItem('medx_token');
                 localStorage.removeItem('medx_user');
                 this.token = null;
                 this.user = null;
+                if (this._hbTimer) clearInterval(this._hbTimer);
                 if (this.chatRefreshInterval) clearInterval(this.chatRefreshInterval);
                 document.getElementById('mainApp').classList.remove('active');
                 document.body.classList.remove('authed');
@@ -17403,6 +17488,11 @@ President, Med&amp;X</textarea>
                 // Set today's date
                 const today = new Date();
                 document.getElementById('todayDate').textContent = today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+                // Presence heartbeat for the founder-only usage stats (BEFORE the staff early
+                // return so scanner-staff presence counts too). Beats only while the tab is
+                // visible; the server caps each beat's credit at 90s.
+                this.startHeartbeat();
 
                 // Scanner-only staff can't use the admin dashboard — every widget on it is an
                 // admin-only endpoint that would 403 and spam the console. Send them straight to the
@@ -19085,6 +19175,23 @@ President, Med&amp;X</textarea>
                     this._chatTick = (this._chatTick + 1) % 3;
                     if (this._chatTick === 0) this.refreshRailUnread();
                 }, 5000);
+            },
+
+            // Presence heartbeat (founder usage stats): one beat on load, one every 60s while the
+            // tab is VISIBLE, one on return-to-visible. Fire-and-forget — a failed beat never
+            // surfaces to the user. The server (POST /api/team/heartbeat) does the crediting.
+            startHeartbeat() {
+                const beat = () => {
+                    if (!this.token || document.visibilityState !== 'visible') return;
+                    fetch('/api/team/heartbeat', { method: 'POST', headers: { 'Authorization': `Bearer ${this.token}` } }).catch(() => {});
+                };
+                if (this._hbTimer) clearInterval(this._hbTimer);
+                this._hbTimer = setInterval(beat, 60000);
+                if (!this._hbVisWired) {
+                    this._hbVisWired = true;
+                    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') beat(); });
+                }
+                beat();
             },
 
             // ===== TEAM MEMBERS & DM =====
@@ -43035,13 +43142,68 @@ By applying to this program, I give the following consents:
                     const rows = await res.json();
                     el.innerHTML = '<div class="card" style="padding:0;overflow:hidden;">' + (rows.length ? rows.map(r => {
                         const isAdmin = r.is_admin === 1 || r.is_admin === '1';
-                        const badge = isAdmin ? '<span style="font-size:10px;font-weight:700;color:#15803d;border:1px solid rgba(34,197,94,0.4);border-radius:20px;padding:2px 8px;">ADMIN</span>' : '<span style="font-size:10px;font-weight:700;color:#fbbf24;border:1px solid rgba(251,191,36,0.4);border-radius:20px;padding:2px 8px;">SCANNER STAFF</span>';
+                        const pending = r.must_change_password === 1 || r.must_change_password === '1';
+                        let badge = isAdmin ? '<span style="font-size:10px;font-weight:700;color:#15803d;border:1px solid rgba(34,197,94,0.4);border-radius:20px;padding:2px 8px;">ADMIN</span>' : '<span style="font-size:10px;font-weight:700;color:#fbbf24;border:1px solid rgba(251,191,36,0.4);border-radius:20px;padding:2px 8px;">SCANNER STAFF</span>';
+                        if (pending) badge += ' <span style="font-size:10px;font-weight:700;color:#b45309;border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:2px 8px;">INVITE PENDING</span>';
+                        const resendBtn = pending ? `<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="TeamApp.resend('${this.esc(r.email)}')"><i class="fas fa-rotate-right"></i> Resend invite</button>` : '';
                         return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);">
                             <div><div style="font-weight:600;font-size:14px;">${this.esc((r.first_name || '') + ' ' + (r.last_name || '')) || this.esc(r.email)} ${badge}</div><div style="font-size:12px;color:var(--text-muted);">${this.esc(r.email)}</div></div>
-                            <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="TeamApp.revoke('${this.esc(r.email)}')"><i class="fas fa-user-slash"></i> Revoke</button>
+                            <div style="display:flex;gap:8px;flex-shrink:0;">${resendBtn}<button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="TeamApp.revoke('${this.esc(r.email)}')"><i class="fas fa-user-slash"></i> Revoke</button></div>
                         </div>`;
                     }).join('') : '<div style="padding:18px;color:var(--text-muted);">No team members yet.</div>') + '</div>';
                 } catch (e) { el.innerHTML = '<div class="card" style="padding:16px;">Failed to load the team.</div>'; }
+                this.loadUsage();
+            },
+            // Founder-only usage panel. Rendered ONLY when the signed-in account is the founder —
+            // and GET /api/team/usage 403s everyone else server-side, so this gate is pure UX.
+            async loadUsage() {
+                const panel = document.getElementById('teamUsagePanel');
+                if (!panel) return;
+                if (!App.user || !App.user.is_founder) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+                const fmtMin = (s) => { s = Number(s) || 0; if (s < 60) return s + 's'; const m = Math.round(s / 60); return m >= 60 ? (Math.floor(m / 60) + 'h ' + (m % 60) + 'm') : (m + 'm'); };
+                const fmtWhen = (iso) => { if (!iso) return '—'; const d = new Date(/[Zz]|[+\-]\d\d:?\d\d$/.test(iso) ? iso : iso.replace(' ', 'T') + 'Z'); return isNaN(d) ? '—' : d.toLocaleString(); };
+                try {
+                    const res = await fetch('/api/team/usage', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (!res.ok) { panel.style.display = 'none'; return; }
+                    const rows = await res.json();
+                    panel.style.display = '';
+                    panel.innerHTML = `
+                        <h3 style="margin:0 0 6px;font-size:15px;"><i class="fas fa-chart-simple" style="color:#fbbf24;margin-right:7px;"></i>Usage <span style="font-size:10px;font-weight:700;color:#b45309;border:1px solid rgba(245,158,11,0.4);border-radius:20px;padding:2px 8px;vertical-align:2px;">FOUNDER ONLY</span></h3>
+                        <p style="margin:0 0 12px;font-size:12px;color:var(--text-muted);">Who actually uses the portal. Time counts only while their tab is open and visible.</p>
+                        <div class="card" style="padding:0;overflow-x:auto;">
+                        <table class="data-table"><thead><tr><th>Name</th><th>Status</th><th>Logins (total / 7d)</th><th>Last seen</th><th>Time in portal (total / 7d / today)</th></tr></thead><tbody>` +
+                        rows.map(r => `<tr>
+                            <td><div style="font-weight:600;">${this.esc(((r.first_name || '') + ' ' + (r.last_name || '')).trim()) || this.esc(r.email)}</div><div style="font-size:11px;color:var(--text-muted);">${this.esc(r.email)}</div></td>
+                            <td><span class="status ${r.status === 'invited' ? 'pending' : 'paid'}">${r.status === 'invited' ? 'Invite pending' : 'Active'}</span></td>
+                            <td>${r.logins_total || 0} / ${r.logins_7d || 0}</td>
+                            <td>${fmtWhen(r.last_login)}</td>
+                            <td>${fmtMin(r.seconds_total)} / ${fmtMin(r.seconds_7d)} / ${fmtMin(r.seconds_today)}</td>
+                        </tr>`).join('') + '</tbody></table></div>';
+                } catch (e) { panel.style.display = 'none'; }
+            },
+            async invite() {
+                const email = document.getElementById('inviteEmail').value.trim();
+                const first_name = document.getElementById('inviteFirst').value.trim();
+                if (!email) { Toast.warning('Email required'); return; }
+                const btn = document.getElementById('inviteBtn'); if (btn) btn.disabled = true;
+                try {
+                    const res = await fetch('/api/admin/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ email, first_name }) });
+                    const d = await res.json();
+                    if (d.success) {
+                        Toast.success('Invited ' + email + ' — a temporary password is on its way to their inbox.');
+                        document.getElementById('inviteEmail').value = ''; document.getElementById('inviteFirst').value = '';
+                        this.load();
+                    } else Toast.error(d.error || 'Failed');
+                } catch (e) { Toast.error('Failed'); }
+                finally { if (btn) btn.disabled = false; }
+            },
+            async resend(email) {
+                if (!(await adminConfirm({ title: "Resend invite", message: 'Issue a fresh temporary password for ' + email + ' and email it again? The old one stops working.', confirmText: "Resend" }))) return;
+                try {
+                    const res = await fetch('/api/admin/team/invite/resend', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` }, body: JSON.stringify({ email }) });
+                    const d = await res.json();
+                    if (d.success) { Toast.success('Invite re-sent to ' + email); this.load(); } else Toast.error(d.error || 'Failed');
+                } catch (e) { Toast.error('Failed'); }
             },
             async grant() {
                 const email = document.getElementById('teamEmail').value.trim();

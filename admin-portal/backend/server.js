@@ -1039,8 +1039,17 @@ function auth(req, res, next) {
     if (token && token !== 'auto-login') {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const user = query.get("SELECT id, email, is_admin, is_staff FROM users WHERE id = ?", [decoded.id]);
-            if (user) { req.user = user; return next(); }
+            const user = query.get("SELECT id, email, is_admin, is_staff, is_founder, must_change_password FROM users WHERE id = ?", [decoded.id]);
+            if (user) {
+                // Invite flow (Team Access): an account still on its temporary invite password can
+                // do NOTHING until it sets its own. Distinct 401 variant carries mustChangePassword
+                // so the SPA routes to the set-new-password screen instead of "session expired".
+                // /api/auth/me stays reachable so the SPA can identify the account mid-flow.
+                if (user.must_change_password && req.path !== '/api/auth/change-password' && req.path !== '/api/auth/me') {
+                    return res.status(401).json({ error: 'Password change required before the portal can be used', mustChangePassword: true });
+                }
+                req.user = user; return next();
+            }
         } catch(e) { /* token invalid/expired */ }
     }
     // Dev fallback — only in true local development (see DEV_AUTH_ENABLED)
@@ -1082,6 +1091,14 @@ function adminOnly(req, res, next) {
 function staffOrAdmin(req, res, next) {
     if (req.user?.is_admin || req.user?.is_staff) return next();
     return res.status(403).json({ error: 'Staff or admin access required' });
+}
+
+// Founder gate (usage stats): auth + is_admin + is_founder, else 403. Server-side ONLY — the
+// frontend hiding the Usage panel is just UX, THIS is the boundary. is_founder is seeded at boot
+// for the president's account and is never grantable through any endpoint.
+function founderOnly(req, res, next) {
+    if (req.user?.is_admin && req.user?.is_founder) return next();
+    return res.status(403).json({ error: 'Founder access only' });
 }
 
 // Record a consequential admin action. Best-effort — never throws into the request path.
@@ -4581,6 +4598,28 @@ async function initializeApp() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_cme_sub_conf ON cme_submissions(conference_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_cme_sub_user ON cme_submissions(user_id)`);
 
+    // ====================== ADMIN INVITES + FOUNDER USAGE (Team Access) ======================
+    // ADMIN-ONLY, OUTSIDE the SCHEMA-MIRROR block (the user portal never reads any of this).
+    // users.must_change_password: set when an account is provisioned with a temporary invite
+    // password (POST /api/admin/team/invite) — the auth middleware locks every route except
+    // POST /api/auth/change-password (+ /api/auth/me) until the member sets their own password.
+    // users.is_founder: server-side gate for the founder-only usage panel (see founderOnly).
+    // Guarded, additive ALTERs — same pattern as the login-visibility pass.
+    try { db.run('ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE users ADD COLUMN is_founder INTEGER DEFAULT 0'); } catch(e) {}
+
+    // Per-admin per-UTC-day portal presence, accumulated from visible-tab heartbeats (~60s
+    // cadence — see POST /api/team/heartbeat). Each beat credits the real elapsed gap since the
+    // previous beat, capped at 90s, so an overnight sleep gap or abandoned tab never inflates
+    // the totals. last_beat_at carries the gap measurement across day boundaries.
+    db.run(`CREATE TABLE IF NOT EXISTS admin_usage (
+        user_id TEXT NOT NULL,
+        day TEXT NOT NULL,
+        seconds INTEGER DEFAULT 0,
+        heartbeats INTEGER DEFAULT 0,
+        last_beat_at TEXT,
+        PRIMARY KEY (user_id, day)
+    )`);
 
     // ========================================================================
     // EVENT-DAY STAFF TRACKING (queue 5a5j) — ADMIN-ONLY, OUTSIDE the SCHEMA-MIRROR block.
@@ -8566,6 +8605,14 @@ async function initializeApp() {
         console.log('Alen admin user created');
     }
 
+    // The president's account is the FOUNDER (gates the Team Access usage panel). Seeded
+    // idempotently at every boot so a restored/older DB copy self-heals; is_founder is never
+    // grantable through any endpoint — this boot seed is the only writer.
+    try {
+        db.run("UPDATE users SET is_founder = 1 WHERE email = 'juginovic.alen@gmail.com' AND COALESCE(is_founder, 0) = 0");
+        saveDb();
+    } catch(e) { /* column guaranteed by the guarded ALTER above; never blocks boot */ }
+
     if (!miroAdmin) {
         const hash = await bcrypt.hash('admin123', 10);
         const miroId = uuidv4();
@@ -10552,12 +10599,14 @@ async function initializeApp() {
                 saveDb();
             } catch (e) { /* best-effort */ }
             const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
-            res.json({ success: true, token, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin, is_staff: user.is_staff || 0 }});
+            // mustChangePassword: the account is still on its temporary invite password — the SPA
+            // shows the set-new-password screen and every other API call 401s until it is changed.
+            res.json({ success: true, token, mustChangePassword: !!user.must_change_password, user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, institution: user.institution, is_admin: user.is_admin, is_staff: user.is_staff || 0, is_founder: user.is_founder || 0 }});
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
     });
 
     app.get('/api/auth/me', auth, (req, res) => {
-        const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_staff, is_public_profile FROM users WHERE id = ?', [req.user.id]);
+        const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_staff, is_founder, must_change_password, is_public_profile FROM users WHERE id = ?', [req.user.id]);
         res.json(user);
     });
 
@@ -10581,6 +10630,22 @@ async function initializeApp() {
         const hash = await bcrypt.hash(newPassword, 10);
         db.run('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.user.id]);
         saveDb();
+        res.json({ success: true });
+    }));
+
+    // First-login password set for INVITED admins (see POST /api/admin/team/invite). The temporary
+    // password from the invite email is the credential that minted this JWT, so no currentPassword
+    // is re-checked here — but the endpoint only works while must_change_password is armed, so a
+    // normal account can never use it to skip the current-password check in PUT /api/auth/password.
+    // Clearing the flag is what unlocks the rest of the API (see the auth middleware).
+    app.post('/api/auth/change-password', auth, asyncHandler(async (req, res) => {
+        const { newPassword } = req.body || {};
+        if (!req.user.must_change_password) return res.status(400).json({ error: 'No password change is pending for this account. Use the profile password form instead.' });
+        if (!newPassword || newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+        const hash = await bcrypt.hash(newPassword, 10);
+        db.run('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?', [hash, req.user.id]);
+        saveDb();
+        logAudit(req, 'team.password_change', `${req.user.email} set their own password (invite temp password retired)`);
         res.json({ success: true });
     }));
 
@@ -33522,8 +33587,124 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // ==================== TEAM ACCESS (super-admin only) ====================
     app.get('/api/admin/team', auth, adminOnly, (req, res) => {
         try {
-            res.json(query.all("SELECT id, email, first_name, last_name, is_admin, is_staff FROM users WHERE is_admin = 1 OR is_staff = 1 ORDER BY is_admin DESC, email"));
+            res.json(query.all("SELECT id, email, first_name, last_name, is_admin, is_staff, COALESCE(is_founder, 0) AS is_founder, COALESCE(must_change_password, 0) AS must_change_password, last_login FROM users WHERE is_admin = 1 OR is_staff = 1 ORDER BY is_admin DESC, email"));
         } catch (e) { res.json([]); }
+    });
+
+    // ---- Admin invites (temp-password flow) ----
+    // The classic flow the president uses to add colleagues: enter email + name -> the account is
+    // created as a FULL ADMIN with a cryptographically random temporary password and
+    // must_change_password armed. The credentials go out through the sendEmail() boundary; the
+    // auth middleware then forces a self-set password (min 8 chars) on first login. Revoke is the
+    // existing POST /api/admin/team/revoke.
+    function buildAdminInviteEmail(firstName, tempPassword) {
+        const portalUrl = process.env.RENDER_EXTERNAL_URL || ADMIN_PORTAL_URL;
+        return buildEmailTemplate('Welcome to the Med&X Admin Portal', `
+            <p>Dear ${firstName || 'colleague'},</p>
+            <p>You have been added to the <strong>Med&amp;X Admin Portal</strong> — the team workspace where we run Plexus, the Gala, the Accelerator and everything around them.</p>
+            <p style="margin: 18px 0 6px;">Sign in here:</p>
+            <p style="text-align: center; margin: 6px 0 18px;">
+                <a href="${portalUrl}" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 600;">Open the Admin Portal</a>
+            </p>
+            <p style="margin: 0 0 6px;">Your temporary password:</p>
+            <p style="text-align: center; margin: 6px 0 18px;"><code style="display: inline-block; background: #eef1f6; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 18px; font-size: 17px; letter-spacing: 1px; font-family: 'Courier New', monospace;">${tempPassword}</code></p>
+            <p>Use it together with this email address the first time you sign in. <strong>You will be asked to choose your own password (at least 8 characters) before anything else</strong> — the temporary one stops working the moment you do.</p>
+            <p style="color: #64748b; font-size: 13px;">If you were not expecting this, please ignore this email or reply to let us know.</p>
+        `);
+    }
+
+    app.post('/api/admin/team/invite', auth, adminOnly, asyncHandler(async (req, res) => {
+        const { email, first_name, last_name } = req.body || {};
+        const cleanEmail = String(email || '').trim().toLowerCase();
+        if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return res.status(400).json({ error: 'A valid email is required' });
+        const existing = query.get('SELECT id, is_admin, COALESCE(must_change_password, 0) AS must_change_password FROM users WHERE email = ?', [cleanEmail]);
+        if (existing && existing.is_admin && !existing.must_change_password) {
+            return res.status(400).json({ error: 'This person is already an active admin. Use "Resend invite" to issue a fresh temporary password.' });
+        }
+        // 12-char URL-safe temp password (~72 bits). Only ever leaves the server inside the email.
+        const tempPassword = require('crypto').randomBytes(9).toString('base64url');
+        const hash = await bcrypt.hash(tempPassword, 10);
+        if (existing) {
+            // An existing member (or a still-pending invite): promote to admin and re-arm the flow.
+            db.run('UPDATE users SET is_admin = 1, password_hash = ?, must_change_password = 1 WHERE id = ?', [hash, existing.id]);
+        } else {
+            db.run('INSERT INTO users (id, email, password_hash, first_name, last_name, is_admin, must_change_password) VALUES (?,?,?,?,?,1,1)',
+                [uuidv4(), cleanEmail, hash, first_name || null, last_name || null]);
+        }
+        saveDb();
+        const result = await sendEmail(cleanEmail, "You've been added to the Med&X Admin Portal", buildAdminInviteEmail(first_name, tempPassword));
+        // Dev mock only: surface the temp password in the server log so the invite flow is fully
+        // testable with no BREVO_API_KEY. Never logged in production.
+        if (result && result.mock && process.env.NODE_ENV !== 'production') console.log(`[Team Invite] (dev mock) temp password for ${cleanEmail}: ${tempPassword}`);
+        logAudit(req, 'team.invite', `${cleanEmail} invited as admin (temp password emailed)`);
+        res.json({ success: true, emailed: !(result && result.success === false) });
+    }));
+
+    // Regenerate the temporary password and resend the invite email. Meant for pending invites
+    // (lost/expired email); re-arms must_change_password, so it also serves as a reset for a
+    // colleague locked out of a never-completed invite. Never usable on your own account.
+    app.post('/api/admin/team/invite/resend', auth, adminOnly, asyncHandler(async (req, res) => {
+        const { email } = req.body || {};
+        const cleanEmail = String(email || '').trim().toLowerCase();
+        if (!cleanEmail) return res.status(400).json({ error: 'email required' });
+        if (cleanEmail === String(req.user.email || '').toLowerCase()) return res.status(400).json({ error: 'You cannot re-invite your own account.' });
+        const user = query.get('SELECT id, first_name, is_admin FROM users WHERE email = ?', [cleanEmail]);
+        if (!user || !user.is_admin) return res.status(404).json({ error: 'No invited admin found for that email' });
+        const tempPassword = require('crypto').randomBytes(9).toString('base64url');
+        const hash = await bcrypt.hash(tempPassword, 10);
+        db.run('UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?', [hash, user.id]);
+        saveDb();
+        const result = await sendEmail(cleanEmail, "You've been added to the Med&X Admin Portal", buildAdminInviteEmail(user.first_name, tempPassword));
+        if (result && result.mock && process.env.NODE_ENV !== 'production') console.log(`[Team Invite] (dev mock) temp password for ${cleanEmail}: ${tempPassword}`);
+        logAudit(req, 'team.invite_resend', `${cleanEmail} re-issued a temp password`);
+        res.json({ success: true, emailed: !(result && result.success === false) });
+    }));
+
+    // ---- Founder usage stats ----
+    // Portal-presence heartbeat: the SPA posts every ~60s while the tab is VISIBLE (plus one on
+    // load and on return-to-visible). Credit per beat = the real elapsed gap since the previous
+    // beat, capped at 90s — so a laptop that slept overnight with the tab open credits at most
+    // 90s, not 8 hours. staffOrAdmin (not adminOnly) so scanner-staff presence is counted too.
+    app.post('/api/team/heartbeat', auth, staffOrAdmin, (req, res) => {
+        try {
+            const now = new Date();
+            const day = now.toISOString().slice(0, 10); // UTC day, matching audit_log timestamps
+            const prev = query.get('SELECT last_beat_at FROM admin_usage WHERE user_id = ? ORDER BY day DESC LIMIT 1', [req.user.id]);
+            let credit = 0;
+            if (prev && prev.last_beat_at) {
+                const gap = (now.getTime() - new Date(prev.last_beat_at).getTime()) / 1000;
+                if (gap > 0) credit = Math.min(90, Math.round(gap));
+            }
+            const row = query.get('SELECT seconds FROM admin_usage WHERE user_id = ? AND day = ?', [req.user.id, day]);
+            if (row) {
+                db.run('UPDATE admin_usage SET seconds = seconds + ?, heartbeats = heartbeats + 1, last_beat_at = ? WHERE user_id = ? AND day = ?',
+                    [credit, now.toISOString(), req.user.id, day]);
+            } else {
+                db.run('INSERT INTO admin_usage (user_id, day, seconds, heartbeats, last_beat_at) VALUES (?,?,?,1,?)',
+                    [req.user.id, day, credit, now.toISOString()]);
+            }
+            saveDb();
+            res.json({ success: true });
+        } catch (e) { console.error('[Team] heartbeat failed:', e.message); res.status(500).json({ error: 'Heartbeat failed' }); }
+    });
+
+    // Per-admin usage rollup — FOUNDER ONLY (server-side gate; other admins get a 403 and the SPA
+    // never renders the panel for them). Logins come from the audit_log 'login' events written by
+    // the 2026-07-18 security pass; presence comes from admin_usage. status 'invited' = still on
+    // the temporary invite password, 'active' = has set their own.
+    app.get('/api/team/usage', auth, founderOnly, (req, res) => {
+        try {
+            const rows = query.all(`SELECT u.id, u.email, u.first_name, u.last_name, u.is_admin, u.is_staff,
+                       COALESCE(u.must_change_password, 0) AS must_change_password, u.last_login,
+                       (SELECT COUNT(*) FROM audit_log a WHERE a.action = 'login' AND a.actor_id = u.id) AS logins_total,
+                       (SELECT COUNT(*) FROM audit_log a WHERE a.action = 'login' AND a.actor_id = u.id AND a.created_at >= datetime('now', '-7 days')) AS logins_7d,
+                       COALESCE((SELECT SUM(s.seconds) FROM admin_usage s WHERE s.user_id = u.id), 0) AS seconds_total,
+                       COALESCE((SELECT SUM(s.seconds) FROM admin_usage s WHERE s.user_id = u.id AND s.day >= date('now', '-6 days')), 0) AS seconds_7d,
+                       COALESCE((SELECT s.seconds FROM admin_usage s WHERE s.user_id = u.id AND s.day = date('now')), 0) AS seconds_today
+                FROM users u WHERE u.is_admin = 1 OR u.is_staff = 1
+                ORDER BY u.is_admin DESC, seconds_total DESC, u.email`);
+            res.json(rows.map(r => ({ ...r, status: r.must_change_password ? 'invited' : 'active' })));
+        } catch (e) { console.error('[Team] usage failed:', e.message); res.status(500).json({ error: 'Failed to load team usage' }); }
     });
 
     // Create or update a team member with a role. role: 'admin' (full) | 'staff' (scanner+view).
