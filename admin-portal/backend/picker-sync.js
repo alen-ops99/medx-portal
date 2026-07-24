@@ -29,6 +29,11 @@ const PICKER_BASE_URL = process.env.PICKER_BASE_URL || 'https://plexus-tables.ne
 const PICKER_LOGO_URL = PICKER_BASE_URL.replace(/\/$/, '') + '/assets/logo-white.png';
 const DEFAULT_MAX_PARTY = 3; // registrant + up to 2 guests — same default as the console
 
+// Host that serves the per-guest QR tickets (QR value = https://<host>/ticket.html?id=<tid>).
+// Env-overridable so a later move to e.g. tables.medx.hr needs no code change — the door scanner
+// reads this to recognise a scanned gala ticket URL.
+const PICKER_TICKET_HOST = process.env.PICKER_TICKET_HOST || 'plexus-tables.netlify.app';
+
 // Test seams: the CI boot test points these at an in-process mock (never set in production).
 const FS_BASE = process.env.PICKER_FS_BASE || 'https://firestore.googleapis.com/v1';
 const AUTH_BASE = process.env.PICKER_AUTH_BASE || 'https://identitytoolkit.googleapis.com/v1';
@@ -188,6 +193,60 @@ class PickerClient {
         if (!em) return;
         await this._req(FS_ROOT() + '/paid_emails/' + encodeURIComponent(paidEmailDocId(em)), { method: 'DELETE' });
     }
+
+    /**
+     * Resolve a scanned gala ticket → { tid, name, email(lowercased), table, registrant, pickRef }
+     * or null when the ticket does not exist. Reads `tickets/{tid}`, which the picker's Firestore
+     * rules expose as a PUBLIC GET-by-id ("allow get: if true"), so the door scanner works even
+     * when the sync credentials (PICKER_ADMIN_EMAIL / PICKER_ADMIN_PASSWORD) are unset — no auth,
+     * no sign-in round-trip. Bounded by an AbortController: a hung Firestore REJECTS (the caller
+     * then shows a clean "try again") rather than blocking the door. A 404 → null (invalid ticket);
+     * any other non-2xx throws so a transient error is never mistaken for "ticket not found".
+     */
+    async getTicket(tid, { timeoutMs = 6000 } = {}) {
+        const t = String(tid || '').trim();
+        if (!t) return null;
+        const url = FS_ROOT() + '/tickets/' + encodeURIComponent(t);
+        let ctl = null, timer = null;
+        if (typeof AbortController !== 'undefined') {
+            ctl = new AbortController();
+            timer = setTimeout(() => ctl.abort(), timeoutMs);
+            if (timer.unref) timer.unref();
+        }
+        let r;
+        try {
+            r = await this.fetch(url, ctl ? { signal: ctl.signal } : {});
+        } finally { if (timer) clearTimeout(timer); }
+        if (r.status === 404) return null;
+        if (!r.ok) throw new Error('picker ticket GET → ' + r.status);
+        const f = (await r.json()).fields || {};
+        return {
+            tid: t,
+            name: fsVal(f.name) || '',
+            email: normEmail(fsVal(f.email)),
+            table: fsVal(f.table),
+            registrant: fsVal(f.registrant) === true,
+            pickRef: fsVal(f.pickRef) || null,
+        };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Door-scanner helpers — recognise a scanned gala table-picker ticket
+// ─────────────────────────────────────────────────────────────────────────────
+/** Extract the tid from a scanned picker ticket URL (https://<host>/ticket.html?id=<tid>&…),
+ *  else null. Host-anchored so a random URL is never treated as a ticket. */
+function extractPickerTid(code) {
+    const s = String(code || '').trim();
+    if (!s) return null;
+    if (s.indexOf(PICKER_TICKET_HOST) === -1 || !/ticket\.html/i.test(s)) return null;
+    const m = s.match(/[?&]id=([A-Za-z0-9_-]+)/);
+    return m ? m[1] : null;
+}
+
+/** A bare picker ticket id: 16 hex chars (console genTid = 8 random bytes → 16 hex). */
+function isBareTid(code) {
+    return /^[0-9a-f]{16}$/i.test(String(code || '').trim());
 }
 
 /**
@@ -471,6 +530,7 @@ module.exports = {
     PICKER_PROJECT,
     PICKER_BASE_URL,
     PICKER_LOGO_URL,
+    PICKER_TICKET_HOST,
     DEFAULT_MAX_PARTY,
     genInviteToken,
     normEmail,
@@ -481,5 +541,7 @@ module.exports = {
     runInviteSync,
     buildInviteEmail,
     inviteLink,
+    extractPickerTid,
+    isBareTid,
     INVITE_SUBJECT,
 };

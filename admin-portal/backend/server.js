@@ -31022,9 +31022,108 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
+    // Format a raw picker table value ("7" / 7 / "Head table") the way the wallet + roster do:
+    // a bare number becomes "Stol N", any label passes through, empty → null.
+    function pickerTableLabel(v) {
+        if (v === null || v === undefined) return null;
+        const raw = String(v).trim();
+        if (!raw) return null;
+        return /^\d+$/.test(raw) ? ('Stol ' + raw) : raw;
+    }
+
+    // Gala table-picker ticket bridge. A scanned code that matched NO portal token/registration
+    // may still be a table-picker QR ticket (value = <PICKER_TICKET_HOST>/ticket.html?id=<tid>, or
+    // a bare 16-hex tid). Resolve it against the picker's Firestore (public tickets/{tid} GET),
+    // cross-check a PAID portal gala registration for that e-mail, and — preferring the portal row
+    // so gala check-in lives with payment/registration — atomically mark THAT row checked_in for
+    // the gala. Returns the SAME result shape as the main endpoint (valid | already_checked_in |
+    // invalid | wrong_event | error) so the scanner renders one consistent verdict card.
+    async function resolveGalaPickerTicket(tid, ctx) {
+        const { res, gate, eventKey, method, device, override, overrideReason, mark, adminId, adminEmail } = ctx;
+        const now = new Date().toISOString();
+        const respondP = (result, message, extra, galaRegId) => {
+            recordScan({ token: tid, registration_id: galaRegId || null, event_key: eventKey, result, method,
+                admin_id: adminId, admin_email: adminEmail, device, is_override: override, override_reason: overrideReason });
+            res.json(Object.assign({ valid: result === 'valid', result, message, event: eventKey, event_label: gate.label }, extra || {}));
+        };
+
+        // A picker ticket only admits to the Gala. On any other gate, say so (no Firestore round-trip).
+        if (eventKey !== 'gala') {
+            return respondP('wrong_event', 'This is a Plexus Gala ticket — switch the scanner to the Gala gate.', {});
+        }
+
+        // Resolve the ticket doc. Network failure / timeout → a clean "try again" (HTTP 200, result
+        // 'error'), NEVER a 500 — and it only runs after the portal-token path already missed.
+        let doc;
+        try {
+            doc = await galaPickerClient.getTicket(tid);
+        } catch (e) {
+            console.warn('[checkin] gala-picker ticket lookup failed:', e.message);
+            return respondP('error', 'Ticket service unreachable — try again.', { retry: true });
+        }
+        if (!doc) return respondP('invalid', 'Invalid ticket — no matching gala ticket.', {});
+
+        const email = pickerSync.normEmail(doc.email);
+        const tableLabel = pickerTableLabel(doc.table) || (email ? galaTableFor(email) : null);
+        const ticketName = (doc.name || '').trim();
+
+        // Cross-check a PAID/confirmed portal gala registration (payment paid/vip-comp OR status
+        // confirmed/paid). Prefer a not-yet-checked-in row so a re-issued ticket resolves cleanly.
+        let galaReg = null;
+        if (email) {
+            galaReg = query.get(
+                `SELECT * FROM gala_registrations
+                 WHERE lower(email) = ?
+                   AND ( payment_status IN ('paid','vip-comp') OR lower(COALESCE(status,'')) IN ('confirmed','paid') )
+                 ORDER BY (COALESCE(checked_in,0)=1) ASC, created_at DESC LIMIT 1`, [email]);
+        }
+
+        const mkTicket = (extra) => Object.assign({
+            registration_id: galaReg ? galaReg.id : null,
+            name: ticketName || (galaReg ? `${galaReg.first_name || ''} ${galaReg.last_name || ''}`.trim() : '') || 'Guest',
+            email,
+            registration_number: galaReg ? (galaReg.invoice_number || String(galaReg.id).slice(0, 8).toUpperCase()) : null,
+            access_category: 'Gala Evening',
+            events: ['gala'],
+            gala_table: tableLabel,
+            table: tableLabel,           // explicit table field the ADMIT card shows large
+            source: 'gala-picker',
+        }, extra || {});
+
+        // EDGE CASE: a real Firestore ticket but no PAID portal registration. The picker only issues
+        // tickets to paid guests, so ADMIT (never hard-reject a legit guest at the door) with a
+        // verify flag — and mark nothing, since there is no eligible portal row to flip.
+        if (!galaReg) {
+            return respondP('valid', 'Admit — verify: not found in portal registrations.',
+                { ticket: mkTicket({ verify: true, verify_note: 'Not found in portal registrations — verify.' }) });
+        }
+
+        if (Number(galaReg.checked_in)) {
+            return respondP('already_checked_in', 'Already checked in for ' + gate.label + '.',
+                { ticket: mkTicket(), checked_in_at: galaReg.checked_in_at }, galaReg.id);
+        }
+        if (!mark) {
+            return respondP('valid', 'Valid — ready to admit.', { ticket: mkTicket(), preview: true }, galaReg.id);
+        }
+
+        // Atomic single-winner mark (mirrors the portal path's INSERT-OR-IGNORE race guard): the
+        // UPDATE fires only while the row is still un-checked-in, so exactly one of two concurrent
+        // scans wins. getRowsModified()===1 ⇒ WE admitted; 0 ⇒ someone just did.
+        db.run("UPDATE gala_registrations SET checked_in = 1, checked_in_at = COALESCE(checked_in_at, ?) WHERE id = ? AND COALESCE(checked_in,0) = 0", [now, galaReg.id]);
+        const won = db.getRowsModified() === 1;
+        saveDb();
+        if (!won) {
+            const ex = query.get('SELECT checked_in_at FROM gala_registrations WHERE id = ?', [galaReg.id]);
+            return respondP('already_checked_in', 'Already checked in for ' + gate.label + '.',
+                { ticket: mkTicket(), checked_in_at: ex && ex.checked_in_at }, galaReg.id);
+        }
+        return respondP('valid', 'Valid — admit to ' + gate.label + '.',
+            { ticket: mkTicket(), checked_in_at: now, checked_in_by: adminEmail }, galaReg.id);
+    }
+
     // THE unified per-event check-in. Body: { code, event, mark=true, method='qr', device, override, override_reason }.
     // Returns a clear result: valid | already_checked_in | invalid | revoked | wrong_event | not_active | expired.
-    app.post('/api/admin/checkin/ticket', auth, staffOrAdmin, (req, res) => {
+    app.post('/api/admin/checkin/ticket', auth, staffOrAdmin, async (req, res) => {
         try {
             const b = req.body || {};
             const eventKey = String(b.event || '').trim();
@@ -31043,6 +31142,19 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 recordScan({ token: reg ? reg.checkin_token : (b.code || null), registration_id: reg ? reg.id : null, event_key: eventKey, result, method, admin_id: adminId, admin_email: adminEmail, device, is_override: override, override_reason: overrideReason });
                 res.json(Object.assign({ valid: result === 'valid', result, message, event: eventKey, event_label: gate.label }, extra || {}));
             };
+
+            // Portal token first; only if it missed do we consider a gala table-picker ticket
+            // (host-matched ticket URL, or — at the gala gate — a bare 16-hex tid). A Firestore
+            // lookup then resolves the guest + table and checks in their paid gala registration.
+            if (!reg) {
+                const codeStr = String(b.code || '').trim();
+                const urlTid = pickerSync.extractPickerTid(codeStr);
+                const bareTid = (!urlTid && eventKey === 'gala' && pickerSync.isBareTid(codeStr)) ? codeStr.toLowerCase() : null;
+                const tid = urlTid || bareTid;
+                if (tid) {
+                    return await resolveGalaPickerTicket(tid, { req, res, gate, eventKey, method, device, override, overrideReason, mark, adminId, adminEmail });
+                }
+            }
 
             if (!reg) return respond('invalid', 'Invalid ticket — no matching registration.', {});
             const ticket = enrichReg(reg);
