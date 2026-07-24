@@ -162,6 +162,45 @@ const todayUtc = () => new Date().toISOString().split('T')[0];
         check('frontend: paid tile relabelled to people with a reservations sub-note',
             galaSrc.includes('galaStatPaidBookings') && galaSrc.includes('Paid people'));
 
+        // --- (6) FIX 1: the HOME "Live overview" gala card reads PEOPLE, matching the Gala section.
+        //     That card has no dedicated stats endpoint — LiveOverview.refresh() aggregates
+        //     /api/gala/registrations client-side, so the endpoint returns rows carrying guest_count and
+        //     the head count is SUM(1+guest_count) over the paid rows = 4 (owner saw "3 paid tickets" on
+        //     HOME while the Gala section said 4). VIP is counted the same way; "to chase"/€ stay as-is. ---
+        const ovRows = (Array.isArray(regs) ? regs : []).filter(x => ['hc-plusone', 'hc-solo-1', 'hc-solo-2'].includes(x.id));
+        check('home overview: source endpoint /api/gala/registrations carries guest_count per row',
+            ovRows.length === 3 && ovRows.every(x => x.guest_count != null), JSON.stringify(ovRows.map(x => x.guest_count)));
+        const ovPaidPeople = ovRows.filter(x => x.payment_status === 'paid').reduce((s, x) => s + 1 + (Number(x.guest_count) || 0), 0);
+        check('home overview: gala paid PEOPLE = 4 (SUM 1+guest_count over paid rows), not 3 bookings', ovPaidPeople === 4, `people=${ovPaidPeople}`);
+        check('frontend: LiveOverview.refresh sums paid/VIP as people (1+guest_count) + keeps paidBookings',
+            galaSrc.includes('const galaPeople = (rows) => rows.reduce((sum, r) => sum + 1 + (Number(r.guest_count) || 0), 0)')
+            && galaSrc.includes('paid: galaPeople(galaPaid)') && galaSrc.includes('vip: galaPeople(galaVip)'));
+        check('frontend: home gala card relabelled "paid people" (dropped the misleading "paid tickets")',
+            galaSrc.includes("bigLabel: 'paid people'") && !galaSrc.includes("bigLabel: 'paid tickets'"));
+
+        // --- (7) FIX 2: the Gala "Confirmed (RSVP)" tile reads PEOPLE (a guest is confirmed too) = 4,
+        //     with the booking count kept as a sub-note (owner: "even the three confirmed should say four
+        //     confirmed"). Same paid|confirmed row set as the summary line. ---
+        const confRows = (Array.isArray(regs) ? regs : []).filter(x => (x.payment_status === 'paid' || x.status === 'confirmed') && ['hc-plusone', 'hc-solo-1', 'hc-solo-2'].includes(x.id));
+        const confPeople = confRows.reduce((s, x) => s + 1 + (Number(x.guest_count) || 0), 0);
+        check('confirmed tile: PEOPLE = SUM(1+guest_count) over confirmed rows = 4 (three confirmed → four)', confPeople === 4, `people=${confPeople}`);
+        check('confirmed tile: bookings still 3 (kept as a sub-note)', confRows.length === 3, `bookings=${confRows.length}`);
+        check('frontend: confirmed tile (galaStatPaid) is driven by confirmedPeople + has a bookings sub-note',
+            galaSrc.includes("document.getElementById('galaStatPaid').textContent = confirmedPeople;")
+            && galaSrc.includes('const confirmedPeople = this.registrations') && galaSrc.includes('galaStatConfirmedBookings'));
+
+        // --- (8) FIX 3: both check-in scanners PAUSE after each decode and expose a resume control, so
+        //     lifting the phone to read the verdict never grabs the next QR in view. Manual paths untouched. ---
+        check('frontend: global scanner freezes the loop after a decode (_globalScanPaused guard + _pauseGlobalScan + resume)',
+            galaSrc.includes('if (this._globalScanPaused) return;') && galaSrc.includes('this._pauseGlobalScan();') && galaSrc.includes('_resumeGlobalScan()'));
+        check('frontend: global scanner plain check-in path stops scanning (returns false, was true)',
+            /this\.globalCheckin\(rawData\);\s*\n\s*return false;/.test(galaSrc));
+        check('frontend: global scanner exposes a "Scan next" resume control that re-arms the loop',
+            galaSrc.includes('App._resumeGlobalScan()') && /Scan next/.test(galaSrc));
+        check('frontend: EventCheckin scanner pauses after a decode + exposes a "Scan next" resume button',
+            galaSrc.includes('if (this.paused) return;') && galaSrc.includes('this.pauseScan();')
+            && galaSrc.includes('EventCheckin.resumeScan()') && galaSrc.includes('eventCheckinResume'));
+
         // --- (4) the fresh Gala bookings appear in the 30-day registration trends (combined events series) ---
         const trends = (await api(ADMIN, '/api/dashboard/trends?event=all', { token: atok })).d || {};
         const evTotal = (trends.events || []).reduce((s, x) => s + (Number(x.count) || 0), 0);

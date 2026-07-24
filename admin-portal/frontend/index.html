@@ -12627,7 +12627,7 @@ President, Med&amp;X</textarea>
                         </div>
                         <div class="stat-item">
                             <div class="stat-value" id="galaStatPaid">0</div>
-                            <div class="stat-label">Confirmed (RSVP)</div>
+                            <div class="stat-label">Confirmed (RSVP)<span id="galaStatConfirmedBookings" style="display:block; font-weight:400; color:var(--text-muted); font-size:11px; margin-top:2px;"></span></div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-value" style="color: #15803d;" id="galaStatPaidOnly">0</div>
@@ -26558,6 +26558,7 @@ President, Med&amp;X</textarea>
 
             _startGlobalCamera() {
                 if (this._globalStream) return; // Already running
+                this._globalScanPaused = false; // fresh start — clear any stale pause from a prior verdict
                 const video = document.getElementById('globalQRVideo');
                 const status = document.getElementById('globalQRStatus');
                 if (!video) return;
@@ -26601,9 +26602,10 @@ President, Med&amp;X</textarea>
 
             _scanGlobalFrame() {
                 if (!this._globalStream) return;
+                if (this._globalScanPaused) return; // frozen after a decode until the operator taps "Scan next"
                 const video = document.getElementById('globalQRVideo');
                 if (!video || video.paused || video.ended || video.readyState < 2) {
-                    setTimeout(() => this._scanGlobalFrame(), 200);
+                    if (!this._globalScanPaused) setTimeout(() => this._scanGlobalFrame(), 200);
                     return;
                 }
 
@@ -26624,9 +26626,9 @@ President, Med&amp;X</textarea>
                 QRCapture.decode(canvas, ctx).then(decoded => {
                     let keepScanning = true;
                     if (decoded) keepScanning = this._onGlobalDecoded(decoded);
-                    if (keepScanning && this._globalStream) requestAnimationFrame(() => this._scanGlobalFrame());
+                    if (keepScanning && this._globalStream && !this._globalScanPaused) requestAnimationFrame(() => this._scanGlobalFrame());
                 }).catch(() => {
-                    if (this._globalStream) requestAnimationFrame(() => this._scanGlobalFrame());
+                    if (this._globalStream && !this._globalScanPaused) requestAnimationFrame(() => this._scanGlobalFrame());
                 });
             },
 
@@ -26640,6 +26642,13 @@ President, Med&amp;X</textarea>
                 if (!(this._globalLastScan !== rawDataStr || now - (this._globalLastScanTime || 0) > 3000)) return true;
                 this._globalLastScan = rawDataStr;
                 this._globalLastScanTime = now;
+
+                // One physical scan = one verdict. Freeze the decode loop the instant we accept a code so
+                // the operator can lift the phone and read ADMIT / ALREADY / INVALID without the camera
+                // grabbing the next QR in view (owner: "scanner keeps scanning continuously"). An explicit
+                // "Scan next" tap — or a tap on the camera — clears the guard and resumes. Every branch
+                // below now returns false (stop) so nothing schedules another frame behind the pause.
+                this._pauseGlobalScan();
 
                 if (navigator.vibrate) navigator.vibrate(200);
 
@@ -26709,9 +26718,46 @@ President, Med&amp;X</textarea>
                     return false; // Stop scanning
                 }
 
-                // If not a member QR, try normal check-in
+                // If not a member QR, try normal check-in. The loop is already paused (above), so the
+                // camera holds on this verdict until the operator taps "Scan next".
                 this.globalCheckin(rawData);
-                return true;
+                return false;
+            },
+
+            // Freeze the scan loop after a read and surface an explicit resume control, so lifting the
+            // phone to read the verdict never triggers a second, unwanted scan. The video stream is left
+            // untouched (a member/profile branch may have already stopped it, or the check-in path kept
+            // it live) — _resumeGlobalScan handles both. Idempotent within one paused verdict.
+            _pauseGlobalScan() {
+                if (this._globalScanPaused) return;
+                this._globalScanPaused = true;
+                const statusEl = document.getElementById('globalQRStatus');
+                if (statusEl) {
+                    statusEl.style.cursor = 'pointer';
+                    statusEl.innerHTML = '<button type="button" onclick="event.stopPropagation(); App._resumeGlobalScan()" style="border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;background:#c9a962;color:#17120f;cursor:pointer;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Skeniraj sljedeće · Scan next</button>';
+                }
+                // Tapping the camera area itself also resumes (fast, glove-friendly at the door).
+                const video = document.getElementById('globalQRVideo');
+                if (video) video.onclick = () => this._resumeGlobalScan();
+            },
+
+            // Resume scanning for the next person: clear the guard + the one-shot debounce (so the SAME
+            // ticket can be deliberately re-scanned), wipe the last verdict, and restart the loop —
+            // re-acquiring the camera if a branch had stopped the stream, else just re-arming the loop.
+            _resumeGlobalScan() {
+                this._globalScanPaused = false;
+                this._globalLastScan = null;
+                this._globalLastScanTime = 0;
+                if (this._globalResultTimer) { clearTimeout(this._globalResultTimer); this._globalResultTimer = null; }
+                const video = document.getElementById('globalQRVideo');
+                if (video) video.onclick = null;
+                const resultDiv = document.getElementById('globalCheckinResult');
+                if (resultDiv) { resultDiv.className = ''; resultDiv.innerHTML = ''; }
+                const statusEl = document.getElementById('globalQRStatus');
+                if (statusEl) { statusEl.style.cursor = ''; statusEl.innerHTML = 'Point camera at QR code...'; }
+                if (this._globalActiveTab && this._globalActiveTab !== 'scan') return; // not on the camera tab — nothing to resume
+                if (!this._globalStream) this._startGlobalCamera();
+                else this._scanGlobalFrame();
             },
 
             // Flashlight (torch) for the dim Dec 5 ballroom — shown only when the camera
@@ -26825,6 +26871,7 @@ President, Med&amp;X</textarea>
                 if (modal) modal.remove();
                 this._globalTorchOn = false;
                 this._globalLastScan = null;
+                this._globalScanPaused = false; // clear the pause guard so the next open scans immediately
             },
 
             switchGlobalTab(tab) {
@@ -27199,7 +27246,10 @@ President, Med&amp;X</textarea>
                             this.loadGlobalCheckinStats();
                             this.loadGlobalRecentCheckins();
                             this.flushCheckinQueue();
-                            this._globalResultTimer = setTimeout(() => { if (resultDiv) { resultDiv.className = ''; resultDiv.innerHTML = ''; } }, 6000);
+                            // When this came from a camera scan the loop is paused: keep the verdict on
+                            // screen until the operator taps "Scan next". A manual/typed check-in is not
+                            // paused, so it still auto-fades.
+                            if (!this._globalScanPaused) this._globalResultTimer = setTimeout(() => { if (resultDiv) { resultDiv.className = ''; resultDiv.innerHTML = ''; } }, 6000);
                             return;
                         }
                     } catch (e) { /* fall through to the legacy cascade below (also handles offline queueing) */ }
@@ -27249,8 +27299,9 @@ President, Med&amp;X</textarea>
                         // Flush any offline queue on successful network call
                         this.flushCheckinQueue();
 
-                        // Auto-clear result after 4s
-                        this._globalResultTimer = setTimeout(() => {
+                        // Auto-clear result after 4s — but a paused camera scan holds the verdict until
+                        // the operator taps "Scan next" (manual entry is never paused, so it still fades).
+                        if (!this._globalScanPaused) this._globalResultTimer = setTimeout(() => {
                             if (resultDiv) { resultDiv.className = ''; resultDiv.innerHTML = ''; }
                         }, 4000);
                     } else {
@@ -40091,10 +40142,20 @@ By applying to this program, I give the following consents:
                 const revenue = paidOnly.reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
                 const eur = (n) => '€' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
+                // "Confirmed" is PEOPLE, not bookings: a plus-one is confirmed too and arrives on the
+                // registrant's one QR, so 3 confirmed bookings with one +1 read as 4 confirmed (owner:
+                // "even the three confirmed should say four confirmed, because guests are also confirmed").
+                // `paid` stays the booking (row) count, shown as a sub-note and in the summary parens.
+                const confirmedPeople = this.registrations
+                    .filter(r => r.payment_status === 'paid' || r.status === 'confirmed')
+                    .reduce((s, r) => s + 1 + (Number(r.guest_count) || 0), 0);
+
                 document.getElementById('galaStatTotal').textContent = total;
                 document.getElementById('galaStatPending').textContent = pending;
                 document.getElementById('galaStatApproved').textContent = approved;
-                document.getElementById('galaStatPaid').textContent = paid;
+                document.getElementById('galaStatPaid').textContent = confirmedPeople;
+                const confBookingsEl = document.getElementById('galaStatConfirmedBookings');
+                if (confBookingsEl) confBookingsEl.textContent = paid + (paid === 1 ? ' reservation' : ' reservations') + (confirmedPeople !== paid ? ' · +' + (confirmedPeople - paid) + ' guest' + (confirmedPeople - paid === 1 ? '' : 's') : '');
                 const paidOnlyEl = document.getElementById('galaStatPaidOnly');
                 if (paidOnlyEl) paidOnlyEl.textContent = paidPeople;
                 const revEl = document.getElementById('galaStatPaidRevenue');
@@ -40102,16 +40163,13 @@ By applying to this program, I give the following consents:
                 // Keep the booking count visible so both numbers are legible (people vs reservations).
                 const paidBookingsEl = document.getElementById('galaStatPaidBookings');
                 if (paidBookingsEl) paidBookingsEl.textContent = paidCount + (paidCount === 1 ? ' reservation' : ' reservations') + (paidPeople !== paidCount ? ' · +' + (paidPeople - paidCount) + ' guest' + (paidPeople - paidCount === 1 ? '' : 's') : '');
-                // Head count of the confirmed room = bookings + their plus-one guests. Shown next
-                // to "confirmed" so the true number of people (not bookings) is visible at a glance.
-                const attendingPeople = this.registrations
-                    .filter(r => r.payment_status === 'paid' || r.status === 'confirmed')
-                    .reduce((s, r) => s + 1 + (Number(r.guest_count) || 0), 0);
+                // Head count of the confirmed room = bookings + their plus-one guests (computed above as
+                // confirmedPeople). People-first, with the booking count in parens, matching the "paid" part.
                 const summaryEl = document.getElementById('galaSummaryLine');
                 if (summaryEl) {
-                    const peopleNote = attendingPeople !== paid ? ` (${attendingPeople} people incl. guests)` : '';
+                    const confirmedNote = confirmedPeople !== paid ? ` (${paid} booking${paid === 1 ? '' : 's'})` : '';
                     const paidNote = paidPeople !== paidCount ? ` (${paidCount} booking${paidCount === 1 ? '' : 's'})` : '';
-                    summaryEl.textContent = `${total} request${total === 1 ? '' : 's'} · ${paid} confirmed${peopleNote} · ${paidPeople} paid${paidNote} · ${eur(revenue)} collected`;
+                    summaryEl.textContent = `${total} request${total === 1 ? '' : 's'} · ${confirmedPeople} confirmed${confirmedNote} · ${paidPeople} paid${paidNote} · ${eur(revenue)} collected`;
                 }
 
                 // Catering headline + attendance (items 5 & 6) — read-only, from dietary/checked_in.
@@ -41776,6 +41834,7 @@ By applying to this program, I give the following consents:
             stream: null,
             lastScan: null,
             lastScanTime: 0,
+            paused: false, // after a decode the loop freezes until the operator taps "Scan next"
             markMode: true, // if true, auto-mark checked in on valid scan
             torchOn: false, // flashlight state for the dim-ballroom torch toggle
             defaultEvent: null, // the active-by-date gate (preselected)
@@ -41855,6 +41914,7 @@ By applying to this program, I give the following consents:
                                 <video id="eventCheckinVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;"></video>
                                 <div style="position:absolute;inset:25%;border:3px solid ${eventColor[sel]};border-radius:12px;pointer-events:none;"></div>
                                 <button type="button" id="eventCheckinTorch" onclick="EventCheckin.toggleTorch()" aria-label="Toggle flashlight" aria-pressed="false" title="Flashlight" style="display:none;position:absolute;top:10px;right:10px;z-index:3;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.35);background:rgba(0,0,0,0.55);color:#fff;font-size:16px;cursor:pointer;align-items:center;justify-content:center;"><i class="fas fa-bolt"></i></button>
+                                <button type="button" id="eventCheckinResume" onclick="EventCheckin.resumeScan()" style="display:none;position:absolute;inset:0;z-index:4;width:100%;height:100%;border:none;background:rgba(0,0,0,0.55);color:#fff;font-size:15px;font-weight:800;cursor:pointer;flex-direction:column;gap:12px;align-items:center;justify-content:center;"><i class="fas fa-qrcode" style="font-size:36px;"></i><span>Skeniraj sljedeće<br>Scan next</span></button>
                             </div>
                             <div style="display:flex;gap:8px;margin-bottom:10px;">
                                 <input id="eventCheckinManual" type="text" placeholder="Or paste QR value / regId / email" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:13px;font-family:monospace;">
@@ -41885,6 +41945,7 @@ By applying to this program, I give the following consents:
 
             async startCamera() {
                 this.stopCamera();
+                this.paused = false; // fresh start — clear any stale pause from a prior verdict
                 try {
                     this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                     const video = document.getElementById('eventCheckinVideo');
@@ -41902,9 +41963,10 @@ By applying to this program, I give the following consents:
             },
 
             scanFrame() {
+                if (this.paused) return; // frozen after a decode until the operator taps "Scan next"
                 const video = document.getElementById('eventCheckinVideo');
                 if (!video || !this.stream || video.paused || video.readyState < 2) {
-                    setTimeout(() => this.scanFrame(), 200);
+                    if (!this.paused) setTimeout(() => this.scanFrame(), 200);
                     return;
                 }
                 const canvas = document.createElement('canvas');
@@ -41921,13 +41983,40 @@ By applying to this program, I give the following consents:
                             this.lastScan = decoded;
                             this.lastScanTime = now;
                             if (navigator.vibrate) navigator.vibrate(180);
+                            // One physical scan = one verdict: freeze the loop so lifting the phone to
+                            // read ADMIT / ALREADY / INVALID never grabs the next QR in view. Resume is
+                            // an explicit "Scan next" tap. (Manual verify / lookup do NOT pause.)
+                            this.pauseScan();
                             this.verifyCode(decoded);
+                            return; // do not reschedule — paused
                         }
                     }
-                    if (this.stream) setTimeout(() => this.scanFrame(), 250);
+                    if (this.stream && !this.paused) setTimeout(() => this.scanFrame(), 250);
                 }).catch(() => {
-                    if (this.stream) setTimeout(() => this.scanFrame(), 250);
+                    if (this.stream && !this.paused) setTimeout(() => this.scanFrame(), 250);
                 });
+            },
+
+            // Freeze the decode loop and surface the "Scan next" overlay so the camera holds on the
+            // verdict. The stream stays live (instant resume); an explicit tap re-arms scanning.
+            pauseScan() {
+                this.paused = true;
+                const resumeBtn = document.getElementById('eventCheckinResume');
+                if (resumeBtn) resumeBtn.style.display = 'flex';
+            },
+
+            // Resume scanning for the next person: hide the overlay, clear the one-shot debounce (so the
+            // SAME ticket can be deliberately re-scanned), and re-arm the loop.
+            resumeScan() {
+                this.paused = false;
+                this.lastScan = null;
+                this.lastScanTime = 0;
+                const resumeBtn = document.getElementById('eventCheckinResume');
+                if (resumeBtn) resumeBtn.style.display = 'none';
+                const area = document.getElementById('eventCheckinResultArea');
+                if (area) area.innerHTML = '';
+                if (this.stream) this.scanFrame();
+                else this.startCamera();
             },
 
             // Flashlight (torch) for the dim ballroom — visible only when the camera
@@ -42488,7 +42577,9 @@ By applying to this program, I give the following consents:
                         foot: c.deadline(['plexus']) }; } },
                 { key: 'gala', id: 'liveOv_gala', label: 'Gala Evening', section: 'gala', color: '#c9a962', icon: 'fa-glass-cheers',
                   metrics(c) { const g = c.gala || {};
-                    return { big: g.paid || 0, bigLabel: 'paid tickets',
+                    // "paid people" (head count incl. plus-ones), matching the Gala section's "Paid people"
+                    // tile — a plus-one arrives on the registrant's one QR, so the room count > booking count.
+                    return { big: g.paid || 0, bigLabel: 'paid people',
                         sub: `${g.vip || 0} VIP · ${g.awaiting || 0} to chase · €${Math.round(g.revenue || 0).toLocaleString()}`,
                         foot: null }; } },
                 { key: 'croatians', id: 'liveOv_croatians', label: 'Croatians Abroad', section: 'croatians-abroad', color: '#c2484e', icon: 'fa-globe-europe',
@@ -42551,9 +42642,19 @@ By applying to this program, I give the following consents:
                     const caReal = caRegs.filter(r => !isTest(r));
 
                     const galaPaid = galaReal.filter(r => r.payment_status === 'paid');
+                    const galaVip = galaReal.filter(r => r.payment_status === 'vip-comp');
+                    // PEOPLE, not bookings: a paid booking with guest_count=N seats N+1 attendees who
+                    // arrive on the ONE registrant QR (plus-ones have no ticket of their own). The home
+                    // "Live overview" must read the same head count the Gala section shows — 3 paid
+                    // bookings, one with a +1 → 4 (the owner saw "3" here while Gala said "4"). VIP is
+                    // counted the same way. Revenue and the "to chase" (awaiting-payment) count stay
+                    // money/bookings — a plus-one is paid for inside its booking, and an unpaid booking
+                    // is one payment to chase regardless of party size.
+                    const galaPeople = (rows) => rows.reduce((sum, r) => sum + 1 + (Number(r.guest_count) || 0), 0);
                     this.gala = {
-                        paid: galaPaid.length,
-                        vip: galaReal.filter(r => r.payment_status === 'vip-comp').length,
+                        paid: galaPeople(galaPaid),
+                        paidBookings: galaPaid.length,
+                        vip: galaPeople(galaVip),
                         awaiting: galaReal.filter(r => r.status === 'awaiting_payment').length,
                         // Revenue confirmed: sum ACTUAL amounts only — never fabricate a price.
                         revenue: galaPaid.reduce((sum, r) => sum + (Number(r.amount_paid) || 0), 0)

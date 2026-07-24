@@ -136,6 +136,70 @@ def main():
             page.screenshot(path=str(OUT / "07_manual_checkin.png"))
             if "ADMIT" not in txt.upper() and "VALID" not in txt.upper(): failures.append("manual check-in state missing: " + txt[:120])
 
+            # 8) FIX 3 — the camera scanner PAUSES after a decode and needs an explicit "Scan next" tap
+            #    to continue (owner: it "keeps scanning continuously" while the phone is lifted to read the
+            #    result). Drive the REAL decode path: stub QRCapture.decode to return a valid code once, let
+            #    scanFrame accept it, and assert the loop froze + the resume overlay appeared; then resume
+            #    via the explicit control and assert it re-armed. Falls back to the pause control directly
+            #    if the headless fake-camera video never reaches readyState>=2.
+            set_event("conference")
+            _, reg3 = api("/api/registrations", "POST", {"conference_id": conf, "ticket_type_id": ticket}, tok)
+            drove_real = page.evaluate("""(code) => {
+                EventCheckin.paused = false; EventCheckin.lastScan = null; EventCheckin.lastScanTime = 0;
+                const btn = document.getElementById('eventCheckinResume'); if (btn) btn.style.display = 'none';
+                const v = document.getElementById('eventCheckinVideo');
+                if (EventCheckin.stream && v && v.readyState >= 2) {
+                    let fired = false;
+                    window.__origDecode = QRCapture.decode;
+                    QRCapture.decode = async () => { if (fired) return null; fired = true; return code; };
+                    EventCheckin.scanFrame();
+                    return true;
+                }
+                // Fake camera not ready in headless — exercise the pause control directly instead.
+                EventCheckin.pauseScan(); EventCheckin.verifyCode(code);
+                return false;
+            }""", reg3["registration_id"])
+            page.wait_for_function("() => EventCheckin.paused === true", timeout=6000)
+            page.wait_for_timeout(300)
+            paused = page.evaluate("() => EventCheckin.paused")
+            overlay_shown = page.evaluate("() => { const b=document.getElementById('eventCheckinResume'); return !!b && getComputedStyle(b).display !== 'none'; }")
+            scanframe_noop = page.evaluate("() => { EventCheckin.scanFrame(); return EventCheckin.paused === true; }")
+            page.screenshot(path=str(OUT / "08_scanner_paused.png"))
+            if not paused: failures.append(f"scanner did not pause after a decode (real-drive={drove_real})")
+            if not overlay_shown: failures.append("'Scan next' resume overlay not visible after a decode")
+            if not scanframe_noop: failures.append("scanFrame kept running while paused (should be a no-op)")
+            # Resume via the explicit "Scan next" control and confirm the loop re-arms.
+            page.click("#eventCheckinResume")
+            page.wait_for_timeout(200)
+            resumed = page.evaluate("() => EventCheckin.paused === false")
+            overlay_hidden = page.evaluate("() => { const b=document.getElementById('eventCheckinResume'); return !b || getComputedStyle(b).display === 'none'; }")
+            if not resumed: failures.append("scanner did not resume after tapping 'Scan next'")
+            if not overlay_hidden: failures.append("resume overlay still visible after resume")
+            page.evaluate("() => { if (window.__origDecode) { QRCapture.decode = window.__origDecode; window.__origDecode = null; } }")
+
+            # 9) FIX 3 — the GLOBAL Quick Check-in scanner (the floating QR button the owner actually uses)
+            #    exposes the same pause + "Scan next" resume plumbing.
+            page.evaluate("() => App.openGlobalQRScanner()")
+            page.wait_for_selector("#globalQRStatus", timeout=8000)
+            # Let the async camera-start settle first: it writes the status line ("Point camera…" or a
+            # camera-error) AFTER getUserMedia resolves, and in production the pause is triggered by a
+            # decode that only happens once the camera is live — so wait past that write before pausing,
+            # otherwise the late status write would clobber the "Scan next" button (a test-only race).
+            page.wait_for_function("() => { const s=document.getElementById('globalQRStatus'); return s && !/Starting camera/i.test(s.innerText); }", timeout=8000)
+            page.wait_for_timeout(250)
+            page.evaluate("() => App._pauseGlobalScan()")
+            page.wait_for_timeout(150)
+            g_paused = page.evaluate("() => App._globalScanPaused === true")
+            g_btn = page.evaluate("() => { const s=document.getElementById('globalQRStatus'); return !!s && /Scan next/i.test(s.innerText); }")
+            page.screenshot(path=str(OUT / "09_global_paused.png"))
+            if not g_paused: failures.append("global scanner did not set the pause guard")
+            if not g_btn: failures.append("global scanner missing the 'Scan next' resume control")
+            page.evaluate("() => App._resumeGlobalScan()")
+            page.wait_for_timeout(150)
+            if not page.evaluate("() => App._globalScanPaused === false"): failures.append("global scanner did not clear the pause guard on resume")
+            try: page.evaluate("() => App.closeGlobalQRScanner()")
+            except Exception: pass
+
             if errors: failures.append("page JS errors: " + " | ".join(errors[:3]))
             browser.close()
     finally:
