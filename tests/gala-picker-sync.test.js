@@ -18,9 +18,11 @@
  *   engine's PICKER_FS_BASE / PICKER_AUTH_BASE test seams). Production Firestore is NEVER
  *   touched here. Proves end to end:
  *   - paid gala reg → invite created in (mock) Firestore + gala_picker_invites row
+ *     + public paid_emails/{sha256(email)} marker written (picker-compatible id)
  *   - fire-and-forget trigger on the admin mark-paid path (no manual run needed)
  *   - re-run → idempotent (unchanged, nothing created/deleted)
- *   - refund (status→rejected) → unpicked invite DELETED + revoked_at stamped
+ *   - refund (status→rejected) → unpicked invite DELETED + revoked_at stamped +
+ *     paid_emails marker DELETED (flagged/booked guest keeps both)
  *   - refund with picked invite → flagged, NOT deleted
  *   - console-created invite with unknown email → foreign, untouched
  *   - re-eligible guest → fresh invite with a NEW token (old ledger row stays revoked)
@@ -81,6 +83,27 @@ async function unitTests() {
     check('unit: token is 16 lowercase hex chars', /^[0-9a-f]{16}$/.test(tok), tok);
     check('unit: tokens are random', ps.genInviteToken() !== ps.genInviteToken());
 
+    // ---- paid_emails doc-id — MUST equal the picker's client-side sha256hex ----
+    // The picker (guest_picker index.html/admin.html) hashes an added guest's e-mail as
+    // hex(SHA-256(TextEncoder(normEmail(email)))) and GETs paid_emails/{that}. Reproduce that
+    // exact Web-Crypto recipe here and prove the sync's Node createHash id is byte-identical,
+    // including the trim + lowercase normalization on which the marker's uniqueness depends.
+    const pickerHex = async (str) => {
+        const buf = await require('crypto').webcrypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        const b = new Uint8Array(buf); let h = '';
+        for (let i = 0; i < b.length; i++) h += ('0' + b[i].toString(16)).slice(-2);
+        return h;
+    };
+    const norm = (e) => String(e || '').trim().toLowerCase();
+    for (const raw of ['a@x.hr', '  A@X.HR  ', 'Ana.Kovac@Example.COM', 'qa.robot+syncguest@example.com', 'DUP@x.hr']) {
+        const want = await pickerHex(norm(raw));     // picker: sha256hex(normEmail(email))
+        const got = ps.paidEmailDocId(raw);
+        check('paid: doc-id matches picker sha256hex for ' + JSON.stringify(raw), got === want, got);
+    }
+    check('paid: trim + case variants collapse to one marker id',
+        ps.paidEmailDocId('  A@X.HR  ') === ps.paidEmailDocId('a@x.hr') && ps.paidEmailDocId('A@x.hr') === ps.paidEmailDocId('a@x.hr'));
+    check('paid: id is 64 lowercase hex chars', /^[0-9a-f]{64}$/.test(ps.paidEmailDocId('a@x.hr')));
+
     // ---- computeInviteDiff ----
     const diff1 = ps.computeInviteDiff({
         eligible: [{ email: 'a@x.hr', name: 'Ana' }, { email: 'b@x.hr', name: 'Bo' }],
@@ -126,7 +149,7 @@ async function unitTests() {
 
     // ---- runInviteSync with a mock client ----
     const mkClient = (invites, opts = {}) => {
-        const calls = { created: [], deleted: [] };
+        const calls = { created: [], deleted: [], paidUp: [], paidDel: [] };
         return {
             calls,
             configured: true,
@@ -136,6 +159,8 @@ async function unitTests() {
                 calls.created.push(inv);
             },
             deleteInvite: async (t) => { calls.deleted.push(t); },
+            upsertPaidEmail: async (em) => { if (opts.failPaid === em) throw new Error('paid-boom'); calls.paidUp.push(em); },
+            deletePaidEmail: async (em) => { calls.paidDel.push(em); },
         };
     };
     let ledger = [];
@@ -155,12 +180,17 @@ async function unitTests() {
     check('run: revokes the refunded unpicked invite', rep1.revoked.length === 1 && c1.calls.deleted[0] === 'g1' && revoked[0].email === 'gone@x.hr');
     check('run: ledger callback recorded the create', ledger.length === 1 && ledger[0].email === 'new@x.hr');
     check('run: ok with no errors', rep1.ok === true && rep1.errors.length === 0);
+    // paid_emails markers ride the same pass: create → mark paid, revoke → unmark
+    check('run: create ALSO upserts the paid_emails marker', c1.calls.paidUp.includes('new@x.hr') && rep1.paidMarked.includes('new@x.hr'));
+    check('run: revoke ALSO deletes the paid_emails marker', c1.calls.paidDel.includes('gone@x.hr') && rep1.paidUnmarked.includes('gone@x.hr'));
 
     // idempotent second pass — state now converged
     const c2 = mkClient([{ token: c1.calls.created[0].token, email: 'new@x.hr', name: 'Novi Gost', picked: false, table: null }]);
     const rep2 = await ps.runInviteSync(deps(c2));
     check('run: second pass idempotent (1 unchanged, nothing created/deleted)',
         rep2.created.length === 0 && rep2.revoked.length === 0 && rep2.unchanged === 1 && c2.calls.created.length === 0 && c2.calls.deleted.length === 0);
+    check('run: kept invite RE-asserts its paid marker (idempotent upsert, no invite churn)',
+        c2.calls.paidUp.includes('new@x.hr') && rep2.paidMarked.includes('new@x.hr') && c2.calls.paidDel.length === 0);
 
     // unconfigured → graceful no-op
     const rep3 = await ps.runInviteSync({ client: { configured: false }, getEligible: async () => [], getPortalEmails: async () => new Set() });
@@ -172,6 +202,15 @@ async function unitTests() {
     const rep4 = await ps.runInviteSync(deps(c4));
     check('run: create failure collected in errors (retried next pass), not thrown',
         rep4.ok === false && rep4.errors.length === 1 && rep4.created.length === 0 && ledger.length === 0);
+    check('run: failed create does NOT mark paid (invite + marker stay consistent)',
+        !c4.calls.paidUp.includes('new@x.hr') && rep4.paidMarked.length === 0);
+
+    // paid-mark failure is collected too — never aborts the invite work, self-heals next pass
+    ledger = []; revoked = [];
+    const c5 = mkClient([], { failPaid: 'new@x.hr' });
+    const rep5 = await ps.runInviteSync(deps(c5));
+    check('run: paid-mark failure collected in errors, invite still created, not thrown',
+        rep5.created.length === 1 && rep5.ok === false && rep5.errors.some((e) => /paid-mark/.test(e)) && rep5.paidMarked.length === 0);
 
     // ---- buildInviteEmail — approved design ----
     const link = 'https://plexus-tables.netlify.app/?t=00ff00ff00ff00ff';
@@ -230,6 +269,7 @@ async function unitTests() {
 function startMockFirebase() {
     const state = {
         invites: new Map(),   // token → { name, email, maxParty, picked, table }
+        paid: new Map(),      // sha256hex(email) → { email, ts } — the public paid_emails markers
         settings: { chooseDeadlineHr: '15. studenoga 2026.', chooseDeadlineEn: 'November 15, 2026' },
         delayMs: 0,
         authCalls: 0,
@@ -261,7 +301,7 @@ function startMockFirebase() {
                     state.invites.set(j.token, { name: j.name || '', email: j.email || '', maxParty: j.maxParty || 3, picked: !!j.picked, table: j.table ?? null });
                     return send(200, { ok: true });
                 }
-                if (p === '/__mock/state') return send(200, { invites: [...state.invites.entries()].map(([t, v]) => ({ token: t, ...v })), authCalls: state.authCalls });
+                if (p === '/__mock/state') return send(200, { invites: [...state.invites.entries()].map(([t, v]) => ({ token: t, ...v })), paid: [...state.paid.entries()].map(([h, v]) => ({ hash: h, ...v })), authCalls: state.authCalls });
                 if (p === '/__mock/config' && req.method === 'POST') { Object.assign(state, JSON.parse(body)); return send(200, { ok: true }); }
 
                 if (state.delayMs) await sleep(state.delayMs);
@@ -298,6 +338,22 @@ function startMockFirebase() {
                     }
                     if (req.method === 'DELETE') { state.invites.delete(token); return send(200, {}); }
                 }
+                if (p.startsWith(fsBase + '/paid_emails')) {
+                    // Public GET-by-id, admin-only write — mirror the picker's rules: writes MUST
+                    // carry the organizer bearer token, GET is open (unused by the sync).
+                    const hash = decodeURIComponent(p.slice((fsBase + '/paid_emails/').length));
+                    if (req.method === 'PATCH') {
+                        if ((req.headers.authorization || '') !== 'Bearer mock-id-token') return send(401, { error: { message: 'UNAUTHENTICATED' } });
+                        const f = (JSON.parse(body || '{}').fields) || {};
+                        state.paid.set(hash, { email: unwrap(f.email) || '', ts: unwrap(f.ts) || '' });
+                        return send(200, {});
+                    }
+                    if (req.method === 'DELETE') {
+                        if ((req.headers.authorization || '') !== 'Bearer mock-id-token') return send(401, { error: { message: 'UNAUTHENTICATED' } });
+                        state.paid.delete(hash); return send(200, {}); // idempotent: absent doc is a no-op
+                    }
+                    if (req.method === 'GET') { const v = state.paid.get(hash); return v ? send(200, { fields: { email: wrap(v.email), ts: wrap(v.ts) } }) : send(404, { error: { message: 'NOT_FOUND' } }); }
+                }
                 send(404, { error: { message: 'not found: ' + req.method + ' ' + p } });
             } catch (e) { send(500, { error: { message: e.message } }); }
         });
@@ -312,6 +368,7 @@ async function bootTests() {
     const mock = await startMockFirebase();
     const mockBase = 'http://127.0.0.1:' + mock.port;
     const mctl = async (p, body) => (await fetch(mockBase + p, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+    const ps = require(path.join(ROOT, 'admin-portal/backend/picker-sync.js')); // for the picker-compatible marker id
 
     const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'medx-gps-'));
     const dbPath = path.join(scratch, 'scratch.db');
@@ -380,6 +437,11 @@ async function bootTests() {
         check('e2e: TRIGGER created the Firestore invite automatically', !!invA, JSON.stringify(ms.invites));
         check('e2e: invite doc matches console shape (16-hex token, maxParty 3, unpicked)',
             invA && /^[0-9a-f]{16}$/.test(invA.token) && invA.maxParty === 3 && invA.picked === false && invA.name === 'Sync Guest');
+        // the SAME trigger must have written the public paid_emails marker so the picker's guest
+        // page recognises this e-mail as paid — no manual "Refresh paid list" needed
+        const paidHashA = ps.paidEmailDocId('qa.robot+syncguest@example.com');
+        check('e2e: TRIGGER also wrote the paid_emails marker (picker-compatible sha256 id)',
+            ms.paid && ms.paid.some((x) => x.hash === paidHashA && x.email === 'qa.robot+syncguest@example.com'), JSON.stringify(ms.paid));
         r = await api(ADMIN, '/api/admin/gala/picker-sync', { token: atok });
         let ledgerA = (r.d.invites || []).find((i) => i.email === 'qa.robot+syncguest@example.com' && !i.revoked_at);
         check('e2e: gala_picker_invites ledger row written (email lowercased, mail pending)',
@@ -412,6 +474,9 @@ async function bootTests() {
         await sleep(3500);
         ms = await mctl('/__mock/state');
         check('e2e: PICKED invite of refunded guest NOT deleted', ms.invites.some((i) => i.token === invB.token));
+        // invite kept for the organizer's call → its paid marker is kept too (only revoked invites lose theirs)
+        check('e2e: flagged guest keeps paid_emails marker (invite kept → marker kept)',
+            ms.paid.some((x) => x.email === 'qa.robot+picky@example.com'));
         r = await api(ADMIN, '/api/admin/gala/picker-sync/run', { method: 'POST', token: atok });
         check('e2e: refunded-but-booked guest FLAGGED for organizer decision',
             r.d.flagged.some((f) => f.email === 'qa.robot+picky@example.com' && f.table === 5) && !r.d.revoked.some((f) => f.email === 'qa.robot+picky@example.com'),
@@ -425,6 +490,8 @@ async function bootTests() {
         await sleep(3500);
         ms = await mctl('/__mock/state');
         check('e2e: unpicked invite DELETED from Firestore (link dead)', !ms.invites.some((i) => i.email === 'qa.robot+syncguest@example.com'));
+        // refund revoked the invite → its paid_emails marker must be gone too (email no longer valid as a paid guest)
+        check('e2e: refund also DELETED the paid_emails marker', !ms.paid.some((x) => x.hash === paidHashA || x.email === 'qa.robot+syncguest@example.com'));
         r = await api(ADMIN, '/api/admin/gala/picker-sync', { token: atok });
         ledgerA = (r.d.invites || []).find((i) => i.email === 'qa.robot+syncguest@example.com');
         check('e2e: ledger row stamped revoked_at', ledgerA && !!ledgerA.revoked_at);
@@ -445,6 +512,7 @@ async function bootTests() {
         ms = await mctl('/__mock/state');
         invA = ms.invites.find((i) => i.email === 'qa.robot+syncguest@example.com');
         check('e2e: re-eligible guest got a FRESH invite with a new token', invA && invA.token !== oldToken, 'old=' + oldToken + ' new=' + (invA && invA.token));
+        check('e2e: re-eligible guest paid_emails marker restored', ms.paid.some((x) => x.hash === paidHashA && x.email === 'qa.robot+syncguest@example.com'));
         r = await api(ADMIN, '/api/admin/gala/picker-sync', { token: atok });
         const rowsA = (r.d.invites || []).filter((i) => i.email === 'qa.robot+syncguest@example.com');
         check('e2e: ledger keeps history (revoked row + new active row)', rowsA.length === 2 && rowsA.some((x) => x.revoked_at) && rowsA.some((x) => !x.revoked_at));
