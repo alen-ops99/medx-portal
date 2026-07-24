@@ -59,6 +59,20 @@ const decodeJwt = (t) => JSON.parse(Buffer.from(t.split('.')[1].replace(/-/g, '+
     let threw = false; try { wallet.buildSaveUrl({ objects: [] }, {}); } catch (e) { threw = e.message === 'wallet_not_configured'; }
     check('wallet: buildSaveUrl throws when unconfigured', threw);
 
+    // --- FIX 1 front-end wiring: the Quick Check-in scanner the owner taps (App.globalCheckin, opened
+    //     from the floating QR button) must post to the UNIFIED /api/admin/checkin/ticket endpoint so a
+    //     Google Wallet QR (a crypto token) validates, instead of the legacy /api/checkin that can only
+    //     resolve raw registration ids. The live ADMIT round-trip through that endpoint is asserted below. ---
+    const adminSrc = fs.readFileSync(path.join(__dirname, '../admin-portal/frontend/index.html'), 'utf8');
+    check('FIX1 wiring: Quick Check-in delegates to POST /api/admin/checkin/ticket',
+        adminSrc.includes("fetch('/api/admin/checkin/ticket'") && adminSrc.includes('async globalCheckin(code)') && adminSrc.includes('this._gateForCtx()'));
+    check('FIX1 wiring: _gateForCtx maps the "Checking in for" selector to conference/gala/bridges gates',
+        adminSrc.includes('_gateForCtx()') && adminSrc.includes("gala: 'gala'") && adminSrc.includes("'bridges-croatian': 'bridges'"));
+    check('FIX1 wiring: unified door result renders ADMIT / ALREADY / WRONG-EVENT states',
+        adminSrc.includes('_renderGlobalUnifiedResult') && adminSrc.includes("label: 'ADMIT") && adminSrc.includes("label: 'NOT VALID FOR THIS EVENT'"));
+    check('FIX1 wiring: legacy /api/checkin retained as fallback (old gala/forum tickets still work)',
+        adminSrc.includes("this.api('/api/checkin'"));
+
     // Mock service account (real RSA key so the RS256 JWT genuinely verifies).
     const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
     const saPem = privateKey.export({ type: 'pkcs8', format: 'pem' });

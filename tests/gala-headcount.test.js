@@ -143,6 +143,25 @@ const todayUtc = () => new Date().toISOString().split('T')[0];
         const guestSum = mine.reduce((s, x) => s + (Number(x.guest_count) || 0), 0);
         check('gala/registrations: guest_count is stored and totals 1 plus-one', guestSum === 1, `guests=${guestSum}`);
 
+        // --- (5) FIX 2: the Gala "Paid" tile now reads PEOPLE (SUM 1+guest_count) over the paid rows,
+        //     not bookings. 3 paid bookings, one with a +1 → the owner reads 4; revenue stays €300 and
+        //     the booking count stays visible. This mirrors GalaAdmin.updateStats() exactly. ---
+        const paidRows = (Array.isArray(regs) ? regs : []).filter(x => x.payment_status === 'paid' && ['hc-plusone', 'hc-solo-1', 'hc-solo-2'].includes(x.id));
+        const paidPeople = paidRows.reduce((s, x) => s + 1 + (Number(x.guest_count) || 0), 0);
+        const paidBookings = paidRows.length;
+        const paidRevenue = paidRows.reduce((s, x) => s + (Number(x.amount_paid) || 0), 0);
+        check('paid tile: PEOPLE = SUM(1+guest_count) over paid rows = 4 (owner sees 4, not 3)', paidPeople === 4, `people=${paidPeople}`);
+        check('paid tile: bookings still countable as 3 (reservations sub-note)', paidBookings === 3, `bookings=${paidBookings}`);
+        check('paid tile: revenue unchanged at €300 (a plus-one is not new money)', paidRevenue === 300, `€${paidRevenue}`);
+        // Source-level wiring: the tile is fed by paidPeople and relabelled — not the old bookings count.
+        const galaSrc = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend/index.html'), 'utf8');
+        check('frontend: paid tile computes paidPeople as SUM(1+guest_count) over paid rows',
+            galaSrc.includes('const paidPeople = paidOnly.reduce((s, r) => s + 1 + (Number(r.guest_count) || 0), 0)'));
+        check('frontend: galaStatPaidOnly tile is assigned paidPeople (people), not paidCount (bookings)',
+            galaSrc.includes('if (paidOnlyEl) paidOnlyEl.textContent = paidPeople;'));
+        check('frontend: paid tile relabelled to people with a reservations sub-note',
+            galaSrc.includes('galaStatPaidBookings') && galaSrc.includes('Paid people'));
+
         // --- (4) the fresh Gala bookings appear in the 30-day registration trends (combined events series) ---
         const trends = (await api(ADMIN, '/api/dashboard/trends?event=all', { token: atok })).d || {};
         const evTotal = (trends.events || []).reduce((s, x) => s + (Number(x.count) || 0), 0);
