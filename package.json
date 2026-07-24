@@ -9,6 +9,7 @@
     "test:post-event": "node tests/post-event-autorun.test.js",
     "test:sheets": "node tests/sheets-mirror.test.js",
     "test:wallet": "node tests/wallet-checkin.test.js",
-    "test:wallet-ui": "python3 tests/wallet-checkin-ui.py"
+    "test:wallet-ui": "python3 tests/wallet-checkin-ui.py",
+    "test:gala-ticket": "node tests/gala-ticket-scan.test.js"
   }
 }

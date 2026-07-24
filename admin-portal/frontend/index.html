@@ -27129,7 +27129,8 @@ President, Med&amp;X</textarea>
                     revoked: { cls: 'error', c: '#ef4444', icon: 'fa-xmark', label: 'CANCELLED / REVOKED' },
                     not_active: { cls: 'error', c: '#ef4444', icon: 'fa-hourglass-start', label: 'NOT OPEN YET' },
                     expired: { cls: 'error', c: '#ef4444', icon: 'fa-hourglass-end', label: 'CHECK-IN CLOSED' },
-                    invalid: { cls: 'error', c: '#ef4444', icon: 'fa-xmark', label: 'INVALID TICKET' }
+                    invalid: { cls: 'error', c: '#ef4444', icon: 'fa-xmark', label: 'INVALID TICKET' },
+                    error: { cls: 'already', c: '#f59e0b', icon: 'fa-rotate-right', label: 'TRY AGAIN' }
                 };
                 const s = STATE[data.result] || STATE.invalid;
                 const evChip = (k) => {
@@ -27151,7 +27152,8 @@ President, Med&amp;X</textarea>
                             (t.access_category ? '<span style="font-size:11px;font-weight:700;color:#c9a962;background:rgba(201,169,98,0.12);border:1px solid rgba(201,169,98,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-ticket"></i> ' + esc(t.access_category) + '</span>' : '') +
                         '</div>' +
                         (Array.isArray(t.events) && t.events.length ? '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">' + t.events.map(evChip).join('') + '</div>' : '') +
-                        (t.gala_table ? '<div style="font-size:13px;color:#fff;margin-top:8px;font-weight:700;background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.5);border-radius:8px;padding:6px 10px;"><i class="fas fa-chair" style="margin-right:6px;"></i>Gala table: ' + esc(t.gala_table) + '</div>' : '') +
+                        ((t.table || t.gala_table) ? '<div style="margin-top:8px;background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.5);border-radius:9px;padding:8px 12px;display:flex;align-items:center;gap:10px;"><i class="fas fa-chair" style="color:#2dd4bf;font-size:17px;flex-shrink:0;"></i><div style="min-width:0;"><div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);">Gala table</div><div style="font-size:20px;font-weight:800;color:#fff;line-height:1.15;">' + esc(t.table || t.gala_table) + '</div></div></div>' : '') +
+                        (t.verify ? '<div style="font-size:12px;color:#f59e0b;margin-top:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>' + esc(t.verify_note || 'Verify against portal registrations.') + '</div>' : '') +
                         ((data.result === 'already_checked_in' && data.checked_in_at) ? '<div style="font-size:11px;color:var(--text-muted);margin-top:8px;"><i class="fas fa-clock" style="margin-right:5px;"></i>First checked in ' + esc(new Date(data.checked_in_at).toLocaleString()) + (data.checked_in_by ? ' · by ' + esc(data.checked_in_by) : '') + '</div>' : '') +
                         ((data.result !== 'valid' && data.result !== 'already_checked_in' && data.message) ? '<div style="font-size:13px;color:var(--text-primary);margin-top:8px;">' + esc(data.message) + '</div>' : '') +
                     '</div>';
@@ -42112,7 +42114,8 @@ By applying to this program, I give the following consents:
                     revoked: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-xmark', label: 'CANCELLED / REVOKED' },
                     not_active: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-hourglass-start', label: 'NOT OPEN YET' },
                     expired: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-hourglass-end', label: 'CHECK-IN CLOSED' },
-                    invalid: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-xmark', label: 'INVALID TICKET' }
+                    invalid: { c: '#ef4444', bg: 'rgba(239,68,68,0.10)', bd: 'rgba(239,68,68,0.45)', icon: 'fa-xmark', label: 'INVALID TICKET' },
+                    error: { c: '#f59e0b', bg: 'rgba(245,158,11,0.10)', bd: 'rgba(245,158,11,0.45)', icon: 'fa-rotate-right', label: 'TRY AGAIN' }
                 };
                 const s = STATE[data.result] || STATE.invalid;
                 const evChip = (k) => {
@@ -42137,7 +42140,8 @@ By applying to this program, I give the following consents:
                             ${t.access_category ? `<span style="font-size:11px;font-weight:700;color:#c9a962;background:rgba(201,169,98,0.12);border:1px solid rgba(201,169,98,0.35);border-radius:20px;padding:3px 10px;"><i class="fas fa-ticket"></i> ${escapeHtml(t.access_category)}</span>` : ''}
                         </div>
                         ${Array.isArray(t.events) && t.events.length ? `<div style="margin-top:10px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Pass includes</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${t.events.map(evChip).join('')}</div></div>` : ''}
-                        ${t.gala_table ? `<div style="font-size:14px;color:#fff;margin-top:10px;font-weight:700;background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.5);border-radius:8px;padding:7px 12px;"><i class="fas fa-chair" style="margin-right:6px;"></i>Gala table: ${escapeHtml(t.gala_table)}</div>` : ''}
+                        ${(t.table || t.gala_table) ? `<div style="margin-top:10px;background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.5);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:11px;"><i class="fas fa-chair" style="color:#2dd4bf;font-size:19px;flex-shrink:0;"></i><div style="min-width:0;"><div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);">Gala table</div><div style="font-size:22px;font-weight:800;color:#fff;line-height:1.15;">${escapeHtml(t.table || t.gala_table)}</div></div></div>` : ''}
+                        ${t.verify ? `<div style="font-size:12px;color:#f59e0b;margin-top:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>${escapeHtml(t.verify_note || 'Verify against portal registrations.')}</div>` : ''}
                         ${(data.result === 'already_checked_in' && (data.checked_in_at || (t.checkins && t.checkins[data.event]))) ? (() => { const ci = (t.checkins && t.checkins[data.event]) || {}; const when = data.checked_in_at || ci.checked_in_at; const who = data.checked_in_by || ci.admin_email; const dev = data.checked_in_device || ci.device; return `<div style="font-size:11px;color:var(--text-muted);margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;"><i class="fas fa-clock" style="margin-right:5px;"></i>First checked in ${when ? new Date(when).toLocaleString() : ''}${who ? ' · by ' + escapeHtml(who) : ''}${dev ? ' · <span style="opacity:.7;">' + escapeHtml(String(dev).slice(0, 40)) + '</span>' : ''}${ci.method === 'manual' ? ' · <span style="color:#f59e0b;">manual</span>' : ''}</div>`; })() : ''}
                         ${(data.result !== 'valid' && data.result !== 'already_checked_in' && data.message) ? `<div style="font-size:13px;color:var(--text-primary);margin-top:10px;">${escapeHtml(data.message)}</div>` : ''}
                         ${data.is_override ? `<div style="font-size:11px;color:#f59e0b;margin-top:8px;"><i class="fas fa-triangle-exclamation"></i> Manual override recorded</div>` : ''}
