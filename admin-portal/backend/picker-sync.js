@@ -42,6 +42,17 @@ function genInviteToken() {
 
 function normEmail(e) { return String(e || '').trim().toLowerCase(); }
 
+/**
+ * Doc id for the picker's public `paid_emails/{id}` marker: hex(SHA-256(lower(trim(email)))).
+ * MUST stay byte-identical to the picker's client-side sha256hex (guest_picker index.html /
+ * admin.html: hex(SHA-256(TextEncoder(normEmail(email))))) — the guest page hashes an added
+ * guest's e-mail this exact way and does a GET-by-id to decide whether that guest has paid.
+ * Node's createHash('sha256').update(str) UTF-8-encodes the same bytes Web Crypto digests.
+ */
+function paidEmailDocId(email) {
+    return crypto.createHash('sha256').update(normEmail(email)).digest('hex');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Firestore REST value helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,6 +163,31 @@ class PickerClient {
     async deleteInvite(token) {
         await this._req(FS_ROOT() + '/invites/' + encodeURIComponent(token), { method: 'DELETE' });
     }
+
+    /**
+     * Upsert the public paid-marker `paid_emails/{sha256hex(lower email)}` a paid registrant
+     * needs so the picker's guest page recognises them as a valid, paid guest. Full-document
+     * PATCH with no precondition = idempotent create-or-overwrite (re-running writes the same
+     * {email, ts} doc). Runs through _req → the organizer bearer token, which the picker's
+     * rules require for paid_emails writes (public GET-by-id, admin-only write).
+     */
+    async upsertPaidEmail(email) {
+        const em = normEmail(email);
+        if (!em) return;
+        const url = FS_ROOT() + '/paid_emails/' + encodeURIComponent(paidEmailDocId(em));
+        await this._req(url, {
+            method: 'PATCH',
+            body: { fields: { email: fsWrap(em), ts: fsWrap(new Date().toISOString()) } },
+        });
+    }
+
+    /** Delete the paid_emails marker (refund/reject). Firestore DELETE is idempotent — a
+     *  missing doc is a no-op (200), so this is safe even if the marker was never written. */
+    async deletePaidEmail(email) {
+        const em = normEmail(email);
+        if (!em) return;
+        await this._req(FS_ROOT() + '/paid_emails/' + encodeURIComponent(paidEmailDocId(em)), { method: 'DELETE' });
+    }
 }
 
 /**
@@ -196,8 +232,12 @@ async function fetchChooseDeadlines(fetchImpl) {
  *                An invite whose email the portal has never seen (a special guest the
  *                organizer created directly in the console) is FOREIGN — left alone.
  *
- * → { toCreate:[{email,name}], toRevoke:[{token,email,name}],
+ * → { toCreate:[{email,name}], keep:[{email,name}], toRevoke:[{token,email,name}],
  *     flagged:[{token,email,name,table}], foreign:[{token,email}], unchanged:n }
+ *
+ * `keep` is the eligible registrants that already hold an invite (still-paid, no invite
+ * change) — surfaced so the caller can (re-)assert their public paid_emails marker, which
+ * a pre-feature invite or a console import may be missing.
  */
 function computeInviteDiff({ eligible, invites, portalEmails }) {
     const eligibleByEmail = new Map();
@@ -228,11 +268,11 @@ function computeInviteDiff({ eligible, invites, portalEmails }) {
         }
     }
 
-    const toCreate = [];
+    const toCreate = [], keep = [];
     for (const [em, e] of eligibleByEmail) {
-        if (!invitedEmails.has(em)) toCreate.push(e);
+        (invitedEmails.has(em) ? keep : toCreate).push(e);
     }
-    return { toCreate, toRevoke, flagged, foreign, unchanged };
+    return { toCreate, keep, toRevoke, flagged, foreign, unchanged };
 }
 
 /**
@@ -245,12 +285,19 @@ function computeInviteDiff({ eligible, invites, portalEmails }) {
  *   deps.onRevoked({ email, token })                  — stamp revoked_at
  *   deps.genToken()         → optional token generator override
  *
- * → sync report { ok, configured, created, revoked, flagged, foreign, unchanged, errors, ranAt }
+ * → sync report { ok, configured, created, revoked, flagged, foreign, unchanged,
+ *                 paidMarked, paidUnmarked, errors, ranAt }
  * Individual create/delete failures are collected in `errors`, never thrown — the
  * next pass retries them (the diff is idempotent).
+ *
+ * Alongside each invite it maintains the picker's public paid_emails markers on the SAME
+ * authed client: every eligible registrant (created OR kept) gets paid_emails/{hash(email)}
+ * upserted so the guest page recognises them as paid; every revoked invite has its marker
+ * deleted. Marker writes are best-effort — failures land in `errors`, never abort the sync
+ * (a missed upsert self-heals on the next pass via `keep`, a missed delete via retry).
  */
 async function runInviteSync(deps) {
-    const report = { ok: true, configured: true, created: [], revoked: [], flagged: [], foreign: [], unchanged: 0, errors: [], ranAt: new Date().toISOString() };
+    const report = { ok: true, configured: true, created: [], revoked: [], flagged: [], foreign: [], unchanged: 0, paidMarked: [], paidUnmarked: [], errors: [], ranAt: new Date().toISOString() };
     const client = deps.client;
     if (!client.configured) {
         return { ...report, ok: false, configured: false, errors: ['sync not configured — set PICKER_ADMIN_EMAIL / PICKER_ADMIN_PASSWORD'] };
@@ -263,6 +310,16 @@ async function runInviteSync(deps) {
     report.foreign = diff.foreign;
     report.unchanged = diff.unchanged;
 
+    // paid_emails markers ride the same authed client; guarded so a mock client without the
+    // methods (or a client build predating this feature) degrades to invite-only, never throws.
+    const canMark = typeof client.upsertPaidEmail === 'function';
+    const canUnmark = typeof client.deletePaidEmail === 'function';
+    const markPaid = async (email) => {
+        if (!canMark) return;
+        try { await client.upsertPaidEmail(email); report.paidMarked.push(email); }
+        catch (err) { report.ok = false; report.errors.push('paid-mark ' + email + ': ' + err.message); }
+    };
+
     for (const e of diff.toCreate) {
         const token = (deps.genToken || genInviteToken)();
         const maxParty = deps.maxParty || DEFAULT_MAX_PARTY;
@@ -270,16 +327,25 @@ async function runInviteSync(deps) {
             await client.createInvite({ token, name: e.name, email: e.email, maxParty });
             await deps.onCreated({ email: e.email, name: e.name, token, maxParty });
             report.created.push({ email: e.email, name: e.name, token });
+            await markPaid(e.email); // new invite → mark the registrant paid
         } catch (err) {
             report.ok = false;
             report.errors.push('create ' + e.email + ': ' + err.message);
         }
     }
+    // Kept invites: re-assert the marker so invites created before this feature (or console
+    // imports) still get a paid_emails doc. Idempotent upsert, so re-running is harmless.
+    for (const e of diff.keep) await markPaid(e.email);
+
     for (const r of diff.toRevoke) {
         try {
             await client.deleteInvite(r.token);
             await deps.onRevoked({ email: r.email, token: r.token });
             report.revoked.push({ email: r.email, name: r.name, token: r.token });
+            if (canUnmark) { // invite gone → the marker must go too (link + paid status both die)
+                try { await client.deletePaidEmail(r.email); report.paidUnmarked.push(r.email); }
+                catch (err) { report.ok = false; report.errors.push('paid-unmark ' + r.email + ': ' + err.message); }
+            }
         } catch (err) {
             report.ok = false;
             report.errors.push('revoke ' + r.email + ': ' + err.message);
@@ -408,6 +474,7 @@ module.exports = {
     DEFAULT_MAX_PARTY,
     genInviteToken,
     normEmail,
+    paidEmailDocId,
     PickerClient,
     fetchChooseDeadlines,
     computeInviteDiff,
