@@ -33821,6 +33821,26 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         res.json({ success: true, emailed: !(result && result.success === false) });
     }));
 
+    // Manual invite issuance — FOUNDER ONLY. Regenerates the temp password like resend but RETURNS
+    // it to the founder's session instead of emailing it, for when the Brevo path can't deliver
+    // (2026-07-24: tenant quarantine ate every invite until the SPF fix) and the president sends
+    // the credentials from his own mailbox. Power-equivalent to resend (the founder can already
+    // rotate any member's credentials); the password appears nowhere but this response + the
+    // founder's outgoing email. No self-block: the founder may deliberately re-onboard himself.
+    app.post('/api/admin/team/invite/manual', auth, adminOnly, founderOnly, asyncHandler(async (req, res) => {
+        const { email } = req.body || {};
+        const cleanEmail = String(email || '').trim().toLowerCase();
+        if (!cleanEmail) return res.status(400).json({ error: 'email required' });
+        const user = query.get('SELECT id, first_name, is_admin FROM users WHERE email = ?', [cleanEmail]);
+        if (!user || !user.is_admin) return res.status(404).json({ error: 'No invited admin found for that email' });
+        const tempPassword = require('crypto').randomBytes(9).toString('base64url');
+        const hash = await bcrypt.hash(tempPassword, 10);
+        db.run('UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?', [hash, user.id]);
+        saveDb();
+        logAudit(req, 'team.invite_manual', `${cleanEmail} temp password issued to the founder session (no email sent)`);
+        res.json({ success: true, email: cleanEmail, tempPassword });
+    }));
+
     // ---- Per-admin section permissions (founderOnly) ----
     // The president's control panel behind Team Access → Permissions. catalog = the canonical
     // section vocabulary (id/label/group/desc, single source of truth for the SPA's checkboxes);
