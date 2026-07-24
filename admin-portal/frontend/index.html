@@ -12898,6 +12898,25 @@ President, Med&amp;X</textarea>
                                 style="display:block;width:100%;height:78vh;border:0;background:#fbf9f6;"
                                 loading="lazy"></iframe>
                         </div>
+                        <!-- Walkable 3D Smaragdna dvorana planner (same Netlify site, planner.html).
+                             Heavy WebGL scene, so it loads on click only — the button swaps in the
+                             iframe src instead of loading ~2 MB of three.js with the tab. -->
+                        <div class="card" style="padding:0;margin-bottom:16px;border-left:5px solid #c9a962;overflow:hidden;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--border);">
+                                <div>
+                                    <div style="font-weight:700;font-size:14px;">3D dvorana · Walkable ballroom planner</div>
+                                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Prošeći Smaragdnom dvoranom — raspored stolova, pozornica, rasvjeta, scenariji (večera / panel / nastup). Export fotografija i tlocrta za AV i logistiku.</div>
+                                </div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button class="btn btn-secondary" style="font-size:12px;" onclick="var f=document.getElementById('gala3dFrame');f.src=f.dataset.src;f.style.display='block';this.style.display='none';"><i class="fas fa-cube"></i> Učitaj ovdje</button>
+                                    <a class="btn btn-primary" href="https://plexus-tables.netlify.app/planner.html" target="_blank" rel="noopener" style="font-size:12px;background:linear-gradient(135deg,#a8863d,#c9a962);border:none;"><i class="fas fa-expand"></i> Otvori u novom prozoru</a>
+                                </div>
+                            </div>
+                            <iframe id="gala3dFrame" data-src="https://plexus-tables.netlify.app/planner.html"
+                                title="3D Smaragdna dvorana — walkable planner"
+                                allow="fullscreen"
+                                style="display:none;width:100%;height:82vh;border:0;background:#15110f;"></iframe>
+                        </div>
                         <!-- CSV bridge from the picker console → member wallet "Stol N" (account-linking pack).
                              The console's exported guest CSV (columns include table,name,email) upserts the
                              email-keyed gala_table_assignments table; the user portal wallet reads it by
