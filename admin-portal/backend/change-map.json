@@ -1,0 +1,580 @@
+[
+  {
+    "field_group": "1. Plexus speakers",
+    "admin_location": "Admin portal › Plexus › Speakers tab (admin-portal/frontend/index.html:7919 tab, :8304-8340 grid, :15044 Add-Speaker modal). Table `speakers`; flags is_published (DEFAULT 0), is_confirmed (DEFAULT 1), is_keynote, sort_order, year. Routes admin-portal/backend/server.js:19851 POST, :19998 PUT, :20405 publish-toggle, :20046 DELETE.",
+    "surfaces": [
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus.html",
+        "selector_or_desc": "section.medx-spk[data-medx-list='site:speakers'] — live roster grid",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/01_speakers_plexus.png",
+        "note": "CURRENTLY HIDDEN: site.js hides the live grid whenever the live keynote NAME SET equals data-medx-fallback-names on the baked cards."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus.html",
+        "selector_or_desc": "div.plx-kn-grid[data-medx-fallback='speakers'] — the 4 designed keynote cards actually on screen",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/01_speakers_plexus.png",
+        "note": "Baked HTML. Names/titles/institutions/photos here change only via a Netlify redeploy."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "section.medx-spk[data-medx-list='site:speakers'] + div.gx-kn-grid[data-medx-fallback='speakers']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/01_speakers_gala.png",
+        "note": "Same swap rule; baked cards currently win."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/speakers.html",
+        "selector_or_desc": "[data-medx-list='site:speakers'] + [data-medx-fallback='speakers']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/01_speakers_page.png",
+        "note": "Same swap rule; baked cards currently win."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus.html + /plexus-gala.html",
+        "selector_or_desc": "span[data-medx-slot='site:conference.keynote_count_word'] (\"Four keynote speakers\") ×3",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/01_speakers_plexus.png",
+        "note": "Server-derived COUNT of is_keynote=1 rows. This DOES move the moment a keynote is added/removed — while the cards beside it do not."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#plexus",
+        "selector_or_desc": "Plexus › Speakers tab (index.html:3772, app.part9.js:8889 loadSpeakersFromDB)",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "GET /api/plexus/speakers — user-portal/backend/server.js:21816, filters is_confirmed=1 AND is_published=1."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#gala",
+        "selector_or_desc": "Gala › Speakers tab (index.html:6229, app.part9.js:11853)",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "TRAP: reads gala_settings.speakers_json, NOT the speakers table. Falls back to 3 fictional demo speakers (Dr. Elizabeth Chen / Prof. Michael Weber / Dr. Sarah Mitchell with randomuser.me avatars, app.part9.js:11645-11670) until that JSON resolves."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/ (JSON-LD)",
+        "selector_or_desc": "script[data-medx-jsonld] on plexus.html",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "Only startDate/endDate are rewritten, not the performer list."
+      },
+      {
+        "type": "email",
+        "url_or_place": "admin speaker invite / re-invite / upload-link mails",
+        "selector_or_desc": "admin-portal/backend/server.js:20497, :20568, :20587",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "Speaker row edits reach the speaker's own mail immediately (independent of is_published)."
+      }
+    ],
+    "hardcoded_traps": [
+      "The live speaker grid is suppressed while the keynote NAME SET matches the baked cards — editing a title, institution, photo or talk_title in admin produces ZERO visible change on all three website pages.",
+      "New speakers insert with is_published=0 and the Add-Speaker modal never sends the field, so a brand-new speaker is invisible until the publish toggle is used.",
+      "Live speaker photo_url values point at medx-website-preview.netlify.app, not medx.hr.",
+      "The member portal Gala speaker list is a completely separate source (gala_settings.speakers_json) and can silently disagree with the speakers table."
+    ]
+  },
+  {
+    "field_group": "2. Accelerator application opening / closing date",
+    "admin_location": "NO ADMIN UI EXISTS. Table `intake_windows` (id, track, cycle, opens_at, closes_at) — user-portal/backend/server.js:9700, seeded opens_at=2026-11-01, closes_at=NULL. Sole writer: PUT /api/accelerator/intake/window (auth+adminOnly) at user-portal/backend/server.js:16588 — on the USER origin. grep 'intake' in admin-portal/frontend/index.html = 0 hits. The only date an editor can actually touch is accelerator_programs.application_deadline via Admin › Accelerator › Overview › 'Overview Page Config' (index.html:8826 #accCfgDeadline, PUT admin-portal/backend/server.js:13364).",
+    "surfaces": [
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/accelerator.html",
+        "selector_or_desc": "div.medx-statusbar[data-medx-statusbar='accelerator'] — status_label + detail_line + dot + CTA",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/02_accelerator_intake.png",
+        "note": "THE ONLY website surface. It is FREE TEXT in project_status, not a date field — an editor must retype 'Applications open in November' and 'November 2026' by hand."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/accelerator.html",
+        "selector_or_desc": "#apply / timeline / 'Ready when you are' block",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/02_accelerator_intake.png",
+        "note": "Entirely baked HTML — no date binding of any kind."
+      },
+      {
+        "type": "countdown",
+        "url_or_place": "https://medx-user-portal.onrender.com/#accelerator",
+        "selector_or_desc": "#axDeadlineCountdown (app.part9.js:12828-12897)",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "Now genuinely calls GET /api/accelerator/countdown (user-portal/backend/server.js:22878). Candidate order: accelerator_key_dates → intake_windows → accelerator_programs.application_deadline, earliest future wins."
+      },
+      {
+        "type": "countdown",
+        "url_or_place": "https://medx-user-portal.onrender.com/#accelerator",
+        "selector_or_desc": "loadOverviewConfig() app.part9.js:12449-12509",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "TRAP: at :12488 it re-invokes startDeadlineCountdown(cfg.applicationDeadline) WITH an argument, which short-circuits the API call. Whenever accelerator_programs.application_deadline is a future date, intake_windows is ignored and the hero is rewritten to 'Application Deadline: <date>' (:12485)."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#accelerator",
+        "selector_or_desc": "hero banner #axHeroDeadlineText, badge, #axOverviewDeadline",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "TRAP: when the countdown target is null/past, app.part9.js:12872/12874/12877 paint the literal 'Applications open in November 2026' / 'November 2026'. Same literal is baked at index.html:6471 and :6477, and in the i18n table app.part1.js:448."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#accelerator",
+        "selector_or_desc": "Accelerator › Intake tab, #ax-panel-intake (app.part9.js:14085, fetch :14300)",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "GET /api/accelerator/intake → user-portal/backend/server.js:16439. This is the only place intake_windows genuinely gates behaviour (open/before/closed)."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#accelerator",
+        "selector_or_desc": "#axDynamicTimeline (app.part9.js:12398)",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "GET /api/accelerator/key-dates → accelerator_key_dates. Static fallback timeline at index.html:6766 shows 'March 31'."
+      }
+    ],
+    "hardcoded_traps": [
+      "intake_windows is write-orphaned: schema in both portals, read in three places, one PUT on the wrong origin, zero UI. The Nov 2026 date is effectively a constant.",
+      "overview-config beats the countdown API in a race (init() calls the API at :12384, then loadOverviewConfig() at :12388 overwrites it).",
+      "The website learns the accelerator date ONLY through hand-typed project_status text. Changing the real intake window does not touch medx.hr at all.",
+      "Conflicting literal: app.part9.js:7788 says 'Applications open in February 2026 with deadline in April 2026' — contradicts every other string.",
+      "PUT /api/admin/accelerator/overview-config (admin server.js:13364) is auth-only (missing adminOnly) and silently no-ops with {success:true} if no accelerator_programs row exists for that year."
+    ]
+  },
+  {
+    "field_group": "3. Plexus conference program / schedule (sessions)",
+    "admin_location": "Admin portal › Plexus › Schedule tab (index.html:7918 tab, :8196-8212 grid, :8218-8285 #sessionModal). Table `sessions` (title, description, session_type, day, start_time, end_time, room, track, speaker_ids, is_published DEFAULT 0, capacity). Routes admin-portal/backend/server.js:19744 POST, :19777 PUT, :19811 publish, :19828 bulk-publish.",
+    "surfaces": [
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus.html",
+        "selector_or_desc": "section#program .gl-grid — 'Day 1 / Day 2' timeline",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/03_program_schedule.png",
+        "note": "100% BAKED HTML. The sessions table reaches this page NEVER. /api/public/site carries no sessions array."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#plexus",
+        "selector_or_desc": "Plexus › Schedule tab (index.html:3769) + Live tab (:3781), app.part9.js:8940 loadScheduleFromDB",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "GET /api/plexus/sessions → user-portal/backend/server.js:27725, filters is_published=1 and joins speaker names."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#plexus",
+        "selector_or_desc": "personal_schedules / session check-in / session Q&A",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "Session rows also drive check-in (admin server.js:32715) and the questions feature."
+      }
+    ],
+    "hardcoded_traps": [
+      "The public website program is hand-written HTML — a program change needs a site redeploy, not an admin edit. Editors will reasonably assume the Schedule tab drives it.",
+      "GET /api/plexus/schedule (admin-portal/backend/server.js:18983) has NO is_published filter — the entire publish workflow is cosmetic for that consumer and draft sessions leak.",
+      "The admin UI's publish button (admin frontend index.html:24347) sends no body, so per backend :19814 it always sets 1 — UN-publishing a session is unreachable from the UI."
+    ]
+  },
+  {
+    "field_group": "4. Gala settings (date, price, tagline, dress code)",
+    "admin_location": "Admin portal › Gala › Settings tab (index.html:12955-13005: #galaSettingTitle, #galaSettingTagline, #galaSettingDate, #galaSettingTime, #galaSettingVenue, #galaSettingDressCode, #galaSettingCapacity, #galaSettingRegOpen, #galaSettingDescription). Table `gala_settings` (+ price_gala_only 95, price_bundle 174, price_gala_early_bird 150, price_gala_regular 175, early_bird_deadline 2026-09-01, speakers_json, schedule_json). PUT admin-portal/backend/server.js:29045.",
+    "surfaces": [
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "span[data-medx-slot='site:conference.end_date'] ×3 (hero kicker, countdown date line, 'When' fact)",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/04_gala_settings.png",
+        "note": "TRAP: the gala DATE on the website comes from conferences.end_date, NOT gala_settings.date. Editing the gala date in admin changes nothing here."
+      },
+      {
+        "type": "countdown",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": ".gx-countdown .cd-clock[data-medx-countdown='deadline.early_bird']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/04_gala_settings.png",
+        "note": "TRAP: counts to conferences.early_bird_deadline (2026-09-01) — reads '38 days' today, not ~133 days to the gala."
+      },
+      {
+        "type": "countdown",
+        "url_or_place": "https://medx-user-portal.onrender.com/#gala",
+        "selector_or_desc": "#galaDays/#galaHours/#galaMinutes/#galaSeconds (app.part9.js:12036-12064)",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "TRAP: targets MEDX_DATES.plexus.day2EndAt (2026-12-05T18:00:00), hydrated from plexus_settings.conference_end_date at app.part9.js:8793 — never from gala_settings.date. Seeded literals 312/14/32/45 at index.html:5958-5971 and there is NO expiry branch, so those numbers persist forever once the target passes."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "li 'Where' → 'The Emerald Ballroom, Hotel Esplanade Zagreb'",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/04_gala_settings.png",
+        "note": "Baked. gala_settings.venue does not reach it."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "li 'Dress code' → 'Black Tie / Formal Evening Attire'",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/04_gala_settings.png",
+        "note": "Baked. gala_settings.dress_code does not reach the website at all."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "div.medx-statusbar[data-medx-statusbar='gala'] (hidden attribute in markup)",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/04_gala_settings.png",
+        "note": "TRAP: wired but permanently invisible — applyStatus() never unhides a statusbar. The gala project_status row reaches no visible pixel."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "div.medx-strip[data-medx-strip='gala.announcement']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/06_content_blocks.png",
+        "note": "Reveals only when content_blocks['gala.announcement'].body is non-empty (blank today)."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#gala",
+        "selector_or_desc": "hero title/tagline/date/venue (app.part9.js:11809-11818), dress code :11840, capacity :11848",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "GET /api/gala/settings → user-portal/backend/server.js:26594. This IS the surface gala_settings genuinely drives."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#gala",
+        "selector_or_desc": "pricing grid index.html:6356-6376 (app.part9.js:11822-11836)",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "price_gala_only / price_bundle / price_bundle_original."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/plexus",
+        "selector_or_desc": "server-rendered gala card, 'event-meta' (user-portal/backend/server.js:1366)",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "TRAP: gala_desc is READ (:1325) then DISCARDED — :1342 overwrites it with a computed template string ending '...Black-tie evening with four keynote speakers ... Limited places.' An admin editing gala_desc sees no effect anywhere. conference_desc and bridges_desc DO honour their DB values; gala_desc is the only bypassed one."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#gala",
+        "selector_or_desc": "Gala › Schedule tab (index.html:6290)",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "gala_settings.schedule_json."
+      }
+    ],
+    "hardcoded_traps": [
+      "Gala date: website reads conferences.end_date; member-portal hero reads gala_settings.date; member-portal countdown reads plexus_settings.conference_end_date. Three sources for one date.",
+      "Gala price: website reads ticket_types (all zero); member portal reads gala_settings.price_gala_*. The admin's real gala prices never reach medx.hr.",
+      "Dress code and venue are baked into plexus-gala.html.",
+      "gala_desc is dead-lettered at user-portal/backend/server.js:1342.",
+      "The gala status bar is present but hidden, so the gala row of project_status is invisible on the public site."
+    ]
+  },
+  {
+    "field_group": "5. Project hub statuses + CTAs",
+    "admin_location": "Admin portal › Member ops › 'Home screen project cards' (index.html:12535 #moHomeRows, row renderer :44548-44578, save :44595). Table `project_status` (project_key PK, status_label, status_kind, detail_line, cta_label, cta_target + status_label_hr/detail_line_hr/cta_label_hr). PUT admin-portal/backend/server.js:11642. Rows: plexus, gala, accelerator, forum, bridges.",
+    "surfaces": [
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus.html",
+        "selector_or_desc": "div.medx-statusbar.plx-prereg[data-medx-statusbar='plexus'] — label, detail, CTA, dot colour",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/05_project_status_plexus.png",
+        "note": "VISIBLE. status_kind maps to dot colour (open #2e7d32, soon #c77700, info #4a6b8a, closed #9b1b22)."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/accelerator.html",
+        "selector_or_desc": "div.medx-statusbar[data-medx-statusbar='accelerator']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/02_accelerator_intake.png",
+        "note": "VISIBLE."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/building-bridges.html",
+        "selector_or_desc": "div.medx-statusbar[data-medx-statusbar='bridges']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/05_project_status_bridges.png",
+        "note": "VISIBLE."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "div.medx-statusbar[data-medx-statusbar='gala'] hidden",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/04_gala_settings.png",
+        "note": "TRAP: hidden in markup, never unhidden by site.js — the gala row is invisible."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/biomedical-forum.html",
+        "selector_or_desc": "(no host element exists)",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "TRAP: the forum row of project_status has no consumer — biomedical-forum.html contains ZERO data-medx-* hooks of any kind."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/",
+        "selector_or_desc": "section.home-programs .home-pgm-list — the four project cards",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/05_project_status_home.png",
+        "note": "TRAP: the homepage 'Four projects' hub is fully baked. Only the Plexus date chip (site:conference.date_range) is live."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#dashboard",
+        "selector_or_desc": "#mxProjectHub (app.part6.js:46-89)",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "GET /api/project-status (auth) → user-portal/backend/server.js:13745. This is the richest consumer — all 5 rows render."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/",
+        "selector_or_desc": "per-section status chips [data-mx-status] / [data-mx-detail] (app.part8.js:5-19)",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "Same /api/project-status feed; e.g. the gala badge index.html:5949 and accelerator badge index.html:6471."
+      },
+      {
+        "type": "website",
+        "url_or_place": "cta_target resolution",
+        "selector_or_desc": "site.js CTA_ALLOW allowlist",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "cta_target is an allowlist KEY, not a URL: plexus|gala|accelerator|forum|bridges|attend|donate|events|about|network|get-involved|contact|speakers|faq|apply|portal|register. An unknown value silently keeps the baked href."
+      }
+    ],
+    "hardcoded_traps": [
+      "2 of 5 rows (gala, forum) reach no visible website pixel.",
+      "The homepage project cards do NOT follow project_status — the most intuitive expectation is wrong.",
+      "cta_label_hr is written by the API (admin backend :11649) but never sent by the admin UI (:44595-44606) — that column is unreachable.",
+      "The admin origin's /api/public/status (admin server.js:11713) drops the _hr columns while the user origin returns them; Croatian copy depends on which origin is polled.",
+      "project_settings (a different table: event_date, venue, location) reaches NO public or member-facing surface — it only feeds the AI planner, monthly reminders and edition rollover."
+    ]
+  },
+  {
+    "field_group": "6. Content blocks (block_key → location)",
+    "admin_location": "Admin portal › Content Studio › Website (nav index.html:7418, zone map :45040-45074, editor drawer :45344). Legacy duplicate at #section-website-content (:12198, nav hidden). Table `content_blocks` (block_key PK, page, label, block_type, body, body_hr, is_published DEFAULT 1, max_len). PUT admin-portal/backend/server.js:11812. THE SEED LIST IS THE WHITELIST — the PUT 400s on any other key.",
+    "surfaces": [
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/",
+        "selector_or_desc": "div.medx-strip.medx-news[data-medx-strip='homepage.news_banner'] — dark strip directly under the hero",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/06_content_blocks.png",
+        "note": "block_key homepage.news_banner (richtext, max 400). Hidden while blank — it is blank today. Dismissal is keyed to the exact text, so new copy resurfaces it."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus.html",
+        "selector_or_desc": "div.medx-strip.medx-ann[data-medx-strip='plexus.announcement'] — cream strip below the hero",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/06_content_blocks.png",
+        "note": "block_key plexus.announcement (text, max 280). Blank today."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "div.medx-strip[data-medx-strip='gala.announcement']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/06_content_blocks.png",
+        "note": "block_key gala.announcement. Blank today."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/accelerator.html",
+        "selector_or_desc": "div.medx-strip[data-medx-strip='accelerator.announcement']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/06_content_blocks.png",
+        "note": "block_key accelerator.announcement. Blank today."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/building-bridges.html",
+        "selector_or_desc": "div.medx-strip[data-medx-strip='bridges.announcement']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/06_content_blocks.png",
+        "note": "block_key bridges.announcement. Blank today."
+      },
+      {
+        "type": "website",
+        "url_or_place": "(no consumer)",
+        "selector_or_desc": "block_key forum.announcement",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "TRAP: editable in Content Studio, but biomedical-forum.html has no strip element — this block reaches NOBODY."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus.html (and every page, when signed out)",
+        "selector_or_desc": "div.medx-members-bar — 'Sign in to keep your Med&X tickets…'",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/06_content_blocks.png",
+        "note": "block_key global.members_prompt (text, max 200). The ONLY block with non-empty body today."
+      }
+    ],
+    "hardcoded_traps": [
+      "Exactly 7 block_keys exist and the list is a hard whitelist: homepage.news_banner, plexus.announcement, gala.announcement, accelerator.announcement, bridges.announcement, forum.announcement, global.members_prompt.",
+      "forum.announcement has no consumer on any surface.",
+      "body_hr is returned by the user-origin API but the admin PUT (user server.js:12070) never writes it — Croatian block copy will be empty forever. The admin origin's /api/public/content does not even return body_hr.",
+      "The MEMBER PORTAL renders zero content blocks — data-medx-slot appears nowhere in the portal frontend. These keys exist only for medx.hr.",
+      "Propagation is not instant: 45s per-process memo + 60s sync + 60s CDN ≈ up to ~2.5 min."
+    ]
+  },
+  {
+    "field_group": "7. Press releases / newsroom",
+    "admin_location": "Admin portal › PR & Media › Press releases tab (index.html:11700-11713: #prPressList, #prPressComposer). Table `press_releases` — ADMIN BACKEND ONLY (admin-portal/backend/server.js:7595); the user portal has no such table. Publish flag: status 'draft'|'published' + published_at; pair_id groups the EN/HR pair. Routes :27329 POST, :27363 PUT, :27391 publish, :27403 unpublish.",
+    "surfaces": [
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/press.html",
+        "selector_or_desc": "[data-medx-list='press:releases'] — the Press & Announcements card list",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/07_press_newsroom.png",
+        "note": "Wired and working: publishing a release replaces the cards with no redeploy."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/press.html",
+        "selector_or_desc": "the 3 [data-medx-fallback] cards visible right now (30 Jun / 12 May / 3 Mar 2026)",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/07_press_newsroom.png",
+        "note": "TRAP: /api/public/press returns {releases:[]} today, so these baked cards are what the public sees."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx-admin-portal.onrender.com/api/public/press/:slug",
+        "selector_or_desc": "individual release page",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "admin-portal/backend/server.js:11756."
+      },
+      {
+        "type": "pdf",
+        "url_or_place": "admin export",
+        "selector_or_desc": "GET /api/pr/press-releases/:id/export.pdf (:27437) and export.doc (:27429)",
+        "live_or_hardcoded": "live",
+        "screenshot": null
+      },
+      {
+        "type": "email",
+        "url_or_place": "press distribution",
+        "selector_or_desc": "POST /api/pr/press-releases/:id/send (:27588)",
+        "live_or_hardcoded": "live",
+        "screenshot": null
+      }
+    ],
+    "hardcoded_traps": [
+      "Press is the ONLY public read served from the admin origin (medx-admin-portal.onrender.com). Every other public read comes from the user origin. If the admin Render instance is cold or down, site.js fails soft and the baked cards stay — a silent, invisible failure.",
+      "site.js only fires the press fetch on a page that already contains [data-medx-list='press:releases'] — i.e. press.html alone.",
+      "Locale filter: EN pages show lang != 'hr', /hr/ pages show lang == 'hr'. An HR-only release never appears on the English newsroom, and vice versa.",
+      "PR Subscribers Export 401s (admin index.html:39075 sets window.location.href with no auth header)."
+    ]
+  },
+  {
+    "field_group": "8. Ticket prices (ticket_types) and gala pricing",
+    "admin_location": "Admin portal › Conferences › (expand an edition) › Tickets (index.html:14253 #confList, :51316 Tickets button, :51321 #confTickets-<id>, :51420 add-tier). Table `ticket_types` (name, name_hr, price_early_bird, price_regular, price_late, currency, includes_gala, sort_order — NO is_active column). PUT admin-portal/backend/server.js:10966.",
+    "surfaces": [
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": ".gx-hero-cta span[data-medx-slot='site:price.current'] — 'Reserve your seat · from EUR 0'",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/08_ticket_prices.png",
+        "note": "TRAP: renders EUR 0 RIGHT NOW. price.current is derived from ticket_types, not from gala pricing."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "span[data-medx-slot='site:price.early_bird'] ×2 and site:price.regular — 'EUR 0 per guest … then EUR 0'",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/08_ticket_prices.png",
+        "note": "TRAP: same. Baked copy said EUR 150 / EUR 175 and is being overwritten with zeros."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": ".gx-invite-cta span[data-medx-slot='site:price.current']",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/08_ticket_prices.png",
+        "note": "TRAP: same."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/plexus-gala.html",
+        "selector_or_desc": "span[data-medx-slot='site:deadline.early_bird'] — '1 September 2026'",
+        "live_or_hardcoded": "live",
+        "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/04_gala_settings.png",
+        "note": "conferences.early_bird_deadline. This one is correct."
+      },
+      {
+        "type": "website",
+        "url_or_place": "every page with a[data-medx-reg]",
+        "selector_or_desc": "the &ticket= param on portal deep links",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "site.js applyRegLinks() stamps the server-derived conference.pricing_phase (early_bird|regular|late) onto every registration link."
+      },
+      {
+        "type": "website",
+        "url_or_place": "all pages with a[data-medx-cta]",
+        "selector_or_desc": "'Registration closed' inert-CTA state",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "Driven by conferences.registration_open. Setting it false rewrites and disables EVERY register/reserve CTA site-wide (22 elements across 8 pages)."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#plexus",
+        "selector_or_desc": "Plexus › Register pricing cards #pxPricingGrid (app.part9.js:8509-8570)",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "TRAP: fed by plexus_settings.price_student_early / price_student_late / price_professional_early / price_professional_late — NOT ticket_types. Feature bullets hardcoded at :8521-8536; cutoff fallback literal '2026-09-30' at :8514."
+      },
+      {
+        "type": "portal",
+        "url_or_place": "https://medx-user-portal.onrender.com/#gala",
+        "selector_or_desc": "Gala pricing grid",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "TRAP: fed by gala_settings.price_gala_only / price_bundle. A third independent price."
+      },
+      {
+        "type": "pdf",
+        "url_or_place": "site_v2 sponsor PDFs",
+        "selector_or_desc": "plexus-attend.pdf, plexus-gala-sponsor.pdf, plexus-sponsor.pdf, accelerator-sponsor.pdf, building-bridges-sponsor.pdf",
+        "live_or_hardcoded": "hardcoded",
+        "screenshot": null,
+        "note": "Static PDFs served from Netlify — any price printed in them requires regenerating the file."
+      }
+    ],
+    "hardcoded_traps": [
+      "All 5 ticket tiers are 0. Cause 1: the seed itself is all zeros (admin server.js:8630-8636). Cause 2: a one-time migration at admin server.js:8497 runs UPDATE ticket_types SET price_early_bird=0, price_regular=0, price_late=0 with NO WHERE clause — it zeroed every row of every conference edition, not just the legacy Plexus tiers named in its own comment.",
+      "The gala page is the only public page that prints a price, and it prints the CONFERENCE price. So editing conference tickets silently rewrites gala copy, and editing gala prices does nothing public.",
+      "Three independent prices exist for the same two events: ticket_types (website), plexus_settings.price_* (portal Plexus), gala_settings.price_gala_* (portal Gala).",
+      "ticket_types has no is_active column — tier availability is expressed only by which conference row is is_active=1.",
+      "With no early_bird/regular deadlines set, everything charges the LATE price (admin UI warns at index.html:51305)."
+    ]
+  }
+]

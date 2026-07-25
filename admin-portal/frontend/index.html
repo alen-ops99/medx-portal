@@ -8554,6 +8554,7 @@
                         <div class="modal" style="max-width: 560px;">
                             <div class="modal-header">
                                 <h3 id="sessionModalTitle">Add Session</h3>
+                                <button type="button" class="cmap-btn" style="margin-left:auto;margin-right:10px;" onclick="event.stopPropagation();ChangeMap.open(3)" title="See every place the conference program appears"><i class="fas fa-globe"></i><span>Where does this appear?</span></button>
                                 <button class="modal-close" onclick="App.closeModal('sessionModal')"><i class="fas fa-times"></i></button>
                             </div>
                             <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
@@ -8638,7 +8639,7 @@
 
                         <div class="card">
                             <div class="card-header" style="flex-wrap: wrap; gap: 8px;">
-                                <span class="card-title">Speakers</span>
+                                <span class="card-title">Speakers <button type="button" class="cmap-btn" onclick="event.stopPropagation();ChangeMap.open(1)" title="See every place speakers appear"><i class="fas fa-globe"></i><span>Where does this appear?</span></button></span>
                                 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                                     <select class="search-input" id="pxSpeakerYearFilter" onchange="App.filterSpeakers()" style="width: auto; padding: 6px 10px; font-size: 12px;">
                                         <option value="all">All Years</option>
@@ -9150,7 +9151,7 @@ President, Med&amp;X</textarea>
                         <!-- Overview Config Card -->
                         <div class="card" style="margin-top: 20px;">
                             <div class="card-header">
-                                <span class="card-title"><i class="fas fa-sliders-h" style="margin-right: 8px;"></i>Overview Page Config</span>
+                                <span class="card-title"><i class="fas fa-sliders-h" style="margin-right: 8px;"></i>Overview Page Config <button type="button" class="cmap-btn" onclick="event.stopPropagation();ChangeMap.open(2)" title="See every place the accelerator dates appear"><i class="fas fa-globe"></i><span>Where does this appear?</span></button></span>
                                 <button class="btn btn-primary" id="accOverviewSaveBtn" onclick="AcceleratorApp.saveOverviewConfig()"><i class="fas fa-save"></i> Save</button>
                             </div>
                             <div class="card-body">
@@ -12040,6 +12041,7 @@ President, Med&amp;X</textarea>
                                 <button class="btn btn-primary" onclick="PRApp.pressNew()"><i class="fas fa-plus"></i> New press release</button>
                                 <button class="btn btn-secondary" id="prPressTabList" onclick="PRApp.pressShowPanel('list')"><i class="fas fa-list"></i> Releases</button>
                                 <button class="btn btn-secondary" id="prPressTabMedia" onclick="PRApp.pressShowPanel('media')"><i class="fas fa-address-book"></i> Media list</button>
+                                <button type="button" class="cmap-btn" onclick="event.stopPropagation();ChangeMap.open(7)" title="See every place press releases appear"><i class="fas fa-globe"></i><span>Where does this appear?</span></button>
                             </div>
                             <div id="prPressSendState" style="font-size:12.5px;color:var(--text-muted);"></div>
                         </div>
@@ -12866,7 +12868,7 @@ President, Med&amp;X</textarea>
                     <!-- HOME SCREEN PANEL -->
                     <div id="moHomePanel">
                         <div style="margin-bottom: 16px;">
-                            <div style="font-size: 18px; font-weight: 700;">What members see on their home screen</div>
+                            <div style="font-size: 18px; font-weight: 700;">What members see on their home screen <button type="button" class="cmap-btn" onclick="event.stopPropagation();ChangeMap.open(5)" title="See every place the project cards appear"><i class="fas fa-globe"></i><span>Where does this appear?</span></button></div>
                             <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 0;">Each card below is one row on the member home screen. Edit the words, pick a state, and press Save on that row. Changes appear for members right away.</p>
                         </div>
                         <div id="moHomeRows"><div style="padding: 22px; color: var(--text-muted);">Loading…</div></div>
@@ -13292,7 +13294,7 @@ President, Med&amp;X</textarea>
                     <div id="galaSettingsTab" style="display: none;">
                         <div class="card">
                             <div class="card-header">
-                                <h3 class="card-title">Event Settings</h3>
+                                <h3 class="card-title">Event Settings <button type="button" class="cmap-btn" onclick="event.stopPropagation();ChangeMap.open(4)" title="See every place the gala settings appear"><i class="fas fa-globe"></i><span>Where does this appear?</span></button></h3>
                             </div>
                             <div class="card-body">
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
@@ -45836,7 +45838,8 @@ By applying to this program, I give the following consents:
                             <button class="btn btn-secondary" style="font-size:12px;flex-shrink:0;" onclick="ContentStudio.notify('${p.project}')"><i class="fas fa-bell"></i> Tell members…</button>
                         </div>` : '';
                 const body = `
-                    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.55;">${this.esc(zone.where || b.label)} on the <strong>${this.esc(p.name)}</strong> page of the website. Leave it blank to show the built-in default.</div>
+                    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;line-height:1.55;">${this.esc(zone.where || b.label)} on the <strong>${this.esc(p.name)}</strong> page of the website. Leave it blank to show the built-in default.</div>
+                    <div style="margin-bottom:14px;">${typeof ChangeMap !== 'undefined' ? ChangeMap.buttonHtml(6, 'See every place content blocks appear') : ''}</div>
                     <div id="csDrawerMount">${WebsiteContentApp.rowHtml(b)}</div>
                     ${notify}
                     <a class="cs-preview-link" href="${previewUrl}" target="_blank" rel="noopener">
@@ -51884,6 +51887,7 @@ By applying to this program, I give the following consents:
                         <td style="padding:6px 0 6px 6px;"><button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="ConfApp.saveTicket('${id}','${t.id}')">Save</button></td>
                     </tr>`).join('');
                     box.innerHTML = `<div style="margin-top:14px;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-tertiary);">
+                        <div style="margin-bottom:12px;">${typeof ChangeMap !== 'undefined' ? ChangeMap.buttonHtml(8, 'See every place ticket prices appear') : ''}</div>
                         ${active ? '<div style="margin-bottom:12px;padding:10px 12px;border:1px solid rgba(180, 83, 9,0.4);border-radius:8px;background:rgba(180, 83, 9,0.08);font-size:12px;color:#b45309;"><i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>This is the LIVE conference. Member-site display prices come from <strong>Plexus Settings</strong> — keep them in sync (saving Plexus Settings overwrites these student/professional tiers).</div>' : ''}
                         ${tickets.length ? `<table style="border-collapse:collapse;">
                             <tr style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><td style="padding:0 10px 6px 0;">Tier</td><td style="padding:0 6px 6px;">Early-bird €</td><td style="padding:0 6px 6px;">Regular €</td><td style="padding:0 6px 6px;">Late €</td><td></td></tr>
@@ -57224,6 +57228,212 @@ By applying to this program, I give the following consents:
             App.showSection = function (id, nav, skip) { const r = _prev(id, nav, skip); try { if (id === 'advisors') AdvisoryBoard.open(); } catch (e) { console.error(e); } return r; };
         })();
     })();
+    </script>
+
+    <!-- ==================== CHANGE MAP — "Where does this appear?" ====================
+         One reusable affordance, injected at 8 anchors (speakers, sessions, gala settings,
+         project hub, content studio, press, conference tickets, accelerator config). Opens a
+         drawer listing every real surface that admin field group reaches — website slot,
+         member portal, countdown, email, PDF — with a three-state pill per surface:
+         LIVE / HARDCODED (needs site redeploy) / WIRED BUT INVISIBLE (with the precondition
+         explaining why it will not show). Data: GET /api/admin/change-map (backend/change-map.json,
+         the audited 8-group / 60-surface / 36-trap map). -->
+    <style>
+        .cmap-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 20px; border: 1px solid rgba(201, 169, 98, 0.55); background: transparent; color: #9a7b2f; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; vertical-align: middle; transition: background .15s, border-color .15s; white-space: nowrap; }
+        .cmap-btn:hover { background: rgba(201, 169, 98, 0.12); border-color: #c9a962; }
+        .cmap-btn i { font-size: 11px; }
+        .cmap-drawer { position: fixed; inset: 0; z-index: 2600; display: none; }
+        .cmap-drawer.open { display: block; }
+        .cmap-backdrop { position: absolute; inset: 0; background: rgba(21, 17, 15, 0.45); }
+        .cmap-panel { position: absolute; top: 0; right: 0; height: 100%; width: min(700px, 96vw); background: var(--bg-primary); box-shadow: -16px 0 48px rgba(21, 17, 15, 0.22); display: flex; flex-direction: column; overflow: hidden; animation: cmapSlide .18s ease; }
+        @keyframes cmapSlide { from { transform: translateX(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+        .cmap-hd { padding: 18px 22px 14px; border-bottom: 2px solid #c9a962; display: flex; align-items: flex-start; gap: 12px; }
+        .cmap-kicker { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #9a7b2f; margin-bottom: 3px; }
+        .cmap-title { font-size: 19px; font-weight: 700; line-height: 1.2; color: var(--text-primary); }
+        .cmap-x { margin-left: auto; flex-shrink: 0; border: none; background: none; font-size: 24px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 2px 6px; }
+        .cmap-x:hover { color: var(--text-primary); }
+        .cmap-bd { padding: 18px 22px 30px; overflow-y: auto; flex: 1; }
+        .cmap-shots { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+        .cmap-shot { display: block; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-secondary); transition: border-color .15s; }
+        .cmap-shot:hover { border-color: #c9a962; }
+        .cmap-shot img { display: block; height: 96px; width: auto; max-width: 200px; object-fit: cover; }
+        .cmap-shot-cap { display: block; font-size: 10.5px; color: var(--text-muted); padding: 4px 8px; }
+        .cmap-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: var(--bg-secondary); }
+        .cmap-row-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+        .cmap-type { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); padding-top: 3px; }
+        .cmap-pill { margin-left: auto; flex-shrink: 0; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+        .cmap-pill-live { color: #15803d; background: rgba(21, 128, 61, 0.10); border: 1px solid rgba(21, 128, 61, 0.35); }
+        .cmap-pill-hard { color: #9b1b22; background: transparent; border: 1px solid #9b1b22; }
+        .cmap-pill-invis { color: #b45309; background: rgba(180, 83, 9, 0.10); border: 1px solid rgba(180, 83, 9, 0.45); }
+        .cmap-desc { font-size: 13px; color: var(--text-primary); line-height: 1.5; margin-bottom: 5px; overflow-wrap: anywhere; }
+        .cmap-loc { font-size: 12px; color: var(--text-muted); line-height: 1.5; overflow-wrap: anywhere; }
+        .cmap-loc a { color: #9a7b2f; font-weight: 600; text-decoration: none; }
+        .cmap-loc a:hover { text-decoration: underline; }
+        .cmap-note { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-top: 6px; overflow-wrap: anywhere; }
+        .cmap-precond { font-size: 12px; color: #b45309; line-height: 1.5; margin-top: 6px; padding: 8px 10px; background: rgba(180, 83, 9, 0.07); border-left: 3px solid rgba(180, 83, 9, 0.5); border-radius: 0 6px 6px 0; overflow-wrap: anywhere; }
+        .cmap-prop { font-size: 11.5px; color: #15803d; margin-top: 6px; }
+        .cmap-traps { margin-top: 20px; border: 1px solid rgba(155, 27, 34, 0.35); border-left: 4px solid #9b1b22; border-radius: 8px; padding: 12px 16px; background: rgba(155, 27, 34, 0.04); }
+        .cmap-traps-hd { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #9b1b22; margin-bottom: 8px; }
+        .cmap-traps li { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; margin: 0 0 7px 16px; }
+        @media (max-width: 640px) { .cmap-panel { width: 100vw; } }
+    </style>
+    <script>
+    const ChangeMap = {
+        _data: null,
+
+        buttonHtml(n, title) {
+            return `<button type="button" class="cmap-btn" onclick="event.stopPropagation();ChangeMap.open(${n})" title="${title || 'See every place this content appears'}"><i class="fas fa-globe"></i><span>Where does this appear?</span></button>`;
+        },
+
+        _ensure() {
+            if (document.getElementById('cmapDrawer')) return;
+            const d = document.createElement('div');
+            d.className = 'cmap-drawer';
+            d.id = 'cmapDrawer';
+            d.setAttribute('aria-hidden', 'true');
+            d.innerHTML = `<div class="cmap-backdrop" onclick="ChangeMap.close()"></div><div class="cmap-panel" id="cmapPanel"></div>`;
+            document.body.appendChild(d);
+        },
+
+        async open(n) {
+            this._ensure();
+            const d = document.getElementById('cmapDrawer');
+            const panel = document.getElementById('cmapPanel');
+            d.classList.add('open');
+            d.setAttribute('aria-hidden', 'false');
+            panel.innerHTML = `<div class="cmap-hd"><div><div class="cmap-kicker">Where does this appear?</div><div class="cmap-title">Loading…</div></div><button class="cmap-x" onclick="ChangeMap.close()" aria-label="Close">&times;</button></div><div class="cmap-bd"><p style="color:var(--text-muted);font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Loading the change map…</p></div>`;
+            try {
+                if (!this._data) {
+                    const res = await fetch('/api/admin/change-map', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const json = await res.json();
+                    if (!json.groups) throw new Error(json.error || 'No data');
+                    this._data = json.groups;
+                }
+                const group = this._data.find(g => (g.field_group || '').trim().startsWith(n + '.'));
+                if (!group) throw new Error('Group ' + n + ' not found in the change map');
+                panel.innerHTML = this._render(group);
+            } catch (e) {
+                panel.innerHTML = `<div class="cmap-hd"><div><div class="cmap-kicker">Where does this appear?</div><div class="cmap-title">Unavailable</div></div><button class="cmap-x" onclick="ChangeMap.close()" aria-label="Close">&times;</button></div><div class="cmap-bd"><p style="color:#9b1b22;font-size:13px;">Could not load the change map: ${this._esc(e.message)}</p></div>`;
+            }
+        },
+
+        close() {
+            const d = document.getElementById('cmapDrawer');
+            if (d) { d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
+        },
+
+        _esc(s) {
+            return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        },
+
+        // Three-state classification. The map stores live|hardcoded; the third state
+        // (wired-but-invisible) is derived from the audit note: wiring exists but a
+        // precondition keeps it off-screen (suppressed grid, blank block, hidden attr,
+        // wrong source table, value read-then-discarded, short-circuited fetch).
+        _status(s) {
+            const note = s.note || '';
+            if (s.live_or_hardcoded === 'live') {
+                if (/CURRENTLY HIDDEN|currently win|Hidden while blank|[Bb]lank today|Reveals only when/.test(note)) return 'invis';
+                return 'live';
+            }
+            if (/TRAP:|CURRENTLY HIDDEN/.test(note)
+                && /\bNOT\b|never|hidden|short-circuit|overwrit|DISCARDED|fed by|reads gala_settings/.test(note)
+                && !/no strip element|no host element|contains ZERO|fully baked/.test(note)) return 'invis';
+            return 'hard';
+        },
+
+        _pill(status) {
+            if (status === 'live') return '<span class="cmap-pill cmap-pill-live">LIVE</span>';
+            if (status === 'invis') return '<span class="cmap-pill cmap-pill-invis">WIRED BUT INVISIBLE</span>';
+            return '<span class="cmap-pill cmap-pill-hard">HARDCODED — needs site redeploy</span>';
+        },
+
+        _typeLabel(t) {
+            return { website: '<i class="fas fa-globe"></i> Website', portal: '<i class="fas fa-mobile-screen-button"></i> Member portal', countdown: '<i class="fas fa-clock"></i> Countdown', email: '<i class="fas fa-envelope"></i> Email', pdf: '<i class="fas fa-file-pdf"></i> PDF' }[t] || this._esc(t || 'Surface');
+        },
+
+        // First real URL in url_or_place (some entries are prose like "admin export").
+        _url(s) {
+            const m = (s.url_or_place || '').match(/https?:\/\/[^\s)+]+/);
+            return m ? m[0] : null;
+        },
+
+        // #:~:text= deep link where the map captured on-page text: quoted fragments in
+        // selector_or_desc that are display copy, not attribute values (attr values are
+        // preceded by "=").
+        _fragment(s) {
+            const src = s.selector_or_desc || '';
+            const out = [];
+            const re = /['"“]([^'"“”]{4,80})['"”]/g;
+            let m;
+            while ((m = re.exec(src)) !== null) {
+                const before = src[m.index - 1];
+                const t = m[1];
+                if (before === '=' ) continue;                    // attribute value
+                if (/[\[\]=]|data-medx|\.html/.test(t)) continue; // selector junk
+                if (!/[A-Za-z]/.test(t)) continue;
+                out.push(t);
+            }
+            return out.length ? out[out.length - 1] : null;
+        },
+
+        _shotAsset(p) {
+            if (!p) return null;
+            const base = p.split('/').pop().replace(/\.png$/i, '.jpg');
+            return 'assets/change-map/' + base;
+        },
+
+        _render(group) {
+            const title = this._esc((group.field_group || '').replace(/^\d+\.\s*/, ''));
+            const seen = new Set();
+            const shots = [];
+            (group.surfaces || []).forEach(s => {
+                const a = this._shotAsset(s.screenshot);
+                if (a && !seen.has(a)) { seen.add(a); shots.push(a); }
+            });
+            const shotsHtml = shots.length ? `<div class="cmap-shots">${shots.map(a => {
+                const cap = a.split('/').pop().replace(/^\d+_/, '').replace(/\.jpg$/, '').replace(/_/g, ' ');
+                return `<a class="cmap-shot" href="${a}" target="_blank" rel="noopener" title="Open full size in a new tab"><img src="${a}" alt="Annotated screenshot: ${this._esc(cap)}" loading="lazy"><span class="cmap-shot-cap"><i class="fas fa-arrow-up-right-from-square" style="font-size:9px;"></i> ${this._esc(cap)}</span></a>`;
+            }).join('')}</div>` : '';
+
+            const rows = (group.surfaces || []).map(s => {
+                const status = this._status(s);
+                const url = this._url(s);
+                const isSite = url && url.includes('medx.hr');
+                let link = '';
+                if (url) {
+                    const frag = isSite ? this._fragment(s) : null;
+                    const href = frag ? url + '#:~:text=' + encodeURIComponent(frag) : url;
+                    link = ` &middot; <a href="${this._esc(href)}" target="_blank" rel="noopener">${isSite ? 'View on medx.hr' : 'Open'} <i class="fas fa-arrow-up-right-from-square" style="font-size:9px;"></i></a>`;
+                }
+                const noteHtml = s.note
+                    ? (status === 'invis'
+                        ? `<div class="cmap-precond"><i class="fas fa-eye-slash" style="margin-right:5px;"></i><strong>Why it won't show:</strong> ${this._esc(s.note)}</div>`
+                        : `<div class="cmap-note">${this._esc(s.note)}</div>`)
+                    : '';
+                const prop = (status === 'live' && isSite)
+                    ? `<div class="cmap-prop"><i class="fas fa-check" style="margin-right:4px;"></i>Visible on medx.hr within ~2 minutes of saving.</div>` : '';
+                return `<div class="cmap-row">
+                    <div class="cmap-row-top"><span class="cmap-type">${this._typeLabel(s.type)}</span>${this._pill(status)}</div>
+                    <div class="cmap-desc">${this._esc(s.selector_or_desc || '')}</div>
+                    <div class="cmap-loc">${this._esc(s.url_or_place || '')}${link}</div>
+                    ${noteHtml}${prop}
+                </div>`;
+            }).join('');
+
+            const traps = (group.hardcoded_traps || []);
+            const trapsHtml = traps.length ? `<div class="cmap-traps"><div class="cmap-traps-hd"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>Traps to know</div><ul style="margin:0;padding:0;">${traps.map(t => `<li>${this._esc(t)}</li>`).join('')}</ul></div>` : '';
+
+            return `<div class="cmap-hd">
+                    <div style="min-width:0;flex:1;">
+                        <div class="cmap-kicker">Where does this appear?</div>
+                        <div class="cmap-title">${title}</div>
+                    </div>
+                    <button class="cmap-x" onclick="ChangeMap.close()" aria-label="Close">&times;</button>
+                </div>
+                <div class="cmap-bd">${shotsHtml}${rows}${trapsHtml}</div>`;
+        }
+    };
     </script>
 
 </body>

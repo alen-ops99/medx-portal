@@ -11043,6 +11043,23 @@ async function initializeApp() {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
+    // ========== CHANGE MAP ("Where does this appear?") ==========
+    // Serves backend/change-map.json — the audited map of every surface each admin field
+    // group reaches (8 groups, 60 surfaces, 36 traps). Versioned in the repo so edits are
+    // reviewable; cached after first read (restart the process to pick up a new file).
+    let changeMapCache = null;
+    app.get('/api/admin/change-map', auth, adminOnly, (req, res) => {
+        try {
+            if (!changeMapCache) {
+                changeMapCache = JSON.parse(fs.readFileSync(path.join(__dirname, 'change-map.json'), 'utf8'));
+            }
+            res.json({ success: true, groups: changeMapCache });
+        } catch (e) {
+            changeMapCache = null;
+            res.status(500).json({ error: 'change-map.json missing or unreadable' });
+        }
+    });
+
     // ========== TICKET ROUTES ==========
     app.get('/api/conferences/:confId/tickets', (req, res) => {
         res.json(query.all('SELECT * FROM ticket_types WHERE conference_id = ? ORDER BY sort_order', [req.params.confId]));
