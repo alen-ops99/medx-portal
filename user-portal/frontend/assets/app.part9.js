@@ -12275,8 +12275,107 @@
                 jhopkins: 'Johns Hopkins'
             },
 
+            // Runtime i18n for the public apply wizard (EN + HR). Keys use the `axa.` prefix
+            // so they can never collide with AcceleratorIntake's `axi.*` / `ax.*` strings.
+            registerI18n() {
+                if (this._i18nDone || !window.MedXI18n || !MedXI18n.extend) return;
+                MedXI18n.extend({
+                    'axa.nav1': { en: 'Personal', hr: 'Osobno' },
+                    'axa.nav2': { en: 'Education', hr: 'Obrazovanje' },
+                    'axa.nav3': { en: 'Program', hr: 'Program' },
+                    'axa.nav4': { en: 'Supplementary', hr: 'Dodatno' },
+                    'axa.nav5': { en: 'Documents', hr: 'Dokumenti' },
+                    'axa.nav6': { en: 'Consent', hr: 'Privola' },
+                    'axa.nav7': { en: 'Review', hr: 'Pregled' },
+                    'axa.step1': { en: 'Personal Information', hr: 'Osobni podaci' },
+                    'axa.fPhone': { en: 'Phone', hr: 'Telefon' },
+                    'axa.fPhonePh': { en: '+1 234 567 8900', hr: '+385 91 234 5678' },
+                    'axa.fDob': { en: 'Date of Birth', hr: 'Datum rođenja' },
+                    'axa.fNationality': { en: 'Nationality', hr: 'Državljanstvo' },
+                    'axa.fNationalityPh': { en: 'e.g. Croatian', hr: 'npr. hrvatsko' },
+                    'axa.fCountry': { en: 'Country of Residence', hr: 'Država prebivališta' },
+                    'axa.optCountry': { en: 'Select country', hr: 'Odaberite državu' },
+                    'axa.btnSave': { en: 'Save Draft', hr: 'Spremi skicu' },
+                    'axa.btnContinue': { en: 'Continue', hr: 'Nastavi' },
+                    'axa.btnBack': { en: 'Back', hr: 'Natrag' },
+                    'axa.step2': { en: 'Education', hr: 'Obrazovanje' },
+                    'axa.fInstitution': { en: 'Current Institution', hr: 'Matična ustanova' },
+                    'axa.fInstitutionPh': { en: 'University name', hr: 'Naziv sveučilišta' },
+                    'axa.fDegree': { en: 'Degree Program', hr: 'Studijski program' },
+                    'axa.optDegree': { en: 'Select degree', hr: 'Odaberite studij' },
+                    'axa.degMd': { en: 'MD / Medicine', hr: 'Medicina (MD)' },
+                    'axa.degPhd': { en: 'PhD', hr: 'Doktorski studij (PhD)' },
+                    'axa.degMsc': { en: "Master's", hr: 'Diplomski studij' },
+                    'axa.degBsc': { en: "Bachelor's", hr: 'Preddiplomski studij' },
+                    'axa.degMdPhd': { en: 'MD-PhD', hr: 'MD-PhD' },
+                    'axa.fYear': { en: 'Year of Study', hr: 'Godina studija' },
+                    'axa.optYear': { en: 'Select year', hr: 'Odaberite godinu' },
+                    'axa.year1': { en: '1st Year', hr: '1. godina' },
+                    'axa.year2': { en: '2nd Year', hr: '2. godina' },
+                    'axa.year3': { en: '3rd Year', hr: '3. godina' },
+                    'axa.year4': { en: '4th Year', hr: '4. godina' },
+                    'axa.year5': { en: '5th Year', hr: '5. godina' },
+                    'axa.year6': { en: '6th Year', hr: '6. godina' },
+                    'axa.yearGrad': { en: 'Graduated', hr: 'Završen studij' },
+                    'axa.fField': { en: 'Field of Study', hr: 'Područje studija' },
+                    'axa.fFieldPh': { en: 'e.g. Neuroscience, Oncology, Public Health', hr: 'npr. neuroznanost, onkologija, javno zdravstvo' },
+                    'axa.fGraduation': { en: 'Expected Graduation', hr: 'Očekivani završetak studija' },
+                    'axa.step3': { en: 'Program Selection', hr: 'Odabir programa' },
+                    'axa.step3Hint': { en: 'Select up to 3 institutions in order of preference', hr: 'Odaberite do 3 ustanove prema redoslijedu prioriteta' },
+                    'axa.fChoice1': { en: 'First Choice', hr: 'Prvi izbor' },
+                    'axa.fChoice2': { en: 'Second Choice', hr: 'Drugi izbor' },
+                    'axa.fChoice3': { en: 'Third Choice', hr: 'Treći izbor' },
+                    'axa.optInstitution': { en: 'Select institution', hr: 'Odaberite ustanovu' },
+                    'axa.fInterests': { en: 'Research Interest Areas', hr: 'Područja istraživačkog interesa' },
+                    'axa.fInterestsPh': { en: 'Describe your research interests...', hr: 'Opišite svoje istraživačke interese...' },
+                    'axa.step4': { en: 'Supplementary Information', hr: 'Dodatne informacije' },
+                    'axa.fStatement': { en: 'Personal Statement (max 500 words)', hr: 'Motivacijsko pismo (najviše 500 riječi)' },
+                    'axa.fStatementPh': { en: 'Why do you want to participate in the Accelerator program? What do you hope to achieve?', hr: 'Zašto se želite uključiti u program Accelerator? Što želite postići?' },
+                    'axa.fExperience': { en: 'Research Experience', hr: 'Istraživačko iskustvo' },
+                    'axa.fExperiencePh': { en: 'Describe any previous research experience...', hr: 'Opišite dosadašnje istraživačko iskustvo...' },
+                    'axa.fPublications': { en: 'Publications / Presentations (if any)', hr: 'Publikacije / izlaganja (ako ih imate)' },
+                    'axa.fPublicationsPh': { en: 'List any publications, conference presentations, or posters...', hr: 'Navedite publikacije, kongresna izlaganja ili postere...' },
+                    'axa.step5': { en: 'Required Documents', hr: 'Potrebni dokumenti' },
+                    'axa.fCv': { en: 'CV / Resume (PDF)', hr: 'Životopis (PDF)' },
+                    'axa.fTranscript': { en: 'Transcript (PDF)', hr: 'Prijepis ocjena (PDF)' },
+                    'axa.fRec': { en: 'Letter of Recommendation (optional, PDF)', hr: 'Preporuka (nije obavezno, PDF)' },
+                    'axa.upClick': { en: 'Click to upload', hr: 'Kliknite za prijenos' },
+                    'axa.upDrag': { en: 'or drag and drop', hr: 'ili povucite i ispustite datoteku' },
+                    'axa.upPdfMax': { en: 'PDF up to 5MB', hr: 'PDF do 5 MB' },
+                    'axa.step6': { en: 'Data Protection & Consent', hr: 'Zaštita podataka i privola' },
+                    'axa.gdprBody': { en: 'Your personal data will be processed in accordance with GDPR. Data will be shared with collaborating institutions only for the purpose of evaluating your application. You may withdraw your application and request data deletion at any time by contacting accelerator@medx.hr.', hr: 'Vaši osobni podaci obrađivat će se u skladu s Općom uredbom o zaštiti podataka (GDPR). Podaci će se dijeliti s partnerskim ustanovama isključivo u svrhu ocjenjivanja Vaše prijave. Prijavu možete povući i zatražiti brisanje svojih podataka u bilo kojem trenutku obraćanjem na accelerator@medx.hr.' },
+                    'axa.consent1': { en: 'I consent to Med&X processing my personal data for the Accelerator program application', hr: 'Dajem privolu da Med&X obrađuje moje osobne podatke u svrhu prijave na program Accelerator' },
+                    'axa.consent2': { en: 'I consent to my data being shared with selected collaborating institutions', hr: 'Dajem privolu da se moji podaci dijele s odabranim partnerskim ustanovama' },
+                    'axa.consent3': { en: 'I confirm that all information provided is accurate and complete', hr: 'Potvrđujem da su svi navedeni podaci točni i potpuni' },
+                    'axa.step7': { en: 'Review & Submit', hr: 'Pregled i predaja' },
+                    'axa.summary': { en: 'Application Summary', hr: 'Sažetak prijave' },
+                    'axa.rName': { en: 'Name', hr: 'Ime i prezime' },
+                    'axa.rEmail': { en: 'Email', hr: 'E-pošta' },
+                    'axa.rInstitution': { en: 'Institution', hr: 'Ustanova' },
+                    'axa.rDegree': { en: 'Degree', hr: 'Studij' },
+                    'axa.rDocs': { en: 'Documents', hr: 'Dokumenti' },
+                    'axa.reviewNote': { en: 'Once submitted, you will receive a confirmation email. You can track your application status in the "My Applications" section.', hr: 'Nakon predaje primit ćete e-poštu s potvrdom. Status svoje prijave možete pratiti u odjeljku "Moje prijave".' },
+                    'axa.btnPdf': { en: 'Preview as PDF', hr: 'Pregled u PDF-u' },
+                    'axa.btnSubmit': { en: 'Submit Application', hr: 'Predaj prijavu' },
+                    'axa.footerHelp': { en: 'Problem with your application? <a href="mailto:accelerator@medx.hr" style="color: var(--up-gold); text-decoration: none;">Contact us</a> before you submit.', hr: 'Imate poteškoća s prijavom? <a href="mailto:accelerator@medx.hr" style="color: var(--up-gold); text-decoration: none;">Javite nam se</a> prije predaje.' },
+                    'axa.vPersonal': { en: 'Please fill in all required fields', hr: 'Ispunite sva obavezna polja' },
+                    'axa.vEducation': { en: 'Please fill in all required education fields', hr: 'Ispunite sva obavezna polja o obrazovanju' },
+                    'axa.vProgram': { en: 'Please select at least your first choice institution and describe your research interests', hr: 'Odaberite barem ustanovu prvog izbora i opišite svoje istraživačke interese' },
+                    'axa.vChoicesDistinct': { en: 'Please select different institutions for each choice', hr: 'Za svaki izbor odaberite različitu ustanovu' },
+                    'axa.vStatement': { en: 'Personal statement is required', hr: 'Motivacijsko pismo je obavezno' },
+                    'axa.vCv': { en: 'Please upload your CV/Resume (PDF required)', hr: 'Priložite svoj životopis (PDF je obavezan)' },
+                    'axa.vConsent': { en: 'Please accept all consent checkboxes to continue', hr: 'Za nastavak potvrdite sve privole' },
+                    'axa.draftSaved': { en: 'Draft saved successfully!', hr: 'Skica je uspješno spremljena!' },
+                    'axa.submitting': { en: 'Submitting...', hr: 'Slanje...' },
+                    'axa.submitOk': { en: 'Application submitted successfully!', hr: 'Prijava je uspješno poslana!' },
+                    'axa.submitFail': { en: 'Submission failed. Please try again.', hr: 'Slanje nije uspjelo. Pokušajte ponovno.' }
+                });
+                this._i18nDone = true;
+            },
+
             // Initialize
             init() {
+                this.registerI18n();
                 this.prefillUserData();
                 this.loadDraft();
                 this.renderMyApplications();
@@ -12694,10 +12793,48 @@
                 }, 150);
             },
 
-            // Deadline countdown
+            // Deadline countdown. The target date is ADMIN-CONTROLLED:
+            // GET /api/accelerator/countdown resolves it from accelerator_key_dates
+            // (admin CRUD), intake_windows (admin) or the program deadline. Nothing is
+            // hardcoded here any more — this used to always count to a literal 2026-03-31.
             countdownInterval: null,
-            startDeadlineCountdown(deadlineDateStr) {
-                const deadline = deadlineDateStr ? new Date(deadlineDateStr + 'T23:59:59').getTime() : new Date('2026-03-31T23:59:59').getTime();
+
+            async fetchCountdownTarget() {
+                try {
+                    const res = await fetch('/api/accelerator/countdown');
+                    if (!res.ok) return null;
+                    const cfg = await res.json();
+                    if (!cfg || !cfg.target) return null;
+                    const ts = new Date(cfg.target).getTime();
+                    if (isNaN(ts) || ts <= Date.now()) return null;
+
+                    // Mirror the admin's label onto the hero line.
+                    const isHr = window.MedXI18n && MedXI18n.locale && MedXI18n.locale() === 'hr';
+                    const label = (isHr && cfg.label_hr) ? cfg.label_hr : cfg.label;
+                    if (label) {
+                        const heroDeadlineEl = document.getElementById('axHeroDeadlineText');
+                        if (heroDeadlineEl) {
+                            const when = new Date(ts).toLocaleDateString(isHr ? 'hr-HR' : 'en-US',
+                                { month: 'long', day: 'numeric', year: 'numeric' });
+                            heroDeadlineEl.innerHTML = '<i class="far fa-clock"></i> ' + label + ': ' + when;
+                        }
+                    }
+                    return ts;
+                } catch (e) {
+                    return null;
+                }
+            },
+
+            async startDeadlineCountdown(deadlineDateStr) {
+                let deadline = deadlineDateStr
+                    ? new Date(deadlineDateStr + 'T23:59:59').getTime()
+                    : await this.fetchCountdownTarget();
+
+                // No upcoming admin-configured date means the window is closed. Leaving
+                // the target in the past makes updateCountdown() take its existing
+                // closed-state branch, which hides the clock and shows the
+                // "applications open later" copy.
+                if (!deadline || isNaN(deadline)) deadline = 0;
 
                 const updateCountdown = () => {
                     const now = new Date().getTime();
@@ -12752,6 +12889,9 @@
                     }
                 };
 
+                // startDeadlineCountdown is async now, so init() and loadOverviewConfig()
+                // can both land here — never leave a previous ticker running.
+                if (this.countdownInterval) clearInterval(this.countdownInterval);
                 updateCountdown();
                 this.countdownInterval = setInterval(updateCountdown, 1000);
             },
@@ -13199,7 +13339,7 @@
                             !document.getElementById('axLastName').value.trim() ||
                             !document.getElementById('axEmail').value.trim() ||
                             !document.getElementById('axDob').value) {
-                            Toast.error('Please fill in all required fields');
+                            Toast.error((window.t && t('axa.vPersonal')) || 'Please fill in all required fields');
                             return false;
                         }
                         break;
@@ -13208,7 +13348,7 @@
                             !document.getElementById('axDegree').value ||
                             !document.getElementById('axYear').value ||
                             !document.getElementById('axField').value.trim()) {
-                            Toast.error('Please fill in all required education fields');
+                            Toast.error((window.t && t('axa.vEducation')) || 'Please fill in all required education fields');
                             return false;
                         }
                         break;
@@ -13217,25 +13357,25 @@
                         const c2 = document.getElementById('axChoice2').value;
                         const c3 = document.getElementById('axChoice3').value;
                         if (!c1 || !document.getElementById('axResearchInterests').value.trim()) {
-                            Toast.error('Please select at least your first choice institution and describe your research interests');
+                            Toast.error((window.t && t('axa.vProgram')) || 'Please select at least your first choice institution and describe your research interests');
                             return false;
                         }
                         const choices = [c1, c2, c3].filter(Boolean);
                         if (new Set(choices).size !== choices.length) {
-                            Toast.warning('Please select different institutions for each choice');
+                            Toast.warning((window.t && t('axa.vChoicesDistinct')) || 'Please select different institutions for each choice');
                             return false;
                         }
                         break;
                     }
                     case 4:
                         if (!document.getElementById('axStatement').value.trim()) {
-                            Toast.error('Personal statement is required');
+                            Toast.error((window.t && t('axa.vStatement')) || 'Personal statement is required');
                             return false;
                         }
                         break;
                     case 5:
                         if (!document.getElementById('axCvFile').files.length) {
-                            Toast.error('Please upload your CV/Resume (PDF required)');
+                            Toast.error((window.t && t('axa.vCv')) || 'Please upload your CV/Resume (PDF required)');
                             return false;
                         }
                         break;
@@ -13243,7 +13383,7 @@
                         if (!document.getElementById('axConsent1').checked ||
                             !document.getElementById('axConsent2').checked ||
                             !document.getElementById('axConsent3').checked) {
-                            Toast.error('Please accept all consent checkboxes to continue');
+                            Toast.error((window.t && t('axa.vConsent')) || 'Please accept all consent checkboxes to continue');
                             return false;
                         }
                         break;
@@ -13274,7 +13414,7 @@
             saveDraft() {
                 const data = this.collectFormData();
                 localStorage.setItem(this.draftKey, JSON.stringify(data));
-                Toast.success('Draft saved successfully!');
+                Toast.success((window.t && t('axa.draftSaved')) || 'Draft saved successfully!');
             },
 
             // Load draft
@@ -13377,7 +13517,7 @@
                 let originalHTML;
                 if (btn) {
                     originalHTML = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + ((window.t && t('axa.submitting')) || 'Submitting...');
                     btn.disabled = true;
                 }
 
@@ -13388,7 +13528,7 @@
                     });
 
                     if (res.id || res.success) {
-                        Toast.success('Application submitted successfully!');
+                        Toast.success((window.t && t('axa.submitOk')) || 'Application submitted successfully!');
                         localStorage.removeItem(this.draftKey);
                         this.saveApplicationForTracking(data, res.id);
                         this.showTab('myapplications');
@@ -13398,13 +13538,13 @@
                             this.showPaymentPrompt(res.id, data);
                         }
                     } else {
-                        Toast.error(res.error || 'Submission failed. Please try again.');
+                        Toast.error(res.error || (window.t && t('axa.submitFail')) || 'Submission failed. Please try again.');
                     }
                 } catch (err) {
                     console.error('Application submission error:', err);
                     // Demo mode - save to localStorage for tracking
                     this.saveApplicationForTracking(data);
-                    Toast.success('Application submitted successfully!');
+                    Toast.success((window.t && t('axa.submitOk')) || 'Application submitted successfully!');
                     localStorage.removeItem(this.draftKey);
                     this.showTab('myapplications');
                     this.renderMyApplications();
@@ -35638,16 +35778,12 @@ ${'='.repeat(70)}
                                         <input type="text" id="pdfHeaderTitle" value="${settings.header_title || ''}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);" maxlength="200">
                                     </div>
                                     <div>
-                                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Article 1</label>
-                                        <textarea id="pdfArticle1" rows="5" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;" maxlength="2000">${settings.article1_text || ''}</textarea>
-                                    </div>
-                                    <div>
-                                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Article 2</label>
-                                        <textarea id="pdfArticle2" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;" maxlength="2000">${settings.article2_text || ''}</textarea>
-                                    </div>
-                                    <div>
-                                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Article 3</label>
-                                        <textarea id="pdfArticle3" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;" maxlength="2000">${settings.article3_text || ''}</textarea>
+                                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                                            <label style="font-weight: 500;">Articles (Članci)</label>
+                                            <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="AcceleratorApp.addPdfArticle()"><i class="fas fa-plus"></i> Add article</button>
+                                        </div>
+                                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Add as many as you need — they print in this order. Leave the title blank to auto-number (Članak 1., Članak 2., …) or type your own heading.</div>
+                                        <div id="pdfArticlesList"></div>
                                     </div>
                                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
                                         <div>
@@ -35673,16 +35809,63 @@ ${'='.repeat(70)}
                     </div>
                 `;
                 document.body.appendChild(modal);
+
+                // The backend always returns a resolved `articles` array (legacy rows are
+                // synthesized from article1..3_text), so this covers both shapes.
+                this.pdfArticles = Array.isArray(settings.articles) && settings.articles.length
+                    ? settings.articles.map(a => ({ title: a.title || '', text: a.text || '' }))
+                    : [{ title: '', text: '' }];
+                this.renderPdfArticles();
+            },
+
+            // ----- Ranking-PDF articles (unbounded list) -----
+            pdfArticles: [],
+
+            renderPdfArticles() {
+                const host = document.getElementById('pdfArticlesList');
+                if (!host) return;
+                const esc = (s) => String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+                host.innerHTML = this.pdfArticles.map((a, i) => `
+                    <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                            <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;">Članak ${i + 1}.</span>
+                            <input type="text" placeholder="Custom heading (optional)" value="${esc(a.title)}"
+                                oninput="AcceleratorApp.pdfArticles[${i}].title = this.value"
+                                style="flex: 1; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); font-size: 12px;" maxlength="200">
+                            <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;"
+                                onclick="AcceleratorApp.removePdfArticle(${i})" title="Remove this article"><i class="fas fa-trash"></i></button>
+                        </div>
+                        <textarea rows="4" oninput="AcceleratorApp.pdfArticles[${i}].text = this.value"
+                            style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;"
+                            maxlength="4000">${esc(a.text)}</textarea>
+                    </div>
+                `).join('');
+            },
+
+            addPdfArticle() {
+                this.pdfArticles.push({ title: '', text: '' });
+                this.renderPdfArticles();
+            },
+
+            removePdfArticle(idx) {
+                this.pdfArticles.splice(idx, 1);
+                if (!this.pdfArticles.length) this.pdfArticles.push({ title: '', text: '' });
+                this.renderPdfArticles();
             },
 
             async savePdfSettings(e) {
                 e.preventDefault();
+                const articles = (this.pdfArticles || []).filter(a => a.text && a.text.trim());
+                if (!articles.length) {
+                    Toast.error('Add at least one article before saving.');
+                    return;
+                }
                 const data = {
                     header_intro: document.getElementById('pdfHeaderIntro').value,
                     header_title: document.getElementById('pdfHeaderTitle').value,
-                    article1_text: document.getElementById('pdfArticle1').value,
-                    article2_text: document.getElementById('pdfArticle2').value,
-                    article3_text: document.getElementById('pdfArticle3').value,
+                    articles,
                     signatory_name: document.getElementById('pdfSignName').value,
                     signatory_title: document.getElementById('pdfSignTitle').value,
                     signatory_role: document.getElementById('pdfSignRole').value
