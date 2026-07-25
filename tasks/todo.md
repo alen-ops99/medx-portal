@@ -47,3 +47,22 @@ wire real analytics.
 - Branch per phase off origin/main; local verify on scratch DB; deploy; live-verify (sw.js SHA)
 - macOS has no `timeout` — nohup+sleep+kill; never edit while dev servers serve
 - Purge = backup tables first; ambiguous rows untouched
+
+## Round 2 — Alen post-call comments (2026-07-25 evening)
+- [ ] SIDEBAR REORG: left nav has "a shit ton of stuff", badly organized — design a clean grouped IA
+- [ ] CONNECTIVITY REVIEW: publish-from-admin → public page must be verified end-to-end (thorough)
+### Colleague comments
+- [ ] 1. Accelerator countdown controllable via admin, shown across the web
+- [ ] 2. Change the Plexus program (schedule content — needs THEIR new program? flag what's needed)
+- [ ] 3. Krešimir Luetić + George Abraham photos (speakers — need image files or sources)
+- [ ] 4. ⚠ Gala price shows 0 somewhere, must be 150 — POSSIBLE REGRESSION from ticket-zeroing migration; find the surface, fix the source
+- [ ] 5. "Darujte jednokratno" (one-time donation) broken link on the website
+- [ ] 6. Add latest annual financial report to the website
+- [ ] 7. Accelerator PDF: ability to add an article/section via admin
+- [ ] 8. Interviewer magic link broken? + show candidate full name on scoring + evaluation sheet
+- [ ] 9. Translate Accelerator application form to Croatian
+- [ ] 10. ⚠ Web shows BB Boston, portal doesn't — MY PURGE removed Boston (audit called it fake; _purged_bridges_events has the backup) — verify with the live site, likely restore Boston, ask Alen re Zurich/Washington
+- [ ] 11. Med&X Assistant returns wrong info about paid guests
+- [ ] 12. Where do newsletter signups land in admin? (pr_subscribers → PR & Media; verify + surface clearly)
+- [ ] 13. Brevo vs Outlook/medx.hr for newsletter sending — needs a decision memo (SPF still pending!)
+- [ ] 14. "PDF export functionality" (ambiguous — probe which export they mean)
