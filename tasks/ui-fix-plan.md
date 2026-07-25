@@ -12,7 +12,7 @@
 ## Batches
 - [x] Audit banked
 - [x] B1 quick wins (f5e8165, LIVE) (one commit): toast CSS + window.Toast + App.showToast alias; search padding; FAB reposition + brand color; checkin column heal; advisor weekly Monday→Friday
-- [x] B2 homepage restructure (260052f, deploying) (Alen spec): Plexus Week mega-card real numbers, kill milestones + content-to-fill, collapse todos, move trends, clarify task center, Discover dead buttons wired or removed
-- [ ] B3 back-button history (pushState/popstate + sidebar active)
-- [ ] B4 artifacts branding wave (tasks/artifact-fix-plan.md)
+- [x] B2 homepage restructure (260052f, LIVE) (Alen spec): Plexus Week mega-card real numbers, kill milestones + content-to-fill, collapse todos, move trends, clarify task center, Discover dead buttons wired or removed
+- [x] B3 back-button history (7fa2a38, LIVE) (pushState/popstate + sidebar active)
+- [x] B4 artifacts branding wave (48ef6cf, LIVE; deferred items in memory) (tasks/artifact-fix-plan.md)
 - [ ] B5 chat channel-list fix + Playwright regression sweep + test emails + docs to ~/Downloads
