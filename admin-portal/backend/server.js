@@ -8472,6 +8472,21 @@ async function initializeApp() {
         db.run("UPDATE event_components SET label = 'Plexus Gala Evening (5 Dec)' WHERE event_type='plexus' AND component_key='gala' AND label = 'Gala Evening'");
     } catch(e) {}
 
+    // 2026-07-25 (Alen): the conference itself is FREE — money can only ever mean the Gala, so
+    // invoices always say what was actually bought. One-time zeroing of the legacy paid
+    // conference tiers (General Attendee 150/175, Student 75/100/125); tier names stay for
+    // badges and registration. app_state-guarded so a future deliberate admin price edit is
+    // never stomped by a restart.
+    try {
+        const freeConfDone = query.get("SELECT value FROM app_state WHERE key = 'migration_free_conference_tiers'");
+        if (!freeConfDone) {
+            db.run('UPDATE ticket_types SET price_early_bird = 0, price_regular = 0, price_late = 0');
+            db.run("INSERT OR REPLACE INTO app_state (key, value) VALUES ('migration_free_conference_tiers', datetime('now'))");
+            saveDb();
+            console.log('[Migration] Conference ticket tiers zeroed — the conference is free, only the Gala is paid');
+        }
+    } catch(e) { console.warn('[Migration] free-conference-tiers failed:', e.message); }
+
     // Phase 6B: QR code for bridges registrations
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
 
@@ -8598,8 +8613,8 @@ async function initializeApp() {
             [confId]);
 
         const tickets = [
-            ['General Attendee', 'General Admission', 150, 200, 250, 1],
-            ['Student', 'Student', 75, 100, 125, 1],
+            ['General Attendee', 'General Admission', 0, 0, 0, 1],
+            ['Student', 'Student', 0, 0, 0, 1],
             ['VIP / Invited', 'VIP', 0, 0, 0, 1],
             ['Speaker', 'Speaker', 0, 0, 0, 1],
             ['Volunteer', 'Volunteer', 0, 0, 0, 0]

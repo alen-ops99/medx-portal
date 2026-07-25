@@ -10303,8 +10303,8 @@ async function initializeApp() {
             [confId]);
 
         const tickets = [
-            ['General Attendee', 'General Admission', 150, 200, 250, 1],
-            ['Student', 'Student', 75, 100, 125, 1],
+            ['General Attendee', 'General Admission', 0, 0, 0, 1],
+            ['Student', 'Student', 0, 0, 0, 1],
             ['VIP / Invited', 'VIP', 0, 0, 0, 1],
             ['Speaker', 'Speaker', 0, 0, 0, 1],
             ['Volunteer', 'Volunteer', 0, 0, 0, 0]
