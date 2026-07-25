@@ -41376,6 +41376,17 @@ ${extraCss || ''}
         console.log('[Schema] ' + _tbls.length + ' tables, fingerprint ' + _fp);
     } catch (_e) { console.error('[Schema] fingerprint failed:', _e.message); }
 
+    // Heal for a silently-failed migration: croatians_abroad_registrations is missing the four
+    // *_checked_in columns (the original ALTER's empty catch ate the error), so /api/checkin/stats
+    // and the roster 500. Re-run WITH logging, at end of init when the table certainly exists.
+    for (const col of ['conference_checked_in INTEGER DEFAULT 0', 'conference_checked_in_at TEXT',
+                       'gala_checked_in INTEGER DEFAULT 0', 'gala_checked_in_at TEXT',
+                       'bridges_checked_in INTEGER DEFAULT 0', 'bridges_checked_in_at TEXT']) {
+        try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN ${col}`);
+              console.log('[Heal] croatians_abroad_registrations +', col.split(' ')[0]);
+        } catch (e) { if (!/duplicate column/i.test(e.message)) console.warn('[Heal] checkin col failed:', col, e.message); }
+    }
+
     // Demo-data purge (Alen 2026-07-25: "the portal must show REAL numbers only"). MUST run at
     // the very end of init — the seed blocks above re-arm on empty tables, so purging any
     // earlier re-seeds the fakes. Production-only, idempotent, victims backed up to _purged_*.
@@ -41648,11 +41659,11 @@ app.get('*', (req, res) => {
         setInterval(() => {
             try {
                 let ymd; try { ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zagreb', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); } catch (e) { ymd = new Date().toISOString().slice(0, 10); }
-                let isMonday = false; try { isMonday = new Date(ymd + 'T00:00:00Z').getUTCDay() === 1; } catch (e) {}
-                if (isMonday) runAdvisorReviews().catch(() => {});
+                let isFriday = false; try { isFriday = new Date(ymd + 'T00:00:00Z').getUTCDay() === 5; } catch (e) {}
+                if (isFriday) runAdvisorReviews().catch(() => {});
             } catch (e) {}
         }, 6 * 60 * 60 * 1000);
-        console.log('[Advisors] Weekly executive advisory reviews active (6h tick, Mondays)');
+        console.log('[Advisors] Weekly executive advisory reviews active (6h tick, Fridays)');
     });
 }
 

@@ -2609,6 +2609,7 @@
             color: var(--text-muted);
         }
 
+        .search-input { padding-left: 34px; } /* icon spans x22-34; text started at x26 underneath it */
         .search-icon {
             position: absolute;
             left: 10px;
@@ -5800,10 +5801,10 @@
         /* ===== GLOBAL QR SCANNER FAB ===== */
         .qr-fab {
             position: fixed;
-            bottom: 96px;
-            right: 28px;
-            width: 56px;
-            height: 56px;
+            bottom: 74px;
+            right: 16px;
+            width: 46px;
+            height: 46px;
             border-radius: 50%;
             background: var(--accent-gold);
             color: #fff;
@@ -5831,7 +5832,7 @@
 
         /* Med&X Assistant floating button (admins) — sits above the QR FAB */
         .assist-fab {
-            position: fixed; bottom: 160px; right: 28px; width: 56px; height: 56px; border-radius: 50%;
+            position: fixed; bottom: 128px; right: 16px; width: 46px; height: 46px; border-radius: 50%;
             background: linear-gradient(135deg, #9b1b22, #9b1b22); color: #fff; border: none; font-size: 22px;
             cursor: pointer; box-shadow: 0 4px 14px rgba(155,27,34,0.45); z-index: 900; display: none;
             align-items: center; justify-content: center; transition: transform 0.2s, box-shadow 0.2s;
@@ -6784,9 +6785,14 @@
         body.theme-fresh .toast {
             border-radius: 10px;
             background: #ffffff;
+            color: #15110f; /* was inherited #fff on a white pill — every toast rendered invisible */
             border: 1px solid #e6e0d7;
             box-shadow: 0 12px 40px rgba(21,17,15,0.16);
         }
+        body.theme-fresh .toast.success { background: #eef7f0; border-color: #bfe0c8; color: #14532d; }
+        body.theme-fresh .toast.error   { background: #fdf0ef; border-color: #f0c4c0; color: #7f1d1d; }
+        body.theme-fresh .toast.warning { background: #fdf6e8; border-color: #eeddb5; color: #713f12; }
+        body.theme-fresh .toast.info    { background: #f2f4f7; border-color: #d8dde5; color: #1f2937; }
 
         /* Theme toggle button (sidebar) */
         .theme-toggle-btn {
@@ -17021,6 +17027,8 @@ President, Med&amp;X</textarea>
             warning(msg) { this.show(msg, 'warning'); },
             info(msg) { this.show(msg, 'info'); }
         };
+        // A top-level const never reaches window.*, so every `if (window.Toast)` guard was dead.
+        window.Toast = Toast;
 
         // ==================== ORGANISATION SIGNATURE (Settings -> Signature) ====================
         // The ONE org-level founder signature, shared by every signed artifact (council invitations,
@@ -17117,6 +17125,8 @@ President, Med&amp;X</textarea>
         }
 
         const App = {
+            // Legacy call sites use App.showToast(msg, type) — route them to Toast.
+            showToast(message, type) { Toast.show(message, type || 'info'); },
             token: null,
             user: null,
             teamMember: null,
@@ -52761,6 +52771,9 @@ By applying to this program, I give the following consents:
 
         // Initialize FinanceApp when Finances section is shown
         const originalShowSection = App.showSection;
+        // Same const-not-on-window trap as Toast: `if (window.App)` guards were permanently dead.
+        window.App = App;
+
         App.showSection = function(sectionId, navItem, skipHistory) {
             originalShowSection.call(this, sectionId, navItem, skipHistory);
             if (sectionId === 'finances') {
