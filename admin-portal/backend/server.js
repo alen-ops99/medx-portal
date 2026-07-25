@@ -28864,11 +28864,62 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         if (!['approved', 'rejected', 'pending'].includes(status)) {
             return res.status(400).json({ error: 'Invalid status' });
         }
+        const previous = query.get(`SELECT * FROM gala_registrations WHERE id = ?`, [req.params.id]);
+        if (!previous) {
+            return res.status(404).json({ error: 'Registration not found' });
+        }
         db.run(`UPDATE gala_registrations SET status = ?, admin_notes = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?`,
             [status, admin_notes || '', req.user.email, new Date().toISOString(), req.params.id]);
         saveDb();
         queueGalaPickerSync('gala-status-change'); // post-commit, fire-and-forget — never blocks this response
         const updated = query.get(`SELECT * FROM gala_registrations WHERE id = ?`, [req.params.id]);
+        logAudit(req, 'gala.registration.status', `${updated.email || req.params.id}: ${previous.status} -> ${status}`);
+
+        // Notify the guest on a real transition only (re-saving notes or clicking twice must not re-email).
+        // The guest pays on the USER portal (#gala section) — checkout requires status='approved' there.
+        if (updated && updated.email && status !== previous.status) {
+            const userPortalUrl = (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+            const galaUrl = userPortalUrl + '/#gala';
+            if (status === 'approved') {
+                try {
+                    const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
+                    const priceMap = { 'gala-only': settings.price_gala_only, 'bundle': settings.price_bundle };
+                    const price = priceMap[updated.pricing];
+                    const priceLine = price ? ` (&euro;${price})` : '';
+                    sendEmail(updated.email, 'Your Gala Evening Invitation Has Been Approved!', buildEmailTemplate('Invitation Approved', `
+                        <p>Dear ${updated.first_name},</p>
+                        <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
+                            Your invitation to the Plexus 2026 Gala Evening has been approved!
+                        </p>
+                        <p>We are delighted to welcome you to an exclusive evening of networking, fine dining, and celebration with leading minds in biomedicine.</p>
+                        ${updated.pricing ? `<p><strong>Ticket Category:</strong> ${updated.pricing}${priceLine}</p>` : ''}
+                        <p style="margin-top: 20px;">To secure your seat, please complete your payment in the Med&amp;X portal:</p>
+                        <div style="text-align: center; margin: 24px 0;">
+                            <a href="${galaUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px;">Complete Payment</a>
+                        </div>
+                        <p style="font-size: 13px; color: #64748b;">Sign in with this email address (${updated.email}). If you do not have a portal account yet, create one with this same address &mdash; your approved invitation will be waiting in the Gala section.</p>
+                        <p>If you have any questions or need assistance with payment, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
+                        <p>We look forward to seeing you there!</p>
+                        <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+                    `));
+                } catch (emailErr) {
+                    console.warn('Gala approval email failed:', emailErr.message);
+                }
+            } else if (status === 'rejected') {
+                try {
+                    sendEmail(updated.email, 'Your Gala Evening Invitation Request', buildEmailTemplate('Invitation Update', `
+                        <p>Dear ${updated.first_name},</p>
+                        <p>Thank you for your interest in the Plexus 2026 Gala Evening.</p>
+                        <p>After careful review, we are unable to extend an invitation on this occasion. Seating for the evening is very limited, and demand this year has been exceptional.</p>
+                        <p>We would be glad to welcome you at other Plexus Week events, and we hope to see you at a future Med&amp;X occasion.</p>
+                        <p>If you have any questions, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
+                        <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+                    `));
+                } catch (emailErr) {
+                    console.warn('Gala rejection email failed:', emailErr.message);
+                }
+            }
+        }
         res.json({ success: true, registration: updated });
     });
 
