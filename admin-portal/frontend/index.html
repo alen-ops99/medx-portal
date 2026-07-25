@@ -7098,7 +7098,7 @@
         <div class="onboarding-card">
             <h2>Welcome, <span id="onboardingName">there</span>!</h2>
             <p class="onboarding-subtitle">Choose the sections you work with. You can change this anytime.</p>
-            <div class="section-grid" id="onboardingGrid"></div>
+            <div class="section-grid" id="onboardingGrid" style="max-height: min(52vh, 560px); overflow-y: auto; padding-right: 6px;"></div>
             <div class="onboarding-actions">
                 <button class="onboarding-btn onboarding-btn-primary" id="onboardingSubmit" onclick="App.saveOnboarding()" disabled>Get Started</button>
             </div>
@@ -7593,9 +7593,6 @@
                                 </label>
                                 <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin:12px 0 8px;">Sections</div>
                                 <label style="display:flex; align-items:center; gap:10px; padding:7px 4px; cursor:pointer; font-size:13px; color:var(--text-primary);">
-                                    <input type="checkbox" checked onchange="App.toggleWidget('dashTimeline', this.checked)"> <i class="fas fa-calendar-alt" style="color:#c9a962;width:16px;"></i> Upcoming milestones
-                                </label>
-                                <label style="display:flex; align-items:center; gap:10px; padding:7px 4px; cursor:pointer; font-size:13px; color:var(--text-primary);">
                                     <input type="checkbox" checked onchange="App.toggleWidget('dashTrends', this.checked)"> <i class="fas fa-chart-area" style="color:#c2484e;width:16px;"></i> Registration trends
                                 </label>
                                 <label style="display:flex; align-items:center; gap:10px; padding:7px 4px; cursor:pointer; font-size:13px; color:var(--text-primary);">
@@ -7669,6 +7666,21 @@
                         </details>
                     </div>
 
+                    <!-- Registration Trends (dependency-free SVG sparkline — always renders) -->
+                    <div class="card" id="dashTrends" style="margin-bottom: 28px;">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span class="card-title">Registration trends <span style="font-weight:400; color:var(--text-muted); font-size:12px;">— last 30 days</span></span>
+                            <select id="trendEventFilter" onchange="App.loadRegistrationTrendsChart(this.value)" style="font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer;">
+                                <option value="all">All events</option>
+                                <option value="plexus">Plexus only</option>
+                                <option value="accelerator">Accelerator only</option>
+                            </select>
+                        </div>
+                        <div class="card-body" style="min-height: 200px;">
+                            <div id="dashTrendSpark" style="width:100%;"></div>
+                        </div>
+                    </div>
+
                     <!-- ===== ADVISORY BOARD — quiet home card (latest headline per seat) ===== -->
                     <div class="card" id="dashAdvisoryBoard" style="margin-bottom: 28px; display: none;">
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -7702,25 +7714,6 @@
                         </div>
                     </div>
 
-                    <!-- ===== CONTENT TO FILL — placeholders still owed across the site + portal ===== -->
-                    <div class="card" id="dashContentChecklist" style="margin-bottom: 28px;">
-                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                            <span class="card-title">
-                                Content to fill
-                                <span id="contentChecklistBadge" style="display:none; margin-left:8px; background:var(--danger); color:#fff; border-radius:11px; font-size:11px; font-weight:700; padding:1px 8px; vertical-align:middle;">0</span>
-                                <span style="font-weight:400; color:var(--text-muted); font-size:12px;">&mdash; placeholders still owed across the website and portal</span>
-                            </span>
-                            <button class="btn btn-secondary" onclick="ContentChecklist.load()" style="font-size: 11px; padding: 5px 12px;" title="Refresh">
-                                <i class="fas fa-sync"></i> Refresh
-                            </button>
-                        </div>
-                        <div class="card-body">
-                            <div id="contentChecklistBody" style="min-height: 80px;">
-                                <div style="color:var(--text-muted); font-size:13px; padding:8px 2px;">Loading content checklist&hellip;</div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Pinned Items (from any project) -->
                     <div id="pinnedItemsSection" style="display: none; margin-bottom: 24px;">
                         <div class="section-header" style="margin-bottom: 12px;">
@@ -7747,20 +7740,6 @@
                         </div>
                     </div>
 
-                    <!-- Upcoming milestones (vertical list — nothing can overlap) -->
-                    <div class="card" id="dashTimeline">
-                        <div class="card-header">
-                            <span class="card-title">Upcoming milestones</span>
-                            <div class="timeline-today-marker">
-                                <i class="fas fa-calendar-day"></i>
-                                <span id="todayDate">Today</span>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <div class="milestone-list" id="timelineContainer"></div>
-                        </div>
-                    </div>
-
                     <!-- Tasks -->
                     <div class="card" id="dashTodo">
                         <div class="card-header">
@@ -7769,11 +7748,16 @@
                                 <i class="fas fa-plus"></i> Add
                             </button>
                         </div>
-                        <div class="card-body" id="dashboardTasks">
-                            <div class="empty-state">
-                                <i class="fas fa-check-circle"></i>
-                                <p>Loading tasks...</p>
-                            </div>
+                        <div class="card-body">
+                            <details>
+                                <summary style="cursor:pointer; font-size:12.5px; font-weight:600; color:var(--text-muted); padding-bottom:8px; list-style:none;"><i class="fas fa-chevron-down" style="margin-right:6px; font-size:10px;"></i>Show tasks</summary>
+                                <div id="dashboardTasks">
+                                    <div class="empty-state">
+                                        <i class="fas fa-check-circle"></i>
+                                        <p>Loading tasks...</p>
+                                    </div>
+                                </div>
+                            </details>
                         </div>
                     </div>
 
@@ -7785,11 +7769,16 @@
                                 <i class="fas fa-plus"></i> New
                             </button>
                         </div>
-                        <div class="card-body" id="dashboardSequences">
-                            <div class="empty-state">
-                                <i class="fas fa-stream"></i>
-                                <p>No active sequences</p>
-                            </div>
+                        <div class="card-body">
+                            <details>
+                                <summary style="cursor:pointer; font-size:12.5px; font-weight:600; color:var(--text-muted); padding-bottom:8px; list-style:none;"><i class="fas fa-chevron-down" style="margin-right:6px; font-size:10px;"></i>Show sequences</summary>
+                                <div id="dashboardSequences">
+                                    <div class="empty-state">
+                                        <i class="fas fa-stream"></i>
+                                        <p>No active sequences</p>
+                                    </div>
+                                </div>
+                            </details>
                         </div>
                     </div>
 
@@ -7823,20 +7812,7 @@
                         </div>
                     </div>
 
-                    <!-- Registration Trends (dependency-free SVG sparkline — always renders) -->
-                    <div class="card" id="dashTrends">
-                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                            <span class="card-title">Registration trends <span style="font-weight:400; color:var(--text-muted); font-size:12px;">— last 30 days</span></span>
-                            <select id="trendEventFilter" onchange="App.loadRegistrationTrendsChart(this.value)" style="font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer;">
-                                <option value="all">All events</option>
-                                <option value="plexus">Plexus only</option>
-                                <option value="accelerator">Accelerator only</option>
-                            </select>
-                        </div>
-                        <div class="card-body" style="min-height: 200px;">
-                            <div id="dashTrendSpark" style="width:100%;"></div>
-                        </div>
-                    </div>
+
 
                     <!-- Notes Canvas -->
                     <div class="card" id="dashNotes">
@@ -17153,13 +17129,11 @@ President, Med&amp;X</textarea>
 
             // Timeline events (sub-events for Bridges and Accelerator)
             // type: 'point' for single events, 'range' for periods
+            // REAL dates only (2026-07-25): the fabricated Bridges cities and the wrong Forum
+            // date are gone. These two drive the deadline pills; the milestones card is removed.
             timelineEvents: [
                 { id: 'plexus', parent: 'plexus', name: 'Plexus Conference', color: '#9b1b22', date: '2026-12-04', type: 'point' },
-                { id: 'forum', parent: 'forum', name: 'Biomedical Forum', color: '#fb923c', date: '2026-12-06', type: 'point' },
-                // Bridges events
-                { id: 'bridges-zurich', parent: 'bridges', name: 'Zurich Symposium', color: '#c9a962', date: '2026-03-15', type: 'point' },
-                { id: 'bridges-washington', parent: 'bridges', name: 'Washington Event', color: '#c9a962', date: '2026-04-18', type: 'point' },
-                { id: 'bridges-boston', parent: 'bridges', name: 'Boston Symposium', color: '#c9a962', date: '2026-09-20', type: 'point' },
+                { id: 'gala', parent: 'plexus', name: 'Gala Evening', color: '#c9a962', date: '2026-12-05', type: 'point' },
             ],
 
             // ========== CUSTOMIZABLE DASHBOARD CARDS ==========
@@ -17531,7 +17505,8 @@ President, Med&amp;X</textarea>
 
                 // Set today's date
                 const today = new Date();
-                document.getElementById('todayDate').textContent = today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                const todayEl = document.getElementById('todayDate'); // element left with the removed milestones card
+                if (todayEl) todayEl.textContent = today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
                 // Presence heartbeat for the founder-only usage stats (BEFORE the staff early
                 // return so scanner-staff presence counts too). Beats only while the tab is
@@ -18290,7 +18265,7 @@ President, Med&amp;X</textarea>
                 // stats hiccup never hides the actionable items.
                 this.loadActionCenter();
                 // The Content-to-fill card loads independently too (owner-owned placeholder tracker).
-                ContentChecklist.load();
+                // Content-to-fill card removed from the homepage (Alen 2026-07-25); data + section live on.
                 // The Executive Suite quiet home card loads independently (advice-only, never blocks stats).
                 if (typeof AdvisoryBoard !== 'undefined') AdvisoryBoard.loadHomeCard();
                 try {
@@ -42833,38 +42808,22 @@ By applying to this program, I give the following consents:
             ca: null,     // { total, conf, bridges, galaPaid }
 
             config: [
-                { key: 'plexus', id: 'liveOv_plexus', label: 'Plexus Conference', section: 'plexus', color: '#c2484e', icon: 'fa-users',
-                  metrics(c) { const s = c.summary.plexus || {}, ps = c.ps.plexus || {};
-                    return { big: s.registrations || 0, bigLabel: 'registered',
-                        sub: `${ps.paid || 0} paid · €${Math.round(ps.revenue || 0).toLocaleString()}`,
-                        foot: c.deadline(['plexus']) }; } },
-                { key: 'gala', id: 'liveOv_gala', label: 'Gala Evening', section: 'gala', color: '#c9a962', icon: 'fa-glass-cheers',
-                  metrics(c) { const g = c.gala || {};
-                    // "paid people" (head count incl. plus-ones), matching the Gala section's "Paid people"
-                    // tile — a plus-one arrives on the registrant's one QR, so the room count > booking count.
-                    return { big: g.paid || 0, bigLabel: 'paid people',
-                        sub: `${g.vip || 0} VIP · ${g.awaiting || 0} to chase · €${Math.round(g.revenue || 0).toLocaleString()}`,
+                // Alen 2026-07-25: ONE bigger Plexus Week card holding conference + gala + the
+                // diaspora/donor-night guests, with the chase numbers. Accelerator / Forum /
+                // Bridges tiles removed — their numbers were demo-seeded fiction.
+                { key: 'plexusweek', id: 'liveOv_plexusweek', label: 'Plexus Week — 4–5 Dec 2026, Zagreb', section: 'plexus', icon: 'fa-crown', wide: true,
+                  metrics(c) { const s = c.summary.plexus || {}, g = c.gala || {}, a = c.ca || {};
+                    return { rows: [
+                        { label: 'Plexus Conference', value: `${s.registrations || 0}`, unit: 'registered', sub: 'free entry', section: 'plexus' },
+                        { label: 'Gala Evening', value: `${g.paid || 0}`, unit: 'paid people', sub: `${g.vip || 0} VIP · ${g.awaiting || 0} to chase · €${Math.round(g.revenue || 0).toLocaleString()}`, section: 'gala' },
+                        { label: 'Croatians Abroad · Donor Night', value: `${a.total || 0}`, unit: 'invited guests', sub: (a.total ? `${a.conf || 0} conference · ${a.bridges || 0} bridges · ${a.galaPaid || 0} gala paid` : 'no registrations yet'), section: 'croatians-abroad' },
+                    ], foot: c.deadline(['plexus']) }; } },
+                { key: 'finances', id: 'liveOv_finances', label: 'Finances', section: 'finances', icon: 'fa-coins',
+                  metrics(c) { const ps = c.ps.plexus || {}, g = c.gala || {};
+                    const collected = Math.round((Number(ps.revenue) || 0) + (Number(g.revenue) || 0));
+                    return { big: `€${collected.toLocaleString()}`, bigLabel: 'collected',
+                        sub: `${g.awaiting || 0} payment${(g.awaiting || 0) === 1 ? '' : 's'} to chase`,
                         foot: null }; } },
-                { key: 'croatians', id: 'liveOv_croatians', label: 'Croatians Abroad', section: 'croatians-abroad', color: '#c2484e', icon: 'fa-globe-europe',
-                  metrics(c) { const a = c.ca || {};
-                    return { big: a.total || 0, bigLabel: 'registered',
-                        sub: (a.total ? `${a.conf || 0} Conf · ${a.bridges || 0} Bridges · ${a.galaPaid || 0} Gala` : 'no registrations yet'),
-                        foot: null }; } },
-                { key: 'accelerator', id: 'liveOv_accelerator', label: 'Accelerator', section: 'accelerator', color: '#b06a1f', icon: 'fa-rocket',
-                  metrics(c) { const s = c.summary.accelerator || {};
-                    return { big: s.applications || 0, bigLabel: 'applications',
-                        sub: `${s.to_review || 0} to review · ${s.accepted || 0} accepted`,
-                        foot: null }; } },
-                { key: 'forum', id: 'liveOv_forum', label: 'Biomedical Forum', section: 'forum', color: '#fb923c', icon: 'fa-landmark',
-                  metrics(c) { const s = c.summary.forum || {};
-                    return { big: s.members || 0, bigLabel: 'members',
-                        sub: `${s.events || 0} event${(s.events || 0) === 1 ? '' : 's'}`,
-                        foot: c.deadline(['forum']) }; } },
-                { key: 'bridges', id: 'liveOv_bridges', label: 'Building Bridges', section: 'bridges', color: '#c9a962', icon: 'fa-globe-americas',
-                  metrics(c) { const s = c.summary.bridges || {};
-                    return { big: s.cities || 0, bigLabel: (s.cities === 1 ? 'city' : 'cities'),
-                        sub: `${s.events || 0} event${(s.events || 0) === 1 ? '' : 's'}`,
-                        foot: c.deadline(['bridges']) }; } },
             ],
 
             init() {
@@ -42934,6 +42893,30 @@ By applying to this program, I give the following consents:
                 this.render();
             },
 
+            // The Plexus Week mega-card: one card, one event week, every number inside it.
+            wideCardHtml(cfg, m) {
+                const hidden = localStorage.getItem('widget_' + cfg.id) === 'hidden';
+                const rows = m.rows.map(r => `
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="event.stopPropagation();App.showSection('${r.section}')">
+                        <div style="min-width:0;">
+                            <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);">${r.label}</div>
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${r.sub}</div>
+                        </div>
+                        <div style="flex-shrink:0;text-align:right;">
+                            <span style="font-size:24px;font-weight:700;color:var(--text-primary);line-height:1;">${r.value}</span>
+                            <span style="font-size:11px;color:var(--text-muted);margin-left:5px;">${r.unit}</span>
+                        </div>
+                    </div>`).join('');
+                return `
+                    <div class="card" id="${cfg.id}" style="grid-column:1/-1;padding:18px 20px;border-left:4px solid #9b1b22;${hidden ? 'display:none;' : ''}">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px;">
+                            <div style="font-size:11px;color:#9b1b22;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;"><i class="fas ${cfg.icon}" style="margin-right:7px;color:#c9a962;"></i>${cfg.label}</div>
+                            ${m.foot ? `<div style="font-size:11px;color:var(--warning);"><i class="fas fa-calendar-day" style="margin-right:4px;"></i>${escapeHtml(m.foot)}</div>` : ''}
+                        </div>
+                        ${rows}
+                    </div>`;
+            },
+
             cardHtml(cfg, m) {
                 const hidden = localStorage.getItem('widget_' + cfg.id) === 'hidden';
                 // Calm, uniform cards (2026-07-10): neutral border + muted icon chip, so the
@@ -42966,7 +42949,7 @@ By applying to this program, I give the following consents:
                 host.innerHTML = this.config.map(cfg => {
                     let m;
                     try { m = cfg.metrics(ctx); } catch (e) { m = { big: 0, bigLabel: '', sub: '—', foot: null }; }
-                    return this.cardHtml(cfg, m);
+                    return m.rows ? this.wideCardHtml(cfg, m) : this.cardHtml(cfg, m);
                 }).join('');
             }
         };
@@ -54933,9 +54916,9 @@ By applying to this program, I give the following consents:
     <!-- ================= EVENT-DAY STAFF TRACKING (queue 5a5j) — styles + modules ================= -->
     <style id="staff-tracking-styles">
       /* ---- staff-side sharing FAB + indicator + panel ---- */
-      .share-fab { position: fixed; bottom: 224px; right: 28px; width: 56px; height: 56px; border-radius: 50%;
-        background: #0f766e; color: #fff; border: none; font-size: 20px; cursor: pointer;
-        box-shadow: 0 4px 14px rgba(15,118,110,.4); z-index: 900; display: none; align-items: center; justify-content: center;
+      .share-fab { position: fixed; bottom: 182px; right: 16px; width: 46px; height: 46px; border-radius: 50%;
+        background: #c9a962; color: #15110f; border: none; font-size: 18px; cursor: pointer;
+        box-shadow: 0 4px 14px rgba(201,169,98,.45); z-index: 900; display: none; align-items: center; justify-content: center;
         transition: transform .2s, box-shadow .2s; }
       .share-fab:hover { transform: scale(1.08); }
       .share-fab.sharing { background: var(--danger); box-shadow: 0 0 0 0 rgba(var(--red-rgb),.6); animation: sharePulse 1.8s infinite; }
@@ -56307,14 +56290,14 @@ By applying to this program, I give the following consents:
                         { o: 'Paper list at the door', n: 'QR check-in' },
                     ],
                     cards: [
-                        { old: 'Instagram, one by one', title: 'Content Studio', h: 'Stop posting one platform at a time.', p: 'Write it once, brand it, and get a ready-to-post caption and image — the portal does everything up to the final Share.' },
-                        { old: 'MailChimp / mail-merge', title: 'Email registrants', h: 'Email everyone who registered, in one send.', p: 'Pick an event, write once, and it goes to the whole list — held in the Outbox for a final approval before anything leaves.', foot: 'Live email needs the sending key switched on.' },
-                        { old: 'Paper list at the door', title: 'QR check-in', h: 'No more paper lists at the door.', p: "Scan a guest's phone, they're checked in, and your headcount updates live." },
-                        { old: 'Ten spreadsheets', title: 'Finances', h: 'Your budget stops living in ten spreadsheets.', p: 'Budget, invoices, transactions and Croatian reconciliation in one running ledger.' },
-                        { old: 'From memory', title: 'Campaigns & Planner', h: 'Never lose a sponsor in your inbox again.', p: 'Plan one to three months of outreach, with drafts and reminders queued for you.' },
-                        { old: 'Calling around', title: 'Project homes & Executive Suite', h: 'Stop calling around to ask where things stand.', p: 'Live numbers on every project home, plus a weekly AI read from your CMO, CFO and COO.' },
-                        { old: 'Badges by hand in Canva', title: 'Print Suite', h: 'Print every badge from the guest list itself.', p: 'Pull the whole roster and get print-ready badge sheets, roll-up banners and signage — each badge carries a member-verify QR.' },
-                        { old: 'Ten open browser tabs', title: 'Assistant · Research', h: 'Ask the assistant instead of opening ten tabs.', p: 'Built-in research and drafting — ask a question, get a sourced answer you can act on.', foot: 'The research tool needs the AI key switched on.' },
+                        { goto: 'content-studio', old: 'Instagram, one by one', title: 'Content Studio', h: 'Stop posting one platform at a time.', p: 'Write it once, brand it, and get a ready-to-post caption and image — the portal does everything up to the final Share.' },
+                        { goto: 'email-blast', old: 'MailChimp / mail-merge', title: 'Email registrants', h: 'Email everyone who registered, in one send.', p: 'Pick an event, write once, and it goes to the whole list — held in the Outbox for a final approval before anything leaves.', foot: 'Live email needs the sending key switched on.' },
+                        { goto: 'qr-checkin', old: 'Paper list at the door', title: 'QR check-in', h: 'No more paper lists at the door.', p: "Scan a guest's phone, they're checked in, and your headcount updates live." },
+                        { goto: 'finances', old: 'Ten spreadsheets', title: 'Finances', h: 'Your budget stops living in ten spreadsheets.', p: 'Budget, invoices, transactions and Croatian reconciliation in one running ledger.' },
+                        { goto: 'pr-media-planner', old: 'From memory', title: 'Campaigns & Planner', h: 'Never lose a sponsor in your inbox again.', p: 'Plan one to three months of outreach, with drafts and reminders queued for you.' },
+                        { goto: 'advisors', old: 'Calling around', title: 'Project homes & Executive Suite', h: 'Stop calling around to ask where things stand.', p: 'Live numbers on every project home, plus a weekly AI read from your CMO, CFO and COO.' },
+                        { goto: 'print-suite', old: 'Badges by hand in Canva', title: 'Print Suite', h: 'Print every badge from the guest list itself.', p: 'Pull the whole roster and get print-ready badge sheets, roll-up banners and signage — each badge carries a member-verify QR.' },
+                        { goto: 'assistant', old: 'Ten open browser tabs', title: 'Assistant · Research', h: 'Ask the assistant instead of opening ten tabs.', p: 'Built-in research and drafting — ask a question, get a sourced answer you can act on.', foot: 'The research tool needs the AI key switched on.' },
                     ],
                     close: { h: "That's the tour. It's all in the left menu whenever you need it.", dash: 'Take me to the Dashboard', guide: 'Want the deeper Claude Code guide?' },
                 },
@@ -56332,14 +56315,14 @@ By applying to this program, I give the following consents:
                         { o: 'Papirnati popis na ulazu', n: 'QR prijava' },
                     ],
                     cards: [
-                        { old: 'Instagram, jedan po jedan', title: 'Content Studio', h: 'Prestanite objavljivati platformu po platformu.', p: 'Napišite jednom, uredite u prepoznatljivom stilu i dobijte gotov tekst i sliku za objavu — portal odradi sve do posljednjeg klika na Podijeli.' },
-                        { old: 'MailChimp / spajanje adresa', title: 'E-pošta prijavljenima', h: 'Pošaljite e-poruku svima koji su se prijavili, jednim slanjem.', p: 'Odaberite događaj, napišite jednom i poruka ide cijelom popisu — uz zadržavanje u Odlaznom pretincu za konačnu potvrdu prije slanja.', foot: 'Za stvarno slanje e-pošte mora biti uključen ključ za slanje.' },
-                        { old: 'Papirnati popis na ulazu', title: 'QR prijava', h: 'Nema više papirnatih popisa na ulazu.', p: 'Skenirajte mobitel gosta, prijava je gotova, a broj prisutnih ažurira se uživo.' },
-                        { old: 'Deset tablica', title: 'Financije', h: 'Vaš proračun više ne živi u deset tablica.', p: 'Proračun, računi, transakcije i usklađenje u jednoj knjizi — sve na hrvatskom.' },
-                        { old: 'Napamet', title: 'Kampanje i planer', h: 'Nijedan sponzor više neće nestati u vašem pretincu.', p: 'Isplanirajte jedan do tri mjeseca komunikacije, s unaprijed pripremljenim nacrtima i podsjetnicima.' },
-                        { old: 'Pozivi uokolo', title: 'Naslovnice projekata i Izvršni tim', h: 'Prestanite zvati uokolo da provjerite gdje smo.', p: 'Brojke uživo na naslovnici svakog projekta, uz tjedni AI pregled vaših savjetnika za marketing, financije i poslovanje (CMO, CFO i COO).' },
-                        { old: 'Bedževi ručno u Canvi', title: 'Ispis i oznake', h: 'Ispišite sve bedževe izravno iz popisa gostiju.', p: 'Povucite cijeli popis i dobijte listove bedževa spremne za ispis, roll-up banere i oznake — svaki bedž nosi QR za provjeru člana.' },
-                        { old: 'Deset otvorenih kartica', title: 'Pomoćnik · Istraživanje', h: 'Pitajte pomoćnika umjesto da otvarate deset kartica.', p: 'Ugrađeno istraživanje i pisanje — postavite pitanje i dobijte potkrijepljen odgovor na temelju kojeg možete odmah djelovati.', foot: 'Alat za istraživanje traži uključen AI ključ.' },
+                        { goto: 'content-studio', old: 'Instagram, jedan po jedan', title: 'Content Studio', h: 'Prestanite objavljivati platformu po platformu.', p: 'Napišite jednom, uredite u prepoznatljivom stilu i dobijte gotov tekst i sliku za objavu — portal odradi sve do posljednjeg klika na Podijeli.' },
+                        { goto: 'email-blast', old: 'MailChimp / spajanje adresa', title: 'E-pošta prijavljenima', h: 'Pošaljite e-poruku svima koji su se prijavili, jednim slanjem.', p: 'Odaberite događaj, napišite jednom i poruka ide cijelom popisu — uz zadržavanje u Odlaznom pretincu za konačnu potvrdu prije slanja.', foot: 'Za stvarno slanje e-pošte mora biti uključen ključ za slanje.' },
+                        { goto: 'qr-checkin', old: 'Papirnati popis na ulazu', title: 'QR prijava', h: 'Nema više papirnatih popisa na ulazu.', p: 'Skenirajte mobitel gosta, prijava je gotova, a broj prisutnih ažurira se uživo.' },
+                        { goto: 'finances', old: 'Deset tablica', title: 'Financije', h: 'Vaš proračun više ne živi u deset tablica.', p: 'Proračun, računi, transakcije i usklađenje u jednoj knjizi — sve na hrvatskom.' },
+                        { goto: 'pr-media-planner', old: 'Napamet', title: 'Kampanje i planer', h: 'Nijedan sponzor više neće nestati u vašem pretincu.', p: 'Isplanirajte jedan do tri mjeseca komunikacije, s unaprijed pripremljenim nacrtima i podsjetnicima.' },
+                        { goto: 'advisors', old: 'Pozivi uokolo', title: 'Naslovnice projekata i Izvršni tim', h: 'Prestanite zvati uokolo da provjerite gdje smo.', p: 'Brojke uživo na naslovnici svakog projekta, uz tjedni AI pregled vaših savjetnika za marketing, financije i poslovanje (CMO, CFO i COO).' },
+                        { goto: 'print-suite', old: 'Bedževi ručno u Canvi', title: 'Ispis i oznake', h: 'Ispišite sve bedževe izravno iz popisa gostiju.', p: 'Povucite cijeli popis i dobijte listove bedževa spremne za ispis, roll-up banere i oznake — svaki bedž nosi QR za provjeru člana.' },
+                        { goto: 'assistant', old: 'Deset otvorenih kartica', title: 'Pomoćnik · Istraživanje', h: 'Pitajte pomoćnika umjesto da otvarate deset kartica.', p: 'Ugrađeno istraživanje i pisanje — postavite pitanje i dobijte potkrijepljen odgovor na temelju kojeg možete odmah djelovati.', foot: 'Alat za istraživanje traži uključen AI ključ.' },
                     ],
                     close: { h: 'To je kraj obilaska. Sve vam je u lijevom izborniku kad god zatreba.', dash: 'Odvedite me na naslovnicu', guide: 'Želite dublji vodič za Claude Code?' },
                 },
@@ -56416,7 +56399,7 @@ By applying to this program, I give the following consents:
                                     <button class="tour-lang-btn${L === 'en' ? ' active' : ''}" data-tour-lang="en">EN</button>
                                     <button class="tour-lang-btn${L === 'hr' ? ' active' : ''}" data-tour-lang="hr">HR</button>
                                 </span>
-                                <button class="tour-skip" data-tour-step="close">${esc(c.skip)}</button>
+                                <button class="tour-skip" data-tour-goto="dashboard">${esc(c.skip)}</button>
                             </div>
                         </div>
                         <div class="tour-card in" data-step="0" style="--tour-accent:var(--gold);">
