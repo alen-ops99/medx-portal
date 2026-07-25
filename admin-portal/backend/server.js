@@ -28883,9 +28883,18 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const galaUrl = userPortalUrl + '/#gala';
             if (status === 'approved') {
                 try {
+                    // ONE Gala price, same as the user portal's effectiveGalaPrice(): the Live
+                    // Editor gala component is the early-bird price, stepping up to regular after
+                    // the deadline. The legacy 'bundle' tier is abolished (2026-07-25).
                     const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
-                    const priceMap = { 'gala-only': settings.price_gala_only, 'bundle': settings.price_bundle };
-                    const price = priceMap[updated.pricing];
+                    let comp = null;
+                    try { comp = query.get("SELECT price FROM event_components WHERE event_type='plexus' AND component_key='gala' AND is_active=1"); } catch (e) {}
+                    const ebPrice = (comp && comp.price != null) ? Number(comp.price) : Number(settings.price_gala_early_bird);
+                    const regularPrice = Number.isFinite(Number(settings.price_gala_regular)) ? Number(settings.price_gala_regular) : ebPrice;
+                    const deadline = settings.early_bird_deadline || '2026-09-01';
+                    const price = Number.isFinite(ebPrice)
+                        ? (new Date().toISOString().slice(0, 10) <= deadline ? ebPrice : regularPrice)
+                        : (Number(settings.price_gala_only) || 150);
                     const priceLine = price ? ` (&euro;${price})` : '';
                     // Direct payment link: one click -> Stripe Checkout, no portal login needed.
                     // The user portal serves /pay/gala/<token> off the shared DB (pay_token column).
@@ -28902,7 +28911,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                             Your invitation to the Plexus 2026 Gala Evening has been approved!
                         </p>
                         <p>We are delighted to welcome you to an exclusive evening of networking, fine dining, and celebration with leading minds in biomedicine.</p>
-                        ${updated.pricing ? `<p><strong>Ticket Category:</strong> ${updated.pricing}${priceLine}</p>` : ''}
+                        <p><strong>Ticket:</strong> Gala Evening${priceLine}</p>
                         <p style="margin-top: 20px;">To secure your seat, please complete your payment &mdash; the button below takes you straight to secure card payment:</p>
                         <div style="text-align: center; margin: 24px 0;">
                             <a href="${payUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px;">Complete Payment</a>

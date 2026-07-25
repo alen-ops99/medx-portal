@@ -11937,9 +11937,7 @@
                         iconChar = '<i class="fas fa-check-circle"></i>';
                         title = 'Invitation Approved!';
                         message = 'Your invitation has been approved. Please complete your payment to secure your seat.';
-                        const price = reg.pricing === 'bundle'
-                            ? (this.settings?.price_bundle || 174)
-                            : (this.settings?.price_gala_only || 95);
+                        const price = this.settings?.price_gala_only || 150;
                         actions = `
                             <button class="gala-btn gala-btn-primary" onclick="GalaPortal.startPayment()" style="margin-top: 20px;">
                                 <i class="fas fa-credit-card"></i> Complete Payment (\u20AC${price})

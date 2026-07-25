@@ -19937,11 +19937,11 @@ By applying to this program, I provide the following consents:
                     db.run("UPDATE gala_registrations SET payment_status = 'paid', status = 'confirmed' WHERE id = ?", [galaRegId]);
 
                     // 2. Create FIRA fiscal invoice
-                    const ticketLabel = galaReg.pricing === 'bundle' ? 'Plexus + Gala Bundle' : 'Gala Evening Only';
-                    // Fallback reads the live gala price (constant is last-resort) — the old
-                    // hardcoded 95/174 were stale once the gala-only price moved to €150.
-                    const galaPriceRow = query.get("SELECT price_gala_only, price_bundle FROM gala_settings WHERE id = 'default'") || {};
-                    const amount = galaReg.amount_paid || (galaReg.pricing === 'bundle' ? (galaPriceRow.price_bundle || 174) : (galaPriceRow.price_gala_only || 150));
+                    const ticketLabel = 'Gala Evening';
+                    // Fallback reads the live gala price (constant is last-resort) — the legacy
+                    // 'bundle' tier is abolished, one Gala price for every row.
+                    const galaPriceRow = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'") || {};
+                    const amount = galaReg.amount_paid || galaPriceRow.price_gala_only || 150;
 
                     try {
                         const firaResult = await firaService.createFiscalInvoice({
@@ -27101,13 +27101,11 @@ By applying to this program, I provide the following consents:
             if (reg.status !== 'approved') return res.status(400).json({ error: 'Registration must be approved before payment' });
             if (reg.payment_status === 'paid') return res.status(400).json({ error: 'Already paid' });
 
-            // Get pricing from settings. Gala-only uses effectiveGalaPrice() (early-bird → regular
-            // by date) so a Gala ticket costs the SAME whether booked via the Gala link or the
-            // Plexus link. Bundle keeps its own price.
-            const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
-            const price = reg.pricing === 'bundle'
-                ? (settings?.price_bundle || 174)
-                : effectiveGalaPrice();
+            // ONE Gala price: effectiveGalaPrice() (early-bird → regular by date), identical on
+            // every entry point. The legacy 'bundle' tier is abolished (2026-07-25, Alen: the
+            // conference is free, nothing to bundle) — old rows with pricing='bundle' charge the
+            // same single Gala price.
+            const price = effectiveGalaPrice();
 
             // Generate invoice number
             const year = new Date().getFullYear();
@@ -27120,7 +27118,7 @@ By applying to this program, I provide the following consents:
             saveDb();
 
             const baseUrl = `${req.protocol}://${req.get('host')}`;
-            const ticketLabel = reg.pricing === 'bundle' ? 'Plexus + Gala Bundle' : 'Gala Evening Only';
+            const ticketLabel = 'Gala Evening';
 
             const session = await stripe.checkout.sessions.create({
                 mode: 'payment',
@@ -27182,8 +27180,8 @@ By applying to this program, I provide the following consents:
         try {
             // Mirror /api/gala/checkout-session exactly (pricing, invoice numbering, metadata)
             // so the payment webhook and admin ledgers treat both paths identically.
-            const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
-            const price = reg.pricing === 'bundle' ? (settings?.price_bundle || 174) : effectiveGalaPrice();
+            // ONE Gala price — the legacy 'bundle' tier is abolished (see checkout-session).
+            const price = effectiveGalaPrice();
             let invoiceNumber = reg.invoice_number;
             if (!invoiceNumber) {
                 const count = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE invoice_number IS NOT NULL")?.c || 0;
@@ -27191,7 +27189,7 @@ By applying to this program, I provide the following consents:
             }
             db.run('UPDATE gala_registrations SET invoice_number = ?, amount_paid = ? WHERE id = ?', [invoiceNumber, price, reg.id]);
             saveDb();
-            const ticketLabel = reg.pricing === 'bundle' ? 'Plexus + Gala Bundle' : 'Gala Evening Only';
+            const ticketLabel = 'Gala Evening';
             const baseUrl = `${req.protocol}://${req.get('host')}`;
             const session = await stripe.checkout.sessions.create({
                 mode: 'payment',
