@@ -28191,7 +28191,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         }
         // Gala — guests / paid.
         if (has('gala')) {
-            const paid = assistCount("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status='paid'");
+            const paid = assistCount("SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)),0) c FROM gala_registrations WHERE payment_status IN ('paid','vip-comp') AND UPPER(COALESCE(requests,'')||' '||COALESCE(notes,'')||' '||COALESCE(invoice_number,'')) NOT LIKE '%TEST%'");
             const total = assistCount('SELECT COUNT(*) c FROM gala_registrations');
             const ci = assistCount('SELECT COUNT(*) c FROM gala_registrations WHERE checked_in=1');
             let a = `There ${paid === 1 ? 'is' : 'are'} ${paid} paid gala ${paid === 1 ? 'guest' : 'guests'} so far, out of ${total} total ${total === 1 ? 'registration' : 'registrations'}`;
@@ -35105,7 +35105,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             revenue_eur: assistSum("SELECT SUM(amount_paid) s FROM registrations WHERE payment_status='paid'") };
         o.events.gala = { label:'Plexus Gala Evening',
             registered: assistNum("SELECT COUNT(*) c FROM gala_registrations"),
-            paid: assistNum("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status='paid'"),
+            paid: assistNum("SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)),0) c FROM gala_registrations WHERE payment_status IN ('paid','vip-comp') AND UPPER(COALESCE(requests,'')||' '||COALESCE(notes,'')||' '||COALESCE(invoice_number,'')) NOT LIKE '%TEST%'"),
             vip_comp: assistNum("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status='vip-comp'"),
             checked_in: assistNum("SELECT COUNT(*) c FROM gala_registrations WHERE checked_in=1"),
             revenue_eur: assistSum("SELECT SUM(amount_paid) s FROM gala_registrations WHERE payment_status='paid'") };
@@ -40378,7 +40378,7 @@ ${extraCss || ''}
         const paidAcc = advNum("SELECT COALESCE(SUM(COALESCE(payment_amount,75)),0) c FROM accelerator_applications WHERE payment_status='paid' AND status!='draft'");
         const paidForum = advNum("SELECT COALESCE(SUM(COALESCE(r.payment_amount, e.price, 0)),0) c FROM forum_event_registrations r JOIN forum_events e ON r.event_id=e.id WHERE e.is_paid=1 AND r.payment_status='paid'");
         const paidCount = advNum("SELECT COUNT(*) c FROM registrations r JOIN conferences c2 ON r.conference_id=c2.id WHERE c2.slug='plexus-2026' AND r.status!='cancelled' AND r.payment_status='paid'")
-            + advNum("SELECT COUNT(*) c FROM gala_registrations WHERE payment_status='paid'")
+            + advNum("SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)),0) c FROM gala_registrations WHERE payment_status IN ('paid','vip-comp') AND UPPER(COALESCE(requests,'')||' '||COALESCE(notes,'')||' '||COALESCE(invoice_number,'')) NOT LIKE '%TEST%'")
             + advNum("SELECT COUNT(*) c FROM accelerator_applications WHERE payment_status='paid' AND status!='draft'")
             + advNum("SELECT COUNT(*) c FROM forum_event_registrations r JOIN forum_events e ON r.event_id=e.id WHERE e.is_paid=1 AND r.payment_status='paid'");
         pack.push(advVal('paid_revenue_total', 'Registration revenue collected (EUR)', 'Naplaćeni prihod od prijava (EUR)', advRound(paidPlexus + paidGala + paidAcc + paidForum), 'EUR'));

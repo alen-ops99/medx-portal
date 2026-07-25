@@ -13739,7 +13739,7 @@ async function submitReset(e){
     // (PUT /api/admin/project-status/:key) and the change propagates here with no code change.
     const PROJECT_HUB_ORDER = ['plexus', 'gala', 'accelerator', 'forum', 'bridges'];
     app.get('/api/project-status', auth, (req, res) => {
-        const rows = query.all('SELECT project_key, status_label, status_kind, detail_line, cta_label, cta_target, updated_at FROM project_status');
+        const rows = query.all('SELECT project_key, status_label, status_kind, detail_line, cta_label, cta_target, updated_at, status_label_hr, detail_line_hr, cta_label_hr FROM project_status');
         const byKey = {};
         rows.forEach(r => { byKey[r.project_key] = r; });
         // Emit in fixed hub order, keeping any extra admin-added rows after the canonical five.
@@ -16872,7 +16872,7 @@ By applying to this program, I provide the following consents:
                 FROM forum_events fe
                 LEFT JOIN forum_members fm ON fe.organizer_id = fm.id
                 LEFT JOIN users u ON fm.user_id = u.id
-                WHERE (fe.status = 'published' OR fe.is_published = 1)`;
+                WHERE fe.is_published = 1`;
 
             if (upcoming) sql += ` AND fe.start_date >= date('now')`;
             if (past) sql += ` AND fe.start_date < date('now')`;
