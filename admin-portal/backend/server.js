@@ -999,6 +999,16 @@ const query = {
     }
 };
 
+// Once the production demo purge has run (app_state marker), the demo seed blocks must never
+// re-arm — an emptied table would otherwise re-seed on the next boot, and the admin/user seed
+// variants have drifted apart (the admin pr_posts INSERT crashes against the user-created
+// schema). Fresh dev DBs have no marker, so local seeding keeps working.
+function demoSeedsBlocked() {
+    try { return !!query.get("SELECT 1 FROM app_state WHERE key='demo_purge_2026_07_25'"); }
+    catch (e) { return false; }
+}
+
+
 // Active conference resolver (multi-year support) — used by the Plexus Settings
 // price sync so admin price edits flow into the ticket_types rows of whichever
 // year is live. REQUIRES the active row to have ticket tiers (so a ticketless or
@@ -5190,7 +5200,7 @@ async function initializeApp() {
     // institutions among international ones) so every pipeline state renders. Idempotent: only when
     // the table is empty. Diacritics (č ć đ š ž) are stored verbatim to prove they survive.
     try {
-        const _fcSeeded = query.get("SELECT COUNT(*) AS c FROM forum_candidates");
+        const _fcSeeded = demoSeedsBlocked() ? { c: 1 } : query.get("SELECT COUNT(*) AS c FROM forum_candidates");
         if (!_fcSeeded || !_fcSeeded.c) {
             const _now = Date.now();
             const _ago = (d) => new Date(_now - d * 86400000).toISOString();
@@ -8487,6 +8497,7 @@ async function initializeApp() {
         }
     } catch(e) { console.warn('[Migration] free-conference-tiers failed:', e.message); }
 
+
     // Phase 6B: QR code for bridges registrations
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
 
@@ -8844,7 +8855,7 @@ async function initializeApp() {
     }
 
     // Seed team members
-    let teamExists = query.get("SELECT id FROM team_members LIMIT 1");
+    let teamExists = demoSeedsBlocked() || query.get("SELECT id FROM team_members LIMIT 1");
     if (!teamExists) {
         // Get admin user IDs for linking
         const alenUser = query.get("SELECT id FROM users WHERE email = 'juginovic.alen@gmail.com'");
@@ -8938,7 +8949,7 @@ async function initializeApp() {
     }
 
     // Seed Biomedical Forum members and events
-    let forumMembersExist = query.get("SELECT id FROM forum_members LIMIT 1");
+    let forumMembersExist = demoSeedsBlocked() || query.get("SELECT id FROM forum_members LIMIT 1");
     if (!forumMembersExist) {
         // Create forum members (senior leaders network)
         const forumMembers = [
@@ -9020,7 +9031,7 @@ async function initializeApp() {
     }
 
     // Seed Finance sample data
-    let financeDataExists = query.get("SELECT id FROM finance_bank_balance LIMIT 1");
+    let financeDataExists = demoSeedsBlocked() || query.get("SELECT id FROM finance_bank_balance LIMIT 1");
     if (!financeDataExists) {
         // Bank balance entries
         const bankBalances = [
@@ -10001,7 +10012,7 @@ async function initializeApp() {
     }
 
     // Seed PR & Media sample data
-    let prDataExists = query.get("SELECT id FROM pr_posts LIMIT 1");
+    let prDataExists = demoSeedsBlocked() || query.get("SELECT id FROM pr_posts LIMIT 1");
     if (!prDataExists) {
         // ========================================
         // SOCIAL MEDIA POSTS (Published)
@@ -10213,7 +10224,7 @@ async function initializeApp() {
     // ========================================
     // SEED BUILDING BRIDGES EVENTS
     // ========================================
-    let bridgesDataExists = query.get("SELECT id FROM bridges_events LIMIT 1");
+    let bridgesDataExists = demoSeedsBlocked() || query.get("SELECT id FROM bridges_events LIMIT 1");
     if (!bridgesDataExists) {
         const bridgesEvents = [
             {
@@ -10593,7 +10604,7 @@ async function initializeApp() {
     // ========================================
     // SEED PENDING ITEMS (for admin dashboard)
     // ========================================
-    let pendingExists = query.get("SELECT id FROM refund_requests LIMIT 1");
+    let pendingExists = demoSeedsBlocked() || query.get("SELECT id FROM refund_requests LIMIT 1");
     if (!pendingExists) {
       // Demo dashboard data. Wrapped so a placeholder FK violation (these reference
       // non-existent registration ids) can't abort the whole boot on a fresh DB.
@@ -10628,7 +10639,7 @@ async function initializeApp() {
     // ========================================
     // SEED CHAT MESSAGES
     // ========================================
-    let chatMsgExists = query.get("SELECT id FROM chat_messages LIMIT 1");
+    let chatMsgExists = demoSeedsBlocked() || query.get("SELECT id FROM chat_messages LIMIT 1");
     if (!chatMsgExists) {
       try {
         const generalCh = query.get("SELECT id FROM chat_channels WHERE name = 'general'");
@@ -10680,7 +10691,7 @@ async function initializeApp() {
     // ========================================
     // SEED ACCELERATOR APPLICATIONS
     // ========================================
-    let accAppExists = query.get("SELECT id FROM accelerator_applications LIMIT 1");
+    let accAppExists = demoSeedsBlocked() || query.get("SELECT id FROM accelerator_applications LIMIT 1");
     if (!accAppExists) {
         const progRow = query.get("SELECT id FROM accelerator_programs LIMIT 1");
         if (progRow) {
@@ -41364,6 +41375,13 @@ ${extraCss || ''}
         const _fp = require('crypto').createHash('sha256').update(_norm).digest('hex').slice(0, 16);
         console.log('[Schema] ' + _tbls.length + ' tables, fingerprint ' + _fp);
     } catch (_e) { console.error('[Schema] fingerprint failed:', _e.message); }
+
+    // Demo-data purge (Alen 2026-07-25: "the portal must show REAL numbers only"). MUST run at
+    // the very end of init — the seed blocks above re-arm on empty tables, so purging any
+    // earlier re-seeds the fakes. Production-only, idempotent, victims backed up to _purged_*.
+    try {
+        require('./demo-purge.js').runDemoPurge(db, query, saveDb);
+    } catch (e) { console.warn('[DemoPurge] module failed:', e.message); }
 
     app.listen(PORT, () => {
         console.log(`Med&X Admin Portal running on http://localhost:${PORT}`);

@@ -1,46 +1,49 @@
-# Broken-things sweep — fix batch (2026-07-20) — ALL DONE, deployed 82c9fd7 + 44ed67a, live-verified EN+HR
+# Admin Portal Overhaul — Alen's comments 2026-07-25 ("skeleton → muscles")
 
-Source: commissioned sweep (30-agent audit + live browser pass, all findings adversarially verified).
-Full findings JSON: /private/tmp/claude-501/-Users-alen/d47fa78e-4f04-4103-a514-06b17b01cd53/tasks/wuzn44pj2.output
-Previous todo archived at tasks/todo-archive-2026-06-10-full-audit.md.
+Directive given verbally before his 2h call; computer is ours. Plan → deep review (1-2h, three
+parallel auditors) → execute → verify → deploy, incrementally.
+His answers: he adds ANTHROPIC_API_KEY on Render (both services) · backup-then-purge approved ·
+wire real analytics.
 
-## Broken (fix now)
-- [x] 1. .ics calendar links bake https://portal.medx.hr (404) — user server.js:2977 fallback chain
-- [x] 2. Prep-checklist "Add Details" throws TypeError (this=window) — make it a working mailto CTA
+## Phase 0 — Safety + truth (FIRST)
+- [ ] In-DB backup: purged rows copied to `_purged_*` tables before delete (restorable, no creds needed)
+- [ ] Exact fake-data inventory from the SEED blocks in both server.js files (target seeded rows precisely, never heuristics)
+- [ ] Purge migration (app_state-guarded, one-time): demo registrations/members/chat/tasks/action items — ambiguous rows LEFT and listed for Alen
 
-## Fake-success / fake content (member-visible, de-fake now)
-- [x] 3. Registration wizard fake paid add-ons (€35 AI workshop, €35 Grant Writing, €15 cert, €10 proceedings) — remove from seed, empty-safe render
-- [x] 4. Plexus "What Attendees Say" 5 fabricated testimonials (hardcoded + DB) — empty seed, hide-when-empty, blank DB field
-- [x] 5. Building Bridges 2 fabricated testimonials (Petra Novak / Ivan Matic) — remove cards
-- [x] 6. Forum Concierge "Message sent" but sends nothing — wire to real inbox endpoint or mailto
-- [x] 7. Pass modal "Resend Email" fake toast — remove button
-- [x] 8. Speaker photo upload "(Demo mode)" fake success — truthful message
-- [x] 9. Settings + Forum photo upload preview-only, silently unsaved — truthful message
-- [x] 10. Abstract submit catch() fakes success + awards points on network error — error toast, keep form
-- [x] 11. "Admin Access" tile → embedded legacy demo admin (demo-admin-token) — open real admin portal, delete demo fallbacks
-- [x] 12. Forum wing "My Network" fake 24-connections demo grid — real empty state
-- [x] 13. Explore Zagreb: Museum of Broken Relationships shows St. Mark's photo — fix URL (verify live before commit)
-- [x] 14. Dead "See All Recommendations" button — remove
-- [x] 15. Venue Map tile "coming soon" toast — open real venue map link
-- [x] 16. Network nav phantom "Messages 3" badge vs empty inbox — real count or hide
-- [x] 17. "People You May Know — AI-powered matches" fictional trio — remove/empty state
-- [x] 18. Profile modal fabricated 54 connections / 20 publications / 860 citations — real or hidden
-- [x] 19. member-profile-panel fake shared connections/achievements/activity — de-fake if reachable
+## Phase A — Homepage (his exact spec)
+- [ ] Action Center: clear stale/done items; henceforth computed from REAL data only
+- [ ] "Numbers to chase" (payments/speaker apps/scholarships/visas): real queries only, drop tiles with no real source
+- [ ] Live Overview → ONE bigger "Plexus Week" card (conference + gala + donor night): real registration counts + chase numbers + finance state; remove accelerator/forum/bridges fake tiles
+- [ ] Registration trends moved up next to it (one card)
+- [ ] Task Center by area (gala/plexus/forum): keep, make clearer
+- [ ] To-do lists: keep but collapsed by default
+- [ ] DELETE: "Content to fill" section + "Upcoming milestones"
+- [ ] Executive suite: weekly (Fri 17:00 Zagreb) REAL digest reading all projects via AI
+- [ ] Site analytics: wire real privacy-clean page-view tracking feeding the card
 
-## Hardening (small, do now)
-- [x] 20. Admin CORS `: true` fallback → explicit allowlist (admin server.js:945-948)
-- [x] 21. VAPID send guards require BOTH keys (user server.js:247/273/293/28415)
-- [x] 22. loadSpeakersFromDB fails open (seed revival on empty DB) — symmetric with schedule
-- [x] 23. stamp-sw.sh: auto-stamp ?v= busters in user index.html (kill the manual-bump trap); hand-bump split4→split5 this deploy
+## Phase B — Plexus Week section
+- [ ] Its Action Center: purge fake, CONNECT to the task section (urgency flows from tasks)
+- [ ] 3D Esplanade ballroom planner: exists in Gala seating (commits #47/#48) but Alen can't find it in Plexus operations — surface a card there too + verify the Gala embed renders. URL (from Alen): https://plexus-tables.netlify.app/planner.html
+- [ ] Full button inventory (communications, marketing content, every tab): fix dead/no-op buttons or remove
+- [ ] Persistence audit: everything editable must save + reload
 
-## Report only (Alen / later)
-- EMAIL_FROM: render.yaml sets noreply@medx.hr — Alen verify domain is verified in the active provider
-- Test data in prod DB (ZZZ task, QA members, sgseg institution, HR/Croatia + USA/United States dropdown dupes)
-- Post-event stubs (certificate/feedback/recordings) hidden until Dec 5 — wire before conference
-- portal.medx.hr DNS/Vercel still unset (Alen's go-live item)
+## Phase C — Branding + generated artifacts
+- [ ] Real Med&X logo image (never "MEDX" in a font) in EVERY artifact: attendance cards, roll-up banners, badges, PDFs, emails
+- [ ] Design customization (colors/layout/fields) + AI assistant for cards/banners
+- [ ] Bar: five levels up; brand truth = medx-website-preview.netlify.app (Fraunces/Inter, ink/cream/crimson #9b1b22/gold #c9a962)
 
-## Rules for this pass
-- Croatian strings ship in the same commit for every user-visible string change
-- No new inline handlers; keep existing pattern (script-src-attr 'unsafe-inline' is set here)
-- Bump sw buster: split4→split5 (app.part*.js edits)
-- CI green before done; verify live in real browser EN+HR after Render deploy
+## Phase D — Navigation + feedback
+- [ ] Browser back = previous section, not homepage (SPA history fix)
+- [ ] Empty top-right toasts: reproduce + fix; every action gives real feedback
+- [ ] Chat: reset fake content (purge), verify/expose channel creation UI
+
+## Phase E — Merciless stress test
+- [ ] Playwright sweep: every section/button — handler fires, no console errors, toast non-empty
+- [ ] Test emails → juginovic.alen@gmail.com (check spam; SPF still pending)
+- [ ] Generate every artifact type → ~/Downloads → READ back for quality + logo
+- [ ] Final report: fixed / removed / needs-Alen
+
+## Working rules
+- Branch per phase off origin/main; local verify on scratch DB; deploy; live-verify (sw.js SHA)
+- macOS has no `timeout` — nohup+sleep+kill; never edit while dev servers serve
+- Purge = backup tables first; ambiguous rows untouched

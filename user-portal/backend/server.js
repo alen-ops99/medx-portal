@@ -5436,6 +5436,16 @@ const query = {
     }
 };
 
+// Once the production demo purge has run (app_state marker), the demo seed blocks must never
+// re-arm — an emptied table would otherwise re-seed on the next boot, and the admin/user seed
+// variants have drifted apart (the admin pr_posts INSERT crashes against the user-created
+// schema). Fresh dev DBs have no marker, so local seeding keeps working.
+function demoSeedsBlocked() {
+    try { return !!query.get("SELECT 1 FROM app_state WHERE key='demo_purge_2026_07_25'"); }
+    catch (e) { return false; }
+}
+
+
 // Active conference resolver for the registration/pricing paths (multi-year support).
 // REQUIRES the active row to have at least one ticket tier — otherwise pricing paths
 // would resolve a ticketless conference and silently charge €0. A stray is_active=1 row
@@ -10436,7 +10446,7 @@ async function initializeApp() {
     }
 
     // Seed team members
-    let teamExists = query.get("SELECT id FROM team_members LIMIT 1");
+    let teamExists = demoSeedsBlocked() || query.get("SELECT id FROM team_members LIMIT 1");
     if (!teamExists) {
         // Get admin user IDs for linking
         const alenUser = query.get("SELECT id FROM users WHERE email = 'juginovic.alen@gmail.com'");
@@ -10515,7 +10525,7 @@ async function initializeApp() {
     }
 
     // Seed Finance sample data
-    let financeDataExists = query.get("SELECT id FROM finance_bank_balance LIMIT 1");
+    let financeDataExists = demoSeedsBlocked() || query.get("SELECT id FROM finance_bank_balance LIMIT 1");
     if (!financeDataExists) {
         // Bank balance entries
         const bankBalances = [
@@ -10601,7 +10611,7 @@ async function initializeApp() {
     }
 
     // Seed PR & Media sample data
-    let prDataExists = query.get("SELECT id FROM pr_posts LIMIT 1");
+    let prDataExists = demoSeedsBlocked() || query.get("SELECT id FROM pr_posts LIMIT 1");
     if (!prDataExists) {
         // Social media posts
         const posts = [
@@ -28758,6 +28768,12 @@ By applying to this program, I provide the following consents:
         const _fp = require('crypto').createHash('sha256').update(_norm).digest('hex').slice(0, 16);
         console.log('[Schema] ' + _tbls.length + ' tables, fingerprint ' + _fp);
     } catch (_e) { console.error('[Schema] fingerprint failed:', _e.message); }
+
+    // Demo-data purge — same module as the admin portal (shared DB, both sets of seed blocks
+    // covered). Production-only, idempotent, backs victims up to _purged_* tables first.
+    try {
+        require('../../admin-portal/backend/demo-purge.js').runDemoPurge(db, query, saveDb);
+    } catch (e) { console.warn('[DemoPurge] module failed:', e.message); }
 
     app.listen(PORT, () => {
         console.log(`Med&X User Portal running on http://localhost:${PORT}`);
