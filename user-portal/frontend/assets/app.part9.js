@@ -1265,25 +1265,37 @@
                 var issued = cert.issue_date ? new Date(cert.issue_date).toLocaleDateString(dloc,{year:'numeric',month:'long',day:'numeric'}) : '';
                 var rawEvent = cert.title.replace(' — Certificate of Attendance','');
                 var sigMark = sig ? ('<img src="' + sig + '" alt="Signature">') : '';
-                var meta = (cert.number ? (escapeHtml(t('mmx.certNo')) + ' ' + escapeHtml(cert.number)) : '')
+                var number = cert.number || cert.certificate_number || '';
+                // Absolute URLs: the popup document is about:blank, so relative paths do not resolve.
+                var logoUrl = location.origin + '/assets/logo.png';
+                var verifyUrl = number ? (location.origin + '/verify-certificate?n=' + encodeURIComponent(number)) : '';
+                var meta = (number ? (escapeHtml(t('mmx.certNo')) + ' ' + escapeHtml(number)) : '')
                     + (issued ? (' &nbsp;·&nbsp; ' + escapeHtml(t('mmx.certIssued')) + ' ' + escapeHtml(issued)) : '');
                 win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escapeHtml(cert.title) + '</title>'
                     + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">'
-                    + '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;color:#15110f;padding:0}'
-                    + '.cert{width:100%;max-width:900px;margin:24px auto;border:2px solid #c9a962;padding:56px;text-align:center;background:#fbf9f6;position:relative}'
-                    + '.cert:before{content:"";position:absolute;inset:12px;border:1px solid #c9a962;pointer-events:none}'
-                    + '.brand{font-family:Fraunces,serif;font-size:26px;font-weight:600;color:#9b1b22;letter-spacing:.04em}'
-                    + '.kicker{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:#6b6258;margin:28px 0 12px}'
+                    + '<style>*{margin:0;padding:0;box-sizing:border-box}'
+                    + '@page{size:A4 landscape;margin:0}'
+                    + 'html,body{background:#efece6}'
+                    + 'body{font-family:Inter,sans-serif;color:#15110f;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+                    + '.cert{width:297mm;height:210mm;margin:0 auto;padding:20mm 26mm;text-align:center;background:#fbf9f6;position:relative;display:flex;flex-direction:column;justify-content:center}'
+                    + '.cert:before{content:"";position:absolute;inset:8mm;border:2px solid #c9a962;pointer-events:none}'
+                    + '.cert:after{content:"";position:absolute;inset:10mm;border:1px solid #c9a962;pointer-events:none}'
+                    + '.brand-logo{height:15mm;width:auto;display:block;margin:0 auto}'
+                    + '.kicker{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:#6b6258;margin:26px 0 12px}'
                     + '.name{font-family:Fraunces,serif;font-size:40px;font-weight:600;margin:8px 0 18px}'
-                    + '.body{font-size:15px;color:#403a36;line-height:1.7;max-width:560px;margin:0 auto}'
-                    + '.sign{margin:44px auto 0;max-width:330px}'
+                    + '.body{font-size:15px;color:#403a36;line-height:1.7;max-width:640px;margin:0 auto}'
+                    + '.sign{margin:38px auto 0;max-width:330px}'
                     + '.sign-mark{height:60px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:6px}'
                     + '.sign-mark img{max-height:60px;max-width:280px;object-fit:contain}'
                     + '.sign-rule{width:230px;height:1px;background:#c9a962;margin:0 auto 8px}'
                     + '.sign-name{font-family:Fraunces,serif;font-size:17px;font-weight:600;color:#15110f}'
                     + '.sign-role{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#6b6258;margin-top:3px}'
-                    + '.meta{margin-top:30px;font-size:13px;color:#6b6258}@media print{body{padding:0}.cert{margin:0;border:2px solid #c9a962}}</style></head><body>'
-                    + '<div class="cert"><div class="brand">Med&amp;X</div>'
+                    + '.meta{margin-top:26px;font-size:13px;color:#6b6258}'
+                    + '.verify{margin-top:6px;font-size:11px;color:#6b6258}.verify a{color:#9b1b22;text-decoration:none;word-break:break-all}'
+                    + '@media screen{body{padding:24px}.cert{box-shadow:0 20px 60px rgba(0,0,0,.14)}}'
+                    + '@media print{html,body{background:#fbf9f6}body{padding:0}.cert{margin:0;box-shadow:none}}'
+                    + '</style></head><body>'
+                    + '<div class="cert"><img class="brand-logo" src="' + logoUrl + '" alt="Med&amp;X">'
                     + '<div class="kicker">' + escapeHtml(t('mmx.certOfAttendance')) + '</div>'
                     + '<div class="name">' + escapeHtml(name) + '</div>'
                     + '<div class="body">' + escapeHtml(t('mmx.certBody', { event: rawEvent })) + '</div>'
@@ -1291,7 +1303,11 @@
                     + '<div class="sign-name">' + escapeHtml(t('mmx.certSignName')) + '</div>'
                     + '<div class="sign-role">' + escapeHtml(t('mmx.certSignRole')) + '</div></div>'
                     + '<div class="meta">' + meta + '</div>'
-                    + '</div><script>setTimeout(function(){window.print();},400);<\/script></body></html>');
+                    + (verifyUrl ? ('<div class="verify">Verify / Provjera: <a href="' + verifyUrl + '">' + escapeHtml(verifyUrl) + '</a></div>') : '')
+                    + '</div>'
+                    // Print after the logo/signature images are in — a fixed 400ms timer raced them.
+                    + '<script>(function(){var go=function(){setTimeout(function(){window.print();},150);};if(document.readyState==="complete"){go();}else{window.addEventListener("load",go);}})();<\/script>'
+                    + '</body></html>');
                 win.document.close();
             },
 
@@ -11267,34 +11283,43 @@
                 }
             },
 
-            // Print badge — opens new window with working QR code + download capability
+            // Print badge — opens new window with working QR code + download capability.
+            // Brand pass: real Med&X logo image (never typed), Fraunces/Inter brand fonts, event
+            // date from the module's keyDates context, and the QR rendered in the PARENT with the
+            // self-hosted /vendor/qrcode lib (no qrcode CDN in the popup). html2canvas stays on the
+            // same pinned CDN URL the main page already loads (download-as-image only).
             printBadge() {
                 const userName = UserPortal.user ? `${UserPortal.user.first_name} ${UserPortal.user.last_name}` : 'Attendee';
                 const institution = UserPortal.user?.institution || 'Medical Professional';
                 const regId = localStorage.getItem('plexus_registration_id') || 'MX-2026';
                 const qrPayload = JSON.stringify({ type: 'PLEXUS2026', userId: UserPortal.user?.id || '', regId: regId, name: userName });
+                const confDates = ((this.keyDates || []).filter(k => k.label === 'Conference')[0] || {}).date || 'December 4-5, 2026';
+                const logoUrl = location.origin + '/assets/logo.png';
 
                 const badgeWindow = window.open('', '_blank');
                 if (!badgeWindow) { this.showToast('Please allow pop-ups to print your badge'); return; }
-                badgeWindow.document.write(`<!DOCTYPE html>
+                const writeDoc = (qrDataUrl) => {
+                    badgeWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
     <title>Plexus 2026 Badge - ${userName}</title>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js" crossorigin="anonymous"><\/script>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" crossorigin="anonymous"><\/script>
     <style>
-        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f0f0f0; }
+        body { font-family: 'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #fbf9f6; color: #15110f; }
         .badge-card { width: 350px; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
         .badge-header { background: linear-gradient(135deg, #15110f, #211d19); padding: 24px; text-align: center; }
-        .badge-header h1 { color: #c9a962; font-size: 24px; margin: 0; }
+        .badge-header .badge-logo { height: 26px; width: auto; filter: brightness(0) invert(1); margin-bottom: 10px; }
+        .badge-header h1 { font-family: 'Fraunces', Georgia, serif; color: #c9a962; font-size: 24px; margin: 0; }
         .badge-header p { color: rgba(255,255,255,0.7); font-size: 12px; margin-top: 4px; }
         .badge-body { padding: 24px; text-align: center; }
-        .badge-name { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
-        .badge-inst { font-size: 14px; color: #666; margin-bottom: 20px; }
+        .badge-name { font-family: 'Fraunces', Georgia, serif; font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+        .badge-inst { font-size: 14px; color: #6b6258; margin-bottom: 20px; }
         .badge-qr { width: 120px; height: 120px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; }
+        .badge-qr img { width: 120px; height: 120px; }
         .badge-type { display: inline-block; padding: 6px 16px; background: #c9a962; color: #15110f; border-radius: 14px; font-size: 12px; font-weight: 600; }
         .badge-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
-        .badge-actions button { padding: 10px 20px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .badge-actions button { padding: 10px 20px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: inherit; }
         .badge-btn-print { background: #15110f; color: white; }
         .badge-btn-print:hover { background: #211d19; }
         .badge-btn-download { background: linear-gradient(135deg, #c9a962 0%, #E8D5A8 100%); color: #15110f; }
@@ -11305,13 +11330,14 @@
 <body>
     <div class="badge-card">
         <div class="badge-header">
+            <img class="badge-logo" src="${logoUrl}" alt="Med&amp;X">
             <h1>PLEXUS 2026</h1>
-            <p>December 4-5, 2026 | Zagreb</p>
+            <p>${confDates} | Zagreb</p>
         </div>
         <div class="badge-body">
             <div class="badge-name">${userName}</div>
             <div class="badge-inst">${institution}</div>
-            <div class="badge-qr"><canvas id="badgeQr"></canvas></div>
+            ${qrDataUrl ? `<div class="badge-qr"><img src="${qrDataUrl}" alt="Check-in QR"></div>` : ''}
             <div class="badge-type">PROFESSIONAL PASS</div>
         </div>
     </div>
@@ -11320,20 +11346,9 @@
         <button class="badge-btn-download" onclick="downloadBadgeImage()">Download as Image</button>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof QRCode !== 'undefined') {
-                var qrCanvas = document.getElementById('badgeQr');
-                if (qrCanvas) {
-                    QRCode.toCanvas(qrCanvas, ${"`${qrPayload}`"}, {
-                        width: 120, margin: 1,
-                        color: { dark: '#0f172a', light: '#ffffff' }
-                    });
-                }
-            }
-        });
         function downloadBadgeImage() {
             if (typeof html2canvas !== 'undefined') {
-                html2canvas(document.querySelector('.badge-card'), { scale: 3, backgroundColor: null }).then(function(canvas) {
+                html2canvas(document.querySelector('.badge-card'), { scale: 3, backgroundColor: null, useCORS: true }).then(function(canvas) {
                     var link = document.createElement('a');
                     link.download = 'plexus-2026-badge.png';
                     link.href = canvas.toDataURL('image/png');
@@ -11346,7 +11361,14 @@
     <\/script>
 </body>
 </html>`);
-                badgeWindow.document.close();
+                    badgeWindow.document.close();
+                };
+                // QR from the parent page's self-hosted qrcode lib — embedded as a data-URI image.
+                if (typeof QRCode !== 'undefined' && QRCode.toDataURL) {
+                    QRCode.toDataURL(qrPayload, { width: 240, margin: 1, color: { dark: '#15110f', light: '#ffffff' } }, function (err, url) { writeDoc(err ? '' : url); });
+                } else {
+                    writeDoc('');
+                }
             },
 
             // Open venue map — real venue location (Hotel Esplanade Zagreb) in Google Maps

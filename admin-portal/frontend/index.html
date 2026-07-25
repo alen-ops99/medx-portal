@@ -47263,6 +47263,38 @@ By applying to this program, I give the following consents:
             var PAL = { navy:'#0E2140', navyDeep:'#0A1730', navy2:'#12305A', gold:'#C9A227', goldLight:'#E6C878', goldPale:'#F0DDA8', goldDeep:'#9C7C1A', paper:'#FBF6EA', cream:'#F4EAD2', crimson:'#9B1B22', ink:'#1C1A14', white:'#FFFFFF', muted:'#8A7F6B' };
             var DISPLAY = "'Fraunces', Georgia, 'Times New Roman', serif";
             var LABEL = "'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif";
+            // Real Med&X logo, same-origin (express.static serves ../frontend) so the canvas never
+            // taints. NOTE: resources/assets/logo.png is a mislabeled WEBP — never used here.
+            var ASSETS = { logo:'/assets/logo.png', logoWhite:'/resources/assets/logo-white.png' };
+            var IMGS = {}, _readyPromise = null, _whiteCache = null;
+            function loadImg(src){ return new Promise(function(res){ var im=new Image(); im.onload=function(){ res(im); }; im.onerror=function(){ res(null); }; im.src=src; }); }
+            // ready(): loads the real logo images before any draw (MedxInvite pattern).
+            function ready(){
+                if(!_readyPromise){ _readyPromise=Promise.all([loadImg(ASSETS.logo),loadImg(ASSETS.logoWhite)]).then(function(r){ IMGS.logo=r[0]; IMGS.logoWhite=r[1]; }); }
+                return _readyPromise;
+            }
+            // White silhouette derived from the dark logo — last-resort if logo-white.png fails;
+            // keeps a REAL logo image on dark grounds, never a typed wordmark.
+            function whiteLogo(){
+                if(IMGS.logoWhite) return IMGS.logoWhite;
+                if(_whiteCache) return _whiteCache;
+                if(!IMGS.logo) return null;
+                try{
+                    var c=document.createElement('canvas'); c.width=IMGS.logo.width; c.height=IMGS.logo.height;
+                    var g=c.getContext('2d'); g.drawImage(IMGS.logo,0,0);
+                    g.globalCompositeOperation='source-in'; g.fillStyle='#FFFFFF'; g.fillRect(0,0,c.width,c.height);
+                    _whiteCache=c; return _whiteCache;
+                }catch(e){ return IMGS.logo; }
+            }
+            // The REAL Med&X wordmark drawn where the typed 'evName · by Med&X' lockup used to be.
+            // x = left edge (align 'left') or center (align 'center'); y = baseline; h = mark height.
+            function drawBrand(ctx,x,y,h,align,onDark){
+                var im=onDark?whiteLogo():(IMGS.logo||null);
+                if(!im) return;
+                var w=h*(im.width/im.height);
+                var bx=(align==='center')?x-w/2:x;
+                ctx.drawImage(im,bx,y+h*0.12-h,w,h);
+            }
             var FRAMES = [
                 { id:'heritage', name:'Heritage', nameHr:'Baština' },
                 { id:'pleter',   name:'Pleter',   nameHr:'Pleter' },
@@ -47353,7 +47385,7 @@ By applying to this program, I give the following consents:
                     var ny=pcy-160+58; fn.lines.forEach(function(ln){ ctx.font='600 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,tx,ny); ny+=fn.size*1.05; });
                     if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 24px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-70,'400 24px '+LABEL),tx,ny+8); ny+=40; }
                     goldLine(ctx,tx,ny+18,150);
-                    ctx.fillStyle=PAL.goldLight; ctx.font='600 22px '+DISPLAY; ctx.fillText(o.lockup||'',tx,ny+64);
+                    drawBrand(ctx,tx,ny+64,30,'left',true);
                     if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='400 17px '+LABEL; ctx.fillText(o.dateline,tx,ny+92); }
                     return;
                 }
@@ -47364,7 +47396,7 @@ By applying to this program, I give the following consents:
                 var y=760+118; fn2.lines.forEach(function(ln){ ctx.font='600 '+fn2.size+'px '+DISPLAY; ctx.fillText(ln,cx,y); y+=fn2.size*1.02; });
                 if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 30px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-200,'400 30px '+LABEL),cx,y+14); y+=52; }
                 ctx.save(); goldLine(ctx,cx-90,y+40,180); ctx.restore();
-                ctx.fillStyle=PAL.goldLight; ctx.font='600 34px '+DISPLAY; ctx.textAlign='center'; ctx.fillText(o.lockup||'',cx,y+112);
+                drawBrand(ctx,cx,y+112,44,'center',true);
                 if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='400 22px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,y+150); }
                 ctx.fillStyle='rgba(230,201,135,.6)'; ctx.font='400 20px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-48);
             }
@@ -47384,7 +47416,7 @@ By applying to this program, I give the following consents:
                     var ny=pcy-150+56; fn.lines.forEach(function(ln){ ctx.font='600 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,tx,ny); ny+=fn.size*1.05; });
                     if(o.sub){ ctx.fillStyle=PAL.muted; ctx.font='400 23px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-60,'400 23px '+LABEL),tx,ny+6); ny+=38; }
                     goldLine(ctx,tx,ny+16,140);
-                    ctx.fillStyle=PAL.navy; ctx.font='600 22px '+DISPLAY; ctx.fillText(o.lockup||'',tx,ny+62);
+                    drawBrand(ctx,tx,ny+62,30,'left',false);
                     if(o.dateline){ ctx.fillStyle=PAL.muted; ctx.font='400 17px '+LABEL; ctx.fillText(o.dateline,tx,ny+90); }
                     return;
                 }
@@ -47397,7 +47429,7 @@ By applying to this program, I give the following consents:
                 var y=720+112; fn2.lines.forEach(function(ln){ ctx.font='600 '+fn2.size+'px '+DISPLAY; ctx.fillText(ln,cx,y); y+=fn2.size*1.02; });
                 if(o.sub){ ctx.fillStyle=PAL.muted; ctx.font='400 29px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-320,'400 29px '+LABEL),cx,y+12); y+=50; }
                 goldLine(ctx,cx-85,y+38,170);
-                ctx.fillStyle=PAL.navy; ctx.font='600 34px '+DISPLAY; ctx.textAlign='center'; ctx.fillText(o.lockup||'',cx,y+108);
+                drawBrand(ctx,cx,y+108,44,'center',false);
                 if(o.dateline){ ctx.fillStyle=PAL.muted; ctx.font='400 22px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,y+146); }
                 ctx.fillStyle=PAL.goldDeep; ctx.font='400 20px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-48);
             }
@@ -47418,7 +47450,7 @@ By applying to this program, I give the following consents:
                     var ny=d.h/2-140+58; fn.lines.forEach(function(ln){ ctx.font='600 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,tx,ny); ny+=fn.size*1.05; });
                     if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 23px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-56,'400 23px '+LABEL),tx,ny+6); ny+=38; }
                     goldLine(ctx,tx,ny+16,140);
-                    ctx.fillStyle=PAL.goldLight; ctx.font='600 22px '+DISPLAY; ctx.fillText(o.lockup||'',tx,ny+62);
+                    drawBrand(ctx,tx,ny+62,30,'left',true);
                     if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='400 16px '+LABEL; ctx.fillText(o.dateline,tx,ny+90); }
                     return;
                 }
@@ -47436,7 +47468,7 @@ By applying to this program, I give the following consents:
                 var ny2=y+96; fn2.lines.forEach(function(ln){ ctx.font='600 '+fn2.size+'px '+DISPLAY; ctx.fillText(ln,cx,ny2); ny2+=fn2.size*1.02; });
                 if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 29px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-200,'400 29px '+LABEL),cx,ny2+10); ny2+=48; }
                 goldLine(ctx,cx-85,ny2+34,170);
-                ctx.fillStyle=PAL.goldLight; ctx.font='600 33px '+DISPLAY; ctx.textAlign='center'; ctx.fillText(o.lockup||'',cx,ny2+100);
+                drawBrand(ctx,cx,ny2+100,44,'center',true);
                 if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.68)'; ctx.font='400 22px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,ny2+138); }
                 ctx.fillStyle='rgba(230,201,135,.6)'; ctx.font='400 20px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-46);
             }
@@ -47456,7 +47488,7 @@ By applying to this program, I give the following consents:
             }
             function clip(ctx,text,maxW,font){ ctx.save(); ctx.font=font; var s=String(text||''); if(ctx.measureText(s).width<=maxW){ ctx.restore(); return s; } while(s.length>1 && ctx.measureText(s+'…').width>maxW){ s=s.slice(0,-1); } ctx.restore(); return s+'…'; }
 
-            return { render:render, FRAMES:FRAMES, PAL:PAL, initials:initials };
+            return { render:render, ready:ready, FRAMES:FRAMES, PAL:PAL, initials:initials };
         })();
 
         // ---- Tiny store-method ZIP builder (no dependency) — valid .zip of PNG cards. ----
@@ -47574,11 +47606,12 @@ By applying to this program, I give the following consents:
             },
             setEvent(k){ this.state.event=k; this.loadRoster(k); },
             _evName(){ var c=this.state.ctx&&this.state.ctx.event; return (c&&c.name)||'Med&X Event'; },
-            _lockup(){ return this._evName()+' · by Med&X'; },
-            _dateline(){ var c=this.state.ctx&&this.state.ctx.event; return c?[c.date,c.venue].filter(Boolean).join(' · '):''; },
+            // The brand slot now draws the REAL Med&X logo image (MedxCard.drawBrand); the event
+            // name moves into the dateline so no typed 'by Med&X' lockup remains anywhere.
+            _dateline(){ var c=this.state.ctx&&this.state.ctx.event; return [this._evName(), c&&c.date, c&&c.venue].filter(Boolean).join(' · '); },
             _eyebrow(role){ return role==='speaker'?'SPEAKER':(role==='guest'?'GUEST':"I'M ATTENDING"); },
             _optsFor(p, orient){
-                return { frame:this.state.frame, orientation:orient||'portrait', eyebrow:this._eyebrow(p.role), name:p.name, sub:p.sub||'', lockup:this._lockup(), dateline:this._dateline(), footer:'medx.hr', photo:p._img||null };
+                return { frame:this.state.frame, orientation:orient||'portrait', eyebrow:this._eyebrow(p.role), name:p.name, sub:p.sub||'', dateline:this._dateline(), footer:'medx.hr', photo:p._img||null };
             },
 
             render(){
@@ -47619,19 +47652,21 @@ By applying to this program, I give the following consents:
             _ensureImg(p){ return new Promise(function(res){ if(p._img!==undefined) return res(); if(!p.photo){ p._img=null; return res(); } var img=new Image(); img.crossOrigin='anonymous'; img.onload=function(){ p._img=img; res(); }; img.onerror=function(){ p._img=null; res(); }; img.src=p.photo; }); },
             _paintThumbs(){
                 var self=this;
-                var run=function(){ window.MedxCard.FRAMES.forEach(function(f){ var host=self._overlay.querySelector('[data-fthumb="'+f.id+'"]'); if(!host)return; try{ var cv=window.MedxCard.render({ frame:f.id, orientation:'portrait', eyebrow:'SPEAKER', name:'Ana Marković', sub:'University of Zagreb', lockup:self._lockup(), dateline:self._dateline(), footer:'medx.hr', photo:null }); cv.style.width='100%'; host.innerHTML=''; host.appendChild(cv); }catch(e){} }); };
-                if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(run); setTimeout(run,60); } else run();
+                var run=function(){ window.MedxCard.FRAMES.forEach(function(f){ var host=self._overlay.querySelector('[data-fthumb="'+f.id+'"]'); if(!host)return; try{ var cv=window.MedxCard.render({ frame:f.id, orientation:'portrait', eyebrow:'SPEAKER', name:'Ana Marković', sub:'University of Zagreb', dateline:self._dateline(), footer:'medx.hr', photo:null }); cv.style.width='100%'; host.innerHTML=''; host.appendChild(cv); }catch(e){} }); };
+                var go=function(){ window.MedxCard.ready().then(run).catch(run); };
+                if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(go); setTimeout(go,60); } else go();
             },
             _paintPreview(){
                 var self=this, wrap=this._overlay.querySelector('#csdCanvasWrap'); if(!wrap) return;
                 var sel=this._selectedList(); var p=sel[0]||this.state.roster[0];
                 if(!p){ wrap.innerHTML=''; return; }
-                this._ensureImg(p).then(function(){ var draw=function(){ try{ var cv=window.MedxCard.render(self._optsFor(p,'portrait')); wrap.innerHTML=''; wrap.appendChild(cv); }catch(e){} }; if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(draw); setTimeout(draw,50); } else draw(); });
+                this._ensureImg(p).then(function(){ var draw=function(){ try{ var cv=window.MedxCard.render(self._optsFor(p,'portrait')); wrap.innerHTML=''; wrap.appendChild(cv); }catch(e){} }; var go=function(){ window.MedxCard.ready().then(draw).catch(draw); }; if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(go); setTimeout(go,50); } else go(); });
             },
             _slug(s){ return String(s||'card').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'card'; },
             async _renderBlob(p, orient, type, quality){
                 await this._ensureImg(p);
                 if(document.fonts&&document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+                try{ await window.MedxCard.ready(); }catch(e){}
                 var cv=window.MedxCard.render(this._optsFor(p, orient));
                 return await new Promise(function(res){ cv.toBlob(function(b){ res(b); }, type||'image/png', quality); });
             },
@@ -47713,6 +47748,33 @@ By applying to this program, I give the following consents:
             var DISPLAY="'Fraunces', Georgia, 'Times New Roman', serif";
             var SERIF="'Cormorant Garamond', Georgia, serif";
             var LABEL="'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif";
+            // Real Med&X logo assets, same-origin (express.static serves ../frontend) so the canvas
+            // never taints. NOTE: resources/assets/logo.png is a mislabeled WEBP — never used here.
+            var ASSETS={ logo:'/assets/logo.png', logoWhite:'/resources/assets/logo-white.png' };
+            var IMGS={};
+            function loadImg(src){ return new Promise(function(res){ var im=new Image(); im.onload=function(){ res(im); }; im.onerror=function(){ res(null); }; im.src=src; }); }
+            // White silhouette derived from the dark logo (composite recolor) — the last-resort
+            // path if logo-white.png ever fails to load; keeps a REAL logo image, never typed text.
+            var _whiteCache=null;
+            function whiteLogo(){
+                if(IMGS.logoWhite) return IMGS.logoWhite;
+                if(_whiteCache) return _whiteCache;
+                if(!IMGS.logo) return null;
+                try{
+                    var c=document.createElement('canvas'); c.width=IMGS.logo.width; c.height=IMGS.logo.height;
+                    var g=c.getContext('2d'); g.drawImage(IMGS.logo,0,0);
+                    g.globalCompositeOperation='source-in'; g.fillStyle='#FFFFFF'; g.fillRect(0,0,c.width,c.height);
+                    _whiteCache=c; return _whiteCache;
+                }catch(e){ return IMGS.logo; }
+            }
+            // Draw the real wordmark centered at cx with its BOTTOM edge on y (h = target height).
+            function drawLogo(ctx,cx,y,h,dark){
+                var im=dark?whiteLogo():(IMGS.logo||null);
+                if(!im) return false;
+                var w=h*(im.width/im.height);
+                ctx.drawImage(im,cx-w/2,y-h,w,h);
+                return true;
+            }
             // A4/A3 share the ISO layout (H = 1414.21 units); the roll-up is 850 × 2000 mm.
             // Roll-up renders at 120 DPI true size — the full-scale resolution roll-up printers ask for.
             var PAPERS={
@@ -47922,8 +47984,8 @@ By applying to this program, I give the following consents:
                     ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.cream:PAL.mutedPaper; ctx.font='400 '+(24*s)+'px '+LABEL;
                     ctx.fillText(clipTo(ctx,f.venueLine,860*s,'400 '+(24*s)+'px '+LABEL),cx,1688*s); ctx.restore();
                 }
-                ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.cream:PAL.navy; ctx.font='600 '+(44*s)+'px '+DISPLAY;
-                ctx.fillText('Med&X',cx,2166*s); ctx.restore();
+                // Footer brand: the REAL Med&X logo image (white on navy, ink on paper) — never typed.
+                drawLogo(ctx,cx,2172*s,46*s,dark);
                 if(f.url) track(ctx,f.url,cx,2228*s,15*s,6*s,dark?PAL.creamDim:PAL.goldDeep,LABEL,'600');
             }
 
@@ -47943,10 +48005,12 @@ By applying to this program, I give the following consents:
             function ready(){
                 if(!_readyPromise){
                     var sample='ČĆŽŠĐčćžšđ Dobro došli 0123456789';
-                    _readyPromise=(document.fonts&&document.fonts.load)?Promise.all([
+                    var fonts=(document.fonts&&document.fonts.load)?Promise.all([
                         '600 90px '+DISPLAY,'500 60px '+DISPLAY,'400 30px '+LABEL,'600 30px '+LABEL,'700 30px '+LABEL,
                         '500 60px '+SERIF,'italic 500 60px '+SERIF,'italic 600 60px '+SERIF
                     ].map(function(f){ return document.fonts.load(f,sample).catch(function(){}); })).catch(function(){}):Promise.resolve();
+                    // Load the real logo images alongside the fonts (MedxInvite pattern).
+                    _readyPromise=Promise.all([fonts,loadImg(ASSETS.logo),loadImg(ASSETS.logoWhite)]).then(function(r){ IMGS.logo=r[1]; IMGS.logoWhite=r[2]; });
                 }
                 return _readyPromise;
             }

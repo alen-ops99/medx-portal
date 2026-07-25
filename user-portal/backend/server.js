@@ -24446,6 +24446,24 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, transaction_id: transactionId });
     });
 
+    // Financial documents go to counterparties and are printed offline — the brand mark must be
+    // the REAL Med&X logo image, inlined as a base64 data URI so the document never depends on a
+    // network fetch (and never falls back to a typed 'Med&X' wordmark).
+    let _financeLogoUri;
+    function financeLogoDataUri() {
+        if (_financeLogoUri !== undefined) return _financeLogoUri;
+        try {
+            // Real PNG (verified; resources/assets/logo.png elsewhere is a mislabeled WEBP).
+            const p = path.join(__dirname, '../frontend/assets/logo.png');
+            _financeLogoUri = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64');
+        } catch (e) { _financeLogoUri = ''; }
+        return _financeLogoUri;
+    }
+    function financeLogoImg() {
+        const uri = financeLogoDataUri();
+        return uri ? `<img src="${uri}" alt="Med&amp;X" style="height:34px;width:auto;display:block;">` : '';
+    }
+
     // Generate invoice PDF
     app.get('/api/finance/invoices/:id/pdf', auth, adminOnly, async (req, res) => {
         const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
@@ -24482,7 +24500,7 @@ By applying to this program, I provide the following consents:
 </head>
 <body>
     <div class="header">
-        <div class="logo">Med&X</div>
+        <div class="logo">${financeLogoImg()}</div>
         <div class="invoice-title">
             ${invoice.direction === 'incoming' ? 'INCOMING INVOICE' : 'OUTGOING INVOICE'}<br>
             <span style="font-size: 14px; color: #666;">${invoice.invoice_number}</span>
@@ -24847,7 +24865,7 @@ By applying to this program, I provide the following consents:
 </head>
 <body>
     <div class="header">
-        <div class="logo">Med&X</div>
+        <div class="logo">${financeLogoImg()}</div>
         <div class="title">
             TRAVEL ORDER<br>
             <span style="font-size: 14px; color: #666;">${order.order_number}</span><br>

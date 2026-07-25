@@ -36057,7 +36057,23 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 try { child.kill('SIGKILL'); } catch (e) {}
                 cleanup();
                 let ok = false; try { ok = fs.existsSync(outPath) && fs.statSync(outPath).size > 0; } catch (e) {}
-                if (ok) resolve(outPath); else reject(err || new Error('pdf_not_written'));
+                if (!ok) return reject(err || new Error('pdf_not_written'));
+                // Validate the render: headless Chrome happily "prints" its own error page
+                // (ERR_ACCESS_DENIED, ERR_FILE_NOT_FOUND, …) as a tiny PDF, which previously
+                // shipped to the admin as {"success":true}. Reject anything that is not a real
+                // PDF, is implausibly small, or carries a Chrome ERR_ code in its content.
+                try {
+                    const buf = fs.readFileSync(outPath);
+                    let bad = null;
+                    if (buf.slice(0, 5).toString('latin1') !== '%PDF-') bad = 'output is not a PDF';
+                    else if (buf.length < 5 * 1024) bad = 'output PDF is implausibly small (' + buf.length + ' bytes)';
+                    else if (buf.length < 1024 * 1024 && buf.includes('ERR_')) bad = 'output PDF contains a Chrome error page (ERR_)';
+                    if (bad) {
+                        try { fs.unlinkSync(outPath); } catch (e2) {}
+                        return reject(new Error('pdf_render_invalid: ' + bad));
+                    }
+                } catch (e3) { return reject(e3); }
+                resolve(outPath);
             };
             const poll = setInterval(() => {
                 try { if (fs.existsSync(outPath)) { const s = fs.statSync(outPath).size; if (s > 0 && s === lastSize) { stable++; if (stable >= 2) return finish(); } else { stable = 0; } lastSize = s; } } catch (e) {}
@@ -36312,12 +36328,12 @@ ${extraCss || ''}
         const inst = psEsc(person.institution || '');
         const evName = psEsc(facts.name || '');
         const nameSize = nm.length > 22 ? 15 : (nm.length > 16 ? 18 : 21);
+        // Brand rule: the badge carries ONLY the real Med&X logo image (logoTag, top-right).
+        // No typed 'Med&X' wordmark fallback — a badge without a QR simply shows nothing there.
         let qrHtml = '';
         if (person._qrSvg) {
             qrHtml = `<div style="position:absolute;right:4mm;bottom:4mm;width:18mm;height:18mm;padding:1.4mm;background:#fff;border:0.2mm solid ${PS_PAL.line};border-radius:1mm;">${person._qrSvg}</div>
                       <div style="position:absolute;right:22mm;bottom:5.4mm;width:34mm;text-align:right;font-size:6pt;letter-spacing:.04em;color:${PS_PAL.muted};text-transform:uppercase;">Scan to verify<br>membership</div>`;
-        } else {
-            qrHtml = `<div style="position:absolute;right:4mm;bottom:4.5mm;text-align:right;"><div class="ps-serif" style="font-size:12pt;font-weight:700;color:${PS_PAL.navy};">Med&amp;X</div><div style="font-size:5.6pt;letter-spacing:.14em;text-transform:uppercase;color:${PS_PAL.muted};">Building bridges</div></div>`;
         }
         let logoTag = '';
         if (logoSrc) { logoTag = `<img src="${logoSrc}" style="position:absolute;right:4mm;top:3.6mm;height:5.4mm;width:auto;" alt="">`; if (images) images.push({ label: 'Badge logo', px: (person._logoPx || null), printWmm: 22 }); }
@@ -36341,7 +36357,7 @@ ${extraCss || ''}
         ${logoSrc ? `<img src="${logoSrc}" style="position:absolute;right:4mm;top:3.6mm;height:5.4mm;" alt="">` : ''}
         <div style="position:absolute;left:9mm;right:6mm;top:26mm;border-bottom:0.3mm solid ${PS_PAL.muted};"></div>
         <div style="position:absolute;left:9mm;top:27mm;font-size:6.5pt;letter-spacing:.1em;text-transform:uppercase;color:${PS_PAL.muted};">Name</div>
-        <div style="position:absolute;left:9mm;bottom:4.5mm;font-size:7pt;letter-spacing:.1em;text-transform:uppercase;color:${PS_PAL.muted};">Med&amp;X</div>`;
+        <div style="position:absolute;left:9mm;bottom:4.5mm;font-size:7pt;letter-spacing:.1em;text-transform:uppercase;color:${PS_PAL.muted};">medx.hr</div>`;
     }
 
     // Build a crisp, VECTOR QR as filled 1x1 module rects with a 4-module quiet zone. The qrcode
@@ -36404,7 +36420,6 @@ ${extraCss || ''}
         }
         const detailBlock = `${speakers.length ? `<div style="margin-bottom:26mm;"><div style="font-size:15pt;letter-spacing:.26em;text-transform:uppercase;color:${PS_PAL.muted};margin-bottom:12mm;">Featuring</div>${speakers.map(s => `<div class="ps-serif" style="font-size:26pt;color:#eef2f7;margin-bottom:6mm;">${psEsc(s)}</div>`).join('')}</div>` : ''}${sponsorRow}`;
         const body = `<div class="ps-page"><div style="position:absolute;inset:0;background:linear-gradient(180deg,${PS_PAL.navy},${PS_PAL.navy2});"></div>
-            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-90deg);white-space:nowrap;opacity:.055;"><div class="ps-serif" style="font-size:170pt;font-weight:700;color:#ffffff;letter-spacing:.14em;">Med&amp;X</div></div>
             <div style="position:absolute;inset:${PS_BLEED}mm;padding:60mm 55mm;display:flex;flex-direction:column;align-items:center;text-align:center;color:#fff;">
                 <div style="margin-bottom:18mm;">${logoTag}</div>
                 <div style="width:60mm;border-top:0.6mm solid ${PS_PAL.gold};margin-bottom:24mm;"></div>
