@@ -8932,6 +8932,7 @@ async function initializeApp() {
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN checked_in_at TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN pay_token TEXT'); } catch(e) {}
     // Track which shareable invite link the registrant came in through (NULL for direct/admin-curated)
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invite_link_id TEXT'); } catch(e) {}
 
@@ -26183,6 +26184,19 @@ By applying to this program, I provide the following consents:
             [id, first_name, last_name, email, institution || '', title || '', dietary || '', requests || '', pricing || '', (req.user && req.user.id) || null]);
         saveDb();
 
+        // Ring the admin bell — every admin sees a notification that a request is waiting for review.
+        try {
+            const admins = query.all('SELECT id FROM users WHERE is_admin = 1');
+            const who = `${first_name} ${last_name || ''}`.trim() + (institution ? ` (${institution})` : '');
+            admins.forEach(admin => {
+                db.run(`INSERT INTO admin_notifications (id, user_id, type, title, message, project, created_at)
+                        VALUES (?, ?, 'gala_request', ?, ?, 'gala', datetime('now'))`,
+                    [require('crypto').randomUUID(), admin.id, 'New Gala invitation request',
+                     `${who} requested a Gala Evening invitation — review it in Gala → Registrations.`]);
+            });
+            saveDb();
+        } catch (notifErr) { console.warn('Gala request admin notification failed:', notifErr.message); }
+
         // Send gala invitation request confirmation email
         try {
             sendEmail(email, 'Gala Evening — Invitation Request Received', buildEmailTemplate('Invitation Request Received', `
@@ -27140,6 +27154,60 @@ By applying to this program, I provide the following consents:
         } catch (err) {
             console.error('Gala Stripe checkout error:', err.message);
             res.status(500).json({ error: 'Failed to create checkout session' });
+        }
+    });
+
+    // ---- Direct gala payment link (no login) ----
+    // Emailed on approval: /pay/gala/<token> resolves the registration by its pay_token and
+    // 303-redirects straight into Stripe Checkout. Possession of the token (sent only to the
+    // guest's own email) is the auth — same trust model as a Stripe invoice link.
+    function galaPayPage(res, httpStatus, heading, message) {
+        res.status(httpStatus).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${heading} — Med&X</title></head>
+<body style="margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:#f7f1e6;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+<div style="max-width:460px;margin:24px;background:#fff;border:1px solid #e2d9c4;border-radius:12px;padding:36px 32px;text-align:center;">
+<div style="font-weight:800;font-size:22px;color:#191512;">med&amp;<span style="color:#9b1b22;">x</span></div>
+<h1 style="font-size:19px;color:#191512;margin:14px 0 10px;">${heading}</h1>
+<p style="font-size:14.5px;line-height:1.55;color:#4a4239;margin:0 0 18px;">${message}</p>
+<p style="font-size:12.5px;color:#8a8175;margin:0;">Questions? <a href="mailto:info@medx.hr" style="color:#9b1b22;">info@medx.hr</a></p>
+</div></body></html>`);
+    }
+
+    app.get('/pay/gala/:token', publicLimiter, async (req, res) => {
+        const token = String(req.params.token || '');
+        const reg = token.length >= 16 ? query.get('SELECT * FROM gala_registrations WHERE pay_token = ?', [token]) : null;
+        if (!reg) return galaPayPage(res, 404, 'Invalid payment link', 'This payment link is not valid. Please use the link from your invitation email.');
+        if (reg.payment_status === 'paid') return galaPayPage(res, 200, 'You are all set', `Your Gala Evening ticket is already paid and confirmed${reg.invoice_number ? ' (invoice ' + reg.invoice_number + ')' : ''}. We look forward to welcoming you.`);
+        if (reg.status !== 'approved') return galaPayPage(res, 200, 'Still under review', 'Your invitation request is still being reviewed. You will receive an email as soon as a decision is made.');
+        if (!stripe) return galaPayPage(res, 503, 'Payments temporarily unavailable', 'Card payments are temporarily unavailable. Please try again shortly, or contact us.');
+        try {
+            // Mirror /api/gala/checkout-session exactly (pricing, invoice numbering, metadata)
+            // so the payment webhook and admin ledgers treat both paths identically.
+            const settings = query.get("SELECT * FROM gala_settings WHERE id = 'default'");
+            const price = reg.pricing === 'bundle' ? (settings?.price_bundle || 174) : effectiveGalaPrice();
+            let invoiceNumber = reg.invoice_number;
+            if (!invoiceNumber) {
+                const count = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE invoice_number IS NOT NULL")?.c || 0;
+                invoiceNumber = `GALA26-${String(count + 1).padStart(4, '0')}`;
+            }
+            db.run('UPDATE gala_registrations SET invoice_number = ?, amount_paid = ? WHERE id = ?', [invoiceNumber, price, reg.id]);
+            saveDb();
+            const ticketLabel = reg.pricing === 'bundle' ? 'Plexus + Gala Bundle' : 'Gala Evening Only';
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            const session = await stripe.checkout.sessions.create({
+                mode: 'payment',
+                payment_method_types: ['card'],
+                line_items: [{ price_data: { currency: 'eur', product_data: { name: `Plexus 2026 — ${ticketLabel}`, description: `Gala Evening Ticket (Invoice: ${invoiceNumber})` }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
+                metadata: { gala_registration_id: reg.id, invoice_number: invoiceNumber, type: 'gala-ticket' },
+                customer_email: reg.email,
+                success_url: `${baseUrl}/?payment=success&gala=${reg.id}`,
+                cancel_url: `${baseUrl}/?payment=cancelled&gala=${reg.id}`
+            });
+            db.run('UPDATE gala_registrations SET stripe_session_id = ? WHERE id = ?', [session.id, reg.id]);
+            saveDb();
+            return res.redirect(303, session.url);
+        } catch (err) {
+            console.error('Gala pay-link checkout error:', err.message);
+            return galaPayPage(res, 500, 'Something went wrong', 'We could not start the payment. Please try again in a few minutes, or contact us.');
         }
     });
 

@@ -41452,7 +41452,9 @@ By applying to this program, I give the following consents:
                                 <i class="fas fa-times"></i>
                             </button>`;
                     } else if (r.status === 'approved' && r.payment_status !== 'paid') {
-                        html += `<span style="font-size: 12px; color: var(--text-muted);">Awaiting payment</span>`;
+                        html += `<span style="font-size: 12px; color: var(--text-muted);">Awaiting payment</span>
+                            <button class="btn btn-secondary" onclick="GalaAdmin.copyPayLink('${r.id}')" style="padding: 4px 10px; font-size: 12px; margin-left: 6px;" title="Copy this guest's direct payment link (one click to Stripe, no login)">
+                                <i class="fas fa-link"></i> Pay link</button>`;
                     } else if (r.payment_status === 'paid') {
                         html += `<span style="font-size: 12px; color: #10b981;"><i class="fas fa-check-circle"></i> Confirmed</span>
                             <button class="btn btn-secondary" onclick="GalaAdmin.cancelAndRefund('${r.id}')" style="padding: 4px 12px; font-size: 12px; color: #b91c1c; margin-left: 6px;" title="Cancel and refund the card payment">
@@ -41494,6 +41496,18 @@ By applying to this program, I give the following consents:
                     }
                 } catch (err) {
                     console.error('Failed to update gala status:', err);
+                }
+            },
+
+            async copyPayLink(id) {
+                try {
+                    const res = await fetch(`/api/gala/registrations/${id}/pay-link`, { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    const d = await res.json().catch(() => ({}));
+                    if (!res.ok) { await adminAlert({ type: 'danger', title: 'No payment link', message: d.error || 'Could not create the payment link.' }); return; }
+                    await navigator.clipboard.writeText(d.url);
+                    Toast.success('Payment link copied — paste it into any email');
+                } catch (err) {
+                    console.error('Failed to copy pay link:', err);
                 }
             },
 

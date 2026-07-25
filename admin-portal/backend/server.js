@@ -8059,6 +8059,7 @@ async function initializeApp() {
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_number TEXT'); } catch(e) {}
     // Track which shareable gala invite link a registrant came in through
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invite_link_id TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN pay_token TEXT'); } catch(e) {}
     // Croatians Abroad — invite links + registrations (mirror of user-portal schema)
     db.run(`CREATE TABLE IF NOT EXISTS croatians_abroad_invite_links (
         id TEXT PRIMARY KEY,
@@ -28886,6 +28887,15 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                     const priceMap = { 'gala-only': settings.price_gala_only, 'bundle': settings.price_bundle };
                     const price = priceMap[updated.pricing];
                     const priceLine = price ? ` (&euro;${price})` : '';
+                    // Direct payment link: one click -> Stripe Checkout, no portal login needed.
+                    // The user portal serves /pay/gala/<token> off the shared DB (pay_token column).
+                    let payToken = updated.pay_token;
+                    if (!payToken) {
+                        payToken = require('crypto').randomBytes(24).toString('hex');
+                        db.run('UPDATE gala_registrations SET pay_token = ? WHERE id = ?', [payToken, updated.id]);
+                        saveDb();
+                    }
+                    const payUrl = `${userPortalUrl}/pay/gala/${payToken}`;
                     sendEmail(updated.email, 'Your Gala Evening Invitation Has Been Approved!', buildEmailTemplate('Invitation Approved', `
                         <p>Dear ${updated.first_name},</p>
                         <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
@@ -28893,11 +28903,11 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                         </p>
                         <p>We are delighted to welcome you to an exclusive evening of networking, fine dining, and celebration with leading minds in biomedicine.</p>
                         ${updated.pricing ? `<p><strong>Ticket Category:</strong> ${updated.pricing}${priceLine}</p>` : ''}
-                        <p style="margin-top: 20px;">To secure your seat, please complete your payment in the Med&amp;X portal:</p>
+                        <p style="margin-top: 20px;">To secure your seat, please complete your payment &mdash; the button below takes you straight to secure card payment:</p>
                         <div style="text-align: center; margin: 24px 0;">
-                            <a href="${galaUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px;">Complete Payment</a>
+                            <a href="${payUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px;">Complete Payment</a>
                         </div>
-                        <p style="font-size: 13px; color: #64748b;">Sign in with this email address (${updated.email}). If you do not have a portal account yet, create one with this same address &mdash; your approved invitation will be waiting in the Gala section.</p>
+                        <p style="font-size: 13px; color: #64748b;">Prefer the portal? Sign in at <a href="${galaUrl}" style="color: #C9A962;">the Med&amp;X member portal</a> with this email address (${updated.email}) and pay from the Gala section.</p>
                         <p>If you have any questions or need assistance with payment, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
                         <p>We look forward to seeing you there!</p>
                         <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
@@ -28921,6 +28931,22 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             }
         }
         res.json({ success: true, registration: updated });
+    });
+
+    // Direct payment link for an approved gala guest — staff copy/paste for personal emails.
+    app.get('/api/gala/registrations/:id/pay-link', auth, adminOnly, (req, res) => {
+        const reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [req.params.id]);
+        if (!reg) return res.status(404).json({ error: 'Registration not found' });
+        if (reg.status !== 'approved') return res.status(400).json({ error: 'Guest must be approved first' });
+        if (reg.payment_status === 'paid') return res.status(400).json({ error: 'Already paid' });
+        let token = reg.pay_token;
+        if (!token) {
+            token = require('crypto').randomBytes(24).toString('hex');
+            db.run('UPDATE gala_registrations SET pay_token = ? WHERE id = ?', [token, reg.id]);
+            saveDb();
+        }
+        const userPortalUrl = (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+        res.json({ url: `${userPortalUrl}/pay/gala/${token}`, email: reg.email, status: reg.status, payment_status: reg.payment_status || 'unpaid' });
     });
 
     // ==================================================================================
