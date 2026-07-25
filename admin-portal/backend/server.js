@@ -16157,11 +16157,15 @@ By applying to this program, I provide the following consents:
             FROM forum_groups fg WHERE fg.is_active = 1 ORDER BY fg.name`);
 
         const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ?`, [req.user.id]);
+        // Joining a group needs an APPROVED forum membership (same rule the POST enforces).
+        // Surface it so the admin UI can hide a Join button that would only 403.
+        const canJoin = !!query.get(
+            `SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
 
         const enriched = groups.map(g => {
             const isMember = currentMember ?
                 !!query.get(`SELECT id FROM forum_group_members WHERE group_id = ? AND member_id = ?`, [g.id, currentMember.id]) : false;
-            return { ...g, is_member: isMember };
+            return { ...g, is_member: isMember, can_join: canJoin };
         });
 
         res.json(enriched);
@@ -17225,8 +17229,19 @@ By applying to this program, I provide the following consents:
         if (!ch) return false;
         if (ch.is_team_channel && ch.name === 'all-team') return true;
         if (ch.is_dm) return ch.dm_a === memberId || ch.dm_b === memberId;
+        // Open workspace channels (#general and the per-project rails) carry no membership rows —
+        // every admin already reads and writes them through the dashboard chat rail. Treating them
+        // as private here is what made Team Chat list 3 of 22 channels. Access is unchanged:
+        // every /api/teamchat route is behind auth + adminOnly.
+        if (!ch.is_team_channel) return true;
         return !!query.get("SELECT id FROM channel_members WHERE channel_id = ? AND member_id = ?", [channelId, memberId]);
     };
+    // Every channel an admin may open in Team Chat: their team channels + all open workspace
+    // channels. DMs are handled separately.
+    const tcOpenChannels = () => query.all(
+        `SELECT * FROM chat_channels
+         WHERE COALESCE(is_team_channel, 0) != 1 AND COALESCE(is_dm, 0) != 1
+         ORDER BY COALESCE(project, '') ASC, COALESCE(is_default, 0) DESC, name ASC`);
     const tcUnread = (channelId, memberId) => {
         const lr = query.get("SELECT last_read_at FROM channel_read_status WHERE user_id = ? AND channel_id = ?", [memberId, channelId]);
         if (lr && lr.last_read_at) return query.get("SELECT COUNT(*) c FROM chat_messages WHERE channel_id = ? AND created_at > ? AND sender_id != ?", [channelId, lr.last_read_at, memberId])?.c || 0;
@@ -17278,7 +17293,7 @@ By applying to this program, I provide the following consents:
             const at = tcAllTeam();
             if (at) db.run("INSERT OR IGNORE INTO channel_members (id, channel_id, member_id, role) VALUES (?, ?, ?, 'member')", [uuidv4(), at.id, me.id]);
             const teamRows = query.all("SELECT * FROM chat_channels WHERE is_team_channel = 1 ORDER BY (name='all-team') DESC, sort_order ASC, display_name ASC");
-            const channels = teamRows.filter(c => tcIsMember(c.id, me.id)).map(c => {
+            const shape = (c, extra) => {
                 const last = tcLast(c.id);
                 return {
                     id: c.id, name: c.name, display_name: c.display_name || c.name, description: c.description || '',
@@ -17286,8 +17301,20 @@ By applying to this program, I provide the following consents:
                     member_count: query.get("SELECT COUNT(*) c FROM channel_members WHERE channel_id = ?", [c.id])?.c || 0,
                     unread: tcUnread(c.id, me.id),
                     last_at: (last && last.created_at) || c.created_at,
-                    last_preview: last ? (last.kind === 'poll' ? 'Meeting poll' : (last.file_type ? 'Attachment' : (last.message || ''))) : ''
+                    last_preview: last ? (last.kind === 'poll' ? 'Meeting poll' : (last.file_type ? 'Attachment' : (last.message || ''))) : '',
+                    ...extra
                 };
+            };
+            const channels = teamRows.filter(c => tcIsMember(c.id, me.id))
+                .map(c => shape(c, { scope: 'team', project: null }));
+            // Workspace channels (#general + every project rail) belong in the same list — they
+            // were invisible here while the dashboard rail showed them, so the two disagreed.
+            tcOpenChannels().forEach(c => {
+                channels.push(shape(c, {
+                    scope: 'workspace',
+                    project: c.project || null,
+                    display_name: c.display_name || c.name
+                }));
             });
             const dmRows = query.all("SELECT * FROM chat_channels WHERE is_dm = 1 AND (dm_a = ? OR dm_b = ?)", [me.id, me.id]);
             const dms = dmRows.map(c => {
@@ -26133,16 +26160,33 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             }
 
             // ----- ACCELERATOR -----
+            // The payment columns are only present once the accelerator fee migration has run.
+            // On installs without them we still list the applications, honestly reported as unpaid,
+            // instead of 500-ing the whole tab (which used to take Plexus/Gala/Forum down with it).
             if (sourceFilter === 'all' || sourceFilter === 'accelerator') {
-                let sql = `SELECT a.id, a.application_number, a.status, a.payment_status, a.payment_amount, a.payment_date, a.stripe_session_id,
-                    a.created_at, u.first_name, u.last_name, u.email, u.institution
+                const accelCols = new Set(query.all('PRAGMA table_info(accelerator_applications)').map(c => c.name));
+                const col = (name) => accelCols.has(name) ? `a.${name}` : `NULL`;
+                const hasPayStatus = accelCols.has('payment_status');
+                // Without a payment_status column every row is unpaid — a filter for anything else matches nothing.
+                const statusFilterExcludesAll = !hasPayStatus && status && status !== 'all' &&
+                    status !== 'unpaid' && status !== 'pending';
+                if (!statusFilterExcludesAll) {
+                let sql = `SELECT a.id, a.application_number, a.status,
+                    ${col('payment_status')} as payment_status, ${col('payment_amount')} as payment_amount,
+                    ${col('payment_date')} as payment_date, ${col('stripe_session_id')} as stripe_session_id,
+                    a.created_at,
+                    COALESCE(u.first_name, a.first_name) as first_name,
+                    COALESCE(u.last_name, a.last_name) as last_name,
+                    COALESCE(u.email, a.email) as email,
+                    COALESCE(u.institution, a.current_institution) as institution
                     FROM accelerator_applications a
                     LEFT JOIN users u ON a.user_id = u.id
                     WHERE a.status != 'draft'`;
                 const params = [];
-                if (status && status !== 'all') { sql += ' AND a.payment_status = ?'; params.push(status); }
+                if (hasPayStatus && status && status !== 'all') { sql += ' AND a.payment_status = ?'; params.push(status); }
                 if (search) {
-                    sql += ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR a.application_number LIKE ?)';
+                    sql += ` AND (COALESCE(u.first_name, a.first_name) LIKE ? OR COALESCE(u.last_name, a.last_name) LIKE ?
+                        OR COALESCE(u.email, a.email) LIKE ? OR a.application_number LIKE ?)`;
                     const term = `%${search}%`;
                     params.push(term, term, term, term);
                 }
@@ -26158,6 +26202,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                         ticket: 'Processing Fee (€75)', invoice_status: null, due_date: null, created_at: a.created_at
                     });
                 });
+                }
             }
 
             // ----- FORUM -----
