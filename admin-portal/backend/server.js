@@ -41417,6 +41417,21 @@ ${extraCss || ''}
         }
     } catch (e) { console.warn('[Heal] bridges restore failed:', e.message); }
 
+    // Guarantee Building Bridges Boston exists in the portal (colleague: "na webu ima BB
+    // Boston a u Portalu ga nema" — the public site advertises Boston as the next event). If
+    // the purge-restore found nothing to restore, create it as an UNPUBLISHED draft for the
+    // team to complete. Idempotent by city.
+    try {
+        const hasBoston = query.get("SELECT id FROM bridges_events WHERE city LIKE 'Boston%'");
+        if (!hasBoston) {
+            db.run(`INSERT INTO bridges_events (id, name, city, event_date, status, is_published, contact_email)
+                    VALUES (?, 'Building Bridges Boston', 'Boston', '2026-10-01', 'planning', 0, 'bridges@medx.hr')`,
+                [require('crypto').randomUUID()]);
+            saveDb();
+            console.log('[Heal] Draft Building Bridges Boston created (unpublished — team fills details)');
+        }
+    } catch (e) { console.warn('[Heal] Boston draft failed:', e.message); }
+
     // The free conference tiers must NOT claim to include the Gala: includes_gala=1 on a €0
     // ticket displayed the Gala as free and counted those registrations as gala passes in the
     // wallet (colleague report: "cijena za Plexus galu 0 umjesto 150"). Gala is paid ONLY via
