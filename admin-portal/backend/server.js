@@ -41689,6 +41689,15 @@ ${extraCss || ''}
         console.log('[Schema] ' + _tbls.length + ' tables, fingerprint ' + _fp);
     } catch (_e) { console.error('[Schema] fingerprint failed:', _e.message); }
 
+    // Money-side twin of the Event-Payments read bug: confirm-accelerator-payment WRITES
+    // payment_status/payment_amount/payment_date to accelerator_applications, whose schema
+    // never gained those columns. Add them (guarded) so confirming a payment cannot throw.
+    for (const col of ['payment_status TEXT', 'payment_amount REAL', 'payment_date TEXT', 'stripe_session_id TEXT']) {
+        try { db.run(`ALTER TABLE accelerator_applications ADD COLUMN ${col}`);
+              console.log('[Heal] accelerator_applications +', col.split(' ')[0]);
+        } catch (e) { if (!/duplicate column/i.test(e.message)) console.warn('[Heal] accel pay col failed:', col, e.message); }
+    }
+
     // Heal for a silently-failed migration: croatians_abroad_registrations is missing the four
     // *_checked_in columns (the original ALTER's empty catch ate the error), so /api/checkin/stats
     // and the roster 500. Re-run WITH logging, at end of init when the table certainly exists.
