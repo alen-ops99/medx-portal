@@ -77,9 +77,9 @@ function purgeTargets() {
         // demo rows are identified by NULL user_id + randomuser.me stock portrait, never name alone
         ['team_members', "name IN ('Ivan Nikolic','Sara Bonet','Petra Horvat') AND user_id IS NULL AND (photo_url LIKE '%randomuser.me%' OR photo_url IS NULL)", []],
         ['project_tasks', "COALESCE(created_by,'') = '' AND parent_id IS NULL", []],
-        // --- Fabricated Bridges events (created_by='seed' marks REAL rows — inverted!) ---
-        ['bridges_registrations', "event_id IN (SELECT id FROM bridges_events WHERE city IN ('Zurich','Washington DC','Boston') AND contact_email = 'bridges@medx.hr' AND COALESCE(created_by,'') <> 'seed')", []],
-        ['bridges_events', "city IN ('Zurich','Washington DC','Boston') AND contact_email = 'bridges@medx.hr' AND COALESCE(created_by,'') <> 'seed'", []],
+        // Bridges events REMOVED from purge (2026-07-25 correction): the audit misclassified
+        // them — the public site advertises Boston as the NEXT event and Zurich/Washington as
+        // past ones. A restore migration in server.js brings back what the first purge removed.
         // --- Fabricated finance ledger (CFO advisor already excludes it) ---
         ['finance_invoice_items', "invoice_id IN (SELECT id FROM finance_invoices)", []],
         ['finance_invoices', '1=1', []],

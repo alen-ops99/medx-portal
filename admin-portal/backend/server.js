@@ -41402,6 +41402,35 @@ ${extraCss || ''}
         } catch (e) { if (!/duplicate column/i.test(e.message)) console.warn('[Heal] checkin col failed:', col, e.message); }
     }
 
+    // Restore Building Bridges rows the 2026-07-25 purge wrongly removed (Boston is the NEXT
+    // real event per the public site; Zurich/Washington are past ones). One-time, from the
+    // in-DB _purged_* backups. Runs BEFORE the purge call (whose bridges targets are now gone).
+    try {
+        const done = query.get("SELECT value FROM app_state WHERE key = 'bridges_restore_2026_07_25'");
+        const backupExists = query.get("SELECT name FROM sqlite_master WHERE type='table' AND name='_purged_bridges_events'");
+        if (!done && backupExists) {
+            db.run("INSERT INTO bridges_events SELECT * FROM _purged_bridges_events WHERE id NOT IN (SELECT id FROM bridges_events)");
+            try { db.run("INSERT INTO bridges_registrations SELECT * FROM _purged_bridges_registrations WHERE id NOT IN (SELECT id FROM bridges_registrations)"); } catch (e) {}
+            db.run("INSERT OR REPLACE INTO app_state (key, value) VALUES ('bridges_restore_2026_07_25', datetime('now'))");
+            saveDb();
+            console.log('[Heal] Building Bridges events restored from purge backup');
+        }
+    } catch (e) { console.warn('[Heal] bridges restore failed:', e.message); }
+
+    // The free conference tiers must NOT claim to include the Gala: includes_gala=1 on a €0
+    // ticket displayed the Gala as free and counted those registrations as gala passes in the
+    // wallet (colleague report: "cijena za Plexus galu 0 umjesto 150"). Gala is paid ONLY via
+    // the gala rails at its own price. One-time; historical registrations keep their flag.
+    try {
+        const done = query.get("SELECT value FROM app_state WHERE key = 'migration_gala_not_included'");
+        if (!done) {
+            db.run('UPDATE ticket_types SET includes_gala = 0');
+            db.run("INSERT OR REPLACE INTO app_state (key, value) VALUES ('migration_gala_not_included', datetime('now'))");
+            saveDb();
+            console.log('[Migration] ticket_types.includes_gala zeroed — the Gala is never bundled free');
+        }
+    } catch (e) { console.warn('[Migration] gala-not-included failed:', e.message); }
+
     // Demo-data purge (Alen 2026-07-25: "the portal must show REAL numbers only"). MUST run at
     // the very end of init — the seed blocks above re-arm on empty tables, so purging any
     // earlier re-seeds the fakes. Production-only, idempotent, victims backed up to _purged_*.
