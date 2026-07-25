@@ -1036,7 +1036,7 @@
         .nav-label.nav-group-closed .nav-label-alert.on { display: inline-block; }
         .nav-group-hidden { display: none !important; }
 
-        /* Communications group — nav items that carry a short "who this reaches" subtitle. */
+        /* People & Comms group — nav items that carry a short "who this reaches" subtitle. */
         .nav-item.has-sub { align-items: flex-start; padding-top: 8px; padding-bottom: 8px; }
         .nav-item.has-sub > i { margin-top: 3px; }
         .nav-item .nav-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
@@ -7338,25 +7338,7 @@
                 <div id="projectsList"></div>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label" data-group="marketing"><span>Marketing &amp; Content</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
-
-                <a class="nav-item" data-section="content-studio" onclick="App.showSection('content-studio', this)">
-                    <i class="fas fa-th-large" style="color: #c9a962;"></i>
-                    <span>Content studio</span>
-                </a>
-
-                <a class="nav-item" data-section="pr-media" onclick="App.showSection('pr-media', this)">
-                    <i class="fas fa-bullhorn" style="color: var(--pr-media);"></i>
-                    <span>PR & Media</span>
-                </a>
-
-                <a class="nav-item has-sub" data-section="newsletter" onclick="App.showSection('newsletter', this)">
-                    <i class="fas fa-envelope-open-text" style="color:#10b981;"></i>
-                    <span class="nav-text"><span class="nav-title">Newsletter</span><span class="nav-sub">Everyone subscribed to updates</span></span>
-                </a>
-
-                <div class="nav-divider"></div>
-                <div class="nav-label" data-group="comms"><span>Communications</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
+                <div class="nav-label" data-group="comms"><span>People &amp; Comms</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <a class="nav-item" data-section="member-ops" onclick="App.showSection('member-ops', this)">
                     <i class="fas fa-sliders-h" style="color: #c9a962;"></i>
@@ -7392,7 +7374,7 @@
                 </a>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label" data-group="events"><span>Events &amp; access</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
+                <div class="nav-label" data-group="events"><span>Events &amp; Access</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <a class="nav-item" data-section="gameday" onclick="App.showSection('gameday', this)">
                     <i class="fas fa-tower-broadcast" style="color: #9b1b22;"></i>
@@ -7431,7 +7413,25 @@
                 </a>
 
                 <div class="nav-divider"></div>
-                <div class="nav-label" data-group="finance"><span>Finance</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
+                <div class="nav-label" data-group="marketing"><span>Marketing</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
+
+                <a class="nav-item" data-section="content-studio" onclick="App.showSection('content-studio', this)">
+                    <i class="fas fa-th-large" style="color: #c9a962;"></i>
+                    <span>Content studio</span>
+                </a>
+
+                <a class="nav-item" data-section="pr-media" onclick="App.showSection('pr-media', this)">
+                    <i class="fas fa-bullhorn" style="color: var(--pr-media);"></i>
+                    <span>PR & Media</span>
+                </a>
+
+                <a class="nav-item has-sub" data-section="newsletter" onclick="App.showSection('newsletter', this)">
+                    <i class="fas fa-envelope-open-text" style="color:#10b981;"></i>
+                    <span class="nav-text"><span class="nav-title">Newsletter</span><span class="nav-sub">Everyone subscribed to updates</span></span>
+                </a>
+
+                <div class="nav-divider"></div>
+                <div class="nav-label" data-group="money"><span>Leadership &amp; Finance</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <a class="nav-item" data-section="finances" onclick="App.showSection('finances', this)">
                     <i class="fas fa-coins" style="color: var(--finances);"></i>
@@ -7443,9 +7443,6 @@
                     <span>Board pack</span>
                 </a>
 
-                <div class="nav-divider"></div>
-                <div class="nav-label" data-group="leadership"><span>Leadership</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
-
                 <!-- Executive Suite (AI CMO / CFO / COO / CLO). CSP-clean: delegated data-adv-nav
                      handler, no inline onclick. -->
                 <a class="nav-item" data-section="advisors" data-adv-nav="1">
@@ -7453,32 +7450,8 @@
                     <span>Executive Suite</span>
                 </a>
 
-                <!-- Hidden merged/legacy sections. Kept in the DOM (display:none) so deep links,
-                     Cmd+K and the Member Ops sub-nav still resolve. See MERGED_HIDDEN. -->
-                <a class="nav-item" data-section="user-notifications" onclick="App.showSection('user-notifications', this)" style="display:none;">
-                    <i class="fas fa-paper-plane" style="color: #b06a1f;"></i>
-                    <span>Notifications</span>
-                    <span id="userNotifCount" style="background: var(--danger); color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
-                </a>
-
-                <a class="nav-item" data-section="portal-content" onclick="App.showSection('portal-content', this)" style="display:none;">
-                    <i class="fas fa-th-large" style="color: #c9a962;"></i>
-                    <span>Portal Content</span>
-                </a>
-
-                <a class="nav-item" data-section="website-content" onclick="App.showSection('website-content', this)" style="display:none;">
-                    <i class="fas fa-globe" style="color: #c9a962;"></i>
-                    <span>Website content</span>
-                </a>
-
-                <a class="nav-item" data-section="member-feed" onclick="App.showSection('member-feed', this)" style="display:none;">
-                    <i class="fas fa-rss" style="color: #c9a962;"></i>
-                    <span>Member Feed</span>
-                    <span id="mfOppNav" style="background: #b45309; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
-                </a>
-
                 <div class="nav-divider"></div>
-                <div class="nav-label" data-group="system"><span>System</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
+                <div class="nav-label" data-group="system"><span>System &amp; Tools</span><span class="nav-label-alert"></span><i class="fas fa-chevron-down nav-label-caret"></i></div>
 
                 <a class="nav-item" data-section="health" onclick="App.showSection('health', this)">
                     <i class="fas fa-heart-pulse" style="color: #22c55e;"></i>
@@ -7515,6 +7488,30 @@
                 <a class="nav-item" data-section="tech" onclick="App.showSection('tech', this)">
                     <i class="fas fa-server" style="color: #9b1b22;"></i>
                     <span>Tech</span>
+                </a>
+
+                <!-- Hidden merged/legacy sections. Kept in the DOM (display:none) so deep links,
+                     Cmd+K and the Member Ops sub-nav still resolve. See MERGED_HIDDEN. -->
+                <a class="nav-item" data-section="user-notifications" onclick="App.showSection('user-notifications', this)" style="display:none;">
+                    <i class="fas fa-paper-plane" style="color: #b06a1f;"></i>
+                    <span>Notifications</span>
+                    <span id="userNotifCount" style="background: var(--danger); color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
+                </a>
+
+                <a class="nav-item" data-section="portal-content" onclick="App.showSection('portal-content', this)" style="display:none;">
+                    <i class="fas fa-th-large" style="color: #c9a962;"></i>
+                    <span>Portal Content</span>
+                </a>
+
+                <a class="nav-item" data-section="website-content" onclick="App.showSection('website-content', this)" style="display:none;">
+                    <i class="fas fa-globe" style="color: #c9a962;"></i>
+                    <span>Website content</span>
+                </a>
+
+                <a class="nav-item" data-section="member-feed" onclick="App.showSection('member-feed', this)" style="display:none;">
+                    <i class="fas fa-rss" style="color: #c9a962;"></i>
+                    <span>Member Feed</span>
+                    <span id="mfOppNav" style="background: #b45309; color: white; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: auto; display: none;">0</span>
                 </a>
 
                 <!-- DISCOVER TOUR — quiet pinned entry (delegated, no inline onclick). Role-gated: applyRoleRestrictions hides it for scanner staff. -->
@@ -17909,7 +17906,7 @@ President, Med&amp;X</textarea>
                 plexus: 'Plexus Week 2026', accelerator: 'Med&X Accelerator', forum: 'Biomedical Forum',
                 bridges: 'Building Bridges', gameday: 'Game Day', conferences: 'Conferences',
                 editions: 'Editions', 'signup-forms': 'Sign-up Forms', 'guest-passes': 'Guest Passes',
-                'year-calendar': 'Year Calendar', cme: 'CME / HLK', 'pr-media': 'Marketing & Content',
+                'year-calendar': 'Year Calendar', cme: 'CME / HLK', 'pr-media': 'Marketing',
                 'member-ops': 'Member Ops & Comms', finances: 'Finance', contacts: 'My Network',
                 advisors: 'Executive Suite', files: 'Files & Resources', team: 'Team Access', tech: 'System & Tech'
             },
@@ -55681,12 +55678,15 @@ By applying to this program, I give the following consents:
         });
 
         // ===== COLLAPSIBLE SIDEBAR GROUPS =====
-        // Group headers fold their items like folders. Rarely-used groups start closed so the
-        // sidebar reads at a glance; every section stays reachable (search, Cmd+K, deep links
-        // and sub-navs auto-unfold the owning group via reveal()). State persists per browser.
+        // Group headers fold their items like folders. Only Projects starts open — everything
+        // else starts closed so the sidebar reads at a glance; every section stays reachable
+        // (search, Cmd+K, deep links and sub-navs auto-unfold the owning group via reveal()).
+        // State persists per browser. v2: key bumped for the 6-group IA (People & Comms /
+        // Events & Access / Marketing / Leadership & Finance / System & Tools) so stale v1
+        // states don't fight the new defaults.
         const NavGroups = {
-            KEY: 'medx_admin_nav_groups_v1',
-            DEFAULT_CLOSED: ['events', 'finance', 'leadership', 'system'],
+            KEY: 'medx_admin_nav_groups_v2',
+            DEFAULT_CLOSED: ['comms', 'events', 'marketing', 'money', 'system'],
             state: null,
             load() {
                 if (this.state) return this.state;
@@ -55730,9 +55730,17 @@ By applying to this program, I give the following consents:
                 let el = document.querySelector('#sidebarNav .nav-item[data-section="' + sectionId + '"]') ||
                          document.querySelector('#projectsList [data-project="' + sectionId + '"]');
                 if (!el) return;
+                // Merged/legacy and permission-hidden entries route elsewhere visually —
+                // unfolding their host group would open a fold with nothing lit in it.
+                if (el.style.display === 'none') return;
                 if (el.closest('#projectsList')) el = document.getElementById('projectsList');
                 let n = el;
-                while (n && !(n.classList && n.classList.contains('nav-label'))) n = n.previousElementSibling;
+                // Walk up to the owning group header. Hitting a divider first means the entry
+                // is pinned outside any group (e.g. Discover) — nothing to unfold.
+                while (n && !(n.classList && n.classList.contains('nav-label'))) {
+                    if (n.classList && n.classList.contains('nav-divider')) return;
+                    n = n.previousElementSibling;
+                }
                 if (n && n.dataset.group && this.load()[n.dataset.group]) {
                     this.state[n.dataset.group] = false;
                     this.save();
