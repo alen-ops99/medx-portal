@@ -20776,7 +20776,8 @@ President, Med&amp;X</textarea>
                 // Mark the correct project as active in sidebar
                 const projectEl = document.querySelector(`.sidebar-project[data-project="${projectId}"]`);
                 if (projectEl) projectEl.classList.add('active');
-                if (navItem && navItem.classList.contains('nav-item')) navItem.classList.add('active');
+                const projNav = navItem || document.querySelector(`.nav-item[data-section="${projectId}"], .sidebar-project[data-project="${projectId}"]`);
+                if (projNav && projNav.classList) projNav.classList.add('active');
 
                 // Switch chat panel to project mode
                 this.currentView = projectId;
@@ -30228,6 +30229,9 @@ President, Med&amp;X</textarea>
 
         // Handle browser back/forward navigation
         window.addEventListener('popstate', (e) => App.handlePopState(e));
+        // Anchor the history stack inside the app: without a base entry, the first Back after
+        // login walked out to about:blank (audit 2026-07-25).
+        try { history.replaceState({ section: window.location.hash.slice(1) || 'dashboard' }, '', window.location.hash || '#dashboard'); } catch (e) {}
 
         // ========== ACCELERATOR APP ==========
         const AcceleratorApp = {
