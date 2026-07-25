@@ -7282,31 +7282,31 @@
                             <div class="ax-wizard-progress">
                                 <div class="ax-wizard-step active" data-step="1">
                                     <div class="ax-wizard-step-number">1</div>
-                                    <div class="ax-wizard-step-label">Personal</div>
+                                    <div class="ax-wizard-step-label" data-i18n="axa.nav1">Personal</div>
                                 </div>
                                 <div class="ax-wizard-step" data-step="2">
                                     <div class="ax-wizard-step-number">2</div>
-                                    <div class="ax-wizard-step-label">Education</div>
+                                    <div class="ax-wizard-step-label" data-i18n="axa.nav2">Education</div>
                                 </div>
                                 <div class="ax-wizard-step" data-step="3">
                                     <div class="ax-wizard-step-number">3</div>
-                                    <div class="ax-wizard-step-label">Program</div>
+                                    <div class="ax-wizard-step-label" data-i18n="axa.nav3">Program</div>
                                 </div>
                                 <div class="ax-wizard-step" data-step="4">
                                     <div class="ax-wizard-step-number">4</div>
-                                    <div class="ax-wizard-step-label">Supplementary</div>
+                                    <div class="ax-wizard-step-label" data-i18n="axa.nav4">Supplementary</div>
                                 </div>
                                 <div class="ax-wizard-step" data-step="5">
                                     <div class="ax-wizard-step-number">5</div>
-                                    <div class="ax-wizard-step-label">Documents</div>
+                                    <div class="ax-wizard-step-label" data-i18n="axa.nav5">Documents</div>
                                 </div>
                                 <div class="ax-wizard-step" data-step="6">
                                     <div class="ax-wizard-step-number">6</div>
-                                    <div class="ax-wizard-step-label">Consent</div>
+                                    <div class="ax-wizard-step-label" data-i18n="axa.nav6">Consent</div>
                                 </div>
                                 <div class="ax-wizard-step" data-step="7">
                                     <div class="ax-wizard-step-number">7</div>
-                                    <div class="ax-wizard-step-label">Review</div>
+                                    <div class="ax-wizard-step-label" data-i18n="axa.nav7">Review</div>
                                 </div>
                             </div>
 
@@ -7314,7 +7314,7 @@
                             <div class="ax-wizard-content">
                                 <!-- Step 1: Personal Information -->
                                 <div class="ax-wizard-panel active" id="ax-wizard-step-1">
-                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);">Personal Information</h3>
+                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);" data-i18n="axa.step1">Personal Information</h3>
                                     <div class="auth-form-row" style="margin-bottom: 20px;">
                                         <div class="auth-form-group" style="margin-bottom: 0;">
                                             <label class="auth-form-label" data-i18n="f.firstName">First Name<span> *</span></label>
@@ -7331,31 +7331,31 @@
                                     </div>
                                     <div class="auth-form-row" style="margin-bottom: 20px;">
                                         <div class="auth-form-group" style="margin-bottom: 0;">
-                                            <label class="auth-form-label">Phone</label>
-                                            <input type="tel" class="auth-form-input" id="axPhone" placeholder="+1 234 567 8900" maxlength="50">
+                                            <label class="auth-form-label" data-i18n="axa.fPhone">Phone</label>
+                                            <input type="tel" class="auth-form-input" id="axPhone" placeholder="+1 234 567 8900" data-i18n-placeholder="axa.fPhonePh" maxlength="50">
                                         </div>
                                         <div class="auth-form-group" style="margin-bottom: 0;">
-                                            <label class="auth-form-label">Date of Birth *</label>
+                                            <label class="auth-form-label" data-i18n="axa.fDob">Date of Birth<span> *</span></label>
                                             <input type="date" class="auth-form-input" id="axDob" required min="1900-01-01" max="2015-12-31">
                                         </div>
                                     </div>
                                     <div class="auth-form-row">
                                         <div class="auth-form-group" style="margin-bottom: 0;">
-                                            <label class="auth-form-label">Nationality *</label>
-                                            <input type="text" class="auth-form-input" id="axNationality" placeholder="e.g. Croatian" autocomplete="country-name" maxlength="100">
+                                            <label class="auth-form-label" data-i18n="axa.fNationality">Nationality<span> *</span></label>
+                                            <input type="text" class="auth-form-input" id="axNationality" placeholder="e.g. Croatian" data-i18n-placeholder="axa.fNationalityPh" autocomplete="country-name" maxlength="100">
                                         </div>
                                         <div class="auth-form-group" style="margin-bottom: 0;">
-                                            <label class="auth-form-label">Country of Residence *</label>
+                                            <label class="auth-form-label" data-i18n="axa.fCountry">Country of Residence<span> *</span></label>
                                             <select class="auth-form-select" id="axCountry">
-                                                <option value="">Select country</option>
+                                                <option value="" data-i18n="axa.optCountry">Select country</option>
                                             </select>
                                         </div>
                                     </div>
                                     <div class="ax-wizard-actions">
-                                        <button class="ax-hero-btn ax-hero-btn-secondary" onclick="AcceleratorPortal.saveDraft()" style="background: transparent; border: 1px solid var(--up-border);">
+                                        <button class="ax-hero-btn ax-hero-btn-secondary" data-i18n="axa.btnSave" onclick="AcceleratorPortal.saveDraft()" style="background: transparent; border: 1px solid var(--up-border);">
                                             <i class="fas fa-save"></i> Save Draft
                                         </button>
-                                        <button class="ax-hero-btn ax-hero-btn-primary" onclick="AcceleratorPortal.nextStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-primary" data-i18n="axa.btnContinue" onclick="AcceleratorPortal.nextStep()">
                                             Continue <i class="fas fa-arrow-right"></i>
                                         </button>
                                     </div>
@@ -7363,50 +7363,50 @@
 
                                 <!-- Step 2: Education -->
                                 <div class="ax-wizard-panel" id="ax-wizard-step-2">
-                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);">Education</h3>
+                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);" data-i18n="axa.step2">Education</h3>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Current Institution *</label>
-                                        <input type="text" class="auth-form-input" id="axInstitution" placeholder="University name" autocomplete="organization" maxlength="200">
+                                        <label class="auth-form-label" data-i18n="axa.fInstitution">Current Institution<span> *</span></label>
+                                        <input type="text" class="auth-form-input" id="axInstitution" placeholder="University name" data-i18n-placeholder="axa.fInstitutionPh" autocomplete="organization" maxlength="200">
                                     </div>
                                     <div class="auth-form-row" style="margin-bottom: 20px;">
                                         <div class="auth-form-group" style="margin-bottom: 0;">
-                                            <label class="auth-form-label">Degree Program *</label>
+                                            <label class="auth-form-label" data-i18n="axa.fDegree">Degree Program<span> *</span></label>
                                             <select class="auth-form-select" id="axDegree">
-                                                <option value="">Select degree</option>
-                                                <option value="md">MD / Medicine</option>
-                                                <option value="phd">PhD</option>
-                                                <option value="msc">Master's</option>
-                                                <option value="bsc">Bachelor's</option>
-                                                <option value="md-phd">MD-PhD</option>
+                                                <option value="" data-i18n="axa.optDegree">Select degree</option>
+                                                <option value="md" data-i18n="axa.degMd">MD / Medicine</option>
+                                                <option value="phd" data-i18n="axa.degPhd">PhD</option>
+                                                <option value="msc" data-i18n="axa.degMsc">Master's</option>
+                                                <option value="bsc" data-i18n="axa.degBsc">Bachelor's</option>
+                                                <option value="md-phd" data-i18n="axa.degMdPhd">MD-PhD</option>
                                             </select>
                                         </div>
                                         <div class="auth-form-group" style="margin-bottom: 0;">
-                                            <label class="auth-form-label">Year of Study *</label>
+                                            <label class="auth-form-label" data-i18n="axa.fYear">Year of Study<span> *</span></label>
                                             <select class="auth-form-select" id="axYear">
-                                                <option value="">Select year</option>
-                                                <option value="1">1st Year</option>
-                                                <option value="2">2nd Year</option>
-                                                <option value="3">3rd Year</option>
-                                                <option value="4">4th Year</option>
-                                                <option value="5">5th Year</option>
-                                                <option value="6">6th Year</option>
-                                                <option value="graduated">Graduated</option>
+                                                <option value="" data-i18n="axa.optYear">Select year</option>
+                                                <option value="1" data-i18n="axa.year1">1st Year</option>
+                                                <option value="2" data-i18n="axa.year2">2nd Year</option>
+                                                <option value="3" data-i18n="axa.year3">3rd Year</option>
+                                                <option value="4" data-i18n="axa.year4">4th Year</option>
+                                                <option value="5" data-i18n="axa.year5">5th Year</option>
+                                                <option value="6" data-i18n="axa.year6">6th Year</option>
+                                                <option value="graduated" data-i18n="axa.yearGrad">Graduated</option>
                                             </select>
                                         </div>
                                     </div>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Field of Study *</label>
-                                        <input type="text" class="auth-form-input" id="axField" placeholder="e.g. Neuroscience, Oncology, Public Health" maxlength="200">
+                                        <label class="auth-form-label" data-i18n="axa.fField">Field of Study<span> *</span></label>
+                                        <input type="text" class="auth-form-input" id="axField" placeholder="e.g. Neuroscience, Oncology, Public Health" data-i18n-placeholder="axa.fFieldPh" maxlength="200">
                                     </div>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Expected Graduation</label>
+                                        <label class="auth-form-label" data-i18n="axa.fGraduation">Expected Graduation</label>
                                         <input type="month" class="auth-form-input" id="axGraduation">
                                     </div>
                                     <div class="ax-wizard-actions">
-                                        <button class="ax-hero-btn ax-hero-btn-secondary" onclick="AcceleratorPortal.prevStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-secondary" data-i18n="axa.btnBack" onclick="AcceleratorPortal.prevStep()">
                                             <i class="fas fa-arrow-left"></i> Back
                                         </button>
-                                        <button class="ax-hero-btn ax-hero-btn-primary" onclick="AcceleratorPortal.nextStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-primary" data-i18n="axa.btnContinue" onclick="AcceleratorPortal.nextStep()">
                                             Continue <i class="fas fa-arrow-right"></i>
                                         </button>
                                     </div>
@@ -7414,12 +7414,12 @@
 
                                 <!-- Step 3: Program Selection -->
                                 <div class="ax-wizard-panel" id="ax-wizard-step-3">
-                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);">Program Selection</h3>
-                                    <p style="color: var(--up-text-secondary); margin-bottom: 24px;">Select up to 3 institutions in order of preference</p>
+                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);" data-i18n="axa.step3">Program Selection</h3>
+                                    <p style="color: var(--up-text-secondary); margin-bottom: 24px;" data-i18n="axa.step3Hint">Select up to 3 institutions in order of preference</p>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">First Choice *</label>
+                                        <label class="auth-form-label" data-i18n="axa.fChoice1">First Choice<span> *</span></label>
                                         <select class="auth-form-select" id="axChoice1">
-                                            <option value="">Select institution</option>
+                                            <option value="" data-i18n="axa.optInstitution">Select institution</option>
                                             <option value="harvard">Harvard Medical School</option>
                                             <option value="yale">Yale School of Medicine</option>
                                             <option value="mayo">Mayo Clinic</option>
@@ -7431,9 +7431,9 @@
                                         </select>
                                     </div>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Second Choice</label>
+                                        <label class="auth-form-label" data-i18n="axa.fChoice2">Second Choice</label>
                                         <select class="auth-form-select" id="axChoice2">
-                                            <option value="">Select institution</option>
+                                            <option value="" data-i18n="axa.optInstitution">Select institution</option>
                                             <option value="harvard">Harvard Medical School</option>
                                             <option value="yale">Yale School of Medicine</option>
                                             <option value="mayo">Mayo Clinic</option>
@@ -7445,9 +7445,9 @@
                                         </select>
                                     </div>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Third Choice</label>
+                                        <label class="auth-form-label" data-i18n="axa.fChoice3">Third Choice</label>
                                         <select class="auth-form-select" id="axChoice3">
-                                            <option value="">Select institution</option>
+                                            <option value="" data-i18n="axa.optInstitution">Select institution</option>
                                             <option value="harvard">Harvard Medical School</option>
                                             <option value="yale">Yale School of Medicine</option>
                                             <option value="mayo">Mayo Clinic</option>
@@ -7459,14 +7459,14 @@
                                         </select>
                                     </div>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Research Interest Areas *</label>
-                                        <textarea class="auth-form-input" id="axResearchInterests" rows="3" placeholder="Describe your research interests..." maxlength="2000"></textarea>
+                                        <label class="auth-form-label" data-i18n="axa.fInterests">Research Interest Areas<span> *</span></label>
+                                        <textarea class="auth-form-input" id="axResearchInterests" rows="3" placeholder="Describe your research interests..." data-i18n-placeholder="axa.fInterestsPh" maxlength="2000"></textarea>
                                     </div>
                                     <div class="ax-wizard-actions">
-                                        <button class="ax-hero-btn ax-hero-btn-secondary" onclick="AcceleratorPortal.prevStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-secondary" data-i18n="axa.btnBack" onclick="AcceleratorPortal.prevStep()">
                                             <i class="fas fa-arrow-left"></i> Back
                                         </button>
-                                        <button class="ax-hero-btn ax-hero-btn-primary" onclick="AcceleratorPortal.nextStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-primary" data-i18n="axa.btnContinue" onclick="AcceleratorPortal.nextStep()">
                                             Continue <i class="fas fa-arrow-right"></i>
                                         </button>
                                     </div>
@@ -7474,24 +7474,24 @@
 
                                 <!-- Step 4: Supplementary Info -->
                                 <div class="ax-wizard-panel" id="ax-wizard-step-4">
-                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);">Supplementary Information</h3>
+                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);" data-i18n="axa.step4">Supplementary Information</h3>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Personal Statement * (max 500 words)</label>
-                                        <textarea class="auth-form-input" id="axStatement" rows="6" placeholder="Why do you want to participate in the Accelerator program? What do you hope to achieve?" maxlength="2000"></textarea>
+                                        <label class="auth-form-label" data-i18n="axa.fStatement">Personal Statement (max 500 words)<span> *</span></label>
+                                        <textarea class="auth-form-input" id="axStatement" rows="6" placeholder="Why do you want to participate in the Accelerator program? What do you hope to achieve?" data-i18n-placeholder="axa.fStatementPh" maxlength="2000"></textarea>
                                     </div>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Research Experience</label>
-                                        <textarea class="auth-form-input" id="axExperience" rows="4" placeholder="Describe any previous research experience..." maxlength="2000"></textarea>
+                                        <label class="auth-form-label" data-i18n="axa.fExperience">Research Experience</label>
+                                        <textarea class="auth-form-input" id="axExperience" rows="4" placeholder="Describe any previous research experience..." data-i18n-placeholder="axa.fExperiencePh" maxlength="2000"></textarea>
                                     </div>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Publications / Presentations (if any)</label>
-                                        <textarea class="auth-form-input" id="axPublications" rows="3" placeholder="List any publications, conference presentations, or posters..." maxlength="2000"></textarea>
+                                        <label class="auth-form-label" data-i18n="axa.fPublications">Publications / Presentations (if any)</label>
+                                        <textarea class="auth-form-input" id="axPublications" rows="3" placeholder="List any publications, conference presentations, or posters..." data-i18n-placeholder="axa.fPublicationsPh" maxlength="2000"></textarea>
                                     </div>
                                     <div class="ax-wizard-actions">
-                                        <button class="ax-hero-btn ax-hero-btn-secondary" onclick="AcceleratorPortal.prevStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-secondary" data-i18n="axa.btnBack" onclick="AcceleratorPortal.prevStep()">
                                             <i class="fas fa-arrow-left"></i> Back
                                         </button>
-                                        <button class="ax-hero-btn ax-hero-btn-primary" onclick="AcceleratorPortal.nextStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-primary" data-i18n="axa.btnContinue" onclick="AcceleratorPortal.nextStep()">
                                             Continue <i class="fas fa-arrow-right"></i>
                                         </button>
                                     </div>
@@ -7499,42 +7499,42 @@
 
                                 <!-- Step 5: Documents -->
                                 <div class="ax-wizard-panel" id="ax-wizard-step-5">
-                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);">Required Documents</h3>
+                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);" data-i18n="axa.step5">Required Documents</h3>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">CV / Resume * (PDF)</label>
+                                        <label class="auth-form-label" data-i18n="axa.fCv">CV / Resume (PDF)<span> *</span></label>
                                         <div class="px-file-upload" onclick="document.getElementById('axCvFile').click()" style="border-color: var(--up-border);">
                                             <i class="fas fa-cloud-upload-alt"></i>
-                                            <p><span style="color: var(--gold);">Click to upload</span> or drag and drop</p>
-                                            <p style="font-size: 12px; color: var(--up-text-muted);">PDF up to 5MB</p>
+                                            <p data-i18n="axa.upDrag"><span style="color: var(--gold);" data-i18n="axa.upClick">Click to upload</span> or drag and drop</p>
+                                            <p style="font-size: 12px; color: var(--up-text-muted);" data-i18n="axa.upPdfMax">PDF up to 5MB</p>
                                         </div>
                                         <input type="file" id="axCvFile" style="display: none;" accept=".pdf" onchange="AcceleratorPortal.handleFileSelect(this)">
                                         <div class="ax-file-feedback" style="display: none; margin-top: 8px; padding: 8px 12px; background: rgba(47, 107, 58,0.1); border: 1px solid rgba(47, 107, 58,0.3); border-radius: 8px; font-size: 13px; color: #2f6b3a;"><i class="fas fa-check-circle" style="margin-right: 6px;"></i><span class="ax-file-name"></span></div>
                                     </div>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Transcript * (PDF)</label>
+                                        <label class="auth-form-label" data-i18n="axa.fTranscript">Transcript (PDF)<span> *</span></label>
                                         <div class="px-file-upload" onclick="document.getElementById('axTranscriptFile').click()" style="border-color: var(--up-border);">
                                             <i class="fas fa-cloud-upload-alt"></i>
-                                            <p><span style="color: var(--gold);">Click to upload</span> or drag and drop</p>
-                                            <p style="font-size: 12px; color: var(--up-text-muted);">PDF up to 5MB</p>
+                                            <p data-i18n="axa.upDrag"><span style="color: var(--gold);" data-i18n="axa.upClick">Click to upload</span> or drag and drop</p>
+                                            <p style="font-size: 12px; color: var(--up-text-muted);" data-i18n="axa.upPdfMax">PDF up to 5MB</p>
                                         </div>
                                         <input type="file" id="axTranscriptFile" style="display: none;" accept=".pdf" onchange="AcceleratorPortal.handleFileSelect(this)">
                                         <div class="ax-file-feedback" style="display: none; margin-top: 8px; padding: 8px 12px; background: rgba(47, 107, 58,0.1); border: 1px solid rgba(47, 107, 58,0.3); border-radius: 8px; font-size: 13px; color: #2f6b3a;"><i class="fas fa-check-circle" style="margin-right: 6px;"></i><span class="ax-file-name"></span></div>
                                     </div>
                                     <div class="auth-form-group">
-                                        <label class="auth-form-label">Letter of Recommendation (optional, PDF)</label>
+                                        <label class="auth-form-label" data-i18n="axa.fRec">Letter of Recommendation (optional, PDF)</label>
                                         <div class="px-file-upload" onclick="document.getElementById('axRecFile').click()" style="border-color: var(--up-border);">
                                             <i class="fas fa-cloud-upload-alt"></i>
-                                            <p><span style="color: var(--gold);">Click to upload</span> or drag and drop</p>
-                                            <p style="font-size: 12px; color: var(--up-text-muted);">PDF up to 5MB</p>
+                                            <p data-i18n="axa.upDrag"><span style="color: var(--gold);" data-i18n="axa.upClick">Click to upload</span> or drag and drop</p>
+                                            <p style="font-size: 12px; color: var(--up-text-muted);" data-i18n="axa.upPdfMax">PDF up to 5MB</p>
                                         </div>
                                         <input type="file" id="axRecFile" style="display: none;" accept=".pdf" onchange="AcceleratorPortal.handleFileSelect(this)">
                                         <div class="ax-file-feedback" style="display: none; margin-top: 8px; padding: 8px 12px; background: rgba(47, 107, 58,0.1); border: 1px solid rgba(47, 107, 58,0.3); border-radius: 8px; font-size: 13px; color: #2f6b3a;"><i class="fas fa-check-circle" style="margin-right: 6px;"></i><span class="ax-file-name"></span></div>
                                     </div>
                                     <div class="ax-wizard-actions">
-                                        <button class="ax-hero-btn ax-hero-btn-secondary" onclick="AcceleratorPortal.prevStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-secondary" data-i18n="axa.btnBack" onclick="AcceleratorPortal.prevStep()">
                                             <i class="fas fa-arrow-left"></i> Back
                                         </button>
-                                        <button class="ax-hero-btn ax-hero-btn-primary" onclick="AcceleratorPortal.nextStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-primary" data-i18n="axa.btnContinue" onclick="AcceleratorPortal.nextStep()">
                                             Continue <i class="fas fa-arrow-right"></i>
                                         </button>
                                     </div>
@@ -7542,35 +7542,35 @@
 
                                 <!-- Step 6: GDPR Consent -->
                                 <div class="ax-wizard-panel" id="ax-wizard-step-6">
-                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);">Data Protection & Consent</h3>
+                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);" data-i18n="axa.step6">Data Protection & Consent</h3>
                                     <div style="background: var(--up-bg-subtle); padding: 20px; border-radius: 12px; margin-bottom: 24px;">
-                                        <p style="font-size: 14px; color: var(--up-text-secondary); line-height: 1.6;">
+                                        <p style="font-size: 14px; color: var(--up-text-secondary); line-height: 1.6;" data-i18n="axa.gdprBody">
                                             Your personal data will be processed in accordance with GDPR. Data will be shared with collaborating institutions only for the purpose of evaluating your application. You may withdraw your application and request data deletion at any time by contacting accelerator@medx.hr.
                                         </p>
                                     </div>
                                     <div class="auth-form-group">
                                         <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
                                             <input type="checkbox" id="axConsent1" style="margin-top: 4px; width: 18px; height: 18px;">
-                                            <span style="font-size: 14px; color: var(--up-text);">I consent to Med&X processing my personal data for the Accelerator program application *</span>
+                                            <span style="font-size: 14px; color: var(--up-text);" data-i18n="axa.consent1">I consent to Med&X processing my personal data for the Accelerator program application<span> *</span></span>
                                         </label>
                                     </div>
                                     <div class="auth-form-group">
                                         <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
                                             <input type="checkbox" id="axConsent2" style="margin-top: 4px; width: 18px; height: 18px;">
-                                            <span style="font-size: 14px; color: var(--up-text);">I consent to my data being shared with selected collaborating institutions *</span>
+                                            <span style="font-size: 14px; color: var(--up-text);" data-i18n="axa.consent2">I consent to my data being shared with selected collaborating institutions<span> *</span></span>
                                         </label>
                                     </div>
                                     <div class="auth-form-group">
                                         <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
                                             <input type="checkbox" id="axConsent3" style="margin-top: 4px; width: 18px; height: 18px;">
-                                            <span style="font-size: 14px; color: var(--up-text);">I confirm that all information provided is accurate and complete *</span>
+                                            <span style="font-size: 14px; color: var(--up-text);" data-i18n="axa.consent3">I confirm that all information provided is accurate and complete<span> *</span></span>
                                         </label>
                                     </div>
                                     <div class="ax-wizard-actions">
-                                        <button class="ax-hero-btn ax-hero-btn-secondary" onclick="AcceleratorPortal.prevStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-secondary" data-i18n="axa.btnBack" onclick="AcceleratorPortal.prevStep()">
                                             <i class="fas fa-arrow-left"></i> Back
                                         </button>
-                                        <button class="ax-hero-btn ax-hero-btn-primary" onclick="AcceleratorPortal.nextStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-primary" data-i18n="axa.btnContinue" onclick="AcceleratorPortal.nextStep()">
                                             Continue <i class="fas fa-arrow-right"></i>
                                         </button>
                                     </div>
@@ -7578,58 +7578,58 @@
 
                                 <!-- Step 7: Review & Submit -->
                                 <div class="ax-wizard-panel" id="ax-wizard-step-7">
-                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);">Review & Submit</h3>
+                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 24px; color: var(--up-text);" data-i18n="axa.step7">Review & Submit</h3>
                                     <div class="up-card" style="margin-bottom: 24px; background: var(--up-bg-subtle);">
                                         <div class="up-card-body">
-                                            <h4 style="font-size: 14px; font-weight: 600; color: var(--up-text); margin-bottom: 12px;">Application Summary</h4>
+                                            <h4 style="font-size: 14px; font-weight: 600; color: var(--up-text); margin-bottom: 12px;" data-i18n="axa.summary">Application Summary</h4>
                                             <div style="display: grid; gap: 8px; font-size: 14px;">
                                                 <div style="display: flex; justify-content: space-between;">
-                                                    <span style="color: var(--up-text-secondary);">Name</span>
+                                                    <span style="color: var(--up-text-secondary);" data-i18n="axa.rName">Name</span>
                                                     <span style="color: var(--up-text);" id="axReviewName">-</span>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
-                                                    <span style="color: var(--up-text-secondary);">Email</span>
+                                                    <span style="color: var(--up-text-secondary);" data-i18n="axa.rEmail">Email</span>
                                                     <span style="color: var(--up-text);" id="axReviewEmail">-</span>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
-                                                    <span style="color: var(--up-text-secondary);">Institution</span>
+                                                    <span style="color: var(--up-text-secondary);" data-i18n="axa.rInstitution">Institution</span>
                                                     <span style="color: var(--up-text);" id="axReviewInstitution">-</span>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
-                                                    <span style="color: var(--up-text-secondary);">Degree</span>
+                                                    <span style="color: var(--up-text-secondary);" data-i18n="axa.rDegree">Degree</span>
                                                     <span style="color: var(--up-text);" id="axReviewDegree">-</span>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
-                                                    <span style="color: var(--up-text-secondary);">First Choice</span>
+                                                    <span style="color: var(--up-text-secondary);" data-i18n="axa.fChoice1">First Choice</span>
                                                     <span style="color: var(--up-text);" id="axReviewChoice1">-</span>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
-                                                    <span style="color: var(--up-text-secondary);">Second Choice</span>
+                                                    <span style="color: var(--up-text-secondary);" data-i18n="axa.fChoice2">Second Choice</span>
                                                     <span style="color: var(--up-text);" id="axReviewChoice2">-</span>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
-                                                    <span style="color: var(--up-text-secondary);">Documents</span>
+                                                    <span style="color: var(--up-text-secondary);" data-i18n="axa.rDocs">Documents</span>
                                                     <span style="color: var(--up-text);" id="axReviewDocs">-</span>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                    <p style="font-size: 13px; color: var(--up-text-muted); margin-bottom: 24px;">
+                                    <p style="font-size: 13px; color: var(--up-text-muted); margin-bottom: 24px;" data-i18n="axa.reviewNote">
                                         <i class="fas fa-info-circle" style="margin-right: 8px;"></i>
                                         Once submitted, you will receive a confirmation email. You can track your application status in the "My Applications" section.
                                     </p>
                                     <div class="ax-wizard-actions">
-                                        <button class="ax-hero-btn ax-hero-btn-secondary" onclick="AcceleratorPortal.prevStep()">
+                                        <button class="ax-hero-btn ax-hero-btn-secondary" data-i18n="axa.btnBack" onclick="AcceleratorPortal.prevStep()">
                                             <i class="fas fa-arrow-left"></i> Back
                                         </button>
-                                        <button class="ax-hero-btn ax-hero-btn-secondary" onclick="AcceleratorPortal.generateReviewPDF()" style="background: transparent; border: 1px solid var(--up-border);">
+                                        <button class="ax-hero-btn ax-hero-btn-secondary" data-i18n="axa.btnPdf" onclick="AcceleratorPortal.generateReviewPDF()" style="background: transparent; border: 1px solid var(--up-border);">
                                             <i class="fas fa-file-pdf"></i> Preview as PDF
                                         </button>
-                                        <button class="ax-hero-btn ax-hero-btn-primary" onclick="AcceleratorPortal.submitApplication()">
+                                        <button class="ax-hero-btn ax-hero-btn-primary" data-i18n="axa.btnSubmit" onclick="AcceleratorPortal.submitApplication()">
                                             <i class="fas fa-paper-plane"></i> Submit Application
                                         </button>
                                     </div>
-                                    <p style="font-size: 12px; color: var(--up-text-muted); margin-top: 12px; text-align: center;">
+                                    <p style="font-size: 12px; color: var(--up-text-muted); margin-top: 12px; text-align: center;" data-i18n-html="axa.footerHelp">
                                         Problem with your application? <a href="mailto:accelerator@medx.hr" style="color: var(--up-gold); text-decoration: none;">Contact us</a> before you submit.
                                     </p>
                                 </div>

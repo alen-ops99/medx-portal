@@ -6319,6 +6319,10 @@ async function initializeApp() {
         signatory_role TEXT DEFAULT 'President',
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Unbounded article list for the ranking-list PDF (JSON: [{title, text}, ...]).
+    // Supersedes the fixed article1_text/article2_text/article3_text trio, which is
+    // still read as a fallback for rows saved before this column existed.
+    try { db.run("ALTER TABLE accelerator_pdf_settings ADD COLUMN articles TEXT"); } catch (e) {}
 
     // Interview scores from external interviewers
     db.run(`CREATE TABLE IF NOT EXISTS accelerator_interview_scores (
@@ -15202,21 +15206,40 @@ By applying to this program, I provide the following consents:
             return res.status(403).json({ error: 'Invalid or expired access link' });
         }
 
-        // Get applications assigned for evaluation (all valid applications for that year)
+        // Applications an interviewer may evaluate: anything that reached at least
+        // "submitted" for their program year.
+        //   - `validity_status` is NULL until an admin explicitly triages a row, so
+        //     testing `= 'valid'` hid EVERY candidate and left the console blank.
+        //   - restricting to status 'submitted' also dropped candidates already moved
+        //     to under_review / interview_scheduled — i.e. exactly the ones due an interview.
+        // `my_score` reads back from accelerator_application_scores (where this console
+        // WRITES), falling back to the legacy accelerator_interview_scores row.
         const applications = query.all(`
             SELECT a.id, a.candidate_id, a.first_name, a.last_name, a.selected_institution,
-                   i.name as institution_name, a.validity_status,
-                   (SELECT score FROM accelerator_interview_scores WHERE application_id = a.id AND interviewer_id = ?) as my_score,
+                   i.name as institution_name, a.validity_status, a.status,
+                   COALESCE(
+                       (SELECT SUM(score) FROM accelerator_application_scores WHERE application_id = a.id AND evaluator_id = ?),
+                       (SELECT score FROM accelerator_interview_scores WHERE application_id = a.id AND interviewer_id = ?)
+                   ) as my_score,
                    (SELECT notes FROM accelerator_interview_scores WHERE application_id = a.id AND interviewer_id = ?) as my_notes
             FROM accelerator_applications a
             JOIN accelerator_programs p ON a.program_id = p.id
             LEFT JOIN accelerator_institutions i ON a.selected_institution = i.id
-            WHERE p.year = ? AND a.status = 'submitted' AND a.validity_status = 'valid'
-            ORDER BY a.candidate_id`,
-            [interviewer.id, interviewer.id, interviewer.year]);
+            WHERE p.year = ?
+              AND a.status IN ('submitted', 'under_review', 'interview_scheduled')
+              AND (a.validity_status IS NULL OR a.validity_status = 'valid')
+            ORDER BY a.last_name, a.first_name, a.candidate_id`,
+            [interviewer.id, interviewer.id, interviewer.id, interviewer.year]);
+
+        // Committee asked for the candidate's full name on the evaluation sheet.
+        applications.forEach(a => {
+            a.candidate_name = [a.first_name, a.last_name].filter(Boolean).join(' ') || a.candidate_id || '-';
+        });
 
         // Get evaluation criteria for this year
-        const criteria = query.all('SELECT * FROM accelerator_evaluation_criteria WHERE year = ? ORDER BY sort_order', [interviewer.year]);
+        const criteria = query.all(
+            'SELECT * FROM accelerator_evaluation_criteria WHERE year = ? AND (is_active IS NULL OR is_active = 1) ORDER BY sort_order',
+            [interviewer.year]);
 
         res.json({
             interviewer: {
@@ -15246,7 +15269,7 @@ By applying to this program, I provide the following consents:
             FROM accelerator_applications a
             JOIN accelerator_programs p ON a.program_id = p.id
             LEFT JOIN accelerator_institutions i ON a.selected_institution = i.id
-            WHERE a.id = ? AND p.year = ? AND a.validity_status = 'valid'`,
+            WHERE a.id = ? AND p.year = ? AND (a.validity_status IS NULL OR a.validity_status = 'valid')`,
             [req.params.appId, interviewer.year]);
 
         if (!application) {
@@ -15262,7 +15285,9 @@ By applying to this program, I provide the following consents:
             [application.id, interviewer.id]);
 
         // Get criteria
-        const criteria = query.all('SELECT * FROM accelerator_evaluation_criteria WHERE year = ? ORDER BY sort_order', [interviewer.year]);
+        const criteria = query.all(
+            'SELECT * FROM accelerator_evaluation_criteria WHERE year = ? AND (is_active IS NULL OR is_active = 1) ORDER BY sort_order',
+            [interviewer.year]);
 
         // Get criteria scores for this application from this interviewer
         const criteriaScores = query.all(
@@ -15273,9 +15298,13 @@ By applying to this program, I provide the following consents:
             application: {
                 id: application.id,
                 candidate_id: application.candidate_id,
+                // Evaluation is no longer blind: the committee wants the candidate
+                // named on the scoring view and on the printable evaluation sheet.
+                candidate_name: [application.first_name, application.last_name].filter(Boolean).join(' ') || application.candidate_id || '-',
+                first_name: application.first_name,
+                last_name: application.last_name,
                 institution_name: application.institution_name,
                 motivation_letter: application.motivation_letter,
-                // Include other non-identifying fields as needed
             },
             documents,
             criteria,
@@ -15302,6 +15331,17 @@ By applying to this program, I provide the following consents:
 
         if (!criterion) {
             return res.status(400).json({ error: 'Invalid criterion' });
+        }
+
+        // The application must belong to this interviewer's program year — without
+        // this an arbitrary application_id in the body was writable via any token.
+        const target = query.get(`
+            SELECT a.id FROM accelerator_applications a
+            JOIN accelerator_programs p ON a.program_id = p.id
+            WHERE a.id = ? AND p.year = ?`, [application_id, interviewer.year]);
+
+        if (!target) {
+            return res.status(400).json({ error: 'Invalid application' });
         }
 
         if (score < 0 || score > criterion.max_points) {
@@ -15334,7 +15374,19 @@ By applying to this program, I provide the following consents:
                 return res.status(404).json({ error: 'Interviewer not found' });
             }
 
-            const baseUrl = req.headers.origin || `http://localhost:${PORT}`;
+            // Auto-generate token if missing — otherwise this mailed out
+            // "/evaluate?token=null", which the console reads as an invalid link.
+            if (!interviewer.access_token) {
+                interviewer.access_token = uuidv4();
+                db.run('UPDATE accelerator_interviewers SET access_token = ? WHERE id = ?', [interviewer.access_token, req.params.id]);
+                saveDb();
+            }
+
+            // Never derive the emailed link from req.headers.origin: it is absent on
+            // same-origin POSTs from some browsers, on proxied calls and on any
+            // server-side trigger, which silently mailed out http://localhost:3000 links.
+            const baseUrl = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL
+                || req.headers.origin || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
             const magicLink = `${baseUrl}/evaluate?token=${interviewer.access_token}`;
 
             const emailHtml = `
@@ -15429,6 +15481,93 @@ By applying to this program, I provide the following consents:
 
     // ========== ACCELERATOR RANKING & PDF GENERATION ==========
 
+    // Resolve the ranking-PDF article list. `articles` (a JSON array) is the modern,
+    // unbounded source an admin can grow; rows saved before that column existed only
+    // have article1..3_text, so fall back to those. Shape: [{ title, text }].
+    // `title` is optional — blank means the generator numbers it (Članak N.).
+    function resolveAcceleratorArticles(settings) {
+        if (settings && settings.articles) {
+            try {
+                const parsed = typeof settings.articles === 'string'
+                    ? JSON.parse(settings.articles) : settings.articles;
+                if (Array.isArray(parsed)) {
+                    const cleaned = parsed
+                        .map(a => (typeof a === 'string' ? { text: a } : (a || {})))
+                        .filter(a => typeof a.text === 'string' && a.text.trim())
+                        .map(a => ({ title: String(a.title || '').trim(), text: String(a.text) }));
+                    if (cleaned.length) return cleaned;
+                }
+            } catch (e) { /* malformed JSON — fall through to the legacy columns */ }
+        }
+        return [settings && settings.article1_text, settings && settings.article2_text, settings && settings.article3_text]
+            .filter(t => t && String(t).trim())
+            .map(t => ({ title: '', text: String(t) }));
+    }
+
+    // Normalise an inbound articles array into the stored JSON string.
+    // Returns null when the client sent no array, which leaves the column untouched.
+    function serializeAcceleratorArticles(articles) {
+        if (!Array.isArray(articles)) return null;
+        return JSON.stringify(articles
+            .map(a => (typeof a === 'string' ? { text: a } : (a || {})))
+            .filter(a => typeof a.text === 'string' && a.text.trim())
+            .map(a => ({ title: String(a.title || '').trim(), text: String(a.text) })));
+    }
+
+    // pdfkit's built-in Helvetica is WinAnsi-encoded and cannot represent č/ć/đ — the
+    // ranking PDF rendered them as mojibake, which matters because this is a Croatian
+    // legal document with admin-authored text. Drop a Unicode TTF at
+    // shared/fonts/DejaVuSans.ttf (or point PDF_FONT_PATH at one) and it is used
+    // verbatim; without one we transliterate so the document stays legible.
+    const PDF_UNICODE_FONT = (() => {
+        const candidates = [
+            process.env.PDF_FONT_PATH,
+            path.join(__dirname, '../../shared/fonts/DejaVuSans.ttf')
+        ].filter(Boolean);
+        for (const p of candidates) {
+            try { if (fs.existsSync(p)) return p; } catch (e) {}
+        }
+        return null;
+    })();
+    const PDF_UNICODE_FONT_BOLD = (() => {
+        const candidates = [
+            process.env.PDF_FONT_BOLD_PATH,
+            path.join(__dirname, '../../shared/fonts/DejaVuSans-Bold.ttf')
+        ].filter(Boolean);
+        for (const p of candidates) {
+            try { if (fs.existsSync(p)) return p; } catch (e) {}
+        }
+        return PDF_UNICODE_FONT;
+    })();
+
+    const PDF_TRANSLIT = { 'č': 'c', 'ć': 'c', 'đ': 'd', 'š': 's', 'ž': 'z',
+                           'Č': 'C', 'Ć': 'C', 'Đ': 'D', 'Š': 'S', 'Ž': 'Z' };
+    function pdfTransliterate(text) {
+        return String(text == null ? '' : text).replace(/[čćđšžČĆĐŠŽ]/g, ch => PDF_TRANSLIT[ch] || ch);
+    }
+
+    // Per-document font context. Registering the TTF under the built-in name
+    // 'Helvetica' does NOT work: pdfkit primes its _fontFamilies cache with the
+    // built-in at construction and the cache lookup short-circuits the registered-font
+    // lookup — so we register under dedicated names and draw with those.
+    // `safe()` passes text through unchanged when a Unicode face is active, and
+    // transliterates otherwise so Croatian stays legible instead of turning to mojibake.
+    function applyPdfUnicodeFont(doc) {
+        const builtin = { body: 'Helvetica', bold: 'Helvetica-Bold', unicode: false, safe: pdfTransliterate };
+        if (!PDF_UNICODE_FONT) return builtin;
+        try {
+            doc.registerFont('MedXBody', PDF_UNICODE_FONT);
+            doc.registerFont('MedXBodyBold', PDF_UNICODE_FONT_BOLD || PDF_UNICODE_FONT);
+            doc.font('MedXBody');
+            return {
+                body: 'MedXBody', bold: 'MedXBodyBold', unicode: true,
+                safe: (t) => String(t == null ? '' : t)
+            };
+        } catch (e) {
+            return builtin;
+        }
+    }
+
     // Get PDF settings for a year
     app.get('/api/accelerator/years/:year/pdf-settings', auth, adminOnly, (req, res) => {
         const year = parseInt(req.params.year);
@@ -15449,6 +15588,8 @@ By applying to this program, I provide the following consents:
             };
         }
 
+        // Always hand the client the resolved list so the editor can render N articles.
+        settings.articles = resolveAcceleratorArticles(settings);
         res.json(settings);
     });
 
@@ -15456,25 +15597,36 @@ By applying to this program, I provide the following consents:
     app.put('/api/accelerator/years/:year/pdf-settings', auth, adminOnly, (req, res) => {
         const year = parseInt(req.params.year);
         const { header_intro, header_title, article1_text, article2_text, article3_text,
-                signatory_name, signatory_title, signatory_role } = req.body;
+                signatory_name, signatory_title, signatory_role, articles } = req.body;
+
+        // Unbounded article list (Članak 1..N). null => client sent none, keep stored value.
+        const articlesJson = serializeAcceleratorArticles(articles);
+        // Clients on the new articles editor no longer send the legacy trio; COALESCE
+        // keeps whatever is stored rather than nulling it, and `?? null` keeps libsql
+        // from choking on undefined binds.
+        const n = (v) => (v === undefined ? null : v);
 
         const existing = query.get('SELECT id FROM accelerator_pdf_settings WHERE year = ?', [year]);
 
         if (existing) {
             db.run(`UPDATE accelerator_pdf_settings SET
-                header_intro = ?, header_title = ?, article1_text = ?, article2_text = ?, article3_text = ?,
-                signatory_name = ?, signatory_title = ?, signatory_role = ?, updated_at = datetime('now')
+                header_intro = COALESCE(?, header_intro), header_title = COALESCE(?, header_title),
+                article1_text = COALESCE(?, article1_text), article2_text = COALESCE(?, article2_text),
+                article3_text = COALESCE(?, article3_text),
+                signatory_name = COALESCE(?, signatory_name), signatory_title = COALESCE(?, signatory_title),
+                signatory_role = COALESCE(?, signatory_role),
+                articles = COALESCE(?, articles), updated_at = datetime('now')
                 WHERE year = ?`,
-                [header_intro, header_title, article1_text, article2_text, article3_text,
-                 signatory_name, signatory_title, signatory_role, year]);
+                [n(header_intro), n(header_title), n(article1_text), n(article2_text), n(article3_text),
+                 n(signatory_name), n(signatory_title), n(signatory_role), articlesJson, year]);
         } else {
             const id = uuidv4();
             db.run(`INSERT INTO accelerator_pdf_settings
                 (id, year, header_intro, header_title, article1_text, article2_text, article3_text,
-                 signatory_name, signatory_title, signatory_role)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [id, year, header_intro, header_title, article1_text, article2_text, article3_text,
-                 signatory_name, signatory_title, signatory_role]);
+                 signatory_name, signatory_title, signatory_role, articles)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, year, n(header_intro), n(header_title), n(article1_text), n(article2_text), n(article3_text),
+                 n(signatory_name), n(signatory_title), n(signatory_role), articlesJson]);
         }
 
         saveDb();
@@ -15633,46 +15785,44 @@ By applying to this program, I provide the following consents:
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="Rang_Lista_${year}.pdf"`);
             doc.pipe(res);
+            const F = applyPdfUnicodeFont(doc);
 
-            // Page 1: Header/Legal text (editable)
-            const introText = settings.header_intro.replace('[DATUM]', new Date().toLocaleDateString('hr-HR'));
-            doc.fontSize(10).text(introText, { align: 'justify' });
+            // Page 1: Header/Legal text (editable).
+            // Accept both placeholders: the stored defaults and the admin UI hint say
+            // [DATE], while this generator only ever substituted [DATUM] — so a header
+            // saved from the settings form printed a literal "[DATE]" on the document.
+            const todayHr = new Date().toLocaleDateString('hr-HR');
+            const introText = settings.header_intro
+                .replace('[DATUM]', todayHr)
+                .replace('[DATE]', todayHr);
+            doc.fontSize(10).text(F.safe(introText), { align: 'justify' });
             doc.moveDown(2);
 
-            doc.fontSize(14).font('Helvetica-Bold').text(settings.header_title, { align: 'center' });
+            doc.fontSize(14).font(F.bold).text(F.safe(settings.header_title), { align: 'center' });
             doc.moveDown(2);
 
-            doc.font('Helvetica').fontSize(10);
+            doc.font(F.body).fontSize(10);
 
-            // Article 1
-            doc.text('Article 1.', { align: 'center' });
-            doc.moveDown(0.5);
-            settings.article1_text.split('\n').forEach(line => {
-                doc.text(line.trim(), { align: 'justify' });
+            // Articles — an unbounded, admin-editable list (accelerator_pdf_settings.articles).
+            // Falls back to the legacy article1..3_text columns. A blank per-article title
+            // gets the auto number "Članak N."; a supplied title is printed verbatim.
+            resolveAcceleratorArticles(settings).forEach((article, idx) => {
+                doc.text(F.safe(article.title || `Članak ${idx + 1}.`), { align: 'center' });
+                doc.moveDown(0.5);
+                String(article.text).split('\n').forEach(line => {
+                    doc.text(F.safe(line.trim()), { align: 'justify' });
+                });
+                doc.moveDown();
             });
-            doc.moveDown();
-
-            // Article 2
-            doc.text('Article 2.', { align: 'center' });
-            doc.moveDown(0.5);
-            settings.article2_text.split('\n').forEach(line => {
-                doc.text(line.trim(), { align: 'justify' });
-            });
-            doc.moveDown();
-
-            // Article 3
-            doc.text('Article 3.', { align: 'center' });
-            doc.moveDown(0.5);
-            doc.text(settings.article3_text, { align: 'justify' });
-            doc.moveDown(3);
+            doc.moveDown(2);
 
             // Signature
             doc.text('M.P.', { align: 'center' });
             doc.moveDown(2);
             doc.text('_____________________', { align: 'right' });
-            doc.text(settings.signatory_name, { align: 'right' });
-            doc.text(settings.signatory_title, { align: 'right' });
-            doc.text(settings.signatory_role, { align: 'right' });
+            doc.text(F.safe(settings.signatory_name), { align: 'right' });
+            doc.text(F.safe(settings.signatory_title), { align: 'right' });
+            doc.text(F.safe(settings.signatory_role), { align: 'right' });
 
             // Page 2+: Ranking tables per institution with DYNAMIC columns
             for (const inst of institutions) {
@@ -15700,13 +15850,13 @@ By applying to this program, I provide the following consents:
                 });
 
                 doc.addPage();
-                doc.fontSize(14).font('Helvetica-Bold').text(inst.name, { align: 'center' });
+                doc.fontSize(14).font(F.bold).text(F.safe(inst.name), { align: 'center' });
                 doc.text(`Available spots: ${inst.available_spots || '-'}`, { align: 'center' });
                 doc.moveDown();
 
                 // Build dynamic headers: NO, ID, AVG, [each criterion], TOTAL
                 const headers = ['NO.', 'ID', 'GPA'];
-                criteria.forEach(c => headers.push((c.name || c.name_hr).toUpperCase()));
+                criteria.forEach(c => headers.push(F.safe(c.name || c.name_hr).toUpperCase()));
                 headers.push('TOTAL');
 
                 // Calculate column widths dynamically
@@ -15723,7 +15873,7 @@ By applying to this program, I provide the following consents:
 
                 // Table header
                 const tableTop = doc.y;
-                doc.fontSize(7).font('Helvetica-Bold');
+                doc.fontSize(7).font(F.bold);
                 let x = 40;
                 headers.forEach((h, i) => {
                     doc.text(h, x, tableTop, { width: colWidths[i], align: 'center' });
@@ -15734,7 +15884,7 @@ By applying to this program, I provide the following consents:
                 doc.moveTo(40, tableTop + 12).lineTo(x, tableTop + 12).stroke();
 
                 // Table rows
-                doc.font('Helvetica').fontSize(8);
+                doc.font(F.body).fontSize(8);
                 let y = tableTop + 18;
                 const spotsCount = inst.available_spots || 999;
 
@@ -22717,6 +22867,57 @@ By applying to this program, I provide the following consents:
         }
     });
 
+    // Countdown target for the public Accelerator hero (public - no auth).
+    // Fully admin-controlled, no date is hardcoded in the client any more. Candidates,
+    // earliest upcoming wins:
+    //   1. accelerator_key_dates  — admin CRUD at /api/accelerator/years/:year/dates
+    //   2. intake_windows         — admin PUT  at /api/accelerator/intake/window
+    //   3. accelerator_programs.application_deadline — admin overview-config
+    // Returns { target: null } when everything is in the past, which tells the page to
+    // drop the clock and show the "applications open later" state instead.
+    app.get('/api/accelerator/countdown', (req, res) => {
+        try {
+            const now = new Date();
+            const nowIso = now.toISOString();
+            const today = nowIso.slice(0, 10);
+            const candidates = [];
+
+            const keyDates = query.all(
+                'SELECT name, date_start FROM accelerator_key_dates WHERE date_start >= ? ORDER BY date_start',
+                [today]) || [];
+            keyDates.forEach(d => candidates.push({
+                target: d.date_start + 'T23:59:59',
+                label: d.name,
+                label_hr: d.name,
+                source: 'key_date'
+            }));
+
+            const win = query.get(
+                "SELECT opens_at, closes_at FROM intake_windows WHERE track = 'accelerator' ORDER BY cycle DESC LIMIT 1");
+            if (win) {
+                if (win.opens_at && win.opens_at > nowIso) {
+                    candidates.push({ target: win.opens_at, label: 'Applications open', label_hr: 'Prijave se otvaraju', source: 'intake_opens' });
+                } else if (win.closes_at && win.closes_at > nowIso) {
+                    candidates.push({ target: win.closes_at, label: 'Application deadline', label_hr: 'Rok za prijavu', source: 'intake_closes' });
+                }
+            }
+
+            const program = query.get(
+                'SELECT application_deadline FROM accelerator_programs WHERE is_active = 1 ORDER BY year DESC LIMIT 1');
+            if (program && program.application_deadline) {
+                const dl = program.application_deadline + 'T23:59:59';
+                if (new Date(dl) > now) {
+                    candidates.push({ target: dl, label: 'Application deadline', label_hr: 'Rok za prijavu', source: 'program_deadline' });
+                }
+            }
+
+            candidates.sort((a, b) => new Date(a.target) - new Date(b.target));
+            res.json(candidates[0] || { target: null, label: null, label_hr: null, source: 'none' });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     // Get accelerator overview config (public - no auth required for user portal display)
     app.get('/api/accelerator/overview-config', (req, res) => {
         try {
@@ -23157,6 +23358,24 @@ By applying to this program, I provide the following consents:
         .candidate-detail.active { display: block; }
         .motivation-letter { background: var(--bg-primary); padding: 16px; border-radius: 8px; white-space: pre-wrap; font-size: 14px; line-height: 1.6; max-height: 300px; overflow-y: auto; }
         .total-score { font-size: 24px; font-weight: bold; color: var(--accent-color); }
+        .candidate-name { font-size: 15px; font-weight: 700; }
+        .candidate-ref { color: var(--text-secondary); font-size: 12px; }
+
+        /* Printable evaluation sheet — hidden on screen, the only thing on paper. */
+        #printSheet { display: none; }
+        @media print {
+            .header, .container { display: none !important; }
+            #printSheet { display: block !important; background: #fff; color: #000; padding: 0 12mm; font-size: 12pt; }
+            #printSheet h2 { font-size: 16pt; margin-bottom: 4mm; }
+            #printSheet .ps-meta { margin-bottom: 6mm; font-size: 11pt; }
+            #printSheet .ps-meta div { margin-bottom: 1.5mm; }
+            #printSheet table { width: 100%; border-collapse: collapse; margin-bottom: 8mm; }
+            #printSheet th, #printSheet td { border: 1px solid #000; padding: 2.5mm 3mm; text-align: left; font-size: 11pt; }
+            #printSheet th { background: #eee; }
+            #printSheet .ps-num { text-align: right; width: 26mm; }
+            #printSheet .ps-sign { margin-top: 16mm; }
+            @page { margin: 14mm; }
+        }
     </style>
 </head>
 <body>
@@ -23164,6 +23383,9 @@ By applying to this program, I provide the following consents:
         <h1><i class="fas fa-graduation-cap"></i> Med&X Accelerator - Evaluation</h1>
         <div class="user-info" id="userInfo">Loading...</div>
     </div>
+
+    <!-- Populated by printEvaluationSheet() immediately before window.print() -->
+    <div id="printSheet"></div>
 
     <div class="container">
         <div id="loading" class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
@@ -23179,7 +23401,7 @@ By applying to this program, I provide the following consents:
                     <table>
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th>Candidate</th>
                                 <th>Institution</th>
                                 <th>Status</th>
                                 <th>My Score</th>
@@ -23195,7 +23417,7 @@ By applying to this program, I provide the following consents:
             <div id="candidateDetail" class="candidate-detail">
                 <div class="card">
                     <div class="card-header">
-                        <span class="card-title">Candidate <span id="detailCandidateId"></span></span>
+                        <span class="card-title"><span id="detailCandidateName">Candidate</span> <span class="candidate-ref" id="detailCandidateId"></span></span>
                         <button class="btn btn-secondary" onclick="showList()"><i class="fas fa-arrow-left"></i> Back</button>
                     </div>
                     <div class="card-body">
@@ -23233,6 +23455,7 @@ By applying to this program, I provide the following consents:
                             <tbody id="criteriaTableBody"></tbody>
                         </table>
                         <div style="margin-top: 20px; text-align: right;">
+                            <button class="btn btn-secondary" onclick="printEvaluationSheet()"><i class="fas fa-print"></i> Print evaluation sheet</button>
                             <button class="btn btn-success" onclick="submitAllScores()"><i class="fas fa-save"></i> Save Evaluation</button>
                         </div>
                     </div>
@@ -23246,6 +23469,7 @@ By applying to this program, I provide the following consents:
         let sessionData = null;
         let currentAppId = null;
         let currentScores = {};
+        let currentCandidate = null;
 
         async function init() {
             if (!token) {
@@ -23286,8 +23510,9 @@ By applying to this program, I provide the following consents:
 
             tbody.innerHTML = sessionData.applications.map(app => {
                 const status = app.my_score !== null ? 'scored' : 'pending';
+                const ref = app.candidate_id ? '<div class="candidate-ref">' + app.candidate_id + '</div>' : '';
                 return '<tr>' +
-                    '<td><strong>' + (app.candidate_id || '-') + '</strong></td>' +
+                    '<td><div class="candidate-name">' + (app.candidate_name || app.candidate_id || '-') + '</div>' + ref + '</td>' +
                     '<td>' + (app.institution_name || '-') + '</td>' +
                     '<td><span class="badge ' + (status === 'scored' ? 'badge-success' : 'badge-pending') + '">' +
                         (status === 'scored' ? 'Scored' : 'Pending') + '</span></td>' +
@@ -23305,13 +23530,15 @@ By applying to this program, I provide the following consents:
                 const res = await fetch('/api/accelerator/interview-access/' + token + '/application/' + appId);
                 const data = await res.json();
 
-                document.getElementById('detailCandidateId').textContent = data.application.candidate_id || '-';
+                currentCandidate = data.application;
+                document.getElementById('detailCandidateName').textContent = data.application.candidate_name || 'Candidate';
+                document.getElementById('detailCandidateId').textContent = data.application.candidate_id || '';
                 document.getElementById('detailInstitution').textContent = data.application.institution_name || '-';
                 document.getElementById('detailMotivation').textContent = data.application.motivation_letter || 'No motivation letter provided.';
 
-                // Documents
+                // Documents (the API column is document_type — d.doc_type rendered "undefined")
                 const docsHtml = data.documents.length > 0
-                    ? data.documents.map(d => '<span class="badge badge-success" style="margin: 2px;">' + d.doc_type + '</span>').join('')
+                    ? data.documents.map(d => '<span class="badge badge-success" style="margin: 2px;">' + (d.document_type || d.doc_type || 'document') + '</span>').join('')
                     : '<span style="color: var(--text-secondary);">Nema dokumenata</span>';
                 document.getElementById('detailDocuments').innerHTML = docsHtml;
 
@@ -23357,6 +23584,48 @@ By applying to this program, I provide the following consents:
             let total = 0;
             Object.values(currentScores).forEach(v => { if (v !== '') total += parseFloat(v) || 0; });
             document.getElementById('totalScore').textContent = total.toFixed(1);
+        }
+
+        function esc(v) {
+            return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // Printable evaluation sheet: candidate name + every criterion + the scores
+        // currently on screen. Rendered into #printSheet, which @media print reveals.
+        function printEvaluationSheet() {
+            if (!currentCandidate) { alert('Open a candidate first.'); return; }
+
+            let total = 0, maxTotal = 0;
+            const rows = (sessionData.criteria || []).map(c => {
+                const v = currentScores[c.id];
+                const shown = (v === '' || v == null) ? '' : v;
+                if (shown !== '') total += parseFloat(shown) || 0;
+                maxTotal += parseFloat(c.max_points) || 0;
+                return '<tr><td>' + esc(c.name || c.name_hr) + '</td>' +
+                       '<td class="ps-num">' + esc(c.max_points) + '</td>' +
+                       '<td class="ps-num">' + esc(shown) + '</td></tr>';
+            }).join('');
+
+            const ref = currentCandidate.candidate_id
+                ? '<div><strong>Reference:</strong> ' + esc(currentCandidate.candidate_id) + '</div>' : '';
+
+            document.getElementById('printSheet').innerHTML =
+                '<h2>Med&amp;X Accelerator ' + esc(sessionData.interviewer.year) + ' — Evaluation sheet</h2>' +
+                '<div class="ps-meta">' +
+                    '<div><strong>Candidate:</strong> ' + esc(currentCandidate.candidate_name || '-') + '</div>' +
+                    ref +
+                    '<div><strong>Institution:</strong> ' + esc(currentCandidate.institution_name || '-') + '</div>' +
+                    '<div><strong>Evaluator:</strong> ' + esc(sessionData.interviewer.name) + '</div>' +
+                    '<div><strong>Date:</strong> ' + new Date().toLocaleDateString('hr-HR') + '</div>' +
+                '</div>' +
+                '<table><thead><tr><th>Criterion</th><th class="ps-num">Max</th><th class="ps-num">Score</th></tr></thead>' +
+                '<tbody>' + rows +
+                '<tr><td><strong>Total</strong></td><td class="ps-num"><strong>' + maxTotal +
+                    '</strong></td><td class="ps-num"><strong>' + total.toFixed(1) + '</strong></td></tr>' +
+                '</tbody></table>' +
+                '<div class="ps-sign">Evaluator signature: ______________________________</div>';
+
+            window.print();
         }
 
         async function submitAllScores() {
