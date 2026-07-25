@@ -11709,7 +11709,19 @@ async function submitReset(e){
             // the lowest-sort_order ticket with a non-zero price (the standard seat that the "from
             // EUR X" copy refers to). `current` is phase-derived server-side so the shown price
             // always equals the Stripe charge — the site never recomputes price from its own clock.
-            const primary = tickets.filter(t => (t.price_early_bird || 0) > 0)[0] || tickets[0] || {};
+            // 2026-07-25 model: conference tiers are FREE — the only money on the site is the
+            // GALA. With no paid tier the old fallback picked tickets[0] and the LIVE gala page
+            // printed "EUR 0" five times. When no paid tier exists, the price slots carry the
+            // gala price (early-bird -> regular by its own deadline).
+            let primary = tickets.filter(t => (t.price_early_bird || 0) > 0)[0] || null;
+            if (!primary) {
+                const gs = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
+                const galaEb = Number(gs.price_gala_early_bird) || 150;
+                const galaReg = Number(gs.price_gala_regular) || galaEb;
+                const galaPhase = (gs.early_bird_deadline && today <= gs.early_bird_deadline) ? 'early_bird' : 'regular';
+                primary = { price_early_bird: galaEb, price_regular: galaReg, price_late: galaReg, currency: 'EUR' };
+                phase = (phase === 'early_bird' && galaPhase === 'early_bird') ? 'early_bird' : galaPhase;
+            }
             const currency = primary.currency || 'EUR';
             const currentPrice = phase === 'early_bird' ? primary.price_early_bird
                 : (phase === 'regular' ? primary.price_regular : primary.price_late);
