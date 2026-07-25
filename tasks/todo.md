@@ -66,3 +66,5 @@ wire real analytics.
 - [ ] 12. Where do newsletter signups land in admin? (pr_subscribers → PR & Media; verify + surface clearly)
 - [ ] 13. Brevo vs Outlook/medx.hr for newsletter sending — needs a decision memo (SPF still pending!)
 - [ ] 14. "PDF export functionality" (ambiguous — probe which export they mean)
+- [ ] admin-frontend articles editor for accelerator PDF (dynamic {title,text} list — mirror user-portal app.part9.js:35780-35850; backend already returns/accepts `articles`)
+- [ ] ranking-PDF still filters validity_status='valid' (NULL until triage → empty table) — flagged, Alen to confirm intended
