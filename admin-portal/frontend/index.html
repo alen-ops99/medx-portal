@@ -7069,11 +7069,40 @@
       body:has(.adm-dlg-overlay) .assist-fab,
       body:has(.adm-dlg-overlay) .share-fab,
       body:has(.adm-dlg-overlay) .teamchat-fab { display: none !important; }
-      /* The chat FAB must never cover the open chat panel's own Send button (Alen, live) */
-      body.chat-open .teamchat-fab, body:has(.chat-panel.active) .teamchat-fab,
-      body.chat-open .share-fab, body:has(.chat-panel.active) .share-fab,
-      body.chat-open .assist-fab, body:has(.chat-panel.active) .assist-fab,
-      body.chat-open .qr-fab, body:has(.chat-panel.active) .qr-fab { display: none !important; }
+      /* The chat FAB must never cover the open chat panel's own Send button (Alen, live).
+         The previous guard keyed off `body.chat-open` / `.chat-panel.active` — NEITHER class
+         is ever set (toggleChatVisibility only adds/removes `.hidden`), so it never fired and
+         #teamChatFab (fixed, bottom:20px right:16px) landed exactly on the panel's Send button:
+         verified at 1440x900 and 1280x800, a real click at the Send button's centre hit the FAB
+         and navigated to #team-chat with the typed message left unsent.
+         Desktop: the panel is in flow at the right edge, so slide the whole stack clear of it —
+         every FAB stays reachable, and `.main` already reserves a 76px right gutter for them. */
+      @media (min-width: 1025px) {
+        body:has(.chat-panel:not(.hidden)) .qr-fab,
+        body:has(.chat-panel:not(.hidden)) .assist-fab,
+        body:has(.chat-panel:not(.hidden)) .share-fab,
+        body:has(.chat-panel:not(.hidden)) .teamchat-fab { right: calc(var(--chat-width, 340px) + 16px); }
+      }
+      /* 769–1024px: the stylesheet pins the panel to a fixed 280px, ignoring --chat-width. */
+      @media (min-width: 769px) and (max-width: 1024px) {
+        body:has(.chat-panel:not(.hidden)) .qr-fab,
+        body:has(.chat-panel:not(.hidden)) .assist-fab,
+        body:has(.chat-panel:not(.hidden)) .share-fab,
+        body:has(.chat-panel:not(.hidden)) .teamchat-fab { right: 296px; }
+      }
+      /* Mobile: the panel slides in full-screen (.open), so the stack must get out of the way. */
+      @media (max-width: 768px) {
+        body:has(.chat-panel.open) .qr-fab,
+        body:has(.chat-panel.open) .assist-fab,
+        body:has(.chat-panel.open) .share-fab,
+        body:has(.chat-panel.open) .teamchat-fab { display: none !important; }
+      }
+      /* …and with the rail HIDDEN, the "Show chat" pill (fixed, right:20px bottom:20px, z-index
+         1000) sat straight on top of the Team Chat FAB (right:16px bottom:20px) — verified: a
+         click at the FAB's centre hit the pill. Park the pill beside the FAB column instead. */
+      @media (min-width: 769px) {
+        .chat-show-btn { right: 74px; }
+      }
 
       /* Team Chat FAB — bottom of the stack, always available. */
       .teamchat-fab {
@@ -16778,6 +16807,26 @@ President, Med&amp;X</textarea>
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         }
 
+        // SQLite hands back two shapes that `new Date()` reads WRONG for a reader west of UTC:
+        //   "YYYY-MM-DD HH:MM:SS" (datetime('now'), i.e. UTC) is parsed as LOCAL time, so every
+        //     timestamp inside the timezone offset renders as "Just now";
+        //   "YYYY-MM-DD" (a date the admin picked) is parsed as UTC midnight, so it renders as
+        //     the PREVIOUS day (an expiry set to Dec 31 displayed as "Dec 30").
+        // Normalise both before formatting. ISO strings that already carry a zone pass through.
+        function medxSqlDate(v) {
+            if (!v) return null;
+            const s = String(v).trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {                       // date only -> local midnight
+                const p = s.split('-');
+                return new Date(+p[0], +p[1] - 1, +p[2]);
+            }
+            if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) && !/[Zz]|[+-]\d{2}:?\d{2}$/.test(s)) {
+                return new Date(s.replace(' ', 'T') + 'Z');            // naive stamp -> UTC instant
+            }
+            return new Date(s);
+        }
+        window.medxSqlDate = medxSqlDate;
+
         async function showUserProfileFromQR(qrData) {
             try {
                 const data = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
@@ -21991,7 +22040,7 @@ President, Med&amp;X</textarea>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap:wrap; justify-content:flex-end;">
                             ${chips}
-                            <span style="font-size: 11px; color: var(--text-muted);">${latest.created_at ? new Date(latest.created_at).toLocaleDateString() : ''}</span>
+                            <span style="font-size: 11px; color: var(--text-muted);">${latest.created_at ? medxSqlDate(latest.created_at).toLocaleDateString() : ''}</span>
                         </div>
                     </div>`;
                 }).join('');
@@ -22134,7 +22183,7 @@ President, Med&amp;X</textarea>
                                 ${m.title ? `<div style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(m.title)}</div>` : ''}
                                 <div>${escapeHtml(m.content)}</div>
                                 ${chip.trim() ? `<div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;">${chip}</div>` : ''}
-                                <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">${new Date(m.created_at).toLocaleString()}</div>
+                                <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">${medxSqlDate(m.created_at).toLocaleString()}</div>
                             </div>
                         </div>`;
                     });
@@ -37550,7 +37599,7 @@ By applying to this program, I give the following consents:
 
             formatTime(dateStr) {
                 if (!dateStr) return '';
-                const d = new Date(dateStr);
+                const d = medxSqlDate(dateStr);   // created_at is UTC — see medxSqlDate
                 const now = new Date();
                 const diffMs = now - d;
                 const diffMins = Math.floor(diffMs / 60000);
@@ -37589,7 +37638,7 @@ By applying to this program, I give the following consents:
                                 ${n.project ? `<span><i class="fas fa-folder" style="margin-right: 3px;"></i>${n.project}</span>` : ''}
                                 ${n.user_group !== 'all' ? `<span><i class="fas fa-users" style="margin-right: 3px;"></i>${n.user_group}</span>` : '<span><i class="fas fa-globe" style="margin-right: 3px;"></i>All users</span>'}
                                 ${n.target_tier && n.target_tier !== 'all' ? `<span><i class="fas fa-crown" style="margin-right: 3px;"></i>${n.target_tier}</span>` : ''}
-                                ${n.expires_at ? `<span><i class="fas fa-hourglass-half" style="margin-right: 3px;"></i>Exp: ${new Date(n.expires_at).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}</span>` : ''}
+                                ${n.expires_at ? `<span><i class="fas fa-hourglass-half" style="margin-right: 3px;"></i>Exp: ${medxSqlDate(n.expires_at).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}</span>` : ''}
                                 <span>${this.formatTime(n.created_at)}</span>
                             </div>
                         </div>
@@ -54684,7 +54733,16 @@ By applying to this program, I give the following consents:
             if (!r.ok) { let e; try { e = (await r.json()).error; } catch (_) {} throw new Error(e || ('HTTP ' + r.status)); }
             return r.json();
         },
-        toast(msg, type) { if (window.Toast) { (Toast[type] || Toast.info || Toast.success)(msg); } else { console.log('[TeamChat]', msg); } },
+        // Toast.success/error/... call `this.show(...)`, so the method must be invoked ON Toast.
+        // Picking it out and calling it bare threw `TypeError: this.show is not a function` for
+        // EVERY toast type — which both swallowed the message and aborted the rest of the caller
+        // (a failed send said nothing; createPoll threw after the poll was already posted).
+        toast(msg, type) {
+            if (window.Toast) {
+                const fn = Toast[type] || Toast.info || Toast.success;
+                try { fn.call(Toast, msg); } catch (e) { console.log('[TeamChat]', msg); }
+            } else { console.log('[TeamChat]', msg); }
+        },
         esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s == null ? '' : s) : String(s == null ? '' : s); },
         monogram(name /*, color (ignored — see below) */) {
             const initials = String(name || '?').trim().split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
