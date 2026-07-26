@@ -41574,9 +41574,13 @@ By applying to this program, I give the following consents:
                 + '.tagline{font-family:Fraunces,Georgia,serif;font-style:italic;font-size:16px;color:#6b6258;margin-top:8px;}'
                 + '.evmeta{font-size:12.5px;color:#6b6258;letter-spacing:.02em;margin-top:12px;}'
                 + '.timeline{margin:34px auto 0;max-width:560px;}'
-                + '.ev{display:grid;grid-template-columns:78px 26px 1fr;align-items:start;}'
-                + '.ev .tm{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:15px;color:var(--crimson);padding-top:1px;text-align:right;padding-right:6px;font-variant-numeric:tabular-nums;}'
-                + '.ev .rail{position:relative;display:flex;justify-content:center;}'
+                // The rail column must stretch to the full row height, otherwise its ::before
+                // (top:0;bottom:0) only spans the 11px dot and the gold timeline prints as a stub
+                // beside each item instead of one continuous line. The time and the dot keep their
+                // top alignment via align-self.
+                + '.ev{display:grid;grid-template-columns:78px 26px 1fr;align-items:stretch;}'
+                + '.ev .tm{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:15px;color:var(--crimson);padding-top:1px;text-align:right;padding-right:6px;font-variant-numeric:tabular-nums;align-self:start;}'
+                + '.ev .rail{position:relative;display:flex;justify-content:center;align-items:flex-start;}'
                 + '.ev .rail::before{content:"";position:absolute;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--gold),rgba(201,169,98,.35));}'
                 + '.ev:first-child .rail::before{top:9px;}'
                 + '.ev:last-child .rail::before{bottom:auto;height:9px;}'
