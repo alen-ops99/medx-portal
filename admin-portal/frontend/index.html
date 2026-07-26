@@ -47626,11 +47626,27 @@ By applying to this program, I give the following consents:
             event: 'conference', tab: 'badges', ctx: null, engine: { chrome: true, cmyk: true },
             opts: {
                 badges: { mode: 'sheet', staff: false, speakers: true, extras: '', blanks: 0, cmyk: false },
-                banner: { size: '100x200', cmyk: false, sponsors: true, fields: {} },
+                banner: { size: '100x200', cmyk: false, sponsors: true, fields: {}, design: null },
                 backdrop: { cmyk: false, fields: {} },
                 sign: { cmyk: false, fields: {} }
             },
             _previewTimer: 0, _busy: false,
+            // Design-studio host for the server-rendered roll-up: the same shared panel; tokens ride
+            // the psRender payload and psBannerDoc honors them in the print-ready PDF.
+            _designHost() {
+                const self = this;
+                if (this._dsgHost) return this._dsgHost;
+                this._dsgHost = {
+                    artifact: 'banner', photos: true, tmp: {},
+                    get() { return self.opts.banner.design || (self.opts.banner.design = window.MedxDesign.base('heritage')); },
+                    set(t) { self.opts.banner.design = t; },
+                    copyFields() { return []; },
+                    setCopy(c) { const f = self.opts.banner.fields; if (c && c.headline) f.headline = c.headline; if (c && c.sub) f.sub = c.sub; },
+                    refresh() { self.renderRail(); self.debouncePreview(); },
+                    preview() { self.debouncePreview(); }
+                };
+                return this._dsgHost;
+            },
 
             esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s == null ? '' : String(s)) : String(s == null ? '' : s); },
             async api(path, opts) {
@@ -47709,12 +47725,17 @@ By applying to this program, I give the following consents:
                     '  </div>' +
                     '</div>';
                 document.body.appendChild(ov); this._built = true;
+                if (window.MedxDesign) window.MedxDesign.bind(ov, 'pr', this._designHost());
             },
 
             async start() {
                 this.ensureBuilt();
                 document.getElementById('prOverlay').classList.add('active');
                 document.body.style.overflow = 'hidden';
+                if (window.MedxDesign) {
+                    if (!this.opts.banner.design) this.opts.banner.design = window.MedxDesign.base('heritage');
+                    window.MedxDesign.prime('banner', true).then(() => { const ov = document.getElementById('prOverlay'); if (ov && ov.classList.contains('active') && this.tab === 'banner') this.renderRail(); });
+                }
                 await this.loadContext(this.event);
                 this.renderRail(); this.refreshPreview();
             },
@@ -47810,6 +47831,7 @@ By applying to this program, I give the following consents:
                         </div>
                     </div>
                     ${fld('Eyebrow', 'eyebrow')}${fld('Headline', 'headline')}${fld('Date line', 'dateLine')}${fld('Venue line', 'venueLine')}${fld('Sub-line', 'sub')}${fld('Footer / URL', 'cta')}
+                    ${window.MedxDesign ? window.MedxDesign.panelHtml('pr', this._designHost()) : ''}
                     <label class="pr-toggle"><input type="checkbox" ${b.sponsors ? 'checked' : ''} onchange="PrintSuite.toggle('banner','sponsors',this)"><span>Include published sponsor logos</span></label>`;
             },
             railBackdrop() {
@@ -47831,7 +47853,7 @@ By applying to this program, I give the following consents:
             previewBody() {
                 const t = this.tab;
                 if (t === 'badges') return { kind: this.opts.badges.mode === 'single' ? 'badges-single' : 'badges-sheet', event: this.event, staff: this.opts.badges.staff, speakers: this.opts.badges.speakers };
-                if (t === 'banner') return { kind: 'banner', event: this.event, size: this.opts.banner.size, fields: this.opts.banner.fields };
+                if (t === 'banner') return { kind: 'banner', event: this.event, size: this.opts.banner.size, fields: this.opts.banner.fields, tokens: this.opts.banner.design || null };
                 if (t === 'backdrop') return { kind: 'backdrop', event: this.event, fields: this.opts.backdrop.fields };
                 return { kind: 'sign', event: this.event, fields: this.opts.sign.fields };
             },
@@ -47884,6 +47906,279 @@ By applying to this program, I give the following consents:
         };
         window.PrintSuite = PrintSuite;
 
+        // ==================== DESIGN STUDIO — shared brand tokens + panel ====================
+        // One token object fully describes a look for the attendance cards and the roll-up banner:
+        //   { preset, bg, bg2, panel, headline, body, accent, logo_variant, frame_style,
+        //     font_scale, logo_scale, show:{badge,date,venue}, bg_photo, headline_text, sub_text }
+        // Four factory presets, all derived from the Med&X brand board (navy / gold / crimson /
+        // cream / ink); the accent picker is a CURATED palette, never a free wheel. The backend
+        // mirrors this table (DS_PRESETS) so the server-rendered banner PDF honors the same tokens.
+        // Panel labels carry Croatian alongside English (Dizajn, Predlošci, Boja naglaska…).
+        window.MedxDesign = (function(){
+            var PRESETS=[
+                { id:'heritage',      name:'Heritage',        nameHr:'Baština',       t:{ preset:'heritage',      bg:'#0E2140', bg2:'#0A1730', panel:'#12305A', headline:'#FFFFFF', body:'#F4EAD2', accent:'#C9A227', logo_variant:'light', frame_style:'classic' } },
+                { id:'cream_crimson', name:'Cream & Crimson', nameHr:'Krem i grimiz', t:{ preset:'cream_crimson', bg:'#FBF6EA', bg2:'#F0E6CC', panel:'#FFFFFF', headline:'#0E2140', body:'#6E6553', accent:'#9B1B22', logo_variant:'dark',  frame_style:'hairline' } },
+                { id:'ink_minimal',   name:'Ink Minimal',     nameHr:'Tinta minimal', t:{ preset:'ink_minimal',   bg:'#18150F', bg2:'#0B0A06', panel:'#242019', headline:'#F5EFDF', body:'#B9AE8A', accent:'#C9A227', logo_variant:'light', frame_style:'hairline' } },
+                { id:'gala_gold',     name:'Gala Gold',       nameHr:'Gala zlato',    t:{ preset:'gala_gold',     bg:'#B08A25', bg2:'#7C5E13', panel:'#95721C', headline:'#211A07', body:'#3E3110', accent:'#211A07', logo_variant:'dark',  frame_style:'band' } }
+            ];
+            var ACCENTS=[ ['#C9A227','Gold','Zlatna'], ['#E6C878','Champagne','Šampanjac'], ['#9B1B22','Crimson','Grimizna'], ['#12305A','Navy','Modra'], ['#9C7C1A','Bronze','Bronca'], ['#1F5C3D','Forest','Zelena'], ['#5C2A47','Plum','Šljiva'], ['#211A07','Ink','Tinta'] ];
+            // A couple of house venue photos so the background option works even with an empty
+            // media library; uploads from pr_media_assets are listed first.
+            var HOUSE=[ { url:'/resources/assets/gala_ballroom.jpg', name:'Gala ballroom' }, { url:'/resources/assets/gala_evening.jpg', name:'Gala evening' }, { url:'/resources/assets/bb_london_panel.jpg', name:'Building Bridges' } ];
+            function esc(s){ return (typeof escapeHtml==='function')?escapeHtml(s==null?'':String(s)):String(s==null?'':s); }
+            function byId(id){ for(var i=0;i<PRESETS.length;i++){ if(PRESETS[i].id===id) return PRESETS[i]; } return PRESETS[0]; }
+            function h2r(h){ var m=/^#([0-9a-f]{6})$/i.exec(String(h||'').trim()); if(!m) return null; var n=parseInt(m[1],16); return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 }; }
+            function mix(a,b,k){ var A=h2r(a),B=h2r(b); if(!A||!B) return a; var c=function(x,y){ return Math.round(x+(y-x)*k); }; var v=[c(A.r,B.r),c(A.g,B.g),c(A.b,B.b)]; return '#'+v.map(function(x){ return ('0'+x.toString(16)).slice(-2); }).join(''); }
+            function rgba(h,a){ var c=h2r(h); return c?('rgba('+c.r+','+c.g+','+c.b+','+a+')'):h; }
+            function luma(h){ var c=h2r(h); return c?((0.2126*c.r+0.7152*c.g+0.0722*c.b)/255):0; }
+            // Clamp arbitrary tokens onto the brand system (mirror of the server's dsNormalizeTokens).
+            function normalize(raw){
+                raw=raw&&typeof raw==='object'?raw:{};
+                var base=byId(String(raw.preset||'heritage')).t;
+                var hex=function(v,d){ var s=String(v||'').trim(); return /^#[0-9a-fA-F]{6}$/.test(s)?s:d; };
+                var t={};
+                t.preset=base.preset;
+                ['bg','bg2','panel','headline','body','accent'].forEach(function(k){ t[k]=hex(raw[k],base[k]); });
+                var allowed=ACCENTS.map(function(a){ return a[0].toLowerCase(); }).concat(PRESETS.map(function(p){ return p.t.accent.toLowerCase(); }));
+                if(allowed.indexOf(t.accent.toLowerCase())===-1) t.accent=base.accent;
+                t.logo_variant=raw.logo_variant==='dark'?'dark':(raw.logo_variant==='light'?'light':base.logo_variant);
+                t.frame_style=['classic','hairline','band'].indexOf(String(raw.frame_style))!==-1?String(raw.frame_style):base.frame_style;
+                var num=function(v,d,lo,hi){ var n=Number(v); return isFinite(n)?Math.max(lo,Math.min(hi,n)):d; };
+                t.font_scale=num(raw.font_scale,1,0.8,1.3);
+                t.logo_scale=num(raw.logo_scale,1,0.6,1.6);
+                var sh=(raw.show&&typeof raw.show==='object')?raw.show:{};
+                t.show={ badge:sh.badge!==false, date:sh.date!==false, venue:sh.venue!==false };
+                var ph=String(raw.bg_photo||'').trim();
+                t.bg_photo=(ph&&ph.length<500&&/^\/(uploads|resources|assets|photo-library)\//.test(ph)&&ph.indexOf('..')===-1)?ph:'';
+                t.headline_text=String(raw.headline_text||'').slice(0,120);
+                t.sub_text=String(raw.sub_text||'').slice(0,160);
+                return t;
+            }
+            function base(id){ return normalize(JSON.parse(JSON.stringify(byId(id).t))); }
+            // Derived accent shades. The brand gold keeps its hand-tuned companions.
+            function shades(accent){
+                if(String(accent).toLowerCase()==='#c9a227') return { acc:'#C9A227', accLight:'#E6C878', accDeep:'#9C7C1A', accPale:'#F0DDA8' };
+                return { acc:accent, accLight:mix(accent,'#FFFFFF',0.34), accDeep:mix(accent,'#000000',0.28), accPale:mix(accent,'#FFFFFF',0.6) };
+            }
+            function toast(m,t){ if(typeof App!=='undefined'&&App.showToast) App.showToast(m,t); }
+            function api(path,opts){ return fetch(path,Object.assign({ headers:{ 'Content-Type':'application/json','Authorization':'Bearer '+(typeof App!=='undefined'?App.token:'') } },opts||{})).then(function(r){ return r.json().catch(function(){ return null; }).then(function(d){ return { ok:r.ok, d:d }; }); }).catch(function(){ return { ok:false, d:null }; }); }
+            var _saved={}, _media=null, _priming={};
+            function savedList(artifact){ return _saved[artifact]||[]; }
+            function mediaList(){ return (_media||[]).concat(HOUSE).slice(0,14); }
+            function prime(artifact, wantMedia){
+                var jobs=[];
+                var key=artifact+(wantMedia?'+m':'');
+                if(_priming[key]) return _priming[key];
+                jobs.push(api('/api/admin/design-presets?artifact='+encodeURIComponent(artifact)).then(function(r){ _saved[artifact]=(r.ok&&r.d&&r.d.presets)?r.d.presets:[]; }));
+                if(wantMedia&&_media===null) jobs.push(api('/api/pr/media').then(function(r){
+                    var rows=Array.isArray(r.d)?r.d:[];
+                    _media=rows.filter(function(x){ return x&&x.file_path&&(/^image\//.test(String(x.file_type||x.mime_type||''))||/\.(png|jpe?g|webp)$/i.test(String(x.file_path))); })
+                        .slice(0,10).map(function(x){ return { url:x.file_path, name:x.name||x.original_name||x.file_name||'Photo' }; });
+                }));
+                _priming[key]=Promise.all(jobs).then(function(){ _priming[key]=null; });
+                return _priming[key];
+            }
+            function invalidate(artifact){ delete _saved[artifact]; }
+            function ensureStyle(){
+                if(document.getElementById('dsgStyle')) return;
+                var css=''
+                +'.dsg-panel{border:1px solid var(--border);border-radius:12px;padding:12px 12px 14px;background:var(--bg-primary);margin-bottom:14px;}'
+                +'.dsg-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:10px;}'
+                +'.dsg-h i{color:var(--gold,#c9a227);}'
+                +'.dsg-lbl{display:block;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin:11px 0 6px;}'
+                +'.dsg-presets{display:grid;grid-template-columns:1fr 1fr;gap:7px;}'
+                +'.dsg-preset{border:2px solid var(--border);border-radius:10px;padding:7px 8px;background:var(--bg-primary);cursor:pointer;text-align:left;font-family:inherit;}'
+                +'.dsg-preset.on{border-color:#c9a227;box-shadow:0 3px 12px rgba(201,162,39,.22);}'
+                +'.dsg-preset .chips{display:flex;gap:3px;margin-bottom:5px;}'
+                +'.dsg-preset .chips span{width:16px;height:16px;border-radius:5px;border:1px solid rgba(0,0,0,.12);display:block;}'
+                +'.dsg-preset .nm{font-size:11px;font-weight:800;color:var(--text-primary);line-height:1.2;display:block;}'
+                +'.dsg-preset .hr{font-size:10px;color:var(--text-muted);display:block;}'
+                +'.dsg-swatches{display:flex;gap:6px;flex-wrap:wrap;}'
+                +'.dsg-sw{width:26px;height:26px;border-radius:50%;border:2px solid rgba(0,0,0,.14);cursor:pointer;padding:0;position:relative;}'
+                +'.dsg-sw.on{outline:2px solid #c9a227;outline-offset:2px;}'
+                +'.dsg-seg{display:flex;gap:5px;}'
+                +'.dsg-seg button{flex:1;padding:6px 4px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);border-radius:7px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}'
+                +'.dsg-seg button.on{background:#0f1c2e;color:#fff;border-color:#0f1c2e;}'
+                +'.dsg-chips{display:flex;gap:5px;flex-wrap:wrap;}'
+                +'.dsg-chip{border:1px solid var(--border);background:var(--bg-primary);color:var(--text-muted);border-radius:16px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;}'
+                +'.dsg-chip.on{background:rgba(201,162,39,.14);border-color:rgba(201,162,39,.55);color:var(--text-primary);}'
+                +'.dsg-photos{display:flex;gap:6px;flex-wrap:wrap;}'
+                +'.dsg-ph{width:52px;height:38px;border-radius:7px;border:2px solid var(--border);cursor:pointer;background-size:cover;background-position:center;padding:0;position:relative;overflow:hidden;}'
+                +'.dsg-ph.on{border-color:#c9a227;box-shadow:0 2px 9px rgba(201,162,39,.3);}'
+                +'.dsg-ph.none{display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:var(--text-muted);background:var(--bg-secondary);line-height:1.2;text-align:center;}'
+                +'.dsg-input, .dsg-panel textarea{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:12.5px;font-family:inherit;}'
+                +'.dsg-panel textarea{resize:vertical;line-height:1.4;}'
+                +'.dsg-btn{border:none;border-radius:9px;padding:9px 10px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;width:100%;}'
+                +'.dsg-btn.gold{background:linear-gradient(135deg,#c9a227,#9c7c1a);color:#fff;}'
+                +'.dsg-btn.ghost{background:var(--bg-primary);border:1px solid var(--border);color:var(--text-secondary);}'
+                +'.dsg-btn:disabled{opacity:.55;cursor:default;}'
+                +'.dsg-row{display:flex;gap:6px;align-items:center;}'
+                +'.dsg-saved{display:flex;flex-direction:column;gap:5px;}'
+                +'.dsg-savedrow{display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:8px;padding:5px 6px 5px 9px;}'
+                +'.dsg-savedrow .nm{flex:1;font-size:12px;font-weight:600;color:var(--text-primary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'
+                +'.dsg-savedrow button{border:1px solid var(--border);background:var(--bg-primary);color:var(--text-secondary);border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;}'
+                +'.dsg-note{font-size:10.5px;color:var(--text-muted);line-height:1.45;margin-top:6px;}'
+                +'.dsg-src{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:12px;background:rgba(31,122,68,.14);color:#1f7a44;margin-left:6px;}';
+                var st=document.createElement('style'); st.id='dsgStyle'; st.textContent=css; document.head.appendChild(st);
+            }
+            // The panel. `ns` keys the delegated events back to the host studio.
+            function panelHtml(ns, host){
+                ensureStyle();
+                var t=normalize(host.get()); host.set(t);
+                var tmp=host.tmp||(host.tmp={});
+                var pres=PRESETS.map(function(p){
+                    var on=t.preset===p.id;
+                    return '<button type="button" class="dsg-preset'+(on?' on':'')+'" data-ns="'+ns+'" data-dsg="preset" data-v="'+p.id+'">'
+                        +'<span class="chips"><span style="background:'+p.t.bg+';"></span><span style="background:'+p.t.accent+';"></span><span style="background:'+p.t.headline+';"></span></span>'
+                        +'<span class="nm">'+esc(p.name)+'</span><span class="hr">'+esc(p.nameHr)+'</span></button>';
+                }).join('');
+                var sws=ACCENTS.map(function(a){
+                    var on=t.accent.toLowerCase()===a[0].toLowerCase();
+                    return '<button type="button" class="dsg-sw'+(on?' on':'')+'" style="background:'+a[0]+';" title="'+esc(a[1])+' · '+esc(a[2])+'" data-ns="'+ns+'" data-dsg="accent" data-v="'+a[0]+'"></button>';
+                }).join('');
+                var copy=(host.copyFields?host.copyFields():[]).map(function(f){
+                    return '<label class="dsg-lbl">'+esc(f.label)+'</label><input type="text" class="dsg-input" data-ns="'+ns+'" data-dsgf="copy:'+f.key+'" value="'+esc(f.value||'')+'" maxlength="120" placeholder="'+esc(f.ph||'')+'">';
+                }).join('');
+                var seg=function(key,val,items){ return '<div class="dsg-seg">'+items.map(function(it){ return '<button type="button" class="'+(val===it[0]?'on':'')+'" data-ns="'+ns+'" data-dsg="'+key+'" data-v="'+it[0]+'">'+it[1]+'</button>'; }).join('')+'</div>'; };
+                var fsVal=t.font_scale<=0.95?'s':(t.font_scale>=1.06?'l':'m');
+                var lsVal=t.logo_scale<=0.9?'s':(t.logo_scale>=1.1?'l':'m');
+                var chips=[ ['badge','Badge','Natpis'], ['date','Date','Datum'], ['venue','Venue','Mjesto'] ].map(function(c){
+                    var on=t.show[c[0]]!==false;
+                    return '<button type="button" class="dsg-chip'+(on?' on':'')+'" data-ns="'+ns+'" data-dsg="show" data-v="'+c[0]+'"><i class="fas '+(on?'fa-eye':'fa-eye-slash')+'" style="margin-right:5px;"></i>'+c[1]+' · '+c[2]+'</button>';
+                }).join('');
+                var photos='';
+                if(host.photos){
+                    var ph=mediaList().map(function(m){
+                        var on=t.bg_photo===m.url;
+                        return '<button type="button" class="dsg-ph'+(on?' on':'')+'" style="background-image:url(\''+esc(m.url)+'\');" title="'+esc(m.name)+'" data-ns="'+ns+'" data-dsg="photo" data-v="'+esc(m.url)+'"></button>';
+                    }).join('');
+                    photos='<label class="dsg-lbl">Background photo · Pozadinska fotografija</label>'
+                        +'<div class="dsg-photos"><button type="button" class="dsg-ph none'+(t.bg_photo?'':' on')+'" data-ns="'+ns+'" data-dsg="photo" data-v="">None ·<br>Bez</button>'+ph+'</div>'
+                        +'<div class="dsg-note">A dark scrim is added automatically so the text stays legible. · Tamna koprena dodaje se automatski radi čitljivosti.</div>';
+                }
+                var saved=savedList(host.artifact);
+                var savedRows=saved.length?saved.map(function(p){
+                    return '<div class="dsg-savedrow"><span class="nm" title="'+esc(p.name)+'">'+esc(p.name)+'</span>'
+                        +'<button type="button" data-ns="'+ns+'" data-dsg="apply" data-v="'+esc(p.id)+'">Apply · Primijeni</button>'
+                        +'<button type="button" data-ns="'+ns+'" data-dsg="delp" data-v="'+esc(p.id)+'" aria-label="Delete preset"><i class="fas fa-trash-can"></i></button></div>';
+                }).join(''):'<div class="dsg-note" style="margin-top:0;">No saved presets yet. · Još nema spremljenih predložaka.</div>';
+                return ''
+                +'<div class="dsg-panel" data-dsg-panel="'+ns+'">'
+                +'<div class="dsg-h"><i class="fas fa-palette"></i> Design · Dizajn'+(tmp.aiSource?'<span class="dsg-src">'+(tmp.aiSource==='ai'?'AI':'Keywords')+'</span>':'')+'</div>'
+                +'<label class="dsg-lbl" style="margin-top:0;">Style presets · Predlošci stila</label>'
+                +'<div class="dsg-presets">'+pres+'</div>'
+                +'<label class="dsg-lbl">Accent · Boja naglaska</label>'
+                +'<div class="dsg-swatches">'+sws+'</div>'
+                +copy
+                +'<label class="dsg-lbl">Text size · Veličina teksta</label>'+seg('fs',fsVal,[['s','S'],['m','M'],['l','L']])
+                +'<label class="dsg-lbl">Logo size · Veličina loga</label>'+seg('ls',lsVal,[['s','S'],['m','M'],['l','L']])
+                +'<label class="dsg-lbl">Frame · Okvir</label>'+seg('frame',t.frame_style,[['classic','Classic'],['hairline','Hairline'],['band','Band']])
+                +'<label class="dsg-lbl">Show · Prikaži</label>'
+                +'<div class="dsg-chips">'+chips+'</div>'
+                +photos
+                +'<label class="dsg-lbl">AI design assist · AI pomoćnik</label>'
+                +'<textarea rows="2" data-ns="'+ns+'" data-dsgf="ai" placeholder="Describe the look you want · Opišite željeni izgled — npr. &quot;svečano i zlatno&quot;, &quot;dark minimal&quot;">'+esc(tmp.ai||'')+'</textarea>'
+                +'<div style="margin-top:6px;"><button type="button" class="dsg-btn gold" data-ns="'+ns+'" data-dsg="ai"'+(tmp.aiBusy?' disabled':'')+'>'+(tmp.aiBusy?'<i class="fas fa-spinner fa-spin"></i> Thinking… · Razmišljam…':'<i class="fas fa-wand-magic-sparkles"></i> Suggest a look · Predloži izgled')+'</button></div>'
+                +'<label class="dsg-lbl">Saved presets · Spremljeni predlošci</label>'
+                +'<div class="dsg-saved">'+savedRows+'</div>'
+                +'<div class="dsg-row" style="margin-top:7px;">'
+                +'<input type="text" class="dsg-input" style="flex:1;" data-ns="'+ns+'" data-dsgf="pname" value="'+esc(tmp.pname||'')+'" maxlength="60" placeholder="Preset name · Naziv predloška">'
+                +'<button type="button" class="dsg-btn ghost" style="width:auto;padding:8px 12px;" data-ns="'+ns+'" data-dsg="savep"><i class="fas fa-floppy-disk"></i> Save · Spremi</button>'
+                +'</div>'
+                +'</div>';
+            }
+            // ONE delegated listener per overlay root serves every panel instance inside it.
+            function bind(root, ns, host){
+                root._dsgHosts=root._dsgHosts||{};
+                root._dsgHosts[ns]=host;
+                if(root._dsgBound) return;
+                root._dsgBound=true;
+                root.addEventListener('click', function(e){
+                    var el=e.target.closest&&e.target.closest('[data-dsg]');
+                    if(!el) return;
+                    var h=root._dsgHosts[el.getAttribute('data-ns')];
+                    if(!h) return;
+                    e.preventDefault();
+                    act(h, el.getAttribute('data-dsg'), el.getAttribute('data-v')||'');
+                });
+                root.addEventListener('input', function(e){
+                    var el=e.target.closest&&e.target.closest('[data-dsgf]');
+                    if(!el) return;
+                    var h=root._dsgHosts[el.getAttribute('data-ns')];
+                    if(!h) return;
+                    field(h, el.getAttribute('data-dsgf'), el.value);
+                });
+            }
+            var _fieldT=0;
+            function field(h, key, val){
+                var tmp=h.tmp||(h.tmp={});
+                if(key==='ai'){ tmp.ai=val; return; }
+                if(key==='pname'){ tmp.pname=val; return; }
+                if(key.indexOf('copy:')===0){
+                    var k=key.slice(5);
+                    if(h.setCopyField) h.setCopyField(k,val);
+                    else { var t=normalize(h.get()); t[k]=val; h.set(t); }
+                    clearTimeout(_fieldT); _fieldT=setTimeout(function(){ h.preview(); },350);
+                }
+            }
+            function act(h, a, v){
+                var t=normalize(h.get());
+                if(a==='preset'){
+                    var fresh=base(v);
+                    // switching preset resets the color system but keeps copy, scales, show flags + photo
+                    fresh.font_scale=t.font_scale; fresh.logo_scale=t.logo_scale; fresh.show=t.show;
+                    fresh.bg_photo=t.bg_photo; fresh.headline_text=t.headline_text; fresh.sub_text=t.sub_text;
+                    h.set(fresh); h.refresh(); return;
+                }
+                if(a==='accent'){ t.accent=v; h.set(t); h.refresh(); return; }
+                if(a==='fs'){ t.font_scale=v==='s'?0.9:(v==='l'?1.12:1); h.set(t); h.refresh(); return; }
+                if(a==='ls'){ t.logo_scale=v==='s'?0.8:(v==='l'?1.25:1); h.set(t); h.refresh(); return; }
+                if(a==='frame'){ t.frame_style=v; h.set(t); h.refresh(); return; }
+                if(a==='show'){ t.show[v]=!(t.show[v]!==false); h.set(t); h.refresh(); return; }
+                if(a==='photo'){ t.bg_photo=v; h.set(t); h.refresh(); return; }
+                if(a==='ai'){ runAssist(h); return; }
+                if(a==='savep'){ savePreset(h); return; }
+                if(a==='apply'){
+                    var p=savedList(h.artifact).filter(function(x){ return x.id===v; })[0];
+                    if(p&&p.tokens){ h.set(normalize(p.tokens)); h.refresh(); toast('Preset applied · Predložak primijenjen','success'); }
+                    return;
+                }
+                if(a==='delp'){
+                    api('/api/admin/design-presets/'+encodeURIComponent(v),{ method:'DELETE' }).then(function(r){
+                        if(r.ok){ invalidate(h.artifact); prime(h.artifact,false).then(function(){ h.refresh(); }); toast('Preset deleted · Predložak obrisan','success'); }
+                        else toast('Could not delete the preset','error');
+                    });
+                    return;
+                }
+            }
+            function runAssist(h){
+                var tmp=h.tmp||(h.tmp={});
+                var brief=String(tmp.ai||'').trim();
+                if(!brief){ toast('Describe the look you want first · Prvo opišite željeni izgled','warning'); return; }
+                tmp.aiBusy=true; h.refresh();
+                api('/api/admin/design-assist',{ method:'POST', body:JSON.stringify({ artifact:h.artifact, brief:brief, current_tokens:h.get() }) }).then(function(r){
+                    tmp.aiBusy=false;
+                    if(r.ok&&r.d&&r.d.success&&r.d.tokens){
+                        h.set(normalize(r.d.tokens));
+                        if(r.d.copy&&h.setCopy) h.setCopy(r.d.copy);
+                        tmp.aiSource=r.d.source;
+                        toast(r.d.source==='ai'?'AI look applied — keep tweaking anything below':'Look applied from keywords (template mode) · Primijenjeno','success');
+                    } else toast((r.d&&(r.d.message||r.d.error))||'Could not get a design suggestion','error');
+                    h.refresh();
+                });
+            }
+            function savePreset(h){
+                var tmp=h.tmp||(h.tmp={});
+                var name=String(tmp.pname||'').trim();
+                if(!name){ toast('Name the preset first · Prvo imenujte predložak','warning'); return; }
+                api('/api/admin/design-presets',{ method:'POST', body:JSON.stringify({ artifact:h.artifact, name:name, tokens:h.get() }) }).then(function(r){
+                    if(r.ok&&r.d&&r.d.success){ tmp.pname=''; invalidate(h.artifact); prime(h.artifact,false).then(function(){ h.refresh(); }); toast('Preset saved · Predložak spremljen','success'); }
+                    else toast((r.d&&(r.d.message||r.d.error))||'Could not save the preset','error');
+                });
+            }
+            return { PRESETS:PRESETS, ACCENTS:ACCENTS, base:base, normalize:normalize, shades:shades, mix:mix, rgba:rgba, luma:luma, panelHtml:panelHtml, bind:bind, prime:prime, savedList:savedList, mediaList:mediaList };
+        })();
+
         window.MedxCard = (function(){
             var PAL = { navy:'#0E2140', navyDeep:'#0A1730', navy2:'#12305A', gold:'#C9A227', goldLight:'#E6C878', goldPale:'#F0DDA8', goldDeep:'#9C7C1A', paper:'#FBF6EA', cream:'#F4EAD2', crimson:'#9B1B22', ink:'#1C1A14', white:'#FFFFFF', muted:'#8A7F6B' };
             var DISPLAY = "'Fraunces', Georgia, 'Times New Roman', serif";
@@ -47927,23 +48222,65 @@ By applying to this program, I give the following consents:
             ];
             function size(orient){ return orient === 'landscape' ? { w:1200, h:630 } : { w:1080, h:1350 }; }
             function roundRect(ctx,x,y,w,h,r){ if(w<2*r)r=w/2; if(h<2*r)r=h/2; ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-            function goldGrad(ctx,x0,y0,x1,y1){ var g=ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,'#9C7C1A'); g.addColorStop(.28,PAL.gold); g.addColorStop(.5,PAL.goldLight); g.addColorStop(.72,PAL.gold); g.addColorStop(1,'#9C7C1A'); return g; }
+            // Accent gradient from the active theme (the classic gold keeps its hand-tuned stops).
+            function accGrad(ctx,x0,y0,x1,y1,TH){ var g=ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,TH.accDeep); g.addColorStop(.28,TH.acc); g.addColorStop(.5,TH.accLight); g.addColorStop(.72,TH.acc); g.addColorStop(1,TH.accDeep); return g; }
+            var CLASSIC_TH={ acc:PAL.gold, accLight:PAL.goldLight, accDeep:PAL.goldDeep, accPale:PAL.goldPale };
+            function goldGrad(ctx,x0,y0,x1,y1){ return accGrad(ctx,x0,y0,x1,y1,CLASSIC_TH); }
+            // Resolve Design-studio tokens (or their absence) into the concrete colors a frame paints
+            // with. No tokens — and the Heritage preset — keep every frame's classic look untouched.
+            function cardTheme(frame, tokens){
+                var DZ=window.MedxDesign;
+                var t=(DZ&&tokens)?DZ.normalize(tokens):null;
+                var TH={ fs:t?t.font_scale:1, ls:t?t.logo_scale:1, show:t?t.show:{badge:true,date:true,venue:true}, frameStyle:t?t.frame_style:'classic' };
+                var classic=!t||t.preset==='heritage';
+                if(classic){
+                    if(frame==='pleter'){ TH.bg=PAL.paper; TH.bg2=PAL.paper; TH.panel=PAL.navy; TH.headline=PAL.navy; TH.body=PAL.muted; TH.dark=false; }
+                    else { TH.bg=(frame==='gala')?PAL.navyDeep:PAL.navy; TH.bg2=PAL.navyDeep; TH.panel=PAL.navy2; TH.headline=PAL.white; TH.body=PAL.cream; TH.dark=true; }
+                    TH.acc=t?t.accent:PAL.gold;
+                } else {
+                    TH.dark=(t.logo_variant==='light');
+                    TH.bg=t.bg; TH.bg2=t.bg2; TH.panel=t.panel; TH.headline=t.headline; TH.body=t.body; TH.acc=t.accent;
+                }
+                var sh=DZ?DZ.shades(TH.acc):CLASSIC_TH;
+                TH.accLight=sh.accLight; TH.accDeep=sh.accDeep; TH.accPale=sh.accPale;
+                var goldDefault=String(TH.acc).toLowerCase()==='#c9a227';
+                TH.eyebrowC=(classic&&frame==='pleter'&&goldDefault)?PAL.crimson:(TH.dark?TH.accLight:TH.acc);
+                var rgba=DZ?DZ.rgba:function(h){ return h; };
+                TH.subC = TH.dark? rgba(TH.accLight,.85) : TH.body;
+                TH.dateC = TH.dark? rgba(TH.headline,.66) : TH.body;
+                TH.footC = TH.dark? rgba(TH.accLight,.6) : TH.accDeep;
+                TH.monoInk = (DZ?DZ.luma(TH.panel):0)<0.45 ? TH.accLight : TH.headline;
+                return TH;
+            }
+            // Frame-style dressing on top of the ground: a fine inset keyline, or a bottom accent band.
+            function frameDress(ctx,d,TH){
+                var DZ=window.MedxDesign, rgba=DZ?DZ.rgba:function(h){ return h; };
+                if(TH.frameStyle==='hairline'){
+                    ctx.save(); ctx.strokeStyle=rgba(TH.acc,.5); ctx.lineWidth=2; ctx.strokeRect(26,26,d.w-52,d.h-52);
+                    ctx.strokeStyle=rgba(TH.acc,.25); ctx.lineWidth=1; ctx.strokeRect(36,36,d.w-72,d.h-72); ctx.restore();
+                } else if(TH.frameStyle==='band'){
+                    ctx.save(); ctx.fillStyle=accGrad(ctx,0,d.h,d.w,d.h,TH); ctx.fillRect(0,d.h-12,d.w,12); ctx.restore();
+                }
+            }
             function drawCover(ctx,img,x,y,w,h){ try{ var ir=img.width/img.height, r=w/h, sw,sh,sx,sy; if(ir>r){ sh=img.height; sw=sh*r; sx=(img.width-sw)/2; sy=0; } else { sw=img.width; sh=sw/r; sx=0; sy=(img.height-sh)/2; } ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h); }catch(e){} }
             function initials(name){ var p=String(name||'').trim().split(/\s+/).filter(Boolean); if(!p.length) return 'MX'; return (p[0].charAt(0)+(p.length>1?p[p.length-1].charAt(0):'')).toUpperCase(); }
-            // Golden monogram fallback — a gold-ringed roundel with the member's initials in serif.
-            function drawMonogram(ctx,cx,cy,rad,ini,onDark){
+            // Monogram fallback — an accent-ringed roundel with the member's initials in serif.
+            function drawMonogram(ctx,cx,cy,rad,ini,TH){
+                TH=TH||cardTheme('heritage',null);
+                var DZ=window.MedxDesign, rgba=DZ?DZ.rgba:function(h){ return h; };
                 ctx.save();
                 ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2);
-                ctx.fillStyle = onDark ? PAL.navy2 : PAL.navy; ctx.fill();
-                ctx.lineWidth = Math.max(3, rad*0.05); ctx.strokeStyle = goldGrad(ctx,cx-rad,cy-rad,cx+rad,cy+rad); ctx.stroke();
-                ctx.beginPath(); ctx.arc(cx,cy,rad*0.86,0,Math.PI*2); ctx.lineWidth = Math.max(1, rad*0.012); ctx.strokeStyle='rgba(230,201,135,.45)'; ctx.stroke();
-                ctx.fillStyle = PAL.goldLight; ctx.textAlign='center'; ctx.textBaseline='middle';
+                ctx.fillStyle = TH.panel; ctx.fill();
+                ctx.lineWidth = Math.max(3, rad*0.05); ctx.strokeStyle = accGrad(ctx,cx-rad,cy-rad,cx+rad,cy+rad,TH); ctx.stroke();
+                ctx.beginPath(); ctx.arc(cx,cy,rad*0.86,0,Math.PI*2); ctx.lineWidth = Math.max(1, rad*0.012); ctx.strokeStyle=rgba(TH.accLight,.45); ctx.stroke();
+                ctx.fillStyle = TH.monoInk; ctx.textAlign='center'; ctx.textBaseline='middle';
                 ctx.font = '600 ' + Math.round(rad*0.9) + "px " + DISPLAY;
                 ctx.fillText(ini, cx, cy+rad*0.04);
                 ctx.restore();
             }
-            // A braided gold cord — a warm nod to the Croatian pleter (troplet) interlace.
-            function drawPleter(ctx,x,y,w,h,vertical){
+            // A braided accent cord — a warm nod to the Croatian pleter (troplet) interlace.
+            function drawPleter(ctx,x,y,w,h,vertical,TH){
+                TH=TH||CLASSIC_TH;
                 ctx.save();
                 var strands=3, amp=(vertical?w:h)*0.30, lam=(vertical?w:h)*2.1, mid=(vertical?x+w/2:y+h/2);
                 ctx.lineCap='round';
@@ -47952,11 +48289,11 @@ By applying to this program, I give the following consents:
                     ctx.beginPath();
                     if(vertical){ for(var t=0;t<=h;t+=6){ var xx=mid+amp*Math.sin((Math.PI*2*t/lam)+ph); if(t===0)ctx.moveTo(xx,y+t); else ctx.lineTo(xx,y+t); } }
                     else { for(var u=0;u<=w;u+=6){ var yy=mid+amp*Math.sin((Math.PI*2*u/lam)+ph); if(u===0)ctx.moveTo(x+u,yy); else ctx.lineTo(x+u,yy); } }
-                    ctx.lineWidth = (vertical?w:h)*0.12; ctx.strokeStyle = goldGrad(ctx,x,y,x+ (vertical?w:0), y+(vertical?0:h)); ctx.globalAlpha = 0.9 - s*0.16; ctx.stroke();
+                    ctx.lineWidth = (vertical?w:h)*0.12; ctx.strokeStyle = accGrad(ctx,x,y,x+ (vertical?w:0), y+(vertical?0:h),TH); ctx.globalAlpha = 0.9 - s*0.16; ctx.stroke();
                 }
                 ctx.restore();
             }
-            function goldLine(ctx,x,y,w){ ctx.save(); var g=goldGrad(ctx,x,y,x+w,y); ctx.fillStyle=g; ctx.fillRect(x,y,w,3); ctx.restore(); }
+            function goldLine(ctx,x,y,w,TH){ ctx.save(); var g=accGrad(ctx,x,y,x+w,y,TH||CLASSIC_TH); ctx.fillStyle=g; ctx.fillRect(x,y,w,3); ctx.restore(); }
             // Largest size from list that fits maxW on one line; else wrap to 2 lines at the smallest.
             function fitName(ctx,name,maxW,sizes){
                 for(var i=0;i<sizes.length;i++){ ctx.font='600 '+sizes[i]+'px '+DISPLAY; if(ctx.measureText(name).width<=maxW) return { size:sizes[i], lines:[name] }; }
@@ -47987,127 +48324,149 @@ By applying to this program, I give the following consents:
                 var frame = opts.frame || 'heritage';
                 var name = String(opts.name||'Med&X').trim();
                 var ini = initials(name);
-                if(frame==='pleter') drawPleterFrame(ctx,d,orient,opts,name,ini);
-                else if(frame==='gala') drawGalaFrame(ctx,d,orient,opts,name,ini);
-                else drawHeritageFrame(ctx,d,orient,opts,name,ini);
+                var TH = cardTheme(frame, opts.tokens||null);
+                if(frame==='pleter') drawPleterFrame(ctx,d,orient,opts,name,ini,TH);
+                else if(frame==='gala') drawGalaFrame(ctx,d,orient,opts,name,ini,TH);
+                else drawHeritageFrame(ctx,d,orient,opts,name,ini,TH);
+                frameDress(ctx,d,TH);
                 return cv;
             }
 
-            // ---- Frame 1: Heritage (navy) ---------------------------------------------------------
-            function drawHeritageFrame(ctx,d,orient,o,name,ini){
-                var g=ctx.createLinearGradient(0,0,0,d.h); g.addColorStop(0,PAL.navy); g.addColorStop(1,PAL.navyDeep);
+            // ---- Frame 1: Heritage (layout; colors come from the theme) ---------------------------
+            function drawHeritageFrame(ctx,d,orient,o,name,ini,TH){
+                var DZ=window.MedxDesign, rgba=DZ?DZ.rgba:function(h){ return h; };
+                var fs=TH.fs, ls=TH.ls, F=function(n){ return Math.round(n*fs); };
+                var g=ctx.createLinearGradient(0,0,0,d.h); g.addColorStop(0,TH.bg); g.addColorStop(1,TH.bg2);
                 ctx.fillStyle=g; ctx.fillRect(0,0,d.w,d.h);
-                var glow=ctx.createRadialGradient(d.w*0.22,d.h*0.16,0,d.w*0.22,d.h*0.16,d.w*0.7);
-                glow.addColorStop(0,'rgba(230,201,135,.16)'); glow.addColorStop(.5,'rgba(230,201,135,.04)'); glow.addColorStop(1,'rgba(230,201,135,0)');
-                ctx.fillStyle=glow; ctx.fillRect(0,0,d.w,d.h);
-                ctx.fillStyle=goldGrad(ctx,0,0,d.w,0); ctx.fillRect(0,0,d.w,10);
+                if(TH.dark){
+                    var glow=ctx.createRadialGradient(d.w*0.22,d.h*0.16,0,d.w*0.22,d.h*0.16,d.w*0.7);
+                    glow.addColorStop(0,rgba(TH.accLight,.16)); glow.addColorStop(.5,rgba(TH.accLight,.04)); glow.addColorStop(1,rgba(TH.accLight,0));
+                    ctx.fillStyle=glow; ctx.fillRect(0,0,d.w,d.h);
+                } else {
+                    var vg=ctx.createRadialGradient(d.w/2,d.h*0.4,d.w*0.2,d.w/2,d.h*0.5,d.w*0.8);
+                    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(60,48,15,.07)'); ctx.fillStyle=vg; ctx.fillRect(0,0,d.w,d.h);
+                }
+                ctx.fillStyle=accGrad(ctx,0,0,d.w,0,TH); ctx.fillRect(0,0,d.w,10);
+                var eyebrow=TH.show.badge?(o.eyebrow||''):'';
                 if(orient==='landscape'){
                     var pr=200, pcx=250, pcy=d.h/2;
-                    photoRoundel(ctx,o.photo,pcx,pcy,pr,ini,true);
+                    photoRoundel(ctx,o.photo,pcx,pcy,pr,ini,TH);
                     var tx=500;
-                    label(ctx,o.eyebrow||'',tx,pcy-160,7,26,PAL.goldLight,'left');
-                    var fn=fitName(ctx,name,d.w-tx-70,[62,54,46,40]); ctx.fillStyle=PAL.white; ctx.textAlign='left';
+                    label(ctx,eyebrow,tx,pcy-160,7,F(26),TH.eyebrowC,'left');
+                    var fn=fitName(ctx,name,d.w-tx-70,[62,54,46,40].map(F)); ctx.fillStyle=TH.headline; ctx.textAlign='left';
                     var ny=pcy-160+58; fn.lines.forEach(function(ln){ ctx.font='600 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,tx,ny); ny+=fn.size*1.05; });
-                    if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 24px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-70,'400 24px '+LABEL),tx,ny+8); ny+=40; }
-                    goldLine(ctx,tx,ny+18,150);
-                    drawBrand(ctx,tx,ny+64,30,'left',true);
-                    if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='400 17px '+LABEL; ctx.fillText(o.dateline,tx,ny+92); }
+                    if(o.sub){ ctx.fillStyle=TH.subC; ctx.font='400 '+F(24)+'px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-70,'400 '+F(24)+'px '+LABEL),tx,ny+8); ny+=40; }
+                    goldLine(ctx,tx,ny+18,150,TH);
+                    drawBrand(ctx,tx,ny+64,Math.round(30*ls),'left',TH.dark);
+                    if(o.dateline){ ctx.fillStyle=TH.dateC; ctx.font='400 '+F(17)+'px '+LABEL; ctx.fillText(o.dateline,tx,ny+92); }
                     return;
                 }
                 var cx=d.w/2;
-                photoRoundel(ctx,o.photo,cx,430,230,ini,true);
-                label(ctx,o.eyebrow||'',cx,760,9,30,PAL.goldLight,'center');
-                var fn2=fitName(ctx,name,d.w-160,[92,78,66,56]); ctx.fillStyle=PAL.white; ctx.textAlign='center';
+                photoRoundel(ctx,o.photo,cx,430,230,ini,TH);
+                label(ctx,eyebrow,cx,760,9,F(30),TH.eyebrowC,'center');
+                var fn2=fitName(ctx,name,d.w-160,[92,78,66,56].map(F)); ctx.fillStyle=TH.headline; ctx.textAlign='center';
                 var y=760+118; fn2.lines.forEach(function(ln){ ctx.font='600 '+fn2.size+'px '+DISPLAY; ctx.fillText(ln,cx,y); y+=fn2.size*1.02; });
-                if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 30px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-200,'400 30px '+LABEL),cx,y+14); y+=52; }
-                ctx.save(); goldLine(ctx,cx-90,y+40,180); ctx.restore();
-                drawBrand(ctx,cx,y+112,44,'center',true);
-                if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='400 22px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,y+150); }
-                ctx.fillStyle='rgba(230,201,135,.6)'; ctx.font='400 20px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-48);
+                if(o.sub){ ctx.fillStyle=TH.subC; ctx.font='400 '+F(30)+'px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-200,'400 '+F(30)+'px '+LABEL),cx,y+14); y+=52; }
+                ctx.save(); goldLine(ctx,cx-90,y+40,180,TH); ctx.restore();
+                drawBrand(ctx,cx,y+112,Math.round(44*ls),'center',TH.dark);
+                if(o.dateline){ ctx.fillStyle=TH.dateC; ctx.font='400 '+F(22)+'px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,y+150); }
+                ctx.fillStyle=TH.footC; ctx.font='400 '+F(20)+'px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-48);
             }
 
-            // ---- Frame 2: Pleter (paper) ----------------------------------------------------------
-            function drawPleterFrame(ctx,d,orient,o,name,ini){
-                ctx.fillStyle=PAL.paper; ctx.fillRect(0,0,d.w,d.h);
+            // ---- Frame 2: Pleter (side braid layout; colors come from the theme) ------------------
+            function drawPleterFrame(ctx,d,orient,o,name,ini,TH){
+                var DZ=window.MedxDesign, rgba=DZ?DZ.rgba:function(h){ return h; }, mixc=DZ?DZ.mix:function(a){ return a; };
+                var fs=TH.fs, ls=TH.ls, F=function(n){ return Math.round(n*fs); };
+                ctx.fillStyle=TH.bg; ctx.fillRect(0,0,d.w,d.h);
                 var vign=ctx.createRadialGradient(d.w/2,d.h*0.4,d.w*0.2,d.w/2,d.h*0.5,d.w*0.8);
-                vign.addColorStop(0,'rgba(0,0,0,0)'); vign.addColorStop(1,'rgba(120,95,30,.07)'); ctx.fillStyle=vign; ctx.fillRect(0,0,d.w,d.h);
+                if(TH.dark){ vign.addColorStop(0,rgba(TH.accLight,.05)); vign.addColorStop(1,rgba(TH.accLight,0)); }
+                else { vign.addColorStop(0,'rgba(0,0,0,0)'); vign.addColorStop(1,'rgba(120,95,30,.07)'); }
+                ctx.fillStyle=vign; ctx.fillRect(0,0,d.w,d.h);
+                // side rail: the classic paper look keeps its cream; themed looks shade the ground
+                var side=(TH.bg===PAL.paper)?PAL.cream:(TH.dark?mixc(TH.bg,'#FFFFFF',0.06):mixc(TH.bg,'#000000',0.06));
+                var eyebrow=TH.show.badge?(o.eyebrow||''):'';
                 if(orient==='landscape'){
-                    ctx.fillStyle=PAL.cream; ctx.fillRect(0,0,96,d.h); drawPleter(ctx,20,20,56,d.h-40,true);
-                    ctx.fillStyle=goldGrad(ctx,0,0,d.w,0); ctx.fillRect(96,0,d.w-96,6);
-                    var pr=190, pcx=330, pcy=d.h/2; photoRoundel(ctx,o.photo,pcx,pcy,pr,ini,false,true);
+                    ctx.fillStyle=side; ctx.fillRect(0,0,96,d.h); drawPleter(ctx,20,20,56,d.h-40,true,TH);
+                    ctx.fillStyle=accGrad(ctx,0,0,d.w,0,TH); ctx.fillRect(96,0,d.w-96,6);
+                    var pr=190, pcx=330, pcy=d.h/2; photoRoundel(ctx,o.photo,pcx,pcy,pr,ini,TH);
                     var tx=560;
-                    label(ctx,o.eyebrow||'',tx,pcy-150,6,24,PAL.crimson,'left');
-                    var fn=fitName(ctx,name,d.w-tx-60,[60,52,44,38]); ctx.fillStyle=PAL.navy; ctx.textAlign='left';
+                    label(ctx,eyebrow,tx,pcy-150,6,F(24),TH.eyebrowC,'left');
+                    var fn=fitName(ctx,name,d.w-tx-60,[60,52,44,38].map(F)); ctx.fillStyle=TH.headline; ctx.textAlign='left';
                     var ny=pcy-150+56; fn.lines.forEach(function(ln){ ctx.font='600 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,tx,ny); ny+=fn.size*1.05; });
-                    if(o.sub){ ctx.fillStyle=PAL.muted; ctx.font='400 23px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-60,'400 23px '+LABEL),tx,ny+6); ny+=38; }
-                    goldLine(ctx,tx,ny+16,140);
-                    drawBrand(ctx,tx,ny+62,30,'left',false);
-                    if(o.dateline){ ctx.fillStyle=PAL.muted; ctx.font='400 17px '+LABEL; ctx.fillText(o.dateline,tx,ny+90); }
+                    if(o.sub){ ctx.fillStyle=TH.subC; ctx.font='400 '+F(23)+'px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-60,'400 '+F(23)+'px '+LABEL),tx,ny+6); ny+=38; }
+                    goldLine(ctx,tx,ny+16,140,TH);
+                    drawBrand(ctx,tx,ny+62,Math.round(30*ls),'left',TH.dark);
+                    if(o.dateline){ ctx.fillStyle=TH.dateC; ctx.font='400 '+F(17)+'px '+LABEL; ctx.fillText(o.dateline,tx,ny+90); }
                     return;
                 }
-                ctx.fillStyle=PAL.cream; ctx.fillRect(0,0,110,d.h); drawPleter(ctx,26,40,58,d.h-80,true);
-                ctx.fillStyle=goldGrad(ctx,110,0,d.w,0); ctx.fillRect(110,0,d.w-110,7);
+                ctx.fillStyle=side; ctx.fillRect(0,0,110,d.h); drawPleter(ctx,26,40,58,d.h-80,true,TH);
+                ctx.fillStyle=accGrad(ctx,110,0,d.w,0,TH); ctx.fillRect(110,0,d.w-110,7);
                 var cx=(d.w+110)/2;
-                photoRoundel(ctx,o.photo,cx,410,220,ini,false,true);
-                label(ctx,o.eyebrow||'',cx,720,8,28,PAL.crimson,'center');
-                var fn2=fitName(ctx,name,d.w-260,[86,74,62,52]); ctx.fillStyle=PAL.navy; ctx.textAlign='center';
+                photoRoundel(ctx,o.photo,cx,410,220,ini,TH);
+                label(ctx,eyebrow,cx,720,8,F(28),TH.eyebrowC,'center');
+                var fn2=fitName(ctx,name,d.w-260,[86,74,62,52].map(F)); ctx.fillStyle=TH.headline; ctx.textAlign='center';
                 var y=720+112; fn2.lines.forEach(function(ln){ ctx.font='600 '+fn2.size+'px '+DISPLAY; ctx.fillText(ln,cx,y); y+=fn2.size*1.02; });
-                if(o.sub){ ctx.fillStyle=PAL.muted; ctx.font='400 29px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-320,'400 29px '+LABEL),cx,y+12); y+=50; }
-                goldLine(ctx,cx-85,y+38,170);
-                drawBrand(ctx,cx,y+108,44,'center',false);
-                if(o.dateline){ ctx.fillStyle=PAL.muted; ctx.font='400 22px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,y+146); }
-                ctx.fillStyle=PAL.goldDeep; ctx.font='400 20px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-48);
+                if(o.sub){ ctx.fillStyle=TH.subC; ctx.font='400 '+F(29)+'px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-320,'400 '+F(29)+'px '+LABEL),cx,y+12); y+=50; }
+                goldLine(ctx,cx-85,y+38,170,TH);
+                drawBrand(ctx,cx,y+108,Math.round(44*ls),'center',TH.dark);
+                if(o.dateline){ ctx.fillStyle=TH.dateC; ctx.font='400 '+F(22)+'px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,y+146); }
+                ctx.fillStyle=(TH.bg===PAL.paper)?PAL.goldDeep:TH.footC; ctx.font='400 '+F(20)+'px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-48);
             }
 
-            // ---- Frame 3: Gala (dramatic navy, photo-forward) -------------------------------------
-            function drawGalaFrame(ctx,d,orient,o,name,ini){
-                ctx.fillStyle=PAL.navyDeep; ctx.fillRect(0,0,d.w,d.h);
+            // ---- Frame 3: Gala (photo-forward layout; colors come from the theme) -----------------
+            function drawGalaFrame(ctx,d,orient,o,name,ini,TH){
+                var DZ=window.MedxDesign, rgba=DZ?DZ.rgba:function(h){ return h; };
+                var fs=TH.fs, ls=TH.ls, F=function(n){ return Math.round(n*fs); };
+                ctx.fillStyle=TH.bg2; ctx.fillRect(0,0,d.w,d.h);
+                var eyebrow=TH.show.badge?(o.eyebrow||''):'';
                 if(orient==='landscape'){
                     var pw=d.w*0.44;
                     ctx.save(); ctx.beginPath(); ctx.rect(0,0,pw,d.h); ctx.clip();
-                    if(o.photo){ drawCover(ctx,o.photo,0,0,pw,d.h); } else { ctx.fillStyle=PAL.navy2; ctx.fillRect(0,0,pw,d.h); drawMonogram(ctx,pw/2,d.h/2,150,ini,true); }
-                    var sc=ctx.createLinearGradient(pw-160,0,pw,0); sc.addColorStop(0,'rgba(10,23,48,0)'); sc.addColorStop(1,'rgba(10,23,48,1)'); ctx.fillStyle=sc; ctx.fillRect(pw-160,0,160,d.h);
+                    if(o.photo){ drawCover(ctx,o.photo,0,0,pw,d.h); } else { ctx.fillStyle=TH.panel; ctx.fillRect(0,0,pw,d.h); drawMonogram(ctx,pw/2,d.h/2,150,ini,TH); }
+                    var sc=ctx.createLinearGradient(pw-160,0,pw,0); sc.addColorStop(0,rgba(TH.bg2,0)); sc.addColorStop(1,rgba(TH.bg2,1)); ctx.fillStyle=sc; ctx.fillRect(pw-160,0,160,d.h);
                     ctx.restore();
-                    ctx.fillStyle=goldGrad(ctx,pw,0,d.w,0); ctx.fillRect(pw,0,d.w-pw,5);
+                    ctx.fillStyle=accGrad(ctx,pw,0,d.w,0,TH); ctx.fillRect(pw,0,d.w-pw,5);
                     var tx=pw+56;
-                    label(ctx,o.eyebrow||'',tx,d.h/2-140,7,25,PAL.goldLight,'left');
-                    var fn=fitName(ctx,name,d.w-tx-56,[64,54,46,40]); ctx.fillStyle=PAL.white; ctx.textAlign='left';
+                    label(ctx,eyebrow,tx,d.h/2-140,7,F(25),TH.eyebrowC,'left');
+                    var fn=fitName(ctx,name,d.w-tx-56,[64,54,46,40].map(F)); ctx.fillStyle=TH.headline; ctx.textAlign='left';
                     var ny=d.h/2-140+58; fn.lines.forEach(function(ln){ ctx.font='600 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,tx,ny); ny+=fn.size*1.05; });
-                    if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 23px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-56,'400 23px '+LABEL),tx,ny+6); ny+=38; }
-                    goldLine(ctx,tx,ny+16,140);
-                    drawBrand(ctx,tx,ny+62,30,'left',true);
-                    if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.66)'; ctx.font='400 16px '+LABEL; ctx.fillText(o.dateline,tx,ny+90); }
+                    if(o.sub){ ctx.fillStyle=TH.subC; ctx.font='400 '+F(23)+'px '+LABEL; ctx.fillText(clip(ctx,o.sub,d.w-tx-56,'400 '+F(23)+'px '+LABEL),tx,ny+6); ny+=38; }
+                    goldLine(ctx,tx,ny+16,140,TH);
+                    drawBrand(ctx,tx,ny+62,Math.round(30*ls),'left',TH.dark);
+                    if(o.dateline){ ctx.fillStyle=TH.dateC; ctx.font='400 '+F(16)+'px '+LABEL; ctx.fillText(o.dateline,tx,ny+90); }
                     return;
                 }
                 var ph=800;
                 ctx.save(); ctx.beginPath(); ctx.rect(0,0,d.w,ph); ctx.clip();
-                if(o.photo){ drawCover(ctx,o.photo,0,0,d.w,ph); } else { ctx.fillStyle=PAL.navy2; ctx.fillRect(0,0,d.w,ph); drawMonogram(ctx,d.w/2,ph/2-40,180,ini,true); }
-                var scr=ctx.createLinearGradient(0,ph-360,0,ph); scr.addColorStop(0,'rgba(10,23,48,0)'); scr.addColorStop(1,'rgba(10,23,48,1)'); ctx.fillStyle=scr; ctx.fillRect(0,ph-360,d.w,360);
+                if(o.photo){ drawCover(ctx,o.photo,0,0,d.w,ph); } else { ctx.fillStyle=TH.panel; ctx.fillRect(0,0,d.w,ph); drawMonogram(ctx,d.w/2,ph/2-40,180,ini,TH); }
+                var scr=ctx.createLinearGradient(0,ph-360,0,ph); scr.addColorStop(0,rgba(TH.bg2,0)); scr.addColorStop(1,rgba(TH.bg2,1)); ctx.fillStyle=scr; ctx.fillRect(0,ph-360,d.w,360);
                 ctx.restore();
-                ctx.fillStyle=goldGrad(ctx,0,0,d.w,0); ctx.fillRect(0,0,d.w,10);
-                // gold "golden line" arc rising from the seam
-                ctx.save(); ctx.beginPath(); ctx.arc(d.w/2, ph+520, 640, Math.PI*1.16, Math.PI*1.84); ctx.lineWidth=2.5; ctx.strokeStyle='rgba(201,162,39,.5)'; ctx.stroke(); ctx.restore();
+                ctx.fillStyle=accGrad(ctx,0,0,d.w,0,TH); ctx.fillRect(0,0,d.w,10);
+                // accent "golden line" arc rising from the seam
+                ctx.save(); ctx.beginPath(); ctx.arc(d.w/2, ph+520, 640, Math.PI*1.16, Math.PI*1.84); ctx.lineWidth=2.5; ctx.strokeStyle=rgba(TH.acc,.5); ctx.stroke(); ctx.restore();
                 var cx=d.w/2, y=ph+18;
-                label(ctx,o.eyebrow||'',cx,y+20,9,30,PAL.goldLight,'center');
-                var fn2=fitName(ctx,name,d.w-160,[90,76,64,54]); ctx.fillStyle=PAL.white; ctx.textAlign='center';
+                label(ctx,eyebrow,cx,y+20,9,F(30),TH.eyebrowC,'center');
+                var fn2=fitName(ctx,name,d.w-160,[90,76,64,54].map(F)); ctx.fillStyle=TH.headline; ctx.textAlign='center';
                 var ny2=y+96; fn2.lines.forEach(function(ln){ ctx.font='600 '+fn2.size+'px '+DISPLAY; ctx.fillText(ln,cx,ny2); ny2+=fn2.size*1.02; });
-                if(o.sub){ ctx.fillStyle='rgba(230,201,135,.85)'; ctx.font='400 29px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-200,'400 29px '+LABEL),cx,ny2+10); ny2+=48; }
-                goldLine(ctx,cx-85,ny2+34,170);
-                drawBrand(ctx,cx,ny2+100,44,'center',true);
-                if(o.dateline){ ctx.fillStyle='rgba(255,255,255,.68)'; ctx.font='400 22px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,ny2+138); }
-                ctx.fillStyle='rgba(230,201,135,.6)'; ctx.font='400 20px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-46);
+                if(o.sub){ ctx.fillStyle=TH.subC; ctx.font='400 '+F(29)+'px '+LABEL; ctx.textAlign='center'; ctx.fillText(clip(ctx,o.sub,d.w-200,'400 '+F(29)+'px '+LABEL),cx,ny2+10); ny2+=48; }
+                goldLine(ctx,cx-85,ny2+34,170,TH);
+                drawBrand(ctx,cx,ny2+100,Math.round(44*ls),'center',TH.dark);
+                if(o.dateline){ ctx.fillStyle=TH.dateC; ctx.font='400 '+F(22)+'px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.dateline,cx,ny2+138); }
+                ctx.fillStyle=TH.footC; ctx.font='400 '+F(20)+'px '+LABEL; ctx.textAlign='center'; ctx.fillText(o.footer||'medx.hr',cx,d.h-46);
             }
 
-            // A circular portrait window with a gold ring, or the monogram fallback.
-            function photoRoundel(ctx,img,cx,cy,rad,ini,onDark,paperRing){
+            // A circular portrait window with an accent ring, or the monogram fallback.
+            function photoRoundel(ctx,img,cx,cy,rad,ini,TH){
+                TH=TH||cardTheme('heritage',null);
+                var DZ=window.MedxDesign, rgba=DZ?DZ.rgba:function(h){ return h; };
                 ctx.save();
                 if(img){
                     ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.closePath(); ctx.save(); ctx.clip();
                     drawCover(ctx,img,cx-rad,cy-rad,rad*2,rad*2); ctx.restore();
-                    ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.lineWidth=Math.max(4,rad*0.045); ctx.strokeStyle=goldGrad(ctx,cx-rad,cy-rad,cx+rad,cy+rad); ctx.stroke();
-                    ctx.beginPath(); ctx.arc(cx,cy,rad*0.9,0,Math.PI*2); ctx.lineWidth=1.4; ctx.strokeStyle=(paperRing?'rgba(120,95,30,.3)':'rgba(230,201,135,.4)'); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2); ctx.lineWidth=Math.max(4,rad*0.045); ctx.strokeStyle=accGrad(ctx,cx-rad,cy-rad,cx+rad,cy+rad,TH); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(cx,cy,rad*0.9,0,Math.PI*2); ctx.lineWidth=1.4; ctx.strokeStyle=(TH.dark?rgba(TH.accLight,.4):rgba(TH.accDeep,.3)); ctx.stroke();
                 } else {
-                    drawMonogram(ctx,cx,cy,rad,ini,onDark);
+                    drawMonogram(ctx,cx,cy,rad,ini,TH);
                 }
                 ctx.restore();
             }
@@ -48146,7 +48505,27 @@ By applying to this program, I give the following consents:
         // SAME approval outbox the speaker kits use. Admin surface is English by convention.
         const CardStudio = {
             _built:false, _overlay:null, _busy:false,
-            state:{ event:'conference', frame:'gala', roster:[], selected:{}, ctx:null },
+            state:{ event:'conference', frame:'gala', roster:[], selected:{}, ctx:null, design:null },
+            // Design-studio host: the shared panel (MedxDesign) reads/writes the token state and
+            // asks the studio to re-render. Copy fields map onto the card's badge + date lines.
+            _designHost(){
+                var self=this;
+                if(this._dsgHost) return this._dsgHost;
+                this._dsgHost={
+                    artifact:'card', photos:false, tmp:{},
+                    get:function(){ return self.state.design||(self.state.design=window.MedxDesign.base('heritage')); },
+                    set:function(t){ self.state.design=t; },
+                    copyFields:function(){ var d=self._dsgHost.get(); return [
+                        { key:'headline_text', label:'Headline · Naslov', ph:"e.g. I'M ATTENDING", value:d.headline_text||'' },
+                        { key:'sub_text', label:'Sub-line · Podnaslov', ph:'Event · date · venue', value:d.sub_text||'' }
+                    ]; },
+                    setCopyField:function(k,v){ var d=self._dsgHost.get(); d[k]=v; },
+                    setCopy:function(c){ var d=self._dsgHost.get(); if(c&&c.headline) d.headline_text=c.headline; if(c&&c.sub) d.sub_text=c.sub; },
+                    refresh:function(){ if(self._overlay&&self._overlay.classList.contains('active')) self.render(); },
+                    preview:function(){ self._paintPreview(); }
+                };
+                return this._dsgHost;
+            },
             esc(s){ return (typeof escapeHtml==='function') ? escapeHtml(s==null?'':String(s)) : String(s==null?'':s); },
             async api(path, opts){ const r=await fetch(path, Object.assign({ headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+App.token } }, opts||{})); let d=null; try{ d=await r.json(); }catch(e){} return { ok:r.ok, status:r.status, d }; },
 
@@ -48212,10 +48591,16 @@ By applying to this program, I give the following consents:
                 ov.querySelector('#csdClose').addEventListener('click', function(){ self.close(); });
                 ov.addEventListener('click', function(e){ if(e.target===ov) self.close(); });
                 document.addEventListener('keydown', function(e){ if(e.key==='Escape' && self._overlay && self._overlay.classList.contains('active')) self.close(); });
+                if(window.MedxDesign) window.MedxDesign.bind(ov,'csd',this._designHost());
             },
             async start(){
                 this.ensureBuilt();
                 this._overlay.classList.add('active'); document.body.style.overflow='hidden';
+                if(window.MedxDesign){
+                    if(!this.state.design) this.state.design=window.MedxDesign.base('heritage');
+                    var self=this;
+                    window.MedxDesign.prime('card',false).then(function(){ if(self._overlay&&self._overlay.classList.contains('active')) self.render(); });
+                }
                 await this.loadRoster(this.state.event);
             },
             close(){ if(this._overlay) this._overlay.classList.remove('active'); document.body.style.overflow=''; try{ ContentStudio.init(); }catch(e){} },
@@ -48233,10 +48618,22 @@ By applying to this program, I give the following consents:
             _evName(){ var c=this.state.ctx&&this.state.ctx.event; return (c&&c.name)||'Med&X Event'; },
             // The brand slot now draws the REAL Med&X logo image (MedxCard.drawBrand); the event
             // name moves into the dateline so no typed 'by Med&X' lockup remains anywhere.
-            _dateline(){ var c=this.state.ctx&&this.state.ctx.event; return [this._evName(), c&&c.date, c&&c.venue].filter(Boolean).join(' · '); },
-            _eyebrow(role){ return role==='speaker'?'SPEAKER':(role==='guest'?'GUEST':"I'M ATTENDING"); },
+            // Design-studio overrides: free sub-line text replaces the whole dateline; the
+            // show.date / show.venue flags trim the assembled one.
+            _dateline(){
+                var d=this.state.design||{};
+                if(d.sub_text&&d.sub_text.trim()) return d.sub_text.trim();
+                var show=d.show||{ date:true, venue:true };
+                var c=this.state.ctx&&this.state.ctx.event;
+                return [this._evName(), show.date!==false?(c&&c.date):null, show.venue!==false?(c&&c.venue):null].filter(Boolean).join(' · ');
+            },
+            _eyebrow(role){
+                var d=this.state.design||{};
+                if(d.headline_text&&d.headline_text.trim()) return d.headline_text.trim().toUpperCase();
+                return role==='speaker'?'SPEAKER':(role==='guest'?'GUEST':"I'M ATTENDING");
+            },
             _optsFor(p, orient){
-                return { frame:this.state.frame, orientation:orient||'portrait', eyebrow:this._eyebrow(p.role), name:p.name, sub:p.sub||'', dateline:this._dateline(), footer:'medx.hr', photo:p._img||null };
+                return { frame:this.state.frame, orientation:orient||'portrait', eyebrow:this._eyebrow(p.role), name:p.name, sub:p.sub||'', dateline:this._dateline(), footer:'medx.hr', photo:p._img||null, tokens:this.state.design||null };
             },
 
             render(){
@@ -48247,6 +48644,7 @@ By applying to this program, I give the following consents:
                 this._overlay.querySelector('#csdRail').innerHTML=''
                 +'<div class="csd-sec"><label>Event</label><select id="csdEvent">'+events+'</select></div>'
                 +'<div class="csd-sec"><label>Frame</label><div class="csd-frames" id="csdFrames">'+frames+'</div></div>'
+                +(window.MedxDesign?window.MedxDesign.panelHtml('csd',this._designHost()):'')
                 +'<div class="csd-summary"><div class="big">'+sel.length+' selected</div><div class="lbl">'+(cn.total||0)+' on the roster · '+(cn.speaker||0)+' speakers · '+(cn.withEmail||0)+' with an email</div></div>'
                 +'<div class="csd-quick" id="csdQuick"><button data-q="all">Select all</button><button data-q="speakers">Speakers</button><button data-q="none">Clear</button></div>'
                 +'<div class="csd-note">Cards carry no QR. They are a marketing asset, never a ticket.</div>';
@@ -48277,7 +48675,7 @@ By applying to this program, I give the following consents:
             _ensureImg(p){ return new Promise(function(res){ if(p._img!==undefined) return res(); if(!p.photo){ p._img=null; return res(); } var img=new Image(); img.crossOrigin='anonymous'; img.onload=function(){ p._img=img; res(); }; img.onerror=function(){ p._img=null; res(); }; img.src=p.photo; }); },
             _paintThumbs(){
                 var self=this;
-                var run=function(){ window.MedxCard.FRAMES.forEach(function(f){ var host=self._overlay.querySelector('[data-fthumb="'+f.id+'"]'); if(!host)return; try{ var cv=window.MedxCard.render({ frame:f.id, orientation:'portrait', eyebrow:'SPEAKER', name:'Ana Marković', sub:'University of Zagreb', dateline:self._dateline(), footer:'medx.hr', photo:null }); cv.style.width='100%'; host.innerHTML=''; host.appendChild(cv); }catch(e){} }); };
+                var run=function(){ window.MedxCard.FRAMES.forEach(function(f){ var host=self._overlay.querySelector('[data-fthumb="'+f.id+'"]'); if(!host)return; try{ var cv=window.MedxCard.render({ frame:f.id, orientation:'portrait', eyebrow:self._eyebrow('speaker'), name:'Ana Marković', sub:'University of Zagreb', dateline:self._dateline(), footer:'medx.hr', photo:null, tokens:self.state.design||null }); cv.style.width='100%'; host.innerHTML=''; host.appendChild(cv); }catch(e){} }); };
                 var go=function(){ window.MedxCard.ready().then(run).catch(run); };
                 if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(go); setTimeout(go,60); } else go();
             },
@@ -48419,8 +48817,11 @@ By applying to this program, I give the following consents:
             var TYPES={ keynote:['KEYNOTE LECTURE','PLENARNO PREDAVANJE'], talk:['LECTURE','PREDAVANJE'], panel:['PANEL DISCUSSION','PANEL RASPRAVA'], workshop:['WORKSHOP','RADIONICA'], poster:['POSTER SESSION','POSTERSKA SEKCIJA'], break:['BREAK','STANKA'], social:['SOCIAL PROGRAMME','DRUŠTVENI PROGRAM'], ceremony:['CEREMONY','SVEČANI PROGRAM'] };
             function typePair(t){ return TYPES[String(t||'').toLowerCase()]||['SESSION','SESIJA']; }
 
-            function goldGradH(ctx,x0,x1,y){ var g=ctx.createLinearGradient(x0,y,x1,y); g.addColorStop(0,PAL.goldDeep); g.addColorStop(.18,PAL.goldLight); g.addColorStop(.5,PAL.gold); g.addColorStop(.82,PAL.goldLight); g.addColorStop(1,PAL.goldDeep); return g; }
-            function goldGradV(ctx,y0,y1){ var g=ctx.createLinearGradient(0,y0,0,y1); g.addColorStop(0,PAL.goldLight); g.addColorStop(.46,PAL.gold); g.addColorStop(1,PAL.goldDeep); return g; }
+            var CLASSIC_SH={ acc:PAL.gold, accLight:PAL.goldLight, accDeep:PAL.goldDeep, accPale:'#F0DDA8' };
+            function accGradH(ctx,x0,x1,y,TH){ TH=TH||CLASSIC_SH; var g=ctx.createLinearGradient(x0,y,x1,y); g.addColorStop(0,TH.accDeep); g.addColorStop(.18,TH.accLight); g.addColorStop(.5,TH.acc); g.addColorStop(.82,TH.accLight); g.addColorStop(1,TH.accDeep); return g; }
+            function accGradV(ctx,y0,y1,TH){ TH=TH||CLASSIC_SH; var g=ctx.createLinearGradient(0,y0,0,y1); g.addColorStop(0,TH.accLight); g.addColorStop(.46,TH.acc); g.addColorStop(1,TH.accDeep); return g; }
+            function goldGradH(ctx,x0,x1,y){ return accGradH(ctx,x0,x1,y,CLASSIC_SH); }
+            function goldGradV(ctx,y0,y1){ return accGradV(ctx,y0,y1,CLASSIC_SH); }
             function navyGround(ctx,W,H){
                 var g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,PAL.navyTop); g.addColorStop(.45,PAL.navy); g.addColorStop(1,PAL.navyDeep);
                 ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
@@ -48431,7 +48832,7 @@ By applying to this program, I give the following consents:
                 ctx.fillStyle=PAL.paper; ctx.fillRect(0,0,W,H);
                 var v=ctx.createRadialGradient(W/2,H*0.42,W*0.2,W/2,H*0.5,H*0.75); v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(120,95,30,.08)'); ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
             }
-            function keyline(ctx,W,H,m,s,alpha){ ctx.save(); ctx.strokeStyle='rgba(201,162,39,'+(alpha||0.22)+')'; ctx.lineWidth=Math.max(1,1.4*s); ctx.strokeRect(m*s,m*s,W-2*m*s,H-2*m*s); ctx.restore(); }
+            function keyline(ctx,W,H,m,s,alpha,TH){ var DZ=window.MedxDesign; ctx.save(); ctx.strokeStyle=(TH&&DZ)?DZ.rgba(TH.acc,alpha||0.22):('rgba(201,162,39,'+(alpha||0.22)+')'); ctx.lineWidth=Math.max(1,1.4*s); ctx.strokeRect(m*s,m*s,W-2*m*s,H-2*m*s); ctx.restore(); }
             // Letter-spaced tracked caps/lowercase, centered (caller decides the case).
             function track(ctx,text,cx,y,size,spacing,color,font,weight){
                 ctx.save(); ctx.fillStyle=color; ctx.textBaseline='alphabetic'; ctx.font=(weight||'600')+' '+size+'px '+(font||LABEL);
@@ -48467,9 +48868,10 @@ By applying to this program, I give the following consents:
             }
             function clipTo(ctx,text,maxW,font){ ctx.save(); ctx.font=font; var st=String(text||''); if(ctx.measureText(st).width<=maxW){ ctx.restore(); return st; } while(st.length>1&&ctx.measureText(st+'…').width>maxW){ st=st.slice(0,-1); } ctx.restore(); return st+'…'; }
             // THE GOLDEN LINE — full-bleed gradient band; wide bands carry the pleter braid woven through.
-            function goldenBand(ctx,W,y,h){
+            function goldenBand(ctx,W,y,h,TH){
+                TH=TH||CLASSIC_SH;
                 ctx.save();
-                var g=ctx.createLinearGradient(0,y,0,y+h); g.addColorStop(0,PAL.goldLight); g.addColorStop(.5,PAL.gold); g.addColorStop(1,PAL.goldDeep);
+                var g=ctx.createLinearGradient(0,y,0,y+h); g.addColorStop(0,TH.accLight); g.addColorStop(.5,TH.acc); g.addColorStop(1,TH.accDeep);
                 ctx.fillStyle=g; ctx.fillRect(0,y,W,h);
                 if(h>=10){
                     var mid=y+h/2, amp=h*0.26, lam=h*3.4;
@@ -48483,7 +48885,7 @@ By applying to this program, I give the following consents:
                 }
                 ctx.restore();
             }
-            function thinGoldLine(ctx,cx,y,w,h){ ctx.save(); ctx.fillStyle=goldGradH(ctx,cx-w/2,cx+w/2,y); ctx.fillRect(cx-w/2,y,w,h); ctx.restore(); }
+            function thinGoldLine(ctx,cx,y,w,h,TH){ ctx.save(); ctx.fillStyle=accGradH(ctx,cx-w/2,cx+w/2,y,TH); ctx.fillRect(cx-w/2,y,w,h); ctx.restore(); }
 
             // ---- LECTURE-TOPIC SIGN (A4/A3 portrait, navy). Fixed anchors for the where/when block ----
             // ---- and the golden line, so a corridor of these signs reads as ONE system.            ----
@@ -48559,59 +48961,139 @@ By applying to this program, I give the following consents:
             // ---- gala-theming kit: navy ground with gold-gradient display type, the pleter- ----
             // ---- woven GOLDEN LINE at the kit's 60%-height corridor line, date/venue block, ----
             // ---- Med&X footer. "The Paper" flips the ground to paper/navy for bright venues. ----
+            // Custom-preset ground: bg->bg2 gradient with the accent glow (dark) or a soft vignette.
+            function customGround(ctx,W,H,TH){
+                var DZ=window.MedxDesign, rgba=DZ?DZ.rgba:function(h){ return h; };
+                var g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,TH.bg); g.addColorStop(1,TH.bg2);
+                ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+                if(TH.dark){
+                    var r1=ctx.createRadialGradient(W/2,-H*0.1,0,W/2,-H*0.1,H*0.55); r1.addColorStop(0,rgba(TH.accLight,.1)); r1.addColorStop(1,rgba(TH.accLight,0)); ctx.fillStyle=r1; ctx.fillRect(0,0,W,H);
+                    var r2=ctx.createRadialGradient(W/2,H*1.15,0,W/2,H*1.15,H*0.5); r2.addColorStop(0,rgba(TH.accLight,.06)); r2.addColorStop(1,rgba(TH.accLight,0)); ctx.fillStyle=r2; ctx.fillRect(0,0,W,H);
+                } else {
+                    var v=ctx.createRadialGradient(W/2,H*0.42,W*0.2,W/2,H*0.5,H*0.75); v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(40,32,10,.10)'); ctx.fillStyle=v; ctx.fillRect(0,0,W,H);
+                }
+            }
+            function drawCoverS(ctx,img,x,y,w,h){ try{ var ir=img.width/img.height, r=w/h, sw,sh,sx,sy; if(ir>r){ sh=img.height; sw=sh*r; sx=(img.width-sw)/2; sy=0; } else { sw=img.width; sh=sw/r; sx=0; sy=(img.height-sh)/2; } ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h); }catch(e){} }
+            // Resolve Design-studio tokens for the roll-up. No tokens — and the Heritage preset —
+            // keep the classic navy artwork ("The Paper" template still flips to the light ground).
+            // A background photo wins the ground and pulls an automatic dark scrim over itself.
+            function bannerTheme(o){
+                var DZ=window.MedxDesign;
+                var t=(DZ&&o.tokens)?DZ.normalize(o.tokens):null;
+                var tpl=String(o.template||'event');
+                var classic=!t||t.preset==='heritage';
+                var TH={ fs:t?t.font_scale:1, ls:t?t.logo_scale:1, show:t?t.show:{badge:true,date:true,venue:true}, frameStyle:t?t.frame_style:'classic', photoImg:o._bgImg||null };
+                if(classic){
+                    TH.dark=tpl!=='paper';
+                    TH.ground=TH.dark?'navy':'paper';
+                    TH.bg=TH.dark?PAL.navy:PAL.paper; TH.bg2=TH.dark?PAL.navyDeep:PAL.paper;
+                    TH.headline=TH.dark?null:PAL.navy; // null => the classic gold-gradient headline
+                    TH.acc=t?t.accent:PAL.gold;
+                } else {
+                    TH.dark=(t.logo_variant==='light');
+                    TH.ground='custom';
+                    TH.bg=t.bg; TH.bg2=t.bg2; TH.headline=t.headline; TH.acc=t.accent;
+                }
+                // an ink-dark accent cannot carry lines over a photo scrim — fall back to brand gold
+                if(TH.photoImg&&DZ&&DZ.luma(TH.acc)<0.25) TH.acc='#C9A227';
+                var sh=DZ?DZ.shades(TH.acc):CLASSIC_SH;
+                TH.accLight=sh.accLight; TH.accDeep=sh.accDeep; TH.accPale=sh.accPale;
+                var rgba=DZ?DZ.rgba:function(h){ return h; };
+                if(classic){
+                    TH.eyebrowC=TH.dark?PAL.creamDim:PAL.goldDeep;
+                    TH.subEnC=TH.dark?PAL.cream:PAL.navy;
+                    TH.subHrC=TH.dark?PAL.goldLight:PAL.goldDeep;
+                    TH.dateC=TH.dark?PAL.goldLight:PAL.navy;
+                    TH.dateHrC=TH.dark?'rgba(230,200,120,.9)':PAL.goldDeep;
+                    TH.venueC=TH.dark?PAL.cream:PAL.mutedPaper;
+                    TH.urlC=TH.dark?PAL.creamDim:PAL.goldDeep;
+                } else {
+                    TH.eyebrowC=TH.dark?rgba(t.body,.92):TH.accDeep;
+                    TH.subEnC=t.body;
+                    TH.subHrC=TH.dark?TH.accLight:TH.accDeep;
+                    TH.dateC=TH.dark?TH.accLight:t.headline;
+                    TH.dateHrC=TH.dark?rgba(TH.accPale,.9):TH.accDeep;
+                    TH.venueC=t.body;
+                    TH.urlC=TH.dark?rgba(t.body,.85):TH.accDeep;
+                }
+                TH.keyAlpha=TH.dark?0.22:0.4;
+                if(TH.photoImg){
+                    TH.scrim=TH.dark?TH.bg2:'#0A1730';
+                    if(!TH.dark||TH.ground==='paper'){ TH.headline='#FFFFFF'; }
+                    TH.dark=true;
+                    TH.eyebrowC='#E9E4D4'; TH.subEnC='#EFEAD9'; TH.subHrC=TH.accLight; TH.dateC=TH.accLight;
+                    TH.dateHrC=rgba(TH.accPale,.9); TH.venueC='#E9E4D4'; TH.urlC='#E9E4D4';
+                }
+                return TH;
+            }
             function drawBanner(ctx,W,H,s,o){
                 var f=o.fields||{}, tpl=String(o.template||'event'), cx=W/2;
-                var dark=tpl!=='paper';
-                if(dark) navyGround(ctx,W,H); else paperGround(ctx,W,H);
-                keyline(ctx,W,H,40,s,dark?0.22:0.4);
+                var TH=bannerTheme(o), dark=TH.dark, fs=TH.fs, F=function(n){ return n*fs; };
+                var DZ=window.MedxDesign, rgba=DZ?DZ.rgba:function(h){ return h; };
+                if(TH.photoImg){
+                    drawCoverS(ctx,TH.photoImg,0,0,W,H);
+                    var sg=ctx.createLinearGradient(0,0,0,H);
+                    sg.addColorStop(0,rgba(TH.scrim,.58)); sg.addColorStop(.55,rgba(TH.scrim,.8)); sg.addColorStop(1,rgba(TH.scrim,.94));
+                    ctx.fillStyle=sg; ctx.fillRect(0,0,W,H);
+                }
+                else if(TH.ground==='navy') navyGround(ctx,W,H);
+                else if(TH.ground==='paper') paperGround(ctx,W,H);
+                else customGround(ctx,W,H,TH);
+                if(TH.frameStyle==='band'){
+                    ctx.fillStyle=accGradH(ctx,0,W,0,TH); ctx.fillRect(0,0,W,16*s);
+                    ctx.fillStyle=accGradH(ctx,0,W,H,TH); ctx.fillRect(0,H-16*s,W,16*s);
+                } else {
+                    keyline(ctx,W,H,40,s,TH.keyAlpha,TH);
+                    if(TH.frameStyle==='hairline') keyline(ctx,W,H,52,s,TH.keyAlpha*0.55,TH);
+                }
                 var eyebrowText=tpl==='welcome'?(f.headline||''):(f.eyebrow||'');
-                if(eyebrowText) track(ctx,String(eyebrowText).toUpperCase(),cx,176*s,16*s,9*s,dark?PAL.creamDim:PAL.goldDeep,LABEL,'600');
+                if(eyebrowText&&TH.show.badge) track(ctx,String(eyebrowText).toUpperCase(),cx,176*s,F(16)*s,9*s,TH.eyebrowC,LABEL,'600');
                 var subBase;
                 if(tpl==='welcome'){
                     ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-                    ctx.fillStyle=goldGradV(ctx,368*s,486*s); ctx.font='600 '+(118*s)+'px '+DISPLAY;
+                    ctx.fillStyle=TH.headline===null?accGradV(ctx,368*s,486*s,TH):TH.headline; ctx.font='600 '+(F(118)*s)+'px '+DISPLAY;
                     ctx.fillText('Welcome',cx,478*s); ctx.restore();
-                    thinGoldLine(ctx,cx,540*s,150*s,3*s);
+                    thinGoldLine(ctx,cx,540*s,150*s,3*s,TH);
                     ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-                    ctx.fillStyle=goldGradV(ctx,576*s,672*s); ctx.font='600 '+(96*s)+'px '+DISPLAY;
+                    ctx.fillStyle=TH.headline===null?accGradV(ctx,576*s,672*s,TH):TH.headline; ctx.font='600 '+(F(96)*s)+'px '+DISPLAY;
                     ctx.fillText('Dobro došli',cx,668*s); ctx.restore();
                     subBase=806;
                 } else {
-                    var fw=fitWrap(ctx,f.headline||'Med&X',840*s,[112,96,82,70].map(function(z){ return z*s; }),3,DISPLAY,'600');
+                    var fw=fitWrap(ctx,f.headline||'Med&X',840*s,[112,96,82,70].map(function(z){ return F(z)*s; }),3,DISPLAY,'600');
                     ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic';
                     var firstBase=430*s, lastBase=firstBase+(fw.lines.length-1)*fw.size*1.06;
-                    ctx.fillStyle=dark?goldGradV(ctx,firstBase-fw.size,lastBase):PAL.navy;
+                    ctx.fillStyle=TH.headline===null?accGradV(ctx,firstBase-fw.size,lastBase,TH):TH.headline;
                     ctx.font='600 '+fw.size+'px '+DISPLAY;
                     var by=firstBase;
                     fw.lines.forEach(function(ln){ ctx.fillText(ln,cx,by); by+=fw.size*1.06; });
                     ctx.restore();
-                    thinGoldLine(ctx,cx,(lastBase/s+56)*s,150*s,3*s);
+                    thinGoldLine(ctx,cx,(lastBase/s+56)*s,150*s,3*s,TH);
                     subBase=lastBase/s+140;
                 }
                 if(f.subEn){
-                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.cream:PAL.navy; ctx.font='500 '+(36*s)+'px '+SERIF;
-                    ctx.fillText(clipTo(ctx,f.subEn,860*s,'500 '+(36*s)+'px '+SERIF),cx,subBase*s); ctx.restore();
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=TH.subEnC; ctx.font='500 '+(F(36)*s)+'px '+SERIF;
+                    ctx.fillText(clipTo(ctx,f.subEn,860*s,'500 '+(F(36)*s)+'px '+SERIF),cx,subBase*s); ctx.restore();
                 }
                 if(f.subHr){
-                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.goldLight:PAL.goldDeep; ctx.font='italic 500 '+(32*s)+'px '+SERIF;
-                    ctx.fillText(clipTo(ctx,f.subHr,860*s,'italic 500 '+(32*s)+'px '+SERIF),cx,(subBase+58)*s); ctx.restore();
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=TH.subHrC; ctx.font='italic 500 '+(F(32)*s)+'px '+SERIF;
+                    ctx.fillText(clipTo(ctx,f.subHr,860*s,'italic 500 '+(F(32)*s)+'px '+SERIF),cx,(subBase+58)*s); ctx.restore();
                 }
-                goldenBand(ctx,W,1395*s,34*s);
-                if(f.dateLine){
-                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.goldLight:PAL.navy; ctx.font='600 '+(46*s)+'px '+DISPLAY;
-                    ctx.fillText(clipTo(ctx,f.dateLine,860*s,'600 '+(46*s)+'px '+DISPLAY),cx,1566*s); ctx.restore();
+                goldenBand(ctx,W,1395*s,34*s,TH);
+                if(f.dateLine&&TH.show.date){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=TH.dateC; ctx.font='600 '+(F(46)*s)+'px '+DISPLAY;
+                    ctx.fillText(clipTo(ctx,f.dateLine,860*s,'600 '+(F(46)*s)+'px '+DISPLAY),cx,1566*s); ctx.restore();
                 }
-                if(f.dateHr){
-                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?'rgba(230,200,120,.9)':PAL.goldDeep; ctx.font='italic 500 '+(30*s)+'px '+SERIF;
-                    ctx.fillText(clipTo(ctx,f.dateHr,860*s,'italic 500 '+(30*s)+'px '+SERIF),cx,1628*s); ctx.restore();
+                if(f.dateHr&&TH.show.date){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=TH.dateHrC; ctx.font='italic 500 '+(F(30)*s)+'px '+SERIF;
+                    ctx.fillText(clipTo(ctx,f.dateHr,860*s,'italic 500 '+(F(30)*s)+'px '+SERIF),cx,1628*s); ctx.restore();
                 }
-                if(f.venueLine){
-                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=dark?PAL.cream:PAL.mutedPaper; ctx.font='400 '+(24*s)+'px '+LABEL;
-                    ctx.fillText(clipTo(ctx,f.venueLine,860*s,'400 '+(24*s)+'px '+LABEL),cx,1688*s); ctx.restore();
+                if(f.venueLine&&TH.show.venue){
+                    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=TH.venueC; ctx.font='400 '+(F(24)*s)+'px '+LABEL;
+                    ctx.fillText(clipTo(ctx,f.venueLine,860*s,'400 '+(F(24)*s)+'px '+LABEL),cx,1688*s); ctx.restore();
                 }
-                // Footer brand: the REAL Med&X logo image (white on navy, ink on paper) — never typed.
-                drawLogo(ctx,cx,2172*s,46*s,dark);
-                if(f.url) track(ctx,f.url,cx,2228*s,15*s,6*s,dark?PAL.creamDim:PAL.goldDeep,LABEL,'600');
+                // Footer brand: the REAL Med&X logo image (white on dark, ink on light) — never typed.
+                drawLogo(ctx,cx,2172*s,46*s*TH.ls,dark);
+                if(f.url) track(ctx,f.url,cx,2228*s,F(15)*s,6*s,TH.urlC,LABEL,'600');
             }
 
             function render(kind,opts){
@@ -48626,6 +49108,15 @@ By applying to this program, I give the following consents:
                 else if(kind==='banner') drawBanner(ctx,W,H,s,opts);
                 return cv;
             }
+            // Background-photo loader for token renders (same-origin, cached). render() itself stays
+            // synchronous — callers await prepare(opts) first, which stashes the image on the opts.
+            var _photoCache={};
+            function prepare(opts){
+                var u=opts&&opts.tokens&&opts.tokens.bg_photo;
+                if(!u){ if(opts) opts._bgImg=null; return Promise.resolve(opts); }
+                if(_photoCache[u]!==undefined){ opts._bgImg=_photoCache[u]; return Promise.resolve(opts); }
+                return loadImg(u).then(function(im){ _photoCache[u]=im||null; opts._bgImg=im||null; return opts; });
+            }
             var _readyPromise=null;
             function ready(){
                 if(!_readyPromise){
@@ -48639,7 +49130,7 @@ By applying to this program, I give the following consents:
                 }
                 return _readyPromise;
             }
-            return { render:render, ready:ready, PAPERS:PAPERS, PAL:PAL, dateEn:dateEn, dateHr:dateHr, parseIso:parseIso, addDays:addDays, typePair:typePair, HR_MONTHS:HR_MONTHS };
+            return { render:render, ready:ready, prepare:prepare, PAPERS:PAPERS, PAL:PAL, dateEn:dateEn, dateHr:dateHr, parseIso:parseIso, addDays:addDays, typePair:typePair, HR_MONTHS:HR_MONTHS };
         })();
 
         // ---- The studio (admin surface, English). Tabs grow with the family. ----
@@ -48653,7 +49144,23 @@ By applying to this program, I give the following consents:
                 conf:null, sessions:[], schedLoaded:false, sel:{}, pvIdx:0,
                 paper:'a4',
                 way:{ arrow:'right', en:'Registration', hr:'Registracija' },
-                ban:{ template:'event', fields:{} }
+                ban:{ template:'event', fields:{}, design:null }
+            },
+            // Design-studio host for the roll-up. Copy stays in the banner's own field inputs;
+            // the AI assist writes its suggested copy into those same fields.
+            _designHost(){
+                var self=this;
+                if(this._dsgHost) return this._dsgHost;
+                this._dsgHost={
+                    artifact:'banner', photos:true, tmp:{},
+                    get:function(){ return self.state.ban.design||(self.state.ban.design=window.MedxDesign.base('heritage')); },
+                    set:function(t){ self.state.ban.design=t; },
+                    copyFields:function(){ return []; },
+                    setCopy:function(c){ var f=self.state.ban.fields; if(c&&c.headline) f.headline=c.headline; if(c&&c.sub) f.subEn=c.sub; },
+                    refresh:function(){ if(self._overlay&&self._overlay.classList.contains('active')) self.render(); },
+                    preview:function(){ self._preview(); }
+                };
+                return this._dsgHost;
             },
             esc(s){ return (typeof escapeHtml==='function')?escapeHtml(s==null?'':String(s)):String(s==null?'':s); },
             toast(m,t){ if(typeof App!=='undefined'&&App.showToast) App.showToast(m,t); },
@@ -48740,11 +49247,17 @@ By applying to this program, I give the following consents:
                 });
                 ov.addEventListener('change', function(e){ if(e.target&&e.target.id==='sgEvent') self.setEvent(e.target.value); });
                 document.addEventListener('keydown', function(e){ if(e.key==='Escape'&&self._overlay&&self._overlay.classList.contains('active')) self.close(); });
+                if(window.MedxDesign) window.MedxDesign.bind(ov,'sgn',this._designHost());
             },
             async start(){
                 this.ensureBuilt();
                 this._overlay.classList.add('active'); document.body.style.overflow='hidden';
                 try{ window.MedxSignage.ready(); }catch(e){}
+                if(window.MedxDesign){
+                    if(!this.state.ban.design) this.state.ban.design=window.MedxDesign.base('heritage');
+                    var self=this;
+                    window.MedxDesign.prime('banner',true).then(function(){ if(self._overlay&&self._overlay.classList.contains('active')&&self.state.tab==='banner') self.render(); });
+                }
                 var rail=this._overlay.querySelector('#sgnRail');
                 if(rail&&!this.state.ctx) rail.innerHTML='<div style="padding:26px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
                 if(!this.state.ctx) await this.loadContext(this.state.event);
@@ -48837,7 +49350,7 @@ By applying to this program, I give the following consents:
                     var evName=(st.ctx&&st.ctx.event&&st.ctx.event.name)||'Med&X';
                     return [{ kind:'way', name:this._slug(st.way.en||st.way.hr||'sign'), opts:{ paper:st.paper, event:evName, arrow:st.way.arrow, en:st.way.en, hr:st.way.hr } }];
                 }
-                if(st.tab==='banner') return [{ kind:'banner', name:'rollup-'+st.ban.template, opts:{ template:st.ban.template, fields:Object.assign({},st.ban.fields) } }];
+                if(st.tab==='banner') return [{ kind:'banner', name:'rollup-'+st.ban.template, opts:{ template:st.ban.template, fields:Object.assign({},st.ban.fields), tokens:st.ban.design?Object.assign({},st.ban.design):null } }];
                 return [];
             },
             _paperFor(kind){ var P=window.MedxSignage.PAPERS; return kind==='banner'?P.banner:P[this.state.paper==='a3'?'a3':'a4']; },
@@ -48935,6 +49448,7 @@ By applying to this program, I give the following consents:
                 +fld('Date line — Croatian','dateHr')
                 +fld('Venue line','venueLine')
                 +fld('Footer URL','url')
+                +(window.MedxDesign?window.MedxDesign.panelHtml('sgn',this._designHost()):'')
                 +this._dlButtons(1,'Download PNG (large file)')
                 +'<div class="sgn-note">A single 85 × 200 cm roll-up page at 120 DPI true size — the full-scale resolution roll-up printers ask for. The Welcome template gives both languages display billing; the golden line carries the pleter braid at the gala-kit corridor height. The Paper template flips to a light ground for bright venues.</div>';
             },
@@ -48958,8 +49472,10 @@ By applying to this program, I give the following consents:
                 var idx=Math.min(this.state.pvIdx||0,jobs.length-1); this.state.pvIdx=idx;
                 var job=jobs[idx];
                 window.MedxSignage.ready().then(function(){
+                    var opts=Object.assign({},job.opts,{ px: job.kind==='banner'?520:640 });
+                    return window.MedxSignage.prepare(opts);
+                }).then(function(opts){
                     try{
-                        var opts=Object.assign({},job.opts,{ px: job.kind==='banner'?520:640 });
                         var cv=window.MedxSignage.render(job.kind,opts);
                         wrap.innerHTML=''; wrap.appendChild(cv);
                         wrap.classList.toggle('sgn-banner', job.kind==='banner');
@@ -48985,6 +49501,7 @@ By applying to this program, I give the following consents:
                     var pages=[];
                     for(var i=0;i<jobs.length;i++){
                         var p=this._paperFor(jobs[i].kind);
+                        await window.MedxSignage.prepare(jobs[i].opts);
                         var cv=window.MedxSignage.render(jobs[i].kind,jobs[i].opts);
                         pages.push({ jpeg:await this._canvasJpeg(cv), wPx:cv.width, hPx:cv.height, ptW:p.ptW, ptH:p.ptH });
                         this._btn('sgPdf','<i class="fas fa-spinner fa-spin"></i> Rendering '+(i+1)+'/'+jobs.length,true);
@@ -49001,6 +49518,7 @@ By applying to this program, I give the following consents:
                 try{
                     await window.MedxSignage.ready();
                     if(jobs.length===1){
+                        await window.MedxSignage.prepare(jobs[0].opts);
                         var cv=window.MedxSignage.render(jobs[0].kind,jobs[0].opts);
                         var blob=await new Promise(function(res){ cv.toBlob(res,'image/png'); });
                         if(!blob) throw new Error('canvas too large to encode');
@@ -49008,6 +49526,7 @@ By applying to this program, I give the following consents:
                     } else {
                         var files=[], used={};
                         for(var i=0;i<jobs.length;i++){
+                            await window.MedxSignage.prepare(jobs[i].opts);
                             var c2=window.MedxSignage.render(jobs[i].kind,jobs[i].opts);
                             var b2=await new Promise(function(res){ c2.toBlob(res,'image/png'); });
                             if(!b2) throw new Error('canvas too large to encode');
