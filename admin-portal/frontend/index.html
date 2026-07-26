@@ -49995,6 +49995,11 @@ By applying to this program, I give the following consents:
         const FilesApp = {
             scope: 'all',
             counts: {},
+            // Upload/download post raw bodies, so they build the Authorization header by hand
+            // instead of going through App.api(). They must read the SAME token the rest of the
+            // app stores — login writes 'medx_token'; there has never been a 'medx_admin_token',
+            // so those two calls were sending "Bearer null" and 401'ing.
+            token() { return (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token'); },
             SCOPES: [
                 ['all', 'All files'], ['plexus', 'Plexus & Gala'], ['bridges', 'Bridges'],
                 ['accelerator', 'Accelerator'], ['forum', 'Forum'], ['finances', 'Finances'],
@@ -50057,7 +50062,7 @@ By applying to this program, I give the following consents:
                 try {
                     const scope = this.scope === 'all' ? 'general' : this.scope;
                     const qs = `?scope=${encodeURIComponent(scope)}&name=${encodeURIComponent(file.name)}&mime=${encodeURIComponent(file.type || 'application/octet-stream')}`;
-                    const token = localStorage.getItem('medx_admin_token');
+                    const token = this.token();
                     const resp = await fetch('/api/admin/files' + qs, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: file });
                     const j = await resp.json();
                     if (!resp.ok) throw new Error(j.error || 'Upload failed');
@@ -50067,7 +50072,7 @@ By applying to this program, I give the following consents:
             },
             async download(id, name) {
                 try {
-                    const token = localStorage.getItem('medx_admin_token');
+                    const token = this.token();
                     const resp = await fetch(`/api/admin/files/${id}/download`, { headers: { 'Authorization': 'Bearer ' + token } });
                     if (!resp.ok) throw new Error('Download failed');
                     const blob = await resp.blob();
