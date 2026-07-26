@@ -31839,9 +31839,12 @@ President, Med&amp;X</textarea>
             },
 
             exportApplicationsCsv(format = 'csv') {
-                // C1: XLSX uses server endpoint
+                // XLSX comes from the server. The old window.open() hit a route that does not exist
+                // (/years/:year/applications/export -> 404) and could not have carried the admin
+                // Authorization header anyway — it opened a blank tab. Same authenticated blob
+                // download the Plexus registrations XLSX uses.
                 if (format === 'xlsx') {
-                    window.open(`/api/accelerator/years/${this.currentYear}/applications/export?format=xlsx`, '_blank');
+                    App.downloadFile('/api/admin/accelerator/export?format=xlsx', `accelerator-applications-${this.currentYear}.xlsx`);
                     return;
                 }
                 const data = this.accAppsFiltered && this.accAppsFiltered.length > 0 ? this.accAppsFiltered : this.applications;
@@ -41331,8 +41334,13 @@ By applying to this program, I give the following consents:
                 const diet = (g) => [g.dietary, g.requests].filter(Boolean).join(' — ');
                 let rows = [];
                 if (kind === 'placecards') {
+                    // Every confirmed guest gets a card. Seated guests carry their table; guests not
+                    // seated yet are still printed (blank Table) — silently dropping them shipped a
+                    // place-card run missing whoever the plan had not reached yet.
                     rows.push(['Name', 'Table', 'Dietary / Allergens']);
                     s.tables.forEach(t => t.guests.forEach(g => rows.push([g.name, t.label, diet(g)])));
+                    s.unassigned.forEach(g => rows.push([g.name, '', diet(g)]));
+                    if (rows.length === 1) { Toast.warning('No confirmed guests to make place cards for yet'); return; }
                 } else {
                     rows.push(['Table', 'Capacity', 'Seated', 'Guest', 'Email', 'Dietary / Allergens', 'Table notes']);
                     s.tables.forEach(t => {
@@ -41460,6 +41468,13 @@ By applying to this program, I give the following consents:
                 return '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
                     + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
             },
+            // The REAL Med&X logo for the printed handoff sheets. The print window is opened from
+            // this document, so an absolute same-origin URL always resolves; the alt text keeps the
+            // wordmark if the image ever fails to load.
+            _opsLogoImg(h) {
+                return '<img src="' + location.origin + '/assets/logo.png" alt="Med&amp;X" '
+                    + 'style="height:' + (h || 34) + 'px;width:auto;display:block;">';
+            },
 
             // 2) Door list — alphabetized confirmed guests, check-in column, print-optimized.
             _doorListHtml() {
@@ -41507,7 +41522,7 @@ By applying to this program, I give the following consents:
                 + '.foot{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-size:10px;color:#8a7f70;display:flex;justify-content:space-between;}'
                 + '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}thead{display:table-header-group;}tr{page-break-inside:avoid;}}'
                 + '</style></head><body><div class="wrap">'
-                + '<div class="head"><div class="brand"><div class="mx">Med&amp;X</div><h1>Gala door list</h1></div>'
+                + '<div class="head"><div class="brand">' + this._opsLogoImg(30) + '<h1>Gala door list</h1></div>'
                 + '<div class="meta">' + esc(gTitle) + (gDate ? '<br>' + esc(gDate) : '') + (gVenue ? '<br>' + esc(gVenue) : '') + '</div></div>'
                 + '<div class="subhead"><span>' + confirmed.length + ' confirmed guest' + (confirmed.length === 1 ? '' : 's') + ' &middot; listed alphabetically</span><span class="tag">Tick the box on arrival</span></div>'
                 + '<table><thead><tr><th class="c">#</th><th class="c">In</th><th>Name</th><th>Institution</th><th>Ticket</th></tr></thead>'
@@ -41549,6 +41564,7 @@ By applying to this program, I give the following consents:
                 + '.sheet{max-width:794px;min-height:1123px;margin:0 auto;background:var(--cream);padding:52px 60px 44px;position:relative;}'
                 + '.sheet::before{content:"";position:absolute;inset:16px;border:1px solid rgba(201,169,98,.5);pointer-events:none;}'
                 + '.top{text-align:center;position:relative;}'
+                + '.plogo{display:flex;justify-content:center;margin-bottom:14px;}'
                 + '.eyebrow{font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--crimson);font-weight:600;}'
                 + '.rule{width:54px;height:2px;background:var(--gold);margin:14px auto 16px;}'
                 + 'h1{font-family:Fraunces,Georgia,serif;font-size:38px;font-weight:700;margin:0;letter-spacing:-.015em;line-height:1.08;}'
@@ -41571,7 +41587,7 @@ By applying to this program, I give the following consents:
                 + '.foot .sig{font-family:Fraunces,Georgia,serif;font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--crimson);margin-top:12px;}'
                 + '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}.sheet{margin:0;}}'
                 + '</style></head><body><div class="sheet">'
-                + '<div class="top"><div class="eyebrow">Med&amp;X &middot; Plexus</div><div class="rule"></div>'
+                + '<div class="top"><div class="plogo">' + this._opsLogoImg(40) + '</div><div class="eyebrow">Plexus</div><div class="rule"></div>'
                 + '<h1>' + esc(gTitle) + '</h1>'
                 + (gTagline ? '<div class="tagline">' + esc(gTagline) + '</div>' : '')
                 + (metaBits ? '<div class="evmeta">' + metaBits + '</div>' : '')
@@ -52621,7 +52637,9 @@ By applying to this program, I give the following consents:
             discoverResults: [],
             replyInviteeId: null,
             esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
-            toast(m,t){ if(window.Toast){ (Toast[t]||Toast.info||Toast.success)(m); } },
+            // Call through Toast so `this` stays bound — `(Toast[t])(m)` detaches the receiver
+            // and every toast threw "this.show is not a function", aborting the action mid-flow.
+            toast(m,t){ if(window.Toast){ const fn = Toast[t]||Toast.info||Toast.success; if (typeof fn==='function') fn.call(Toast, m); } },
             async api(path, opts={}){
                 const token = (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token');
                 const res = await fetch(path, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token, ...(opts.headers||{}) } });
@@ -53172,7 +53190,9 @@ By applying to this program, I give the following consents:
             createPick: null,
             editingTouch: null,
             esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); },
-            toast(m,t){ if(window.Toast){ (Toast[t]||Toast.info||Toast.success)(m); } },
+            // Call through Toast so `this` stays bound — `(Toast[t])(m)` detaches the receiver
+            // and every toast threw "this.show is not a function", aborting the action mid-flow.
+            toast(m,t){ if(window.Toast){ const fn = Toast[t]||Toast.info||Toast.success; if (typeof fn==='function') fn.call(Toast, m); } },
             async api(path, opts={}){
                 const token = (window.App && App.token) || localStorage.getItem('medx_token') || localStorage.getItem('token');
                 const res = await fetch(path, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token, ...(opts.headers||{}) } });
@@ -55137,7 +55157,9 @@ By applying to this program, I give the following consents:
             if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
             return d;
         },
-        toast(m, t) { if (window.Toast) { (Toast[t] || Toast.info || Toast.success || Toast.error)(m); } else { console.log('[Review]', m); } },
+        // Call through Toast so `this` stays bound — `(Toast[t])(m)` detaches the receiver and
+        // every toast threw "this.show is not a function", aborting the action mid-flow.
+        toast(m, t) { if (window.Toast) { const fn = Toast[t] || Toast.info || Toast.success || Toast.error; if (typeof fn === 'function') fn.call(Toast, m); } else { console.log('[Review]', m); } },
         esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s == null ? '' : s) : String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); },
         root() { return document.getElementById('reviewEngineRoot'); },
         async open() {
