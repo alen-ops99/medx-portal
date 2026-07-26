@@ -1649,6 +1649,23 @@
             border-color: rgba(21, 17, 15, 0.12);
         }
 
+        /* A data table wider than its card used to PAINT past the card's right border, over the
+           page background and under the floating action buttons — the Invoices "Issue Date" column
+           and the Subscribers "Status" column both hung outside the card. Only the page scrolled,
+           so the columns were reachable but the card looked broken. This bites whenever the content
+           column is narrow, which is the default: the Team Chat rail takes 340px, leaving 570px at
+           1280 wide and 840px at 1440, against 800-1080px tables.
+           Scoped with :has() to cards that actually contain a table — no table card has an absolute
+           or sticky descendant, so nothing can be clipped by this, and cards holding menus or
+           popovers are left alone. Browsers without :has() simply keep the old behaviour.
+           Setting overflow-x makes overflow-y compute to auto too, which is harmless here: these
+           cards are content-sized, so scrollHeight never exceeds clientHeight and no vertical
+           scrollbar appears (verified across every table section at 1280 and 1440). */
+        main.main .card:has(table) {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
         .card-header {
             padding: 20px;
             border-bottom: 1px solid var(--border);
