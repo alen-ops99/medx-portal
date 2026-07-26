@@ -27536,7 +27536,8 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
         }
         try {
             const os = require('os'); const pathMod = require('path');
-            const outPath = pathMod.join(os.tmpdir(), 'press-release-' + row.id + '.pdf');
+            // Timestamped, like the board pack — one render must never be able to serve another.
+            const outPath = pathMod.join(os.tmpdir(), 'press-release-' + row.id + '-' + Date.now() + '.pdf');
             await psRenderPdf(pressReleaseHtml(row, { web: false }), outPath);
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="press-release-${row.slug || row.id}.pdf"`);
@@ -36387,6 +36388,12 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const stem = outPath.replace(/\.pdf$/i, '');
             const tmpHtml = stem + '.src.html';
             const udd = path.join(os.tmpdir(), 'ps-chrome-' + uuidv4());
+            // Remove any earlier render sitting at this path first. The poll below decides Chrome is
+            // finished once the file size stops changing — a leftover file is size-stable from the
+            // very first tick, so the previous render was returned and Chrome was killed before it
+            // ever wrote. Callers that reuse a deterministic path (press-release-<id>.pdf) shipped
+            // stale PDFs after every edit because of this.
+            try { fs.unlinkSync(outPath); } catch (e) { /* nothing to remove */ }
             try { fs.writeFileSync(tmpHtml, html); } catch (e) { return reject(e); }
             const args = ['--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage',
                 '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-background-networking',
