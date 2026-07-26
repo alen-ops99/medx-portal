@@ -68,3 +68,4 @@ wire real analytics.
 - [ ] 14. "PDF export functionality" (ambiguous — probe which export they mean)
 - [ ] admin-frontend articles editor for accelerator PDF (dynamic {title,text} list — mirror user-portal app.part9.js:35780-35850; backend already returns/accepts `articles`)
 - [ ] ranking-PDF still filters validity_status='valid' (NULL until triage → empty table) — flagged, Alen to confirm intended
+- [ ] MINI-SWEEP the hub-tile-only sections the registry sweep missed: speaker-itineraries (+enumerate any other non-sidebar sections) — Alen found blank-banner (stale SW likely) + localhost link (FIXED)

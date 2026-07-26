@@ -21577,7 +21577,9 @@ By applying to this program, I provide the following consents:
         if (typeof v === 'string') { try { JSON.parse(v); return v; } catch (e) { return null; } }
         try { return JSON.stringify(v); } catch (e) { return null; }
     }
-    function spkPublicBase() { return (process.env.USER_PORTAL_URL || 'http://localhost:3003').replace(/\/+$/, ''); }
+    // Default to the REAL user portal — the localhost fallback shipped dead links to speakers
+    // whenever USER_PORTAL_URL wasn't set on Render (Alen hit this live, 2026-07-25).
+    function spkPublicBase() { return (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, ''); }
     function spkEventName(eventKey) {
         try { const c = query.get('SELECT name FROM conferences WHERE slug = ? OR id = ?', [eventKey, eventKey]); if (c && c.name) return c.name; } catch (e) {}
         return 'Plexus 2026';
