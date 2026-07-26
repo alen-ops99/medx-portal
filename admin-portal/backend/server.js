@@ -13214,6 +13214,12 @@ By applying to this program, I provide the following consents:
             res.setHeader('Content-Disposition', `attachment; filename="Application_${app.application_number}.pdf"`);
             doc.pipe(res);
 
+            // Croatian candidate names, institutions and motivation letters are the norm here, and
+            // the built-in WinAnsi faces mangle č/ć/đ/š/ž into mojibake. Register the DejaVu faces
+            // (same helper the ranking list uses) and push every admin/candidate-supplied string
+            // through F.safe so it degrades to legible ASCII if the TTF is ever missing.
+            const F = applyPdfUnicodeFont(doc);
+
             // Header
             doc.fontSize(24).fillColor('#C9A962').text('Med&X Accelerator', { align: 'center' });
             doc.fontSize(12).fillColor('#666').text('Application Package', { align: 'center' });
@@ -13229,8 +13235,8 @@ By applying to this program, I provide the following consents:
 
             const addField = (label, value) => {
                 if (value) {
-                    doc.font('Helvetica-Bold').text(`${label}: `, { continued: true });
-                    doc.font('Helvetica').text(value);
+                    doc.font(F.bold).text(`${label}: `, { continued: true });
+                    doc.font(F.body).text(F.safe(value));
                 }
             };
 
@@ -13266,7 +13272,7 @@ By applying to this program, I provide the following consents:
             if (app.research_interests) {
                 doc.fontSize(16).fillColor('#0a0e14').text('Research Interests');
                 doc.moveDown(0.5);
-                doc.fontSize(11).fillColor('#333').text(app.research_interests);
+                doc.fontSize(11).fillColor('#333').text(F.safe(app.research_interests));
                 doc.moveDown();
             }
 
@@ -13274,28 +13280,28 @@ By applying to this program, I provide the following consents:
                 doc.addPage();
                 doc.fontSize(16).fillColor('#0a0e14').text('Motivation Statement');
                 doc.moveDown(0.5);
-                doc.fontSize(11).fillColor('#333').text(app.motivation_statement);
+                doc.fontSize(11).fillColor('#333').text(F.safe(app.motivation_statement));
                 doc.moveDown();
             }
 
             if (app.previous_research_experience) {
                 doc.fontSize(16).fillColor('#0a0e14').text('Previous Research Experience');
                 doc.moveDown(0.5);
-                doc.fontSize(11).fillColor('#333').text(app.previous_research_experience);
+                doc.fontSize(11).fillColor('#333').text(F.safe(app.previous_research_experience));
                 doc.moveDown();
             }
 
             if (app.publications) {
                 doc.fontSize(16).fillColor('#0a0e14').text('Publications');
                 doc.moveDown(0.5);
-                doc.fontSize(11).fillColor('#333').text(app.publications);
+                doc.fontSize(11).fillColor('#333').text(F.safe(app.publications));
                 doc.moveDown();
             }
 
             if (app.awards_honors) {
                 doc.fontSize(16).fillColor('#0a0e14').text('Awards & Honors');
                 doc.moveDown(0.5);
-                doc.fontSize(11).fillColor('#333').text(app.awards_honors);
+                doc.fontSize(11).fillColor('#333').text(F.safe(app.awards_honors));
                 doc.moveDown();
             }
 
@@ -13307,7 +13313,7 @@ By applying to this program, I provide the following consents:
 
             docs.forEach(d => {
                 const typeLabel = DOCUMENT_TYPES.find(dt => dt.key === d.document_type)?.label || d.document_type;
-                doc.text(`• ${typeLabel}: ${d.original_filename} (${(d.file_size / 1024).toFixed(1)} KB)`);
+                doc.text(F.safe(`• ${typeLabel}: ${d.original_filename} (${(d.file_size / 1024).toFixed(1)} KB)`));
             });
             doc.moveDown();
             doc.fontSize(9).fillColor('#999').text('Note: Individual documents can be downloaded separately from the portal.');
@@ -15762,14 +15768,19 @@ By applying to this program, I provide the following consents:
                 criteria.forEach(c => headers.push(F.safe(c.name || c.name_hr).toUpperCase()));
                 headers.push('TOTAL');
 
-                // Calculate column widths dynamically
+                // Calculate column widths dynamically.
+                // "NO." only ever holds a row index, but "ID" holds a candidate id such as
+                // KAND-101 — at 35pt that wrapped onto a second line while the row height stayed
+                // fixed, so the overflow printed on top of the next row (and past the last row).
+                // Give the two fixed columns their own widths instead of sharing one.
                 const pageWidth = criteria.length > 4 ? 750 : 495; // landscape vs portrait
-                const fixedColWidth = 35; // BR, ID
-                const availableWidth = pageWidth - (fixedColWidth * 2);
+                const noColWidth = 28;
+                const idColWidth = 64;
+                const availableWidth = pageWidth - noColWidth - idColWidth;
                 const dynamicColCount = headers.length - 2;
                 const dynamicColWidth = Math.floor(availableWidth / dynamicColCount);
 
-                const colWidths = [fixedColWidth, fixedColWidth];
+                const colWidths = [noColWidth, idColWidth];
                 for (let i = 2; i < headers.length; i++) {
                     colWidths.push(dynamicColWidth);
                 }
@@ -15778,17 +15789,25 @@ By applying to this program, I provide the following consents:
                 const tableTop = doc.y;
                 doc.fontSize(7).font(F.bold);
                 let x = 40;
+                // Criterion names such as "ACADEMIC EXCELLENCE" wrap to two lines. The rule and the
+                // first row used to sit at fixed offsets (+12 / +18), which struck the wrapped line
+                // through and crowded row 1. Measure the tallest header cell and lay out from that.
+                let headerHeight = 0;
+                headers.forEach((h, i) => {
+                    headerHeight = Math.max(headerHeight, doc.heightOfString(h, { width: colWidths[i], align: 'center' }));
+                });
                 headers.forEach((h, i) => {
                     doc.text(h, x, tableTop, { width: colWidths[i], align: 'center' });
                     x += colWidths[i];
                 });
 
                 // Draw header line
-                doc.moveTo(40, tableTop + 12).lineTo(x, tableTop + 12).stroke();
+                const headerRuleY = tableTop + headerHeight + 3;
+                doc.moveTo(40, headerRuleY).lineTo(x, headerRuleY).stroke();
 
                 // Table rows
                 doc.font(F.body).fontSize(8);
-                let y = tableTop + 18;
+                let y = headerRuleY + 6;
                 const spotsCount = inst.available_spots || 999;
 
                 apps.forEach((app, idx) => {
@@ -15852,31 +15871,36 @@ By applying to this program, I provide the following consents:
             res.setHeader('Content-Disposition', `attachment; filename="Application_${application.candidate_id || application.id}_${application.year}.pdf"`);
             doc.pipe(res);
 
+            // Candidate names, faculties and motivation letters are routinely Croatian; the built-in
+            // WinAnsi faces turn č/ć/đ/š/ž (and the '✓' verified mark below) into mojibake. Register
+            // the DejaVu faces and route every candidate-supplied string through F.safe.
+            const F = applyPdfUnicodeFont(doc);
+
             // Header
-            doc.fontSize(20).font('Helvetica-Bold').text('Med&X Accelerator', { align: 'center' });
-            doc.fontSize(12).font('Helvetica').text(`Program ${application.year}`, { align: 'center' });
+            doc.fontSize(20).font(F.bold).text('Med&X Accelerator', { align: 'center' });
+            doc.fontSize(12).font(F.body).text(`Program ${application.year}`, { align: 'center' });
             doc.moveDown(2);
 
-            doc.fontSize(16).font('Helvetica-Bold').text('Application Document Package', { align: 'center' });
+            doc.fontSize(16).font(F.bold).text('Application Document Package', { align: 'center' });
             doc.moveDown(2);
 
             // Candidate info box
             doc.rect(50, doc.y, 495, 120).stroke();
             const boxY = doc.y + 10;
-            doc.font('Helvetica').fontSize(11);
-            doc.text(`Candidate ID: ${application.candidate_id || '-'}`, 60, boxY);
-            doc.text(`Full Name: ${application.first_name} ${application.last_name}`, 60, boxY + 18);
-            doc.text(`Email: ${application.email}`, 60, boxY + 36);
-            doc.text(`Institution: ${application.institution_name || '-'}`, 60, boxY + 54);
-            doc.text(`Faculty: ${application.faculty || '-'}`, 60, boxY + 72);
-            doc.text(`Year of Study: ${application.study_year || '-'}`, 60, boxY + 90);
+            doc.font(F.body).fontSize(11);
+            doc.text(F.safe(`Candidate ID: ${application.candidate_id || '-'}`), 60, boxY);
+            doc.text(F.safe(`Full Name: ${application.first_name} ${application.last_name}`), 60, boxY + 18);
+            doc.text(F.safe(`Email: ${application.email}`), 60, boxY + 36);
+            doc.text(F.safe(`Institution: ${application.institution_name || '-'}`), 60, boxY + 54);
+            doc.text(F.safe(`Faculty: ${application.faculty || '-'}`), 60, boxY + 72);
+            doc.text(F.safe(`Year of Study: ${application.study_year || '-'}`), 60, boxY + 90);
             doc.y = boxY + 120;
             doc.moveDown(2);
 
             // GPA and scores
-            doc.fontSize(14).font('Helvetica-Bold').text('Scoring');
+            doc.fontSize(14).font(F.bold).text('Scoring');
             doc.moveDown(0.5);
-            doc.font('Helvetica').fontSize(11);
+            doc.font(F.body).fontSize(11);
             doc.text(`GPA: ${application.gpa?.toFixed(2) || '-'}`);
             doc.text(`Objective Score: ${application.objective_score?.toFixed(2) || '-'}`);
             doc.text(`Interview Score: ${application.interview_score?.toFixed(2) || '-'}`);
@@ -15885,16 +15909,16 @@ By applying to this program, I provide the following consents:
             doc.moveDown(2);
 
             // Documents list
-            doc.fontSize(14).font('Helvetica-Bold').text('Attached Documentation');
+            doc.fontSize(14).font(F.bold).text('Attached Documentation');
             doc.moveDown(0.5);
-            doc.font('Helvetica').fontSize(10);
+            doc.font(F.body).fontSize(10);
 
             if (docs.length === 0) {
                 doc.text('No documents attached.');
             } else {
                 docs.forEach((d, idx) => {
                     const status = d.verified ? '✓' : '○';
-                    doc.text(`${idx + 1}. [${status}] ${d.document_type}: ${d.original_filename}`);
+                    doc.text(F.safe(`${idx + 1}. [${status}] ${d.document_type}: ${d.original_filename}`));
                 });
             }
 
@@ -15903,10 +15927,10 @@ By applying to this program, I provide the following consents:
             // Motivation letter preview if exists
             if (application.motivation_letter) {
                 doc.addPage();
-                doc.fontSize(14).font('Helvetica-Bold').text('Motivation Letter');
+                doc.fontSize(14).font(F.bold).text('Motivation Letter');
                 doc.moveDown();
-                doc.font('Helvetica').fontSize(10);
-                doc.text(application.motivation_letter, { align: 'justify' });
+                doc.font(F.body).fontSize(10);
+                doc.text(F.safe(application.motivation_letter), { align: 'justify' });
             }
 
             // Footer on last page
