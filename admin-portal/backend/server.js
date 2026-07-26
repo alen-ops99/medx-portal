@@ -26457,6 +26457,11 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             ORDER BY updated_at DESC LIMIT 5
         `);
 
+        // Media library size — the dashboard "Media Assets" tile reads this. Guarded so a DB
+        // without the table yet reads as zero instead of failing the whole dashboard.
+        let mediaCount = 0;
+        try { const m = query.get('SELECT COUNT(*) as total FROM pr_media_assets'); mediaCount = (m && Number(m.total)) || 0; } catch (e) { mediaCount = 0; }
+
         // Platform followers (latest)
         const analytics = query.all(`
             SELECT project, platform, followers, engagement_rate
@@ -26470,6 +26475,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             monthStats: monthPosts || { count: 0, total_likes: 0, total_comments: 0, total_shares: 0 },
             campaigns,
             subscribers: subscribers || { total: 0, active: 0 },
+            media: { total: mediaCount },
             draftNewsletters,
             analytics
         });

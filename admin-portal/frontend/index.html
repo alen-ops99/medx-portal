@@ -38787,6 +38787,9 @@ By applying to this program, I give the following consents:
                     (data.monthStats?.total_likes || 0) + (data.monthStats?.total_comments || 0) + (data.monthStats?.total_shares || 0);
                 document.getElementById('prDashSubscribers').textContent = data.subscribers?.active || 0;
                 document.getElementById('prDashCampaigns').textContent = data.campaigns?.length || 0;
+                // The Media Assets tile was never populated — it shipped a hardcoded 0 while the
+                // library held real files. It now reads the same count the library lists.
+                document.getElementById('prDashMedia').textContent = data.media?.total || 0;
 
                 // Upcoming content
                 const upcoming = document.getElementById('prDashUpcoming');
