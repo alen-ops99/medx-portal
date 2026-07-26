@@ -7069,6 +7069,11 @@
       body:has(.adm-dlg-overlay) .assist-fab,
       body:has(.adm-dlg-overlay) .share-fab,
       body:has(.adm-dlg-overlay) .teamchat-fab { display: none !important; }
+      /* The chat FAB must never cover the open chat panel's own Send button (Alen, live) */
+      body.chat-open .teamchat-fab, body:has(.chat-panel.active) .teamchat-fab,
+      body.chat-open .share-fab, body:has(.chat-panel.active) .share-fab,
+      body.chat-open .assist-fab, body:has(.chat-panel.active) .assist-fab,
+      body.chat-open .qr-fab, body:has(.chat-panel.active) .qr-fab { display: none !important; }
 
       /* Team Chat FAB — bottom of the stack, always available. */
       .teamchat-fab {
@@ -17325,6 +17330,10 @@ President, Med&amp;X</textarea>
             show(message, type = 'info', duration = 3500) {
                 const container = document.getElementById('toastContainer');
                 if (!container) return;
+                // A blank pill is worse than no pill — guarantee visible text.
+                if (!message || !String(message).trim()) {
+                    message = type === 'error' ? 'Something went wrong — please try again.' : 'Done.';
+                }
                 const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
                 const toast = document.createElement('div');
                 toast.className = `toast ${type}`;
