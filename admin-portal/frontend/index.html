@@ -49029,7 +49029,14 @@ By applying to this program, I give the following consents:
             function label(ctx,text,x,y,spacing,size,color,align,weight){ ctx.save(); ctx.fillStyle=color; ctx.textBaseline='alphabetic'; ctx.font=(weight||'600')+' '+size+'px '+LABEL; var s=String(text||''),total=0,i; for(i=0;i<s.length;i++){ total+=ctx.measureText(s[i]).width+spacing; } total-=spacing; var cx=align==='center'?x-total/2:(align==='right'?x-total:x); ctx.textAlign='left'; for(i=0;i<s.length;i++){ ctx.fillText(s[i],cx,y); cx+=ctx.measureText(s[i]).width+spacing; } ctx.restore(); }
             function fitName(ctx,name,maxW,sizes){ for(var i=0;i<sizes.length;i++){ ctx.font='500 '+sizes[i]+'px '+DISPLAY; if(ctx.measureText(name).width<=maxW) return {size:sizes[i],lines:[name]}; } var sz=sizes[sizes.length-1]; ctx.font='500 '+sz+'px '+DISPLAY; var words=String(name).split(/\s+/),lines=[],cur=''; for(var w=0;w<words.length;w++){ var t=cur?cur+' '+words[w]:words[w]; if(ctx.measureText(t).width>maxW&&cur){ lines.push(cur); cur=words[w]; } else cur=t; } if(cur)lines.push(cur); if(lines.length>2)lines=[lines[0],lines.slice(1).join(' ')]; return {size:sz,lines:lines}; }
             function wrap(ctx,text,maxW,font){ ctx.font=font; var words=String(text).split(/\s+/),lines=[],cur=''; for(var i=0;i<words.length;i++){ var t=cur?cur+' '+words[i]:words[i]; if(ctx.measureText(t).width>maxW&&cur){ lines.push(cur); cur=words[i]; } else cur=t; } if(cur)lines.push(cur); return lines; }
-            function clip(ctx,text,maxW,font){ ctx.save(); ctx.font=font; var s=String(text||''); if(ctx.measureText(s).width<=maxW){ctx.restore();return s;} while(s.length>1&&ctx.measureText(s+'…').width>maxW) s=s.slice(0,-1); ctx.restore(); return s+'…'; }
+            // Every caller feeds this straight into label(), which draws character-by-character and
+            // adds `spacing` px after each one. Measuring the bare string therefore under-counts the
+            // drawn width by spacing*(len-1) — a long institution cleared a 1780px budget on paper
+            // and then printed ~2440px wide on the 2480px canvas, i.e. into the trim edge. Take the
+            // spacing into account, the same way the title/institution split above already does.
+            function clip(ctx,text,maxW,font,spacing){ ctx.save(); ctx.font=font; var sp=spacing||0; var s=String(text||'');
+                var w=function(t){ return ctx.measureText(t).width+sp*Math.max(0,t.length-1); };
+                if(w(s)<=maxW){ctx.restore();return s;} while(s.length>1&&w(s+'…')>maxW) s=s.slice(0,-1); ctx.restore(); return s+'…'; }
             // Centered paragraph (a short warm letter block). Returns the last baseline.
             function drawCentered(ctx,text,cx,y,maxW,font,lineH,color){ ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=color; var lines=wrap(ctx,text,maxW,font); var yy=y; for(var i=0;i<lines.length;i++){ ctx.font=font; ctx.fillText(lines[i],cx,yy); yy+=lineH; } ctx.restore(); return yy-lineH; }
             // The tiny pleter tab — a small three-strand gold interlace, the ONE ornament on the page.
@@ -49103,19 +49110,19 @@ By applying to this program, I give the following consents:
                 var shift=Math.max(0,Math.min(Math.round((contentFloor-P.bottom)/2),300));
                 ['councilY','nameY','titleY','ruleY','paraY','askLabelY','askStartY','reassureY','sigBase','signNameY','signRoleY'].forEach(function(kk){ P[kk]+=shift; });
                 // ---- small caps: the council ----
-                label(ctx,clip(ctx,C.council,1700,'600 40px '+LABEL),cx,P.councilY,16,40,PAL.muted,'center','600');
+                label(ctx,clip(ctx,C.council,1700,'600 40px '+LABEL,16),cx,P.councilY,16,40,PAL.muted,'center','600');
                 // ---- invitee name, elegant dark serif (respectfully sized) ----
                 ctx.save(); ctx.fillStyle=PAL.ink; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
                 var ny=P.nameY; fn.lines.forEach(function(ln){ ctx.font='500 '+fn.size+'px '+DISPLAY; ctx.fillText(ln,cx,ny); ny+=Math.round(fn.size*1.14); });
                 ctx.restore();
                 // ---- title / institution in small caps (wraps at the separator, never mid-word) ----
-                titleLines.forEach(function(tl,ti){ label(ctx,clip(ctx,tl,1780,'600 38px '+LABEL),cx,P.titleY+ti*P.titleLineH,8,38,PAL.muted,'center','600'); });
+                titleLines.forEach(function(tl,ti){ label(ctx,clip(ctx,tl,1780,'600 38px '+LABEL,8),cx,P.titleY+ti*P.titleLineH,8,38,PAL.muted,'center','600'); });
                 // ---- the ONE thin gold rule of the letter body ----
                 ctx.save(); ctx.fillStyle=PAL.gold; ctx.fillRect(cx-110,P.ruleY,220,3); ctx.restore();
                 // ---- the short warm invitation paragraph (personalized slot + warmest core) ----
                 drawCentered(ctx,C.para(opts.personal),cx,P.paraY,1560,P.paraFont,P.paraLineH,PAL.body);
                 // ---- what membership asks of you — a PLAIN four-line list ----
-                label(ctx,clip(ctx,C.askLabel,1700,'600 38px '+LABEL),cx,P.askLabelY,12,38,PAL.muted,'center','600');
+                label(ctx,clip(ctx,C.askLabel,1700,'600 38px '+LABEL,12),cx,P.askLabelY,12,38,PAL.muted,'center','600');
                 ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.ink; ctx.font='500 58px '+SERIF;
                 var ay=P.askStartY;
                 for(var i=0;i<C.ask.length;i++){ ctx.fillText(clip(ctx,C.ask[i],1880,'500 58px '+SERIF),cx,ay); ay+=P.askLineH; }
@@ -49127,14 +49134,14 @@ By applying to this program, I give the following consents:
                 if(sigImg){ ctx.drawImage(sigImg,cx-sigW/2,P.sigBase-sigH,sigW,sigH); }
                 else { ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle='#2B2E33'; ctx.font='400 150px '+SCRIPT; ctx.fillText('Alen Juginović',cx,P.sigBase); ctx.restore(); }
                 ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=PAL.ink; ctx.font='500 64px '+DISPLAY; ctx.fillText(C.signName,cx,P.signNameY); ctx.restore();
-                label(ctx,clip(ctx,C.signRole,1700,'600 34px '+LABEL),cx,P.signRoleY,7,34,PAL.muted,'center','600');
+                label(ctx,clip(ctx,C.signRole,1700,'600 34px '+LABEL,7),cx,P.signRoleY,7,34,PAL.muted,'center','600');
                 // ---- the ONE footer ornament: a thin gold rule with the tiny pleter tab centered ----
                 ctx.save(); ctx.fillStyle=PAL.gold; ctx.globalAlpha=0.9;
                 ctx.fillRect(cx-330,ornY-1,260,3); ctx.fillRect(cx+70,ornY-1,260,3);
                 ctx.restore();
                 drawPleterTab(ctx,cx,ornY,116,26);
                 // ---- modest footer — Med&X is founded in Split ----
-                label(ctx,clip(ctx,C.footer,1780,'600 34px '+LABEL),cx,footY,10,34,PAL.muted,'center','600');
+                label(ctx,clip(ctx,C.footer,1780,'600 34px '+LABEL,10),cx,footY,10,34,PAL.muted,'center','600');
                 return cv;
             }
             return { render:render, ready:ready, setSignature:setSignature, COPY:COPY, W:W, H:H };
