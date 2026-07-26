@@ -15398,6 +15398,29 @@ By applying to this program, I provide the following consents:
             .map(t => ({ title: '', text: String(t) }));
     }
 
+    // The ranking list is a legal document that Med&X issues in Croatian as often as in
+    // English, and the language lives in the admin-authored body text — there is no
+    // language column. Honour an explicit ?lang=, otherwise read the document's own words:
+    // Croatian diacritics or the fixed vocabulary of a rang-lista decision.
+    const CROATIAN_MARKERS = /[čćžšđČĆŽŠĐ]|\b(?:na temelju|clanka|članka|rang[- ]?list\w*|kandidat\w*|povjerenstv\w*|odluk\w*|prijav\w*|sljede\w*|donosi|udrug\w*|predsjednik|ustanov\w*|bodov\w*|prigovor\w*)\b/i;
+    function acceleratorPdfLang(req, settings) {
+        const q = String((req && req.query && req.query.lang) || '').toLowerCase();
+        if (q === 'hr') return 'hr';
+        if (q === 'en') return 'en';
+        const body = [
+            settings && settings.header_intro, settings && settings.header_title,
+            ...resolveAcceleratorArticles(settings || {}).map(a => (a.title || '') + ' ' + a.text)
+        ].filter(Boolean).join(' ');
+        return CROATIAN_MARKERS.test(body) ? 'hr' : 'en';
+    }
+    // "26.07.2026" in a Croatian document, "7/26/2026" in an English one.
+    function acceleratorPdfDate(lang, d) {
+        const dt = d instanceof Date ? d : new Date();
+        if (lang !== 'hr') return dt.toLocaleDateString('en-US');
+        const p = (n) => (n < 10 ? '0' : '') + n;
+        return `${p(dt.getDate())}.${p(dt.getMonth() + 1)}.${dt.getFullYear()}`;
+    }
+
     // Normalise an inbound articles array into the stored JSON string.
     // Returns null when the client sent no array, which leaves the column untouched.
     function serializeAcceleratorArticles(articles) {
@@ -15702,8 +15725,13 @@ By applying to this program, I provide the following consents:
             doc.pipe(res);
             const F = applyPdfUnicodeFont(doc);
 
+            // The document follows the language it is written in: a Croatian rang-lista gets
+            // "Članak N." headings and a DD.MM.YYYY stamp, not "Article 1." and 7/26/2026.
+            const pdfLang = acceleratorPdfLang(req, settings);
+            const stamp = acceleratorPdfDate(pdfLang);
+
             // Page 1: Header/Legal text (editable)
-            const introText = settings.header_intro.replace('[DATE]', new Date().toLocaleDateString('en-US'));
+            const introText = String(settings.header_intro || '').replace('[DATE]', stamp);
             doc.fontSize(10).text(F.safe(introText), { align: 'justify' });
             doc.moveDown(2);
 
@@ -15713,10 +15741,11 @@ By applying to this program, I provide the following consents:
             doc.font(F.body).fontSize(10);
 
             // Articles — an unbounded, admin-editable list (accelerator_pdf_settings.articles).
-            // Falls back to the legacy article1..3_text columns. A blank per-article title
-            // gets the auto number "Article N."; a supplied title is printed verbatim.
+            // Falls back to the legacy article1..3_text columns. A stored per-article title is
+            // printed verbatim; a blank one is numbered in the document's own language.
             resolveAcceleratorArticles(settings).forEach((article, idx) => {
-                doc.text(F.safe(article.title || `Article ${idx + 1}.`), { align: 'center' });
+                const autoTitle = (pdfLang === 'hr' ? 'Članak ' : 'Article ') + (idx + 1) + '.';
+                doc.text(F.safe(article.title || autoTitle), { align: 'center' });
                 doc.moveDown(0.5);
                 String(article.text).split('\n').forEach(line => {
                     doc.text(F.safe(line.trim()), { align: 'justify' });
@@ -15916,8 +15945,12 @@ By applying to this program, I provide the following consents:
             if (docs.length === 0) {
                 doc.text('No documents attached.');
             } else {
+                // accelerator_documents has no `verified` column — the tick read undefined and
+                // every document printed as unverified. The real column is upload_status,
+                // which an upload sets to 'uploaded'.
                 docs.forEach((d, idx) => {
-                    const status = d.verified ? '✓' : '○';
+                    const st = String(d.upload_status || '').toLowerCase();
+                    const status = (st === 'uploaded' || st === 'verified' || st === 'approved') ? '✓' : '○';
                     doc.text(F.safe(`${idx + 1}. [${status}] ${d.document_type}: ${d.original_filename}`));
                 });
             }
@@ -15962,7 +15995,8 @@ By applying to this program, I provide the following consents:
     // Get all documents for an application
     app.get('/api/accelerator/applications/:id/documents', auth, adminOnly, (req, res) => {
         const docs = query.all(`
-            SELECT id, document_type, original_filename, file_name, file_size, mime_type, uploaded_at, verified
+            SELECT id, document_type, original_filename, stored_filename AS file_name,
+                   file_size, mime_type, uploaded_at, upload_status
             FROM accelerator_documents
             WHERE application_id = ?
             ORDER BY document_type`, [req.params.id]);
@@ -25545,6 +25579,15 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         res.json({ success: true, transaction_id: transactionId });
     });
 
+    // Every string on the finance printables (company details, counterparty name and
+    // address, line-item descriptions, notes, footer) is typed by an admin and was
+    // interpolated raw into the HTML — an apostrophe broke the layout and a stray tag
+    // could inject markup into a document that leaves the building. Escape all of them.
+    const finEsc = (v) => String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const finFileName = (v, fallback) => (String(v == null ? '' : v).replace(/[^\w.\- ]+/g, '').trim() || fallback);
+
     // Generate invoice PDF
     app.get('/api/finance/invoices/:id/pdf', auth, adminOnly, async (req, res) => {
         const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
@@ -25563,7 +25606,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Račun ${invoice.invoice_number}</title>
+    <title>Račun ${finEsc(invoice.invoice_number)}</title>
     <style>
         body { font-family: Arial, sans-serif; font-size: 12px; padding: 40px; max-width: 800px; margin: 0 auto; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
@@ -25596,22 +25639,22 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         <div class="logo"><img src="${PRESS_LOGO_DATA_URI}" alt="Med&amp;X" height="34"></div>
         <div class="invoice-title">
             ${invoice.direction === 'incoming' ? 'ULAZNI RAČUN' : 'RAČUN'}<br>
-            <span style="font-size: 14px; color: #666;">${invoice.invoice_number}</span>
+            <span style="font-size: 14px; color: #666;">${finEsc(invoice.invoice_number)}</span>
         </div>
     </div>
 
     <div class="parties">
         <div class="party">
             <div class="party-label">Od / From:</div>
-            <strong>${settings.company_name || 'Med&X'}</strong><br>
-            ${settings.company_address || ''}<br>
-            ${settings.company_oib ? 'OIB: ' + settings.company_oib : ''}
+            <strong>${finEsc(settings.company_name || 'Med&X')}</strong><br>
+            ${finEsc(settings.company_address || '')}<br>
+            ${settings.company_oib ? 'OIB: ' + finEsc(settings.company_oib) : ''}
         </div>
         <div class="party">
             <div class="party-label">Za / To:</div>
-            <strong>${invoice.party_name}</strong><br>
-            ${invoice.party_address || ''}<br>
-            ${invoice.party_oib ? 'OIB: ' + invoice.party_oib : ''}
+            <strong>${finEsc(invoice.party_name)}</strong><br>
+            ${finEsc(invoice.party_address || '')}<br>
+            ${invoice.party_oib ? 'OIB: ' + finEsc(invoice.party_oib) : ''}
         </div>
     </div>
 
@@ -25629,11 +25672,11 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         <tbody>
             ${items.map(item => `
                 <tr>
-                    <td>${item.description}</td>
-                    <td class="text-right">${item.quantity}</td>
+                    <td>${finEsc(item.description)}</td>
+                    <td class="text-right">${finEsc(item.quantity)}</td>
                     <td class="text-right">${item.unit_price.toFixed(2)} EUR</td>
-                    <td class="text-right">${item.discount_percent > 0 ? item.discount_percent + '%' : '-'}</td>
-                    <td class="text-right">${item.vat_rate > 0 ? item.vat_rate + '%' : '-'}</td>
+                    <td class="text-right">${item.discount_percent > 0 ? finEsc(item.discount_percent) + '%' : '-'}</td>
+                    <td class="text-right">${item.vat_rate > 0 ? finEsc(item.vat_rate) + '%' : '-'}</td>
                     <td class="text-right">${item.line_total.toFixed(2)} EUR</td>
                 </tr>
             `).join('')}
@@ -25650,15 +25693,15 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     <div class="footer">
         <p><strong>Datum izdavanja:</strong> ${formatDateHR(invoice.issue_date)}</p>
         <p><strong>Rok plaćanja:</strong> ${formatDateHR(invoice.due_date)}</p>
-        ${settings.company_iban ? `<p><strong>IBAN:</strong> ${settings.company_iban}</p>` : ''}
-        ${invoice.notes ? `<p><strong>Napomena:</strong> ${invoice.notes}</p>` : ''}
-        <p style="margin-top: 20px; color: #666;">${settings.invoice_footer || ''}</p>
+        ${settings.company_iban ? `<p><strong>IBAN:</strong> ${finEsc(settings.company_iban)}</p>` : ''}
+        ${invoice.notes ? `<p><strong>Napomena:</strong> ${finEsc(invoice.notes)}</p>` : ''}
+        <p style="margin-top: 20px; color: #666;">${finEsc(settings.invoice_footer || '')}</p>
     </div>
 </body>
 </html>`;
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.html"`);
+        res.setHeader('Content-Disposition', `inline; filename="${finFileName(invoice.invoice_number, 'invoice')}.html"`);
         res.send(html);
     });
 
@@ -25948,7 +25991,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Putni nalog ${order.order_number}</title>
+    <title>Putni nalog ${finEsc(order.order_number)}</title>
     <style>
         body { font-family: Arial, sans-serif; font-size: 12px; padding: 40px; max-width: 800px; margin: 0 auto; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #c9a962; padding-bottom: 20px; }
@@ -25987,21 +26030,21 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         <div class="logo"><img src="${PRESS_LOGO_DATA_URI}" alt="Med&amp;X" height="34"></div>
         <div class="title">
             PUTNI NALOG<br>
-            <span style="font-size: 14px; color: #666;">${order.order_number}</span><br>
+            <span style="font-size: 14px; color: #666;">${finEsc(order.order_number)}</span><br>
             ${order.issue_date ? `<span style="font-size: 12px; color: #666;">Datum izdavanja: ${formatDateHR(order.issue_date)}</span><br>` : ''}
-            <span class="status-badge status-${order.status}">${order.status.toUpperCase()}</span>
+            <span class="status-badge status-${finEsc(order.status)}">${finEsc(String(order.status || '').toUpperCase())}</span>
         </div>
     </div>
 
     <div class="section">
         <div class="section-title">Podaci o putniku</div>
-        <div class="row"><span class="label">Ime i prezime:</span><span class="value">${order.traveler_name}</span></div>
-        <div class="row"><span class="label">Odredište:</span><span class="value">${order.destination}</span></div>
-        <div class="row"><span class="label">Svrha putovanja:</span><span class="value">${order.purpose || '-'}</span></div>
-        <div class="row"><span class="label">Prijevozno sredstvo:</span><span class="value">${order.travel_method || '-'}</span></div>
+        <div class="row"><span class="label">Ime i prezime:</span><span class="value">${finEsc(order.traveler_name)}</span></div>
+        <div class="row"><span class="label">Odredište:</span><span class="value">${finEsc(order.destination)}</span></div>
+        <div class="row"><span class="label">Svrha putovanja:</span><span class="value">${finEsc(order.purpose || '-')}</span></div>
+        <div class="row"><span class="label">Prijevozno sredstvo:</span><span class="value">${finEsc(order.travel_method || '-')}</span></div>
         ${order.travel_method === 'car' ? `
-        <div class="row"><span class="label">Model vozila:</span><span class="value">${order.car_model || '-'}</span></div>
-        <div class="row"><span class="label">Registracija:</span><span class="value">${order.registration_plate || '-'}</span></div>
+        <div class="row"><span class="label">Model vozila:</span><span class="value">${finEsc(order.car_model || '-')}</span></div>
+        <div class="row"><span class="label">Registracija:</span><span class="value">${finEsc(order.registration_plate || '-')}</span></div>
         ` : ''}
     </div>
 
@@ -26025,10 +26068,10 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             ${order.advance_amount > 0 ? `<tr><td>Predujam</td><td class="text-right">-${order.advance_amount.toFixed(2)}</td></tr>` : ''}
             ${order.advance_amount > 0 ? `<tr class="total-row"><td>Za isplatu</td><td class="text-right">${((order.cost_total || 0) - (order.advance_amount || 0)).toFixed(2)}</td></tr>` : ''}
         </table>
-        ${order.kilometers > 0 ? `<p>Prijeđeni kilometri: ${order.kilometers} km (${settings.travel_km_rate || '0.40'} EUR/km)</p>` : ''}
+        ${order.kilometers > 0 ? `<p>Prijeđeni kilometri: ${finEsc(order.kilometers)} km (${finEsc(settings.travel_km_rate || '0.40')} EUR/km)</p>` : ''}
     </div>
 
-    ${order.traveler_notes ? `<div class="section"><div class="section-title">Napomene putnika</div><p>${order.traveler_notes}</p></div>` : ''}
+    ${order.traveler_notes ? `<div class="section"><div class="section-title">Napomene putnika</div><p>${finEsc(order.traveler_notes)}</p></div>` : ''}
 
     <div class="signature">
         <div class="sig-block">
@@ -26042,7 +26085,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 </html>`;
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Content-Disposition', `inline; filename="${order.order_number}.html"`);
+        res.setHeader('Content-Disposition', `inline; filename="${finFileName(order.order_number, 'travel-order')}.html"`);
         res.send(html);
     });
 
@@ -26831,8 +26874,9 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         res.json({ success: true });
     });
 
-    // Export subscribers as CSV
-    app.get('/api/pr/subscribers/export', auth, (req, res) => {
+    // Export subscribers as CSV. Dumps the whole mailing list (names + emails), so it is
+    // adminOnly like every other bulk personal-data export — matching the user portal.
+    app.get('/api/pr/subscribers/export', auth, adminOnly, (req, res) => {
         const subscribers = query.all('SELECT * FROM pr_subscribers ORDER BY subscribed_at DESC');
         const csvHeader = 'Email,First Name,Last Name,Subscribed Projects,Language,Source,Status,Subscribed At\n';
         const csvRows = subscribers.map(s =>

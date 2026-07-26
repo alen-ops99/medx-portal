@@ -26040,10 +26040,27 @@ President, Med&amp;X</textarea>
                 }
             },
 
-            exportPlexusVolunteers(format = 'csv') {
-                // C1: XLSX uses server endpoint
+            async exportPlexusVolunteers(format = 'csv') {
+                // XLSX is built server-side. A plain window.open carries no Bearer token, so it
+                // hit the adminOnly endpoint unauthenticated and opened a 401 in a blank tab —
+                // fetch it with the auth header and save the blob, like the other exports.
                 if (format === 'xlsx') {
-                    window.open(`/api/admin/plexus/volunteers/export?format=xlsx`, '_blank');
+                    try {
+                        const res = await fetch('/api/admin/plexus/volunteers/export?format=xlsx', {
+                            headers: { 'Authorization': `Bearer ${App.token}` }
+                        });
+                        if (!res.ok) throw new Error(`Export failed (${res.status})`);
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `plexus-volunteers-${new Date().toISOString().split('T')[0]}.xlsx`;
+                        document.body.appendChild(a); a.click(); a.remove();
+                        setTimeout(() => URL.revokeObjectURL(url), 4000);
+                        Toast.success('Volunteer list downloaded');
+                    } catch (e) {
+                        Toast.error(friendlyError(e, 'Could not export the volunteer list'));
+                    }
                     return;
                 }
                 if (!this.plexusVolunteers || this.plexusVolunteers.length === 0) {
@@ -32871,9 +32888,7 @@ President, Med&amp;X</textarea>
                     settings = {
                         header_intro: `Pursuant to Article 8, Section 1 of the Regulations on the Med&X Accelerator International Program, the Committee for Organization of the Med&X Accelerator Program at its conference call held on [DATE] hereby decides:`,
                         header_title: `Provisional Ranking List of Applicants for the Med&X Accelerator Program`,
-                        article1_text: '',
-                        article2_text: '',
-                        article3_text: '',
+                        articles: [],
                         signatory_name: 'Alen Juginovic, M.D.',
                         signatory_title: 'Committee for Organization of the Med&X Accelerator Program',
                         signatory_role: 'President'
@@ -32904,16 +32919,12 @@ President, Med&amp;X</textarea>
                                         <input type="text" id="pdfHeaderTitle" value="${escapeHtml(settings.header_title || '')}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary);">
                                     </div>
                                     <div>
-                                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Article 1</label>
-                                        <textarea id="pdfArticle1" rows="5" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${escapeHtml(settings.article1_text || '')}</textarea>
-                                    </div>
-                                    <div>
-                                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Article 2</label>
-                                        <textarea id="pdfArticle2" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${escapeHtml(settings.article2_text || '')}</textarea>
-                                    </div>
-                                    <div>
-                                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Article 3</label>
-                                        <textarea id="pdfArticle3" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;">${escapeHtml(settings.article3_text || '')}</textarea>
+                                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                                            <label style="font-weight: 500;">Articles (Članci)</label>
+                                            <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="AcceleratorApp.addPdfArticle()"><i class="fas fa-plus"></i> Add article</button>
+                                        </div>
+                                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Add as many as you need — they print in this order. Leave the title blank to auto-number in the document's own language (Članak 1. in Croatian, Article 1. in English), or type your own heading.</div>
+                                        <div id="pdfArticlesList"></div>
                                     </div>
                                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
                                         <div>
@@ -32939,16 +32950,61 @@ President, Med&amp;X</textarea>
                     </div>
                 `;
                 document.body.appendChild(modal);
+
+                // The backend always hands back a resolved `articles` array (rows saved before
+                // that column existed are synthesized from article1..3_text), so this covers
+                // both shapes. Mirrors the user-portal editor.
+                this.pdfArticles = Array.isArray(settings.articles) && settings.articles.length
+                    ? settings.articles.map(a => ({ title: a.title || '', text: a.text || '' }))
+                    : [{ title: '', text: '' }];
+                this.renderPdfArticles();
+            },
+
+            // ----- Ranking-PDF articles (unbounded list) -----
+            pdfArticles: [],
+
+            renderPdfArticles() {
+                const host = document.getElementById('pdfArticlesList');
+                if (!host) return;
+                host.innerHTML = this.pdfArticles.map((a, i) => `
+                    <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                            <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;">${i + 1}.</span>
+                            <input type="text" placeholder="Custom heading (optional)" value="${escapeHtml(a.title)}"
+                                oninput="AcceleratorApp.pdfArticles[${i}].title = this.value"
+                                style="flex: 1; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); font-size: 12px;" maxlength="200">
+                            <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;"
+                                onclick="AcceleratorApp.removePdfArticle(${i})" title="Remove this article"><i class="fas fa-trash"></i></button>
+                        </div>
+                        <textarea rows="4" oninput="AcceleratorApp.pdfArticles[${i}].text = this.value"
+                            style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-primary); resize: vertical; font-size: 13px;"
+                            maxlength="4000">${escapeHtml(a.text)}</textarea>
+                    </div>
+                `).join('');
+            },
+
+            addPdfArticle() {
+                this.pdfArticles.push({ title: '', text: '' });
+                this.renderPdfArticles();
+            },
+
+            removePdfArticle(idx) {
+                this.pdfArticles.splice(idx, 1);
+                if (!this.pdfArticles.length) this.pdfArticles.push({ title: '', text: '' });
+                this.renderPdfArticles();
             },
 
             async savePdfSettings(e) {
                 e.preventDefault();
+                const articles = (this.pdfArticles || []).filter(a => a.text && a.text.trim());
+                if (!articles.length) {
+                    this.showAccToast('Add at least one article before saving.', 'error');
+                    return;
+                }
                 const data = {
                     header_intro: document.getElementById('pdfHeaderIntro').value,
                     header_title: document.getElementById('pdfHeaderTitle').value,
-                    article1_text: document.getElementById('pdfArticle1').value,
-                    article2_text: document.getElementById('pdfArticle2').value,
-                    article3_text: document.getElementById('pdfArticle3').value,
+                    articles,
                     signatory_name: document.getElementById('pdfSignName').value,
                     signatory_title: document.getElementById('pdfSignTitle').value,
                     signatory_role: document.getElementById('pdfSignRole').value
@@ -41065,13 +41121,14 @@ By applying to this program, I give the following consents:
                     } else {
                         const seg = (n, label, color) => `<span style="color:${color};">${n}</span> <span style="font-size:14px; font-weight:600; color:var(--text-muted);">${escapeHtml(label)}</span>`;
                         // One compact segment per distinct chosen menu option, in menu order, so
-                        // Fish shows on its own line. Off-menu choices roll into "special".
+                        // Fish shows on its own line. Anything the classifier would not plate
+                        // rolls into the visible review segment.
                         const palette = ['#355070', '#15803d', '#047857', '#c9a962', '#3f6f6a', '#9b1b22'];
                         let pi = 0;
                         const segs = menuOpts
                             .filter(o => (mealCounts[o.label] || 0) > 0)
                             .map(o => seg(mealCounts[o.label], o.label, o.is_default == 1 ? '#9b1b22' : palette[pi++ % palette.length]));
-                        if (offMenu) segs.push(seg(offMenu, 'special', '#b45309'));
+                        if (offMenu) segs.push(seg(offMenu, 'to review', '#b45309'));
                         // Allergies segment is clickable — expands to the per-guest allergen text (item 14).
                         const allergySeg = allergies
                             ? `<span onclick="GalaAdmin.toggleAllergyDetail()" title="Show the specific allergens per guest" style="cursor:pointer;"><span style="color:#b45309; text-decoration:underline dotted;">${allergies}</span> <span style="font-size:14px; font-weight:600; color:var(--text-muted);">allergies <i class="fas fa-chevron-down" id="galaAllergyChevron" style="font-size:11px;"></i></span></span>`
@@ -41464,14 +41521,19 @@ By applying to this program, I give the following consents:
                 const seatMap = await this._opsSeatingMap();
                 const hasTables = Object.keys(seatMap).length > 0;
 
-                // Meal + allergy counts use the SAME logic as the Meals tab so the summary matches.
+                // Meal + allergy counts use the SAME logic as the Dinner headcount card, which
+                // counts PLATES: a booking with guest_count=N feeds N+1 people, and the
+                // plus-ones eat the registrant's chosen meal (they have no dietary record).
+                const partyOf = (r) => 1 + (Number(r.guest_count) || 0);
+                const people = confirmed.reduce((s, r) => s + partyOf(r), 0);
                 const counts = {}; opts.forEach(o => counts[o.label] = 0);
                 let offMenu = 0, allergies = 0;
                 confirmed.forEach(r => {
                     const m = this.classifyMeal(r);
-                    if (m.offMenu) offMenu++; else counts[m.label] = (counts[m.label] || 0) + 1;
-                    const extra = (String(r.dietary || '') + ' ' + String(r.requests || '')).toLowerCase();
-                    if (/allerg|gluten|coeliac|celiac|lactose|nut allergy|peanut|shellfish|dairy-free|dairy free|halal|kosher/.test(extra)) allergies++;
+                    const party = partyOf(r);
+                    if (m.offMenu) offMenu += party; else counts[m.label] = (counts[m.label] || 0) + party;
+                    const extra = this._mealNorm(String(r.dietary || '') + ' ' + String(r.requests || ''));
+                    if (/allerg|alergij|gluten|coeliac|celiac|celijakij|lactose|laktoz|nut allergy|peanut|orasast|shellfish|skolj|dairy[- ]?free|bez laktoze|bez glutena|halal|kosher|intoleran/.test(extra)) allergies++;
                 });
 
                 const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
@@ -41482,21 +41544,28 @@ By applying to this program, I give the following consents:
                 // ---- Summary block ----
                 rows.push(['Med&X — ' + gTitle + ' — caterer sheet']);
                 rows.push(['Generated', today.toLocaleString('en-US')]);
-                rows.push(['Total confirmed guests', confirmed.length]);
+                rows.push(['Total confirmed guests (people)', people]);
+                rows.push(['Bookings', confirmed.length]);
+                rows.push(['Plus-ones included above', people - confirmed.length]);
                 rows.push([]);
-                rows.push(['Meal option', 'Count']);
+                rows.push(['Meal option', 'Plates']);
                 opts.forEach(o => rows.push([o.label + (o.is_default == 1 ? ' (default)' : ''), counts[o.label] || 0]));
-                if (offMenu) rows.push(['Off-menu / needs follow-up', offMenu]);
+                // Never silently folded into a plate: these guests need a human decision.
+                rows.push([this.MEAL_REVIEW_LABEL + ' — needs a decision before service', offMenu]);
                 rows.push(['Guests with allergies or dietary flags', allergies]);
                 rows.push([]);
                 // ---- Guest rows ----
-                const header = ['Name', 'Institution', 'Meal choice', 'Allergies / dietary notes'];
+                const header = ['Name', 'Institution', 'Plates', 'Meal choice', 'Allergies / dietary notes'];
                 if (hasTables) header.push('Table');
                 rows.push(header);
                 confirmed.forEach(r => {
                     const m = this.classifyMeal(r);
-                    const meal = m.offMenu ? (m.label + ' (off-menu — follow up)') : m.label;
-                    const row = [this._opsGuestName(r), r.institution || '', meal, this._opsDietaryNotes(r)];
+                    const meal = m.offMenu ? (m.label + (m.reason ? ' (' + m.reason + ')' : '')) : m.label;
+                    const party = partyOf(r);
+                    const row = [
+                        this._opsGuestName(r) + (party > 1 ? ' (+' + (party - 1) + ')' : ''),
+                        r.institution || '', party, meal, this._opsDietaryNotes(r)
+                    ];
                     if (hasTables) row.push(seatMap[r.id] || '');
                     rows.push(row);
                 });
@@ -41509,7 +41578,7 @@ By applying to this program, I give the following consents:
                 a.download = 'gala-caterer-' + ymd + '.csv';
                 document.body.appendChild(a); a.click(); a.remove();
                 setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (e) {} }, 1500);
-                Toast.success('Caterer sheet exported (' + confirmed.length + ' guests)');
+                Toast.success('Caterer sheet exported (' + people + ' guests)');
             },
 
             // Shared print helper — open a fresh window, write the doc, trigger the print dialog.
@@ -41541,13 +41610,25 @@ By applying to this program, I give the following consents:
                 const gVenue = s.venue || '';
                 const esc = (x) => this.esc(x);
                 const genAt = new Date().toLocaleString('en-US');
-                const rowsHtml = confirmed.map((r, i) => '<tr>'
+                // A booking with guest_count=N walks through the door as N+1 people. The door
+                // counts PEOPLE, so the plus-ones get their own tick boxes and the header
+                // count is the real headcount, not the number of bookings.
+                const partyOf = (r) => 1 + (Number(r.guest_count) || 0);
+                const people = confirmed.reduce((s, r) => s + partyOf(r), 0);
+                const plusOnes = people - confirmed.length;
+                const rowsHtml = confirmed.map((r, i) => {
+                    const extra = partyOf(r) - 1;
+                    return '<tr>'
                     + '<td class="num">' + (i + 1) + '</td>'
                     + '<td class="chk"><span class="box"></span></td>'
-                    + '<td class="nm">' + esc(this._opsGuestName(r)) + '</td>'
+                    + '<td class="nm">' + esc(this._opsGuestName(r))
+                        + (extra ? '<span class="plus">+' + extra + '</span>' : '') + '</td>'
                     + '<td class="inst">' + esc(r.institution || '') + '</td>'
-                    + '<td class="tkt">' + esc(this._opsTicketType(r)) + '</td>'
-                    + '</tr>').join('');
+                    + '<td class="tkt">' + esc(this._opsTicketType(r))
+                        + (extra ? '<div class="plusnote">+' + extra + ' guest' + (extra === 1 ? '' : 's') + ' '
+                            + Array(extra + 1).join('<span class="box sm"></span>') + '</div>' : '') + '</td>'
+                    + '</tr>';
+                }).join('');
                 return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gala door list</title>'
                 + this._opsFontHead()
                 + '<style>'
@@ -41572,7 +41653,10 @@ By applying to this program, I give the following consents:
                 + 'td.num{width:30px;color:#a89b88;font-variant-numeric:tabular-nums;text-align:right;padding-right:10px;}'
                 + 'td.chk{width:38px;text-align:center;}'
                 + '.box{display:inline-block;width:15px;height:15px;border:1.5px solid #8a7f70;border-radius:3px;}'
+                + '.box.sm{width:11px;height:11px;border-radius:2px;margin-left:4px;vertical-align:-1px;}'
                 + 'td.nm{font-weight:600;}'
+                + 'td.nm .plus{display:inline-block;margin-left:7px;padding:1px 6px;border-radius:9px;background:#f2e8d4;color:#8a6d2f;font-size:10.5px;font-weight:700;vertical-align:1px;}'
+                + '.plusnote{font-size:10.5px;color:#8a7f70;white-space:nowrap;margin-top:2px;}'
                 + 'td.inst{color:#5c5348;}'
                 + 'td.tkt{white-space:nowrap;color:#5c5348;}'
                 + '.foot{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-size:10px;color:#8a7f70;display:flex;justify-content:space-between;}'
@@ -41580,7 +41664,9 @@ By applying to this program, I give the following consents:
                 + '</style></head><body><div class="wrap">'
                 + '<div class="head"><div class="brand">' + this._opsLogoImg(30) + '<h1>Gala door list</h1></div>'
                 + '<div class="meta">' + esc(gTitle) + (gDate ? '<br>' + esc(gDate) : '') + (gVenue ? '<br>' + esc(gVenue) : '') + '</div></div>'
-                + '<div class="subhead"><span>' + confirmed.length + ' confirmed guest' + (confirmed.length === 1 ? '' : 's') + ' &middot; listed alphabetically</span><span class="tag">Tick the box on arrival</span></div>'
+                + '<div class="subhead"><span>' + people + ' confirmed guest' + (people === 1 ? '' : 's')
+                + (plusOnes ? ' &middot; ' + confirmed.length + ' booking' + (confirmed.length === 1 ? '' : 's') + ' + ' + plusOnes + ' plus-one' + (plusOnes === 1 ? '' : 's') : '')
+                + ' &middot; listed alphabetically</span><span class="tag">Tick the box on arrival</span></div>'
                 + '<table><thead><tr><th class="c">#</th><th class="c">In</th><th>Name</th><th>Institution</th><th>Ticket</th></tr></thead>'
                 + '<tbody>' + (rowsHtml || '<tr><td colspan="5" style="padding:26px;text-align:center;color:#8a7f70;">No confirmed guests yet.</td></tr>') + '</tbody></table>'
                 + '<div class="foot"><span>Generated ' + esc(genAt) + ' &middot; Med&amp;X</span><span>Plexus Gala Evening 2026</span></div>'
@@ -42158,6 +42244,146 @@ By applying to this program, I give the following consents:
                     { id: '_vegan', label: 'Vegan', keywords: 'vegan,plant-based,plant based', is_default: 0 },
                 ];
             },
+
+            // ============================================================
+            // MEAL CLASSIFICATION — SAFETY CRITICAL
+            // The plate that leaves the kitchen is decided here, so this never guesses.
+            //  * Matching is WORD-BOUNDARY, never substring: "Shellfish allergy" must not
+            //    land on the FISH plate, and "no fish" must not either.
+            //  * A negated or allergy phrase ("no fish", "bez ribe", "alergija na ribu",
+            //    "fish allergy") can only RULE OUT a meal, never select it.
+            //  * Croatian and English are both recognised, with Croatian inflections
+            //    (Riba/ribe/ribu, Vegetarijanski, Vegansko, Meso/mesa).
+            //  * Anything that names no meal, or names two at once, goes to a visible
+            //    REVIEW / PROVJERI bucket. The caterer decides — we never plate a guess.
+            // ============================================================
+            MEAL_REVIEW_LABEL: 'REVIEW / PROVJERI',
+
+            // Lowercase + strip Croatian diacritics so one ASCII pattern covers č/ć/š/ž/đ.
+            _mealNorm(s) {
+                return String(s == null ? '' : s)
+                    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                    .replace(/đ/g, 'd').replace(/Đ/g, 'd')
+                    .toLowerCase();
+            },
+            // Built-in bilingual vocabulary per menu family. Keyed off the option's own
+            // label/id so an admin-renamed "Riba" option still gets the Croatian forms.
+            _MEAL_FAMILY_VOCAB: {
+                vegan:      ['vegan\\w*', 'plant[- ]?based', 'biljn\\w+ (?:prehran\\w+|dijet\\w+)'],
+                vegetarian: ['vegetari\\w*', 'vegetarijan\\w*', 'veggie', 'lakto[- ]?ovo'],
+                fish:       ['fish', 'rib(?:a|e|u|i|om|ama)', 'ribl\\w+', 'pescatar\\w*', 'peskatarijan\\w*', 'seafood', 'salmon', 'losos\\w*', 'plodov\\w* mora'],
+                meat:       ['meat', 'mes(?:o|a|om|u)', 'mesn\\w+', 'omnivor\\w*', 'carnivor\\w*', 'klasicn\\w+', 'standard\\w*', 'regular']
+            },
+            _mealFamily(o) {
+                const t = this._mealNorm((o && o.label) || '') + ' ' + this._mealNorm((o && o.id) || '');
+                if (/vegan/.test(t)) return 'vegan';
+                if (/vegetari|veggie/.test(t)) return 'vegetarian';
+                if (/\bfish\b|rib|seafood|pescat|losos/.test(t)) return 'fish';
+                if (/meat|\bmes|standard|regular/.test(t)) return 'meat';
+                return null;
+            },
+            // Every alternative that means "this option": admin keywords + the family vocab.
+            _mealPatterns(o) {
+                const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+                const out = this._mealNorm((o && o.keywords) || '').split(',')
+                    .map(k => k.trim()).filter(Boolean)
+                    // Bare generic words in the default option's keyword list ("none",
+                    // "no special") are handled by the generic test, not by matching.
+                    .filter(k => !/^(none|no|any|n\/?a|-)$/.test(k))
+                    .map(esc);
+                const fam = this._mealFamily(o);
+                if (fam) out.push.apply(out, this._MEAL_FAMILY_VOCAB[fam]);
+                return out;
+            },
+            // Cues that turn a mention into an exclusion rather than a choice.
+            _MEAL_NEG_BEFORE: /(?:\bno\b|\bnot\b|\bnon\b|\bwithout\b|\bavoid\w*\b|\bfree\s+(?:of|from)\b|\bcan'?t\b|\bcannot\b|\bexclud\w*\b|\bbez\b|\bnema\b|\bne\s+jed\w*\b|\bne\b|\bizbjegav\w*\b|\bosim\b|\ballerg\w*\b|\balergij\w*\b|\bintoleran\w*\b|\bnepodnosljiv\w*\b|\bpreosjetljiv\w*\b)/,
+            _MEAL_NEG_AFTER: /^\W*(?:\w+\W+){0,2}?(?:allerg\w*|alergij\w*|intoleran\w*|nepodnosljiv\w*|free\b)/,
+            // True when THIS mention is an exclusion: an allergy/negation cue within the
+            // ~40 chars before it, or an allergy word right after it ("Shellfish allergy",
+            // "fish allergy", "alergija na ribu", "bez ribe").
+            _mealMentionNegated(text, start, end) {
+                const before = text.slice(Math.max(0, start - 40), start);
+                // Only the tail of the clause counts — a comma or ';' ends the negation's reach.
+                const clause = before.split(/[,;.()—–]/).pop();
+                if (this._MEAL_NEG_BEFORE.test(clause)) return true;
+                return this._MEAL_NEG_AFTER.test(text.slice(end, end + 34));
+            },
+            // { signal: 'yes' asked for | 'no' ruled out | null not mentioned, spans: [[i,j]…] }
+            _mealSignal(text, o) {
+                const pats = this._mealPatterns(o);
+                const spans = [];
+                if (!pats.length) return { signal: null, spans };
+                let mentioned = false, wanted = false;
+                for (const p of pats) {
+                    let re;
+                    try { re = new RegExp('\\b(?:' + p + ')\\b', 'g'); } catch (e) { continue; }
+                    let m;
+                    while ((m = re.exec(text)) !== null) {
+                        if (m[0] === '') { re.lastIndex++; continue; }
+                        mentioned = true;
+                        spans.push([m.index, m.index + m[0].length]);
+                        if (!this._mealMentionNegated(text, m.index, m.index + m[0].length)) wanted = true;
+                    }
+                }
+                return { signal: wanted ? 'yes' : (mentioned ? 'no' : null), spans };
+            },
+            // Filler left over once the menu words are struck out. Only these may be
+            // dropped — anything else surviving (an allergen, a named dish, a language we
+            // do not speak) means the note carries information we cannot act on.
+            _MEAL_FILLER: /^(?:no|not|non|none|nema|ne|bez|osim|niti|ni|without|avoid|avoids|free|of|from|only|just|please|prefer|prefers|preferred|preference|meal|menu|option|course|plate|dish|diet|dietary|and|or|but|the|a|an|i|ili|molim|molio|molila|bih|samo|jelo|jelu|meni|obrok|prehrana|prehrani|hvala|thanks|thank|you|ok|okay|yes|da|sve)$/,
+            // Words the note still says after every menu term is removed.
+            _mealResidue(text, spans) {
+                const marks = new Array(text.length).fill(false);
+                spans.forEach(([a, b]) => { for (let i = a; i < b; i++) marks[i] = true; });
+                let out = '';
+                for (let i = 0; i < text.length; i++) out += marks[i] ? ' ' : text[i];
+                return out.split(/[^a-z0-9]+/).filter(w => w && !this._MEAL_FILLER.test(w));
+            },
+            // Map ONE guest's free-text dietary field to a configured menu option,
+            // or to the REVIEW / PROVJERI bucket when it cannot be decided safely.
+            classifyMeal(r) {
+                const opts = (this.menuOptions && this.menuOptions.length) ? this.menuOptions : this._defaultMenu();
+                const def = opts.find(o => o.is_default == 1) || opts[0];
+                const defLabel = def ? def.label : 'Standard';
+                const raw = ((r.dietary || '') + ' ' + (r.requests || '')).trim();
+                const text = this._mealNorm(raw).replace(/\s+/g, ' ').trim();
+                // Nothing written, or an explicit "no preference" — the default plate.
+                const generic = !text || /^(?:-|n\/?a|no|none|nema|ne|no special(?: requirements?)?|no dietary(?: requirements?)?|nista|bez posebnih zahtjeva|standard|standardno|regular|any|sve)$/.test(text);
+                if (generic) return { label: defLabel, color: '#6b7280', offMenu: false, review: false, reason: '' };
+
+                const chosen = [], refused = [], allSpans = [];
+                opts.forEach(o => {
+                    const s = this._mealSignal(text, o);
+                    allSpans.push.apply(allSpans, s.spans);
+                    if (s.signal === 'yes') chosen.push(o); else if (s.signal === 'no') refused.push(o);
+                });
+
+                if (chosen.length === 1) {
+                    const o = chosen[0];
+                    return { label: o.label, color: o.is_default == 1 ? '#6b7280' : '#15803d', offMenu: false, review: false, reason: '' };
+                }
+                if (chosen.length > 1) {
+                    return {
+                        label: this.MEAL_REVIEW_LABEL, color: '#b45309', offMenu: true, review: true,
+                        reason: 'conflicting meals named: ' + chosen.map(o => o.label).join(' + ')
+                    };
+                }
+                // Nothing was asked for. The default plate is only safe when the note did
+                // nothing but rule OTHER meals out — "no fish", "bez ribe". The moment a
+                // word survives that strike-out (an allergen, a coeliac note, a named
+                // dish) the kitchen, not this function, decides what goes on the plate.
+                const defRefused = refused.some(o => o === def);
+                const residue = this._mealResidue(text, allSpans);
+                if (refused.length && !defRefused && !residue.length) {
+                    return { label: defLabel, color: '#6b7280', offMenu: false, review: false, reason: '' };
+                }
+                return {
+                    label: this.MEAL_REVIEW_LABEL, color: '#b45309', offMenu: true, review: true,
+                    reason: defRefused
+                        ? 'default meal ruled out, no alternative named'
+                        : 'no meal named — dietary note needs a decision'
+                };
+            },
             async loadMenuOptions() {
                 try {
                     const res = await fetch('/api/admin/gala/menu-options', { headers: { 'Authorization': `Bearer ${App.token}` } });
@@ -42165,24 +42391,9 @@ By applying to this program, I give the following consents:
                 } catch (e) { this.menuOptions = this._defaultMenu(); }
                 if (!this.menuOptions || !this.menuOptions.length) this.menuOptions = this._defaultMenu();
             },
-            // Map ONE guest's free-text dietary field to a configured menu option (or an off-menu flag).
-            classifyMeal(r) {
-                const opts = (this.menuOptions && this.menuOptions.length) ? this.menuOptions : this._defaultMenu();
-                const def = opts.find(o => o.is_default == 1) || opts[0];
-                const rawDiet = (r.dietary || '').trim();
-                const text = ((r.dietary || '') + ' ' + (r.requests || '')).toLowerCase().trim();
-                const generic = !text || /^(-|n\/?a|no|none|no special|no special requirements|no dietary|standard|regular|any)$/i.test(rawDiet);
-                if (generic) return { label: def ? def.label : 'Standard', color: '#6b7280', offMenu: false };
-                const kwMatch = (o) => (o.keywords || '').split(',').map(k => k.trim().toLowerCase()).filter(Boolean).some(k => text.includes(k));
-                for (const o of opts.filter(o => o.is_default != 1)) { if (kwMatch(o)) return { label: o.label, color: '#15803d', offMenu: false }; }
-                if (def && kwMatch(def)) return { label: def.label, color: '#6b7280', offMenu: false };
-                const DIET = /vegan|vegetar|veggie|pescatar|plant[- ]?based|\bfish\b|seafood|halal|kosher|carnivore|\bmeat\b|dairy[- ]?free/i;
-                if (DIET.test(text)) return { label: rawDiet || 'Special', color: '#b45309', offMenu: true };
-                return { label: def ? def.label : 'Standard', color: '#6b7280', offMenu: false };
-            },
             mealChip(r) {
                 const m = this.classifyMeal(r);
-                if (m.offMenu) return `<span title="This recorded choice is not on the current menu — follow up" style="background:rgba(180,83,9,0.15);color:#b45309;padding:2px 9px;border-radius:6px;font-size:11px;font-weight:600;"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>${this.esc(m.label)}</span>`;
+                if (m.offMenu) return `<span title="${this.esc(m.reason || 'Needs a decision before service')}" style="background:rgba(180,83,9,0.15);color:#b45309;padding:2px 9px;border-radius:6px;font-size:11px;font-weight:600;"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>${this.esc(m.label)}</span>`;
                 return `<span style="background:${m.color}1f;color:${m.color};padding:2px 9px;border-radius:6px;font-size:11px;font-weight:600;">${this.esc(m.label)}</span>`;
             },
 
@@ -42202,7 +42413,7 @@ By applying to this program, I give the following consents:
                 const flagged = [];
                 attending.forEach(r => {
                     const m = this.classifyMeal(r);
-                    if (m.offMenu) flagged.push({ r, choice: m.label });
+                    if (m.offMenu) flagged.push({ r, choice: m.label, reason: m.reason, note: this._opsDietaryNotes(r) });
                     else counts[m.label] = (counts[m.label] || 0) + 1;
                 });
                 const total = attending.length || 1;
@@ -42227,9 +42438,11 @@ By applying to this program, I give the following consents:
                 if (flagCard && flagBody) {
                     if (flagged.length) {
                         flagCard.style.display = 'block';
-                        flagBody.innerHTML = '<p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">These guests recorded a meal choice that is no longer on the menu. Their choice is preserved — reach out to offer an alternative.</p>' +
+                        flagBody.innerHTML = '<p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">Their dietary note does not name one plate on the current menu, so nothing has been assumed for them. Decide the plate with the caterer, or ask the guest.</p>' +
                             flagged.map(f => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(180,83,9,0.25);border-radius:8px;margin-bottom:6px;">
-                                <div><span style="font-weight:600;">${escapeHtml((f.r.first_name || '') + ' ' + (f.r.last_name || ''))}</span> <span style="color:var(--text-muted);font-size:12px;">· ${escapeHtml(f.r.institution || '')}</span><div style="font-size:12px;color:#b45309;">recorded: ${escapeHtml(f.choice)}</div></div>
+                                <div><span style="font-weight:600;">${escapeHtml((f.r.first_name || '') + ' ' + (f.r.last_name || ''))}</span> <span style="color:var(--text-muted);font-size:12px;">· ${escapeHtml(f.r.institution || '')}</span>
+                                    <div style="font-size:12px;color:#b45309;">${escapeHtml(f.choice)}${f.reason ? ' — ' + escapeHtml(f.reason) : ''}</div>
+                                    ${f.note ? `<div style="font-size:12px;color:var(--text-muted);">wrote: ${escapeHtml(f.note)}</div>` : ''}</div>
                                 <button class="btn btn-secondary" style="font-size:12px;" onclick="GalaAdmin.messageGuest('${f.r.id}')"><i class="fas fa-paper-plane"></i> Message</button>
                             </div>`).join('');
                     } else { flagCard.style.display = 'none'; flagBody.innerHTML = ''; }
@@ -48608,9 +48821,10 @@ By applying to this program, I give the following consents:
             async loadRoster(eventKey){
                 var list=this._overlay.querySelector('#csdList'); if(list) list.innerHTML='<div style="padding:26px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading roster…</div>';
                 var r=await this.api('/api/admin/cards/roster?event='+encodeURIComponent(eventKey));
-                if(r.ok && r.d){ this.state.ctx=r.d; this.state.roster=r.d.roster||[]; this.state.selected={};
+                if(r.ok && r.d){ this.state.ctx=r.d; this.state.roster=r.d.roster||[]; var sel={};
                     // default: select everyone
-                    this.state.roster.forEach(function(p,i){ });
+                    this.state.roster.forEach(function(p,i){ sel[i]=true; });
+                    this.state.selected=sel;
                 }
                 this.render();
             },
@@ -57400,15 +57614,16 @@ By applying to this program, I give the following consents:
                 _flightRow(f) {
                     f = f || {};
                     const dir = (f.direction === 'departure') ? 'departure' : 'arrival';
-                    return `<div data-spk-flight-row style="display:grid;grid-template-columns:120px 1fr 1fr 1fr 1fr 130px 110px 1fr auto;gap:6px;align-items:center;margin-bottom:8px;">
+                    return `<div data-spk-flight-row style="display:grid;grid-template-columns:120px 1fr 1fr 1fr 1fr 130px 110px 1fr 1fr auto;gap:6px;align-items:center;margin-bottom:8px;">
                         <select data-fk="direction" style="${INP}"><option value="arrival" ${dir === 'arrival' ? 'selected' : ''}>Arrival</option><option value="departure" ${dir === 'departure' ? 'selected' : ''}>Departure</option></select>
                         <input data-fk="airline" value="${esc(f.airline || '')}" placeholder="Airline" style="${INP}">
-                        <input data-fk="flight_no" value="${esc(f.flight_no || '')}" placeholder="Flight #" style="${INP}">
-                        <input data-fk="from" value="${esc(f.from || '')}" placeholder="From" style="${INP}">
-                        <input data-fk="to" value="${esc(f.to || '')}" placeholder="To" style="${INP}">
+                        <input data-fk="flight_no" value="${esc(f.flight_no || f.flight_number || '')}" placeholder="Flight #" style="${INP}">
+                        <input data-fk="from" value="${esc(f.from || f.depart_airport || '')}" placeholder="From" style="${INP}">
+                        <input data-fk="to" value="${esc(f.to || f.arrive_airport || '')}" placeholder="To" style="${INP}">
                         <input data-fk="date" type="date" value="${esc(f.date || '')}" style="${INP}">
-                        <input data-fk="time" type="time" value="${esc(f.time || '')}" style="${INP}">
-                        <input data-fk="meet_note" value="${esc(f.meet_note || '')}" placeholder="Who meets / transfer" style="${INP}">
+                        <input data-fk="time" type="time" value="${esc(f.time || f.depart_time || '')}" style="${INP}">
+                        <input data-fk="booking_ref" value="${esc(f.booking_ref || '')}" placeholder="Booking ref." style="${INP}">
+                        <input data-fk="meet_note" value="${esc(f.meet_note || f.notes || '')}" placeholder="Who meets / transfer" style="${INP}">
                         <button class="btn btn-secondary" style="padding:7px 9px;" data-spk-action="delFlight" title="Remove"><i class="fas fa-times"></i></button>
                     </div>`;
                 },
@@ -57423,7 +57638,7 @@ By applying to this program, I give the following consents:
                         const o = {};
                         r.querySelectorAll('[data-fk]').forEach(i => { o[i.getAttribute('data-fk')] = (i.value || '').trim(); });
                         return o;
-                    }).filter(o => o.airline || o.flight_no || o.from || o.to || o.date || o.time || o.meet_note);
+                    }).filter(o => o.airline || o.flight_no || o.from || o.to || o.date || o.time || o.booking_ref || o.meet_note);
                 },
 
                 _itemsHtml() {

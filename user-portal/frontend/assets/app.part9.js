@@ -37465,111 +37465,26 @@ By applying to this program, I give the following consents:
                 this.loadInvoices();
             },
 
-            downloadInvoicePDF(id) {
-                const invoice = MOCK_DATA.finances.invoices.find(inv => inv.id === id);
-                if (!invoice) {
-                    Toast.error('Invoice not found');
-                    return;
+            // The real, server-rendered document — never a client-side reconstruction.
+            // These buttons used to typeset a PDF out of MOCK_DATA, so a click produced a
+            // convincing but fabricated invoice (wrong counterparty, placeholder IBAN).
+            // A financial document must come from the record it claims to represent.
+            async _openFinanceDoc(endpoint, label) {
+                try {
+                    const res = await fetch(endpoint, { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (!res.ok) throw new Error(`${label} could not be generated (${res.status})`);
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const w = window.open(url, '_blank');
+                    if (!w) { Toast.error('Allow pop-ups to open the ' + label.toLowerCase()); }
+                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+                } catch (err) {
+                    Toast.error(err.message || (label + ' could not be opened'));
                 }
+            },
 
-                const pdfContent = `
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Invoice ${invoice.number}</title>
-                        <style>
-                            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-                            .header { display: flex; justify-content: space-between; align-items: start; border-bottom: 2px solid #c9a962; padding-bottom: 20px; margin-bottom: 30px; }
-                            .company { text-align: left; }
-                            .company h1 { color: #15110f; margin: 0; font-size: 24px; }
-                            .company p { color: #666; margin: 5px 0 0; font-size: 12px; }
-                            .invoice-info { text-align: right; }
-                            .invoice-number { font-size: 20px; font-weight: 600; color: #c9a962; }
-                            .invoice-date { font-size: 12px; color: #666; margin-top: 4px; }
-                            .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 30px; }
-                            .party h3 { font-size: 12px; color: #666; margin: 0 0 8px; text-transform: uppercase; }
-                            .party .name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-                            .items { margin-bottom: 30px; }
-                            .items table { width: 100%; border-collapse: collapse; }
-                            .items th { text-align: left; padding: 12px; background: #fbf9f6; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #666; }
-                            .items td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
-                            .items .amount { text-align: right; font-weight: 600; }
-                            .totals { text-align: right; margin-top: 20px; }
-                            .totals .total { font-size: 24px; font-weight: 600; color: #15110f; }
-                            .status { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; font-weight: 600; }
-                            .status.paid { background: #dcfce7; color: #2f6b3a; }
-                            .status.pending { background: #fef3c7; color: #d97706; }
-                            .footer { margin-top: 40px; text-align: center; color: #666; font-size: 11px; border-top: 1px solid #e5e7eb; padding-top: 20px; }
-                            @media print { body { padding: 20px; } .no-print { display: none; } }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="header">
-                            <div class="company">
-                                <h1>Med&X Croatia</h1>
-                                <p>Ilica 1, 10000 Zagreb, Croatia</p>
-                                <p>Tax ID: 12345678901</p>
-                            </div>
-                            <div class="invoice-info">
-                                <div class="invoice-number">${invoice.number}</div>
-                                <div class="invoice-date">Date: ${invoice.date}</div>
-                                <div class="invoice-date">Due: ${invoice.due}</div>
-                                <div style="margin-top: 8px;">
-                                    <span class="status ${invoice.status}">${invoice.status.toUpperCase()}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="parties">
-                            <div class="party">
-                                <h3>From</h3>
-                                <div class="name">${invoice.type === 'incoming' ? invoice.vendor : 'Med&X Croatia'}</div>
-                            </div>
-                            <div class="party">
-                                <h3>To</h3>
-                                <div class="name">${invoice.type === 'incoming' ? 'Med&X Croatia' : invoice.vendor}</div>
-                            </div>
-                        </div>
-
-                        <div class="items">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Description</th>
-                                        <th>Project</th>
-                                        <th style="text-align: right;">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>${invoice.type === 'incoming' ? 'Sponsorship / Donation' : 'Services Rendered'}</td>
-                                        <td>${invoice.project || '-'}</td>
-                                        <td class="amount">${this.formatCurrency(invoice.amount)}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div class="totals">
-                            <div class="total">${this.formatCurrency(invoice.amount)}</div>
-                        </div>
-
-                        <div class="footer">
-                            <p>Payment due within 30 days. Med&X Croatia is a registered non-profit organization.</p>
-                            <p>IBAN: HR1234567890123456789</p>
-                            <p style="margin-top: 20px;" class="no-print">
-                                <button onclick="window.print()" style="padding: 10px 24px; background: #c9a962; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                                    Print / Save as PDF
-                                </button>
-                            </p>
-                        </div>
-                    </body>
-                    </html>
-                `;
-
-                const newWindow = window.open('', '_blank');
-                newWindow.document.write(pdfContent);
-                newWindow.document.close();
+            downloadInvoicePDF(id) {
+                return this._openFinanceDoc(`/api/finance/invoices/${encodeURIComponent(id)}/pdf`, 'Invoice');
             },
 
             // Payment Orders
@@ -37852,123 +37767,7 @@ By applying to this program, I give the following consents:
             },
 
             downloadTravelOrderPDF(id) {
-                const order = MOCK_DATA.finances.travelOrders.find(to => to.id === id);
-                if (!order) {
-                    Toast.error('Travel order not found');
-                    return;
-                }
-
-                // Generate a mock PDF preview in a new window
-                const pdfContent = `
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Travel Order ${order.order_number}</title>
-                        <style>
-                            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-                            .header { text-align: center; border-bottom: 2px solid #c9a962; padding-bottom: 20px; margin-bottom: 30px; }
-                            .header h1 { color: #15110f; margin: 0; font-size: 28px; }
-                            .header p { color: #666; margin: 5px 0 0; }
-                            .order-number { background: #c9a962; color: white; padding: 8px 16px; border-radius: 4px; display: inline-block; margin-top: 10px; font-size: 14px; }
-                            .section { margin-bottom: 24px; }
-                            .section h3 { color: #15110f; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 12px; }
-                            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-                            .field { margin-bottom: 12px; }
-                            .field label { font-size: 12px; color: #666; display: block; margin-bottom: 2px; }
-                            .field span { font-size: 14px; font-weight: 500; }
-                            .costs { background: #fbf9f6; padding: 20px; border-radius: 8px; }
-                            .costs .total { font-size: 20px; font-weight: 600; color: #15110f; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
-                            .status { padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase; font-weight: 600; }
-                            .status.approved { background: #dcfce7; color: #2f6b3a; }
-                            .status.pending { background: #fef3c7; color: #d97706; }
-                            .status.submitted { background: #dbeafe; color: #9b1b22; }
-                            .footer { margin-top: 40px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 20px; }
-                            @media print { body { padding: 20px; } .no-print { display: none; } }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="header">
-                            <h1>Med&X Croatia</h1>
-                            <p>Travel Order Document</p>
-                            <div class="order-number">${order.order_number}</div>
-                        </div>
-
-                        <div class="section">
-                            <h3>Traveler Information</h3>
-                            <div class="grid">
-                                <div class="field">
-                                    <label>Traveler Name</label>
-                                    <span>${order.traveler_name}</span>
-                                </div>
-                                <div class="field">
-                                    <label>Status</label>
-                                    <span class="status ${order.status}">${order.status.toUpperCase()}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="section">
-                            <h3>Trip Details</h3>
-                            <div class="grid">
-                                <div class="field">
-                                    <label>Destination</label>
-                                    <span>${order.destination}</span>
-                                </div>
-                                <div class="field">
-                                    <label>Purpose</label>
-                                    <span>${order.purpose}</span>
-                                </div>
-                                <div class="field">
-                                    <label>Departure Date</label>
-                                    <span>${order.planned_departure}</span>
-                                </div>
-                                <div class="field">
-                                    <label>Return Date</label>
-                                    <span>${order.planned_return}</span>
-                                </div>
-                                <div class="field">
-                                    <label>Travel Method</label>
-                                    <span>${order.travel_method}</span>
-                                </div>
-                                <div class="field">
-                                    <label>Project</label>
-                                    <span>${order.project}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="section costs">
-                            <h3>Cost Summary</h3>
-                            <div class="grid">
-                                <div class="field">
-                                    <label>Total Estimated Cost</label>
-                                    <span>${this.formatCurrency(order.cost_total)}</span>
-                                </div>
-                                <div class="field">
-                                    <label>Advance Payment</label>
-                                    <span>${this.formatCurrency(order.advance_amount || 0)}</span>
-                                </div>
-                            </div>
-                            <div class="total">Balance Due: ${this.formatCurrency(order.cost_total - (order.advance_amount || 0))}</div>
-                        </div>
-
-                        ${order.notes ? '<div class="section"><h3>Notes</h3><p>' + order.notes + '</p></div>' : ''}
-
-                        <div class="footer">
-                            <p>Generated on ${new Date().toLocaleDateString()} by Med&X Finance System</p>
-                            <p style="margin-top: 20px;" class="no-print">
-                                <button onclick="window.print()" style="padding: 10px 24px; background: #c9a962; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                                    Print / Save as PDF
-                                </button>
-                            </p>
-                        </div>
-                    </body>
-                    </html>
-                `;
-
-                const newWindow = window.open('', '_blank');
-                newWindow.document.write(pdfContent);
-                newWindow.document.close();
+                return this._openFinanceDoc(`/api/finance/travel-orders/${encodeURIComponent(id)}/pdf`, 'Travel order');
             },
 
             // Reports

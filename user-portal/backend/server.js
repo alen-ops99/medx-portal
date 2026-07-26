@@ -4482,10 +4482,16 @@ const speakerLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeader
 // a blank field always falls back to the correct national number rather than showing nothing.
 const SPEAKER_CROATIA_DEFAULTS = { emergency: '112', police: '192', ambulance: '194', pharmacy_name: '', pharmacy_address: '', pharmacy_hours: '' };
 
+// Academic honorifics stripped off the front of a name. The Croatian stack is long
+// ("Prof. dr. sc.", "izv. prof. dr. sc.", "prim. dr. med.", "univ. mag."), and stopping
+// early left the abbreviation itself as the "first name" — the page title read
+// "Med&X — sc.’s Plexus Week". Every particle of those stacks belongs here.
+const SPEAKER_HONORIFICS = /^(?:(?:prof|professor|dr|doc|doz|docent|prim|primarijus|mr|mrs|ms|miss|sir|dame|md|phd|dphil|msc|bsc|mba|assoc|associate|acad|akad|sc|sci|scient|univ|mag|magistar|spec|dipl|ing|inž|med|dent|pharm|emer|emerit|izv|izvanr|habil|hon|honoris|rev|rer|nat)\.?\s+)+/i;
 function speakerFirstName(fullName) {
-    let n = String(fullName || '').trim();
-    n = n.replace(/^((prof|dr|mr|mrs|ms|sir|dame|md|phd|assoc|acad)\.?\s+)+/i, '');
-    return (n.split(/\s+/)[0] || '').trim();
+    const raw = String(fullName || '').trim();
+    const stripped = raw.replace(SPEAKER_HONORIFICS, '').trim();
+    // If a name is nothing but honorifics, keep the original rather than returning ''.
+    return ((stripped || raw).split(/\s+/)[0] || '').trim();
 }
 function speakerPossessive(fullName) {
     const f = speakerFirstName(fullName);
@@ -4527,6 +4533,73 @@ function speakerDayLabels(dayKey, confStart) {
     const raw = String(dayKey || '').trim() || 'Programme';
     return { iso: null, en: raw, hr: raw, sortKey: 'zzz-' + raw.toLowerCase() };
 }
+// "4. prosinca 2026." — the Croatian long-date the speaker page needs in HR mode.
+function fmtEventDateHr(d) {
+    if (!d) return '';
+    try {
+        const dt = new Date(String(d) + 'T00:00:00Z');
+        if (isNaN(dt.getTime())) return String(d);
+        return `${dt.getUTCDate()}. ${SPEAKER_HR_MONTHS[dt.getUTCMonth()]} ${dt.getUTCFullYear()}.`;
+    } catch (e) { return String(d); }
+}
+// A date RANGE in Croatian, collapsing the shared month/year: "4. – 5. prosinca 2026."
+function fmtEventRangeHr(start, end) {
+    if (!start) return '';
+    if (!end || end === start) return fmtEventDateHr(start);
+    try {
+        const a = new Date(String(start) + 'T00:00:00Z'), b = new Date(String(end) + 'T00:00:00Z');
+        if (!isNaN(a.getTime()) && !isNaN(b.getTime())
+            && a.getUTCMonth() === b.getUTCMonth() && a.getUTCFullYear() === b.getUTCFullYear()) {
+            return `${a.getUTCDate()}. – ${b.getUTCDate()}. ${SPEAKER_HR_MONTHS[b.getUTCMonth()]} ${b.getUTCFullYear()}.`;
+        }
+    } catch (e) { /* fall through to the long form */ }
+    return `${fmtEventDateHr(start)} – ${fmtEventDateHr(end)}`;
+}
+
+// Croatian airports — used only to work out which leg is which when the stored flight
+// carries no explicit direction.
+const SPEAKER_HR_AIRPORTS = /\b(?:zag|spu|dbv|rjk|puy|zad|osi|zagreb|split|dubrovnik|rijeka|pula|zadar|osijek)\b/i;
+// One flight row, whatever shape it was saved in. The admin editor writes
+// {flight_no, from, to, date, time, meet_note} while older/imported rows use
+// {flight_number, depart_airport, depart_time, arrive_airport, arrive_time, notes} —
+// the page only read the second set, so route, times and booking reference silently
+// vanished from the cards. Accept both and hand the renderer one shape.
+function normalizeSpeakerFlight(f, idx, total) {
+    f = f || {};
+    const pick = (...keys) => {
+        for (const k of keys) {
+            const v = f[k];
+            if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+        }
+        return '';
+    };
+    const from = pick('from', 'depart_airport', 'departure_airport', 'origin', 'from_airport');
+    const to = pick('to', 'arrive_airport', 'arrival_airport', 'destination', 'to_airport');
+    const rawDir = pick('direction', 'leg', 'type', 'kind').toLowerCase();
+
+    // 1) An explicit direction always wins. 2) Otherwise the route decides: a leg landing
+    // in Croatia is the arrival, one leaving Croatia is the departure. 3) Failing both,
+    // the first stored leg is the arrival and the rest are departures.
+    let direction;
+    if (/^(?:dep|out|ret|home|back|odlaz|povrat|izlaz)/.test(rawDir)) direction = 'departure';
+    else if (/^(?:arr|in|inbound|incoming|dolaz|prilet)/.test(rawDir)) direction = 'arrival';
+    else if (SPEAKER_HR_AIRPORTS.test(to) && !SPEAKER_HR_AIRPORTS.test(from)) direction = 'arrival';
+    else if (SPEAKER_HR_AIRPORTS.test(from) && !SPEAKER_HR_AIRPORTS.test(to)) direction = 'departure';
+    else direction = (total > 1 && idx > 0) ? 'departure' : 'arrival';
+
+    return {
+        direction,
+        airline: pick('airline', 'carrier'),
+        flight_number: pick('flight_number', 'flight_no', 'flightNumber', 'flight', 'number'),
+        from, to,
+        date: pick('date', 'depart_date', 'departure_date'),
+        depart_time: pick('depart_time', 'departure_time', 'time'),
+        arrive_time: pick('arrive_time', 'arrival_time'),
+        booking_ref: pick('booking_ref', 'booking_reference', 'booking', 'pnr', 'reference', 'confirmation', 'record_locator'),
+        notes: pick('notes', 'meet_note', 'transfer', 'note')
+    };
+}
+
 function speakerSessionType(t) {
     const s = String(t || '').toLowerCase();
     if (s.includes('keynote') || s.includes('talk') || s.includes('lecture') || s.includes('address')) return 'talk';
@@ -4596,6 +4669,7 @@ function buildSpeakerPayload(itin) {
     const confStart = conf && conf.start_date;
     const eventName = (conf && conf.name) || 'Plexus 2026';
     const eventDatesEn = conf ? [fmtEventDate(conf.start_date), conf.end_date && conf.end_date !== conf.start_date ? '– ' + fmtEventDate(conf.end_date) : ''].filter(Boolean).join(' ') : '';
+    const eventDatesHr = conf ? fmtEventRangeHr(conf.start_date, conf.end_date) : '';
     const venueLine = conf ? [conf.venue_name, conf.venue_city].filter(Boolean).join(', ') : '';
 
     const manualRows = query.all('SELECT * FROM speaker_itinerary_items WHERE itinerary_id = ? ORDER BY sort_order, start_time', [itin.id]);
@@ -4633,6 +4707,7 @@ function buildSpeakerPayload(itin) {
     const contacts = safeParseJson(itin.contacts_json, {}) || {};
     let flights = safeParseJson(itin.flights_json, []);
     if (!Array.isArray(flights)) flights = [];
+    flights = flights.map((f, i) => normalizeSpeakerFlight(f, i, flights.length));
 
     return {
         itinerary: {
@@ -4641,6 +4716,7 @@ function buildSpeakerPayload(itin) {
             event_key: itin.event_key || '',
             event_name: eventName,
             event_dates_en: eventDatesEn,
+            event_dates_hr: eventDatesHr,
             venue_line: venueLine,
             lang_default: (itin.lang_default === 'hr' ? 'hr' : 'en'),
             hotel: { name: itin.hotel_name || '', address: itin.hotel_address || '', map_url: itin.hotel_map_url || '' },
@@ -4677,6 +4753,9 @@ const SPK_I18N = {
     pharmacy:     { en: 'Nearest pharmacy', hr: 'Najbliža ljekarna' },
     airline:      { en: 'Airline', hr: 'Zračni prijevoznik' },
     flightno:     { en: 'Flight', hr: 'Let' },
+    route:        { en: 'Route', hr: 'Ruta' },
+    fldate:       { en: 'Date', hr: 'Datum' },
+    booking:      { en: 'Booking reference', hr: 'Broj rezervacije' },
     departs:      { en: 'Departs', hr: 'Polazak' },
     arrives:      { en: 'Arrives', hr: 'Dolazak' },
     transfer:     { en: 'Transfer & who meets you', hr: 'Prijevoz i tko vas dočekuje' },
@@ -4771,12 +4850,18 @@ function renderSpeakerPage(payload, token) {
     if (Array.isArray(it.flights) && it.flights.length) {
         let cards = '';
         it.flights.forEach(f => {
-            const dirObj = String(f.direction || '').toLowerCase().startsWith('dep') ? SPK_I18N.departure : SPK_I18N.arrival;
+            // The payload is already normalised, so the outbound leg reads "Odlazni let"
+            // instead of every card claiming to be the arrival.
+            const dirObj = f.direction === 'departure' ? SPK_I18N.departure : SPK_I18N.arrival;
+            const flLine = (labelObj, value) => `<div class="fl-line"><span class="lbl" ${dataLang(labelObj)}>${pick(labelObj)}</span>: ${escapeHtml(value)}</div>`;
             const lines = [];
-            if (f.airline || f.flight_number) lines.push(`<div class="fl-line"><span class="lbl" ${dataLang(SPK_I18N.airline)}>${pick(SPK_I18N.airline)}</span>: ${escapeHtml([f.airline, f.flight_number].filter(Boolean).join(' '))}</div>`);
-            if (f.depart_airport || f.depart_time) lines.push(`<div class="fl-line"><span class="lbl" ${dataLang(SPK_I18N.departs)}>${pick(SPK_I18N.departs)}</span>: ${escapeHtml([f.depart_airport, f.depart_time].filter(Boolean).join(' · '))}</div>`);
-            if (f.arrive_airport || f.arrive_time) lines.push(`<div class="fl-line"><span class="lbl" ${dataLang(SPK_I18N.arrives)}>${pick(SPK_I18N.arrives)}</span>: ${escapeHtml([f.arrive_airport, f.arrive_time].filter(Boolean).join(' · '))}</div>`);
-            if (f.notes) lines.push(`<div class="fl-line"><span class="lbl" ${dataLang(SPK_I18N.transfer)}>${pick(SPK_I18N.transfer)}</span>: ${escapeHtml(f.notes)}</div>`);
+            if (f.airline || f.flight_number) lines.push(flLine(SPK_I18N.airline, [f.airline, f.flight_number].filter(Boolean).join(' ')));
+            if (f.from || f.to) lines.push(flLine(SPK_I18N.route, [f.from, f.to].filter(Boolean).join(' → ')));
+            if (f.date) lines.push(flLine(SPK_I18N.fldate, f.date));
+            if (f.from || f.depart_time) lines.push(flLine(SPK_I18N.departs, [f.from, f.depart_time].filter(Boolean).join(' · ')));
+            if (f.to || f.arrive_time) lines.push(flLine(SPK_I18N.arrives, [f.to, f.arrive_time].filter(Boolean).join(' · ')));
+            if (f.booking_ref) lines.push(flLine(SPK_I18N.booking, f.booking_ref));
+            if (f.notes) lines.push(flLine(SPK_I18N.transfer, f.notes));
             cards += `<div class="card">
                 <div class="card-name"><span ${dataLang(dirObj)}>${pick(dirObj)}</span></div>
                 ${lines.join('')}
@@ -4908,7 +4993,7 @@ function renderSpeakerPage(payload, token) {
     </div>
     <div class="sp-name serif">${escapeHtml(it.speaker_name)}</div>
     ${it.speaker_title ? `<div class="sp-title">${escapeHtml(it.speaker_title)}</div>` : ''}
-    <div class="ev-line"><strong>${escapeHtml(it.event_name)}</strong>${it.event_dates_en ? ' · <span id="ev-dates">' + escapeHtml(it.event_dates_en) + '</span>' : ''}${it.venue_line ? '<br>' + escapeHtml(it.venue_line) : ''}</div>
+    <div class="ev-line"><strong>${escapeHtml(it.event_name)}</strong>${it.event_dates_en ? ' · <span id="ev-dates" ' + dataLang({ en: it.event_dates_en, hr: it.event_dates_hr || it.event_dates_en }) + '>' + escapeHtml(lang === 'hr' ? (it.event_dates_hr || it.event_dates_en) : it.event_dates_en) + '</span>' : ''}${it.venue_line ? '<br>' + escapeHtml(it.venue_line) : ''}</div>
   </header>
   <main>
     <div class="section-title" id="glance-title" ${dataLang(SPK_I18N.glance)}>${pick(SPK_I18N.glance)}</div>
@@ -24749,6 +24834,11 @@ By applying to this program, I provide the following consents:
         return uri ? `<img src="${uri}" alt="Med&amp;X" style="height:34px;width:auto;display:block;">` : '';
     }
 
+    // Every string on the finance printables (company details, counterparty name and
+    // address, line-item descriptions, notes, footer) is typed by an admin and was
+    // interpolated raw into the HTML. Escape all of them — these documents leave the building.
+    const finEsc = (v) => escapeHtml(v == null ? '' : String(v));
+
     // Generate invoice PDF
     app.get('/api/finance/invoices/:id/pdf', auth, adminOnly, async (req, res) => {
         const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
@@ -24788,22 +24878,22 @@ By applying to this program, I provide the following consents:
         <div class="logo">${financeLogoImg()}</div>
         <div class="invoice-title">
             ${invoice.direction === 'incoming' ? 'INCOMING INVOICE' : 'OUTGOING INVOICE'}<br>
-            <span style="font-size: 14px; color: #666;">${invoice.invoice_number}</span>
+            <span style="font-size: 14px; color: #666;">${finEsc(invoice.invoice_number)}</span>
         </div>
     </div>
 
     <div class="parties">
         <div class="party">
             <div class="party-label">From:</div>
-            <strong>${settings.company_name || 'Med&X'}</strong><br>
-            ${settings.company_address || ''}<br>
-            ${settings.company_oib ? 'Tax ID: ' + settings.company_oib : ''}
+            <strong>${finEsc(settings.company_name || 'Med&X')}</strong><br>
+            ${finEsc(settings.company_address || '')}<br>
+            ${settings.company_oib ? 'Tax ID: ' + finEsc(settings.company_oib) : ''}
         </div>
         <div class="party">
             <div class="party-label">To:</div>
-            <strong>${invoice.party_name}</strong><br>
-            ${invoice.party_address || ''}<br>
-            ${invoice.party_oib ? 'Tax ID: ' + invoice.party_oib : ''}
+            <strong>${finEsc(invoice.party_name)}</strong><br>
+            ${finEsc(invoice.party_address || '')}<br>
+            ${invoice.party_oib ? 'Tax ID: ' + finEsc(invoice.party_oib) : ''}
         </div>
     </div>
 
@@ -24821,11 +24911,11 @@ By applying to this program, I provide the following consents:
         <tbody>
             ${items.map(item => `
                 <tr>
-                    <td>${item.description}</td>
-                    <td class="text-right">${item.quantity}</td>
+                    <td>${finEsc(item.description)}</td>
+                    <td class="text-right">${finEsc(item.quantity)}</td>
                     <td class="text-right">${item.unit_price.toFixed(2)} EUR</td>
-                    <td class="text-right">${item.discount_percent > 0 ? item.discount_percent + '%' : '-'}</td>
-                    <td class="text-right">${item.vat_rate > 0 ? item.vat_rate + '%' : '-'}</td>
+                    <td class="text-right">${item.discount_percent > 0 ? finEsc(item.discount_percent) + '%' : '-'}</td>
+                    <td class="text-right">${item.vat_rate > 0 ? finEsc(item.vat_rate) + '%' : '-'}</td>
                     <td class="text-right">${item.line_total.toFixed(2)} EUR</td>
                 </tr>
             `).join('')}
@@ -24840,11 +24930,11 @@ By applying to this program, I provide the following consents:
     </div>
 
     <div class="footer">
-        <p><strong>Issue Date:</strong> ${invoice.issue_date || '-'}</p>
-        <p><strong>Payment Due:</strong> ${invoice.due_date || '-'}</p>
-        ${settings.company_iban ? `<p><strong>IBAN:</strong> ${settings.company_iban}</p>` : ''}
-        ${invoice.notes ? `<p><strong>Notes:</strong> ${invoice.notes}</p>` : ''}
-        <p style="margin-top: 20px; color: #666;">${settings.invoice_footer || ''}</p>
+        <p><strong>Issue Date:</strong> ${finEsc(invoice.issue_date || '-')}</p>
+        <p><strong>Payment Due:</strong> ${finEsc(invoice.due_date || '-')}</p>
+        ${settings.company_iban ? `<p><strong>IBAN:</strong> ${finEsc(settings.company_iban)}</p>` : ''}
+        ${invoice.notes ? `<p><strong>Notes:</strong> ${finEsc(invoice.notes)}</p>` : ''}
+        <p style="margin-top: 20px; color: #666;">${finEsc(settings.invoice_footer || '')}</p>
     </div>
 </body>
 </html>`;
@@ -25153,24 +25243,24 @@ By applying to this program, I provide the following consents:
         <div class="logo">${financeLogoImg()}</div>
         <div class="title">
             TRAVEL ORDER<br>
-            <span style="font-size: 14px; color: #666;">${order.order_number}</span><br>
-            <span class="status-badge status-${order.status}">${order.status.toUpperCase()}</span>
+            <span style="font-size: 14px; color: #666;">${finEsc(order.order_number)}</span><br>
+            <span class="status-badge status-${finEsc(order.status)}">${finEsc(String(order.status || '').toUpperCase())}</span>
         </div>
     </div>
 
     <div class="section">
         <div class="section-title">Traveler Information</div>
-        <div class="row"><span class="label">Full Name:</span><span class="value">${order.traveler_name}</span></div>
-        <div class="row"><span class="label">Destination:</span><span class="value">${order.destination}</span></div>
-        <div class="row"><span class="label">Purpose of Travel:</span><span class="value">${order.purpose || '-'}</span></div>
+        <div class="row"><span class="label">Full Name:</span><span class="value">${finEsc(order.traveler_name)}</span></div>
+        <div class="row"><span class="label">Destination:</span><span class="value">${finEsc(order.destination)}</span></div>
+        <div class="row"><span class="label">Purpose of Travel:</span><span class="value">${finEsc(order.purpose || '-')}</span></div>
     </div>
 
     <div class="section">
         <div class="section-title">Dates</div>
-        <div class="row"><span class="label">Planned Departure:</span><span class="value">${order.planned_departure || '-'}</span></div>
-        <div class="row"><span class="label">Planned Return:</span><span class="value">${order.planned_return || '-'}</span></div>
-        <div class="row"><span class="label">Actual Departure:</span><span class="value">${order.actual_departure || '-'}</span></div>
-        <div class="row"><span class="label">Actual Return:</span><span class="value">${order.actual_return || '-'}</span></div>
+        <div class="row"><span class="label">Planned Departure:</span><span class="value">${finEsc(order.planned_departure || '-')}</span></div>
+        <div class="row"><span class="label">Planned Return:</span><span class="value">${finEsc(order.planned_return || '-')}</span></div>
+        <div class="row"><span class="label">Actual Departure:</span><span class="value">${finEsc(order.actual_departure || '-')}</span></div>
+        <div class="row"><span class="label">Actual Return:</span><span class="value">${finEsc(order.actual_return || '-')}</span></div>
     </div>
 
     <div class="section">
@@ -25185,10 +25275,10 @@ By applying to this program, I provide the following consents:
             ${order.advance_amount > 0 ? `<tr><td>Advance Payment</td><td class="text-right">-${order.advance_amount.toFixed(2)}</td></tr>` : ''}
             ${order.advance_amount > 0 ? `<tr class="total-row"><td>Amount Due</td><td class="text-right">${((order.cost_total || 0) - (order.advance_amount || 0)).toFixed(2)}</td></tr>` : ''}
         </table>
-        ${order.kilometers > 0 ? `<p>Distance traveled: ${order.kilometers} km (${settings.travel_km_rate || '0.40'} EUR/km)</p>` : ''}
+        ${order.kilometers > 0 ? `<p>Distance traveled: ${finEsc(order.kilometers)} km (${finEsc(settings.travel_km_rate || '0.40')} EUR/km)</p>` : ''}
     </div>
 
-    ${order.traveler_notes ? `<div class="section"><div class="section-title">Traveler Notes</div><p>${order.traveler_notes}</p></div>` : ''}
+    ${order.traveler_notes ? `<div class="section"><div class="section-title">Traveler Notes</div><p>${finEsc(order.traveler_notes)}</p></div>` : ''}
 
     <div class="signature">
         <div class="sig-block">
