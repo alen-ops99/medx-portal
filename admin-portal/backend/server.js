@@ -25542,8 +25542,8 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     <title>Račun ${invoice.invoice_number}</title>
     <style>
         body { font-family: Arial, sans-serif; font-size: 12px; padding: 40px; max-width: 800px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
-        .logo { font-size: 24px; font-weight: bold; color: #c9a962; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+        .logo img { height: 34px; width: auto; display: block; }
         .invoice-title { font-size: 20px; font-weight: bold; text-align: right; }
         .parties { display: flex; justify-content: space-between; margin-bottom: 30px; }
         .party { width: 45%; }
@@ -25569,7 +25569,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     <button class="print-btn" onclick="window.print()">🖨 Ispis / Print</button>
 
     <div class="header">
-        <div class="logo">Med&X</div>
+        <div class="logo"><img src="${PRESS_LOGO_DATA_URI}" alt="Med&amp;X" height="34"></div>
         <div class="invoice-title">
             ${invoice.direction === 'incoming' ? 'ULAZNI RAČUN' : 'RAČUN'}<br>
             <span style="font-size: 14px; color: #666;">${invoice.invoice_number}</span>
@@ -25633,7 +25633,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 </body>
 </html>`;
 
-        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number}.html"`);
         res.send(html);
     });
@@ -25928,7 +25928,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     <style>
         body { font-family: Arial, sans-serif; font-size: 12px; padding: 40px; max-width: 800px; margin: 0 auto; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #c9a962; padding-bottom: 20px; }
-        .logo { font-size: 24px; font-weight: bold; color: #c9a962; }
+        .logo img { height: 34px; width: auto; display: block; }
         .title { font-size: 18px; font-weight: bold; text-align: right; }
         .section { margin: 20px 0; }
         .section-title { font-weight: bold; color: #333; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
@@ -25960,7 +25960,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     <button class="print-btn" onclick="window.print()">🖨 Ispis / Print</button>
 
     <div class="header">
-        <div class="logo">Med&X</div>
+        <div class="logo"><img src="${PRESS_LOGO_DATA_URI}" alt="Med&amp;X" height="34"></div>
         <div class="title">
             PUTNI NALOG<br>
             <span style="font-size: 14px; color: #666;">${order.order_number}</span><br>
@@ -26017,7 +26017,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 </body>
 </html>`;
 
-        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Content-Disposition', `inline; filename="${order.order_number}.html"`);
         res.send(html);
     });

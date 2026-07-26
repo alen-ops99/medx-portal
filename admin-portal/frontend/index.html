@@ -33663,24 +33663,31 @@ By applying to this program, I give the following consents:
                 return res.json();
             },
 
-            async downloadPdf(url, filename) {
+            // Račun and Putni nalog are print documents: the server returns an A4-styled HTML
+            // page (Content-Disposition: inline) carrying its own "Ispis / Print" button. Saving
+            // that response under a .pdf name produced a file that no PDF reader could open, so
+            // open it as a printable window instead and let the browser print/save it as PDF.
+            async openPrintable(url, title) {
+                let win = null;
                 try {
+                    win = window.open('', '_blank');
                     const response = await fetch(url, {
                         headers: { 'Authorization': `Bearer ${App.token}` }
                     });
-                    if (!response.ok) throw new Error(`Download failed (${response.status})`);
-                    const blob = await response.blob();
-                    const blobUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = blobUrl;
-                    a.download = filename || 'document.pdf';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(blobUrl);
+                    if (!response.ok) throw new Error(`Failed to open (${response.status})`);
+                    const html = await response.text();
+                    if (!win) {
+                        Toast.error('Allow pop-ups for this site to open the document.');
+                        return;
+                    }
+                    win.document.open();
+                    win.document.write(html);
+                    win.document.close();
+                    if (title) { try { win.document.title = title; } catch (e) {} }
                 } catch (err) {
-                    console.error('PDF download failed:', err);
-                    Toast.error('Failed to download PDF: ' + err.message);
+                    if (win) { try { win.close(); } catch (e) {} }
+                    console.error('Printable open failed:', err);
+                    Toast.error('Failed to open document: ' + err.message);
                 }
             },
 
@@ -34130,7 +34137,7 @@ By applying to this program, I give the following consents:
                             </span>
                         </td>
                         <td style="padding: 12px; text-align: center;">
-                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.downloadPdf('/api/finance/invoices/${inv.id}/pdf', 'invoice-${inv.invoice_number}.pdf')" title="View PDF"><i class="fas fa-file-pdf"></i></button>
+                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.openPrintable('/api/finance/invoices/${inv.id}/pdf', 'Račun ${inv.invoice_number}')" title="Open invoice (print / save as PDF)"><i class="fas fa-file-pdf"></i></button>
                             ${inv.status === 'draft' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.issueInvoice('${inv.id}')" title="Issue"><i class="fas fa-paper-plane"></i></button>` : ''}
                             ${inv.status === 'issued' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.markInvoicePaid('${inv.id}')" title="Mark Paid"><i class="fas fa-check"></i></button>` : ''}
                             <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>
@@ -34399,7 +34406,7 @@ By applying to this program, I give the following consents:
                             </td>
                             <td style="padding: 12px; text-align: center;">
                                 <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.viewTravelOrder('${to.id}')" title="View"><i class="fas fa-eye"></i></button>
-                                <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.downloadPdf('/api/finance/travel-orders/${to.id}/pdf', 'travel-order-${escapeHtml(to.order_number)}.pdf')" title="PDF"><i class="fas fa-file-pdf"></i></button>
+                                <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.openPrintable('/api/finance/travel-orders/${to.id}/pdf', 'Putni nalog ${escapeHtml(to.order_number)}')" title="Open travel order (print / save as PDF)"><i class="fas fa-file-pdf"></i></button>
                             </td>
                         </tr>
                     `;
