@@ -1649,6 +1649,23 @@
             border-color: rgba(21, 17, 15, 0.12);
         }
 
+        /* A data table wider than its card used to PAINT past the card's right border, over the
+           page background and under the floating action buttons — the Invoices "Issue Date" column
+           and the Subscribers "Status" column both hung outside the card. Only the page scrolled,
+           so the columns were reachable but the card looked broken. This bites whenever the content
+           column is narrow, which is the default: the Team Chat rail takes 340px, leaving 570px at
+           1280 wide and 840px at 1440, against 800-1080px tables.
+           Scoped with :has() to cards that actually contain a table — no table card has an absolute
+           or sticky descendant, so nothing can be clipped by this, and cards holding menus or
+           popovers are left alone. Browsers without :has() simply keep the old behaviour.
+           Setting overflow-x makes overflow-y compute to auto too, which is harmless here: these
+           cards are content-sized, so scrollHeight never exceeds clientHeight and no vertical
+           scrollbar appears (verified across every table section at 1280 and 1440). */
+        main.main .card:has(table) {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
         .card-header {
             padding: 20px;
             border-bottom: 1px solid var(--border);
@@ -4884,7 +4901,13 @@
             position: relative;
             background: var(--bg-tertiary);
             border-radius: 12px;
-            overflow: hidden;
+            /* The grid is 60px + one minmax(140px,1fr) column per room, so six rooms need 900px.
+               `overflow: hidden` silently cut the right-hand rooms off (Terrace was unreachable at
+               1440 wide with the chat rail open, and worse at 1280). Scroll instead of clip — same
+               contract as every other wide table in the admin. */
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
         }
         .schedule-grid-header {
             display: contents;
@@ -13830,6 +13853,12 @@ President, Med&amp;X</textarea>
                     #section-year-calendar .yc-bar{position:absolute;top:4px;bottom:4px;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:10.5px;font-weight:700;color:#fff;cursor:pointer;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.12);}
                     #section-year-calendar .yc-bar:hover{filter:brightness(1.05);box-shadow:0 2px 6px rgba(0,0,0,.18);}
                     #section-year-calendar .yc-bar.potential{background:transparent!important;border:1.5px dashed;box-shadow:none;}
+                    /* A single-day entry is ~2.4% of the track (about 20px). "4 Dec–5 Dec" needs 80px,
+                       so the in-bar label rendered as clipped garbage ("4", "1 S", "5 D"). The row's
+                       left column already prints the full range, and the bar keeps its title tooltip,
+                       so drop the unreadable stub instead of cutting a word in half. */
+                    #section-year-calendar .yc-bar.yc-bar-narrow{padding:0;}
+                    #section-year-calendar .yc-bar.yc-bar-narrow .yc-barlabel{display:none;}
                     #section-year-calendar .yc-empty{padding:24px;text-align:center;color:var(--text-muted);font-size:13px;}
                     #section-year-calendar .yc-live{margin:4px 0 8px;}
                     #section-year-calendar .yc-live h3{font-size:13px;margin:0 0 8px;color:var(--text-secondary);display:flex;align-items:center;gap:8px;font-weight:600;}
@@ -20943,6 +20972,12 @@ President, Med&amp;X</textarea>
 
             // ===== NAVIGATION =====
             showSection(sectionId, navItem, skipHistory = false) {
+                // 'outbox' is a sidebar entry, not a section: the approval outbox lives at the top of
+                // Email Registrants and is opened by openOutbox(). There is no #section-outbox, so any
+                // caller that went through showSection (the assistant deep link, an Executive Suite
+                // link, a stale #outbox hash) silently landed on the Dashboard while the breadcrumb
+                // still read "Home > Outbox". Route the alias to the real view.
+                if (sectionId === 'outbox') return this.openOutbox(navItem);
                 // Per-admin permissions: deep links, Cmd+K and stale UI can still target a locked
                 // section — land on the clean locked state instead (the server 403s regardless).
                 if (!this.hasSectionAccess(sectionId)) return this.showLockedSection(sectionId);
@@ -21028,14 +21063,28 @@ President, Med&amp;X</textarea>
                 // Project rows are a second kind of sidebar entry — clearing only .nav-item left the
                 // last-opened project highlighted forever, so two rows read as "current".
                 document.querySelectorAll('.sidebar-project.active').forEach(n => n.classList.remove('active'));
-                if (navItem) navItem.classList.add('active');
-                else document.querySelector('.nav-item').classList.add('active');
-
-                // Item 11: the merged Message members screen has one sidebar entry (data-section=announce);
-                // keep it lit when either tab-section opens programmatically (cmd palette, quick actions).
-                if (!navItem && (sectionId === 'user-notifications' || sectionId === 'announce')) {
-                    document.querySelector('.nav-item').classList.remove('active');
-                    document.querySelector('.nav-item[data-section=member-ops]')?.classList.add('active');
+                // Callers that pass no navItem — hub tiles, Cmd+K, breadcrumbs, the assistant's deep
+                // links, a #hash on load — used to fall straight through to querySelector('.nav-item'),
+                // which is Home. So opening Gala from a dashboard tile lit "Home" and left it lit, and
+                // the sidebar disagreed with the breadcrumb on every one of those routes. Resolve the
+                // entry the section actually owns first, then its project row, and only fall back to
+                // Home for the dashboard itself.
+                if (navItem) {
+                    navItem.classList.add('active');
+                } else {
+                    const own = document.querySelector('.nav-item[data-section="' + sectionId + '"]');
+                    // A hub-tile destination has no sidebar anchor of its own; the project home that
+                    // links to it is the owning project, and the tile markup already says so, so no
+                    // second map has to be kept in step.
+                    const tile = document.querySelector('[id^="section-home-"] [data-home-tile="sec:' + sectionId + '"]');
+                    const owner = tile ? (tile.closest('[id^="section-home-"]').id || '').replace('section-home-', '')
+                                       : (this.NAV_TO_PERM && this.NAV_TO_PERM[sectionId]);
+                    const projectRow = owner && document.querySelector('#projectsList [data-project="' + owner + '"]');
+                    const ownerNav = owner && document.querySelector('.nav-item[data-section="' + owner + '"]');
+                    if (own && own.style.display !== 'none') own.classList.add('active');
+                    else if (projectRow) projectRow.classList.add('active');
+                    else if (ownerNav && ownerNav.style.display !== 'none') ownerNav.classList.add('active');
+                    else if (sectionId === 'dashboard') document.querySelector('.nav-item').classList.add('active');
                 }
 
                 // The nav is far taller than the rail — scroll the lit entry into view so the
@@ -35283,8 +35332,12 @@ By applying to this program, I give the following consents:
             },
 
             closePanel() {
-                document.getElementById('networkPanel').classList.remove('open');
-                document.getElementById('networkOverlay').style.display = 'none';
+                // Null-guarded like openPanel above: this now also runs from the navigation
+                // leave-hook, so it must never throw on a page where the panel isn't in the DOM.
+                const panel = document.getElementById('networkPanel');
+                if (panel) panel.classList.remove('open');
+                const overlay = document.getElementById('networkOverlay');
+                if (overlay) overlay.style.display = 'none';
             },
 
             async loadContacts() {
@@ -44293,7 +44346,7 @@ By applying to this program, I give the following consents:
                             +   '<div class="yc-sub" title="'+this.esc(sub)+'">'+this.esc(this.rangeLabel(e))+(sub?' — '+this.esc(sub):'')+'</div>'
                             + '</div>'
                             + '<div class="yc-track">'
-                            +   '<div class="yc-bar '+(potential?'potential':'')+'" style="'+style+'" onclick="CalendarApp.editEntry(\''+e.id+'\')" title="'+this.esc(e.title)+' — click to edit">'
+                            +   '<div class="yc-bar '+(potential?'potential':'')+(width < 7 ? ' yc-bar-narrow' : '')+'" style="'+style+'" onclick="CalendarApp.editEntry(\''+e.id+'\')" title="'+this.esc(e.title)+' — '+this.esc(barText)+' — click to edit">'
                             +     '<span class="yc-barlabel">'+this.esc(barText)+'</span>'
                             +   '</div>'
                             + '</div>'
@@ -53942,9 +53995,21 @@ By applying to this program, I give the following consents:
             _csLeaveShowSection.call(this, sectionId, navItem, skipHistory);
         };
 
+        // My Network is a slide-over with a full-screen dimming overlay (#networkOverlay,
+        // position:fixed, z-index 1000). Nothing closed it on navigation, so opening it and then
+        // picking any sidebar entry left the overlay sitting on top of the new section: the chat
+        // FAB stack was unreachable and no button in the main column could be clicked until the
+        // admin happened to click the dim. Same leave-hook contract as Content studio above.
+        const _netLeaveShowSection = App.showSection;
+        App.showSection = function(sectionId, navItem, skipHistory) {
+            try { if (typeof NetworkApp !== 'undefined' && NetworkApp.closePanel) NetworkApp.closePanel(); } catch (e) {}
+            _netLeaveShowSection.call(this, sectionId, navItem, skipHistory);
+        };
+
         // Hook breadcrumbs into showProjectHome (project home pages)
         const _origShowProjectHome = App.showProjectHome;
         App.showProjectHome = function(projectId, navItem, skipHistory) {
+            try { if (typeof NetworkApp !== 'undefined' && NetworkApp.closePanel) NetworkApp.closePanel(); } catch (e) {}
             _origShowProjectHome.call(this, projectId, navItem, skipHistory);
             Breadcrumbs.update('home-' + projectId);
         };
@@ -53952,6 +54017,7 @@ By applying to this program, I give the following consents:
         // Hook breadcrumbs into showProject
         const _origShowProject = App.showProject;
         App.showProject = function(projectId, navItem, skipHistory) {
+            try { if (typeof NetworkApp !== 'undefined' && NetworkApp.closePanel) NetworkApp.closePanel(); } catch (e) {}
             _origShowProject.call(this, projectId, navItem, skipHistory);
             Breadcrumbs.update(projectId);
         };
