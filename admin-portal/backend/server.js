@@ -36727,33 +36727,48 @@ ${extraCss || ''}
     }
 
     // Roll-up banner (85x200 or 100x200 cm). Prefilled + editable; full-bleed navy with gold rules.
-    function psBannerDoc(sizeKey, fields, logoSrc, sponsors, images) {
+    // Optional Design-studio `tokens` re-theme the artwork (preset colors, curated accent, logo
+    // variant + scale, font scale, show/hide flags, frame style, background photo with an automatic
+    // dark scrim). No tokens -> the legacy navy/gold artwork, unchanged.
+    function psBannerDoc(sizeKey, fields, logoSrc, sponsors, images, tokens) {
         const dims = sizeKey === '85x200' ? { w: 850, h: 2000 } : { w: 1000, h: 2000 };
         const f = fields || {};
+        const th = dsBannerTheme(tokens);
+        const fs = th.fs, pt = (n) => Math.round(n * fs * 10) / 10;
         const speakers = Array.isArray(f.speakers) ? f.speakers.filter(Boolean).slice(0, 8) : [];
         let logoTag = '';
-        if (logoSrc) { logoTag = `<img src="${logoSrc}" style="height:90mm;width:auto;" alt="Med&X">`; if (images) images.push({ label: 'Banner logo', px: f._logoPx || null, printWmm: 300 }); }
+        if (logoSrc) { logoTag = `<img src="${logoSrc}" style="height:${Math.round(90 * th.ls)}mm;width:auto;" alt="Med&X">`; if (images) images.push({ label: 'Banner logo', px: f._logoPx || null, printWmm: Math.round(300 * th.ls) }); }
         let sponsorRow = '';
         if (sponsors && sponsors.length) {
+            const spFilter = th.dark ? 'filter:brightness(0) invert(1);opacity:.92;' : 'opacity:.9;';
             const cells = sponsors.slice(0, 6).map((s, i) => {
-                if (s.src) { if (images) images.push({ label: 'Sponsor logo ' + (i + 1) + (s.name ? ' (' + s.name + ')' : ''), px: s.px || null, printWmm: 120 }); return `<img src="${s.src}" style="max-height:55mm;max-width:150mm;object-fit:contain;filter:brightness(0) invert(1);opacity:.92;" alt="${psEsc(s.name || '')}">`; }
-                return `<div class="ps-serif" style="font-size:26pt;color:${PS_PAL.goldLight};">${psEsc(s.name || '')}</div>`;
+                if (s.src) { if (images) images.push({ label: 'Sponsor logo ' + (i + 1) + (s.name ? ' (' + s.name + ')' : ''), px: s.px || null, printWmm: 120 }); return `<img src="${s.src}" style="max-height:55mm;max-width:150mm;object-fit:contain;${spFilter}" alt="${psEsc(s.name || '')}">`; }
+                return `<div class="ps-serif" style="font-size:26pt;color:${th.date};">${psEsc(s.name || '')}</div>`;
             }).join('');
-            sponsorRow = `<div style="margin-top:34mm;"><div style="font-size:16pt;letter-spacing:.26em;text-transform:uppercase;color:${PS_PAL.muted};text-align:center;margin-bottom:14mm;">${psEsc(f.sponsorLabel || 'With the support of')}</div><div style="display:flex;flex-wrap:wrap;gap:26mm;align-items:center;justify-content:center;">${cells}</div></div>`;
+            sponsorRow = `<div style="margin-top:34mm;"><div style="font-size:16pt;letter-spacing:.26em;text-transform:uppercase;color:${th.featLabel};text-align:center;margin-bottom:14mm;">${psEsc(f.sponsorLabel || 'With the support of')}</div><div style="display:flex;flex-wrap:wrap;gap:26mm;align-items:center;justify-content:center;">${cells}</div></div>`;
         }
-        const detailBlock = `${speakers.length ? `<div style="margin-bottom:26mm;"><div style="font-size:15pt;letter-spacing:.26em;text-transform:uppercase;color:${PS_PAL.muted};margin-bottom:12mm;">Featuring</div>${speakers.map(s => `<div class="ps-serif" style="font-size:26pt;color:#eef2f7;margin-bottom:6mm;">${psEsc(s)}</div>`).join('')}</div>` : ''}${sponsorRow}`;
-        const body = `<div class="ps-page"><div style="position:absolute;inset:0;background:linear-gradient(180deg,${PS_PAL.navy},${PS_PAL.navy2});"></div>
-            <div style="position:absolute;inset:${PS_BLEED}mm;padding:60mm 55mm;display:flex;flex-direction:column;align-items:center;text-align:center;color:#fff;">
+        const detailBlock = `${speakers.length ? `<div style="margin-bottom:26mm;"><div style="font-size:15pt;letter-spacing:.26em;text-transform:uppercase;color:${th.featLabel};margin-bottom:12mm;">Featuring</div>${speakers.map(s => `<div class="ps-serif" style="font-size:26pt;color:${th.feat};margin-bottom:6mm;">${psEsc(s)}</div>`).join('')}</div>` : ''}${sponsorRow}`;
+        // Background photo (if any) collects a DPI warning at full banner width.
+        if (th.photoPx && images) images.push({ label: 'Background photo', px: th.photoPx, printWmm: dims.w });
+        const frameDress = th.frame === 'hairline'
+            ? `<div style="position:absolute;inset:14mm;border:0.5mm solid ${dsRgba(th.accent, 0.55)};"></div><div style="position:absolute;inset:19mm;border:0.2mm solid ${dsRgba(th.accent, 0.35)};"></div>`
+            : (th.frame === 'band'
+                ? `<div style="position:absolute;left:0;right:0;top:0;height:14mm;background:linear-gradient(90deg,${th.accDeep},${th.accent},${th.accDeep});"></div><div style="position:absolute;left:0;right:0;bottom:0;height:14mm;background:linear-gradient(90deg,${th.accDeep},${th.accent},${th.accDeep});"></div>`
+                : '');
+        const body = `<div class="ps-page"><div style="position:absolute;inset:0;background:${th.photoSrc ? `url('${th.photoSrc}') center/cover no-repeat` : th.bgCss};"></div>
+            ${th.photoSrc ? `<div style="position:absolute;inset:0;background:${th.scrimCss};"></div>` : ''}
+            ${frameDress}
+            <div style="position:absolute;inset:${PS_BLEED}mm;padding:60mm 55mm;display:flex;flex-direction:column;align-items:center;text-align:center;color:${th.dark ? '#fff' : th.headline};">
                 <div style="margin-bottom:18mm;">${logoTag}</div>
-                <div style="width:60mm;border-top:0.6mm solid ${PS_PAL.gold};margin-bottom:24mm;"></div>
-                ${f.eyebrow ? `<div style="font-size:20pt;letter-spacing:.3em;text-transform:uppercase;color:${PS_PAL.gold};margin-bottom:18mm;">${psEsc(f.eyebrow)}</div>` : ''}
-                <div class="ps-serif" style="font-size:84pt;font-weight:700;line-height:1.03;margin-bottom:22mm;">${psEsc(f.headline || 'Med&X')}</div>
-                ${f.dateLine ? `<div class="ps-serif" style="font-size:40pt;color:${PS_PAL.goldLight};margin-bottom:8mm;">${psEsc(f.dateLine)}</div>` : ''}
-                ${f.venueLine ? `<div style="font-size:26pt;color:#dfe6ef;margin-bottom:10mm;">${psEsc(f.venueLine)}</div>` : ''}
-                ${f.sub ? `<div style="font-size:22pt;color:#c7d0dc;max-width:640mm;line-height:1.4;margin-top:6mm;">${psEsc(f.sub)}</div>` : ''}
+                <div style="width:60mm;border-top:0.6mm solid ${th.rule};margin-bottom:24mm;"></div>
+                ${(f.eyebrow && th.show.badge) ? `<div style="font-size:${pt(20)}pt;letter-spacing:.3em;text-transform:uppercase;color:${th.eyebrow};margin-bottom:18mm;">${psEsc(f.eyebrow)}</div>` : ''}
+                <div class="ps-serif" style="font-size:${pt(84)}pt;font-weight:700;line-height:1.03;margin-bottom:22mm;color:${th.headline};">${psEsc(f.headline || 'Med&X')}</div>
+                ${(f.dateLine && th.show.date) ? `<div class="ps-serif" style="font-size:${pt(40)}pt;color:${th.date};margin-bottom:8mm;">${psEsc(f.dateLine)}</div>` : ''}
+                ${(f.venueLine && th.show.venue) ? `<div style="font-size:${pt(26)}pt;color:${th.venue};margin-bottom:10mm;">${psEsc(f.venueLine)}</div>` : ''}
+                ${f.sub ? `<div style="font-size:${pt(22)}pt;color:${th.sub};max-width:640mm;line-height:1.4;margin-top:6mm;">${psEsc(f.sub)}</div>` : ''}
                 <div style="flex:1;"></div>
                 ${detailBlock}
-                <div style="padding-top:14mm;border-top:0.4mm solid rgba(201,169,98,.4);width:120mm;font-size:24pt;letter-spacing:.14em;color:${PS_PAL.gold};margin-top:8mm;">${psEsc(f.cta || 'medx.hr')}</div>
+                <div style="padding-top:14mm;border-top:0.4mm solid ${th.ruleSoft};width:120mm;font-size:${pt(24)}pt;letter-spacing:.14em;color:${th.cta};margin-top:8mm;">${psEsc(f.cta || 'medx.hr')}</div>
             </div>
             ${psTrimMarksInset()}</div>`;
         return { html: psDoc(dims.w, dims.h, body), pageW: dims.w, pageH: dims.h };
@@ -36806,6 +36821,206 @@ ${extraCss || ''}
         return { src: '', px: null };
     }
 
+    // ==================== DESIGN STUDIO — brand tokens, saved presets, AI assist ====================
+    // One token object fully describes a look for the attendance cards and the roll-up banner:
+    //   { preset, bg, bg2, panel, headline, body, accent, logo_variant, frame_style,
+    //     font_scale, logo_scale, show:{badge,date,venue}, bg_photo, headline_text, sub_text }
+    // The four factory presets are all derived from the Med&X brand board (navy / gold / crimson /
+    // cream / ink). The client keeps an identical table (window.MedxDesign) for the canvas renderers.
+    const DS_PRESETS = {
+        heritage:      { preset: 'heritage',      bg: '#0E2140', bg2: '#0A1730', panel: '#12305A', headline: '#FFFFFF', body: '#F4EAD2', accent: '#C9A227', logo_variant: 'light', frame_style: 'classic' },
+        cream_crimson: { preset: 'cream_crimson', bg: '#FBF6EA', bg2: '#F0E6CC', panel: '#FFFFFF', headline: '#0E2140', body: '#6E6553', accent: '#9B1B22', logo_variant: 'dark',  frame_style: 'hairline' },
+        ink_minimal:   { preset: 'ink_minimal',   bg: '#18150F', bg2: '#0B0A06', panel: '#242019', headline: '#F5EFDF', body: '#B9AE8A', accent: '#C9A227', logo_variant: 'light', frame_style: 'hairline' },
+        gala_gold:     { preset: 'gala_gold',     bg: '#B08A25', bg2: '#7C5E13', panel: '#95721C', headline: '#211A07', body: '#3E3110', accent: '#211A07', logo_variant: 'dark',  frame_style: 'band' }
+    };
+    // Curated accent palette (matches the client picker) — the accent is constrained to this set
+    // plus the preset defaults, never a free color wheel.
+    const DS_ACCENTS = ['#C9A227', '#E6C878', '#9B1B22', '#12305A', '#9C7C1A', '#1F5C3D', '#5C2A47', '#211A07'];
+    function dsHexToRgb(h) { const m = /^#([0-9a-f]{6})$/i.exec(String(h || '').trim()); if (!m) return null; const n = parseInt(m[1], 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; }
+    function dsMix(a, b, k) {
+        const A = dsHexToRgb(a), B = dsHexToRgb(b); if (!A || !B) return a;
+        const c = (x, y) => Math.round(x + (y - x) * k);
+        return '#' + [c(A.r, B.r), c(A.g, B.g), c(A.b, B.b)].map(v => v.toString(16).padStart(2, '0')).join('');
+    }
+    function dsRgba(h, a) { const c = dsHexToRgb(h); return c ? `rgba(${c.r},${c.g},${c.b},${a})` : h; }
+    // Clamp arbitrary client tokens onto the brand system. Returns null for non-objects so legacy
+    // callers (no tokens) keep the untouched artwork.
+    function dsNormalizeTokens(raw) {
+        if (!raw || typeof raw !== 'object') return null;
+        const base = DS_PRESETS[String(raw.preset || '')] || DS_PRESETS.heritage;
+        const hex = (v, d) => { const s = String(v || '').trim(); return /^#[0-9a-fA-F]{6}$/.test(s) ? s : d; };
+        const t = Object.assign({}, base);
+        ['bg', 'bg2', 'panel', 'headline', 'body', 'accent'].forEach(k => { t[k] = hex(raw[k], base[k]); });
+        // accent is constrained to the curated set + the preset defaults
+        const allowed = DS_ACCENTS.concat(Object.values(DS_PRESETS).map(p => p.accent));
+        if (allowed.map(x => x.toLowerCase()).indexOf(t.accent.toLowerCase()) === -1) t.accent = base.accent;
+        t.logo_variant = raw.logo_variant === 'dark' ? 'dark' : (raw.logo_variant === 'light' ? 'light' : base.logo_variant);
+        t.frame_style = ['classic', 'hairline', 'band'].indexOf(String(raw.frame_style)) !== -1 ? String(raw.frame_style) : base.frame_style;
+        const num = (v, d, lo, hi) => { const n = Number(v); return isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+        t.font_scale = num(raw.font_scale, 1, 0.8, 1.3);
+        t.logo_scale = num(raw.logo_scale, 1, 0.6, 1.6);
+        const sh = (raw.show && typeof raw.show === 'object') ? raw.show : {};
+        t.show = { badge: sh.badge !== false, date: sh.date !== false, venue: sh.venue !== false };
+        const ph = String(raw.bg_photo || '').trim();
+        t.bg_photo = (ph.length && ph.length < 500 && /^\/(uploads|resources|assets|photo-library)\//.test(ph) && ph.indexOf('..') === -1) ? ph : '';
+        t.headline_text = String(raw.headline_text || '').slice(0, 120);
+        t.sub_text = String(raw.sub_text || '').slice(0, 160);
+        return t;
+    }
+    // Resolve tokens into the concrete colors psBannerDoc paints with. `null` tokens -> the legacy
+    // navy/gold theme. A background photo forces light-on-dark text under an automatic dark scrim.
+    function dsBannerTheme(tokens) {
+        const th = {
+            dark: true, fs: 1, ls: 1, frame: 'classic', show: { badge: true, date: true, venue: true },
+            bgCss: `linear-gradient(180deg,${PS_PAL.navy},${PS_PAL.navy2})`, scrimCss: '', photoSrc: '', photoPx: null,
+            headline: '#ffffff', eyebrow: PS_PAL.gold, date: PS_PAL.goldLight, venue: '#dfe6ef', sub: '#c7d0dc',
+            rule: PS_PAL.gold, ruleSoft: 'rgba(201,169,98,.4)', cta: PS_PAL.gold, featLabel: PS_PAL.muted, feat: '#eef2f7',
+            accent: PS_PAL.gold, accDeep: '#9a7b2f'
+        };
+        const t = tokens ? dsNormalizeTokens(tokens) : null;
+        if (!t) return th;
+        const dark = t.logo_variant !== 'dark';
+        const accL = dsMix(t.accent, '#FFFFFF', 0.32), accD = dsMix(t.accent, '#000000', 0.28), accP = dsMix(t.accent, '#FFFFFF', 0.6);
+        th.dark = dark; th.fs = t.font_scale; th.ls = t.logo_scale; th.frame = t.frame_style; th.show = t.show;
+        th.accent = t.accent; th.accDeep = accD; th.rule = t.accent; th.ruleSoft = dsRgba(t.accent, 0.4);
+        th.headline = t.headline;
+        th.eyebrow = dark ? accL : accD;
+        th.date = dark ? accL : accD;
+        th.venue = t.body; th.sub = t.body;
+        th.featLabel = dsRgba(t.body, 0.9); th.feat = dark ? '#eef2f7' : t.headline;
+        th.cta = dark ? accL : accD;
+        th.bgCss = `linear-gradient(180deg,${t.bg},${t.bg2})`;
+        if (t.bg_photo) {
+            const im = psImage(t.bg_photo);
+            if (im && im.path && im.src) {
+                th.photoSrc = im.src; th.photoPx = im.px;
+                // Automatic dark scrim (tinted with the preset's deep ground) so text stays legible.
+                const scrimBase = dark ? t.bg2 : '#0A1730';
+                th.scrimCss = `linear-gradient(180deg,${dsRgba(scrimBase, 0.58)},${dsRgba(scrimBase, 0.8)} 55%,${dsRgba(scrimBase, 0.94)})`;
+                th.dark = true;
+                if (!dark) { th.headline = '#FFFFFF'; th.eyebrow = '#E6C878'; th.date = '#E6C878'; th.venue = '#EAE4D4'; th.sub = '#EAE4D4'; th.cta = '#E6C878'; th.feat = '#eef2f7'; th.rule = '#C9A227'; th.ruleSoft = 'rgba(201,162,39,.4)'; }
+                else { th.eyebrow = accP; th.date = accP; }
+            }
+        }
+        return th;
+    }
+    // Named design presets an admin saves from the panel (guarded CREATE — additive, shared schema).
+    try {
+        db.run(`CREATE TABLE IF NOT EXISTS design_presets (
+        id TEXT PRIMARY KEY,
+        artifact TEXT NOT NULL,
+        name TEXT NOT NULL,
+        tokens_json TEXT NOT NULL,
+        created_by TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+    } catch (e) {}
+    app.get('/api/admin/design-presets', auth, adminOnly, (req, res) => {
+        const artifact = String(req.query.artifact || '').slice(0, 24);
+        let rows = [];
+        try {
+            rows = artifact
+                ? query.all('SELECT id, artifact, name, tokens_json, created_at FROM design_presets WHERE artifact = ? ORDER BY created_at DESC LIMIT 40', [artifact])
+                : query.all('SELECT id, artifact, name, tokens_json, created_at FROM design_presets ORDER BY created_at DESC LIMIT 80');
+        } catch (e) { rows = []; }
+        res.json({
+            presets: rows.map(r => { let tk = null; try { tk = dsNormalizeTokens(JSON.parse(r.tokens_json)); } catch (e) {} return { id: r.id, artifact: r.artifact, name: r.name, tokens: tk, created_at: r.created_at }; }).filter(p => p.tokens)
+        });
+    });
+    app.post('/api/admin/design-presets', auth, adminOnly, (req, res) => {
+        const b = req.body || {};
+        const artifact = String(b.artifact || '').trim().toLowerCase().slice(0, 24);
+        const name = String(b.name || '').trim().slice(0, 60);
+        const tokens = dsNormalizeTokens(b.tokens);
+        if (!artifact || !name || !tokens) return res.status(400).json({ error: 'invalid_preset', message: 'artifact, name and tokens are required' });
+        const id = uuidv4();
+        db.run('INSERT INTO design_presets (id, artifact, name, tokens_json, created_by) VALUES (?, ?, ?, ?, ?)',
+            [id, artifact, name, JSON.stringify(tokens), (req.user && req.user.id) || null]);
+        saveDb();
+        try { logAudit(req, 'design.preset.save', artifact + '/' + name); } catch (e) {}
+        res.json({ success: true, id });
+    });
+    app.delete('/api/admin/design-presets/:id', auth, adminOnly, (req, res) => {
+        db.run('DELETE FROM design_presets WHERE id = ?', [String(req.params.id)]);
+        saveDb();
+        res.json({ success: true });
+    });
+    // Deterministic keyword fallback for the AI design assist (also the no-key dev path). Croatian
+    // and English briefs both land: "svečano/zlatno/gala" -> Gala Gold, "tamno/dark/minimal" ->
+    // Ink Minimal, "svijetlo/light/cream/crveno" -> Cream & Crimson, "plavo/navy/classic" -> Heritage.
+    function dsAssistFallback(brief, current) {
+        const b = ' ' + String(brief || '').toLowerCase() + ' ';
+        const fold = b.normalize ? b.normalize('NFD').replace(/[̀-ͯ]/g, '') : b;
+        const hit = (words) => words.some(w => b.indexOf(w) !== -1 || fold.indexOf(w) !== -1);
+        const matched = [];
+        const scores = {
+            gala_gold: ['svecano', 'svečano', 'gala', 'zlatn', 'gold', 'raskos', 'raskoš', 'luxur', 'opulent', 'festiv'].filter(w => hit([w])).length,
+            ink_minimal: ['tamno', 'tamn', 'dark', 'crn', 'black', 'ink', 'minimal', 'noc', 'noć', 'night', 'sleek', 'moder'].filter(w => hit([w])).length,
+            cream_crimson: ['svijetl', 'light', 'bright', 'krem', 'cream', 'crven', 'crimson', 'grimiz', 'red', 'toplo', 'warm', 'papir', 'paper'].filter(w => hit([w])).length,
+            heritage: ['plav', 'navy', 'blue', 'klasi', 'classic', 'heritage', 'bastin', 'baštin', 'tradicij', 'tradition'].filter(w => hit([w])).length
+        };
+        let preset = (current && current.preset) || 'heritage';
+        let best = 0;
+        Object.keys(scores).forEach(k => { if (scores[k] > best) { best = scores[k]; preset = k; } });
+        if (best > 0) matched.push('preset:' + preset);
+        const t = Object.assign({}, current || {}, DS_PRESETS[preset]);
+        // accent keywords override the preset accent (still constrained to the curated set)
+        const accents = [
+            [['crven', 'crimson', 'grimiz', 'red'], '#9B1B22'], [['zelen', 'green', 'forest'], '#1F5C3D'],
+            [['sljiv', 'šljiv', 'plum', 'ljubic', 'ljubič', 'purple'], '#5C2A47'], [['bronc', 'bronz', 'bronze'], '#9C7C1A'],
+            [['sampanj', 'šampanj', 'champagne'], '#E6C878'], [['zlatn', 'gold'], '#C9A227'], [['plav', 'navy', 'blue'], '#12305A']
+        ];
+        // an accent must stay visible on the preset ground — skip overrides that sit too close
+        const dsLuma = (h) => { const c = dsHexToRgb(h); return c ? ((0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255) : 0; };
+        for (const [words, hexv] of accents) {
+            if (hit(words) && hexv.toLowerCase() !== String(t.accent).toLowerCase() && preset !== 'gala_gold'
+                && Math.abs(dsLuma(hexv) - dsLuma(t.bg)) > 0.18) { t.accent = hexv; matched.push('accent:' + hexv); break; }
+        }
+        if (hit(['vece slovo', 'veće', 'vece', 'larger', 'bigger', 'big text', 'veliko'])) { t.font_scale = 1.12; matched.push('font:L'); }
+        if (hit(['manje', 'sitnij', 'smaller', 'small text', 'discreet', 'diskretn'])) { t.font_scale = 0.9; matched.push('font:S'); }
+        if (hit(['bez datuma', 'no date', 'hide date'])) { t.show = Object.assign({}, t.show, { date: false }); matched.push('hide:date'); }
+        if (hit(['bez mjesta', 'no venue', 'hide venue'])) { t.show = Object.assign({}, t.show, { venue: false }); matched.push('hide:venue'); }
+        return { tokens: dsNormalizeTokens(t), matched };
+    }
+    // POST /api/admin/design-assist — "describe the look you want" -> tokens (+ suggested copy).
+    // Uses aiDraft (strict-JSON purpose) when ANTHROPIC_API_KEY is set; the deterministic keyword
+    // fallback otherwise. NEVER throws; the panel can always apply the result and keep tweaking.
+    app.post('/api/admin/design-assist', auth, adminOnly, asyncHandler(async (req, res) => {
+        const b = req.body || {};
+        const artifact = String(b.artifact || 'banner').toLowerCase().slice(0, 24);
+        const brief = String(b.brief || '').slice(0, 600);
+        const current = dsNormalizeTokens(b.current_tokens) || Object.assign({}, DS_PRESETS.heritage, { show: { badge: true, date: true, venue: true }, font_scale: 1, logo_scale: 1, bg_photo: '', headline_text: '', sub_text: '' });
+        if (!brief.trim()) return res.status(400).json({ error: 'empty_brief', message: 'Describe the look you want first.' });
+        let tokens = null, copy = { headline: '', sub: '' }, source = 'keywords', matched = [];
+        try {
+            const r = await aiDraft({
+                purpose: 'Choose design tokens for a premium Med&X ' + (artifact === 'card' ? 'attendance card' : 'roll-up banner') + '. Return ONLY strict JSON, no prose, with keys: preset (one of heritage, cream_crimson, ink_minimal, gala_gold), accent (one hex of ' + DS_ACCENTS.join(', ') + '), font_scale (0.9, 1 or 1.12), logo_scale (0.8, 1 or 1.25), frame_style (classic, hairline or band), show (object with boolean badge, date, venue), headline (a short suggested headline in the brief\'s language, or empty string), sub (a short suggested sub-line, or empty string). Presets: heritage = navy ground with gold, cream_crimson = light cream ground with crimson, ink_minimal = near-black ground with gold hairlines, gala_gold = deep gold ground with ink type.',
+                context: { artifact, brief, current_tokens: JSON.stringify(current) },
+                maxTokens: 400
+            });
+            if (r && r.text && !r.mock) {
+                const m = /\{[\s\S]*\}/.exec(String(r.text));
+                if (m) {
+                    const parsed = JSON.parse(m[0]);
+                    tokens = dsNormalizeTokens(Object.assign({}, current, DS_PRESETS[String(parsed.preset)] || {}, {
+                        accent: parsed.accent, font_scale: parsed.font_scale, logo_scale: parsed.logo_scale,
+                        frame_style: parsed.frame_style, show: parsed.show
+                    }));
+                    copy = { headline: String(parsed.headline || '').slice(0, 120), sub: String(parsed.sub || '').slice(0, 160) };
+                    source = 'ai';
+                }
+            }
+        } catch (e) { tokens = null; }
+        if (!tokens) { const fb = dsAssistFallback(brief, current); tokens = fb.tokens; matched = fb.matched; source = 'keywords'; }
+        // keep the panel's own copy/photo fields unless the assistant explicitly suggested new copy
+        tokens.bg_photo = current.bg_photo || '';
+        tokens.headline_text = copy.headline || current.headline_text || '';
+        tokens.sub_text = copy.sub || current.sub_text || '';
+        try { logAudit(req, 'design.assist', artifact + ' (' + source + ') ' + brief.slice(0, 80)); } catch (e) {}
+        res.json({ success: true, source, tokens, copy, matched });
+    }));
+    // ==================== /DESIGN STUDIO ====================
+
     // Persist a rendered PDF as a content-studio asset and return its public URL.
     function psSaveAsset(req, buf, meta) {
         const id = uuidv4(); const fname = id + '.pdf';
@@ -36845,7 +37060,7 @@ ${extraCss || ''}
         const kind = String(b.kind || 'badges-sheet');
         const eventKey = String(b.event || 'conference');
         const facts = psEventFacts(eventKey);
-        if (kind === 'banner') { const logo = psLogo(true); const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', { ...b.fields, _logoPx: logo.px }, logo.src, [], []); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
+        if (kind === 'banner') { const tokens = dsNormalizeTokens(b.tokens); const logo = psLogo(dsBannerTheme(tokens).dark); const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', { ...b.fields, _logoPx: logo.px }, logo.src, [], [], tokens); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
         if (kind === 'backdrop') { const logo = psLogo(true); const out = psBackdropDoc({ ...b.fields, _logoPx: logo.px }, logo.src, []); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
         if (kind === 'sign') { const logo = psLogo(false); const out = psSignDoc({ ...b.fields, _logoPx: logo.px }, logo.src, []); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
         // badges: preview shows up to 8 real badges on one A4 sheet (or singles laid out the same).
@@ -36870,9 +37085,10 @@ ${extraCss || ''}
         let html, pageW, pageH, title, aspect, pages = 1;
 
         if (kind === 'banner') {
-            const logo = psLogo(true);
+            const tokens = dsNormalizeTokens(b.tokens);
+            const logo = psLogo(dsBannerTheme(tokens).dark);
             const sponsors = (b.sponsors === false) ? [] : psSponsors().map(s => { const im = psImage(s.logo_url); return { name: s.name, src: im.path ? im.src : '', px: im.px }; });
-            const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', { ...b.fields, _logoPx: logo.px }, logo.src, sponsors, images);
+            const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', { ...b.fields, _logoPx: logo.px }, logo.src, sponsors, images, tokens);
             html = out.html; pageW = out.pageW; pageH = out.pageH; aspect = (b.size === '85x200' ? '85x200' : '100x200'); title = (facts.name + ' banner ' + aspect);
         } else if (kind === 'backdrop') {
             const logo = psLogo(true); const out = psBackdropDoc({ ...b.fields, _logoPx: logo.px }, logo.src, images);
