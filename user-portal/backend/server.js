@@ -4850,6 +4850,10 @@ function renderSpeakerPage(payload, token) {
   #timeline{ display:flex; flex-direction:column; }
   .day{ margin-bottom:22px; }
   .day-eyebrow{ display:inline-block; font-size:12px; letter-spacing:.16em; text-transform:uppercase; font-weight:700; color:#fff; background:var(--brass); padding:4px 12px; border-radius:999px; margin-bottom:10px; }
+  /* The badge ships with the hidden attribute and markToday() unhides only the matching day.
+     An author display declaration outranks the UA [hidden]{display:none} rule, so without this
+     the "Today / Danas" pill printed on every single day of the itinerary. */
+  .day-eyebrow[hidden]{ display:none; }
   .day-title{ font-size:20px; font-weight:600; color:var(--green); margin-bottom:12px; }
   .is-today .day-title{ color:var(--green); }
   .item{ display:flex; gap:14px; background:#fff; border:1px solid var(--line); border-radius:16px; padding:16px 16px; margin-bottom:12px; box-shadow:0 1px 2px rgba(36,31,23,.04); }
