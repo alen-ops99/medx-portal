@@ -7748,6 +7748,11 @@ async function initializeApp() {
     if (!sponsorColumns.includes('amount_received')) db.run(`ALTER TABLE sponsors ADD COLUMN amount_received REAL DEFAULT 0`);
     if (!sponsorColumns.includes('notes')) db.run(`ALTER TABLE sponsors ADD COLUMN notes TEXT`);
     if (!sponsorColumns.includes('is_published')) db.run(`ALTER TABLE sponsors ADD COLUMN is_published INTEGER DEFAULT 0`);
+    // SUPPORTERS WALL (2026-07-28): marks a row as an ORG-WIDE Med&X supporter rather than a
+    // conference-scoped sponsor. 'public-body' | 'company' are the only values the public wall
+    // renders; NULL (every legacy Plexus sponsor) keeps the old conference-only behaviour.
+    // Added identically — and guarded — to BOTH portal server.js files; both boot the same Turso DB.
+    if (!sponsorColumns.includes('category')) db.run(`ALTER TABLE sponsors ADD COLUMN category TEXT`);
 
     // Sponsor tasks table
     db.run(`CREATE TABLE IF NOT EXISTS sponsor_tasks (
@@ -8598,6 +8603,89 @@ async function initializeApp() {
             db.run("UPDATE gala_settings SET title = 'Plexus 2026 — Gala Evening' WHERE id = 'default'");
         }
     } catch(e) { /* non-fatal */ }
+
+    // ========== SUPPORTERS WALL SEED (one-time, 2026-07-28) ==========
+    // The 25 legal entities that actually FUNDED Med&X between 2021 and 2026, reconciled from the
+    // 2024/2025/2026 work-unit lists plus the 2021-2023 PBZ bank statements ("Radna analiza —
+    // financijeri Med&X", SharePoint). Inclusion rule: the entity PAID money to the association
+    // (grant / donation / sponsorship). Deliberately EXCLUDED: suppliers (cost side), private
+    // individuals, payment processors, companies that only paid a conference registration fee, and
+    // six borderline cases still awaiting a decision (Duresco, Prokurativa, Imag Medical, Enlil Net,
+    // AWA, Muzeji Ivana Meštrovića).
+    //
+    // Amounts are NEVER written to these rows — the wall is a thank-you, not a donor ledger, and the
+    // public endpoint reads only name/category/logo. Runs exactly once via the app_state marker, and
+    // upserts BY NAME so a re-run (or a fresh Turso replica) can never duplicate a supporter. This
+    // does not, and must not, resurrect the purged demo sponsors (Roche/Novartis/… ) — every name
+    // below is a verified real funder.
+    try {
+        db.run(`CREATE TABLE IF NOT EXISTS app_state (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`);
+        const SUPPORTERS_SEED_KEY = 'supporters_wall_seed_2026_07_28';
+        if (!query.get('SELECT 1 FROM app_state WHERE key = ?', [SUPPORTERS_SEED_KEY])) {
+            // [name, category, logo file in user-portal/frontend/assets/supporters, sort_order]
+            // sort_order groups the logo tiles first, then the name-only chips, so a wall with mixed
+            // assets still reads as a deliberate layout rather than a gap-toothed grid.
+            const SUPPORTERS = [
+                ['Središnji državni ured za Hrvate izvan Republike Hrvatske', 'public-body', 'sredisnji-drzavni-ured.png', 10],
+                ['Ministarstvo znanosti, obrazovanja i mladih', 'public-body', 'ministarstvo-znanosti.svg', 20],
+                ['Grad Split', 'public-body', 'grad-split.svg', 30],
+                ['Splitsko-dalmatinska županija', 'public-body', 'splitsko-dalmatinska-zupanija.svg', 40],
+                ['Hrvatska turistička zajednica', 'public-body', 'hrvatska-turisticka-zajednica.png', 50],
+                ['Turistička zajednica grada Splita', 'public-body', 'tz-grada-splita.png', 60],
+                ['Turistička zajednica Splitsko-dalmatinske županije', 'public-body', 'tz-splitsko-dalmatinske-zupanije.png', 70],
+                ['Turistička zajednica grada Zagreba', 'public-body', 'tz-grada-zagreba.png', 80],
+                ['British Embassy Zagreb (UK FCDO)', 'public-body', 'british-embassy-zagreb.png', 90],
+                // No standalone mark: the Croatian state budget is represented by the coat of arms
+                // already carried by the ministry tile, so this one renders name-only on purpose.
+                ['Republika Hrvatska — Državni proračun', 'public-body', null, 200],
+                ['Poliklinika Aviva', 'company', 'poliklinika-aviva.png', 10],
+                ['Mehun d.o.o.', 'company', 'mehun.png', 20],
+                ['ACI (Adriatic Croatia International Club)', 'company', 'aci.png', 30],
+                ['Hrvatski liječnički zbor', 'company', 'hrvatski-lijecnicki-zbor.png', 40],
+                ['ACAP (Association of Croatian American Professionals)', 'company', 'acap.svg', 50],
+                // Name-only until a usable mark is supplied by the entity (see report notes).
+                ['Siemens Healthineers', 'company', null, 200],
+                ['JGL', 'company', null, 210],
+                ['IntechOpen', 'company', null, 220],
+                ['Cornaro', 'company', null, 230],
+                ['Ani Biome', 'company', null, 240],
+                ['Melem', 'company', null, 250],
+                ['Croatia Airlines', 'company', null, 260],
+                ['Split Parking', 'company', null, 270],
+                ['Inkubator Izvrsnosti', 'company', null, 280],
+                ['Retoi d.o.o.', 'company', null, 290]
+            ];
+            let inserted = 0, updated = 0;
+            for (const [name, category, logoFile, sortOrder] of SUPPORTERS) {
+                const logoUrl = logoFile ? ('assets/supporters/' + logoFile) : null;
+                const existing = query.get('SELECT id FROM sponsors WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))', [name]);
+                if (existing) {
+                    db.run(`UPDATE sponsors SET category = ?, logo_url = COALESCE(?, logo_url),
+                            is_published = 1, sort_order = ? WHERE id = ?`,
+                        [category, logoUrl, sortOrder, existing.id]);
+                    updated++;
+                } else {
+                    // conference_id stays empty: these entities backed Med&X across many programmes,
+                    // not one conference. tier is 'supporter' so the wall never implies a ladder.
+                    // Only columns THIS server.js declares are written — created_at and the other
+                    // lifecycle stamps are added by the admin portal alone, so touching them here
+                    // would make the seed die on a user-portal-only boot (as it did first run).
+                    db.run(`INSERT INTO sponsors (id, conference_id, name, tier, category, logo_url,
+                            sort_order, status, is_published)
+                            VALUES (?, '', ?, 'supporter', ?, ?, ?, 'confirmed', 1)`,
+                        [uuidv4(), name, category, logoUrl, sortOrder]);
+                    inserted++;
+                }
+            }
+            db.run('INSERT INTO app_state (key, value, updated_at) VALUES (?, ?, ?)',
+                [SUPPORTERS_SEED_KEY, `inserted:${inserted},updated:${updated}`, new Date().toISOString()]);
+            console.log(`[supporters] Wall seeded: ${inserted} inserted, ${updated} matched existing rows.`);
+        }
+    } catch (e) { console.log('[supporters] seed skipped:', e.message); }
 
     // ========== CROATIANS ABROAD ==========
     // Personally-invited diaspora guest flow. One link, three events selectable
@@ -11965,6 +12053,60 @@ async function submitReset(e){
             res.json(payload);
         } catch (e) {
             res.status(500).json({ error: 'Failed to load impact data' });
+        }
+    });
+
+    // ===== SUPPORTERS WALL — "Podržali su nas" / "Our Supporters" (public, no auth) =====
+    // Backs the marketing-site strip and the member-portal section. Same CORS allowlist, rate limit
+    // and CDN caching as the other /api/public reads. Deliberately narrow: name, category and logo
+    // only. Money never leaves the admin side — no amounts, no contacts, no status, no notes, even
+    // though those columns sit on the same row. Grouping is light (public bodies, then companies)
+    // and carries NO tier or ranking: every supporter is thanked the same way.
+    // A row joins the wall purely by having category IN ('public-body','company') AND is_published=1,
+    // so an admin can add or retire one without a deploy.
+    app.get('/api/public/supporters', publicLimiter, (req, res) => {
+        try {
+            const rows = memo('supporters', 300000, () => query.all(
+                `SELECT name, category, logo_url, website_url, sort_order
+                   FROM sponsors
+                  WHERE COALESCE(is_published, 0) = 1
+                    AND category IN ('public-body', 'company')
+                    AND TRIM(COALESCE(name, '')) <> ''
+                  ORDER BY sort_order, name`
+            ) || []);
+            // Logos live on this server but are consumed cross-origin by medx.hr, so hand back an
+            // absolute URL. RENDER_EXTERNAL_URL in production, the request host locally.
+            const base = (process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+            const GROUPS = [
+                { key: 'public-body', label_hr: 'Javna tijela i institucije', label_en: 'Public institutions' },
+                { key: 'company', label_hr: 'Tvrtke i organizacije', label_en: 'Companies & organizations' }
+            ];
+            const groups = GROUPS.map((g) => ({
+                ...g,
+                items: rows.filter((r) => r.category === g.key).map((r) => ({
+                    name: r.name,
+                    logo: r.logo_url ? `${base}/${String(r.logo_url).replace(/^\/+/, '')}` : null,
+                    website: r.website_url || null
+                }))
+            })).filter((g) => g.items.length);
+            publicCacheHeaders(res);
+            res.json({
+                strings: {
+                    hr: {
+                        heading: 'Podržali su nas',
+                        intro: 'Zahvaljujemo svim tvrtkama, institucijama i javnim tijelima koja su podržala jedan ili više Med&X programa. Vaša potpora omogućuje našu misiju.'
+                    },
+                    en: {
+                        heading: 'Our Supporters',
+                        intro: 'We are grateful to the companies, institutions and public bodies that have supported one or more Med&X programs. Thank you for making our mission possible.'
+                    }
+                },
+                groups,
+                count: rows.length,
+                generated_at: new Date().toISOString()
+            });
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to load supporters' });
         }
     });
 

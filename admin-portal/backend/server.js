@@ -6915,6 +6915,11 @@ async function initializeApp() {
     if (!sponsorColumns.includes('created_at')) db.run(`ALTER TABLE sponsors ADD COLUMN created_at TEXT`);
     if (!sponsorColumns.includes('last_contacted_at')) db.run(`ALTER TABLE sponsors ADD COLUMN last_contacted_at TEXT`);
     if (!sponsorColumns.includes('last_followup_at')) db.run(`ALTER TABLE sponsors ADD COLUMN last_followup_at TEXT`);
+    // SUPPORTERS WALL (2026-07-28): marks a row as an ORG-WIDE Med&X supporter rather than a
+    // conference-scoped sponsor. 'public-body' | 'company' are the only values the public wall
+    // renders; NULL (every legacy Plexus sponsor) keeps the old conference-only behaviour.
+    // Added identically — and guarded — to BOTH portal server.js files; both boot the same Turso DB.
+    if (!sponsorColumns.includes('category')) db.run(`ALTER TABLE sponsors ADD COLUMN category TEXT`);
 
     // Sponsor tasks table
     db.run(`CREATE TABLE IF NOT EXISTS sponsor_tasks (
@@ -20772,9 +20777,16 @@ By applying to this program, I provide the following consents:
     });
 
     // Admin: Get sponsors
+    // Returns the Plexus-scoped sponsors PLUS the org-wide supporters wall rows (category set,
+    // conference_id deliberately empty because they backed Med&X across programmes, not one
+    // conference). Without the category arm the seeded supporters would be invisible here and an
+    // admin could never edit or unpublish what the public wall is showing.
     app.get('/api/admin/plexus/sponsors', auth, adminOnly, (req, res) => {
         const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
-        const sponsors = query.all(`SELECT * FROM sponsors WHERE conference_id = ? ORDER BY tier, name`, [conf?.id || '']);
+        const sponsors = query.all(
+            `SELECT * FROM sponsors
+              WHERE conference_id = ? OR category IN ('public-body', 'company')
+              ORDER BY tier, name`, [conf?.id || '']);
         res.json(sponsors || []);
     });
 

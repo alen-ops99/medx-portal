@@ -576,5 +576,40 @@
       "ticket_types has no is_active column — tier availability is expressed only by which conference row is is_active=1.",
       "With no early_bird/regular deadlines set, everything charges the LATE price (admin UI warns at index.html:51305)."
     ]
+  },
+  {
+    "field_group": "9. Supporters wall (\"Podržali su nas\")",
+    "admin_location": "Admin portal › Plexus › Sponsors tab (admin-portal/frontend/index.html:25665 renderPlexusSponsors flat grid, :25791 edit modal). Table `sponsors`, rows where category IN ('public-body','company') AND is_published = 1 — 25 seeded supporter rows with conference_id = '' (org-wide, not one conference), tier = 'supporter', status = 'confirmed'. Routes admin-portal/backend/server.js:20784 GET (the category arm makes these rows visible/editable), :20796 POST, :20815 PUT /:id, :20831 DELETE /:id, :20839 PUT /:id/publish. `category` column added by the ALTER at admin-portal/backend/server.js:6922.",
+    "surfaces": [
+      {
+        "type": "portal-api",
+        "url_or_place": "GET /api/public/supporters (user portal, no auth)",
+        "selector_or_desc": "user-portal/backend/server.js:12067",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "Memoised 5 min with CDN cache headers. Returns name/category/logo only, grouped public-body → company — never amounts, contacts, status or notes, even though those columns sit on the same row."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/supporters",
+        "selector_or_desc": "section.sup-wall[data-medx-list='supporters:wall']",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "Hydrates MedXLive-style from /api/public/supporters over a baked fallback wall. PENDING a Netlify deploy — not yet live as of 2026-07-28."
+      },
+      {
+        "type": "website",
+        "url_or_place": "https://medx.hr/ (homepage support band)",
+        "selector_or_desc": ".home-support-logos .home-logo-strip",
+        "live_or_hardcoded": "live",
+        "screenshot": null,
+        "note": "Same hydration over the baked logo strip. PENDING the same Netlify deploy — not yet live as of 2026-07-28."
+      }
+    ],
+    "hardcoded_traps": [
+      "Until the supporters Netlify deploy ships, both medx.hr surfaces are baked fallback only — admin edits reach the public API but no visible pixel.",
+      "The 25 supporter rows ride the sponsor pipeline UI: tier 'supporter' is outside the tier catalog (label falls back to raw title-case, admin frontend index.html:25587) and their status='confirmed' inflates Total Sponsors and Conversion Rate in the stats row (:25604-25631) with EUR 0 amounts.",
+      "Seeded logo_url values are relative ('assets/supporters/…'); the public API absolutises them against the USER origin (user-portal/backend/server.js:12079), but the admin sponsor card <img> resolves them against the ADMIN origin, which has no assets/supporters folder — admin cards show a broken logo image."
+    ]
   }
 ]
