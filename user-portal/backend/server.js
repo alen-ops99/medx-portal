@@ -1596,8 +1596,10 @@ const PUBLIC_EVENT_PAGES = {
         pageTitle: 'Plexus Donor Night — Plexus Week 2026',
         heading: 'Plexus Donor Night',
         framing: 'An evening of giving for the future of Croatian biomedicine. An invitation-only supper with the leadership of Cambridge, Massachusetts General Hospital, University Health Network Toronto, UCLA Health and Mass General Brigham. What gathers around this table advances the Plexus Fellowship, the Accelerator, the Plexus Conference and Building Bridges in Biomedicine.',
-        facts: ['Friday 4 December 2026', '19:30–22:30', 'Esplanade Zagreb, private salon', 'Invitation only'],
-        note: '',
+        // Standing rule: the Donor Night date/time/venue are NEVER printed publicly —
+        // they follow personally with the invitation (same pattern as Building Bridges above).
+        facts: ['December 2026', 'Zagreb', 'Invitation only'],
+        note: 'The exact date, time and venue follow personally with your invitation.',
         dietary: true,
         submitLabel: 'Confirm your seat',
         successHeading: 'Your seat is confirmed'
