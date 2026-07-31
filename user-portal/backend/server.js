@@ -5293,6 +5293,77 @@ app.get('/pass/:token', speakerLimiter, async (req, res) => {
 });
 // ========================== END VIP GUEST PASSES ==========================
 
+// ========== PUBLIC DONATION CHECKOUT (medx.hr/donate → Stripe) ==========
+// The public site's donate configurator opens this in a NEW TAB as
+// GET /donate/checkout?amount=<eur>&frequency=<once|month|year>&designation=<key>.
+// Donors are strangers: no auth, no account, no portal chrome. Because the request is a
+// top-level browser navigation, EVERY outcome must be a redirect to a human page — never
+// JSON. Success → 303 to Stripe Checkout; any failure (Stripe unconfigured, Stripe API
+// error, anything unexpected) → 302 back to https://medx.hr/donate?checkout_error=1 with
+// the reason logged here. Registered BEFORE express.static so it beats the SPA (same
+// pattern as /forum and the invite/verify pages).
+// Keys and labels mirror the PROJECTS map in the public site's donate.html — keep in sync.
+const DONATION_DESIGNATIONS = {
+    unrestricted: 'Wherever it is needed most',
+    accelerator: 'The Accelerator',
+    plexus: 'Plexus Conference',
+    gala: 'Plexus Gala',
+    forum: 'Biomedical Forum',
+    bridges: 'Building Bridges'
+};
+// Module-level limiter (same shape as forumWingLimiter) — but rate-limited donors must land
+// on the human page too, so the handler redirects instead of returning JSON.
+const donateCheckoutLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false,
+    handler: (req, res) => res.redirect(302, 'https://medx.hr/donate?checkout_error=1')
+});
+app.get('/donate/checkout', donateCheckoutLimiter, async (req, res) => {
+    const fail = (reason) => {
+        console.error('[Donate] Checkout failed:', reason);
+        return res.redirect(302, 'https://medx.hr/donate?checkout_error=1');
+    };
+    try {
+        // Parse + clamp. Invalid input never blocks a donor — fall back to safe defaults.
+        let amount = parseInt(req.query.amount, 10);
+        if (!Number.isFinite(amount)) amount = 50;
+        amount = Math.max(1, Math.min(50000, amount));
+        const frequency = ['once', 'month', 'year'].includes(req.query.frequency) ? req.query.frequency : 'once';
+        const designation = Object.prototype.hasOwnProperty.call(DONATION_DESIGNATIONS, String(req.query.designation || ''))
+            ? String(req.query.designation) : 'unrestricted';
+        const label = DONATION_DESIGNATIONS[designation];
+        console.log(`[Donate] Checkout request: amount=€${amount} frequency=${frequency} designation=${designation}`);
+
+        if (!stripe) return fail('Stripe is not configured');
+
+        const recurring = frequency === 'once' ? null : { interval: frequency };
+        const session = await stripe.checkout.sessions.create({
+            mode: recurring ? 'subscription' : 'payment',
+            payment_method_types: ['card'],
+            line_items: [{
+                price_data: {
+                    currency: 'eur',
+                    product_data: {
+                        name: `Med&X Donation — ${label}`,
+                        description: frequency === 'once'
+                            ? 'One-time donation to Med&X Association'
+                            : `Recurring donation to Med&X Association, billed every ${frequency}`
+                    },
+                    unit_amount: amount * 100, // Stripe needs cents
+                    ...(recurring ? { recurring } : {})
+                },
+                quantity: 1
+            }],
+            metadata: { type: 'donation', designation, frequency, source: 'medx.hr' },
+            success_url: 'https://medx.hr/donate?thanks=1',
+            cancel_url: 'https://medx.hr/donate?cancelled=1'
+        });
+        return res.redirect(303, session.url);
+    } catch (err) {
+        return fail(err.message);
+    }
+});
+// ========================== END PUBLIC DONATION CHECKOUT ==========================
+
 app.use(express.static(path.join(__dirname, '../frontend')));
 // User-uploaded files: force download + nosniff so a stored .svg/.html/.xml can't execute
 // inline as same-origin script (multer trusts the client MIME, so the content is untrusted).
@@ -20148,6 +20219,78 @@ By applying to this program, I provide the following consents:
             if (metadata.type === 'points-purchase') {
                 console.warn('[Rewards] Ignoring retired points-purchase webhook (buying points is disabled) — session', session.id);
                 return res.json({ received: true, ignored: 'points-purchase-retired' });
+            }
+
+            // ===== DONATION (public medx.hr/donate → GET /donate/checkout) =====
+            // One-time donations arrive as mode 'payment'; recurring ones as mode 'subscription'.
+            // Both fire checkout.session.completed exactly once (the session carries our metadata
+            // either way), so both land here. Duplicate deliveries are already short-circuited by
+            // the global processed_stripe_events guard above — donations have no domain row of
+            // their own to re-check. NOTE: recurring RENEWALS arrive as invoice.paid, which this
+            // webhook does not handle for ANY subscription type — renewal charges live in the
+            // Stripe dashboard and are NOT auto-recorded in finance_transactions.
+            if (metadata.type === 'donation') {
+                try {
+                    const amount = session.amount_total ? session.amount_total / 100 : 0;
+                    const designation = metadata.designation || 'unrestricted';
+                    const designationLabel = DONATION_DESIGNATIONS[designation] || DONATION_DESIGNATIONS.unrestricted;
+                    const frequency = metadata.frequency || 'once';
+                    const freqWord = frequency === 'month' ? 'monthly' : frequency === 'year' ? 'yearly' : 'one-time';
+                    const donorEmail = session.customer_details?.email || session.customer_email || '';
+                    const donorName = (session.customer_details?.name || '').trim();
+                    console.log(`[Stripe] Donation confirmed — €${amount} ${freqWord} (${designation}) from ${donorEmail || 'unknown email'}, session ${session.id}`);
+
+                    // Finance income record — the same ledger every other paid type lands in
+                    // (finance_transactions via the P-<year>-<seq> sequence). Reference = the
+                    // Stripe session id so the ledger row traces back to the exact payment.
+                    // No FIRA fiscal invoice: a donation is not a sale of goods/services, so no
+                    // FISKALNI_RAČUN is issued (unlike tickets/fees), and checkout collects no
+                    // OIB/billing address to put on one.
+                    const nameParts = donorName ? donorName.split(/\s+/) : [];
+                    createFinanceIncomeRecord(
+                        {
+                            first_name: nameParts[0] || 'Anonymous',
+                            last_name: nameParts.slice(1).join(' ') || 'Donor',
+                            ticket_name: `${designationLabel} (${freqWord})`
+                        },
+                        amount, 'card', session.id,
+                        { project: 'donations', category: 'donation', descPrefix: 'Donation' }
+                    );
+
+                    saveDb();
+                    flushDb(); // durability: a completed donation is final — push to Turso immediately
+
+                    // Thank-you email (best-effort, non-blocking) — CC'd to the team like the
+                    // other paid confirmations so donations are visible without opening Stripe.
+                    try {
+                        if (donorEmail) {
+                            sendEventConfirmation(donorEmail, 'Thank You for Your Donation — Med&X', buildEmailTemplate('Thank You', `
+                                <p>Dear ${escapeHtml(nameParts[0] || 'Friend of Med&X')},</p>
+                                <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
+                                    Your donation has been received. Thank you for supporting Med&amp;X!
+                                </p>
+                                <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Amount</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">&euro;${Number(amount).toFixed(2)}${frequency === 'once' ? '' : ` / ${frequency}`}</td></tr>
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Designation</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${escapeHtml(designationLabel)}</td></tr>
+                                    <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Frequency</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${freqWord.charAt(0).toUpperCase() + freqWord.slice(1)}</td></tr>
+                                </table>
+                                ${frequency === 'once' ? '' : '<p style="font-size: 13px; color: #64748b;">Your donation renews automatically. To change or cancel it at any time, write to <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>'}
+                                <p>Your support powers our projects across the biomedical community. If you have any questions, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
+                                <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
+                            `));
+                        }
+                    } catch (emailErr) {
+                        console.warn('Donation thank-you email failed:', emailErr.message);
+                    }
+                } catch (dbErr) {
+                    console.error('[Stripe] Failed to process donation webhook:', dbErr.message);
+                    return res.status(500).send('Internal error');
+                }
+
+                return res.json({ received: true });
             }
 
             // ===== CROATIANS ABROAD — Gala payment confirmation =====
