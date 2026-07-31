@@ -12527,13 +12527,15 @@
                         const loc = [s.city, s.country].filter(Boolean).join(', ');
                         const hasSpots = (s.spots !== null && s.spots !== undefined && s.spots !== '');
                         const spotsTxt = hasSpots ? (String(s.spots) + (Number(s.spots) === 1 ? ' spot' : ' spots')) : 'Spots TBC';
+                        // Hide seeded placeholder mentor lines (e.g. "Dr. Example - ...", "TBD") from members — render-level only, no data change.
+                        const showMentor = s.mentor_line && !/example|tbd/i.test(s.mentor_line);
                         return `<div class="axd-card">
                             <div class="axd-card-top">
                                 <div class="axd-card-inst">${escapeHtml(s.institution || '')}</div>
                                 ${loc ? `<span class="axd-card-chip"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(loc)}</span>` : ''}
                             </div>
                             ${s.lab_or_clinic ? `<div class="axd-card-lab"><i class="fas fa-flask"></i> <span>${escapeHtml(s.lab_or_clinic)}</span></div>` : ''}
-                            ${s.mentor_line ? `<div class="axd-card-mentor">${escapeHtml(s.mentor_line)}</div>` : ''}
+                            ${showMentor ? `<div class="axd-card-mentor">${escapeHtml(s.mentor_line)}</div>` : ''}
                             <div class="axd-card-foot">
                                 <span class="axd-card-spots"><i class="fas fa-user-graduate"></i> ${escapeHtml(spotsTxt)}</span>
                                 ${s.year ? `<span class="axd-card-year">${escapeHtml(String(s.year))}</span>` : ''}
@@ -16342,10 +16344,10 @@
                 if (!container) return;
 
                 const events = [
-                    { date: 'Mar 15', month: 'MAR', day: '15', title: 'Building Bridges in Biomedicine', location: 'Zurich, Switzerland', id: 'zurich' },
-                    { date: 'Apr 18', month: 'APR', day: '18', title: 'Building Bridges in Biomedicine', location: 'Washington, D.C.', id: 'dc' },
+                    { date: 'Mar 15', month: 'MAR', day: '15', title: 'Building Bridges', location: 'Zurich, Switzerland', id: 'zurich' },
+                    { date: 'Apr 18', month: 'APR', day: '18', title: 'Building Bridges', location: 'Washington, D.C.', id: 'dc' },
                     { date: 'May 25-27', month: 'MAY', day: '25', title: 'Annual Biomedical Forum', location: 'Split & Zagreb, Croatia', id: 'annual-forum' },
-                    { date: 'Sep 20', month: 'SEP', day: '20', title: 'Building Bridges in Biomedicine', location: 'Boston, MA', id: 'boston' },
+                    { date: 'Sep 20', month: 'SEP', day: '20', title: 'Building Bridges', location: 'Boston, MA', id: 'boston' },
                     { date: 'Dec 4-5', month: 'DEC', day: '4', title: 'Plexus Conference', location: 'Zagreb, Croatia', id: 'plexus' }
                 ];
 
@@ -19355,7 +19357,7 @@ DTSTART:${start.toISOString().replace(/[-:]/g, '').split('.')[0]}Z
 DTEND:${end.toISOString().replace(/[-:]/g, '').split('.')[0]}Z
 SUMMARY:${app.eventTitle}
 LOCATION:${event ? event.venue + ', ' + event.venueAddress : app.eventVenue}
-DESCRIPTION:Building Bridges in Biomedicine networking event
+DESCRIPTION:Building Bridges networking event
 END:VEVENT
 END:VCALENDAR`;
 

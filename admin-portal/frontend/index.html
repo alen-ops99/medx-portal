@@ -15063,6 +15063,12 @@ President, Med&amp;X</textarea>
                      Content is rendered by the GameDay module (script at the end of the file);
                      volunteer sessions lock the whole app down to this section only. -->
                 <div class="section" id="section-gameday">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+                        <div>
+                            <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px;"><i class="fas fa-tower-broadcast" style="color:#9b1b22;"></i> Game Day</h2>
+                            <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">The live event-day control room &mdash; activates automatically on the day of the event, or switch on test mode to rehearse.</p>
+                        </div>
+                    </div>
                     <div id="gamedayContent">
                         <div style="text-align:center; padding:60px 20px; color:var(--text-muted);">
                             <i class="fas fa-tower-broadcast" style="font-size:28px; color:var(--accent-primary);"></i>
@@ -57891,7 +57897,7 @@ By applying to this program, I give the following consents:
                         { goto: 'qr-checkin', old: 'Paper list at the door', title: 'QR check-in', h: 'No more paper lists at the door.', p: "Scan a guest's phone, they're checked in, and your headcount updates live." },
                         { goto: 'finances', old: 'Ten spreadsheets', title: 'Finances', h: 'Your budget stops living in ten spreadsheets.', p: 'Budget, invoices, transactions and Croatian reconciliation in one running ledger.' },
                         { goto: 'pr-media-planner', old: 'From memory', title: 'Campaigns & Planner', h: 'Never lose a sponsor in your inbox again.', p: 'Plan one to three months of outreach, with drafts and reminders queued for you.' },
-                        { goto: 'advisors', old: 'Calling around', title: 'Project homes & Executive Suite', h: 'Stop calling around to ask where things stand.', p: 'Live numbers on every project home, plus a weekly AI read from your CMO, CFO and COO.' },
+                        { goto: 'advisors', old: 'Calling around', title: 'Project homes & Executive Suite', h: 'Stop calling around to ask where things stand.', p: 'Live numbers on every project home, plus a weekly AI read from your CMO, CFO, COO and CLO.' },
                         { goto: 'print-suite', old: 'Badges by hand in Canva', title: 'Print Suite', h: 'Print every badge from the guest list itself.', p: 'Pull the whole roster and get print-ready badge sheets, roll-up banners and signage — each badge carries a member-verify QR.' },
                         { goto: 'assistant', old: 'Ten open browser tabs', title: 'Assistant · Research', h: 'Ask the assistant instead of opening ten tabs.', p: 'Built-in research and drafting — ask a question, get a sourced answer you can act on.', foot: 'The research tool needs the AI key switched on.' },
                     ],
@@ -57916,7 +57922,7 @@ By applying to this program, I give the following consents:
                         { goto: 'qr-checkin', old: 'Papirnati popis na ulazu', title: 'QR prijava', h: 'Nema više papirnatih popisa na ulazu.', p: 'Skenirajte mobitel gosta, prijava je gotova, a broj prisutnih ažurira se uživo.' },
                         { goto: 'finances', old: 'Deset tablica', title: 'Financije', h: 'Vaš proračun više ne živi u deset tablica.', p: 'Proračun, računi, transakcije i usklađenje u jednoj knjizi — sve na hrvatskom.' },
                         { goto: 'pr-media-planner', old: 'Napamet', title: 'Kampanje i planer', h: 'Nijedan sponzor više neće nestati u vašem pretincu.', p: 'Isplanirajte jedan do tri mjeseca komunikacije, s unaprijed pripremljenim nacrtima i podsjetnicima.' },
-                        { goto: 'advisors', old: 'Pozivi uokolo', title: 'Naslovnice projekata i Izvršni tim', h: 'Prestanite zvati uokolo da provjerite gdje smo.', p: 'Brojke uživo na naslovnici svakog projekta, uz tjedni AI pregled vaših savjetnika za marketing, financije i poslovanje (CMO, CFO i COO).' },
+                        { goto: 'advisors', old: 'Pozivi uokolo', title: 'Naslovnice projekata i Izvršni tim', h: 'Prestanite zvati uokolo da provjerite gdje smo.', p: 'Brojke uživo na naslovnici svakog projekta, uz tjedni AI pregled vaših savjetnika za marketing, financije, poslovanje i pravo (CMO, CFO, COO i CLO).' },
                         { goto: 'print-suite', old: 'Bedževi ručno u Canvi', title: 'Ispis i oznake', h: 'Ispišite sve bedževe izravno iz popisa gostiju.', p: 'Povucite cijeli popis i dobijte listove bedževa spremne za ispis, roll-up banere i oznake — svaki bedž nosi QR za provjeru člana.' },
                         { goto: 'assistant', old: 'Deset otvorenih kartica', title: 'Pomoćnik · Istraživanje', h: 'Pitajte pomoćnika umjesto da otvarate deset kartica.', p: 'Ugrađeno istraživanje i pisanje — postavite pitanje i dobijte potkrijepljen odgovor na temelju kojeg možete odmah djelovati.', foot: 'Alat za istraživanje traži uključen AI ključ.' },
                     ],
@@ -58012,7 +58018,6 @@ By applying to this program, I give the following consents:
                             <h2>${esc(c.close.h)}</h2>
                             <div class="tour-close-btns">
                                 <button class="btn btn-primary" data-tour-goto="dashboard"><i class="fas fa-house"></i> ${esc(c.close.dash)}</button>
-                                <a class="btn btn-secondary" href="${GUIDE_URL}" target="_blank" rel="noopener"><i class="fas fa-graduation-cap"></i> ${esc(c.close.guide)}</a>
                             </div>
                         </div>
                     </div>`;

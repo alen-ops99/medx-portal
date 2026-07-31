@@ -1031,7 +1031,8 @@
                 </div>
             </div>
             <button type="button" id="userLoginBtn" class="auth-btn" onclick="UserPortal.login()" data-i18n="login.signIn">Sign In</button>
-            <button type="button" class="auth-btn" style="margin-top: 10px; background: #2f6b3a;" onclick="UserPortal.demoLogin()" data-i18n="login.demo">Demo Login (Quick)</button>
+            <button type="button" id="demoLoginBtn" class="auth-btn" style="margin-top: 10px; background: #2f6b3a; display: none;" onclick="UserPortal.demoLogin()" data-i18n="login.demo">Demo Login (Quick)</button>
+            <script>(function(){var h=location.hostname;if(h==='localhost'||h==='127.0.0.1'||h==='::1'||h==='[::1]'){var b=document.getElementById('demoLoginBtn');if(b)b.style.display='';}})();</script>
 
             <!-- Biometric Auth - Hidden until proper WebAuthn implementation -->
             <!-- <div id="biometricLoginSection" style="display: none;">
@@ -2984,7 +2985,7 @@
                                         <i class="fas fa-globe-americas"></i>
                                         Global Networking
                                     </div>
-                                    <h2 class="featured-title">Building Bridges in Biomedicine</h2>
+                                    <h2 class="featured-title">Building Bridges</h2>
                                     <p class="featured-desc">Connecting Croatian and international physicians through events in Washington, London, Zurich, and beyond.</p>
                                     <button class="featured-cta" onclick="event.stopPropagation(); FeaturedCarousel.navigateTo('bridges')">
                                         Explore Events <i class="fas fa-arrow-right"></i>
@@ -7836,7 +7837,7 @@
                                         <i class="fas fa-calendar"></i>
                                         <span>Mar 15, 2026</span>
                                     </div>
-                                    <div class="fm-event-name">Building Bridges in Biomedicine <i class="fas fa-chevron-down fm-event-chevron"></i></div>
+                                    <div class="fm-event-name">Building Bridges <i class="fas fa-chevron-down fm-event-chevron"></i></div>
                                     <div class="fm-event-location">
                                         <i class="fas fa-map-marker-alt"></i>
                                         Zurich, Switzerland
@@ -7858,7 +7859,7 @@
                                         <i class="fas fa-calendar"></i>
                                         <span>Apr 18, 2026</span>
                                     </div>
-                                    <div class="fm-event-name">Building Bridges in Biomedicine <i class="fas fa-chevron-down fm-event-chevron"></i></div>
+                                    <div class="fm-event-name">Building Bridges <i class="fas fa-chevron-down fm-event-chevron"></i></div>
                                     <div class="fm-event-location">
                                         <i class="fas fa-map-marker-alt"></i>
                                         Washington, D.C.
@@ -7902,7 +7903,7 @@
                                         <i class="fas fa-calendar"></i>
                                         <span>Sep 20, 2026</span>
                                     </div>
-                                    <div class="fm-event-name">Building Bridges in Biomedicine <i class="fas fa-chevron-down fm-event-chevron"></i></div>
+                                    <div class="fm-event-name">Building Bridges <i class="fas fa-chevron-down fm-event-chevron"></i></div>
                                     <div class="fm-event-location">
                                         <i class="fas fa-map-marker-alt"></i>
                                         Boston, MA
@@ -10533,7 +10534,7 @@
                                 <i class="fas fa-globe-europe"></i>
                                 <span data-mx-status="bridges">Global Networking Initiative</span>
                             </div>
-                            <h1>Building Bridges in Biomedicine</h1>
+                            <h1>Building Bridges</h1>
                             <p data-i18n="bb.heroSub">Connecting Croatian biomedical excellence with institutions worldwide</p>
                             <div class="bb-hero-stats">
                                 <div class="bb-hero-stat">
@@ -15468,7 +15469,7 @@ The Med&amp;X Team" maxlength="5000"></textarea>
                     </div>
                     <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div>
-                            <h1><i class="fas fa-globe-europe" style="color: #9b1b22; margin-right: 12px;"></i>Building Bridges in Biomedicine</h1>
+                            <h1><i class="fas fa-globe-europe" style="color: #9b1b22; margin-right: 12px;"></i>Building Bridges</h1>
                             <p>Connecting Croatian biomedical professionals globally</p>
                         </div>
                         <button class="btn btn-primary" onclick="App.openBridgesEventModal()">

@@ -5426,6 +5426,7 @@ app.get('/donate/checkout', donateCheckoutLimiter, async (req, res) => {
 
         const recurring = frequency === 'once' ? null : { interval: frequency };
         const session = await stripe.checkout.sessions.create({
+            adaptive_pricing: { enabled: false },
             mode: recurring ? 'subscription' : 'payment',
             payment_method_types: ['card'],
             line_items: [{
@@ -15070,6 +15071,7 @@ By applying to this program, I provide the following consents:
             const baseUrl = `${req.protocol}://${req.get('host')}`;
 
             const session = await stripe.checkout.sessions.create({
+                adaptive_pricing: { enabled: false },
                 mode: 'payment',
                 payment_method_types: ['card'],
                 line_items: [{
@@ -17507,6 +17509,7 @@ By applying to this program, I provide the following consents:
             const invoiceNumber = `FM26-${String(invoiceSeq).padStart(4, '0')}`;
 
             const session = await stripe.checkout.sessions.create({
+                adaptive_pricing: { enabled: false },
                 mode: 'payment',
                 payment_method_types: ['card'],
                 line_items: [{
@@ -20194,6 +20197,7 @@ By applying to this program, I provide the following consents:
                 || `reg-${reg.id}-${reg.invoice_number || ''}`;
 
             const session = await stripe.checkout.sessions.create({
+                adaptive_pricing: { enabled: false },
                 mode: 'payment',
                 payment_method_types: ['card'],
                 line_items: [{
@@ -27809,6 +27813,7 @@ By applying to this program, I provide the following consents:
             const ticketLabel = 'Gala Evening';
 
             const session = await stripe.checkout.sessions.create({
+                adaptive_pricing: { enabled: false },
                 mode: 'payment',
                 payment_method_types: ['card'],
                 line_items: [{
@@ -27880,6 +27885,7 @@ By applying to this program, I provide the following consents:
             const ticketLabel = 'Gala Evening';
             const baseUrl = `${req.protocol}://${req.get('host')}`;
             const session = await stripe.checkout.sessions.create({
+                adaptive_pricing: { enabled: false },
                 mode: 'payment',
                 payment_method_types: ['card'],
                 line_items: [{ price_data: { currency: 'eur', product_data: { name: `Plexus 2026 — ${ticketLabel}`, description: `Gala Evening Ticket (Invoice: ${invoiceNumber})` }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
@@ -28393,6 +28399,7 @@ By applying to this program, I provide the following consents:
             }
             const baseUrl = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
             const session = await stripe.checkout.sessions.create({
+                adaptive_pricing: { enabled: false },
                 mode: 'payment',
                 payment_method_types: ['card'],
                 line_items: [{
@@ -28744,6 +28751,7 @@ By applying to this program, I provide the following consents:
                 try {
                     const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
                     const session = await stripe.checkout.sessions.create({
+                        adaptive_pricing: { enabled: false },
                         mode: 'payment',
                         payment_method_types: ['card'],
                         line_items: [{ price_data: { currency: 'eur', product_data: { name: event_name || 'Med&X Event Registration' }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
