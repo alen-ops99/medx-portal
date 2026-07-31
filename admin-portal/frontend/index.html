@@ -4982,6 +4982,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding-right: 42px;
         }
         .schedule-session-block .session-block-time {
             font-size: 11px;
@@ -11163,12 +11164,12 @@ President, Med&amp;X</textarea>
                                     </button>
                                 </div>
                             </div>
-                            <div class="card-body">
-                                <table style="width: 100%;">
+                            <div class="card-body" style="overflow-x: auto;">
+                                <table style="width: 100%; min-width: 820px;">
                                     <thead>
                                         <tr style="border-bottom: 1px solid var(--border);">
-                                            <th style="padding: 12px; text-align: left;">Number</th>
-                                            <th style="padding: 12px; text-align: left;">Date</th>
+                                            <th style="padding: 12px; text-align: left; white-space: nowrap;">Number</th>
+                                            <th style="padding: 12px; text-align: left; white-space: nowrap;">Date</th>
                                             <th style="padding: 12px; text-align: left;">Type</th>
                                             <th style="padding: 12px; text-align: right;">Amount</th>
                                             <th style="padding: 12px; text-align: left;">Description</th>
@@ -11228,11 +11229,11 @@ President, Med&amp;X</textarea>
                                     </button>
                                 </div>
                             </div>
-                            <div class="card-body">
-                                <table style="width: 100%;">
+                            <div class="card-body" style="overflow-x: auto;">
+                                <table style="width: 100%; min-width: 820px;">
                                     <thead>
                                         <tr style="border-bottom: 1px solid var(--border);">
-                                            <th style="padding: 12px; text-align: left;" title="Invoice number (auto-generated)">Number</th>
+                                            <th style="padding: 12px; text-align: left; white-space: nowrap;" title="Invoice number (auto-generated)">Number</th>
                                             <th style="padding: 12px; text-align: left;" title="Incoming = received from vendor, Outgoing = issued to client">Type</th>
                                             <th style="padding: 12px; text-align: left;" title="Client or vendor name">Party</th>
                                             <th style="padding: 12px; text-align: left;" title="Croatian Tax ID (OIB) of the party">OIB</th>
@@ -11258,8 +11259,8 @@ President, Med&amp;X</textarea>
                                     <i class="fas fa-plus"></i> Add
                                 </button>
                             </div>
-                            <div class="card-body">
-                                <table style="width: 100%;">
+                            <div class="card-body" style="overflow-x: auto;">
+                                <table style="width: 100%; min-width: 760px;">
                                     <thead>
                                         <tr style="border-bottom: 1px solid var(--border);">
                                             <th style="padding: 12px; text-align: left;">Number</th>
@@ -11406,7 +11407,9 @@ President, Med&amp;X</textarea>
                                     Upload a CSV export from your bank. Croatian exports (semicolon-delimited, comma decimals) are auto-detected. Map the columns, then match each line to an unpaid bank-transfer registration in one click.
                                 </p>
                                 <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                                    <input type="file" id="reconFileInput" accept=".csv,text/csv,text/plain" onchange="FinanceApp.onReconFile(event)" style="font-size: 13px;">
+                                    <input type="file" id="reconFileInput" accept=".csv,text/csv,text/plain" onchange="FinanceApp.onReconFile(event)" style="display:none;">
+                                    <button class="btn btn-secondary" onclick="document.getElementById('reconFileInput').click()"><i class="fas fa-arrow-up-from-bracket"></i> Choose CSV file</button>
+                                    <span id="reconFileName" style="font-size:13px;color:var(--text-muted);">No file chosen</span>
                                     <label style="font-size: 13px; color: var(--text-muted);">Delimiter
                                         <select id="reconDelim" onchange="FinanceApp.reparseRecon()" style="margin-left: 6px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
                                             <option value="auto">Auto-detect</option>
@@ -28760,7 +28763,7 @@ President, Med&amp;X</textarea>
                                     </div>
                                     <div class="forum-event-badges">
                                         <span class="forum-event-badge type"><i class="fas fa-tag"></i> ${this._eventTypeLabel(e.event_type)}</span>
-                                        <span class="forum-event-badge ${this._statusBadgeClass(e.status)}">${this._statusLabel(e.status)}</span>
+                                        ${e.status && e.status !== 'published' ? `<span class="forum-event-badge ${this._statusBadgeClass(e.status)}">${this._statusLabel(e.status)}</span>` : ''}
                                         ${isPublished ? '<span class="forum-event-badge published"><i class="fas fa-globe"></i> Published</span>' : '<span class="forum-event-badge draft"><i class="fas fa-eye-slash"></i> Draft</span>'}
                                         ${e.checkin_enabled ? '<span class="forum-event-badge type"><i class="fas fa-qrcode"></i> QR Check-in</span>' : ''}
                                     </div>
@@ -30941,7 +30944,7 @@ President, Med&amp;X</textarea>
                 document.getElementById('accStatInstitutions').textContent = this.institutions.length;
                 // B2: Update Quick Settings summary
                 const qsDeadline = document.getElementById('accCfgDeadline')?.value;
-                document.getElementById('accQsDeadline').textContent = qsDeadline ? new Date(qsDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+                document.getElementById('accQsDeadline').textContent = qsDeadline ? new Date(qsDeadline + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
                 document.getElementById('accQsPositions').textContent = document.getElementById('accCfgPositions')?.value || '—';
                 document.getElementById('accQsInstitutions').textContent = `${this.institutions.length} active`;
                 document.getElementById('accQsApplications').textContent = `${this.applications.length} total (${this.applications.filter(a => a.status === 'submitted').length} pending)`;
@@ -31396,8 +31399,8 @@ President, Med&amp;X</textarea>
                             </span>
                         </div>
                         <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                            <div><i class="fas fa-users" style="width: 20px; color: var(--text-muted);"></i> ${inst.available_spots || '-'} spots</div>
-                            <div><i class="fas fa-clock" style="width: 20px; color: var(--text-muted);"></i> ${inst.internship_duration || '-'}</div>
+                            <div><i class="fas fa-users" style="width: 20px; color: var(--text-muted);"></i> ${inst.available_spots ? inst.available_spots + ' spots' : 'Spots: TBD'}</div>
+                            <div><i class="fas fa-clock" style="width: 20px; color: var(--text-muted);"></i> ${inst.internship_duration || 'Duration: TBD'}</div>
                         </div>
                         <div style="margin-top: 12px; display: flex; gap: 8px;">
                             <button class="btn btn-secondary" style="flex: 1; font-size: 12px;" onclick="AcceleratorApp.showInstitutionDetails('${inst.id}')">
@@ -33481,7 +33484,7 @@ By applying to this program, I give the following consents:
             formConfig: [],
 
             // Default form sections definition (used for preview rendering)
-            defaultFormSections: [
+            get defaultFormSections() { return [
                 {
                     name: 'Personal Information',
                     icon: 'fa-user',
@@ -33544,7 +33547,7 @@ By applying to this program, I give the following consents:
                         { name: 'gdpr_consent', label: 'I accept the personal data processing terms', type: 'checkbox', required: true, span: 2 }
                     ]
                 }
-            ],
+            ]; },
 
             async loadFormConfig() {
                 try {
@@ -34948,6 +34951,8 @@ By applying to this program, I give the following consents:
                 const file = event.target.files && event.target.files[0];
                 if (!file) return;
                 this._recon.filename = file.name;
+                const reconFileNameEl = document.getElementById('reconFileName');
+                if (reconFileNameEl) reconFileNameEl.textContent = file.name;
                 const reader = new FileReader();
                 reader.onload = (e) => { this._recon.rawText = String(e.target.result || ''); this.reparseRecon(); };
                 reader.readAsText(file);
@@ -39491,7 +39496,7 @@ By applying to this program, I give the following consents:
 
                 grid.innerHTML = assets.map(a => `
                     <div style="position: relative; border-radius: 8px; overflow: hidden; background: var(--bg-secondary); cursor: pointer;" onclick="PRApp.viewMedia('${a.id}')">
-                        <img src="${a.file_path}" style="width: 100%; height: 150px; object-fit: cover;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%22100%22><rect fill=%22%23f3efe9%22 width=%22160%22 height=%22100%22/><text fill=%22%236b6258%22 font-family=%22Inter,sans-serif%22 font-size=%2210%22 x=%2280%22 y=%2252%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>No preview available</text></svg>'">
+                        <img src="${a.file_path || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%22100%22><rect fill=%22%23f3efe9%22 width=%22160%22 height=%22100%22/><text fill=%22%236b6258%22 font-family=%22Inter,sans-serif%22 font-size=%2210%22 x=%2280%22 y=%2252%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>No preview available</text></svg>'}" style="width: 100%; height: 150px; object-fit: cover;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%22100%22><rect fill=%22%23f3efe9%22 width=%22160%22 height=%22100%22/><text fill=%22%236b6258%22 font-family=%22Inter,sans-serif%22 font-size=%2210%22 x=%2280%22 y=%2252%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>No preview available</text></svg>'">
                         <div style="padding: 8px;">
                             <div style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${a.original_name || a.file_name}</div>
                             <div style="font-size: 11px; color: var(--text-muted);">${a.category}</div>
@@ -43656,7 +43661,7 @@ By applying to this program, I give the following consents:
                   metrics(c) { const s = c.summary.plexus || {}, g = c.gala || {}, a = c.ca || {};
                     return { rows: [
                         { label: 'Plexus Conference', value: `${s.registrations || 0}`, unit: 'registered', sub: 'free entry', section: 'plexus' },
-                        { label: 'Gala Evening', value: `${g.paid || 0}`, unit: 'paid people', sub: `${g.vip || 0} VIP · ${g.awaiting || 0} to chase · €${Math.round(g.revenue || 0).toLocaleString()}`, section: 'gala' },
+                        { label: 'Gala Evening', value: `${g.paid || 0}`, unit: `paid ${(g.paid || 0) === 1 ? 'person' : 'people'}`, sub: `${g.vip || 0} VIP · ${g.awaiting || 0} to chase · €${Math.round(g.revenue || 0).toLocaleString()}`, section: 'gala' },
                         { label: 'Croatians Abroad · Donor Night', value: `${a.total || 0}`, unit: 'invited guests', sub: (a.total ? `${a.conf || 0} conference · ${a.bridges || 0} bridges · ${a.galaPaid || 0} gala paid` : 'no registrations yet'), section: 'croatians-abroad' },
                     ], foot: c.deadline(['plexus']) }; } },
                 { key: 'finances', id: 'liveOv_finances', label: 'Finances', section: 'finances', icon: 'fa-coins',
@@ -51010,7 +51015,7 @@ By applying to this program, I give the following consents:
                 const tg = this.memberCardToggles;
                 host.innerHTML = `
                     <div class="card" style="padding:18px 22px;margin-top:16px;max-width:760px;">
-                        <div style="font-weight:600;margin-bottom:2px;">Prikaži "Već imate račun?" karticu — stalne stranice</div>
+                        <div style="font-weight:600;margin-bottom:2px;">Show the "Already have an account?" card — fixed pages</div>
                         <div style="color:var(--text-muted);font-size:12.5px;margin-bottom:12px;">These pages are not driven by the form builder. Untick one to hide the member sign-in card there — sign-ups and account linking keep working either way. Builder forms have their own checkbox under Settings.</div>
                         ${tg ? `
                         <div style="display:grid;gap:8px;">
@@ -55062,8 +55067,8 @@ By applying to this program, I give the following consents:
                     this._skeletonFor = null;
                     root.innerHTML = '<div class="card" style="max-width:560px;margin:40px auto;padding:28px;text-align:center;">' +
                         '<i class="fas fa-tower-broadcast" style="font-size:26px;color:var(--text-muted);"></i>' +
-                        '<h2 style="margin:12px 0 6px;font-size:20px;">Game Day nije aktivan</h2>' +
-                        '<p class="gd-muted" style="margin:0;">Aktivira se automatski na dan događanja (auto) ili ručno u testnom načinu.</p>' +
+                        '<h2 style="margin:12px 0 6px;font-size:20px;">Game Day is not active</h2>' +
+                        '<p class="gd-muted" style="margin:0;">It activates automatically on the day of the event (auto) or manually in test mode.</p>' +
                         (this.mode !== 'volunteer' && App.user && App.user.is_admin
                             ? '<button class="btn btn-primary" style="margin-top:16px;" onclick="App.showSection(\'gameday-settings\')"><i class="fas fa-sliders"></i> Open Game Day settings</button>'
                             : '') +

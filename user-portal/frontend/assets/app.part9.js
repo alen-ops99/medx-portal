@@ -3318,7 +3318,7 @@
                 'wrap.statCerts1':   { en: 'certificate earned', hr: 'potvrda stečena' },
                 'wrap.statTalks':    { en: 'talks attended', hr: 'predavanja posjećeno' },
                 'wrap.statTalks1':   { en: 'talk attended', hr: 'predavanje posjećeno' },
-                'wrap.warm':         { en: 'Thank you for being part of it all. Here is to the next chapter, together.', hr: 'Hvala vam što ste bili dio svega. Neka slijedi novo poglavlje, zajedno.' },
+                'wrap.warm':         { en: 'Thank you for being part of it all. Here\'s to the next chapter, together.', hr: 'Hvala vam što ste bili dio svega. Neka slijedi novo poglavlje, zajedno.' },
                 'wrap.warmNew':      { en: 'Your Med&X story is just beginning, and we are glad to share it with you.', hr: 'Vaša priča s Med&X-om tek počinje i drago nam je što je dijelimo s vama.' },
                 // Card face — plain (quiet) variant, no gamification framing
                 'wrap.plainEyebrow': { en: 'MED&X · 2026', hr: 'MED&X · 2026' },
@@ -8463,7 +8463,9 @@
                         ${socialLinks.length ? `<div class="px-speaker-socials">${socialLinks.join('')}</div>` : ''}
                     </div>`;
                 });
-                grid.innerHTML = html;
+                grid.innerHTML = html || '<div class="px-speakers-empty" style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--up-text-muted);"><i class="fas fa-microphone-slash" style="font-size:32px;opacity:.4;display:block;margin-bottom:12px;"></i>No speakers announced yet. Check back soon.</div>';
+                const pxHint = document.getElementById('pxSpeakersHint');
+                if (pxHint) pxHint.style.display = ConferenceData.speakers.length ? '' : 'none';
             },
 
             // === Dynamic Explore Zagreb Rendering ===
@@ -9148,7 +9150,8 @@
                 const grid = document.getElementById('plexusAttendeesGrid');
                 if (!grid) return;
                 try {
-                    const users = await UserPortal.api('/api/plexus/attendees');
+                    const raw = await UserPortal.api('/api/plexus/attendees');
+                    const users = Array.isArray(raw) ? raw.filter(u => u.id !== UserPortal.user?.id) : raw;
                     if (!Array.isArray(users) || users.length === 0) {
                         grid.innerHTML = MedXState.render({ gridSpan: true, icon: 'fa-users', title: t('net.attendeesEmptyTitle'), body: t('net.attendeesEmptySub') });
                         return;
@@ -11970,7 +11973,7 @@
                         iconClass = 'confirmed';
                         iconChar = '<i class="fas fa-ticket-alt"></i>';
                         title = 'Ticket Confirmed!';
-                        message = `Your Gala Evening ticket is confirmed. Invoice: ${reg.invoice_number || 'N/A'}. We look forward to seeing you there!`;
+                        message = `Your Gala Evening ticket is confirmed.${reg.invoice_number ? ` Invoice: ${reg.invoice_number}.` : ''} We look forward to seeing you there!`;
                         actions = '';
                         break;
                     case 'rejected':
@@ -12815,7 +12818,7 @@
                         const heroDeadlineEl = document.getElementById('axHeroDeadlineText');
                         if (heroDeadlineEl) {
                             const when = new Date(ts).toLocaleDateString(isHr ? 'hr-HR' : 'en-US',
-                                { month: 'long', day: 'numeric', year: 'numeric' });
+                                { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
                             heroDeadlineEl.innerHTML = '<i class="far fa-clock"></i> ' + label + ': ' + when;
                         }
                     }
@@ -13665,7 +13668,7 @@
                                     </span>
                                 </div>
                                 <div style="font-size:12px; color:var(--up-text-muted,var(--muted)); margin-top:8px;">
-                                    Submitted: ${app.submitted_at ? new Date(app.submitted_at).toLocaleDateString() : 'Not yet submitted'}
+                                    Submitted: ${app.submitted_at ? new Date(app.submitted_at).toLocaleDateString() : (app.status === 'submitted' ? new Date(app.updated_at || app.created_at).toLocaleDateString() : 'Not yet submitted')}
                                 </div>
                             </div>
                         `).join('');

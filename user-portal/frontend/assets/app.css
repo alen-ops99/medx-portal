@@ -24338,13 +24338,13 @@
             background: rgba(201, 169, 98, 0.15);
         }
         [data-theme="light"] .ax-hero-btn-secondary {
-            background: rgba(20,15,12, 0.06);
-            color: var(--ink);
-            border: 1px solid rgba(20,15,12, 0.15);
+            background: rgba(255,255,255, 0.1);
+            color: #ffffff;
+            border: 1px solid rgba(255,255,255, 0.2);
         }
         [data-theme="light"] .ax-hero-btn-secondary:hover {
-            background: rgba(20,15,12, 0.1);
-            border-color: rgba(20,15,12, 0.25);
+            background: rgba(255,255,255, 0.15);
+            border-color: rgba(255,255,255, 0.3);
         }
         [data-theme="light"] .ax-countdown-item {
             background: rgba(20,15,12, 0.06);
@@ -25671,6 +25671,10 @@
             background: var(--success);
             border-color: var(--success);
             color: white;
+        }
+
+        .ax-checklist-item:not(.completed) .check-circle i {
+            display: none;
         }
 
         .ax-checklist-percent {
@@ -30722,6 +30726,7 @@
 
         .connection-btn {
             flex: 1;
+            min-width: 0;
             padding: 10px 16px;
             border-radius: 10px;
             font-size: 13px;

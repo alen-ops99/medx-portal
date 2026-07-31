@@ -5083,7 +5083,7 @@
                                 </div>
                             </div>
                         </div>
-                        <p style="text-align: center; color: var(--up-text-muted); margin-top: 32px; font-size: 14px;">
+                        <p id="pxSpeakersHint" style="text-align: center; color: var(--up-text-muted); margin-top: 32px; font-size: 14px;">
                             <i class="fas fa-info-circle"></i> Click on a speaker to view their full bio and add their session to your schedule
                         </p>
                     </div>
@@ -11488,7 +11488,7 @@
                     .mmx-recog-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink,#15110f);margin-bottom:4px;}
                     .mmx-recog-head i{color:var(--crimson,#9b1b22);}
                     .mmx-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
-                    .mmx-points{background:linear-gradient(140deg,#1a1512,#2c211a);border:1px solid rgba(201,169,98,.28);border-radius:18px;padding:20px 22px;color:#f3efe9;flex:1;display:flex;flex-direction:column;justify-content:center;}
+                    .mmx-points{background:linear-gradient(140deg,#1a1512,#2c211a);border:1px solid rgba(201,169,98,.28);border-radius:18px;padding:20px 22px;color:#f3efe9;flex:0 0 auto;align-self:flex-start;display:flex;flex-direction:column;justify-content:center;}
                     .mmx-points-row{display:flex;align-items:center;gap:14px;}
                     .mmx-points-ico{width:46px;height:46px;border-radius:13px;background:rgba(201,169,98,.16);border:1px solid rgba(201,169,98,.32);display:flex;align-items:center;justify-content:center;color:#c9a962;font-size:20px;flex-shrink:0;}
                     .mmx-points-label{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(243,239,233,.6);font-weight:700;}
@@ -11563,7 +11563,7 @@
                     .mlc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
                     .mlc-logochip{display:inline-flex;align-items:center;background:#fbf9f6;border-radius:9px;padding:6px 10px;box-shadow:0 4px 14px rgba(0,0,0,.3);}
                     .mlc-logochip img{height:17px;width:auto;display:block;}
-                    .mlc-eyebrow{font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:rgba(230,201,135,.85);text-align:right;margin-top:4px;white-space:nowrap;}
+                    .mlc-eyebrow{font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:rgba(230,201,135,.85);text-align:right;margin-top:36px;white-space:nowrap;}
                     .mlc-mid{margin-top:auto;display:flex;align-items:flex-end;gap:11px;}
                     .mlc-portrait{width:44px;height:44px;border-radius:12px;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,#7d161c,#9b1b22);display:flex;align-items:center;justify-content:center;border:1px solid rgba(201,169,98,.5);}
                     .mlc-portrait img{width:100%;height:100%;object-fit:cover;display:block;}
@@ -11661,17 +11661,18 @@
                     <!-- Donor thank-you (WARMTH PACK) — MyMedXPortal.renderGiving(); hidden unless a real giving record exists -->
                     <div id="mymedxGiving" style="display:none;"><!-- MyMedXPortal.renderGiving() --></div>
 
-                    <!-- Programs Grid -->
-                    <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;" data-i18n="mmx.myProjects">My projects</h3>
+                    <!-- My events (injects its own "My events" heading via MyMedXPortal) -->
                     <div id="mymedxMyEvents" style="display:none; margin-bottom:24px;"></div>
 
+                    <!-- Programs Grid -->
+                    <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;" data-i18n="mmx.myProjects">My projects</h3>
                     <div id="mymedxPrograms" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 24px;">
                         <!-- Populated by MyMedXPortal.renderPrograms() -->
                     </div>
 
                     <!-- My Wallet (tickets + QR + receipts) -->
                     <h3 style="font-size: 16px; font-weight: 600; color: var(--up-text, #1d1d1f); margin: 0 0 12px; padding-left: 4px;" data-i18n="mmx.myWallet">My Wallet</h3>
-                    <div id="mymedxQRCodes" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px;">
+                    <div id="mymedxQRCodes" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 24px; align-items: start;">
                         <!-- Populated by MyMedXPortal.renderQRCodes() -->
                     </div>
 
