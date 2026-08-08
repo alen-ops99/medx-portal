@@ -2050,6 +2050,9 @@
         .ac-item.is-actioned { opacity: .72; }
         .ac-item-main { min-width: 220px; flex: 1 1 320px; }
         .ac-item-title { font-size: 14px; font-weight: 600; color: var(--text-primary); line-height: 1.35; }
+        /* Clicking an Action Center item's title opens the thing itself (task modal, section, …). */
+        .ac-item-title--link { cursor: pointer; }
+        .ac-item-title--link:hover, .ac-item-title--link:focus-visible { color: #9b1b22; text-decoration: underline; text-underline-offset: 3px; }
         .ac-item-who { margin-top: 4px; font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; }
         .ac-item-who .ac-actioned-tag { color: var(--success); font-weight: 600; }
         .ac-item-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -18803,8 +18806,8 @@ President, Med&amp;X</textarea>
                 if (p.scholarships > 0) plain(`${p.scholarships} scholarship${p.scholarships===1?'':'s'} to review`, "App.showProject('plexus'); App.showPlexusTab('pending')");
                 if (p.visas > 0) plain(`${p.visas} visa request${p.visas===1?'':'s'}`, "App.showProject('plexus'); App.showPlexusTab('pending')");
                 if (p.refunds > 0) money(`${p.refunds} refund${p.refunds===1?'':'s'} pending`, "App.showProject('plexus'); App.showPlexusTab('pending')");
-                if (t.overdue > 0) alertPill(`${t.overdue} overdue task${t.overdue===1?'':'s'}`, "App.showSection('dashboard')");
-                if (t.urgent > 0) plain(`${t.urgent} urgent task${t.urgent===1?'':'s'}`, "App.showSection('dashboard')");
+                if (t.overdue > 0) alertPill(`${t.overdue} overdue task${t.overdue===1?'':'s'}`, "App.openTaskList('overdue')");
+                if (t.urgent > 0) plain(`${t.urgent} urgent task${t.urgent===1?'':'s'}`, "App.openTaskList('urgent')");
 
                 // Approaching milestones (next 21 days) become gentle deadline pills.
                 const today = new Date(); today.setHours(0,0,0,0);
@@ -18975,7 +18978,9 @@ President, Med&amp;X</textarea>
                 return `
                     <div class="ac-item k-${item.kind}${actioned ? ' is-actioned' : ''}">
                         <div class="ac-item-main">
-                            <div class="ac-item-title">${escapeHtml(item.title)}</div>
+                            <div class="ac-item-title ac-item-title--link" role="button" tabindex="0" title="Open"
+                                 onclick="App.nagOpen('${item.id}')"
+                                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.nagOpen('${item.id}')}">${escapeHtml(item.title)}</div>
                             <div class="ac-item-meta">
                                 ${dueChip}
                                 ${this._nagAssignee(item)}
@@ -19208,6 +19213,8 @@ President, Med&amp;X</textarea>
             nagOpen(id) {
                 const item = (this._nagItems || []).find(i => i.id === id);
                 const pl = (item && item.action_payload) || {};
+                // Task items open the task itself in full (the task modal), not just a section.
+                if (pl.task_id) { this.openTaskInFull(pl.project, pl.task_id); return; }
                 if (pl.open_planner) { this.showSection('pr-media'); setTimeout(() => { try { Planner.open(); } catch (e) {} }, 200); return; }
                 if (pl.open_candidate) { this.forumOpenCandidateDeepLink(pl.open_candidate); return; }
                 if (pl.open_project) { this.showProject(pl.open_project); return; }
@@ -19352,8 +19359,8 @@ President, Med&amp;X</textarea>
                     if (p.visas > 0) items.push({label: p.visas + ' visas', active: true, onClick: "App.showProject('plexus'); App.showPlexusTab('pending')"});
                     if (p.refunds > 0) items.push({label: p.refunds + ' refunds', active: true, onClick: "App.showProject('plexus'); App.showPlexusTab('pending')"});
                     // Add task alerts
-                    if (stats.tasks && stats.tasks.overdue > 0) items.push({label: stats.tasks.overdue + ' overdue tasks', active: true, onClick: "App.showSection('dashboard')"});
-                    if (stats.tasks && stats.tasks.urgent > 0) items.push({label: stats.tasks.urgent + ' urgent tasks', active: false, onClick: "App.showSection('dashboard')"});
+                    if (stats.tasks && stats.tasks.overdue > 0) items.push({label: stats.tasks.overdue + ' overdue tasks', active: true, onClick: "App.openTaskList('overdue')"});
+                    if (stats.tasks && stats.tasks.urgent > 0) items.push({label: stats.tasks.urgent + ' urgent tasks', active: false, onClick: "App.openTaskList('urgent')"});
 
                     cells += `
                     <div class="pulse-pending-row">
@@ -20772,16 +20779,41 @@ President, Med&amp;X</textarea>
                 container.innerHTML = incompleteTasks.map(task => this.renderTaskItem(task, project)).join('');
             },
 
+            // Open the dashboard To Do card as a task list, optionally filtered ('overdue' |
+            // 'urgent'). This is where the Needs-Attention "N overdue tasks" pill lands —
+            // previously it pointed at showSection('dashboard'), a no-op when already home.
+            openTaskList(filter) {
+                this.dashTaskFilter = filter || null;
+                this.showSection('dashboard');
+                const det = document.querySelector('#dashTodo details');
+                if (det) det.open = true;
+                this.renderDashboardTasks();
+                setTimeout(() => {
+                    const card = document.getElementById('dashTodo');
+                    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 120);
+            },
+            clearTaskFilter() { this.dashTaskFilter = null; this.renderDashboardTasks(); },
+
             renderDashboardTasks() {
                 const container = document.getElementById('dashboardTasks');
                 const projectIds = ['plexus', 'accelerator', 'forum', 'bridges', 'general'];
                 const currentUserId = this.user?.id?.toString();
+                const filter = this.dashTaskFilter || null;
+                const todayStr = new Date().toISOString().slice(0, 10);
+                const isOverdue = (t) => !!t.due_date && String(t.due_date).slice(0, 10) < todayStr;
+                const matchesFilter = (t) => filter === 'overdue' ? isOverdue(t)
+                    : filter === 'urgent' ? t.priority === 'high'
+                    : true;
 
                 // Get pinned task IDs
                 const pinnedTaskIds = this.pinnedItems.filter(p => p.item_type === 'task').map(p => p.item_id);
 
-                // Filter function: only show tasks assigned to current user or unassigned
+                // Filter function: only show tasks assigned to current user or unassigned.
+                // A filtered view (overdue/urgent) shows EVERYONE's tasks — the pill count it
+                // comes from counts all assignees, so the list must match.
                 const isMyTask = (task) => {
+                    if (filter) return true;
                     if (!task.assigned_to) return true; // Unassigned tasks visible to all
                     return task.assigned_to?.toString() === currentUserId;
                 };
@@ -20789,13 +20821,15 @@ President, Med&amp;X</textarea>
                 // Collect pinned tasks first (only my tasks)
                 const pinnedTasks = [];
                 const groupedTasks = {};
+                let filteredCount = 0;
 
                 projectIds.forEach(project => {
-                    const tasks = (this.allTasks[project] || []).filter(isMyTask);
+                    const tasks = (this.allTasks[project] || []).filter(isMyTask).filter(matchesFilter);
                     groupedTasks[project] = [];
+                    filteredCount += tasks.length;
 
                     tasks.forEach(task => {
-                        if (pinnedTaskIds.includes(task.id)) {
+                        if (!filter && pinnedTaskIds.includes(task.id)) {
                             pinnedTasks.push(task);
                         } else {
                             groupedTasks[project].push(task);
@@ -20804,6 +20838,17 @@ President, Med&amp;X</textarea>
                 });
 
                 let html = '';
+
+                // Active-filter bar: says what the list is showing and offers the way back.
+                if (filter) {
+                    const label = filter === 'overdue' ? 'overdue' : 'urgent';
+                    html += `
+                        <div class="task-filter-bar" style="display:flex; align-items:center; gap:10px; padding:8px 12px; margin-bottom:10px; border:1px solid var(--border-color); border-radius:8px; background:rgba(155,27,34,0.06);">
+                            <i class="fas fa-filter" style="color:#9b1b22; font-size:12px;"></i>
+                            <span style="font-size:12.5px; font-weight:600;">Showing ${filteredCount} ${label} task${filteredCount === 1 ? '' : 's'} across all assignees</span>
+                            <a style="margin-left:auto; font-size:12px; color:var(--text-muted); cursor:pointer; font-weight:600;" onclick="App.clearTaskFilter()">Show all tasks</a>
+                        </div>`;
+                }
 
                 // Pinned tasks section
                 if (pinnedTasks.length > 0) {
@@ -20817,12 +20862,14 @@ President, Med&amp;X</textarea>
                     `;
                 }
 
-                // Grouped by project
+                // Grouped by project. A filtered view lists every matching task; the default
+                // view keeps its calm 3-per-project preview.
                 projectIds.forEach(project => {
                     const tasks = groupedTasks[project];
                     if (tasks.length === 0) return;
 
                     const proj = this.projects[project];
+                    const shown = filter ? tasks : tasks.slice(0, 3);
                     html += `
                         <div class="task-group">
                             <div class="task-group-header">
@@ -20830,13 +20877,20 @@ President, Med&amp;X</textarea>
                                 <span class="task-group-name">${proj.name.split(' ')[0]}</span>
                                 <span class="task-group-count">${tasks.length} task${tasks.length !== 1 ? 's' : ''}</span>
                             </div>
-                            ${tasks.slice(0, 3).map(task => this.renderTaskItem(task, project)).join('')}
-                            ${tasks.length > 3 ? `<div style="text-align: center; padding: 8px;"><a style="color: var(--text-muted); font-size: 12px; cursor: pointer;" onclick="App.showProject('${project}')">View all ${tasks.length} tasks</a></div>` : ''}
+                            ${shown.map(task => this.renderTaskItem(task, project)).join('')}
+                            ${tasks.length > shown.length ? `<div style="text-align: center; padding: 8px;"><a style="color: var(--text-muted); font-size: 12px; cursor: pointer;" onclick="App.showProject('${project}')">View all ${tasks.length} tasks</a></div>` : ''}
                         </div>
                     `;
                 });
 
-                if (!html) {
+                if (filter && filteredCount === 0) {
+                    html += `
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>No ${filter} tasks — you are all caught up</p>
+                        </div>
+                    `;
+                } else if (!html) {
                     html = `
                         <div class="empty-state">
                             <i class="fas fa-check-circle"></i>
@@ -20854,7 +20908,8 @@ President, Med&amp;X</textarea>
                 const badge = this.getDueBadge(task.due_date);
                 const proj = this.projects[project];
                 const assignee = task.assigned_to ? this.teamMembers.find(m => m.id == task.assigned_to) : null;
-                const assigneeInitials = assignee ? (assignee.first_name?.[0] || '') + (assignee.last_name?.[0] || '') : '';
+                const assigneeName = assignee ? this.teamMemberName(assignee) : '';
+                const assigneeInitials = assigneeName ? assigneeName.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() : '';
                 const hasFiles = task.files && task.files.length > 0;
                 const hasSubtasks = task.subtasks && task.subtasks.length > 0;
                 const completedSubtasks = hasSubtasks ? task.subtasks.filter(st => st.status === 'done').length : 0;
@@ -20874,7 +20929,7 @@ President, Med&amp;X</textarea>
                         <div class="task-content" onclick="App.openTaskModal('${project}', '${task.id}')" style="cursor: pointer;">
                             <div class="task-title" style="${isSubtask ? 'font-size: 13px;' : ''}">${this.escapeHtml(task.title)}</div>
                             <div class="task-meta">
-                                ${assignee ? `<span title="${escapeHtml(assignee.first_name)} ${escapeHtml(assignee.last_name)}" style="display: inline-flex; align-items: center; justify-content: center; width: ${isSubtask ? '16' : '20'}px; height: ${isSubtask ? '16' : '20'}px; border-radius: 50%; background: var(--accent-gold); color: var(--bg-primary); font-size: ${isSubtask ? '8' : '9'}px; font-weight: 600;">${escapeHtml(assigneeInitials)}</span>` : ''}
+                                ${assignee ? `<span title="${escapeHtml(assigneeName)}" style="display: inline-flex; align-items: center; justify-content: center; width: ${isSubtask ? '16' : '20'}px; height: ${isSubtask ? '16' : '20'}px; border-radius: 50%; background: var(--accent-gold); color: var(--bg-primary); font-size: ${isSubtask ? '8' : '9'}px; font-weight: 600;">${escapeHtml(assigneeInitials)}</span>` : ''}
                                 ${hasFiles ? `<span title="${task.files.length} file(s)"><i class="fas fa-paperclip" style="color: var(--text-muted);"></i></span>` : ''}
                                 ${hasSubtasks && !isSubtask ? `<span style="font-size: 11px; color: var(--text-muted);"><i class="fas fa-tasks"></i> ${completedSubtasks}/${task.subtasks.length}</span>` : ''}
                                 ${dueText ? `<span>Due ${dueText}</span>` : ''}
@@ -21797,6 +21852,20 @@ President, Med&amp;X</textarea>
             taskPendingFiles: [],
             editingTask: null,
 
+            // Open one task "in full" (the task modal) from a deep link that only knows the
+            // task id — e.g. an Action Center task row. Falls back to the filtered task list
+            // when the task is not in the loaded projects (e.g. legacy seed projects), so a
+            // click always lands somewhere useful.
+            openTaskInFull(project, taskId) {
+                const projs = Object.keys(this.allTasks || {});
+                let foundProj = null;
+                for (const pr of projs) {
+                    if ((this.allTasks[pr] || []).some(t => t.id === taskId)) { foundProj = pr; break; }
+                }
+                if (foundProj) this.openTaskModal(foundProj, taskId);
+                else this.openTaskList('overdue');
+            },
+
             openTaskModal(project, taskId = null) {
                 // Populate assignee dropdown
                 this.populateAssigneeDropdown();
@@ -21819,6 +21888,11 @@ President, Med&amp;X</textarea>
                     for (const proj of ['plexus', 'accelerator', 'forum', 'bridges', 'general']) {
                         const found = (this.allTasks[proj] || []).find(t => t.id === taskId);
                         if (found) { task = found; break; }
+                    }
+                    if (!task) {
+                        // Never open a stale half-populated edit form for a task we cannot find.
+                        try { Toast.info('That task is no longer available — it may have been completed or deleted.'); } catch (e) {}
+                        return;
                     }
                     if (task) {
                         this.editingTask = task;
@@ -21864,11 +21938,19 @@ President, Med&amp;X</textarea>
                 document.getElementById('taskTitle').focus();
             },
 
+            // /api/team rows carry a single `name` field (no first_name/last_name) — read it
+            // first so the picker never renders blank options (colleague bug, 2026-08-08).
+            teamMemberName(m) {
+                if (!m) return '';
+                return String(m.name || `${m.first_name || ''} ${m.last_name || ''}`.trim()).trim();
+            },
             populateAssigneeDropdown() {
                 const select = document.getElementById('taskAssignee');
                 select.innerHTML = '<option value="">Unassigned</option>';
                 this.teamMembers.forEach(m => {
-                    select.innerHTML += `<option value="${m.id}">${escapeHtml(m.first_name)} ${escapeHtml(m.last_name)}</option>`;
+                    const name = this.teamMemberName(m);
+                    if (!name) return;
+                    select.innerHTML += `<option value="${m.id}">${escapeHtml(name)}</option>`;
                 });
             },
 
@@ -46317,7 +46399,7 @@ By applying to this program, I give the following consents:
         // into the SAME pr_content_calendar + Publer + pr_posts review flow (mock-safe) via the backend.
         const ContentCreator = {
             DIMS: { square: [1080, 1080], story: [1080, 1920], landscape: [1920, 1080] },
-            ACCENTS: { crimson: '#9b1b22', gold: '#c9a962', ink: '#15110f' },
+            ACCENTS: { crimson: '#9b1b22', gold: '#c9a962', ink: '#191512' }, // brand board accents
             LOGO_URL: '/assets/email-logo.png',
             brief: null, photos: [], selected: [], chat: [], busy: false,
             _imgs: {}, _fontsReady: false, _built: false, _styled: false,
@@ -46744,7 +46826,22 @@ By applying to this program, I give the following consents:
             // ---------- invitation palette + motifs (siblings of the Plexus / Med&X event invitations) ----------
             INV: { gold: '#D4A84B', goldLight: '#e8c97a', burgundy: '#A31D3A', burgundyDark: '#8a1830', navy: '#0f1c2e', cream: '#FAF8F5', ink: '#1a1a1a', line: '#e6e1d9', status: '#fdf6e3', statusLine: '#ede2c4', statusInk: '#7a5a12' },
             // accent selector -> the invitation's secondary accent (rules, tags, labels). Gold stays the fixed signature.
-            accentInk(name) { return ({ crimson: this.INV.burgundy, gold: this.INV.gold, ink: this.INV.navy })[name] || this.INV.burgundy; },
+            // The three choices are the brand-board accents (crimson #9b1b22, gold #c9a962, ink #191512).
+            accentInk(name) { return this.ACCENTS[name] || this.ACCENTS.crimson; },
+            // Same accent, tinted toward cream so it stays legible on the dark cinematic covers
+            // (raw ink/crimson would sink into the navy scrim). Gold is already light enough.
+            accentOnDark(name) {
+                if (name === 'gold') return this.ACCENTS.gold;
+                if (name === 'ink') return this.hexMix(this.ACCENTS.ink, this.INV.cream, 0.62); // warm ink-grey
+                return this.hexMix(this.ACCENTS.crimson, this.INV.cream, 0.32); // rose crimson
+            },
+            hexMix(a, b, k) {
+                const pa = /^#([0-9a-f]{6})$/i.exec(a), pb = /^#([0-9a-f]{6})$/i.exec(b);
+                if (!pa || !pb) return a;
+                const na = parseInt(pa[1], 16), nb = parseInt(pb[1], 16);
+                const ch = (sh) => Math.round(((na >> sh) & 255) + (((nb >> sh) & 255) - ((na >> sh) & 255)) * k);
+                return '#' + [ch(16), ch(8), ch(0)].map(v => v.toString(16).padStart(2, '0')).join('');
+            },
             SERIF: "'Cormorant Garamond', 'Inter', -apple-system, system-ui, sans-serif",
 
             // the invitation's signature gold L-bracket frame + hairline inset
@@ -46809,7 +46906,7 @@ By applying to this program, I give the following consents:
             // cinematic cover shared by announcement / countdown / speaker / quote
             async renderCinematic(ctx, W, H) {
                 const b = this.brief, tmpl = this.template, S = Math.min(W, H);
-                const acc = this.accentInk(b.accent);
+                const acc = this.accentOnDark(b.accent);
                 const GOLD = this.INV.gold, GOLDL = this.INV.goldLight, CREAM = this.INV.cream;
                 const bg = this.selected[0] ? await this.loadImg(this.selected[0]) : null;
                 ctx.fillStyle = this.INV.navy; ctx.fillRect(0, 0, W, H);
@@ -46838,12 +46935,12 @@ By applying to this program, I give the following consents:
                 const eyeH = b.eyebrow ? S * 0.055 : 0;
                 const total = eyeH + S * 0.05 + (hlines.length * lineH + S * 0.02) + S * 0.05 + (slines.length * S * 0.052);
                 let y = H * 0.53 - total / 2;
-                if (b.eyebrow) { this._label(ctx, b.eyebrow, cx, y, GOLDL, S * 0.026, S * 0.0075); y += eyeH; }
-                this.drawDivider(ctx, cx, y + S * 0.008, S * 0.08, GOLD); y += S * 0.05;
+                if (b.eyebrow) { this._label(ctx, b.eyebrow, cx, y, acc, S * 0.026, S * 0.0075); y += eyeH; }
+                this.drawDivider(ctx, cx, y + S * 0.008, S * 0.08, acc); y += S * 0.05;
                 ctx.font = headFont; ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
                 for (const ln of hlines) { ctx.fillText(ln, cx, y); y += lineH; }
                 y += S * 0.02;
-                this.drawDivider(ctx, cx, y, S * 0.08, GOLD); y += S * 0.045;
+                this.drawDivider(ctx, cx, y, S * 0.08, acc); y += S * 0.045;
                 if (slines.length) { ctx.font = subFont; ctx.fillStyle = CREAM; ctx.globalAlpha = 0.94; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; for (const ln of slines) { ctx.fillText(ln, cx, y); y += S * 0.052; } ctx.globalAlpha = 1; }
                 ctx.textAlign = 'left';
             },
@@ -46858,8 +46955,8 @@ By applying to this program, I give the following consents:
                 const numBlock = num ? numSize * 0.82 + S * 0.05 : 0;
                 const total = eyeH + S * 0.05 + numBlock + (hlines.length * lineH) + (b.subline ? S * 0.06 : 0);
                 let y = H * 0.53 - total / 2;
-                if (b.eyebrow) { this._label(ctx, b.eyebrow, cx, y, GOLDL, S * 0.026, S * 0.0075); y += eyeH; }
-                this.drawDivider(ctx, cx, y + S * 0.008, S * 0.08, GOLD); y += S * 0.05;
+                if (b.eyebrow) { this._label(ctx, b.eyebrow, cx, y, acc, S * 0.026, S * 0.0075); y += eyeH; }
+                this.drawDivider(ctx, cx, y + S * 0.008, S * 0.08, acc); y += S * 0.05;
                 if (num) {
                     ctx.font = numFont; ctx.fillStyle = GOLD; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
                     ctx.fillText(num, cx, y - numSize * 0.08);
@@ -46881,11 +46978,11 @@ By applying to this program, I give the following consents:
                 const roleH = b.eyebrow ? S * 0.05 : 0;
                 const total = roleH + (nlines.length * lineH) + S * 0.05 + (slines.length * S * 0.044);
                 let y = H * 0.9 - total;
-                if (b.eyebrow) { this._label(ctx, b.eyebrow, cx, y, GOLD, S * 0.028, S * 0.01); y += roleH; }
+                if (b.eyebrow) { this._label(ctx, b.eyebrow, cx, y, acc, S * 0.028, S * 0.01); y += roleH; }
                 ctx.font = nameFont; ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
                 for (const ln of nlines) { ctx.fillText(ln, cx, y); y += lineH; }
                 y += S * 0.014;
-                this.drawDivider(ctx, cx, y, S * 0.08, GOLD); y += S * 0.032;
+                this.drawDivider(ctx, cx, y, S * 0.08, acc); y += S * 0.032;
                 if (slines.length) { ctx.textAlign = 'center'; ctx.textBaseline = 'top'; for (const ln of slines) { this._label(ctx, ln, cx, y, GOLDL, S * 0.025, S * 0.004); y += S * 0.044; } }
                 ctx.textAlign = 'left';
             },
@@ -46902,8 +46999,8 @@ By applying to this program, I give the following consents:
                 ctx.fillText('“', cx, y - S * 0.02); y += markH;
                 ctx.font = qFont; ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
                 for (const ln of qlines) { ctx.fillText(ln, cx, y); y += lineH; }
-                y += S * 0.016; this.drawDivider(ctx, cx, y, S * 0.07, GOLD); y += S * 0.032;
-                if (b.subline) this._label(ctx, b.subline, cx, y, GOLDL, S * 0.026, S * 0.006);
+                y += S * 0.016; this.drawDivider(ctx, cx, y, S * 0.07, acc); y += S * 0.032;
+                if (b.subline) this._label(ctx, b.subline, cx, y, acc, S * 0.026, S * 0.006);
                 ctx.textAlign = 'left';
             },
 
@@ -46980,7 +47077,7 @@ By applying to this program, I give the following consents:
                 this.scrim(ctx, W, H, 'default');
                 await this.drawLogoChip(ctx, W, H);
                 // text overlays: headline on first slide, subline on last
-                const b = this.brief, accent = this.ACCENTS[b.accent] || this.ACCENTS.crimson;
+                const b = this.brief, accent = this.accentOnDark(b.accent);
                 const mx = W * 0.075, maxW = W - mx * 2;
                 const overlay = (title, sub, appear) => {
                     ctx.save(); ctx.globalAlpha = appear; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -46988,7 +47085,7 @@ By applying to this program, I give the following consents:
                     if (b.eyebrow) { ctx.font = `700 ${W * 0.032}px Inter, sans-serif`; ctx.fillStyle = b.accent === 'gold' ? '#e7c874' : '#efe0d0'; ctx.fillText(this.letterspace((b.eyebrow || '').toUpperCase(), 2), mx, y); y += W * 0.05; }
                     ctx.font = `700 ${this.aspect === 'landscape' ? W * 0.05 : W * 0.07}px Fraunces, Georgia, serif`; ctx.fillStyle = '#fbf9f6';
                     for (const ln of this.wrapLines(ctx, title, maxW)) { ctx.fillText(ln, mx, y); y += (this.aspect === 'landscape' ? W * 0.05 : W * 0.07) * 1.12; }
-                    y += W * 0.01; ctx.fillStyle = accent === '#15110f' ? '#c9a962' : accent; ctx.fillRect(mx, y, W * 0.12, Math.max(3, W * 0.007)); y += W * 0.035;
+                    y += W * 0.01; ctx.fillStyle = accent; ctx.fillRect(mx, y, W * 0.12, Math.max(3, W * 0.007)); y += W * 0.035;
                     if (sub) { ctx.font = `600 ${W * 0.034}px Inter, sans-serif`; ctx.fillStyle = '#f0ece6'; ctx.fillText(sub, mx, y); }
                     ctx.restore();
                 };

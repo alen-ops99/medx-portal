@@ -36655,6 +36655,44 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     function psSponsors() {
         try { return query.all("SELECT name, logo_url FROM sponsors WHERE COALESCE(is_published,0) = 1 AND logo_url IS NOT NULL AND TRIM(logo_url) <> '' ORDER BY tier, name"); } catch (e) { return []; }
     }
+    // Speaker names for the roll-up "Featuring" list. Published speakers lead; when none are
+    // published yet the confirmed roster stands in — print tooling tolerates drafts the same
+    // way the signage studio prints draft sessions (colleague bug 4, 2026-08-08: the roll-up
+    // shipped without speakers because the only confirmed speakers were still unpublished).
+    function psBannerSpeakerNames(limit) {
+        const cap = limit || 8;
+        let names = psSpeakers(cap).map(s => s.name);
+        if (!names.length) {
+            try { names = query.all("SELECT name FROM speakers WHERE is_confirmed = 1 ORDER BY is_keynote DESC, sort_order LIMIT ?", [cap]).map(s => s.name).filter(Boolean); } catch (e) { names = []; }
+        }
+        return names;
+    }
+    // Server-side enrichment for the roll-up fields: whatever the client sends, the banner
+    // always carries the speaker list and the day programme when the DB has them. The client
+    // only edits the headline copy; speakers/programme are data, not free text.
+    function psBannerEnrichFields(fields, eventKey, logoPx) {
+        const f = { ...(fields || {}), _logoPx: logoPx };
+        if (!Array.isArray(f.speakers) || !f.speakers.length) f.speakers = psBannerSpeakerNames(6);
+        if (!Array.isArray(f.programme) || !f.programme.length) f.programme = psProgramme(eventKey);
+        return f;
+    }
+    // The conference day programme for the roll-up — same source the signage studio's lecture
+    // signs use (all sessions for plexus-2026, drafts included), minus breaks, in running order.
+    function psProgramme(eventKey) {
+        if (String(eventKey || 'conference') !== 'conference') return [];
+        try {
+            const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+            if (!conf) return [];
+            const seen = new Set();
+            return query.all(`SELECT title, day, start_time, end_time, session_type FROM sessions
+                WHERE conference_id = ? AND LOWER(COALESCE(session_type,'')) <> 'break'
+                ORDER BY day, start_time`, [conf.id])
+                .filter(s => s.title)
+                // A printed programme should not repeat a line when the schedule manager holds
+                // an accidental duplicate row (the seed data has one).
+                .filter(s => { const k = `${s.day}|${s.start_time}|${String(s.title).trim().toLowerCase()}`; if (seen.has(k)) return false; seen.add(k); return true; });
+        } catch (e) { return []; }
+    }
     // Pull the whole badge roster for an event: registrants (role attendee/guest), confirmed speakers,
     // and optionally staff. Each row carries its consent-aware QR (or none). Deduped by lower(email).
     function psEventPeople(req, eventKey, opts) {
@@ -36834,7 +36872,27 @@ ${extraCss || ''}
             }).join('');
             sponsorRow = `<div style="margin-top:34mm;"><div style="font-size:16pt;letter-spacing:.26em;text-transform:uppercase;color:${th.featLabel};text-align:center;margin-bottom:14mm;">${psEsc(f.sponsorLabel || 'With the support of')}</div><div style="display:flex;flex-wrap:wrap;gap:26mm;align-items:center;justify-content:center;">${cells}</div></div>`;
         }
-        const detailBlock = `${speakers.length ? `<div style="margin-bottom:26mm;"><div style="font-size:15pt;letter-spacing:.26em;text-transform:uppercase;color:${th.featLabel};margin-bottom:12mm;">Featuring</div>${speakers.map(s => `<div class="ps-serif" style="font-size:26pt;color:${th.feat};margin-bottom:6mm;">${psEsc(s)}</div>`).join('')}</div>` : ''}${sponsorRow}`;
+        // Day programme (colleague bug 4, 2026-08-08): sessions grouped per day, running order,
+        // rendered between the headline block and the speaker list.
+        const programme = Array.isArray(f.programme) ? f.programme.filter(s => s && s.title).slice(0, 12) : [];
+        let programmeBlock = '';
+        if (programme.length) {
+            const byDay = {};
+            programme.forEach(s => { const d = s.day || 1; (byDay[d] = byDay[d] || []).push(s); });
+            const dayCols = Object.keys(byDay).sort((a, b) => a - b).map(d => `
+                <div style="min-width:220mm;">
+                    ${Object.keys(byDay).length > 1 ? `<div style="font-size:14pt;letter-spacing:.22em;text-transform:uppercase;color:${th.featLabel};margin-bottom:8mm;">Day ${psEsc(d)}</div>` : ''}
+                    ${byDay[d].map(s => `<div style="display:flex;gap:8mm;align-items:baseline;justify-content:center;margin-bottom:5mm;">
+                        <span style="font-size:17pt;color:${th.date};font-variant-numeric:tabular-nums;">${psEsc(s.start_time || '')}</span>
+                        <span class="ps-serif" style="font-size:20pt;color:${th.feat};">${psEsc(s.title)}</span>
+                    </div>`).join('')}
+                </div>`).join('');
+            programmeBlock = `<div style="margin-bottom:26mm;">
+                <div style="font-size:15pt;letter-spacing:.26em;text-transform:uppercase;color:${th.featLabel};margin-bottom:12mm;">${psEsc(f.programmeLabel || 'Programme')}</div>
+                <div style="display:flex;gap:30mm;justify-content:center;flex-wrap:wrap;">${dayCols}</div>
+            </div>`;
+        }
+        const detailBlock = `${programmeBlock}${speakers.length ? `<div style="margin-bottom:26mm;"><div style="font-size:15pt;letter-spacing:.26em;text-transform:uppercase;color:${th.featLabel};margin-bottom:12mm;">Featuring</div>${speakers.map(s => `<div class="ps-serif" style="font-size:26pt;color:${th.feat};margin-bottom:6mm;">${psEsc(s)}</div>`).join('')}</div>` : ''}${sponsorRow}`;
         // Background photo (if any) collects a DPI warning at full banner width.
         if (th.photoPx && images) images.push({ label: 'Background photo', px: th.photoPx, printWmm: dims.w });
         const frameDress = th.frame === 'hairline'
@@ -37136,7 +37194,7 @@ ${extraCss || ''}
             event: facts, events: psEvents(),
             counts, sample: people.slice(0, 60).map(p => ({ name: p.name, role: p.role, institution: p.institution, qr: !!p.qr, quiet: p.quiet })),
             speakers, sponsors,
-            banner: { headline: facts.name, eyebrow: 'Med&X presents', dateLine: facts.date, venueLine: facts.venue, sub: '', cta: 'medx.hr', speakers: speakers.slice(0, 6) },
+            banner: { headline: facts.name, eyebrow: 'Med&X presents', dateLine: facts.date, venueLine: facts.venue, sub: '', cta: 'medx.hr', speakers: psBannerSpeakerNames(6) },
             engine: { chrome: !!psChromeBinary(), cmyk: !!psGsBinary() }
         });
     }));
@@ -37147,7 +37205,7 @@ ${extraCss || ''}
         const kind = String(b.kind || 'badges-sheet');
         const eventKey = String(b.event || 'conference');
         const facts = psEventFacts(eventKey);
-        if (kind === 'banner') { const tokens = dsNormalizeTokens(b.tokens); const logo = psLogo(dsBannerTheme(tokens).dark); const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', { ...b.fields, _logoPx: logo.px }, logo.src, [], [], tokens); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
+        if (kind === 'banner') { const tokens = dsNormalizeTokens(b.tokens); const logo = psLogo(dsBannerTheme(tokens).dark); const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', psBannerEnrichFields(b.fields, eventKey, logo.px), logo.src, [], [], tokens); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
         if (kind === 'backdrop') { const logo = psLogo(true); const out = psBackdropDoc({ ...b.fields, _logoPx: logo.px }, logo.src, []); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
         if (kind === 'sign') { const logo = psLogo(false); const out = psSignDoc({ ...b.fields, _logoPx: logo.px }, logo.src, []); return res.json({ html: out.html, pageW: out.pageW, pageH: out.pageH }); }
         // badges: preview shows up to 8 real badges on one A4 sheet (or singles laid out the same).
@@ -37175,7 +37233,7 @@ ${extraCss || ''}
             const tokens = dsNormalizeTokens(b.tokens);
             const logo = psLogo(dsBannerTheme(tokens).dark);
             const sponsors = (b.sponsors === false) ? [] : psSponsors().map(s => { const im = psImage(s.logo_url); return { name: s.name, src: im.path ? im.src : '', px: im.px }; });
-            const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', { ...b.fields, _logoPx: logo.px }, logo.src, sponsors, images, tokens);
+            const out = psBannerDoc(b.size === '85x200' ? '85x200' : '100x200', psBannerEnrichFields(b.fields, eventKey, logo.px), logo.src, sponsors, images, tokens);
             html = out.html; pageW = out.pageW; pageH = out.pageH; aspect = (b.size === '85x200' ? '85x200' : '100x200'); title = (facts.name + ' banner ' + aspect);
         } else if (kind === 'backdrop') {
             const logo = psLogo(true); const out = psBackdropDoc({ ...b.fields, _logoPx: logo.px }, logo.src, images);
