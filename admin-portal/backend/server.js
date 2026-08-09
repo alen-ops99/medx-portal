@@ -790,6 +790,21 @@ async function publishToMeta(post, opts) {
 }
 
 
+// ---- Member-portal base URL (single source of truth; A70) ----
+// Declared BEFORE first module-scope use (QR_BASE_URL below) — a later declaration
+// crashed boot via the temporal dead zone. Dev defaults to the local user portal so
+// links and cross-portal calls never silently point invitees at production.
+let _userPortalWarned = false;
+function userPortalBase() {
+    if (process.env.USER_PORTAL_URL) return String(process.env.USER_PORTAL_URL).replace(/\/+$/, '');
+    if (process.env.NODE_ENV === 'production' || process.env.RENDER) return 'https://medx-user-portal.onrender.com';
+    if (!_userPortalWarned) {
+        _userPortalWarned = true;
+        console.warn('[config] USER_PORTAL_URL is not set — defaulting to http://localhost:3010 (non-production). Set USER_PORTAL_URL to silence this.');
+    }
+    return 'http://localhost:3010';
+}
+
 // ---- Hosted ticket-QR helpers (mirror of user-portal; the /qr/:id.png route lives there) ----
 // Emails reference a hosted QR URL instead of a data: URI because Gmail/Outlook strip data: URIs.
 // The PNG is also attached so the ticket survives image-blocking clients.
@@ -1941,17 +1956,7 @@ function seatPublicBase(req) {
 // ONE source of truth for the member-portal base URL. USER_PORTAL_URL wins; when it is
 // unset, only production silently falls back to the live member portal — a dev/staging
 // instance defaults to the local member portal (and logs loudly once) so generated
-// links and cross-portal calls never silently point invitees at production.
-let _userPortalWarned = false;
-function userPortalBase() {
-    if (process.env.USER_PORTAL_URL) return String(process.env.USER_PORTAL_URL).replace(/\/+$/, '');
-    if (process.env.NODE_ENV === 'production' || process.env.RENDER) return 'https://medx-user-portal.onrender.com';
-    if (!_userPortalWarned) {
-        _userPortalWarned = true;
-        console.warn('[config] USER_PORTAL_URL is not set — defaulting to http://localhost:3010 (non-production). Set USER_PORTAL_URL to silence this.');
-    }
-    return 'http://localhost:3010';
-}
+// (userPortalBase + its warn flag are declared earlier, before first module-scope use.)
 
 // ===================== CONTENT PLANNER (conversational wizard) =====================
 // The Content Planner lives only in the admin portal. These helpers assemble REAL portal facts and the
