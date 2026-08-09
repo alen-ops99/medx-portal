@@ -793,7 +793,7 @@ async function publishToMeta(post, opts) {
 // ---- Hosted ticket-QR helpers (mirror of user-portal; the /qr/:id.png route lives there) ----
 // Emails reference a hosted QR URL instead of a data: URI because Gmail/Outlook strip data: URIs.
 // The PNG is also attached so the ticket survives image-blocking clients.
-const QR_BASE_URL = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+const QR_BASE_URL = userPortalBase();
 function qrImageUrl(regId) { return `${QR_BASE_URL}/qr/${regId}.png`; }
 
 async function qrPngAttachment(payload) {
@@ -1193,6 +1193,7 @@ const SECTION_ROUTE_MAP = [
     ['/api/admin/editions', 'editions'],
     ['/api/admin/signup-forms', 'signup-forms'],
     ['/api/admin/guest-passes', 'guest-passes'], ['/api/admin/guest-pass-events', 'guest-passes'],
+    ['/api/admin/member-guest-passes', 'guest-passes'],
     ['/api/admin/year-calendar', 'year-calendar'],
     ['/api/admin/cme', 'cme'],
     // — Marketing & Content (PR & Media + Newsletter + Content studio) —
@@ -1826,6 +1827,13 @@ function runNagScan() {
             if (existing.status === 'open' || existing.status === 'actioned') {
                 db.run("UPDATE nag_items SET title=?, action_kind=?, action_payload_json=?, assignee=? WHERE id=?",
                     [d.title, d.action_kind, payload, d.assignee || null, existing.id]);
+            } else if (existing.status === 'done') {
+                // Self-healing: a 'done' row whose condition STILL holds means the mark-done
+                // didn't stick (or the condition recurred) — reopen it so an overdue task can
+                // never be permanently hidden by one click. 'dismissed' stays suppressed.
+                db.run("UPDATE nag_items SET status='open', resolved_at=NULL, title=?, action_kind=?, action_payload_json=?, assignee=? WHERE id=?",
+                    [d.title, d.action_kind, payload, d.assignee || null, existing.id]);
+                created++;
             }
         } else {
             db.run(`INSERT INTO nag_items (id, kind, subject_id, title, action_kind, action_payload_json, assignee, status, created_at)
@@ -1930,7 +1938,20 @@ function seatPublicBase(req) {
     return (process.env.RENDER_EXTERNAL_URL || ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com').replace(/\/+$/, '');
 }
 // The frozen registration flow lives on the user portal — the claim page deep-links it, prefilled.
-function userPortalBase() { return (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, ''); }
+// ONE source of truth for the member-portal base URL. USER_PORTAL_URL wins; when it is
+// unset, only production silently falls back to the live member portal — a dev/staging
+// instance defaults to the local member portal (and logs loudly once) so generated
+// links and cross-portal calls never silently point invitees at production.
+let _userPortalWarned = false;
+function userPortalBase() {
+    if (process.env.USER_PORTAL_URL) return String(process.env.USER_PORTAL_URL).replace(/\/+$/, '');
+    if (process.env.NODE_ENV === 'production' || process.env.RENDER) return 'https://medx-user-portal.onrender.com';
+    if (!_userPortalWarned) {
+        _userPortalWarned = true;
+        console.warn('[config] USER_PORTAL_URL is not set — defaulting to http://localhost:3010 (non-production). Set USER_PORTAL_URL to silence this.');
+    }
+    return 'http://localhost:3010';
+}
 
 // ===================== CONTENT PLANNER (conversational wizard) =====================
 // The Content Planner lives only in the admin portal. These helpers assemble REAL portal facts and the
@@ -3384,6 +3405,28 @@ async function initializeApp() {
     try { db.run('ALTER TABLE accelerator_applications ADD COLUMN ects_total INTEGER'); } catch (e) {}
     try { db.run('ALTER TABLE accelerator_applications ADD COLUMN alternative_institution TEXT'); } catch (e) {}
     try { db.run('ALTER TABLE accelerator_applications ADD COLUMN candidate_id TEXT'); } catch (e) {}
+
+    // One-time repair: applications inserted without program_id are invisible to every
+    // admin list/ranking/files view (all filter WHERE program_id = program.id). Link
+    // orphans to their year's program, preferring the active row and picking
+    // deterministically (oldest created_at) when a year has duplicate program rows.
+    try {
+        db.run(`UPDATE accelerator_applications SET program_id = (
+                    SELECT p.id FROM accelerator_programs p WHERE p.year = accelerator_applications.year
+                    ORDER BY p.is_active DESC, p.created_at ASC LIMIT 1)
+                WHERE (program_id IS NULL OR program_id = '')
+                  AND EXISTS (SELECT 1 FROM accelerator_programs p2 WHERE p2.year = accelerator_applications.year)`);
+    } catch (e) {}
+
+    // One-time repair: selected_institution should store the institution UUID, but
+    // legacy/seed rows stored the display NAME — normalize name-valued rows to ids so
+    // the institution filter, ranking PDF and CSV export resolve them.
+    try {
+        db.run(`UPDATE accelerator_applications SET selected_institution = (
+                    SELECT i.id FROM accelerator_institutions i WHERE i.name = accelerator_applications.selected_institution)
+                WHERE selected_institution IS NOT NULL AND selected_institution != ''
+                  AND EXISTS (SELECT 1 FROM accelerator_institutions i2 WHERE i2.name = accelerator_applications.selected_institution)`);
+    } catch (e) {}
 
     // Add overview config columns to accelerator_programs (ignore if exists)
     try { db.run("ALTER TABLE accelerator_programs ADD COLUMN program_duration TEXT DEFAULT '8-12 Weeks'"); } catch (e) {}
@@ -5168,6 +5211,11 @@ async function initializeApp() {
     )`);
     try { db.run('CREATE INDEX IF NOT EXISTS idx_event_editions_project ON event_editions(project, status)'); } catch (e) {}
     try { db.run('CREATE INDEX IF NOT EXISTS idx_event_editions_key ON event_editions(edition_key)'); } catch (e) {}
+    // Registration watermark: non-conference registration tables (gala/bridges/forum/
+    // accelerator) have no edition column, so a carried-over edition set at carryover
+    // time lets editionStats count only rows created AFTER the new edition began —
+    // otherwise every new edition instantly "inherits" the old edition's registrants.
+    try { db.run('ALTER TABLE event_editions ADD COLUMN reg_watermark TEXT'); } catch (e) {}
 
     // ============ BIOMEDICAL FORUM — CANDIDATE PIPELINE (ADMIN-ONLY) ============
     // The member-acquisition machine. The owner's worldwide list of Croatians in biomedicine is
@@ -5701,11 +5749,20 @@ async function initializeApp() {
             saveDb();
             console.log('[review-engine] seeded accelerator-2026 rubric (draft)');
         }
-        // Migration: an earlier build pointed this cycle at the legacy `accelerator_applications`
-        // research-placement table, which the applicant side does NOT write Accelerator intake to.
-        // Point it at the shared `submission_pipeline` store so the apply and review halves join.
-        // `source` is not owner-editable in the UI, so this only corrects the stale default.
-        try { db.run("UPDATE review_rubrics SET source = 'submission_pipeline' WHERE domain = 'accelerator' AND source = 'accelerator_applications'"); } catch (e) {}
+        // Migration, now DATA-AWARE: point the accelerator cycle at whichever store
+        // actually holds intake. The old unconditional flip to `submission_pipeline`
+        // made the accelerator_applications branch unreachable, so a deployment whose
+        // intake lives in accelerator_applications showed 0 submissions everywhere
+        // while the Applications tab one click away held real rows.
+        try {
+            const pipeCount = query.get('SELECT COUNT(*) c FROM submission_pipeline')?.c || 0;
+            const appCount = query.get("SELECT COUNT(*) c FROM accelerator_applications WHERE status != 'draft'")?.c || 0;
+            if (pipeCount > 0) {
+                db.run("UPDATE review_rubrics SET source = 'submission_pipeline' WHERE domain = 'accelerator' AND source = 'accelerator_applications'");
+            } else if (appCount > 0) {
+                db.run("UPDATE review_rubrics SET source = 'accelerator_applications' WHERE domain = 'accelerator' AND source = 'submission_pipeline'");
+            }
+        } catch (e) {}
     } catch (e) { console.error('[review-engine] seed', e.message); }
 
     // ====================== EXECUTIVE ADVISORY BOARD (admin-only) ======================
@@ -10713,9 +10770,13 @@ async function initializeApp() {
                 { name: 'David Horvat', email: 'david.horvat@mefst.hr', inst: 'University of Split', field: 'Genetics', gpa: '4.70', status: 'rejected', year: 4 }
             ];
 
+            // selected_institution stores the institution UUID (the ranking/PDF/filter
+            // queries all match on i.id) — the old seed hardcoded the NAME string, which
+            // made the institution filter, CSV export and ranking PDF come up empty.
+            const seedHarvard = query.get("SELECT id FROM accelerator_institutions WHERE name = 'Harvard Medical School'");
             apps.forEach(a => {
-                db.run(`INSERT INTO accelerator_applications (id, program_id, status, first_name, last_name, email, phone, date_of_birth, current_institution, current_position, year_of_study, gpa, research_interests, motivation_statement, selected_institution, created_at) VALUES (?, ?, ?, ?, ?, ?, '+385 91 000 0000', '2000-01-15', ?, 'Medical Student', ?, ?, ?, 'I am passionate about biomedical research and eager to gain hands-on experience at a top US institution through the Med&X Accelerator.', 'Harvard Medical School', '2026-01-20')`,
-                    [uuidv4(), pid, a.status, a.name.split(' ')[0], a.name.split(' ')[1], a.email, a.inst, String(a.year), a.gpa, a.field]);
+                db.run(`INSERT INTO accelerator_applications (id, program_id, status, first_name, last_name, email, phone, date_of_birth, current_institution, current_position, year_of_study, gpa, research_interests, motivation_statement, selected_institution, created_at) VALUES (?, ?, ?, ?, ?, ?, '+385 91 000 0000', '2000-01-15', ?, 'Medical Student', ?, ?, ?, 'I am passionate about biomedical research and eager to gain hands-on experience at a top US institution through the Med&X Accelerator.', ?, '2026-01-20')`,
+                    [uuidv4(), pid, a.status, a.name.split(' ')[0], a.name.split(' ')[1], a.email, a.inst, String(a.year), a.gpa, a.field, seedHarvard ? seedHarvard.id : 'Harvard Medical School']);
             });
 
             // Accelerator key dates (schema: id, year, name, date_start, date_end, description, color, sort_order)
@@ -11231,7 +11292,7 @@ async function initializeApp() {
             const totalLocal = registrations.length + forumRegs.length + bridgesRegs.length + galaRegs.length;
             if (totalLocal === 0 && user.email) {
                 try {
-                    const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+                    const userPortalUrl = userPortalBase();
                     const cpResp = await fetch(userPortalUrl + '/api/public/registrations/' + encodeURIComponent(user.email), {
                         signal: AbortSignal.timeout(10000)
                     });
@@ -13015,19 +13076,28 @@ By applying to this program, I provide the following consents:
             const appYear = year || new Date().getFullYear();
             const id = uuidv4();
 
-            // Generate work number based on count
-            const count = query.get('SELECT COUNT(*) as cnt FROM accelerator_applications WHERE year = ?', [appYear]);
+            // Every admin list/ranking/files view filters WHERE program_id = program.id —
+            // an application inserted without program_id is invisible in every year and
+            // unreachable by merge-docs. Resolve the year's program up front (deterministic
+            // pick if duplicates exist) and refuse rather than create an orphan.
+            const program = query.get('SELECT id FROM accelerator_programs WHERE year = ? AND is_active = 1 ORDER BY created_at LIMIT 1', [appYear])
+                || query.get('SELECT id FROM accelerator_programs WHERE year = ? ORDER BY created_at LIMIT 1', [appYear]);
+            if (!program) return res.status(400).json({ error: `No accelerator program configured for ${appYear}` });
+
+            // Generate work number based on count (scoped to the program so duplicate
+            // year rows can never mint duplicate ACC numbers)
+            const count = query.get('SELECT COUNT(*) as cnt FROM accelerator_applications WHERE program_id = ?', [program.id]);
             const workNum = String((count?.cnt || 0) + 1).padStart(3, '0');
             const appNumber = `ACC${String(appYear).slice(-2)}-${workNum}`;
 
             db.run(`INSERT INTO accelerator_applications (
-                id, year, user_id, application_number, work_number,
+                id, year, program_id, user_id, application_number, work_number,
                 first_name, last_name, email, phone, date_of_birth, oib, address,
                 current_institution, degree_program, year_of_study, gpa, ects_total,
                 program_type, selected_institution, alternative_institution,
                 previous_experience, special_arrangements, gdpr_consent, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-                id, appYear, req.user.id, appNumber, workNum,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                id, appYear, program.id, req.user.id, appNumber, workNum,
                 first_name, last_name, email, phone, date_of_birth, oib, address,
                 current_institution, degree_program, year_of_study, gpa, ects_total,
                 program_type, selected_institution, alternative_institution,
@@ -13352,6 +13422,10 @@ By applying to this program, I provide the following consents:
     // Create new year/program
     app.post('/api/accelerator/years', auth, (req, res) => {
         const { year, name, description, application_deadline, program_start, program_end } = req.body;
+        // Duplicate program rows for one year silently split data (every lookup is
+        // first-row-wins on 'WHERE year = ?' while /apply picks the newest) — refuse.
+        const existing = query.get('SELECT id FROM accelerator_programs WHERE year = ?', [year]);
+        if (existing) return res.status(409).json({ error: `Year ${year} already exists`, id: existing.id });
         const id = uuidv4();
         db.run(`INSERT INTO accelerator_programs (id, name, year, description, application_deadline, program_start, program_end)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -13560,7 +13634,8 @@ By applying to this program, I provide the following consents:
         const params = [program.id];
 
         if (status) { sql += ' AND a.status = ?'; params.push(status); }
-        if (institution) { sql += ' AND a.selected_institution = ?'; params.push(institution); }
+        // Match by institution UUID OR its stored name (legacy rows stored the name).
+        if (institution) { sql += ' AND (a.selected_institution = ? OR a.selected_institution = (SELECT name FROM accelerator_institutions WHERE id = ?))'; params.push(institution, institution); }
         if (search) { sql += ' AND (a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ? OR a.application_number LIKE ?)';
             const s = `%${search}%`; params.push(s, s, s, s); }
 
@@ -13792,6 +13867,18 @@ By applying to this program, I provide the following consents:
                 return res.status(400).json({ error: 'Invalid evaluations data' });
             }
 
+            // Server-side bounds check (authoritative): a typo like 999 used to store
+            // silently and reorder the official ranking. Same message pattern as the
+            // magic-link score route.
+            for (const { criterion_id, score } of evaluations) {
+                const criterion = query.get('SELECT * FROM accelerator_evaluation_criteria WHERE id = ?', [criterion_id]);
+                if (!criterion) return res.status(400).json({ error: `Invalid criterion: ${criterion_id}` });
+                const n = Number(score);
+                if (!Number.isFinite(n) || n < 0 || n > criterion.max_points) {
+                    return res.status(400).json({ error: `Score for "${criterion.name}" must be between 0 and ${criterion.max_points}` });
+                }
+            }
+
             evaluations.forEach(({ criterion_id, score, notes }) => {
                 const existing = query.get('SELECT id FROM accelerator_evaluations WHERE application_id = ? AND criterion_id = ?',
                     [req.params.appId, criterion_id]);
@@ -13823,12 +13910,16 @@ By applying to this program, I provide the following consents:
         const program = query.get('SELECT year FROM accelerator_programs WHERE id = ?', [app.program_id]);
         if (!program) return;
 
-        // Calculate objective score
+        // Calculate the evaluation score across ALL criteria. This used to filter
+        // c.category = 'objective', which silently discarded every criterion seeded
+        // with category 'subjective' (half the rubric was collected but never counted
+        // in the published ranking). The Evaluation UI presents all criteria
+        // identically, so all of them feed the score.
         const objectiveResult = query.get(`
             SELECT SUM(e.score * c.weight) as total
             FROM accelerator_evaluations e
             JOIN accelerator_evaluation_criteria c ON e.criterion_id = c.id
-            WHERE e.application_id = ? AND c.category = 'objective'`, [applicationId]);
+            WHERE e.application_id = ?`, [applicationId]);
 
         // Calculate interview score
         const interviewResult = query.get(`
@@ -14976,7 +15067,13 @@ By applying to this program, I provide the following consents:
         const track = (rubric && rubric.domain) || 'accelerator';
         const cyc = (rubric && rubric.cycle_key === 'accelerator-2026') ? '2026' : null;
         const num = (sql, params) => { try { const r = query.get(sql, params || []); return (r && r.c != null) ? r.c : 0; } catch (e) { return 0; } };
-        const drafts = num("SELECT COUNT(*) AS c FROM submission_pipeline WHERE track = ? AND status = 'draft'", [track]);
+        // Draft count follows the cycle's source: when the rubric reads
+        // accelerator_applications, drafts must be counted there too or the header
+        // strip contradicts the Applications tab.
+        const funnelSource = (rubric && rubric.source) || 'submission_pipeline';
+        const drafts = funnelSource === 'accelerator_applications'
+            ? num("SELECT COUNT(*) AS c FROM accelerator_applications WHERE status = 'draft'")
+            : num("SELECT COUNT(*) AS c FROM submission_pipeline WHERE track = ? AND status = 'draft'", [track]);
         const subs = reviewListSubmissions(rubric || { source: 'submission_pipeline', domain: track });
         const submitted = subs.length;
         let assigned = 0, fullyScored = 0;
@@ -15079,6 +15176,14 @@ By applying to this program, I provide the following consents:
         //     to under_review / interview_scheduled — i.e. exactly the ones due an interview.
         // `my_score` reads back from accelerator_application_scores (where this console
         // WRITES), falling back to the legacy accelerator_interview_scores row.
+        // Honor Assign Candidates: when this interviewer has explicit assignments,
+        // restrict the console to those applications; with zero assignments the
+        // show-all-eligible fallback is kept (documented behavior, so a link sent
+        // before assignments were made still works).
+        const hasAssignments = !!query.get('SELECT 1 FROM accelerator_interviewer_assignments WHERE interviewer_id = ? LIMIT 1', [interviewer.id]);
+        const assignmentClause = hasAssignments
+            ? 'AND EXISTS (SELECT 1 FROM accelerator_interviewer_assignments asg WHERE asg.interviewer_id = ? AND asg.application_id = a.id)'
+            : '';
         const applications = query.all(`
             SELECT a.id, a.candidate_id, a.first_name, a.last_name, a.selected_institution,
                    i.name as institution_name, a.validity_status, a.status,
@@ -15089,12 +15194,15 @@ By applying to this program, I provide the following consents:
                    (SELECT notes FROM accelerator_interview_scores WHERE application_id = a.id AND interviewer_id = ?) as my_notes
             FROM accelerator_applications a
             JOIN accelerator_programs p ON a.program_id = p.id
-            LEFT JOIN accelerator_institutions i ON a.selected_institution = i.id
+            LEFT JOIN accelerator_institutions i ON (a.selected_institution = i.id OR a.selected_institution = i.name)
             WHERE p.year = ?
               AND a.status IN ('submitted', 'under_review', 'interview_scheduled')
               AND (a.validity_status IS NULL OR a.validity_status = 'valid')
+              ${assignmentClause}
             ORDER BY a.last_name, a.first_name, a.candidate_id`,
-            [interviewer.id, interviewer.id, interviewer.id, interviewer.year]);
+            hasAssignments
+                ? [interviewer.id, interviewer.id, interviewer.id, interviewer.year, interviewer.id]
+                : [interviewer.id, interviewer.id, interviewer.id, interviewer.year]);
 
         // Committee asked for the candidate's full name on the evaluation sheet.
         applications.forEach(a => {
@@ -15133,12 +15241,19 @@ By applying to this program, I provide the following consents:
             SELECT a.*, i.name as institution_name, p.year
             FROM accelerator_applications a
             JOIN accelerator_programs p ON a.program_id = p.id
-            LEFT JOIN accelerator_institutions i ON a.selected_institution = i.id
+            LEFT JOIN accelerator_institutions i ON (a.selected_institution = i.id OR a.selected_institution = i.name)
             WHERE a.id = ? AND p.year = ? AND (a.validity_status IS NULL OR a.validity_status = 'valid')`,
             [req.params.appId, interviewer.year]);
 
         if (!application) {
             return res.status(404).json({ error: 'Application not found' });
+        }
+
+        // Assignment gate (mirrors the list route): an unassigned candidate cannot be
+        // opened via a magic link when this interviewer has explicit assignments.
+        const hasAssignments = !!query.get('SELECT 1 FROM accelerator_interviewer_assignments WHERE interviewer_id = ? LIMIT 1', [interviewer.id]);
+        if (hasAssignments && !query.get('SELECT 1 FROM accelerator_interviewer_assignments WHERE interviewer_id = ? AND application_id = ?', [interviewer.id, application.id])) {
+            return res.status(403).json({ error: 'This candidate is not assigned to you' });
         }
 
         // Get documents
@@ -15209,6 +15324,12 @@ By applying to this program, I provide the following consents:
             return res.status(400).json({ error: 'Invalid application' });
         }
 
+        // Assignment gate (mirrors the list/detail routes).
+        const scoreHasAssignments = !!query.get('SELECT 1 FROM accelerator_interviewer_assignments WHERE interviewer_id = ? LIMIT 1', [interviewer.id]);
+        if (scoreHasAssignments && !query.get('SELECT 1 FROM accelerator_interviewer_assignments WHERE interviewer_id = ? AND application_id = ?', [interviewer.id, application_id])) {
+            return res.status(403).json({ error: 'This candidate is not assigned to you' });
+        }
+
         if (score < 0 || score > criterion.max_points) {
             return res.status(400).json({ error: `Score must be between 0 and ${criterion.max_points}` });
         }
@@ -15224,6 +15345,25 @@ By applying to this program, I provide the following consents:
             const id = uuidv4();
             db.run(`INSERT INTO accelerator_application_scores (id, application_id, criterion_id, evaluator_id, score)
                 VALUES (?, ?, ?, ?, ?)`, [id, application_id, criterion_id, interviewer.id, score]);
+        }
+
+        // Bridge the per-criterion console scores into accelerator_interview_scores —
+        // recalculateApplicationScores derives the INTERVIEW component from that table,
+        // which nothing in this flow wrote before, so interviewer scores could never
+        // influence the ranking. One row per (application, interviewer) holding the
+        // evaluator's current total.
+        const evalTotal = query.get(
+            'SELECT SUM(score) as total FROM accelerator_application_scores WHERE application_id = ? AND evaluator_id = ?',
+            [application_id, interviewer.id])?.total || 0;
+        const existingInterview = query.get(
+            'SELECT id FROM accelerator_interview_scores WHERE application_id = ? AND interviewer_id = ?',
+            [application_id, interviewer.id]);
+        if (existingInterview) {
+            db.run("UPDATE accelerator_interview_scores SET score = ?, submitted_at = datetime('now') WHERE id = ?",
+                [evalTotal, existingInterview.id]);
+        } else {
+            db.run(`INSERT INTO accelerator_interview_scores (id, application_id, interviewer_id, score, submitted_at)
+                VALUES (?, ?, ?, ?, datetime('now'))`, [uuidv4(), application_id, interviewer.id, evalTotal]);
         }
 
         recalculateApplicationScores(application_id);
@@ -15560,19 +15700,30 @@ By applying to this program, I provide the following consents:
         const program = query.get('SELECT id FROM accelerator_programs WHERE year = ?', [req.params.year]);
         if (!program) return res.json([]);
 
+        // Join + filter tolerate both storage formats: UUID (canonical) and legacy
+        // name-valued selected_institution rows.
         let sql = `SELECT a.*, i.name as institution_name
             FROM accelerator_applications a
-            LEFT JOIN accelerator_institutions i ON a.selected_institution = i.id
+            LEFT JOIN accelerator_institutions i ON (a.selected_institution = i.id OR a.selected_institution = i.name)
             WHERE a.program_id = ? AND a.status = 'submitted'`;
         const params = [program.id];
 
-        if (institution) { sql += ' AND a.selected_institution = ?'; params.push(institution); }
+        if (institution) { sql += ' AND (a.selected_institution = ? OR a.selected_institution = (SELECT name FROM accelerator_institutions WHERE id = ?))'; params.push(institution, institution); }
         sql += ' ORDER BY a.total_score DESC, a.objective_score DESC';
 
         const applications = query.all(sql, params);
 
-        // Add rank position
-        applications.forEach((app, idx) => { app.rank_position = idx + 1; });
+        // Add rank position + per-criterion averages (same source the ranking PDF
+        // uses) so the on-screen table can render the configured criteria columns.
+        applications.forEach((app, idx) => {
+            app.rank_position = idx + 1;
+            app.criteria_scores = {};
+            try {
+                query.all(`SELECT criterion_id, AVG(score) as avg_score
+                    FROM accelerator_application_scores WHERE application_id = ? GROUP BY criterion_id`, [app.id])
+                    .forEach(s => { app.criteria_scores[s.criterion_id] = s.avg_score; });
+            } catch (e) {}
+        });
 
         res.json(applications);
     });
@@ -15769,12 +15920,18 @@ By applying to this program, I provide the following consents:
 
             // Page 2+: Ranking tables per institution with DYNAMIC columns
             for (const inst of institutions) {
-                // Get applications for this institution
+                // Get applications for this institution. Match by institution UUID OR the
+                // stored name (legacy rows store 'Harvard Medical School' rather than the
+                // id — matching only the id emitted zero institution pages). The validity
+                // filter is aligned with the on-screen ranking (which has none): treat
+                // NULL/'' as not-explicitly-invalid so the PDF lists the same candidates
+                // the Ranking tab displays.
                 const apps = query.all(`
                     SELECT a.id, a.candidate_id, a.gpa, a.objective_score, a.interview_score, a.total_score
                     FROM accelerator_applications a
-                    WHERE a.program_id = ? AND a.selected_institution = ? AND a.status = 'submitted' AND a.validity_status = 'valid'
-                    ORDER BY a.total_score DESC`, [program.id, inst.id]);
+                    WHERE a.program_id = ? AND (a.selected_institution = ? OR a.selected_institution = ?) AND a.status = 'submitted'
+                      AND (a.validity_status = 'valid' OR a.validity_status IS NULL OR a.validity_status = '')
+                    ORDER BY a.total_score DESC`, [program.id, inst.id, inst.name]);
 
                 if (apps.length === 0) continue;
 
@@ -15890,11 +16047,14 @@ By applying to this program, I provide the following consents:
     app.get('/api/accelerator/applications/:id/merge-docs', auth, async (req, res) => {
         try {
             const PDFDocument = require('pdfkit');
+            // LEFT JOIN the program so legacy orphan applications (program_id NULL)
+            // stay downloadable; match the institution by id OR stored name (older rows
+            // store the name/slug rather than the UUID).
             const application = query.get(`
-                SELECT a.*, i.name as institution_name, p.year
+                SELECT a.*, i.name as institution_name, COALESCE(p.year, a.year) as year
                 FROM accelerator_applications a
-                JOIN accelerator_programs p ON a.program_id = p.id
-                LEFT JOIN accelerator_institutions i ON a.selected_institution = i.id
+                LEFT JOIN accelerator_programs p ON a.program_id = p.id
+                LEFT JOIN accelerator_institutions i ON (a.selected_institution = i.id OR a.selected_institution = i.name)
                 WHERE a.id = ?`, [req.params.id]);
             if (!application) return res.status(404).json({ error: 'Not found' });
 
@@ -15925,9 +16085,9 @@ By applying to this program, I provide the following consents:
             doc.text(F.safe(`Candidate ID: ${application.candidate_id || '-'}`), 60, boxY);
             doc.text(F.safe(`Full Name: ${application.first_name} ${application.last_name}`), 60, boxY + 18);
             doc.text(F.safe(`Email: ${application.email}`), 60, boxY + 36);
-            doc.text(F.safe(`Institution: ${application.institution_name || '-'}`), 60, boxY + 54);
-            doc.text(F.safe(`Faculty: ${application.faculty || '-'}`), 60, boxY + 72);
-            doc.text(F.safe(`Year of Study: ${application.study_year || '-'}`), 60, boxY + 90);
+            doc.text(F.safe(`Institution: ${application.institution_name || application.current_institution || '-'}`), 60, boxY + 54);
+            doc.text(F.safe(`Faculty: ${application.degree_program || '-'}`), 60, boxY + 72);
+            doc.text(F.safe(`Year of Study: ${application.year_of_study || '-'}`), 60, boxY + 90);
             doc.y = boxY + 120;
             doc.moveDown(2);
 
@@ -16527,7 +16687,7 @@ By applying to this program, I provide the following consents:
             total_groups: query.get(`SELECT COUNT(*) as c FROM forum_groups WHERE is_active = 1`)?.c || 0,
             active_mentorships: query.get(`SELECT COUNT(*) as c FROM forum_mentorships WHERE status = 'active'`)?.c || 0,
             by_specialty: query.all(`SELECT specialty, COUNT(*) as count FROM forum_members WHERE membership_status = 'approved' AND specialty IS NOT NULL GROUP BY specialty ORDER BY count DESC LIMIT 10`),
-            by_country: query.all(`SELECT location_country as country, COUNT(*) as count FROM forum_members WHERE membership_status = 'approved' AND location_country IS NOT NULL GROUP BY location_country ORDER BY count DESC LIMIT 10`),
+            by_country: query.all(`SELECT COALESCE(location_country, country) as country, COUNT(*) as count FROM forum_members WHERE membership_status = 'approved' AND COALESCE(location_country, country) IS NOT NULL GROUP BY COALESCE(location_country, country) ORDER BY count DESC LIMIT 10`),
             recent_activity: query.all(`SELECT activity_type, COUNT(*) as count FROM forum_activity WHERE created_at > datetime('now', '-7 days') GROUP BY activity_type`)
         };
         res.json(stats);
@@ -16535,12 +16695,19 @@ By applying to this program, I provide the following consents:
 
     // Admin: Get pending applications
     app.get('/api/admin/forum/applications', auth, adminOnly, (req, res) => {
+        // LEFT JOIN + COALESCE, same pattern as /api/admin/forum/members — applicants
+        // added without a portal account (user_id NULL) were dropped by the INNER JOIN,
+        // so pending applications could never be approved from the Applications tab
+        // while the Dashboard counted them.
         const applications = query.all(`
-            SELECT fm.*, u.first_name, u.last_name, u.email
+            SELECT fm.*,
+                COALESCE(fm.first_name, u.first_name) as first_name,
+                COALESCE(fm.last_name, u.last_name) as last_name,
+                COALESCE(fm.email, u.email) as email
             FROM forum_members fm
-            JOIN users u ON fm.user_id = u.id
+            LEFT JOIN users u ON fm.user_id = u.id
             WHERE fm.membership_status = 'pending'
-            ORDER BY fm.application_submitted_at DESC
+            ORDER BY COALESCE(fm.application_submitted_at, fm.created_at) DESC
         `);
         res.json(applications);
     });
@@ -16585,15 +16752,30 @@ By applying to this program, I provide the following consents:
 
     // Admin: Manage groups
     app.post('/api/admin/forum/groups', auth, adminOnly, (req, res) => {
-        const { name, description, category, group_type, icon } = req.body;
-        const id = uuidv4();
-        const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-
-        db.run(`INSERT INTO forum_groups (id, name, slug, description, category, group_type, icon, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, name, slug, description, category, group_type || 'public', icon, req.user.id]);
-        saveDb();
-        res.json({ success: true, id });
+        try {
+            const { name, description, category, group_type, icon } = req.body;
+            if (!name || !String(name).trim()) return res.status(400).json({ error: 'A group name is required.' });
+            const id = uuidv4();
+            let slug = String(name).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'group';
+            // De-duplicate the slug (UNIQUE constraint) instead of letting the insert
+            // throw a raw 500 — append -2, -3, … until free.
+            const base = slug;
+            let n = 2;
+            while (query.get('SELECT id FROM forum_groups WHERE slug = ?', [slug])) { slug = base + '-' + n; n++; }
+            if (query.get('SELECT id FROM forum_groups WHERE LOWER(name) = LOWER(?)', [String(name).trim()])) {
+                return res.status(409).json({ error: 'A group with this name already exists.' });
+            }
+            db.run(`INSERT INTO forum_groups (id, name, slug, description, category, group_type, icon, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, String(name).trim(), slug, description, category, group_type || 'public', icon, req.user.id]);
+            saveDb();
+            res.json({ success: true, id });
+        } catch (e) {
+            // Backstop: a UNIQUE violation maps to 409, not an unhandled 500.
+            if (/UNIQUE/i.test(e.message)) return res.status(409).json({ error: 'A group with this name already exists.' });
+            console.error('[forum groups] create', e.message);
+            res.status(500).json({ error: 'Failed to create group.' });
+        }
     });
 
     // Admin: Delete a forum group
@@ -16641,9 +16823,17 @@ By applying to this program, I provide the following consents:
     });
 
     // Admin: Create event (enhanced)
+    function forumEventInvalid(b) {
+        if (b.start_date && b.end_date && b.end_date <= b.start_date) return 'End date must be after the start date.';
+        if (b.capacity !== undefined && b.capacity !== null && b.capacity !== '' && Number(b.capacity) < 1) return 'Capacity must be at least 1.';
+        if (b.registration_deadline && b.start_date && b.registration_deadline > b.start_date) return 'The registration deadline cannot be after the start date.';
+        return null;
+    }
     app.post('/api/admin/forum/events', auth, adminOnly, (req, res) => {
         try {
             const b = req.body;
+            const invalid = forumEventInvalid(b);
+            if (invalid) return res.status(400).json({ error: invalid });
             const id = uuidv4();
 
             // Use simple INSERT with only core columns that definitely exist
@@ -16672,6 +16862,14 @@ By applying to this program, I provide the following consents:
         const { title, description, event_type, start_date, end_date, location_type, location_name,
             location_address, virtual_link, venue, capacity, registration_deadline, is_paid, price, agenda,
             speakers, status, is_published, checkin_enabled } = req.body;
+
+        const invalidU = forumEventInvalid({
+            start_date: start_date !== undefined ? start_date : evt.start_date,
+            end_date: end_date !== undefined ? end_date : evt.end_date,
+            capacity: capacity !== undefined ? capacity : evt.capacity,
+            registration_deadline: registration_deadline !== undefined ? registration_deadline : evt.registration_deadline
+        });
+        if (invalidU) return res.status(400).json({ error: invalidU });
 
         const updates = [];
         const values = [];
@@ -16744,16 +16942,18 @@ By applying to this program, I provide the following consents:
         res.json({ success: true, is_published: newPublished });
     });
 
-    // Admin: Get event registrations
+    // Admin: Get event registrations. member_id references forum_members (NOT users),
+    // so the old direct users join never matched — resolve through forum_members first.
     app.get('/api/admin/forum/events/:id/registrations', auth, adminOnly, (req, res) => {
         const registrations = query.all(`
             SELECT fer.*,
-                COALESCE(fer.first_name, u.first_name) as first_name,
-                COALESCE(fer.last_name, u.last_name) as last_name,
-                COALESCE(fer.email, u.email) as email,
-                COALESCE(fer.institution, u.institution) as institution
+                COALESCE(fer.first_name, fm.first_name, u.first_name) as first_name,
+                COALESCE(fer.last_name, fm.last_name, u.last_name) as last_name,
+                COALESCE(fer.email, fm.email, u.email) as email,
+                COALESCE(fer.institution, fm.institution, u.institution) as institution
             FROM forum_event_registrations fer
-            LEFT JOIN users u ON fer.member_id = u.id
+            LEFT JOIN forum_members fm ON fer.member_id = fm.id
+            LEFT JOIN users u ON fm.user_id = u.id
             WHERE fer.event_id = ?
             ORDER BY fer.registered_at DESC
         `, [req.params.id]);
@@ -17890,7 +18090,10 @@ By applying to this program, I provide the following consents:
         try { unreadMessages = query.get("SELECT COUNT(*) as c FROM direct_messages WHERE sender_type != 'admin' AND (is_read = 0 OR is_read IS NULL)")?.c || 0; } catch(e) {}
 
         // Tasks needing attention
-        const overdueTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND due_date < date('now') AND due_date IS NOT NULL")?.c || 0;
+        // Tasks WITHOUT a due date must never count as overdue: in SQLite '' < date('now')
+        // is true, so the old predicate inflated the chip with every no-due-date task.
+        // Same predicate as the advisor pack query at ~41238.
+        const overdueTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND due_date IS NOT NULL AND TRIM(due_date) <> '' AND date(due_date) < date('now')")?.c || 0;
         const urgentTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND priority = 'high'")?.c || 0;
 
         // Content freshness: items created in last 7 days
@@ -18561,20 +18764,30 @@ By applying to this program, I provide the following consents:
 
     // Export applications CSV (admin)
     app.get('/api/admin/accelerator/export', auth, adminOnly, (req, res) => {
-        const applications = query.all(`SELECT a.*,
-            i1.name as first_choice_name, i2.name as second_choice_name, i3.name as third_choice_name
+        // Year-scoped + schema-consistent with the on-screen table and the client CSV:
+        // the old export dumped ALL years/orphans with 1st/2nd/3rd-choice columns this
+        // workflow never writes, while omitting Selected Institution/Validity/Total Score.
+        const year = parseInt(req.query.year, 10);
+        let programFilter = '';
+        const params = [];
+        if (Number.isFinite(year)) {
+            const program = query.get('SELECT id FROM accelerator_programs WHERE year = ? ORDER BY is_active DESC, created_at ASC LIMIT 1', [year]);
+            if (!program) return res.status(404).json({ error: `No accelerator program for ${year}` });
+            programFilter = ' AND a.program_id = ?';
+            params.push(program.id);
+        }
+        const applications = query.all(`SELECT a.*, i.name as selected_institution_name
             FROM accelerator_applications a
-            LEFT JOIN accelerator_institutions i1 ON a.first_choice_institution = i1.id
-            LEFT JOIN accelerator_institutions i2 ON a.second_choice_institution = i2.id
-            LEFT JOIN accelerator_institutions i3 ON a.third_choice_institution = i3.id
-            WHERE a.status != 'draft'
-            ORDER BY a.submitted_at DESC`);
+            LEFT JOIN accelerator_institutions i ON (a.selected_institution = i.id OR a.selected_institution = i.name)
+            WHERE a.status != 'draft'${programFilter}
+            ORDER BY a.submitted_at DESC`, params);
 
-        const headers = ['App#', 'Name', 'Email', 'Institution', 'Degree', 'GPA', '1st Choice', '2nd Choice', '3rd Choice', 'Status', 'Decision', 'Submitted'];
+        const headers = ['Candidate ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Institution', 'Year of Study', 'GPA', 'Program Type', 'Selected Institution', 'Status', 'Validity', 'Total Score', 'Submitted At'];
         const dataRows = applications.map(a => [
-            a.application_number, `${a.first_name} ${a.last_name}`, a.email, a.current_institution,
-            a.degree_program, a.gpa, a.first_choice_name, a.second_choice_name, a.third_choice_name,
-            a.status, a.decision || '', a.submitted_at || ''
+            a.candidate_id || a.work_number || a.application_number || '', a.first_name || '', a.last_name || '', a.email || '', a.phone || '',
+            a.current_institution || '', a.year_of_study || '', a.gpa || '', a.program_type || '',
+            a.selected_institution_name || a.selected_institution || '',
+            a.status || '', a.validity_status || '', a.total_score != null ? a.total_score : '', a.submitted_at || ''
         ]);
 
         // C1: Support XLSX format
@@ -18756,11 +18969,17 @@ By applying to this program, I provide the following consents:
     });
 
     app.get('/api/admin/export/registrations/:confId', auth, adminOnly, (req, res) => {
-        const rows = query.all(`SELECT u.first_name, u.last_name, u.email, u.phone, u.institution, u.country, t.name as ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in, r.created_at
-            FROM registrations r JOIN users u ON r.user_id = u.id JOIN ticket_types t ON r.ticket_type_id = t.id WHERE r.conference_id = ?`, [req.params.confId]);
+        // The frontend passes the conference slug ('plexus-2026') while
+        // registrations.conference_id stores the conference UUID — resolve either.
+        const conf = query.get('SELECT id FROM conferences WHERE id = ? OR slug = ?', [req.params.confId, req.params.confId]);
+        if (!conf) return res.status(404).json({ error: 'Conference not found' });
+        // LEFT JOINs: registrations with NULL ticket_type_id or no linked user row
+        // must not be silently dropped from the export.
+        const rows = query.all(`SELECT COALESCE(r.first_name, u.first_name) as first_name, COALESCE(r.last_name, u.last_name) as last_name, COALESCE(r.email, u.email) as email, u.phone, COALESCE(r.institution, u.institution) as institution, COALESCE(r.country, u.country) as country, t.name as ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in, r.created_at
+            FROM registrations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN ticket_types t ON r.ticket_type_id = t.id WHERE r.conference_id = ?`, [conf.id]);
 
         const headers = ['First Name','Last Name','Email','Phone','Institution','Country','Ticket','Status','Payment','Amount','Checked In','Date'];
-        const dataRows = rows.map(r => [r.first_name, r.last_name, r.email, r.phone, r.institution, r.country, r.ticket_type, r.status, r.payment_status, r.amount_paid, r.checked_in ? 'Yes' : 'No', r.created_at]);
+        const dataRows = rows.map(r => [r.first_name, r.last_name, r.email, r.phone, r.institution, r.country, r.ticket_type || '', r.status, r.payment_status, r.amount_paid, r.checked_in ? 'Yes' : 'No', r.created_at]);
 
         // C1: Support XLSX format
         if (req.query.format === 'xlsx') {
@@ -18774,6 +18993,36 @@ By applying to this program, I provide the following consents:
         dataRows.forEach(r => csv.push(r.map(v => `"${sanitizeCsvCell(v).replace(/"/g,'""')}"`).join(',')));
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="registrations.csv"`);
+        res.send(csv.join('\n'));
+    });
+
+    // Abstracts export (XLSX/CSV) — the tab's XLSX button previously emitted a CSV with
+    // a "coming soon" toast; this serves a real workbook via generateXlsxBuffer.
+    app.get('/api/admin/export/abstracts/:confId', auth, adminOnly, (req, res) => {
+        const conf = query.get('SELECT id FROM conferences WHERE id = ? OR slug = ?', [req.params.confId, req.params.confId]);
+        if (!conf) return res.status(404).json({ error: 'Conference not found' });
+        const rows = query.all(`SELECT a.*,
+                COALESCE(a.submitter_name, u.first_name || ' ' || u.last_name) as submitter_name,
+                COALESCE(a.submitter_email, u.email) as submitter_email
+            FROM abstracts a LEFT JOIN users u ON a.submitter_id = u.id
+            WHERE a.conference_id = ? AND COALESCE(a.is_withdrawn, 0) = 0`, [conf.id]);
+        const normType = (a) => (String(a.abstract_type || a.presentation_type || a.type || 'poster').toLowerCase() === 'oral' ? 'Oral' : 'Poster');
+        const headers = ['Title', 'Submitter Name', 'Submitter Email', 'Type', 'Category', 'Status', 'Decision', 'Average Score'];
+        const dataRows = rows.map(a => [
+            a.title || '', a.submitter_name || '', a.submitter_email || '', normType(a),
+            a.category || a.topic_category || '', a.status || '', a.decision || '',
+            a.average_score != null ? a.average_score : ''
+        ]);
+        if (req.query.format === 'xlsx') {
+            const buf = generateXlsxBuffer(headers, dataRows, 'Abstracts');
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename="abstracts.xlsx"');
+            return res.send(buf);
+        }
+        const csv = [headers.join(',')];
+        dataRows.forEach(r => csv.push(r.map(v => `"${sanitizeCsvCell(v).replace(/"/g, '""')}"`).join(',')));
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename="abstracts.csv"');
         res.send(csv.join('\n'));
     });
 
@@ -19630,19 +19879,34 @@ By applying to this program, I provide the following consents:
 
             const record = query.get(`SELECT * FROM ${table} WHERE id = ?`, [id]);
             if (!record) return res.status(404).json({ error: 'Record not found' });
-            if (!record.checked_in) return res.json({ success: true, message: 'Already unchecked' });
 
-            // 5-minute safety window. checked_in_at is stored as a full ISO string ('...Z'),
-            // so parse it directly — the old code appended a second 'Z' and silently disabled
-            // the guard (NaN comparison). If unparseable, allow the undo rather than block staff.
-            if (record.checked_in_at) {
-                const t = new Date(record.checked_in_at).getTime();
+            // The unified /api/admin/checkin/ticket endpoint checks event_checkins FIRST,
+            // so undo must clear that row too — otherwise a mis-scan stays locked as
+            // "already checked in" even after the legacy flag is reset.
+            const eventKeyMap = { plexus: 'conference', conference: 'conference', gala: 'gala', donor: 'donor', forum: 'forum', bridges: 'bridges' };
+            const eventKey = eventKeyMap[event] || event;
+            let unified = null;
+            try { unified = query.get('SELECT * FROM event_checkins WHERE registration_id = ? AND event_key = ?', [id, eventKey]); } catch (e) {}
+
+            if (!record.checked_in && !unified) return res.json({ success: true, message: 'Already unchecked' });
+
+            // 5-minute safety window, based on the legacy checked_in_at when set, else the
+            // unified row's timestamp (non-conference gates never set the legacy flag, so
+            // undo used to no-op for them). Legacy values are full ISO strings ('...Z');
+            // event_checkins uses SQLite's UTC space format — normalize before parsing.
+            // If unparseable, allow the undo rather than block staff.
+            const ts = record.checked_in_at || (unified && unified.checked_in_at);
+            if (ts) {
+                const s = String(ts);
+                const iso = /Z$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s.replace(' ', 'T') + 'Z';
+                const t = new Date(iso).getTime();
                 if (!Number.isNaN(t) && (Date.now() - t > 5 * 60 * 1000)) {
                     return res.status(403).json({ error: 'Undo window expired (5 min limit)' });
                 }
             }
 
             db.run(`UPDATE ${table} SET checked_in = 0, checked_in_at = NULL WHERE id = ?`, [id]);
+            try { db.run('DELETE FROM event_checkins WHERE registration_id = ? AND event_key = ?', [id, eventKey]); } catch (e) {}
             saveDb();
             res.json({ success: true, message: 'Check-in reversed' });
         } catch (error) {
@@ -19735,7 +19999,7 @@ By applying to this program, I provide the following consents:
     // Update a registration (admin)
     app.put('/api/admin/plexus/registrations/:id', auth, adminOnly, (req, res) => {
         try {
-            const { amount_paid, payment_status, package_items, status, ticket_type_id } = req.body;
+            const { amount_paid, payment_status, package_items, status, ticket_type_id, first_name, last_name, institution, email } = req.body;
             const updates = [];
             const values = [];
             if (amount_paid !== undefined) { updates.push('amount_paid = ?'); values.push(amount_paid); }
@@ -19743,6 +20007,11 @@ By applying to this program, I provide the following consents:
             if (package_items) { updates.push('package_items = ?'); values.push(typeof package_items === 'string' ? package_items : JSON.stringify(package_items)); }
             if (status) { updates.push('status = ?'); values.push(status); }
             if (ticket_type_id) { updates.push('ticket_type_id = ?'); values.push(ticket_type_id); }
+            // Identity corrections from the admin Edit form.
+            if (first_name !== undefined) { updates.push('first_name = ?'); values.push(first_name); }
+            if (last_name !== undefined) { updates.push('last_name = ?'); values.push(last_name); }
+            if (institution !== undefined) { updates.push('institution = ?'); values.push(institution); }
+            if (email !== undefined && email) { updates.push('email = ?'); values.push(email); }
             if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
             values.push(req.params.id);
             db.run(`UPDATE registrations SET ${updates.join(', ')} WHERE id = ?`, values);
@@ -19762,11 +20031,15 @@ By applying to this program, I provide the following consents:
             u.phone,
             COALESCE(r.institution, u.institution) as institution,
             COALESCE(r.country, u.country) as country,
-            t.name as ticket_name
+            t.name as ticket_name,
+            t.name as ticket_type
             FROM registrations r
             LEFT JOIN users u ON r.user_id = u.id
             LEFT JOIN ticket_types t ON r.ticket_type_id = t.id
             WHERE r.conference_id = ? ORDER BY r.created_at DESC`, [conf?.id]);
+        // ticket_type duplicates ticket_name because the Registrations tab's table cell,
+        // ticket filter, group-by and CSV export all read r.ticket_type while check-in
+        // reads r.ticket_name — one alias serves both consumers.
         res.json(registrations || []);
     });
 
@@ -20627,7 +20900,7 @@ By applying to this program, I provide the following consents:
                 inviteCode = generateSpeakerInviteCode();
                 db.run('UPDATE speakers SET invite_code = ? WHERE id = ?', [inviteCode, sid]);
             }
-            const speakerPortalBase = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+            const speakerPortalBase = userPortalBase();
             const speakerPortalUrl = `${speakerPortalBase}/?section=speaker&code=${encodeURIComponent(inviteCode)}`;
 
             const emailHtml = `
@@ -20704,7 +20977,7 @@ By applying to this program, I provide the following consents:
             saveDb();
         }
 
-        const baseUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+        const baseUrl = userPortalBase();
         const portalUrl = `${baseUrl}/?section=speaker&code=${encodeURIComponent(inviteCode)}`;
         const conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
         const confName = conf?.name || 'Plexus 2026';
@@ -20968,10 +21241,17 @@ By applying to this program, I provide the following consents:
     // Admin: Recent check-ins
     app.get('/api/admin/plexus/recent-checkins', auth, adminOnly, (req, res) => {
         const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
+        // LEFT JOIN + registration-row identity first: user_id is NULL for imported /
+        // walk-in guests, and the old INNER JOIN silently dropped nearly every real
+        // check-in from this list.
         const checkins = query.all(`
-            SELECT r.id, u.first_name || ' ' || u.last_name as name, u.email, r.checked_in_at
+            SELECT r.id,
+                COALESCE(NULLIF(TRIM(COALESCE(r.first_name,'') || ' ' || COALESCE(r.last_name,'')), ''),
+                         TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,''))) as name,
+                COALESCE(r.email, u.email) as email,
+                r.checked_in_at
             FROM registrations r
-            JOIN users u ON r.user_id = u.id
+            LEFT JOIN users u ON r.user_id = u.id
             WHERE r.conference_id = ? AND r.checked_in = 1
             ORDER BY r.checked_in_at DESC LIMIT 20
         `, [conf?.id || '']);
@@ -21399,16 +21679,30 @@ By applying to this program, I provide the following consents:
     // is the baseline; aiDraft may enrich later. Idempotent per (project, title) so a re-run never dupes.
     function postEventAssemblyFacts(eventKey) {
         const cfg = postEventCfg(eventKey); if (!cfg) return null;
-        let conf = null; try { conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'"); } catch (e) {}
+        // Conference speakers/sessions/end_date belong to the CONFERENCE only — a gala
+        // (or other event) recap must not inherit the conference's counts, or its
+        // by-the-numbers graphic drafts with another event's numbers.
+        const isConference = eventKey === 'plexus';
+        let conf = null;
+        if (isConference) { try { conf = query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'"); } catch (e) {} }
         const confId = conf ? conf.id : '';
         const attendees = (typeof postEventCheckedIn === 'function') ? postEventCheckedIn(eventKey).length : 0;
         let registered = 0; try { registered = query.get(`SELECT COUNT(*) AS c FROM ${cfg.table}`)?.c || 0; } catch (e) {}
-        let speakers = []; try { speakers = (query.all('SELECT name FROM speakers WHERE conference_id = ?', [confId]) || []).map((s) => s.name).filter(Boolean); } catch (e) {}
-        let sessions = []; try { sessions = (query.all('SELECT title FROM sessions WHERE conference_id = ? LIMIT 6', [confId]) || []).map((s) => s.title).filter(Boolean); } catch (e) {}
+        let speakers = []; if (isConference) try { speakers = (query.all('SELECT name FROM speakers WHERE conference_id = ?', [confId]) || []).map((s) => s.name).filter(Boolean); } catch (e) {}
+        let sessions = []; if (isConference) try { sessions = (query.all('SELECT title FROM sessions WHERE conference_id = ? LIMIT 6', [confId]) || []).map((s) => s.title).filter(Boolean); } catch (e) {}
         let photos = 0, photoUrl = null;
         try { photos = query.get('SELECT COUNT(*) AS c FROM conference_photos WHERE COALESCE(is_public,1)=1')?.c || 0; } catch (e) {}
         try { const p = query.get('SELECT file_path FROM conference_photos WHERE COALESCE(is_public,1)=1 ORDER BY uploaded_at DESC LIMIT 1'); photoUrl = p ? p.file_path : null; } catch (e) {}
-        return { label: cfg.label, attendees, registered, speakers, sessions, photos, photoUrl, end_date: conf ? conf.end_date : null };
+        // end_date from an event-appropriate source: conference row for plexus, the
+        // project_settings/gala date for other events (falls back to null cleanly).
+        let endDate = conf ? conf.end_date : null;
+        if (!isConference) {
+            try {
+                if (eventKey === 'gala') { const g = query.get("SELECT date FROM gala_settings WHERE id = 'default'"); endDate = (g && g.date) || null; }
+                if (!endDate) { const ps = query.get('SELECT event_date, end_date FROM project_settings WHERE project = ?', [eventKey]); endDate = (ps && (ps.end_date || ps.event_date)) || null; }
+            } catch (e) {}
+        }
+        return { label: cfg.label, attendees, registered, speakers, sessions, photos, photoUrl, end_date: endDate, has_program: isConference };
     }
     app.get('/api/admin/post-event/assemble/facts', auth, adminOnly, (req, res) => {
         const facts = postEventAssemblyFacts((req.query.event_key) || 'plexus');
@@ -21649,7 +21943,7 @@ By applying to this program, I provide the following consents:
     }
     // Default to the REAL user portal — the localhost fallback shipped dead links to speakers
     // whenever USER_PORTAL_URL wasn't set on Render (Alen hit this live, 2026-07-25).
-    function spkPublicBase() { return (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, ''); }
+    function spkPublicBase() { return userPortalBase(); }
     function spkEventName(eventKey) {
         try { const c = query.get('SELECT name FROM conferences WHERE slug = ? OR id = ?', [eventKey, eventKey]); if (c && c.name) return c.name; } catch (e) {}
         return 'Plexus 2026';
@@ -22098,6 +22392,18 @@ By applying to this program, I provide the following consents:
         db.run('UPDATE vip_passes SET revoked = 0, updated_at = ? WHERE id = ?', [new Date().toISOString(), r.id]);
         saveDb();
         logAudit(req, 'guest_pass_unrevoke', r.guest_name);
+        res.json({ success: true });
+    }));
+
+    // Hard delete — passes could previously only be revoked, so duplicates lived
+    // forever in the card grid. Also cancels any pending outbox invite for the pass.
+    app.delete('/api/admin/guest-passes/:id', auth, adminOnly, asyncHandler(async (req, res) => {
+        const r = query.get('SELECT * FROM vip_passes WHERE id = ?', [req.params.id]);
+        if (!r) return res.status(404).json({ error: 'Guest pass not found' });
+        db.run('DELETE FROM vip_passes WHERE id = ?', [r.id]);
+        try { db.run("UPDATE scheduled_emails SET status = 'cancelled' WHERE source_engine = 'guest-pass' AND batch_id LIKE ? AND status = 'pending_approval'", ['guest-pass-' + r.id + '-%']); } catch (e) {}
+        saveDb();
+        logAudit(req, 'guest_pass_delete', r.guest_name);
         res.json({ success: true });
     }));
 
@@ -28817,8 +29123,17 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     });
 
     // Create bridges event
+    // Shared coherence guard so API callers can't bypass the modal validation.
+    function bridgesEventInvalid(b) {
+        if (b.event_time && b.end_time && b.end_time <= b.event_time) return 'End time must be after the start time.';
+        if (b.capacity !== undefined && b.capacity !== null && Number(b.capacity) < 1) return 'Capacity must be at least 1.';
+        if (b.registration_deadline && b.event_date && b.registration_deadline > b.event_date) return 'The registration deadline cannot be after the event date.';
+        return null;
+    }
     app.post('/api/bridges/events', auth, adminOnly, (req, res) => {
         const { name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_deadline, contact_email, contact_phone, notes, status, is_published, price } = req.body;
+        const invalid = bridgesEventInvalid(req.body);
+        if (invalid) return res.status(400).json({ error: invalid });
         const id = uuidv4();
         const eventPrice = Math.max(0, Number(price) || 0);
 
@@ -28833,6 +29148,17 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // Update bridges event
     app.put('/api/bridges/events/:id', auth, adminOnly, (req, res) => {
         const { name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_open, registration_deadline, contact_email, contact_phone, status, notes, is_published, price } = req.body;
+        // Validate against the merge of existing row + patch so a partial update can't
+        // introduce an incoherent combination.
+        const cur = query.get('SELECT event_date, event_time, end_time, capacity, registration_deadline FROM bridges_events WHERE id = ?', [req.params.id]) || {};
+        const invalidU = bridgesEventInvalid({
+            event_date: event_date !== undefined ? event_date : cur.event_date,
+            event_time: event_time !== undefined ? event_time : cur.event_time,
+            end_time: end_time !== undefined ? end_time : cur.end_time,
+            capacity: capacity !== undefined ? capacity : cur.capacity,
+            registration_deadline: registration_deadline !== undefined ? registration_deadline : cur.registration_deadline
+        });
+        if (invalidU) return res.status(400).json({ error: invalidU });
 
         db.run(`UPDATE bridges_events SET
             name = COALESCE(?, name),
@@ -28890,6 +29216,14 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // Comps a seat regardless of price, so it must not be available to non-admin staff.
     app.post('/api/bridges/events/:id/registrations', auth, adminOnly, (req, res) => {
         const { first_name, last_name, email, phone, institution, position, dietary_requirements, special_requests, notes } = req.body;
+        // Dedupe on (event, email) — the admin add path had no guard, so a second
+        // identical add silently created a duplicate row and inflated the count.
+        if (email) {
+            const existing = query.get('SELECT id, first_name, last_name FROM bridges_registrations WHERE event_id = ? AND LOWER(email) = LOWER(?)', [req.params.id, String(email).trim()]);
+            if (existing && !(req.body && req.body.force)) {
+                return res.status(409).json({ success: false, error: 'already_registered', existing });
+            }
+        }
         const id = uuidv4();
         // Comped by an admin: mark payment_status 'comp' so it's distinguishable from
         // a paid registration and from an unpaid 'pending' one in the list.
@@ -29309,7 +29643,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         // Notify the guest on a real transition only (re-saving notes or clicking twice must not re-email).
         // The guest pays on the USER portal (#gala section) — checkout requires status='approved' there.
         if (updated && updated.email && status !== previous.status) {
-            const userPortalUrl = (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+            const userPortalUrl = userPortalBase();
             const galaUrl = userPortalUrl + '/#gala';
             if (status === 'approved') {
                 try {
@@ -29384,7 +29718,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             db.run('UPDATE gala_registrations SET pay_token = ? WHERE id = ?', [token, reg.id]);
             saveDb();
         }
-        const userPortalUrl = (process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+        const userPortalUrl = userPortalBase();
         res.json({ url: `${userPortalUrl}/pay/gala/${token}`, email: reg.email, status: reg.status, payment_status: reg.payment_status || 'unpaid' });
     });
 
@@ -29632,7 +29966,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         if (row.price_override != null) payload.po = row.price_override;
         const b64 = Buffer.from(JSON.stringify(payload)).toString('base64')
             .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-        const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+        const userPortalUrl = userPortalBase();
         return `${userPortalUrl}/invite/${b64}`;
     }
 
@@ -29704,7 +30038,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         };
         const b64 = Buffer.from(JSON.stringify(payload)).toString('base64')
             .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-        const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+        const userPortalUrl = userPortalBase();
         return `${userPortalUrl}/invite/${b64}`;
     }
 
@@ -31251,7 +31585,19 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             out.promo_codes = edCnt('SELECT COUNT(*) c FROM promo_codes WHERE conference_id = ?', [cid]);
         } else {
             var t = editionRegTable(ed.project);
-            if (t) { out.registrations = edCnt('SELECT COUNT(*) c FROM ' + t); out.tickets_valid = out.registrations; }
+            if (t) {
+                // Non-conference tables are project-level (no edition column). A carried-
+                // over edition carries a reg_watermark set at carryover; count only rows
+                // created after it so a fresh edition starts at 0 instead of inheriting
+                // the archived edition's registrants.
+                var tsCol = (t === 'bridges_registrations' || t === 'forum_event_registrations') ? 'registered_at' : 'created_at';
+                if (ed.reg_watermark) {
+                    out.registrations = edCnt('SELECT COUNT(*) c FROM ' + t + ' WHERE COALESCE(' + tsCol + ", '') > ?", [ed.reg_watermark]);
+                } else {
+                    out.registrations = edCnt('SELECT COUNT(*) c FROM ' + t);
+                }
+                out.tickets_valid = out.registrations;
+            }
         }
         return out;
     }
@@ -31428,8 +31774,10 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         try { db.run('UPDATE project_settings SET event_date = ?, end_date = ?, venue = ?, updated_at = ? WHERE project = ?', [ans.start_date || null, ans.end_date || null, ans.venue || null, new Date().toISOString(), source.project]); } catch (e) {}
         var newEditionId = uuidv4();
         var key = editionUniqueKey(ans.edition_key || (source.project + '-' + newYear));
-        db.run('INSERT INTO event_editions (id, project, edition_key, label, status, start_date, end_date, venue, conference_id, carried_from, created_by, created_at, updated_at) VALUES (?,?,?,?,\'active\',?,?,?,?,?,?,?,?)',
-            [newEditionId, source.project, key, ans.label, ans.start_date || null, ans.end_date || null, ans.venue || null, newConfId, source.id, (req.user && req.user.id) || null, new Date().toISOString(), new Date().toISOString()]);
+        // reg_watermark: for editions without their own conference_id, editionStats
+        // counts only registrations created after this moment (see editionStats).
+        db.run('INSERT INTO event_editions (id, project, edition_key, label, status, start_date, end_date, venue, conference_id, carried_from, reg_watermark, created_by, created_at, updated_at) VALUES (?,?,?,?,\'active\',?,?,?,?,?,?,?,?,?)',
+            [newEditionId, source.project, key, ans.label, ans.start_date || null, ans.end_date || null, ans.venue || null, newConfId, source.id, new Date().toISOString(), (req.user && req.user.id) || null, new Date().toISOString(), new Date().toISOString()]);
         created.edition_id = newEditionId;
         saveDb();
         try { logAudit(req, 'edition.carryover', source.label + ' -> ' + ans.label); } catch (e) {}
@@ -31628,7 +31976,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
 
     // ---- Google Wallet provisioning (server-side only; env-gated; fire-and-forget) ----
     function walletBaseOrigin() {
-        return (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+        return (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || userPortalBase()).replace(/\/+$/, '');
     }
     function eventLabelMap(k) { return ({ conference: 'Conference', gala: 'Gala Evening', donor: 'Donor Night', bridges: 'Building Bridges' })[k] || k; }
 
@@ -31943,14 +32291,29 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const q = String(req.query.q || '').trim();
             if (q.length < 2) return res.json({ results: [] });
             const like = '%' + q.toLowerCase() + '%';
+            // The ID-prefix clause only applies when the query actually LOOKS like a
+            // registration id (hex/dashes, optionally after a PLX26- style prefix).
+            // The old code stripped non-hex characters from ANY query ('Mia' → 'a'),
+            // pulling unrelated guests whose UUID starts with that fragment ahead of the
+            // real name match — a wrong-person admission risk at a busy door.
+            const idCandidate = q.replace(/^[A-Za-z]{2,6}\d{0,4}-/, '');
+            const looksLikeId = /^[0-9a-fA-F-]{6,}$/.test(idCandidate);
+            const idPrefix = looksLikeId ? idCandidate.toLowerCase().replace(/-/g, '') + '%' : null;
             const rows = query.all(
-                `SELECT r.* FROM registrations r LEFT JOIN users u ON r.user_id = u.id
+                `SELECT r.*,
+                    CASE
+                        WHEN lower(COALESCE(r.first_name,u.first_name,'') || ' ' || COALESCE(r.last_name,u.last_name,'')) LIKE ? THEN 0
+                        WHEN lower(COALESCE(r.email,u.email,'')) LIKE ? THEN 1
+                        WHEN lower(COALESCE(r.invoice_number,'')) LIKE ? THEN 2
+                        ELSE 3
+                    END AS match_rank
+                 FROM registrations r LEFT JOIN users u ON r.user_id = u.id
                  WHERE lower(COALESCE(r.email,u.email,'')) LIKE ?
                     OR lower(COALESCE(r.first_name,u.first_name,'') || ' ' || COALESCE(r.last_name,u.last_name,'')) LIKE ?
                     OR lower(COALESCE(r.invoice_number,'')) LIKE ?
-                    OR replace(lower(r.id),'-','') LIKE ?
-                 ORDER BY r.created_at DESC LIMIT 25`,
-                [like, like, like, q.toLowerCase().replace(/[^0-9a-f]/g, '') + '%']);
+                    ${idPrefix ? "OR replace(lower(r.id),'-','') LIKE ?" : ''}
+                 ORDER BY match_rank ASC, r.created_at DESC LIMIT 25`,
+                idPrefix ? [like, like, like, like, like, like, idPrefix] : [like, like, like, like, like, like]);
             res.json({ results: rows.map(enrichReg) });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
@@ -32360,11 +32723,14 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         }
     });
 
-    // ========== GUEST PASSES (admin) — event guest lists + counts + revoke ==========
+    // ========== MEMBER GUEST PASSES (admin) — event guest lists + counts + revoke ==========
     // Member-initiated colleague invites. Read the passes with the linked ticket's checked-in flag
     // derived on the fly (the FROZEN scanner never writes back to guest_passes). Optional ?event=
     // (plexus|bridges) scopes to one event; ?counts=1 returns per-event totals for the dashboards.
-    app.get('/api/admin/guest-passes', auth, adminOnly, (req, res) => {
+    // NOTE: distinct path from /api/admin/guest-passes (VIP passes, registered earlier) — the two
+    // features previously shared a path and Express served the VIP routes for both (route shadowing),
+    // so this card listed VIP passes and its Revoke button revoked VIP passes.
+    app.get('/api/admin/member-guest-passes', auth, adminOnly, (req, res) => {
         try {
             const evKey = req.query.event ? String(req.query.event).toLowerCase() : null;
             let rows;
@@ -32400,9 +32766,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         } catch (e) { console.error('admin guest-passes list', e.message); res.status(500).json({ error: 'Could not load guest passes.' }); }
     });
 
-    // Admin revokes a pass: cancel the linked ticket (scanner then rejects it cleanly) + pull any
-    // not-yet-approved invite email from the outbox.
-    app.post('/api/admin/guest-passes/:id/revoke', auth, adminOnly, (req, res) => {
+    // Admin revokes a member guest pass: cancel the linked ticket (scanner then rejects it cleanly)
+    // + pull any not-yet-approved invite email from the outbox.
+    app.post('/api/admin/member-guest-passes/:id/revoke', auth, adminOnly, (req, res) => {
         try {
             const pass = query.get('SELECT * FROM guest_passes WHERE id = ?', [req.params.id]);
             if (!pass) return res.status(404).json({ error: 'Guest pass not found.' });
@@ -32429,15 +32795,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const last = (req.user && req.user.last_name) || 'Tester';
             if (!email) return res.status(400).json({ error: 'No recipient email provided' });
             const testId = require('crypto').randomUUID();
-            db.run(
-                `INSERT INTO croatians_abroad_registrations
-                 (id, first_name, last_name, email, institution, country, role,
-                  selected_conference, selected_bridges, selected_gala,
-                  conference_status, bridges_status, notes)
-                 VALUES (?,?,?,?,?,?,?,1,1,0,'pre-registered','pre-registered','SCANNER TEST — safe to delete')`,
-                [testId, first, last, email, 'Med&X (Test)', 'Test', 'Admin']
-            );
-            saveDb();
+            // NOTE: nothing persists until the email actually sends — the old
+            // insert-before-send left an orphan phantom attendee on every failed
+            // click, inflating the scanner's door totals.
             const qrPayload = JSON.stringify({
                 type: 'MEDX_MEMBER', caRegId: testId, regId: testId,
                 email, name: `${first} ${last}`.trim(),
@@ -32462,16 +32822,25 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const sendResult = await sendEmail(email, 'Scanner Test QR — Plexus 2026', html, testQrAtts);
             if (sendResult && sendResult.mock) {
                 return res.status(500).json({
-                    error: 'NO EMAIL PROVIDER CONFIGURED — registration was created (visible in Croatians Abroad), but no email was sent. Set BREVO_API_KEY in Render env vars and redeploy.',
-                    test_registration_id: testId, mock: true
+                    error: 'NO EMAIL PROVIDER CONFIGURED — no email was sent and no test registration was created. Set BREVO_API_KEY in Render env vars and redeploy.',
+                    mock: true
                 });
             }
             if (sendResult && sendResult.success === false) {
                 return res.status(500).json({
-                    error: `Email provider rejected: ${sendResult.error || 'unknown'}. Common cause: 'from' address not verified with the provider.`,
-                    test_registration_id: testId
+                    error: `Email provider rejected: ${sendResult.error || 'unknown'}. Common cause: 'from' address not verified with the provider. No test registration was created.`
                 });
             }
+            // Email is on its way — only now create the row the QR points at.
+            db.run(
+                `INSERT INTO croatians_abroad_registrations
+                 (id, first_name, last_name, email, institution, country, role,
+                  selected_conference, selected_bridges, selected_gala,
+                  conference_status, bridges_status, notes)
+                 VALUES (?,?,?,?,?,?,?,1,1,0,'pre-registered','pre-registered','SCANNER TEST — safe to delete')`,
+                [testId, first, last, email, 'Med&X (Test)', 'Test', 'Admin']
+            );
+            saveDb();
             res.json({ success: true, email, test_registration_id: testId });
         } catch (err) {
             console.error('Test QR email failed:', err);
@@ -32495,26 +32864,8 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const year = new Date().getFullYear();
             const invoiceNumber = `CA-GALA-TEST-${year}-${galaRegId.substring(0,4).toUpperCase()}`;
 
-            // Create the CA registration row (Conference + Bridges + Gala all selected, all confirmed)
-            db.run(
-                `INSERT INTO croatians_abroad_registrations
-                 (id, first_name, last_name, email, institution, country, role,
-                  selected_conference, selected_bridges, selected_gala,
-                  conference_status, bridges_status, gala_status, gala_payment_status,
-                  gala_registration_id, amount_paid, invoice_number, notes)
-                 VALUES (?,?,?,?,?,?,?,1,1,1,'pre-registered','pre-registered','confirmed','paid',?,?,?,?)`,
-                [caRegId, first, last, targetEmail, institution, 'Test', 'Test Guest',
-                 galaRegId, amount, invoiceNumber, 'BUNDLE TEST — safe to delete']
-            );
-            // Create the linked gala_registrations row (paid, confirmed — so the Gala QR validates ✓)
-            db.run(
-                `INSERT INTO gala_registrations
-                 (id, first_name, last_name, email, institution, status, payment_status,
-                  amount_paid, invoice_number, requests)
-                 VALUES (?,?,?,?,?, 'confirmed', 'paid', ?, ?, 'BUNDLE TEST — safe to delete')`,
-                [galaRegId, first, last, targetEmail, institution, amount, invoiceNumber]
-            );
-            saveDb();
+            // NOTE: the CA + gala rows are inserted only AFTER the email sends — the old
+            // insert-before-send accumulated phantom paid attendees on every failed click.
 
             // Generate the same Gala QR a real Stripe-confirmed bundle would create
             const bundleQrAtts = await qrPngAttachment({
@@ -32567,16 +32918,34 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const sendResult = await sendEmail(targetEmail, 'Payment Confirmed — Plexus 2026 Gala Evening (TEST)', html, bundleQrAtts);
             if (sendResult && sendResult.mock) {
                 return res.status(500).json({
-                    error: 'NO EMAIL PROVIDER CONFIGURED — the registration was created in the database (you can see it in Croatians Abroad), but no email was actually sent. Set BREVO_API_KEY in Render env vars for the medx-admin-portal service and redeploy.',
-                    ca_registration_id: caRegId, gala_registration_id: galaRegId, invoice_number: invoiceNumber, mock: true
+                    error: 'NO EMAIL PROVIDER CONFIGURED — no email was sent and no test registrations were created. Set BREVO_API_KEY in Render env vars for the medx-admin-portal service and redeploy.',
+                    mock: true
                 });
             }
             if (sendResult && sendResult.success === false) {
                 return res.status(500).json({
-                    error: `Email provider rejected the send: ${sendResult.error || 'unknown error'}. Common cause: the 'from' address is not verified in Brevo (Senders & IP → Senders). Check EMAIL_FROM on Render.`,
-                    ca_registration_id: caRegId, gala_registration_id: galaRegId
+                    error: `Email provider rejected the send: ${sendResult.error || 'unknown error'}. Common cause: the 'from' address is not verified in Brevo (Senders & IP → Senders). Check EMAIL_FROM on Render. No test registrations were created.`
                 });
             }
+            // Email is on its way — only now create the rows the QR points at.
+            db.run(
+                `INSERT INTO croatians_abroad_registrations
+                 (id, first_name, last_name, email, institution, country, role,
+                  selected_conference, selected_bridges, selected_gala,
+                  conference_status, bridges_status, gala_status, gala_payment_status,
+                  gala_registration_id, amount_paid, invoice_number, notes)
+                 VALUES (?,?,?,?,?,?,?,1,1,1,'pre-registered','pre-registered','confirmed','paid',?,?,?,?)`,
+                [caRegId, first, last, targetEmail, institution, 'Test', 'Test Guest',
+                 galaRegId, amount, invoiceNumber, 'BUNDLE TEST — safe to delete']
+            );
+            db.run(
+                `INSERT INTO gala_registrations
+                 (id, first_name, last_name, email, institution, status, payment_status,
+                  amount_paid, invoice_number, requests)
+                 VALUES (?,?,?,?,?, 'confirmed', 'paid', ?, ?, 'BUNDLE TEST — safe to delete')`,
+                [galaRegId, first, last, targetEmail, institution, amount, invoiceNumber]
+            );
+            saveDb();
             res.json({ success: true, email: targetEmail, ca_registration_id: caRegId, gala_registration_id: galaRegId, invoice_number: invoiceNumber });
         } catch (err) {
             console.error('Bundle test email failed:', err);
@@ -32638,7 +33007,26 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         const { code } = req.body;
         if (!code) return res.status(400).json({ error: 'No code provided' });
 
-        const member = query.get('SELECT * FROM forum_members WHERE id = ? OR email = ?', [code, code]);
+        // Resolve through the same users join the Members tab uses — 19 of 33 members
+        // keep their email on the users row (fm.email NULL), so a bare fm.email lookup
+        // rejected most real members. Case-insensitive on both email columns.
+        let member = query.get(`
+            SELECT fm.*, COALESCE(fm.email, u.email) AS email
+            FROM forum_members fm LEFT JOIN users u ON fm.user_id = u.id
+            WHERE fm.id = ? OR LOWER(fm.email) = LOWER(?) OR LOWER(u.email) = LOWER(?)`, [code, code, code]);
+        // FORUM-XXXX ticket references from event QR codes resolve via the event
+        // registration's qr_code to its member row.
+        if (!member && /^FORUM-/i.test(String(code).trim())) {
+            try {
+                const fer = query.get('SELECT member_id FROM forum_event_registrations WHERE UPPER(qr_code) = UPPER(?)', [String(code).trim()]);
+                if (fer && fer.member_id) {
+                    member = query.get(`
+                        SELECT fm.*, COALESCE(fm.email, u.email) AS email
+                        FROM forum_members fm LEFT JOIN users u ON fm.user_id = u.id
+                        WHERE fm.id = ?`, [fer.member_id]);
+                }
+            } catch (e) {}
+        }
         if (!member) return res.status(404).json({ error: 'Forum member not found' });
         if (member.checked_in) return res.json({ success: true, already_checked_in: true, attendee: member, event: 'forum' });
 
@@ -32661,13 +33049,31 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         res.json({ success: true, attendee: { ...participant, checked_in: 1 }, event: 'bridges' });
     });
 
+    // Small config endpoint so the frontend never hardcodes the member-portal origin
+    // (Live Q&A etc.) — the target is controlled by USER_PORTAL_URL via userPortalBase().
+    app.get('/api/admin/portal-config', auth, (req, res) => {
+        res.json({ user_portal_url: userPortalBase() });
+    });
+
     // Check-in stats — aggregated counts across all event tables
     app.get('/api/checkin/stats', auth, staffOrAdmin, (req, res) => {
         try {
-            // Plexus 2026 sub-events live on croatians_abroad_registrations (per-event flags +
-            // per-event check-in columns), NOT the legacy `registrations` table.
-            const conference = query.get('SELECT COUNT(*) as total, COALESCE(SUM(conference_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_conference = 1') || { total: 0, checked_in: 0 };
-            const bridges = query.get('SELECT COUNT(*) as total, COALESCE(SUM(bridges_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_bridges = 1') || { total: 0, checked_in: 0 };
+            // Conference = the store the unified scanner actually writes: the `registrations`
+            // table plus event_checkins (event_key='conference') for unified rows written
+            // before the legacy checked_in mirror existed. The croatians_abroad selected_*
+            // counts stay in their own buckets below instead of masquerading as the
+            // conference numbers (which made the bar sit at 0/1 while 12 real conference
+            // registrations were checked in).
+            const conference = query.get(`SELECT COUNT(*) as total,
+                    COUNT(DISTINCT CASE WHEN r.checked_in = 1 OR ec.id IS NOT NULL THEN r.id END) as checked_in
+                FROM registrations r
+                LEFT JOIN event_checkins ec ON ec.registration_id = r.id AND ec.event_key = 'conference'
+                WHERE COALESCE(r.revoked, 0) = 0 AND lower(COALESCE(r.status, '')) != 'cancelled'`) || { total: 0, checked_in: 0 };
+            // Admin test tools tag their rows in notes — keep phantom test attendees out
+            // of the door totals.
+            const notTest = "AND (notes IS NULL OR (notes NOT LIKE '%SCANNER TEST%' AND notes NOT LIKE '%BUNDLE TEST%'))";
+            const croatiansAbroadConference = query.get(`SELECT COUNT(*) as total, COALESCE(SUM(conference_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_conference = 1 ${notTest}`) || { total: 0, checked_in: 0 };
+            const bridges = query.get(`SELECT COUNT(*) as total, COALESCE(SUM(bridges_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_bridges = 1 ${notTest}`) || { total: 0, checked_in: 0 };
             // Gala plus-ones have no seat/QR of their own — a booking with guest_count=N is N+1
             // people who enter together on the ONE registrant QR. So the door head count (expected)
             // and the admitted head count (checked_in) are PEOPLE, not bookings: SUM(1 + guests).
@@ -32682,10 +33088,11 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             try { signupForm = query.get('SELECT COUNT(*) as total, COALESCE(SUM(checked_in), 0) as checked_in FROM signup_form_responses WHERE is_waitlisted = 0') || signupForm; } catch (e) {}
             res.json({
                 conference, bridges, gala, forum, regionalBridges, signupForm,
+                croatiansAbroadConference,
                 plexus: conference, // legacy alias (Plexus Conference)
                 overall: {
-                    total: conference.total + bridges.total + gala.total + forum.total + regionalBridges.total + signupForm.total,
-                    checked_in: conference.checked_in + bridges.checked_in + gala.checked_in + forum.checked_in + regionalBridges.checked_in + signupForm.checked_in
+                    total: conference.total + croatiansAbroadConference.total + bridges.total + gala.total + forum.total + regionalBridges.total + signupForm.total,
+                    checked_in: conference.checked_in + croatiansAbroadConference.checked_in + bridges.checked_in + gala.checked_in + forum.checked_in + regionalBridges.checked_in + signupForm.checked_in
                 }
             });
         } catch (err) {
@@ -32699,6 +33106,10 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         try {
             const rows = query.all(`
                 SELECT id, first_name, last_name, email, checked_in_at, 'plexus' as event FROM registrations WHERE checked_in = 1 AND checked_in_at IS NOT NULL
+                UNION ALL
+                SELECT r.id, r.first_name, r.last_name, r.email, ec.checked_in_at, 'plexus' as event
+                FROM event_checkins ec JOIN registrations r ON r.id = ec.registration_id
+                WHERE ec.event_key = 'conference' AND COALESCE(r.checked_in, 0) = 0 AND ec.checked_in_at IS NOT NULL
                 UNION ALL
                 SELECT id, first_name, last_name, email, checked_in_at, 'gala' as event FROM gala_registrations WHERE checked_in = 1 AND checked_in_at IS NOT NULL
                 UNION ALL
@@ -35002,7 +35413,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 },
                 deployment: {
                     adminUrl: process.env.RENDER_EXTERNAL_URL || 'http://localhost:' + PORT,
-                    userPortalUrl: process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com',
+                    userPortalUrl: userPortalBase(),
                     githubRepo: 'https://github.com/alen-ops99/medx-portal'
                 },
                 env: envVars
@@ -35270,7 +35681,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
 
             // Build link pointing to user portal (NOT admin portal)
             // Encode event info in URL so user portal doesn't need DB lookup
-            const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+            const userPortalUrl = userPortalBase();
             // NOTE: component_keys are NOT embedded in the URL — the user portal reads them
             // (and their prices) from the registration_links row by token at checkout, so the
             // charge is server-trusted and a tampered URL cannot change the price.
@@ -35310,7 +35721,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 : query.all('SELECT * FROM registration_links ORDER BY created_at DESC');
             // Attach the shareable URL to each row (re-encode the same payload the POST builds),
             // so the Existing-links list can offer a Copy button without re-deriving it client-side.
-            const userPortalUrl = process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com';
+            const userPortalUrl = userPortalBase();
             for (const l of links) {
                 let pkg = []; try { pkg = l.package_items ? JSON.parse(l.package_items) : []; } catch(e) {}
                 if (l.event_type === 'plexus') {
@@ -38201,15 +38612,24 @@ ${extraCss || ''}
         } catch (e) { console.error('[nag] act', e.message); res.status(500).json({ error: e.message }); }
     });
 
-    // Mark an item resolved (the underlying thing is handled).
+    // Mark an item resolved (the underlying thing is handled). For task nags, "done"
+    // means DONE: also complete the underlying project task — otherwise the task stayed
+    // open + counted overdue everywhere while vanishing from the Action Center.
     app.post('/api/admin/nag/items/:id/done', auth, adminOnly, (req, res) => {
         try {
-            const item = query.get("SELECT id FROM nag_items WHERE id = ?", [req.params.id]);
+            const item = query.get("SELECT id, kind, subject_id FROM nag_items WHERE id = ?", [req.params.id]);
             if (!item) return res.status(404).json({ error: 'Item not found' });
+            let taskCompleted = false;
+            if ((item.kind === 'task_overdue' || item.kind === 'task_due_soon') && item.subject_id) {
+                try {
+                    db.run("UPDATE project_tasks SET status='done', completed_at=datetime('now') WHERE id = ? AND status != 'done'", [item.subject_id]);
+                    taskCompleted = db.getRowsModified() > 0;
+                } catch (e) {}
+            }
             db.run("UPDATE nag_items SET status='done', resolved_at=datetime('now') WHERE id = ?", [req.params.id]);
             saveDb();
-            logAudit(req, 'nag.done', req.params.id);
-            res.json({ success: true });
+            logAudit(req, 'nag.done', req.params.id + (taskCompleted ? ' (+task completed)' : ''));
+            res.json({ success: true, task_completed: taskCompleted });
         } catch (e) { console.error('[nag] done', e.message); res.status(500).json({ error: e.message }); }
     });
 
@@ -39776,6 +40196,13 @@ ${extraCss || ''}
             const id = require('crypto').randomUUID();
             const name = String(b.name || (facts.name + ' — invitations')).trim().slice(0, 200);
             const rate = Math.max(1, Math.min(parseInt(b.daily_rate, 10) || 15, 200));
+            // Guard: a same-named campaign for the same event is almost always an
+            // accidental double-create that ends with people dripped two parallel
+            // invitation sequences. 409 unless the caller explicitly forces it.
+            const dupe = query.get('SELECT id FROM event_campaigns WHERE event_key = ? AND LOWER(name) = LOWER(?)', [eventKey, name]);
+            if (dupe && !b.force) {
+                return res.status(409).json({ error: `A campaign named "${name}" already exists for this event. Rename this one, or reuse the existing campaign.`, existing_campaign_id: dupe.id });
+            }
             db.run(`INSERT INTO event_campaigns (id, event_key, name, sender_from, reply_to, cta_url, subject, subject_hr, intro_html, intro_html_hr, followup_subject, followup_subject_hr, followup_html, followup_html_hr, daily_rate, status, created_by)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'draft', ?)`,
                 [id, eventKey, name, 'president@medx.hr', 'alen_juginovic@hms.harvard.edu', facts.url,
@@ -39921,14 +40348,22 @@ ${extraCss || ''}
             let added = 0; const duplicates = []; const skipped = [];
             for (const row of rows) {
                 const name = val(row, 'name');
-                const email = val(row, 'email');
-                const emailKey = email.toLowerCase();
+                let email = val(row, 'email');
+                let emailKey = email.toLowerCase();
                 const institution = val(row, 'institution');
                 const country = val(row, 'country');
                 const field = val(row, 'field');
                 const source = val(row, 'source') || (filename ? ('Imported from ' + filename) : 'import');
                 const display = name || email || '(unnamed)';
                 if (!name && !email) { skipped.push({ who: '(empty row)', reason: 'no name or email' }); continue; }
+                // A present-but-invalid email must never enter the drip as a sendable
+                // address: skip the row when there is no name to keep, otherwise import
+                // name-only with the junk address blanked (and say so in the report).
+                if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+                    if (!name) { skipped.push({ who: display, reason: 'invalid email: ' + email }); continue; }
+                    skipped.push({ who: display, reason: 'invalid email dropped (imported name-only): ' + email });
+                    email = ''; emailKey = '';
+                }
                 if (emailKey && seenEmails.has(emailKey)) { duplicates.push({ who: display, email, where: 'this file', status: 'duplicate row' }); continue; }
                 const nameKey = (name + '|' + institution).toLowerCase();
                 if (!emailKey && seenNames.has(nameKey)) { duplicates.push({ who: display, email: '', where: 'this file', status: 'duplicate row' }); continue; }
@@ -39936,7 +40371,18 @@ ${extraCss || ''}
                 let known = null;
                 if (emailKey) {
                     if (regSet.has(emailKey)) known = { where: 'already registered', status: 'registered' };
-                    if (!known) { const cc = query.get("SELECT status FROM event_campaign_invitees WHERE campaign_id = ? AND LOWER(email) = ? LIMIT 1", [camp.id, emailKey]); if (cc) known = { where: 'this campaign', status: cc.status || 'imported' }; }
+                    // Dedupe across ALL campaigns of this event, not just this one — the
+                    // same person must not be dripped two parallel invitation sequences.
+                    if (!known) {
+                        const cc = query.get(`SELECT i.status, i.campaign_id, c.name AS campaign_name
+                            FROM event_campaign_invitees i JOIN event_campaigns c ON i.campaign_id = c.id
+                            WHERE c.event_key = ? AND LOWER(i.email) = ?
+                            ORDER BY (i.campaign_id = ?) DESC LIMIT 1`, [camp.event_key, emailKey, camp.id]);
+                        if (cc) known = {
+                            where: cc.campaign_id === camp.id ? 'this campaign' : `campaign "${cc.campaign_name}" (same event)`,
+                            status: cc.status || 'imported'
+                        };
+                    }
                 } else {
                     const cc = query.get("SELECT status FROM event_campaign_invitees WHERE campaign_id = ? AND LOWER(name) = ? AND LOWER(IFNULL(institution,'')) = ? LIMIT 1", [camp.id, name.toLowerCase(), institution.toLowerCase()]);
                     if (cc) known = { where: 'this campaign', status: cc.status || 'imported' };
@@ -40525,23 +40971,56 @@ ${extraCss || ''}
             if (!touch) return res.status(404).json({ error: 'Touch not found' });
             const b = req.body || {};
             const sets = []; const vals = [];
-            if (b.subject !== undefined) { sets.push('subject = ?'); vals.push(String(b.subject).trim() || null); }
+            if (b.subject !== undefined) {
+                // A blank EN subject while a body exists would send a subject-less email
+                // to every registrant on its T-minus date.
+                const subj = String(b.subject).trim();
+                const bodySet = (b.body_html !== undefined ? String(b.body_html).trim() : String(touch.body_html || '').trim());
+                const subjHr = (b.subject_hr !== undefined ? String(b.subject_hr).trim() : String(touch.subject_hr || '').trim());
+                if (!subj && !subjHr && bodySet) return res.status(400).json({ error: 'A subject (EN or HR) is required — this touch has an email body and would otherwise send with no subject.' });
+                sets.push('subject = ?'); vals.push(subj || null);
+            }
             if (b.subject_hr !== undefined) { sets.push('subject_hr = ?'); vals.push(String(b.subject_hr).trim() || null); }
             if (b.body_html !== undefined) { sets.push('body_html = ?'); vals.push(String(b.body_html).trim() || null); }
             if (b.body_html_hr !== undefined) { sets.push('body_html_hr = ?'); vals.push(String(b.body_html_hr).trim() || null); }
             if (b.enabled !== undefined) { sets.push('enabled = ?'); vals.push(b.enabled ? 1 : 0); }
-            if (b.offset_days !== undefined) { const n = Math.max(0, Math.min(365, parseInt(b.offset_days, 10) || 0)); sets.push('offset_days = ?'); vals.push(n); }
+            let pastWarning = null;
+            if (b.offset_days !== undefined) {
+                // Reject out-of-range offsets instead of silently clamping to 365.
+                const n = parseInt(b.offset_days, 10);
+                if (!Number.isFinite(n) || n < 0 || n > 365) return res.status(400).json({ error: 'Days before event must be between 0 and 365.' });
+                sets.push('offset_days = ?'); vals.push(n);
+                // Warn (do not block the save) when the computed send date is already past —
+                // the approve endpoint blocks activation of past-dated touches.
+                const evDate = reminderEventDate(seq.event_key);
+                if (evDate) {
+                    const sendDate = new Date(Date.parse(evDate + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10);
+                    if (sendDate < new Date().toISOString().slice(0, 10)) pastWarning = `This touch's send date (${sendDate}) is in the past — it would fire immediately once the sequence is approved.`;
+                }
+            }
             if (!sets.length) return res.json({ success: true, sequence: remSequenceShape(seq) });
             vals.push(touch.id);
             db.run(`UPDATE reminder_touches SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`, vals);
             saveDb();
-            res.json({ success: true, sequence: remSequenceShape(remSequence(seq.id)) });
+            res.json({ success: true, warning: pastWarning || undefined, sequence: remSequenceShape(remSequence(seq.id)) });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
     app.post('/api/admin/event-reminders/sequences/:id/approve', auth, adminOnly, (req, res) => {
         try {
             const seq = remSequence(req.params.id);
             if (!seq) return res.status(404).json({ error: 'Sequence not found' });
+            // Approval makes touches fire on the next tick — refuse when an enabled touch
+            // is past-dated (would blast immediately) or has no subject at all, unless the
+            // caller explicitly confirms with force.
+            const shaped = remSequenceShape(seq);
+            const today = new Date().toISOString().slice(0, 10);
+            const enabled = (shaped.touches || []).filter(t => t.enabled);
+            const pastTouches = enabled.filter(t => t.send_date && t.send_date < today);
+            const noSubject = enabled.filter(t => !String(t.subject || '').trim() && !String(t.subject_hr || '').trim());
+            if (noSubject.length) return res.status(400).json({ error: `Cannot approve: touch ${noSubject.map(t => t.label).join(', ')} has no subject (EN or HR). Add one first.` });
+            if (pastTouches.length && !(req.body && req.body.force)) {
+                return res.status(400).json({ error: `Cannot approve: touch ${pastTouches.map(t => `${t.label} (send date ${t.send_date})`).join(', ')} is already past-dated and would fire immediately. Fix the offset, disable the touch, or approve with force.`, past_touches: pastTouches.map(t => t.touch_key) });
+            }
             db.run("UPDATE reminder_sequences SET status = 'approved', approved_by = ?, approved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", [req.user?.email || 'admin', seq.id]);
             saveDb();
             logAudit(req, 'event-reminder.approve', `${seq.name || seq.event_key}`);
@@ -40940,6 +41419,11 @@ ${extraCss || ''}
         const label = (b.event_label ? String(b.event_label).slice(0, 120) : '') || null;
         let ends = null;
         if (b.ends_at) { const d = new Date(b.ends_at); if (!isNaN(d.getTime())) ends = d.toISOString(); }
+        // An active event day with no label or no future end time would keep the
+        // position-collection window open indefinitely under a nameless event.
+        if (active && (!label || !ends || Date.parse(ends) <= Date.now())) {
+            return res.status(400).json({ error: 'An active event day needs a label and a future end time.' });
+        }
         db.run("UPDATE staff_tracking_settings SET active = ?, event_label = ?, ends_at = ?, stale_minutes = ?, updated_by = ?, updated_at = ? WHERE id = 1",
             [active, label, ends, stale, req.user.email, new Date().toISOString()]);
         try { saveDb(); } catch (e) {}

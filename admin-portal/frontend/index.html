@@ -8029,7 +8029,7 @@
                             <button class="btn btn-secondary" onclick="App.generateRegistrationLink('gala')" style="padding: 7px 14px; font-size: 12px;">
                                 <i class="fas fa-credit-card" style="color:#C9A962;"></i> New Paid Gala Link
                             </button>
-                            <button class="btn btn-secondary" onclick="App.generateRegistrationLink('gala')" style="padding: 7px 14px; font-size: 12px;">
+                            <button class="btn btn-secondary" onclick="App.generateRegistrationLink('gala', null, null, 'vip')" style="padding: 7px 14px; font-size: 12px;">
                                 <i class="fas fa-star" style="color:#9b1b22;"></i> New VIP Link
                             </button>
                             <button class="btn btn-secondary" onclick="App.showSection('croatians-abroad');" style="padding: 7px 14px; font-size: 12px;">
@@ -8702,7 +8702,7 @@
                             <div class="card-header" style="flex-wrap: wrap; gap: 8px;">
                                 <span class="card-title">Speakers <button type="button" class="cmap-btn" onclick="event.stopPropagation();ChangeMap.open(1)" title="See every place speakers appear"><i class="fas fa-globe"></i><span>Where does this appear?</span></button></span>
                                 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                                    <select class="search-input" id="pxSpeakerYearFilter" onchange="App.filterSpeakers()" style="width: auto; padding: 6px 10px; font-size: 12px;">
+                                    <select class="search-input" id="pxSpeakerYearFilter" onchange="App.loadPlexusSpeakers()" style="width: auto; padding: 6px 10px; font-size: 12px;">
                                         <option value="all">All Years</option>
                                         <option value="2026" selected>2026</option>
                                         <option value="2025">2025</option>
@@ -9644,13 +9644,13 @@ President, Med&amp;X</textarea>
                             <div class="card-body">
                                 <table style="width: 100%; border-collapse: collapse;">
                                     <thead>
-                                        <tr style="border-bottom: 2px solid var(--border-color);">
+                                        <!-- Columns are built dynamically from the year's configured criteria
+                                             (mirrors the ranking PDF) — see AcceleratorApp.loadRanking(). -->
+                                        <tr id="accRankingHead" style="border-bottom: 2px solid var(--border-color);">
                                             <th style="padding: 10px; text-align: center;">NO.</th>
                                             <th style="padding: 10px; text-align: center;">ID</th>
                                             <th style="padding: 10px; text-align: center;">GPA</th>
-                                            <th style="padding: 10px; text-align: center;">MOTIVATION LETTER</th>
-                                            <th style="padding: 10px; text-align: center;">RECOMMENDATION LETTER</th>
-                                            <th style="padding: 10px; text-align: center;">OTHER POINTS</th>
+                                            <th style="padding: 10px; text-align: center;">OBJECTIVE</th>
                                             <th style="padding: 10px; text-align: center;">INTERVIEW</th>
                                             <th style="padding: 10px; text-align: center;">TOTAL</th>
                                         </tr>
@@ -13922,7 +13922,10 @@ President, Med&amp;X</textarea>
                     @media print{
                         @page{size:A4 landscape;margin:9mm;}
                         body.yc-print-mode .mobile-header,body.yc-print-mode .sidebar,body.yc-print-mode .sidebar-overlay,body.yc-print-mode #chatPanel,body.yc-print-mode #chatShowBtn,body.yc-print-mode #globalQRBtn,body.yc-print-mode #assistantFab,body.yc-print-mode #breadcrumbs,body.yc-print-mode #toastContainer,body.yc-print-mode #cmdPalette,body.yc-print-mode .modal-overlay,body.yc-print-mode .yc-no-print{display:none!important;}
-                        body.yc-print-mode .main-wrapper,body.yc-print-mode main.main{display:block!important;margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;}
+                        /* height:auto + overflow:visible unclamp the scroll container so the
+                           print render can grow past one page — without them only the first
+                           viewport-full of entries printed and everything below was cut. */
+                        body.yc-print-mode .main-wrapper,body.yc-print-mode main.main{display:block!important;margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;height:auto!important;min-height:0!important;overflow:visible!important;}
                         body.yc-print-mode #section-year-calendar{display:block!important;}
                         body.yc-print-mode #section-year-calendar .yc-print-title{display:block;font-family:'Fraunces',serif;font-size:20px;margin:0 0 12px;color:#15110f;}
                         body.yc-print-mode .yc-year,body.yc-print-mode .yc-legend,body.yc-print-mode .yc-bar,body.yc-print-mode .yc-dot{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
@@ -14214,7 +14217,7 @@ President, Med&amp;X</textarea>
                         <div class="modal" style="max-width:760px;max-height:90vh;overflow-y:auto;">
                             <div class="modal-header"><h3><i class="fas fa-file-import" style="color:#9b1b22;margin-right:8px;"></i> Import invitees</h3><button class="modal-close" onclick="App.closeModal('eiImportModal')">&times;</button></div>
                             <div class="modal-body">
-                                <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Upload a CSV or Excel (.xlsx) list. Columns match automatically &mdash; adjust the mapping, then import. People already in this campaign, or already registered for the event, are shown and never re-imported. Croatian characters (č ć đ š ž) are preserved.</p>
+                                <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Upload a CSV or Excel (.xlsx) list. Columns match automatically &mdash; adjust the mapping, then import. People already invited to this event via any campaign, or already registered for the event, are shown and never re-imported. Croatian characters (č ć đ š ž) are preserved.</p>
                                 <div class="form-group"><label>List file</label><input type="file" id="eiImportFile" accept=".csv,.tsv,.txt,.xlsx,.xls" style="color:var(--text-primary);" onchange="EventInvitesApp.previewImport()"></div>
                                 <div id="eiImportPreview"></div>
                             </div>
@@ -14630,6 +14633,18 @@ President, Med&amp;X</textarea>
                                 <p style="margin:6px 0 0;color:var(--text-muted);font-size:13px;">Personal access links for high-level guests: one person, one event, only the modules you grant. Zero login, beautiful on a phone.</p>
                             </div>
                             <button class="btn btn-primary" onclick="GuestPassApp.newPass()"><i class="fas fa-plus"></i> New pass</button>
+                        </div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+                            <input type="text" class="search-input" id="gpSearch" placeholder="Search guest, title, note..." oninput="GuestPassApp.renderList()" style="width:230px;">
+                            <select class="search-input" id="gpEventFilter" onchange="GuestPassApp.renderList()" style="width:auto;">
+                                <option value="">All events</option>
+                            </select>
+                            <select class="search-input" id="gpStatusFilter" onchange="GuestPassApp.renderList()" style="width:auto;">
+                                <option value="">All statuses</option>
+                                <option value="active">Active</option>
+                                <option value="revoked">Revoked</option>
+                                <option value="expired">Expired</option>
+                            </select>
                         </div>
                         <div id="gpList"></div>
                     </div>
@@ -16720,7 +16735,7 @@ President, Med&amp;X</textarea>
                 <input type="hidden" id="bridgesProgramId">
                 <div class="form-group">
                     <label>Event</label>
-                    <select id="bridgesProgramEvent" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
+                    <select id="bridgesProgramEvent" onchange="BridgesApp.populateProgramSpeakerOptions(this.value)" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
                         <option value="">-- No specific event --</option>
                     </select>
                 </div>
@@ -17628,12 +17643,12 @@ President, Med&amp;X</textarea>
             CARD_REGISTRY: {
                 home: [
                     // portal-pulse, timeline, tasks, sequences removed — already exist as static HTML widgets above
-                    { id: 'project-activity', title: 'Project Activity', icon: 'fa-chart-line', default: false, renderer: 'renderProjectActivity' },
-                    { id: 'registration-trends', title: 'Registration Trends', icon: 'fa-chart-area', default: false, renderer: 'renderRegistrationTrends' },
+                    // project-activity, registration-trends, recent-registrations, upcoming-events
+                    // and team-activity removed from the picker: their renderers are permanent
+                    // placeholder stubs with no data path, so offering them shipped cards that
+                    // never load anything. Re-add each here once its renderer fetches real data
+                    // (follow renderFinanceOverview's async fetch-then-render pattern).
                     { id: 'finance-overview', title: 'Finance Overview', icon: 'fa-euro-sign', default: false, renderer: 'renderFinanceOverview' },
-                    { id: 'recent-registrations', title: 'Recent Registrations', icon: 'fa-user-plus', default: false, renderer: 'renderRecentRegistrations' },
-                    { id: 'upcoming-events', title: 'Upcoming Events', icon: 'fa-calendar-check', default: false, renderer: 'renderUpcomingEvents' },
-                    { id: 'team-activity', title: 'Team Activity', icon: 'fa-users', default: false, renderer: 'renderTeamActivity' },
                     { id: 'notes', title: 'Quick Notes', icon: 'fa-sticky-note', default: false, renderer: 'renderQuickNotes' },
                 ],
                 plexus: [
@@ -18035,6 +18050,11 @@ President, Med&amp;X</textarea>
                 this.renderTimeline();
                 this.updateProjectHeaders();
                 this.renderTeamMembers();
+                // Re-render the To Do widget now that teamMembers is guaranteed loaded —
+                // loadAllTasks() may have rendered before /api/team resolved, and the
+                // my-tasks filter needs teamMembers to map assigned_to (team_members.id)
+                // to the logged-in user (users.id).
+                this.renderDashboardTasks();
 
                 // Load files for all projects
                 ['plexus', 'accelerator', 'forum', 'bridges'].forEach(p => this.loadProjectFiles(p));
@@ -18953,13 +18973,17 @@ President, Med&amp;X</textarea>
                 const claimedBy = item.claimed_by || '';
                 const claimedName = item.claimed_by_name || claimedBy;
                 const p = item.action_payload || {};
-                const scanWho = (p.who && p.who !== 'Med&X' && p.who !== 'Unassigned' && p.assignee_user_id) ? p.who : '';
+                // Show the suggested owner even when they have no portal account
+                // (p.assignee_user_id null) — nudge availability is gated separately by
+                // action_kind, so an account-less teammate still reads as the owner.
+                const scanWho = (p.who && p.who !== 'Med&X' && p.who !== 'Unassigned') ? p.who : '';
                 const mine = claimedBy && claimedBy === me;
                 let chip = '';
                 if (claimedBy) {
                     chip = `<span class="ac-assignee${mine ? ' is-me' : ''}"><i class="fas fa-user-check"></i> ${mine ? 'You' : escapeHtml(claimedName)}</span>`;
                 } else if (scanWho) {
-                    chip = `<span class="ac-assignee" title="Suggested owner"><i class="fas fa-user"></i> ${escapeHtml(scanWho)}</span>`;
+                    const noAccount = !p.assignee_user_id ? ' (no portal account)' : '';
+                    chip = `<span class="ac-assignee" title="Suggested owner${noAccount}"><i class="fas fa-user"></i> ${escapeHtml(scanWho)}</span>`;
                 }
                 const btn = mine
                     ? `<button class="ac-assign-btn" onclick="App.nagClaim('${item.id}')" title="Release this task"><i class="fas fa-xmark"></i> Release</button>`
@@ -19180,7 +19204,13 @@ President, Med&amp;X</textarea>
             },
 
             async nagDone(id) {
-                try { await this.api(`/api/admin/nag/items/${id}/done`, { method: 'POST', body: JSON.stringify({}) }); Toast.success('Marked done.'); this.loadActionCenter(); }
+                try {
+                    const r = await this.api(`/api/admin/nag/items/${id}/done`, { method: 'POST', body: JSON.stringify({}) });
+                    Toast.success(r && r.task_completed ? 'Marked done — task completed.' : 'Marked done.');
+                    this.loadActionCenter();
+                    // Task nags change the overdue/urgent chip counts too.
+                    if (r && r.task_completed) { this.loadAllTasks(); this.loadPortalStats(); }
+                }
                 catch (e) { Toast.error(e.message || 'Failed to update item.'); }
             },
 
@@ -20741,7 +20771,10 @@ President, Med&amp;X</textarea>
             },
 
             async loadAllTasks() {
-                const projectIds = ['plexus', 'accelerator', 'forum', 'bridges', 'general'];
+                // 'finances' included so the To Do list covers the same task universe the
+                // Action Center overdue/urgent chips count — finances tasks used to be
+                // counted by the chip but structurally invisible in the list it opens.
+                const projectIds = ['plexus', 'accelerator', 'forum', 'bridges', 'finances', 'general'];
 
                 try {
                     // Load tasks for each project
@@ -20795,9 +20828,25 @@ President, Med&amp;X</textarea>
             },
             clearTaskFilter() { this.dashTaskFilter = null; this.renderDashboardTasks(); },
 
+            // SYSTEMIC identity helper: task/sequence assigned_to stores team_members.id,
+            // while this.user.id is the auth users.id — two different id spaces that never
+            // match directly. Resolve the logged-in user's team-member id and compare in
+            // that space everywhere (legacy rows that stored users.id still match too).
+            myTeamMemberId() {
+                const uid = this.user?.id?.toString();
+                if (!uid) return null;
+                const mine = (this.teamMembers || []).find(m => m.user_id?.toString() === uid);
+                return mine?.id?.toString() || null;
+            },
+            isAssignedToMe(assignedTo) {
+                if (!assignedTo) return false;
+                const a = assignedTo.toString();
+                return a === this.myTeamMemberId() || a === this.user?.id?.toString();
+            },
+
             renderDashboardTasks() {
                 const container = document.getElementById('dashboardTasks');
-                const projectIds = ['plexus', 'accelerator', 'forum', 'bridges', 'general'];
+                const projectIds = ['plexus', 'accelerator', 'forum', 'bridges', 'finances', 'general'];
                 const currentUserId = this.user?.id?.toString();
                 const filter = this.dashTaskFilter || null;
                 const todayStr = new Date().toISOString().slice(0, 10);
@@ -20815,7 +20864,7 @@ President, Med&amp;X</textarea>
                 const isMyTask = (task) => {
                     if (filter) return true;
                     if (!task.assigned_to) return true; // Unassigned tasks visible to all
-                    return task.assigned_to?.toString() === currentUserId;
+                    return this.isAssignedToMe(task.assigned_to);
                 };
 
                 // Collect pinned tasks first (only my tasks)
@@ -20868,7 +20917,9 @@ President, Med&amp;X</textarea>
                     const tasks = groupedTasks[project];
                     if (tasks.length === 0) return;
 
-                    const proj = this.projects[project];
+                    // 'finances' has no this.projects entry (it is not a Home project card);
+                    // give its task group a label/color of its own.
+                    const proj = this.projects[project] || { name: 'Finances', color: '#c14b52' };
                     const shown = filter ? tasks : tasks.slice(0, 3);
                     html += `
                         <div class="task-group">
@@ -20906,7 +20957,7 @@ President, Med&amp;X</textarea>
                 const isPinned = this.pinnedItems.some(p => p.item_type === 'task' && p.item_id === task.id);
                 const dueText = task.due_date ? this.formatDueDate(task.due_date) : '';
                 const badge = this.getDueBadge(task.due_date);
-                const proj = this.projects[project];
+                const proj = this.projects[project] || { name: 'Finances', color: '#c14b52' };
                 const assignee = task.assigned_to ? this.teamMembers.find(m => m.id == task.assigned_to) : null;
                 const assigneeName = assignee ? this.teamMemberName(assignee) : '';
                 const assigneeInitials = assigneeName ? assigneeName.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() : '';
@@ -20946,14 +20997,23 @@ President, Med&amp;X</textarea>
                 `;
             },
 
+            // Timezone-safe due-date parse: a due date is a calendar date the admin picked,
+            // so read its Y-M-D as LOCAL (matching the Action Center's _nagDueInfo) instead
+            // of letting new Date() treat it as UTC midnight — which rendered every To Do
+            // due date a day early for US-timezone readers.
+            _parseDueDate(dateStr) {
+                const m = String(dateStr || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+                return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(dateStr);
+            },
+
             formatDueDate(dateStr) {
-                const date = new Date(dateStr);
+                const date = this._parseDueDate(dateStr);
                 return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             },
 
             getDueBadge(dateStr) {
                 if (!dateStr) return '';
-                const date = new Date(dateStr);
+                const date = this._parseDueDate(dateStr);
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
@@ -21912,7 +21972,7 @@ President, Med&amp;X</textarea>
                             document.getElementById('taskFiles').innerHTML = task.files.map(f => `
                                 <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;">
                                     <i class="fas fa-file" style="color: var(--text-muted);"></i>
-                                    <span style="flex: 1; font-size: 13px;">${f.filename}</span>
+                                    <span style="flex: 1; font-size: 13px;">${escapeHtml(f.original_name || f.filename)}</span>
                                     <button class="btn btn-secondary" style="padding: 2px 6px;" onclick="App.removeTaskFile('${f.id}')"><i class="fas fa-times"></i></button>
                                 </div>
                             `).join('');
@@ -22458,8 +22518,18 @@ President, Med&amp;X</textarea>
                     this.closeModal('taskModal');
                     await this.loadAllTasks();
                     await this.loadDashboardSummary();
+                    // Refresh the Needs-Attention chips + Action Center so the overdue/urgent
+                    // counters reflect the new task without a full page reload.
+                    this.loadPortalStats();
+                    // Visible confirmation: toast + open the To Do card so the task shows.
+                    Toast.success(taskId ? 'Task updated' : 'Task created');
+                    if (!taskId) {
+                        const det = document.querySelector('#dashTodo details');
+                        if (det) det.open = true;
+                    }
                 } catch (err) {
                     console.error('Failed to save task:', err);
+                    Toast.error('Failed to save task: ' + (err.message || 'unknown error'));
                 }
             },
 
@@ -22701,12 +22771,14 @@ President, Med&amp;X</textarea>
 
                 container.innerHTML = this.sequences.map(seq => {
                     const steps = seq.steps || [];
-                    const currentStep = steps.find(s => s.status === 'pending') || steps[steps.length - 1];
+                    // Backend marks the current step 'active' (later ones 'pending') —
+                    // derive the current step from that truth, falling back for legacy data.
+                    const currentStep = steps.find(s => s.status === 'active') || steps.find(s => s.status === 'pending') || steps[steps.length - 1];
                     const completedSteps = steps.filter(s => s.status === 'completed').length;
                     const progress = steps.length ? Math.round((completedSteps / steps.length) * 100) : 0;
 
-                    // Find user's position in the sequence
-                    const userStepIndex = steps.findIndex(s => s.assigned_to?.toString() === currentUserId);
+                    // Find user's position in the sequence (assigned_to is a team_members.id)
+                    const userStepIndex = steps.findIndex(s => this.isAssignedToMe(s.assigned_to));
                     let userPosition = '';
                     if (userStepIndex >= 0) {
                         const userStep = steps[userStepIndex];
@@ -22758,7 +22830,7 @@ President, Med&amp;X</textarea>
                                             <span style="flex: 1; color: ${isDone ? 'var(--text-muted)' : 'var(--text-primary)'}; ${isDone ? 'text-decoration: line-through;' : ''}">${escapeHtml(step.title)}</span>
                                             <span style="color: var(--text-muted); font-size: 11px;">${escapeHtml(assigneeName)}</span>
                                             ${step.notification_sent && isActive ? '<span title="Notification sent" style="color: var(--accent-gold); font-size: 10px; margin-left: 2px;"><i class="fas fa-bell"></i></span>' : ''}
-                                            ${isActive && step.assigned_to?.toString() === currentUserId ? `
+                                            ${isActive && this.isAssignedToMe(step.assigned_to) ? `
                                                 <button class="btn btn-primary" style="padding: 2px 8px; font-size: 10px;" onclick="App.completeSequenceStep('${seq.id}', '${step.id}')">
                                                     Complete
                                                 </button>
@@ -22891,6 +22963,11 @@ President, Med&amp;X</textarea>
                                     ${step.completed_at ? ` • Completed ${new Date(step.completed_at).toLocaleDateString()}` : ''}
                                 </div>
                             </div>
+                            ${isActive && this.isAssignedToMe(step.assigned_to) ? `
+                                <button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px; align-self: center;" onclick="document.getElementById('viewSequenceModal').remove(); App.completeSequenceStep('${seq.id}', '${step.id}')">
+                                    Complete
+                                </button>
+                            ` : ''}
                             <span style="color: ${isDone ? 'var(--success)' : isActive ? 'var(--accent-gold)' : 'var(--text-muted)'};">
                                 <i class="fas ${isDone ? 'fa-check-circle' : isActive ? 'fa-bell' : 'fa-clock'}"></i>
                             </span>
@@ -22978,7 +23055,9 @@ President, Med&amp;X</textarea>
                 container.innerHTML = `
                     <div style="display: flex; flex-direction: column; gap: 8px;">
                         ${sortedEvents.map(evt => {
-                            const eventDate = new Date(evt.event_date);
+                            // Local parse — new Date('YYYY-MM-DD') is UTC midnight and shows
+                            // the previous day for US-timezone readers.
+                            const eventDate = medxSqlDate(evt.event_date) || new Date(evt.event_date);
                             eventDate.setHours(0, 0, 0, 0);
                             const diffDays = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
                             const isPast = eventDate < today;
@@ -24051,9 +24130,26 @@ President, Med&amp;X</textarea>
                 if (typeof ProjectPing !== 'undefined') ProjectPing.render('pxPingInterested', 'plexus', 'Plexus');
             },
 
+            // Country values are unnormalized free text from the registration sources —
+            // canonicalize so GB/UK/USA variants collapse into one facet value and the
+            // filter matches every registration of that country.
+            normalizeCountry(c) {
+                const s = String(c || '').trim();
+                if (!s) return '';
+                const key = s.toLowerCase().replace(/\./g, '');
+                const map = {
+                    'gb': 'United Kingdom', 'uk': 'United Kingdom', 'united kingdom': 'United Kingdom', 'great britain': 'United Kingdom', 'england': 'United Kingdom',
+                    'us': 'United States', 'usa': 'United States', 'united states': 'United States', 'united states of america': 'United States',
+                    'hr': 'Croatia', 'croatia': 'Croatia', 'hrvatska': 'Croatia',
+                    'de': 'Germany', 'germany': 'Germany', 'deutschland': 'Germany',
+                    'ch': 'Switzerland', 'switzerland': 'Switzerland'
+                };
+                return map[key] || (s.charAt(0).toUpperCase() + s.slice(1));
+            },
+
             populateRegFilterDropdowns(regs) {
-                // Country dropdown
-                const countries = [...new Set(regs.map(r => r.country).filter(Boolean))].sort();
+                // Country dropdown (canonicalized)
+                const countries = [...new Set(regs.map(r => this.normalizeCountry(r.country)).filter(Boolean))].sort();
                 const countrySelect = document.getElementById('pxRegCountryFilter');
                 if (countrySelect) {
                     countrySelect.innerHTML = '<option value="">All Countries</option>' +
@@ -24167,7 +24263,7 @@ President, Med&amp;X</textarea>
                         (r.email && r.email.toLowerCase().includes(search)) ||
                         (r.institution && r.institution.toLowerCase().includes(search));
                     const matchStatus = !statusFilter || r.status === statusFilter;
-                    const matchCountry = !countryFilter || r.country === countryFilter;
+                    const matchCountry = !countryFilter || this.normalizeCountry(r.country) === countryFilter;
                     const matchInst = !instFilter || r.institution === instFilter;
                     const matchTicket = !ticketFilter || r.ticket_type === ticketFilter;
                     const matchPayment = !paymentFilter || r.payment_status === paymentFilter;
@@ -24261,8 +24357,14 @@ President, Med&amp;X</textarea>
                 URL.revokeObjectURL(url);
             },
 
-            openManualRegistration() {
-                Toast.info('Manual registration is coming soon. For now, registrations are created through the public registration links (Gala / Croatians Abroad).');
+            async openManualRegistration() {
+                // Honest, styled explanation instead of a transient toast on a primary
+                // button — manual entry is not built yet; point at the working path.
+                await adminAlert({
+                    type: 'info',
+                    title: 'Manual registration is not available yet',
+                    message: 'Registrations are created through the public registration links (Gala / Croatians Abroad). Use Quick Actions → New Paid Gala Link / New VIP Link to generate a link, or the Live Editor on this tab, and register the guest through it.'
+                });
             },
 
             viewRegistration(id) {
@@ -24270,7 +24372,77 @@ President, Med&amp;X</textarea>
                 if (reg) this.showRegistrantDetail(reg, { context: 'Plexus 2026 — your registration', kind: 'Plexus Conference', type: 'conference' });
             },
 
-            editRegistration(id) {
+            // Edit (pencil) = a real edit form. Previously this aliased the read-only
+            // detail panel, so no registration field was correctable anywhere in the UI
+            // although PUT /api/admin/plexus/registrations/:id existed.
+            async editRegistration(id) {
+                const reg = (this.plexusRegistrations || []).find(r => r.id === id);
+                if (!reg) return;
+                document.getElementById('regEditModal')?.remove();
+                let tickets = [];
+                try { tickets = (await this.api('/api/plexus/conference'))?.tickets || []; } catch (e) {}
+                const esc = (s) => this.escapeHtml(s == null ? '' : String(s));
+                const inSt = 'width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;';
+                const opt = (v, label, cur) => `<option value="${esc(v)}"${String(cur || '') === String(v) ? ' selected' : ''}>${esc(label)}</option>`;
+                const ov = document.createElement('div');
+                ov.className = 'modal-overlay active';
+                ov.id = 'regEditModal';
+                ov.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+                ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+                ov.innerHTML = `
+                  <div class="card" style="max-width:520px;width:100%;max-height:88vh;overflow:auto;padding:22px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <h3 style="margin:0;font-size:16px;">Edit registration</h3>
+                        <button onclick="document.getElementById('regEditModal').remove()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">&times;</button>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">First name</label><input id="regEditFirst" type="text" value="${esc(reg.first_name)}" style="${inSt}"></div>
+                        <div><label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Last name</label><input id="regEditLast" type="text" value="${esc(reg.last_name)}" style="${inSt}"></div>
+                    </div>
+                    <div style="margin-bottom:10px;"><label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Email</label><input id="regEditEmail" type="email" value="${esc(reg.email)}" style="${inSt}"></div>
+                    <div style="margin-bottom:10px;"><label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Institution</label><input id="regEditInstitution" type="text" value="${esc(reg.institution)}" style="${inSt}"></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <div><label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Status</label>
+                            <select id="regEditStatus" style="${inSt}">${opt('confirmed', 'Confirmed', reg.status)}${opt('pending', 'Pending', reg.status)}${opt('cancelled', 'Cancelled', reg.status)}</select></div>
+                        <div><label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Payment</label>
+                            <select id="regEditPayment" style="${inSt}">${opt('paid', 'Paid', reg.payment_status)}${opt('pending', 'Pending', reg.payment_status)}${opt('waived', 'Waived', reg.payment_status)}${opt('refunded', 'Refunded', reg.payment_status)}</select></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+                        <div><label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Amount paid (€)</label><input id="regEditAmount" type="number" min="0" step="0.01" value="${reg.amount_paid != null ? esc(reg.amount_paid) : ''}" style="${inSt}"></div>
+                        <div><label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Ticket type</label>
+                            <select id="regEditTicket" style="${inSt}"><option value="">(keep current${reg.ticket_name ? ': ' + esc(reg.ticket_name) : ''})</option>${tickets.map(t => opt(t.id, t.name, reg.ticket_type_id)).join('')}</select></div>
+                    </div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="document.getElementById('regEditModal').remove()">Cancel</button>
+                        <button class="btn btn-primary" onclick="App.saveRegistrationEdit('${esc(reg.id)}')"><i class="fas fa-save"></i> Save</button>
+                    </div>
+                  </div>`;
+                document.body.appendChild(ov);
+            },
+
+            async saveRegistrationEdit(id) {
+                const val = (elId) => document.getElementById(elId)?.value ?? '';
+                const body = {
+                    first_name: val('regEditFirst').trim(),
+                    last_name: val('regEditLast').trim(),
+                    email: val('regEditEmail').trim(),
+                    institution: val('regEditInstitution').trim(),
+                    status: val('regEditStatus'),
+                    payment_status: val('regEditPayment')
+                };
+                const amount = val('regEditAmount');
+                if (amount !== '') body.amount_paid = parseFloat(amount);
+                const ticket = val('regEditTicket');
+                if (ticket) body.ticket_type_id = ticket;
+                try {
+                    await this.api(`/api/admin/plexus/registrations/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+                    document.getElementById('regEditModal')?.remove();
+                    Toast.success('Registration updated');
+                    this.loadPlexusRegistrations();
+                } catch (e) { Toast.error(e.message || 'Failed to update the registration.'); }
+            },
+
+            _editRegistrationLegacyView(id) {
                 const reg = (this.plexusRegistrations || []).find(r => r.id === id);
                 if (reg) this.showRegistrantDetail(reg, { context: 'Plexus 2026 — your registration', kind: 'Plexus Conference', type: 'conference' });
             },
@@ -24475,8 +24647,20 @@ President, Med&amp;X</textarea>
                 }
             },
 
+            // Normalized abstract type/category used by the table, filters, group-by,
+            // sort and export alike. The API returns abstract_type/presentation_type
+            // (lowercase) and category OR topic_category — a.type alone is undefined on
+            // every abstract, which made both Type filter options return zero rows.
+            absType(a) {
+                const t = (a.abstract_type || a.presentation_type || a.type || 'poster').toString().toLowerCase();
+                return t === 'oral' ? 'Oral' : 'Poster';
+            },
+            absCategory(a) {
+                return a.category || a.topic_category || '';
+            },
+
             populateAbsFilterDropdowns(abstracts) {
-                const categories = [...new Set(abstracts.map(a => a.category).filter(Boolean))].sort();
+                const categories = [...new Set(abstracts.map(a => this.absCategory(a)).filter(Boolean))].sort();
                 const catSelect = document.getElementById('pxAbsCategoryFilter');
                 if (catSelect) {
                     catSelect.innerHTML = '<option value="">All Categories</option>' +
@@ -24503,7 +24687,9 @@ President, Med&amp;X</textarea>
                     groupedContainer.style.display = '';
                     const groups = {};
                     abstracts.forEach(a => {
-                        const key = a[this.pxAbsGroupBy] || 'Unknown';
+                        const key = (this.pxAbsGroupBy === 'type' ? this.absType(a)
+                            : this.pxAbsGroupBy === 'category' ? this.absCategory(a)
+                            : a[this.pxAbsGroupBy]) || 'Unknown';
                         if (!groups[key]) groups[key] = [];
                         groups[key].push(a);
                     });
@@ -24539,8 +24725,8 @@ President, Med&amp;X</textarea>
                 return `<tr>
                     <td><strong>${this.escapeHtml(a.title || 'Untitled')}</strong></td>
                     <td>${this.escapeHtml(a.submitter_name || a.email || '-')}</td>
-                    <td>${a.type || 'Poster'}</td>
-                    <td>${a.category || '-'}</td>
+                    <td>${this.absType(a)}</td>
+                    <td>${this.escapeHtml(this.absCategory(a) || '-')}</td>
                     <td><span class="status ${a.status === 'accepted' ? 'paid' : a.status === 'rejected' ? 'cancelled' : 'pending'}">${a.status || 'Submitted'}</span></td>
                     <td>${a.review_count || 0} / 3</td>
                     <td class="actions">
@@ -24558,13 +24744,14 @@ President, Med&amp;X</textarea>
                 const categoryFilter = document.getElementById('pxAbsCategoryFilter')?.value || '';
 
                 let filtered = this.plexusAbstracts.filter(a => {
+                    const email = a.submitter_email || a.email || '';
                     const matchSearch = !search ||
                         (a.title && a.title.toLowerCase().includes(search)) ||
                         (a.submitter_name && a.submitter_name.toLowerCase().includes(search)) ||
-                        (a.email && a.email.toLowerCase().includes(search));
+                        email.toLowerCase().includes(search);
                     const matchStatus = !statusFilter || a.status === statusFilter;
-                    const matchType = !typeFilter || a.type === typeFilter;
-                    const matchCategory = !categoryFilter || a.category === categoryFilter;
+                    const matchType = !typeFilter || this.absType(a) === typeFilter;
+                    const matchCategory = !categoryFilter || this.absCategory(a) === categoryFilter;
                     return matchSearch && matchStatus && matchType && matchCategory;
                 });
 
@@ -24602,8 +24789,14 @@ President, Med&amp;X</textarea>
                 return [...arr].sort((a, b) => {
                     let va, vb;
                     if (col === 'submitter') {
-                        va = (a.submitter_name || a.email || '').toLowerCase();
-                        vb = (b.submitter_name || b.email || '').toLowerCase();
+                        va = (a.submitter_name || a.submitter_email || a.email || '').toLowerCase();
+                        vb = (b.submitter_name || b.submitter_email || b.email || '').toLowerCase();
+                    } else if (col === 'type') {
+                        va = this.absType(a).toLowerCase();
+                        vb = this.absType(b).toLowerCase();
+                    } else if (col === 'category') {
+                        va = this.absCategory(a).toLowerCase();
+                        vb = this.absCategory(b).toLowerCase();
                     } else {
                         va = (a[col] || '').toString().toLowerCase();
                         vb = (b[col] || '').toString().toLowerCase();
@@ -24631,23 +24824,15 @@ President, Med&amp;X</textarea>
 
                 const headers = ['Title', 'Submitter Name', 'Submitter Email', 'Type', 'Category', 'Status', 'Decision', 'Average Score'];
                 const rows = data.map(a => [
-                    a.title || '', a.submitter_name || '', a.email || '', a.type || 'Poster',
-                    a.category || '', a.status || '', a.decision || '',
+                    a.title || '', a.submitter_name || '', a.submitter_email || a.email || '', this.absType(a),
+                    this.absCategory(a) || '', a.status || '', a.decision || '',
                     a.average_score != null ? a.average_score : ''
                 ]);
 
-                // C1: XLSX export
+                // XLSX: served by the backend as a real workbook (all abstracts for the
+                // conference; the CSV button exports the current filtered view).
                 if (format === 'xlsx') {
-                    // Client-side XLSX using table data (no server endpoint needed for abstracts)
-                    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${(c || '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
-                    const blob = new Blob([csv], { type: 'text/csv' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `plexus-abstracts-${new Date().toISOString().split('T')[0]}.csv`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    Toast.info('Abstracts exported as CSV (XLSX export coming soon for this data type)');
+                    this.downloadFile('/api/admin/export/abstracts/plexus-2026?format=xlsx', `plexus-abstracts-${new Date().toISOString().split('T')[0]}.xlsx`);
                     return;
                 }
 
@@ -24665,9 +24850,41 @@ President, Med&amp;X</textarea>
                 const a = (this.plexusAbstracts || []).find(x => x.id === id);
                 if (a) this.showAbstractDetail(a);
             },
-            reviewAbstract(id) { this.viewAbstract(id); },
+            // Review = the detail modal + a working decision section (accept/reject with
+            // notes, reviewer assignment). Previously this just aliased viewAbstract, so
+            // the backend's whole decision workflow was unreachable from the UI.
+            reviewAbstract(id) {
+                const a = (this.plexusAbstracts || []).find(x => x.id === id);
+                if (a) this.showAbstractDetail(a, { review: true });
+            },
+            async abstractDecision(id, status) {
+                const notes = (document.getElementById('absDecisionNotes')?.value || '').trim();
+                try {
+                    await this.api(`/api/admin/plexus/abstracts/${id}/decision`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ status, decision: notes || status })
+                    });
+                    Toast.success(status === 'accepted' ? 'Abstract accepted' : 'Abstract rejected');
+                    document.querySelector('.modal-overlay[data-abs-review]')?.remove();
+                    await this.loadPlexusAbstracts();
+                } catch (e) { Toast.error(e.message || 'Failed to record the decision.'); }
+            },
+            async abstractAssignReviewer(id) {
+                const sel = document.getElementById('absReviewerSelect');
+                const reviewerId = sel?.value;
+                if (!reviewerId) { Toast.warning('Pick a reviewer first.'); return; }
+                try {
+                    await this.api(`/api/admin/plexus/abstracts/${id}/assign-reviewer`, {
+                        method: 'POST',
+                        body: JSON.stringify({ reviewer_id: reviewerId })
+                    });
+                    Toast.success('Reviewer assigned');
+                    document.querySelector('.modal-overlay[data-abs-review]')?.remove();
+                    await this.loadPlexusAbstracts();
+                } catch (e) { Toast.error(e.message || 'Failed to assign the reviewer.'); }
+            },
 
-            showAbstractDetail(a) {
+            showAbstractDetail(a, opts) {
                 const esc = (s) => this.escapeHtml(s == null ? '' : String(s));
                 const email = a.email || a.submitter_email || '';
                 const author = a.submitter_name || email || 'Unknown';
@@ -24698,12 +24915,37 @@ President, Med&amp;X</textarea>
                         <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px;">Abstract</div>
                         <div style="font-size:13.5px;line-height:1.7;white-space:pre-wrap;color:var(--text-primary);">${esc(a.abstract_text || a.abstract || '(No abstract text on file.)')}</div>
                     </div>
+                    ${opts && opts.review ? (() => {
+                        const reviewers = (this.teamMembers || []).filter(m => m.user_id);
+                        const existing = Array.isArray(a.reviews) ? a.reviews : [];
+                        const revList = existing.length
+                            ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Assigned reviewer(s): ${existing.map(r => esc(((r.first_name || '') + ' ' + (r.last_name || '')).trim() || r.reviewer_id)).join(', ')}</div>`
+                            : '';
+                        return `
+                    <div style="padding:16px 22px;border-top:1px solid var(--border);background:var(--bg-secondary);">
+                        <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:10px;"><i class="fas fa-clipboard-check" style="margin-right:5px;"></i>Review decision</div>
+                        ${revList}
+                        <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap;">
+                            <select id="absReviewerSelect" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;">
+                                <option value="">-- Assign a reviewer --</option>
+                                ${reviewers.map(m => `<option value="${esc(m.user_id)}">${esc(m.name)}</option>`).join('')}
+                            </select>
+                            <button class="btn btn-secondary" onclick="App.abstractAssignReviewer('${esc(a.id)}')"><i class="fas fa-user-plus"></i> Assign</button>
+                        </div>
+                        <textarea id="absDecisionNotes" rows="2" placeholder="Decision notes (optional — stored with the decision)" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;margin-bottom:10px;"></textarea>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-primary" style="background:#15803d;border:none;" onclick="App.abstractDecision('${esc(a.id)}','accepted')"><i class="fas fa-check"></i> Accept</button>
+                            <button class="btn btn-primary" style="background:#9b1b22;border:none;" onclick="App.abstractDecision('${esc(a.id)}','rejected')"><i class="fas fa-times"></i> Reject</button>
+                        </div>
+                    </div>`;
+                    })() : ''}
                     <div style="padding:14px 22px 20px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);">
                         <button class="btn btn-primary" onclick="App.emailPerson('${e2}','${ctx}')"><i class="fas fa-envelope"></i> Email submitter</button>
                         <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove();App.messagePerson('${e2}','${ctx}')"><i class="fas fa-comment-dots"></i> Message</button>
                         <button class="btn btn-secondary" onclick="App.copyContact('${e2}')"><i class="fas fa-copy"></i> Copy email</button>
                     </div>
                   </div>`;
+                if (opts && opts.review) ov.setAttribute('data-abs-review', '1');
                 document.body.appendChild(ov);
             },
 
@@ -24712,8 +24954,15 @@ President, Med&amp;X</textarea>
 
             async loadPlexusSchedule() {
                 try {
-                    const sessions = await this.api('/api/admin/plexus/sessions');
+                    // Fetch speakers alongside sessions: the Add Session modal's Speaker(s)
+                    // picker reads this.plexusSpeakers, which only the Speakers tab loaded —
+                    // opening Schedule first left the picker empty.
+                    const [sessions, speakers] = await Promise.all([
+                        this.api('/api/admin/plexus/sessions'),
+                        this.api('/api/admin/plexus/speakers').catch(() => null)
+                    ]);
                     this.plexusSessions = sessions || [];
+                    if (speakers) this.plexusSpeakers = speakers;
                     this.renderScheduleGrid();
                 } catch (err) {
                     console.error('Failed to load schedule:', err);
@@ -24842,6 +25091,10 @@ President, Med&amp;X</textarea>
                         ${speakerText ? `<div class="session-block-speaker">${this.escapeHtml(speakerText)}</div>` : ''}
                         <div class="session-block-badges">
                             ${s.is_published ? '<span class="session-block-badge" style="background: rgba(201,169,98,0.25); color: #c9a962;">LIVE</span>' : ''}
+                            ${s.checkin_enabled ? '<span class="session-block-badge" style="background: rgba(21,128,61,0.25); color: #15803d;" title="Session check-in is ON">QR ON</span>' : ''}
+                            <button class="session-block-badge" style="border:none;cursor:pointer;background:${s.checkin_enabled ? 'rgba(21,128,61,0.25)' : 'rgba(255,255,255,0.10)'};color:${s.checkin_enabled ? '#15803d' : 'var(--text-muted)'};"
+                                onclick="event.stopPropagation(); App.toggleSessionCheckin('${s.id}')"
+                                title="${s.checkin_enabled ? 'Turn session check-in OFF' : 'Turn session check-in ON'}"><i class="fas fa-qrcode"></i></button>
                         </div>
                     </div>`;
                 });
@@ -26100,7 +26353,7 @@ President, Med&amp;X</textarea>
 
                 tbody.innerHTML = this.plexusVolunteers.map(v => `
                     <tr>
-                        <td>${this.escapeHtml(v.name || v.email)}</td>
+                        <td>${this.escapeHtml([v.first_name, v.last_name].filter(Boolean).join(' ') || v.name || v.email)}</td>
                         <td>${this.escapeHtml(v.email || '')}</td>
                         <td>${v.availability || 'Both days'}</td>
                         <td><span class="status ${v.status === 'approved' ? 'paid' : v.status === 'rejected' ? 'cancelled' : 'pending'}">${v.status || 'Pending'}</span></td>
@@ -26203,9 +26456,9 @@ President, Med&amp;X</textarea>
             },
 
             async openShiftModal() {
-                const title = (await adminPrompt({ title: "Shift Name" }));
-                if (!title) return;
-                await adminAlert({ type: "info", title: "Coming soon", message: "Shift creation is coming soon. For now, shifts are managed manually." });
+                // Never collect input that will be discarded: say up front that shift
+                // creation is not built, without first prompting for a shift name.
+                await adminAlert({ type: "info", title: "Shift creation is not available yet", message: "Shifts are managed manually for now. The shift list on this tab is a fixed reference — contact the volunteer coordinator to change assignments." });
             },
 
             async loadPlexusCheckinStats() {
@@ -26342,6 +26595,39 @@ President, Med&amp;X</textarea>
                     }
                 } catch(e) {} // not JSON, continue with normal check-in
 
+                // Conference tab: try the unified ticket endpoint FIRST — the legacy
+                // /api/plexus/checkin only resolves registration UUIDs, so real ticket QR
+                // codes (checkin tokens) 404'd here while admitting fine in the global
+                // scanner. Legacy stays as fallback for old registration-UUID codes.
+                if (eventType === 'plexus') {
+                    try {
+                        const uni = await this.api('/api/admin/checkin/ticket', {
+                            method: 'POST',
+                            body: JSON.stringify({ code, event: 'conference', mark: true, method: 'manual' })
+                        });
+                        if (uni && uni.result && uni.result !== 'invalid' && uni.result !== 'bad_event') {
+                            const t = uni.ticket || {};
+                            const detail = [t.email, t.access_category].filter(Boolean).map(p => this.escapeHtml(p)).join(' &bull; ');
+                            if (uni.result === 'valid') {
+                                resultDiv.className = 'checkin-result success';
+                                resultDiv.innerHTML = `<i class="fas fa-check-circle"></i> Checked in successfully!
+                                    <div class="checkin-attendee-info"><div class="name">${this.escapeHtml(t.name || 'Guest')}</div><div class="detail">${detail}</div></div>`;
+                            } else if (uni.result === 'already_checked_in') {
+                                resultDiv.className = 'checkin-result already';
+                                resultDiv.innerHTML = `<i class="fas fa-info-circle"></i> Already checked in
+                                    <div class="checkin-attendee-info"><div class="name">${this.escapeHtml(t.name || 'Guest')}</div><div class="detail">${detail}</div></div>`;
+                            } else {
+                                resultDiv.className = 'checkin-result error';
+                                resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${this.escapeHtml(uni.message || uni.result)}`;
+                            }
+                            if (input) input.value = '';
+                            this.loadPlexusCheckinStats();
+                            return;
+                        }
+                        // result 'invalid'/'bad_event' → fall through to the legacy endpoint below
+                    } catch (e) { /* unified endpoint unavailable → legacy fallback below */ }
+                }
+
                 try {
                     const result = await this.api(endpoints[eventType] || '/api/checkin', {
                         method: 'POST',
@@ -26391,8 +26677,14 @@ President, Med&amp;X</textarea>
                             resultDiv.innerHTML = '<i class="fas fa-cloud-arrow-up"></i> Offline — check-in QUEUED. It will sync automatically when you reconnect.';
                         }
                     } else if (resultDiv) {
+                        // Surface the backend's message (App.api throws with the response
+                        // error, e.g. "Registration not found") — a generic "try again" made
+                        // an invalid ticket indistinguishable from a network blip and invited
+                        // retrying a code that will never work.
                         resultDiv.className = 'checkin-result error';
-                        resultDiv.innerHTML = '<i class="fas fa-times-circle"></i> Check-in failed. Please try again.';
+                        const msg = err && err.message ? err.message : 'Check-in failed. Please try again.';
+                        const notFound = /not found/i.test(msg);
+                        resultDiv.innerHTML = `<i class="fas fa-times-circle"></i> ${escapeHtml(msg)}${notFound ? ' — do not retry this code' : ''}`;
                     }
                 }
             },
@@ -26577,8 +26869,10 @@ President, Med&amp;X</textarea>
                 }, 500);
             },
 
-            async generateRegistrationLink(eventType, eventId, eventName) {
+            async generateRegistrationLink(eventType, eventId, eventName, presetType) {
                 // Single instance — never let two Live Editors stack (their ids would collide).
+                // presetType 'vip' opens with Link type preset to Free/VIP (the "New VIP Link"
+                // Quick Action) — previously both quick actions opened the identical Paid modal.
                 document.getElementById('linkEditorModal')?.remove();
                 const typeNames = { plexus: 'Plexus Conference 2026', gala: 'Plexus 2026 — Gala Evening', forum: 'Biomedical Forum', bridges: 'Building Bridges' };
                 const name = eventName || typeNames[eventType] || eventType;
@@ -26703,7 +26997,7 @@ President, Med&amp;X</textarea>
                                     <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Link type</label>
                                     <select id="genLinkType" onchange="App.onLinkTypeChange()" style="${inStyle}">
                                         <option value="generic">Paid — uses the prices above</option>
-                                        <option value="vip">Free / VIP — skips payment, instant confirmation</option>
+                                        <option value="vip"${presetType === 'vip' ? ' selected' : ''}>Free / VIP — skips payment, instant confirmation</option>
                                     </select>
                                 </div>
                                 <div id="genLinkOverrideWrap" style="margin-bottom:16px;">
@@ -26799,7 +27093,10 @@ President, Med&amp;X</textarea>
                 `;
                 document.body.appendChild(modal);
                 this._genLinkToken = null;
-                this.renderLinkPreview();
+                // Sync the override visibility + preview with the preset link type
+                // (onLinkTypeChange also calls renderLinkPreview).
+                if (presetType === 'vip') this.onLinkTypeChange();
+                else this.renderLinkPreview();
                 this.loadExistingLinks(eventType);
                 this.loadCustomQuestions(eventType);
                 this.loadCoupons(eventType);
@@ -27127,10 +27424,20 @@ President, Med&amp;X</textarea>
             // Render the left-hand live preview of the registrant's page + the running total.
             // Reads whatever controls exist (composable components OR a single price) so it works
             // for every event type.
+            // Shared token substitution for the Live Editor preview: the public renderer
+            // replaces {venue} with the live Gala venue in EVERY field, so the panel
+            // labeled "what the registrant sees" must do the same (it used to show the
+            // literal token in descriptions).
+            substituteTokens(text) {
+                if (!text) return text;
+                const venue = (this.galaSettings && this.galaSettings.venue) || 'Hotel Esplanade Zagreb';
+                return String(text).replace(/\{venue\}/g, venue);
+            },
+
             renderLinkPreview() {
                 const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => s);
                 // Detail fields (when present) are the source of truth for the registrant page.
-                const detail = (role) => { const el = document.querySelector(`#linkEditorModal [data-role="${role}"]`); return el ? el.value.trim() : ''; };
+                const detail = (role) => { const el = document.querySelector(`#linkEditorModal [data-role="${role}"]`); return el ? this.substituteTokens(el.value.trim()) : ''; };
                 const nameEl = document.getElementById('genLinkName');
                 const name = detail('title') || (nameEl && nameEl.value.trim()) || 'Med&X Event';
                 const date = detail('date'), time = detail('time'), venue = detail('venue'), description = detail('description');
@@ -27182,7 +27489,7 @@ President, Med&amp;X</textarea>
                     }
                     prev.innerHTML = `<div style="background:#17120f;border:1px solid rgba(201,169,98,0.25);border-radius:14px;padding:22px;">
                         <div style="font-size:20px;font-weight:700;color:#fff;margin-bottom:8px;">Reserve your place</div>
-                        ${plexLede.value.trim() ? `<div style="font-size:13px;color:#cbd5e1;line-height:1.5;margin-bottom:14px;">${fmtRich(plexLede.value)}</div>` : ''}
+                        ${plexLede.value.trim() ? `<div style="font-size:13px;color:#cbd5e1;line-height:1.5;margin-bottom:14px;">${fmtRich(this.substituteTokens(plexLede.value))}</div>` : ''}
                         ${cardsHtml || '<div style="color:#8f867c;font-size:13px;">Tick events above to include them.</div>'}
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;margin-top:14px;background:rgba(201,169,98,0.12);border-radius:10px;border:1px solid rgba(201,169,98,0.25);">
                             <span style="font-size:14px;color:#c9c2ba;">Total</span>
@@ -27821,7 +28128,13 @@ President, Med&amp;X</textarea>
                     }
 
                     container.innerHTML = recent.slice(0, 5).map(r => {
-                        const time = r.checked_in_at ? new Date(r.checked_in_at + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                        // Only append 'Z' when the stamp has no timezone; normalize SQLite's
+                        // space separator. Rows already ending in 'Z' used to become
+                        // "...ZZ" → Invalid Date on every row.
+                        const s = r.checked_in_at ? String(r.checked_in_at) : '';
+                        const iso = !s ? '' : (/Z$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s.replace(' ', 'T') + 'Z');
+                        const parsed = iso ? new Date(iso) : null;
+                        const time = parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
                         return `<div class="qr-recent-item">
                             <span class="qr-ri-time">${time}</span>
                             <span class="qr-ri-name">${this.escapeHtml(r.name)}</span>
@@ -27980,6 +28293,11 @@ President, Med&amp;X</textarea>
                 if (!resultDiv) return;
                 const esc = (s) => this.escapeHtml(s == null ? '' : String(s));
                 const t = data.ticket || {};
+                // Remember the admit so the operator can undo a mis-scan from the unified
+                // ADMIT card (the legacy result card already had this; the unified one didn't).
+                if (data.result === 'valid' && !data.preview && t.registration_id) {
+                    this._globalLastCheckin = { id: t.registration_id, event: data.event, name: t.name || '' };
+                }
                 const STATE = {
                     valid: { cls: 'success', c: '#15803d', icon: 'fa-check-circle', label: 'ADMIT ✓' },
                     already_checked_in: { cls: 'already', c: '#b45309', icon: 'fa-user-clock', label: 'ALREADY CHECKED IN' },
@@ -28014,6 +28332,7 @@ President, Med&amp;X</textarea>
                         (t.verify ? '<div style="font-size:12px;color:#b45309;margin-top:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>' + esc(t.verify_note || 'Verify against portal registrations.') + '</div>' : '') +
                         ((data.result === 'already_checked_in' && data.checked_in_at) ? '<div style="font-size:11px;color:var(--text-muted);margin-top:8px;"><i class="fas fa-clock" style="margin-right:5px;"></i>First checked in ' + esc(new Date(data.checked_in_at).toLocaleString()) + (data.checked_in_by ? ' · by ' + esc(data.checked_in_by) : '') + '</div>' : '') +
                         ((data.result !== 'valid' && data.result !== 'already_checked_in' && data.message) ? '<div style="font-size:13px;color:var(--text-primary);margin-top:8px;">' + esc(data.message) + '</div>' : '') +
+                        ((data.result === 'valid' && !data.preview && t.registration_id) ? '<button class="qr-undo-btn" onclick="App.undoGlobalCheckin()" style="margin-top:10px;"><i class="fas fa-undo"></i> Undo</button>' : '') +
                     '</div>';
             },
 
@@ -28178,7 +28497,8 @@ President, Med&amp;X</textarea>
                         this.renderOfflineCheckin(code);
                     } else if (resultDiv) {
                         resultDiv.className = 'checkin-result error';
-                        resultDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Check-in failed. Please try again.';
+                        const msg = err && err.message ? err.message : 'Check-in failed. Please try again.';
+                        resultDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${escapeHtml(msg)}${/not found/i.test(msg) ? ' — do not retry this code' : ''}`;
                     }
                 }
             },
@@ -28968,6 +29288,20 @@ President, Med&amp;X</textarea>
                     checkin_enabled: document.getElementById('feCheckinEnabled').checked ? 1 : 0
                 };
 
+                // Coherence: end after start, positive capacity, deadline not after start.
+                if (data.start_date && data.end_date && data.end_date <= data.start_date) {
+                    Toast.warning('End date must be after the start date.');
+                    return;
+                }
+                if (data.capacity != null && data.capacity < 1) {
+                    Toast.warning('Capacity must be at least 1.');
+                    return;
+                }
+                if (data.registration_deadline && data.start_date && data.registration_deadline > data.start_date) {
+                    Toast.warning('The registration deadline cannot be after the start date.');
+                    return;
+                }
+
                 try {
                     if (this.editingForumEventId) {
                         await this.api(`/api/admin/forum/events/${this.editingForumEventId}`, {
@@ -29411,7 +29745,7 @@ President, Med&amp;X</textarea>
                                 </tr></thead>
                                 <tbody>
                                     ${regs.map(r => {
-                                        const name = ((r.first_name || '') + ' ' + (r.last_name || '')).trim() || 'Unknown';
+                                        const name = (r.name || ((r.first_name || '') + ' ' + (r.last_name || '')).trim()) || 'Unknown';
                                         let pkg = '-';
                                         try { const items = r.package_items ? JSON.parse(r.package_items) : []; pkg = items.length ? items.join(', ') : '-'; } catch(e) {}
                                         const diet = [r.dietary && r.dietary !== 'No special requirements' ? r.dietary : '', r.allergies && r.allergies !== 'None' ? r.allergies : ''].filter(Boolean).join(' / ') || '-';
@@ -29421,7 +29755,12 @@ President, Med&amp;X</textarea>
                                             <td style="font-size:12px;">${this.escapeHtml(pkg)}</td>
                                             <td style="font-size:12px;">${this.escapeHtml(diet)}</td>
                                             <td style="text-align:center;">${r.guest_count ? '+' + r.guest_count : '-'}</td>
-                                            <td style="text-align:center;font-weight:600;color:var(--accent-gold);">${r.amount_paid ? '€' + r.amount_paid : '-'}</td>
+                                            <td style="text-align:center;font-weight:600;color:var(--accent-gold);">${(() => {
+                                                const amt = r.payment_amount ?? r.amount_paid;
+                                                const status = r.payment_status ? this.escapeHtml(r.payment_status) : '';
+                                                if (amt) return (status ? status + ' ' : '') + '€' + amt;
+                                                return status || '-';
+                                            })()}</td>
                                             <td>${r.checked_in ? '<span class="status good"><i class="fas fa-check"></i> In</span>' : '<span class="status neutral">Reg</span>'}</td>
                                             <td style="white-space:nowrap;">
                                                 ${!r.checked_in
@@ -29611,7 +29950,9 @@ President, Med&amp;X</textarea>
                     await this.loadForumGroups();
                 } catch (err) {
                     console.error('Failed to create group:', err);
-                    Toast.error('Failed to create group');
+                    // Surface the server's message (e.g. "A group with this name already
+                    // exists.") instead of a generic string.
+                    Toast.error(friendlyError(err, 'Failed to create group'));
                 }
             },
 
@@ -30039,6 +30380,11 @@ President, Med&amp;X</textarea>
                 const o = document.getElementById('candDrawerOverlay'); if (o) o.style.display = 'block';
                 const d = document.getElementById('candDrawer');
                 if (d) { d.style.transform = 'translateX(0)'; d.style.visibility = 'visible'; d.removeAttribute('inert'); d.removeAttribute('aria-hidden'); }
+                // Escape closes the drawer (× worked, Escape was ignored).
+                if (!this._candEscHandler) {
+                    this._candEscHandler = (e) => { if (e.key === 'Escape' && this._candDrawerId) this.closeCandDrawer(); };
+                    document.addEventListener('keydown', this._candEscHandler);
+                }
                 this.api('/api/admin/forum/candidates/' + id).then(r => {
                     if (r && r.candidate && this._candDrawerId === id) { this._candReplaceLocal(r.candidate); this.renderCandDrawer(r.candidate); }
                 }).catch(() => {});
@@ -30049,6 +30395,7 @@ President, Med&amp;X</textarea>
             },
             closeCandDrawer() {
                 this._candDrawerId = null;
+                if (this._candEscHandler) { document.removeEventListener('keydown', this._candEscHandler); this._candEscHandler = null; }
                 const o = document.getElementById('candDrawerOverlay'); if (o) o.style.display = 'none';
                 // A closed drawer used to stay in the DOM, fully interactive off-screen: its ×
                 // and buttons still answered clicks and keyboard focus on tabs that have no
@@ -30164,6 +30511,9 @@ President, Med&amp;X</textarea>
                 } catch (e) { Toast.error(e.message || 'Could not remove.'); if (btn) btn.disabled = false; }
             },
             openCandImport() {
+                // One surface at a time: close the candidate drawer before layering the
+                // import modal on top of it.
+                if (this._candDrawerId) this.closeCandDrawer();
                 this.candImport = null;
                 const f = document.getElementById('candImportFile'); if (f) f.value = '';
                 const p = document.getElementById('candImportPreview'); if (p) p.innerHTML = '';
@@ -31482,9 +31832,9 @@ President, Med&amp;X</textarea>
                                 <h4 style="margin: 0 0 4px 0;">${escapeHtml(inst.name)}</h4>
                                 <p style="margin: 0; font-size: 12px; color: var(--text-muted);">${escapeHtml(inst.city || '')}, ${escapeHtml(inst.country || '')}</p>
                             </div>
-                            <span style="background: ${inst.program_type === 'clinical' ? '#c9a962' : '#b06a1f'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">
-                                ${inst.program_type === 'clinical' ? 'Clinical' : 'Scientific'}
-                            </span>
+                            ${inst.program_type
+                                ? `<span style="background: ${inst.program_type === 'clinical' ? '#c9a962' : '#b06a1f'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">${inst.program_type === 'clinical' ? 'Clinical' : 'Scientific'}</span>`
+                                : `<span title="Set Program Type in View Details so this institution appears under its program in the application form" style="background: #9b1b22; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;"><i class="fas fa-triangle-exclamation"></i> Program type not set</span>`}
                         </div>
                         <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
                             <div><i class="fas fa-users" style="width: 20px; color: var(--text-muted);"></i> ${inst.available_spots ? inst.available_spots + ' spots' : 'Spots: TBD'}</div>
@@ -31509,7 +31859,10 @@ President, Med&amp;X</textarea>
                 const programBadge = inst.program_type ?
                     `<span style="background: ${inst.program_type === 'clinical' ? '#c9a962' : '#b06a1f'}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;">
                         ${inst.program_type}
-                    </span>` : '';
+                    </span>` :
+                    `<span style="background: #9b1b22; color: white; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;">
+                        Program type not set — hidden from its program in the application form
+                    </span>`;
 
                 document.getElementById('accInstModalTitle').innerHTML = `${escapeHtml(inst.name)} ${programBadge}`;
                 document.getElementById('accInstModalBody').innerHTML = `
@@ -31795,10 +32148,14 @@ President, Med&amp;X</textarea>
                         filtered = filtered.filter(a => a.status === status);
                     }
                 }
-                if (inst) filtered = filtered.filter(a => a.selected_institution === inst);
+                if (inst) {
+                    // Match UUID or legacy name-valued rows.
+                    const instName = this.institutions.find(i => i.id === inst)?.name;
+                    filtered = filtered.filter(a => a.selected_institution === inst || (instName && a.selected_institution === instName));
+                }
                 if (programType) {
                     filtered = filtered.filter(a => {
-                        const instObj = this.institutions.find(i => i.id === a.selected_institution);
+                        const instObj = this.institutions.find(i => i.id === a.selected_institution || i.name === a.selected_institution);
                         return (instObj?.program_type || a.program_type) === programType;
                     });
                 }
@@ -32001,7 +32358,7 @@ President, Med&amp;X</textarea>
                 // Authorization header anyway — it opened a blank tab. Same authenticated blob
                 // download the Plexus registrations XLSX uses.
                 if (format === 'xlsx') {
-                    App.downloadFile('/api/admin/accelerator/export?format=xlsx', `accelerator-applications-${this.currentYear}.xlsx`);
+                    App.downloadFile(`/api/admin/accelerator/export?format=xlsx&year=${this.currentYear}`, `accelerator-applications-${this.currentYear}.xlsx`);
                     return;
                 }
                 const data = this.accAppsFiltered && this.accAppsFiltered.length > 0 ? this.accAppsFiltered : this.applications;
@@ -32011,7 +32368,7 @@ President, Med&amp;X</textarea>
                 const rows = data.map(a => [
                     a.candidate_id || a.work_number || '', a.first_name || '', a.last_name || '', a.email || '', a.phone || '',
                     a.current_institution || '', a.year_of_study || '', a.gpa || '', a.program_type || '',
-                    this.institutions.find(i => i.id === a.selected_institution)?.name || '',
+                    this.institutions.find(i => i.id === a.selected_institution)?.name || a.selected_institution || '',
                     a.status || '', a.validity_status || '', a.total_score || '', a.submitted_at || ''
                 ]);
 
@@ -32505,13 +32862,20 @@ President, Med&amp;X</textarea>
                     return;
                 }
 
-                const evaluations = this.criteria.map(c => {
+                // Validate each score against its criterion's max before sending — a
+                // typed 999 used to save silently and corrupt the ranking.
+                const evaluations = [];
+                for (const c of this.criteria) {
                     const el = document.getElementById(`eval-${c.id}`);
-                    return {
-                        criterion_id: c.id,
-                        score: el ? (parseFloat(el.value) || 0) : 0
-                    };
-                });
+                    const score = el ? (parseFloat(el.value) || 0) : 0;
+                    const max = Number(c.max_points) || 0;
+                    if (score < 0 || (max > 0 && score > max)) {
+                        this.showAccToast(`"${c.name}" score must be between 0 and ${max}.`, 'error');
+                        el?.focus();
+                        return;
+                    }
+                    evaluations.push({ criterion_id: c.id, score });
+                }
 
                 try {
                     const appId = this.currentApplication.id;
@@ -32894,22 +33258,39 @@ President, Med&amp;X</textarea>
             async loadRanking() {
                 const inst = document.getElementById('accRankInst')?.value || '';
                 const url = `/api/accelerator/years/${this.currentYear}/ranking${inst ? '?institution=' + inst : ''}`;
-                const ranking = await this.api(url);
+                // Ranking columns mirror the configured criteria (like the PDF) — the old
+                // static "MOTIVATION LETTER"/"RECOMMENDATION LETTER" columns matched no
+                // stored data and rendered '-' for every candidate.
+                const [ranking, criteria] = await Promise.all([
+                    this.api(url),
+                    this.api(`/api/accelerator/years/${this.currentYear}/criteria`).catch(() => [])
+                ]);
+                const activeCriteria = (criteria || []).filter(c => c.is_active == null || c.is_active === 1);
+
+                const thStyle = 'padding: 10px; text-align: center;';
+                const head = document.getElementById('accRankingHead');
+                if (head) {
+                    head.innerHTML = `<th style="${thStyle}">NO.</th><th style="${thStyle}">ID</th><th style="${thStyle}">GPA</th>`
+                        + activeCriteria.map(c => `<th style="${thStyle}">${escapeHtml((c.name || '').toUpperCase())}</th>`).join('')
+                        + `<th style="${thStyle}">INTERVIEW</th><th style="${thStyle}">TOTAL</th>`;
+                }
+                const colCount = 5 + activeCriteria.length;
 
                 const tbody = document.getElementById('accRankingTable');
                 if (ranking.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" style="padding: 20px; text-align: center; color: var(--text-muted);">No data for ranking list</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="${colCount}" style="padding: 20px; text-align: center; color: var(--text-muted);">No data for ranking list</td></tr>`;
                     return;
                 }
 
                 tbody.innerHTML = ranking.map((app, idx) => `
                     <tr style="border-bottom: 1px solid var(--border-color); ${idx < 3 ? 'background: rgba(21, 128, 61, 0.1);' : ''}">
                         <td style="padding: 10px; text-align: center; font-weight: bold;">${idx + 1}</td>
-                        <td style="padding: 10px; text-align: center;">${app.work_number || '-'}</td>
+                        <td style="padding: 10px; text-align: center;">${app.candidate_id || app.work_number || '-'}</td>
                         <td style="padding: 10px; text-align: center;">${app.gpa?.toFixed(2) || '-'}</td>
-                        <td style="padding: 10px; text-align: center;">-</td>
-                        <td style="padding: 10px; text-align: center;">-</td>
-                        <td style="padding: 10px; text-align: center;">${app.objective_score?.toFixed(2) || '-'}</td>
+                        ${activeCriteria.map(c => {
+                            const s = app.criteria_scores ? app.criteria_scores[c.id] : null;
+                            return `<td style="padding: 10px; text-align: center;">${s != null ? Number(s).toFixed(2) : '-'}</td>`;
+                        }).join('')}
                         <td style="padding: 10px; text-align: center;">${app.interview_score?.toFixed(2) || '-'}</td>
                         <td style="padding: 10px; text-align: center; font-weight: bold;">${app.total_score?.toFixed(2) || '-'}</td>
                     </tr>
@@ -33426,9 +33807,18 @@ By applying to this program, I give the following consents:
                     return;
                 }
 
-                const filtered = this.institutions.filter(i => i.program_type === programType);
-                const options = filtered.map(i => `<option value="${i.id}">${escapeHtml(i.name)} (${escapeHtml(i.city)}, ${escapeHtml(i.country)})</option>`).join('');
+                // Institutions with no program_type set would match no program and be
+                // invisible in the form (Clinical offered ZERO institutions while 7 of 8
+                // institutions had program_type NULL). Include unset-type institutions in
+                // both lists, flagged, so an application can always be completed.
+                const filtered = this.institutions.filter(i => i.program_type === programType || !i.program_type);
+                const options = filtered.map(i => `<option value="${i.id}">${escapeHtml(i.name)} (${escapeHtml(i.city)}, ${escapeHtml(i.country)})${!i.program_type ? ' — program type not set' : ''}</option>`).join('');
 
+                if (!filtered.length) {
+                    primarySelect.innerHTML = '<option value="">No institutions are configured for this program — set Program Type in Institutions → View Details</option>';
+                    altSelect.innerHTML = '<option value="">-- None --</option>';
+                    return;
+                }
                 primarySelect.innerHTML = '<option value="">-- Select institution --</option>' + options;
                 altSelect.innerHTML = '<option value="">-- No alternative --</option>' + options;
             },
@@ -37049,6 +37439,12 @@ By applying to this program, I give the following consents:
                 try { GuestPassAdmin.load('bridges', 'bbGuestPassesAdmin'); } catch (e) {}
             },
 
+            // Human labels for the status enum — the raw value (e.g. 'registration_open')
+            // rendered with an underscore on cards and detail badges.
+            _statusLabel(s) {
+                return ({ planning: 'Planning', upcoming: 'Upcoming', registration_open: 'Registration Open', ongoing: 'Ongoing', completed: 'Completed', cancelled: 'Cancelled' })[s] || (s ? s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Planning');
+            },
+
             async loadEvents() {
                 const statusFilter = document.getElementById('bridgesStatusFilter')?.value || '';
                 this.events = await this.api('/api/bridges/events');
@@ -37074,7 +37470,9 @@ By applying to this program, I give the following consents:
                 };
 
                 grid.innerHTML = filtered.map(event => {
-                    const date = new Date(event.event_date);
+                    // medxSqlDate parses YYYY-MM-DD as LOCAL midnight — new Date() reads it
+                    // as UTC and rendered every card's date tile one day early (US timezones).
+                    const date = medxSqlDate(event.event_date) || new Date(event.event_date);
                     const day = date.getDate();
                     const month = date.toLocaleString('en', { month: 'short' });
                     const statusStyle = statusColors[event.status] || statusColors.planning;
@@ -37094,7 +37492,7 @@ By applying to this program, I give the following consents:
                                     <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">${escapeHtml(event.city)}</div>
                                     <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">${escapeHtml(event.venue_name || 'Venue TBD')}</div>
                                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                        <span style="background: ${statusStyle.bg}; color: ${statusStyle.color}; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: capitalize;">${event.status}</span>
+                                        <span style="background: ${statusStyle.bg}; color: ${statusStyle.color}; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;">${this._statusLabel(event.status)}</span>
                                         ${event.is_published
                                             ? '<span style="background: rgba(21, 128, 61, 0.15); color: #15803d; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-globe" style="margin-right: 3px;"></i>Published</span>'
                                             : '<span style="background: rgba(148, 163, 184, 0.15); color: #475569; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;"><i class="fas fa-eye-slash" style="margin-right: 3px;"></i>Draft</span>'
@@ -37151,7 +37549,7 @@ By applying to this program, I give the following consents:
                 };
                 const style = statusColors[event.status] || statusColors.planning;
                 const statusEl = document.getElementById('bridgesEventStatus');
-                statusEl.textContent = event.status;
+                statusEl.textContent = this._statusLabel(event.status);
                 statusEl.style.background = style.bg;
                 statusEl.style.color = style.color;
 
@@ -37209,11 +37607,17 @@ By applying to this program, I give the following consents:
                 let filtered = this.currentRegistrations;
                 if (search) {
                     filtered = filtered.filter(r =>
-                        r.first_name.toLowerCase().includes(search) ||
-                        r.last_name.toLowerCase().includes(search) ||
-                        r.email.toLowerCase().includes(search) ||
+                        (r.first_name || '').toLowerCase().includes(search) ||
+                        (r.last_name || '').toLowerCase().includes(search) ||
+                        (r.email || '').toLowerCase().includes(search) ||
                         (r.institution && r.institution.toLowerCase().includes(search))
                     );
+                }
+
+                // Explicit "no match" row instead of a bare header that looks broken.
+                if (!filtered.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; text-align: center; color: var(--text-muted);">No registrations match your search</td></tr>';
+                    return;
                 }
 
                 tbody.innerHTML = filtered.map(r => {
@@ -37310,6 +37714,21 @@ By applying to this program, I give the following consents:
                     Toast.warning('Please fill in at least City and Date');
                     return;
                 }
+                // Coherence checks: end after start, positive capacity, deadline not after
+                // the event — otherwise the detail page showed "18:00 - 17:00", capacity -5,
+                // and a registration deadline past the event date.
+                if (data.event_time && data.end_time && data.end_time <= data.event_time) {
+                    Toast.warning('End time must be after the start time.');
+                    return;
+                }
+                if (!(data.capacity >= 1)) {
+                    Toast.warning('Capacity must be at least 1.');
+                    return;
+                }
+                if (data.registration_deadline && data.registration_deadline > data.event_date) {
+                    Toast.warning('The registration deadline cannot be after the event date.');
+                    return;
+                }
 
                 if (id) {
                     await this.api(`/api/bridges/events/${id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -37379,7 +37798,15 @@ By applying to this program, I give the following consents:
                 if (id) {
                     await this.api(`/api/bridges/registrations/${id}`, { method: 'PUT', body: JSON.stringify(data) });
                 } else {
-                    await this.api(`/api/bridges/events/${this.currentEvent.id}/registrations`, { method: 'POST', body: JSON.stringify(data) });
+                    // Warn on an obvious duplicate before POSTing; the backend also 409s.
+                    const dupe = (this.currentRegistrations || []).some(r => (r.email || '').trim().toLowerCase() === data.email.trim().toLowerCase());
+                    if (dupe && !(await adminConfirm({ title: 'Already registered', message: 'Someone with this email is already registered for this event. Add anyway?', confirmText: 'Add anyway' }))) return;
+                    try {
+                        await this.api(`/api/bridges/events/${this.currentEvent.id}/registrations`, { method: 'POST', body: JSON.stringify({ ...data, force: dupe }) });
+                    } catch (err) {
+                        if (/already_registered/.test(err.message || '')) { Toast.warning('This person is already registered for the event.'); return; }
+                        throw err;
+                    }
                 }
 
                 this.closeModal('bridgesRegModal');
@@ -37543,17 +37970,9 @@ By applying to this program, I give the following consents:
                 this.programItems = await this.api(url);
 
                 this.populateEventFilters();
-
-                // Also populate speaker dropdown in modal
-                const speakerSelect = document.getElementById('bridgesProgramSpeaker');
-                if (speakerSelect) {
-                    const currentVal = speakerSelect.value;
-                    speakerSelect.innerHTML = '<option value="">-- No speaker --</option>';
-                    (this.speakers || []).forEach(s => {
-                        speakerSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.name)}${s.institution ? ' (' + escapeHtml(s.institution) + ')' : ''}</option>`;
-                    });
-                    speakerSelect.value = currentVal;
-                }
+                // The modal speaker dropdown is populated per-event by openProgramModal /
+                // populateProgramSpeakerOptions — it must NOT be filled here from
+                // this.speakers (which reflects the Speakers card filter).
 
                 const list = document.getElementById('bridgesProgramList');
                 if (!this.programItems.length) {
@@ -37586,28 +38005,44 @@ By applying to this program, I give the following consents:
                 }).join('');
             },
 
-            openProgramModal(item = null) {
-                this.populateEventFilters();
-                // Populate speaker dropdown
+            // Fill #bridgesProgramSpeaker with speakers for the given event (plus any
+            // event-less "general" speakers). Fetches per event rather than reusing
+            // this.speakers, which reflects the Speakers card filter and let you attach
+            // any event's speaker to any other event.
+            async populateProgramSpeakerOptions(eventId, keepValue) {
                 const speakerSelect = document.getElementById('bridgesProgramSpeaker');
-                if (speakerSelect) {
-                    speakerSelect.innerHTML = '<option value="">-- No speaker --</option>';
-                    (this.speakers || []).forEach(s => {
-                        speakerSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.name)}${s.institution ? ' (' + escapeHtml(s.institution) + ')' : ''}</option>`;
-                    });
-                }
+                if (!speakerSelect) return;
+                const prev = keepValue !== undefined ? keepValue : speakerSelect.value;
+                let list = [];
+                try {
+                    const [forEvent, general] = await Promise.all([
+                        eventId ? this.api('/api/bridges/speakers?event_id=' + encodeURIComponent(eventId)) : Promise.resolve([]),
+                        this.api('/api/bridges/speakers')
+                    ]);
+                    const generalOnly = (general || []).filter(s => !s.event_id);
+                    const seen = new Set();
+                    list = [...(forEvent || []), ...generalOnly].filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+                } catch (e) { list = (this.speakers || []); }
+                speakerSelect.innerHTML = '<option value="">-- No speaker --</option>' +
+                    list.map(s => `<option value="${s.id}">${escapeHtml(s.name)}${s.institution ? ' (' + escapeHtml(s.institution) + ')' : ''}</option>`).join('');
+                // Preserve the selection only if the speaker still belongs to the list.
+                if (prev && list.some(s => String(s.id) === String(prev))) speakerSelect.value = prev;
+            },
 
+            async openProgramModal(item = null) {
+                this.populateEventFilters();
                 document.getElementById('bridgesProgramModalTitle').textContent = item ? 'Edit Program Item' : 'Add Program Item';
                 document.getElementById('bridgesProgramId').value = item?.id || '';
                 document.getElementById('bridgesProgramEvent').value = item?.event_id || '';
                 document.getElementById('bridgesProgramTitle').value = item?.title || '';
                 document.getElementById('bridgesProgramDescription').value = item?.description || '';
-                document.getElementById('bridgesProgramSpeaker').value = item?.speaker_id || '';
                 document.getElementById('bridgesProgramStartTime').value = item?.start_time || '';
                 document.getElementById('bridgesProgramEndTime').value = item?.end_time || '';
                 document.getElementById('bridgesProgramSortOrder').value = item?.sort_order || 0;
                 document.getElementById('bridgesProgramPublished').checked = !!item?.is_published;
                 document.getElementById('bridgesProgramModal').classList.add('active');
+                // Populate the speaker dropdown for the item's event, then preselect.
+                await this.populateProgramSpeakerOptions(item?.event_id || '', item?.speaker_id || '');
             },
 
             async saveProgramItem() {
@@ -42851,7 +43286,10 @@ By applying to this program, I give the following consents:
         // Read-only list of the passes members created for an event (Plexus conference / Building
         // Bridges), with a live per-event count and a Revoke action. Revoke cancels the linked
         // ticket so the FROZEN scanner rejects it cleanly at the door. Never forks the QR/scanner
-        // path — it only reads /api/admin/guest-passes and posts the revoke.
+        // path — it only reads /api/admin/member-guest-passes and posts the revoke.
+        // (Distinct path from the VIP /api/admin/guest-passes routes — sharing one path
+        // caused Express route shadowing: this card showed VIP passes and Revoke killed
+        // the ambassador's VIP pass.)
         const GuestPassAdmin = {
             statusBadge(st) {
                 const map = {
@@ -42868,7 +43306,7 @@ By applying to this program, I give the following consents:
                 if (!el) return;
                 el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0;">Loading guest passes…</p>';
                 try {
-                    const data = await App.api('/api/admin/guest-passes?event=' + encodeURIComponent(eventKey));
+                    const data = await App.api('/api/admin/member-guest-passes?event=' + encodeURIComponent(eventKey));
                     this.render(eventKey, containerId, data);
                 } catch (e) {
                     el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0;">Could not load guest passes.</p>';
@@ -42898,7 +43336,7 @@ By applying to this program, I give the following consents:
             async revoke(id, eventKey, containerId) {
                 if (!(await adminConfirm({ destructive: true, title: "Revoke this guest pass?", message: "The colleague's ticket is cancelled and will no longer scan at the door.", confirmText: "Revoke" }))) return;
                 try {
-                    await App.api('/api/admin/guest-passes/' + encodeURIComponent(id) + '/revoke', { method: 'POST' });
+                    await App.api('/api/admin/member-guest-passes/' + encodeURIComponent(id) + '/revoke', { method: 'POST' });
                     Toast.success('Guest pass revoked');
                     this.load(eventKey, containerId);
                 } catch (e) {
@@ -44734,8 +45172,12 @@ By applying to this program, I give the following consents:
                 catch(e){ Toast.error(e.message || 'Could not delete'); }
             },
             print(){
+                // Re-entrancy guard: a second call while the dialog is up (double-click,
+                // re-fired handler) used to open the print dialog twice per click.
+                if (this._printing) return;
+                this._printing = true;
                 document.body.classList.add('yc-print-mode');
-                const cleanup = () => { document.body.classList.remove('yc-print-mode'); window.removeEventListener('afterprint', cleanup); };
+                const cleanup = () => { document.body.classList.remove('yc-print-mode'); window.removeEventListener('afterprint', cleanup); this._printing = false; };
                 window.addEventListener('afterprint', cleanup);
                 setTimeout(() => { window.print(); setTimeout(cleanup, 800); }, 60);
             },
@@ -51863,7 +52305,34 @@ By applying to this program, I give the following consents:
                 document.getElementById('gpEditorView').style.display = 'none';
                 document.getElementById('gpListView').style.display = '';
                 try { this.events = (await App.api('/api/admin/guest-pass-events')).events || []; } catch(e) { this.events = []; }
+                // Populate the event filter (preserving the current selection).
+                const evSel = document.getElementById('gpEventFilter');
+                if (evSel) {
+                    const cur = evSel.value;
+                    evSel.innerHTML = '<option value="">All events</option>' +
+                        this.events.map(e => `<option value="${this.esc(e.key)}">${this.esc(e.name)}</option>`).join('');
+                    evSel.value = cur;
+                }
                 await this.loadPasses();
+            },
+
+            passStatus(p) {
+                if (p.revoked) return 'revoked';
+                if (p.expires_at && new Date(p.expires_at) < new Date()) return 'expired';
+                return 'active';
+            },
+
+            filteredPasses() {
+                const q = (document.getElementById('gpSearch')?.value || '').trim().toLowerCase();
+                const ev = document.getElementById('gpEventFilter')?.value || '';
+                const st = document.getElementById('gpStatusFilter')?.value || '';
+                return (this.passes || []).filter(p => {
+                    const hay = [p.guest_name, p.guest_title, p.guest_email, p.event_name, p.note_en, p.note_hr].map(v => String(v || '').toLowerCase()).join(' ');
+                    if (q && !hay.includes(q)) return false;
+                    if (ev && p.event_key !== ev) return false;
+                    if (st && this.passStatus(p) !== st) return false;
+                    return true;
+                });
             },
 
             async loadPasses() {
@@ -51913,7 +52382,12 @@ By applying to this program, I give the following consents:
                         </div>`;
                     return;
                 }
-                el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;">` + this.passes.map(p => `
+                const shown = this.filteredPasses();
+                if (!shown.length) {
+                    el.innerHTML = `<div class="card" style="text-align:center;padding:32px 24px;color:var(--text-muted);font-size:13px;">No passes match the current filters.</div>`;
+                    return;
+                }
+                el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;">` + shown.map(p => `
                     <div class="card" style="padding:18px 20px;cursor:pointer;" onclick="GuestPassApp.openEditor('${p.id}')">
                         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
                             <div style="font-weight:600;font-size:15px;">${this.esc((p.guest_title ? p.guest_title + ' ' : '') + p.guest_name)}</div>
@@ -51972,6 +52446,7 @@ By applying to this program, I give the following consents:
                         ${p.revoked
                             ? `<button class="btn btn-secondary" onclick="GuestPassApp.setRevoked(false)">Restore</button>`
                             : `<button class="btn btn-secondary" style="color:#9b1b22;" onclick="GuestPassApp.setRevoked(true)"><i class="fas fa-ban"></i> Revoke</button>`}
+                        ${(p.revoked || !p.send_state) ? `<button class="btn btn-secondary" style="color:#9b1b22;" onclick="GuestPassApp.deletePass()" title="Delete this pass permanently"><i class="fas fa-trash"></i> Delete</button>` : ''}
                         <span style="color:var(--text-muted);font-size:12px;margin-left:auto;"><i class="far fa-eye" style="margin-right:5px;"></i>${p.page_views || 0} views${this.esc(this.openedLabel(p))} &middot; ${this.sendBadge(p)}</span>
                     </div>`;
             },
@@ -52145,6 +52620,17 @@ By applying to this program, I give the following consents:
                     document.getElementById('gpEditorBadge').innerHTML = this.statusBadge(this.current);
                     this.renderShareStrip();
                 } catch(e) { alert('Could not update: ' + e.message); }
+            },
+
+            async deletePass() {
+                if (!this.current) return;
+                const ok = await adminConfirm({ destructive: true, title: 'Delete this guest pass?', message: 'The pass and its link are removed permanently. Any pending invite email in the outbox is cancelled.', confirmText: 'Delete' });
+                if (!ok) return;
+                try {
+                    await App.api('/api/admin/guest-passes/' + this.current.id, { method: 'DELETE' });
+                    Toast.success('Guest pass deleted');
+                    this.closeEditor();
+                } catch(e) { alert('Could not delete: ' + e.message); }
             }
         };
 
@@ -52184,9 +52670,11 @@ By applying to this program, I give the following consents:
                 const host = document.getElementById('pexFacts'); if (!host) return;
                 const r = await this.api('/api/admin/post-event/assemble/facts?event_key=' + encodeURIComponent(this.ek));
                 const f = r.d || {};
+                // has_program=false (e.g. gala): render Speakers/Sessions as em-dash so a
+                // non-conference recap never displays the conference's counts.
                 host.innerHTML = this.stat('Participants', f.attendees || f.registered || 0)
-                    + this.stat('Speakers', f.speakers_count)
-                    + this.stat('Sessions', f.sessions_count)
+                    + this.stat('Speakers', f.has_program === false ? null : f.speakers_count)
+                    + this.stat('Sessions', f.has_program === false ? null : f.sessions_count)
                     + this.stat('Photos', f.photos)
                     + this.stat('End date', f.end_date ? this.esc(f.end_date) : null);
             },
@@ -52684,11 +53172,28 @@ By applying to this program, I give the following consents:
         const QAAdmin = {
             _timer: null,
             _items: [],
-            base() { const h = location.hostname; return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:3001' : 'https://medx-user-portal.onrender.com'; },
+            _base: null,
+            // The member-portal origin comes from the backend (USER_PORTAL_URL via
+            // /api/admin/portal-config) instead of a hardcoded hostname heuristic, so a
+            // staging/local admin never silently polls production. Heuristic kept only
+            // as a fallback while the config fetch is in flight.
+            base() {
+                if (this._base) return this._base;
+                const h = location.hostname;
+                return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:3010' : 'https://medx-user-portal.onrender.com';
+            },
+            async loadBase() {
+                if (this._base) return;
+                try {
+                    const r = await fetch('/api/admin/portal-config', { headers: { 'Authorization': `Bearer ${App.token}` } });
+                    if (r.ok) { const d = await r.json(); if (d && d.user_portal_url) this._base = String(d.user_portal_url).replace(/\/+$/, ''); }
+                } catch (e) {}
+            },
             api(path, opts = {}) {
                 return fetch(this.base() + path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}`, ...(opts.headers || {}) } });
             },
-            init() {
+            async init() {
+                await this.loadBase();
                 this.load();
                 if (!this._timer) {
                     this._timer = setInterval(() => {
@@ -53849,7 +54354,18 @@ By applying to this program, I give the following consents:
                 const fieldLabels={ name:'Name', email:'Email', institution:'Institution', country:'Country', field:'Field', source:'Source / note' };
                 const options=(sel)=>['<option value="">— none —</option>'].concat((data.columns||[]).map(c=>`<option value="${this.esc(c)}" ${sel===c?'selected':''}>${this.esc(c)}</option>`)).join('');
                 const rows=(data.fields||Object.keys(fieldLabels)).map(f=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;"><label style="width:120px;font-size:13px;color:var(--text-muted);">${this.esc(fieldLabels[f]||f)}</label><select data-eifield="${this.esc(f)}" class="search-input" style="flex:1;">${options((data.suggested_mapping||{})[f]||'')}</select></div>`).join('');
-                prev.innerHTML=`<div style="margin-top:8px;font-size:13px;color:var(--text-muted);">${data.total} row(s) found. Map the columns:</div><div style="margin-top:10px;">${rows}</div>`;
+                prev.innerHTML=`<div style="margin-top:8px;font-size:13px;color:var(--text-muted);">${data.total} row(s) found. Map the columns:</div><div style="margin-top:10px;">${rows}</div><div id="eiImportEmailWarn" style="margin-top:8px;"></div>`;
+                // Pre-commit sanity: flag rows whose mapped email column fails a basic
+                // pattern so junk addresses are visible before they are imported.
+                const upd=()=>{
+                    const sel=prev.querySelector('select[data-eifield="email"]'); const col=sel&&sel.value;
+                    const warn=document.getElementById('eiImportEmailWarn'); if(!warn) return;
+                    if(!col){ warn.innerHTML=''; return; }
+                    const bad=(data.rows||[]).filter(r=>{ const v=r[col]!=null?String(r[col]).trim():''; return v && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v); }).length;
+                    warn.innerHTML=bad?`<div style="padding:8px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#991b1b;"><i class="fas fa-triangle-exclamation"></i> ${bad} row(s) have an invalid email — they will be skipped (or imported name-only).</div>`:'';
+                };
+                prev.querySelectorAll('select[data-eifield]').forEach(s=>s.addEventListener('change',upd));
+                upd();
             },
             async commitImport(btn){
                 const data=this.importData; if(!data) return;
@@ -53859,7 +54375,10 @@ By applying to this program, I give the following consents:
                 try {
                     const r=await this.api('/api/admin/event-invites/campaigns/'+this.current.id+'/import/commit',{ method:'POST', body: JSON.stringify({ mapping, rows:data.rows, filename:data.filename }) });
                     const prev=document.getElementById('eiImportPreview');
-                    prev.innerHTML=`<div style="padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;"><b>${r.added}</b> imported.${r.duplicates.length?' <b>'+r.duplicates.length+'</b> already known (skipped).':''}${r.skipped.length?' '+r.skipped.length+' empty row(s) skipped.':''}</div>
+                    const invalidSkips=(r.skipped||[]).filter(s=>/invalid email/i.test(s.reason||''));
+                    const otherSkips=(r.skipped||[]).length-invalidSkips.length;
+                    prev.innerHTML=`<div style="padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;"><b>${r.added}</b> imported.${r.duplicates.length?' <b>'+r.duplicates.length+'</b> already known (skipped).':''}${otherSkips?' '+otherSkips+' empty row(s) skipped.':''}${invalidSkips.length?' <b>'+invalidSkips.length+'</b> invalid email(s).':''}</div>
+                        ${invalidSkips.length?'<div style="margin-top:10px;padding:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#991b1b;max-height:120px;overflow:auto;"><b>Invalid emails:</b><br>'+invalidSkips.map(s=>`&bull; ${this.esc(s.who)} — ${this.esc(s.reason)}`).join('<br>')+'</div>':''}
                         ${r.duplicates.length?'<div style="margin-top:10px;font-size:12px;color:var(--text-muted);max-height:160px;overflow:auto;">'+r.duplicates.map(d=>`&bull; ${this.esc(d.who)} <span style="color:#b45309;">(${this.esc(d.where)})</span>`).join('<br>')+'</div>':''}
                         <div style="text-align:center;margin-top:12px;"><button class="btn btn-secondary btn-sm" onclick="App.closeModal('eiImportModal')">Done</button></div>`;
                     btn.disabled=true;
@@ -54227,11 +54746,18 @@ By applying to this program, I give the following consents:
                     (sq.touches||[]).map(t=>{
                         const isNext = sq.next_touch && sq.next_touch.touch_key===t.touch_key;
                         const chip = isNext ? (sq.next_touch.when==='due' ? '<span class="rm-chip due">Due now</span>' : '<span class="rm-chip next">Next up</span>') : '';
+                        // Show the effective subject that will actually send (EN → HR),
+                        // and flag past-dated enabled touches loudly instead of a neutral chip.
+                        const effSubject = (t.subject && t.subject.trim()) || (t.subject_hr && t.subject_hr.trim()) || '';
+                        const today = new Date().toISOString().slice(0,10);
+                        const isPast = t.enabled && t.send_date && t.send_date < today;
+                        const pastWarn = isPast ? '<div style="margin-top:6px;padding:6px 10px;background:rgba(155,27,34,0.10);border:1px solid rgba(155,27,34,0.35);border-radius:8px;font-size:12px;color:#9b1b22;"><i class="fas fa-triangle-exclamation"></i> Send date '+this.fmtDate(t.send_date)+' is in the past — this touch fires immediately once the sequence is approved.</div>' : '';
                         return `<div class="rm-touch ${t.enabled?'':'off'}">
                             <div class="tl"><div class="big">${this.esc(t.label)}</div><div class="sm">${t.enabled?'active':'off'}</div></div>
                             <div style="flex:1;min-width:0;">
-                                <div style="font-weight:700;font-size:15px;">${this.esc(t.subject||'(no subject)')} ${chip}</div>
+                                <div style="font-weight:700;font-size:15px;">${effSubject?this.esc(effSubject):'<span style="color:#9b1b22;">(no subject — add one before approving)</span>'} ${chip}</div>
                                 <div style="font-size:12px;color:var(--text-muted);margin-top:3px;"><i class="fas fa-calendar"></i> ${sq.event_date?('Sends around '+this.fmtDate(t.send_date)):'Sends '+t.offset_days+' days before the event'} &middot; <i class="fas fa-paper-plane"></i> ${t.sent_count||0} sent</div>
+                                ${pastWarn}
                             </div>
                             <button class="btn btn-secondary" onclick="RemindersApp.editTouch('${t.id}')"><i class="fas fa-pen"></i> Edit</button>
                         </div>`;
@@ -54299,13 +54825,25 @@ By applying to this program, I give the following consents:
                 document.getElementById('rmTouchBodyHr').value=t.body_html_hr||'';
                 App.openModal('rmTouchModal');
             },
-            async saveTouch(btn){ if(!this.editingTouch) return; btn.disabled=true; try {
-                await this.api('/api/admin/event-reminders/sequences/'+this.current.id+'/touches/'+this.editingTouch.id,{method:'PUT',body:JSON.stringify({
-                    offset_days:parseInt(document.getElementById('rmTouchOffset').value,10)||0,
+            async saveTouch(btn){ if(!this.editingTouch) return;
+                // Client-side validation mirrors the server: offset in range, and a
+                // subject when a body is set.
+                const offsetRaw = document.getElementById('rmTouchOffset').value;
+                const offset = parseInt(offsetRaw,10);
+                if(!Number.isFinite(offset) || offset < 0 || offset > 365){ this.toast('Days before event must be between 0 and 365.','error'); return; }
+                const subjEn = document.getElementById('rmTouchSubject').value.trim();
+                const subjHr = document.getElementById('rmTouchSubjectHr').value.trim();
+                const bodyEn = document.getElementById('rmTouchBody').value.trim();
+                if(!subjEn && !subjHr && bodyEn){ this.toast('Add a subject (EN or HR) — this reminder has an email body and would send with no subject.','error'); return; }
+                btn.disabled=true; try {
+                const r = await this.api('/api/admin/event-reminders/sequences/'+this.current.id+'/touches/'+this.editingTouch.id,{method:'PUT',body:JSON.stringify({
+                    offset_days:offset,
                     enabled:document.getElementById('rmTouchEnabled').checked,
-                    subject:document.getElementById('rmTouchSubject').value, body_html:document.getElementById('rmTouchBody').value,
-                    subject_hr:document.getElementById('rmTouchSubjectHr').value, body_html_hr:document.getElementById('rmTouchBodyHr').value })});
-                App.closeModal('rmTouchModal'); this.toast('Reminder saved.','success'); await this.refresh();
+                    subject:subjEn, body_html:document.getElementById('rmTouchBody').value,
+                    subject_hr:subjHr, body_html_hr:document.getElementById('rmTouchBodyHr').value })});
+                App.closeModal('rmTouchModal');
+                if (r && r.warning) this.toast(r.warning,'error'); else this.toast('Reminder saved.','success');
+                await this.refresh();
             } catch(e){ this.toast(e.message,'error'); } finally { btn.disabled=false; } },
             async preview(lang){
                 if(!this.editingTouch) return;
@@ -56887,6 +57425,13 @@ By applying to this program, I give the following consents:
         async saveSettings(forceActive) {
           const body = this._readSettings();
           body.active = (forceActive === undefined) ? (Number(this._settings && this._settings.active) === 1) : forceActive;
+          // Turning tracking on (or saving while active) requires a named event day
+          // and a future end time — otherwise the collection window never closes.
+          if (body.active) {
+            if (!String(body.event_label || '').trim()) { toast('Give the event day a name before turning tracking on.', 'error'); return; }
+            const ends = body.ends_at ? Date.parse(body.ends_at) : NaN;
+            if (!Number.isFinite(ends) || ends <= Date.now()) { toast('Set a future end time for the event day.', 'error'); return; }
+          }
           try { this._settings = await api('/api/admin/staff-tracking/settings', 'POST', body); this.renderSettingsBar(); this.refresh(); toast('Saved', 'success'); }
           catch (e) { toast(e.message, 'error'); }
         },
