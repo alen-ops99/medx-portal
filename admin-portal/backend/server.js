@@ -26496,6 +26496,166 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         res.json(report);
     });
 
+    // ===== PAYMENTS CHECK (Stripe → portal reconciliation) =====
+    // Read-only pull of the latest Stripe payments so the treasurer can eyeball "who paid,
+    // when, and do we hold a portal record for it" without opening the Stripe dashboard.
+    // Stripe is called with plain fetch + Basic auth (the same no-SDK pattern sendEmail
+    // uses for Brevo) — the stripe npm package deliberately stays OUT of the admin backend.
+    // Key: STRIPE_READONLY_KEY (a restricted read-only key — preferred) with
+    // STRIPE_SECRET_KEY as fallback; nothing here ever calls a Stripe write endpoint. With
+    // no key set the route returns a clean { configured: false } gate naming the env var,
+    // mirroring the Amadeus/Wallet boundaries. Lives under /api/finance so the 'finances'
+    // section permission (SECTION_ROUTE_MAP) covers it with no extra wiring; the founder
+    // always passes.
+    function stripeReadKey() {
+        const k = process.env.STRIPE_READONLY_KEY || process.env.STRIPE_SECRET_KEY;
+        return (k && String(k).trim()) ? String(k).trim() : null;
+    }
+    async function stripeApiGet(pathAndQuery, key) {
+        const resp = await fetch(`https://api.stripe.com${pathAndQuery}`, {
+            headers: { 'Authorization': 'Basic ' + Buffer.from(key + ':').toString('base64') }
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            throw new Error((json && json.error && json.error.message) || `Stripe HTTP ${resp.status}`);
+        }
+        return json;
+    }
+    // metadata.type as written by the user portal's checkout creators → a short kind label.
+    function stripePaymentKind(meta) {
+        const t = String((meta && meta.type) || '').toLowerCase();
+        if (!t) return null;
+        if (t.includes('croatians')) return 'croatians-abroad';
+        if (t.includes('gala')) return 'gala';
+        if (t.includes('accelerator')) return 'accelerator';
+        if (t.includes('donation')) return 'donation';
+        if (t.includes('forum')) return 'forum';
+        return t;
+    }
+    // Merge the last checkout sessions + charges into one newest-first list. A charge and
+    // its checkout session describe the SAME payment (they share a payment_intent), so those
+    // collapse into a single row — the session wins (it carries metadata.type + customer
+    // details), the charge only refines status (a failed attempt on an unpaid session).
+    async function fetchRecentStripePayments(key) {
+        const [sessions, charges] = await Promise.all([
+            stripeApiGet('/v1/checkout/sessions?limit=15', key),
+            stripeApiGet('/v1/charges?limit=15', key)
+        ]);
+        const rows = [];
+        const byPaymentIntent = new Map();
+        for (const s of (sessions.data || [])) {
+            const cd = s.customer_details || {};
+            const row = {
+                sessionId: s.id,
+                paymentIntent: (typeof s.payment_intent === 'string') ? s.payment_intent : null,
+                date: new Date((s.created || 0) * 1000).toISOString(),
+                name: cd.name || null,
+                email: cd.email || s.customer_email || null,
+                amount: (s.amount_total != null) ? s.amount_total / 100 : null,
+                currency: (s.currency || 'eur').toLowerCase(),
+                status: s.payment_status === 'paid' ? 'succeeded'
+                    : (s.status === 'expired' ? 'expired' : 'incomplete'),
+                kind: stripePaymentKind(s.metadata)
+            };
+            rows.push(row);
+            if (row.paymentIntent) byPaymentIntent.set(row.paymentIntent, row);
+        }
+        for (const c of (charges.data || [])) {
+            const pi = (typeof c.payment_intent === 'string') ? c.payment_intent : null;
+            const twin = pi && byPaymentIntent.get(pi);
+            if (twin) { // same payment as a listed session — enrich, don't duplicate
+                if (!twin.name) twin.name = (c.billing_details && c.billing_details.name) || null;
+                if (!twin.email) twin.email = (c.billing_details && c.billing_details.email) || null;
+                if (c.status === 'failed' && twin.status !== 'succeeded') twin.status = 'failed';
+                continue;
+            }
+            rows.push({
+                sessionId: null,
+                paymentIntent: pi,
+                chargeId: c.id,
+                date: new Date((c.created || 0) * 1000).toISOString(),
+                name: (c.billing_details && c.billing_details.name) || null,
+                email: (c.billing_details && c.billing_details.email) || null,
+                amount: (c.amount != null) ? c.amount / 100 : null,
+                currency: (c.currency || 'eur').toLowerCase(),
+                status: (c.paid && c.status === 'succeeded') ? 'succeeded' : (c.status || 'unknown'),
+                kind: stripePaymentKind(c.metadata)
+            });
+        }
+        rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+        return rows.slice(0, 20);
+    }
+    // RECONCILIATION — does the portal hold a record of this payment? Strong matches first
+    // (the exact Stripe id the user portal writes at checkout/webhook time), then
+    // case-insensitive payer-email fallbacks. Tables checked mirror what the user portal's
+    // checkout.session.completed webhook writes: gala_registrations.stripe_session_id,
+    // payment_transactions.provider_transaction_id (conference regs; payment_intent OR
+    // session id), finance_transactions.reference (donations + fees land in the ledger with
+    // reference = session id), and finally users for a bare portal-account match.
+    function findPortalRecordForPayment(p) {
+        const ids = [p.sessionId, p.paymentIntent].filter(Boolean);
+        const email = String(p.email || '').trim().toLowerCase();
+        const galaLabel = (g) => `Gala registration ${g.invoice_number || '#' + String(g.id).slice(0, 8)} — ${[g.first_name, g.last_name].filter(Boolean).join(' ')}`;
+        const regLabel = (r) => `Plexus registration ${r.invoice_number || '#' + String(r.id).slice(0, 8)} — ${[r.first_name, r.last_name].filter(Boolean).join(' ')}`;
+        for (const sid of ids) {
+            const g = query.get('SELECT id, first_name, last_name, invoice_number FROM gala_registrations WHERE stripe_session_id = ?', [sid]);
+            if (g) return { matched: true, matchDetail: galaLabel(g) };
+            const r = query.get(`SELECT r.id, r.invoice_number,
+                    COALESCE(r.first_name, u.first_name) AS first_name,
+                    COALESCE(r.last_name, u.last_name) AS last_name
+                FROM payment_transactions pt
+                JOIN registrations r ON pt.registration_id = r.id
+                LEFT JOIN users u ON r.user_id = u.id
+                WHERE pt.provider_transaction_id = ?`, [sid]);
+            if (r) return { matched: true, matchDetail: regLabel(r) };
+            const t = query.get('SELECT transaction_number FROM finance_transactions WHERE reference = ?', [sid]);
+            if (t) return { matched: true, matchDetail: `Finance ledger ${t.transaction_number}` };
+        }
+        if (email) {
+            const g = query.get('SELECT id, first_name, last_name, invoice_number FROM gala_registrations WHERE LOWER(email) = ? ORDER BY created_at DESC', [email]);
+            if (g) return { matched: true, matchDetail: galaLabel(g) + ' (email match)' };
+            const r = query.get(`SELECT r.id, r.invoice_number,
+                    COALESCE(r.first_name, u.first_name) AS first_name,
+                    COALESCE(r.last_name, u.last_name) AS last_name
+                FROM registrations r
+                LEFT JOIN users u ON r.user_id = u.id
+                WHERE LOWER(COALESCE(r.email, u.email)) = ?
+                ORDER BY r.created_at DESC`, [email]);
+            if (r) return { matched: true, matchDetail: regLabel(r) + ' (email match)' };
+            const u = query.get('SELECT first_name, last_name, email FROM users WHERE LOWER(email) = ?', [email]);
+            if (u) return { matched: true, matchDetail: `Portal user account — ${[u.first_name, u.last_name].filter(Boolean).join(' ') || u.email} (no registration row)` };
+        }
+        return { matched: false, matchDetail: 'No portal record found' };
+    }
+    // 60s in-memory cache of the Stripe pull (repeated clicks must not hammer the API).
+    // Reconciliation re-runs against the live DB on every request — only Stripe is cached.
+    let stripePaymentsCache = { at: 0, payload: null };
+    app.get('/api/finance/stripe-payments/recent', auth, adminOnly, async (req, res) => {
+        try {
+            const key = stripeReadKey();
+            if (!key) {
+                return res.json({ configured: false, message: 'Stripe is not configured. Set STRIPE_READONLY_KEY (a restricted read-only key) on the medx-admin-portal Render service; STRIPE_SECRET_KEY also works as a fallback.' });
+            }
+            let cached = true;
+            if (!stripePaymentsCache.payload || (Date.now() - stripePaymentsCache.at) > 60000) {
+                stripePaymentsCache = { at: Date.now(), payload: await fetchRecentStripePayments(key) };
+                cached = false;
+            }
+            const payments = stripePaymentsCache.payload.map(p => {
+                const rec = p.status === 'succeeded'
+                    ? findPortalRecordForPayment(p)
+                    : { matched: null, matchDetail: '—' }; // only money that arrived needs a record
+                return { date: p.date, name: p.name, email: p.email, amount: p.amount,
+                         currency: p.currency, status: p.status, kind: p.kind,
+                         sessionId: p.sessionId, matched: rec.matched, matchDetail: rec.matchDetail };
+            });
+            res.json({ configured: true, cached, fetchedAt: new Date(stripePaymentsCache.at).toISOString(), payments });
+        } catch (err) {
+            console.error('Stripe payments check error:', err.message);
+            res.status(502).json({ error: 'Stripe payments check failed: ' + err.message });
+        }
+    });
+
     // ===== CONFERENCE PAYMENTS (Plexus + FIRA Integration) =====
 
     // List all payment registrations across all sources (Plexus, Gala, Accelerator, Forum)

@@ -11400,6 +11400,22 @@ President, Med&amp;X</textarea>
 
                     <!-- Reconcile Payments Tab -->
                     <div class="finance-tab" id="finance-tab-reconcile">
+                        <!-- Payments check — live Stripe pull, auto-matched against portal records -->
+                        <div class="card" style="margin-bottom: 20px;" id="paymentsCheckCard">
+                            <div class="card-header">
+                                <span class="card-title"><i class="fab fa-stripe-s" style="color: var(--finances);"></i> Payments check</span>
+                                <button class="btn btn-primary" id="paymentsCheckBtn" onclick="FinanceApp.checkLatestPayments()">
+                                    <i class="fas fa-rotate"></i> Check latest payments
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 14px;">
+                                    Latest payments from Stripe — verify against registrations.
+                                </p>
+                                <div id="paymentsCheckResult"></div>
+                            </div>
+                        </div>
+
                         <!-- Step 1: import -->
                         <div class="card" style="margin-bottom: 20px;">
                             <div class="card-header">
@@ -35377,6 +35393,87 @@ By applying to this program, I give the following consents:
                     this.loadConferencePayments();
                 } else {
                     Toast.error(res.error || 'Failed to confirm payment');
+                }
+            },
+
+            // ==================== PAYMENTS CHECK (Stripe → portal records) ====================
+            // Button-driven on purpose: it hits the live Stripe API (60s server cache), so the
+            // tab opening alone never spends an API call.
+            async checkLatestPayments() {
+                const btn = document.getElementById('paymentsCheckBtn');
+                const box = document.getElementById('paymentsCheckResult');
+                const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => (s == null ? '' : String(s)));
+                const origBtn = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking…';
+                box.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">Fetching the latest payments from Stripe…</p>';
+                try {
+                    const data = await this.api('/api/finance/stripe-payments/recent');
+                    if (data.configured === false) {
+                        box.innerHTML = `<div style="padding: 14px 16px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text-muted);">
+                            <i class="fas fa-key" style="color: var(--warning); margin-right: 8px;"></i>${esc(data.message || 'Stripe is not configured.')}
+                        </div>`;
+                        return;
+                    }
+                    if (!data.payments || !data.payments.length) {
+                        box.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No recent payments found in Stripe.</p>';
+                        return;
+                    }
+                    const fmtAmount = (p) => {
+                        if (p.amount == null) return '—';
+                        const cur = String(p.currency || 'eur').toUpperCase();
+                        const num = Number(p.amount).toFixed(2);
+                        return cur === 'EUR' ? `€${num}` : `${num} ${cur}`;
+                    };
+                    const fmtDate = (iso) => {
+                        const d = new Date(iso);
+                        return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                    };
+                    const statusBadge = (s) => {
+                        const color = s === 'succeeded' ? 'var(--success)' : (s === 'failed' ? 'var(--danger)' : 'var(--text-muted)');
+                        return `<span style="color: ${color}; font-weight: 600;">${esc(s)}</span>`;
+                    };
+                    const recordCell = (p) => {
+                        if (p.matched === true) return `<span style="color: var(--success);"><i class="fas fa-check"></i> ${esc(p.matchDetail)}</span>`;
+                        if (p.matched === false) return `<span style="color: var(--danger); font-weight: 600;"><i class="fas fa-triangle-exclamation"></i> NO RECORD</span> <span style="color: var(--text-muted);">— ${esc(p.matchDetail)}</span>`;
+                        return `<span style="color: var(--text-muted);">—</span>`; // not-succeeded rows need no record
+                    };
+                    const rows = data.payments.map(p => `
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 10px 16px; white-space: nowrap;">${fmtDate(p.date)}</td>
+                            <td style="padding: 10px 16px;">${esc(p.name || '—')}${p.kind ? ` <span style="font-size: 11px; color: var(--text-muted); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; margin-left: 6px;">${esc(p.kind)}</span>` : ''}</td>
+                            <td style="padding: 10px 16px;">${esc(p.email || '—')}</td>
+                            <td style="padding: 10px 16px; text-align: right; font-weight: 600; white-space: nowrap;">${fmtAmount(p)}</td>
+                            <td style="padding: 10px 16px; text-align: center;">${statusBadge(p.status)}</td>
+                            <td style="padding: 10px 16px;">${recordCell(p)}</td>
+                        </tr>`).join('');
+                    box.innerHTML = `
+                        <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 8px;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                <thead>
+                                    <tr style="border-bottom: 2px solid var(--border);">
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Date</th>
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Name</th>
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Email</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-size: 13px; color: var(--text-muted);">Amount</th>
+                                        <th style="padding: 12px 16px; text-align: center; font-size: 13px; color: var(--text-muted);">Status</th>
+                                        <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: var(--text-muted);">Portal record</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                        <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">
+                            ${data.payments.length} payment${data.payments.length === 1 ? '' : 's'} · fetched ${fmtDate(data.fetchedAt)}${data.cached ? ' (cached)' : ''}
+                        </div>`;
+                } catch (err) {
+                    console.error('Payments check failed:', err);
+                    box.innerHTML = `<div style="padding: 14px 16px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--danger);">
+                        <i class="fas fa-circle-exclamation"></i> Payments check failed: ${esc(err.message)}
+                    </div>`;
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = origBtn;
                 }
             },
 
