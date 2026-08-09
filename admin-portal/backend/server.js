@@ -17835,8 +17835,22 @@ By applying to this program, I provide the following consents:
             const zoom = p.zoom_link || 'https://harvard.zoom.us/my/alen1';
             const dur = p.duration_min || 60;
             const when = tcFormatSlot(startLocal, dur);
-            const admins = query.all("SELECT DISTINCT email FROM users WHERE is_admin = 1 AND email IS NOT NULL AND email <> ''");
-            const attendees = admins.map(a => a.email);
+            // Invite the poll's CHANNEL members, not every admin account — a poll in a
+            // small sub-team channel must not spam the whole admin roster. Map the
+            // teamchat roster to portal accounts for emails, and dedupe
+            // case-insensitively (SELECT DISTINCT alone treats Foo@x/foo@x as two people).
+            let channelMembers = query.all(`
+                SELECT MIN(u.email) AS email
+                FROM channel_members cm
+                JOIN team_members tm ON tm.id = cm.member_id
+                JOIN users u ON u.id = tm.user_id
+                WHERE cm.channel_id = ? AND u.email IS NOT NULL AND u.email <> ''
+                GROUP BY LOWER(u.email)`, [p.channel_id]);
+            if (!channelMembers.length) {
+                // Fallback (empty/unmapped channel): the proposer at minimum.
+                channelMembers = query.all("SELECT email FROM users WHERE id = ? AND email IS NOT NULL AND email <> ''", [req.user.id]);
+            }
+            const attendees = channelMembers.map(a => a.email);
             const ics = buildMeetingIcs({
                 title: p.title, startLocal, durationMin: dur,
                 description: 'Med&X team meeting.\nJoin Zoom: ' + zoom + '\nProposed and scheduled through the Med&X admin team chat.',
@@ -17863,7 +17877,7 @@ By applying to this program, I provide the following consents:
             }
             db.run("UPDATE meeting_polls SET status = 'closed', winning_index = ?, outbox_batch = ?, closed_at = datetime('now') WHERE id = ?", [winIdx, batchId, p.id]);
             db.run("INSERT INTO chat_messages (id, sender_id, channel_id, message, kind, message_type) VALUES (?, ?, ?, ?, 'system', 'text')",
-                [uuidv4(), me.id, p.channel_id, 'Meeting confirmed for ' + when.full + '. Calendar invites (with the Zoom link) are queued for approval to ' + count + ' admin' + (count === 1 ? '' : 's') + '.']);
+                [uuidv4(), me.id, p.channel_id, 'Meeting confirmed for ' + when.full + '. Calendar invites (with the Zoom link) are queued for approval to ' + count + ' channel member' + (count === 1 ? '' : 's') + '.']);
             saveDb();
             logAudit(req, 'teamchat_meeting_close', p.title + ' -> ' + when.full + ' (' + count + ' invite(s) queued)');
             res.json({ success: true, winning_index: winIdx, batch_id: batchId, recipients: count, when: when.full });
@@ -34032,12 +34046,15 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     app.post('/api/admin/messages/:userId/draft-reply', auth, adminOnly, async (req, res) => {
         try {
             const userId = req.params.userId;
+            // The UI passes the member's email; rows store users.id — try both keys.
+            const u = query.get('SELECT id FROM users WHERE id = ? OR LOWER(email) = LOWER(?)', [userId, userId]);
+            const k2 = u ? u.id : userId;
             const msg = query.get(
-                "SELECT * FROM direct_messages WHERE sender_id = ? AND receiver_type = 'admin' ORDER BY created_at DESC LIMIT 1",
-                [userId]
+                "SELECT * FROM direct_messages WHERE sender_id IN (?, ?) AND receiver_type = 'admin' ORDER BY created_at DESC LIMIT 1",
+                [userId, k2]
             ) || query.get(
-                "SELECT * FROM direct_messages WHERE (sender_id = ? OR receiver_id = ?) ORDER BY created_at DESC LIMIT 1",
-                [userId, userId]
+                "SELECT * FROM direct_messages WHERE (sender_id IN (?, ?) OR receiver_id IN (?, ?)) ORDER BY created_at DESC LIMIT 1",
+                [userId, k2, userId, k2]
             );
             if (!msg) return res.status(404).json({ error: 'No message found for that member.' });
             // Make sure it carries a label even if the sweep has not reached it yet.
@@ -34054,13 +34071,31 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // member->admin messages (so a brand-new question with no prior admin reply still shows
     // up), plus the AI triage labels + stored draft. `member` is the non-admin counterparty
     // the UI groups by. A full-auto triage sweep runs first so labels are fresh.
+    // direct_messages.sender_id/receiver_id are FOREIGN KEYs to users(id), but the
+    // UI (and any older rows) speak emails. Resolve either form to the user row so
+    // inserts satisfy the constraint and thread lookups use one consistent key.
+    const resolveMessageUser = (idOrEmail) => {
+        const v = String(idOrEmail || '').trim();
+        if (!v) return null;
+        return query.get('SELECT id, email FROM users WHERE id = ?', [v])
+            || query.get('SELECT id, email FROM users WHERE LOWER(email) = LOWER(?)', [v])
+            || null;
+    };
+
     app.get('/api/admin/messages', auth, adminOnly, async (req, res) => {
         try {
             await aiInboxTriage({ limit: 30 });
+            // `member` is the non-admin counterparty, surfaced as an EMAIL (what the
+            // UI displays and keys conversations by), falling back to the raw id for
+            // any legacy row that stored an email directly.
             const messages = query.all(`
                 SELECT dm.*,
-                    CASE WHEN dm.sender_type = 'admin' THEN dm.receiver_id ELSE dm.sender_id END AS member
+                    CASE WHEN dm.sender_type = 'admin'
+                         THEN COALESCE(ru.email, dm.receiver_id)
+                         ELSE COALESCE(su.email, dm.sender_id) END AS member
                 FROM direct_messages dm
+                LEFT JOIN users su ON su.id = dm.sender_id
+                LEFT JOIN users ru ON ru.id = dm.receiver_id
                 WHERE dm.sender_type = 'admin' OR dm.receiver_type = 'admin'
                 ORDER BY dm.created_at DESC
                 LIMIT 200
@@ -34078,14 +34113,18 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const { receiver_id, title, content, attachment_url } = req.body;
             if (!receiver_id || !content) return res.status(400).json({ error: 'Receiver and content are required' });
 
+            // The FK requires users.id — resolve the email (or id) the UI sent.
+            const receiver = resolveMessageUser(receiver_id);
+            if (!receiver) return res.status(404).json({ error: `No portal user found for "${receiver_id}"` });
+
             const id = uuidv4();
             db.run(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, attachment_url)
                 VALUES (?, ?, ?, 'admin', 'user', ?, ?, ?)`,
-                [id, req.user.email, receiver_id, title || null, content, attachment_url || null]);
-            // Targeted push so the recipient is pinged on their phone (receiver_id is the email).
+                [id, req.user.id, receiver.id, title || null, content, attachment_url || null]);
+            // Targeted push so the recipient is pinged on their phone.
             try {
                 db.run('INSERT INTO push_outbox (id, title, body, url, target_email, created_by) VALUES (?,?,?,?,?,?)',
-                    [uuidv4(), title || 'New message from Med&X', String(content).slice(0, 140), '/?app=1&view=inbox', receiver_id, req.user.id]);
+                    [uuidv4(), title || 'New message from Med&X', String(content).slice(0, 140), '/?app=1&view=inbox', receiver.email, req.user.id]);
             } catch (e) { console.warn('[Push] message enqueue failed:', e.message); }
             saveDb();
             res.json({ success: true, id });
@@ -34119,19 +34158,26 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                     return res.status(400).json({ error: 'Invalid group' });
             }
 
-            let sent = 0;
+            let sent = 0, failed = 0;
             recipients.forEach(r => {
-                const id = uuidv4();
                 try {
+                    // FK requires users.id; registrant emails without a portal
+                    // account cannot receive an in-app message and count as failed.
+                    const u = resolveMessageUser(r.email);
+                    if (!u) { failed++; return; }
                     db.run(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content)
                         VALUES (?, ?, ?, 'admin', 'user', ?, ?)`,
-                        [id, req.user.email, r.email, title || null, content]);
+                        [uuidv4(), req.user.id, u.id, title || null, content]);
                     sent++;
-                } catch (e) { console.error('Failed to send to', r.email, e); }
+                } catch (e) { failed++; console.error('Failed to send to', r.email, e); }
             });
 
             saveDb();
-            res.json({ success: true, sent, total: recipients.length });
+            // Total delivery failure must not read as success.
+            if (!sent && recipients.length) {
+                return res.status(500).json({ error: `Delivery failed for all ${recipients.length} recipient(s)`, sent, failed, total: recipients.length });
+            }
+            res.json({ success: true, sent, failed, total: recipients.length });
         } catch (err) {
             console.error('Failed to send bulk messages:', err);
             res.status(500).json({ error: 'Failed to send bulk messages' });
@@ -34143,17 +34189,21 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // so inbound questions addressed to e.g. coordinators@medx.hr still thread correctly.
     app.get('/api/admin/messages/:userId', auth, adminOnly, (req, res) => {
         try {
+            // The UI keys threads by email; rows key by users.id. Match on both so
+            // the thread also picks up any legacy email-keyed rows.
+            const u = resolveMessageUser(req.params.userId);
+            const k1 = req.params.userId, k2 = u ? u.id : req.params.userId;
             const messages = query.all(`
                 SELECT * FROM direct_messages
-                WHERE (sender_id = ? OR receiver_id = ?)
+                WHERE (sender_id IN (?, ?) OR receiver_id IN (?, ?))
                   AND (sender_type = 'admin' OR receiver_type = 'admin')
                 ORDER BY created_at ASC`,
-                [req.params.userId, req.params.userId]);
+                [k1, k2, k1, k2]);
 
             // Mark this member's inbound messages as read.
             db.run(`UPDATE direct_messages SET is_read = 1
-                WHERE sender_id = ? AND receiver_type = 'admin' AND is_read = 0`,
-                [req.params.userId]);
+                WHERE sender_id IN (?, ?) AND receiver_type = 'admin' AND is_read = 0`,
+                [k1, k2]);
             saveDb();
 
             res.json(messages);
@@ -38304,6 +38354,21 @@ ${extraCss || ''}
             const info = query.get("SELECT COUNT(*) AS cnt FROM scheduled_emails WHERE batch_id = ? AND status = 'pending_approval'", [batch]);
             const cnt = info ? info.cnt : 0;
             if (!cnt) return res.status(404).json({ error: 'No emails awaiting approval for that batch.' });
+            // Last line of defense: never flip a batch to 'scheduled' when an email-channel
+            // row carries an unsendable address — it would only fail at send time.
+            try {
+                const rowsToCheck = query.all("SELECT recipient_email, payload_json FROM scheduled_emails WHERE batch_id = ? AND status = 'pending_approval'", [batch]);
+                const badAddrs = [];
+                for (const rr of rowsToCheck) {
+                    let p = {}; try { p = rr.payload_json ? JSON.parse(rr.payload_json) : {}; } catch (e) { p = {}; }
+                    if (p.channel === 'portal' && p.user_id) continue; // in-portal delivery, no email needed
+                    const addr = String(p.to || rr.recipient_email || '').trim();
+                    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) badAddrs.push(addr || '(empty)');
+                }
+                if (badAddrs.length) {
+                    return res.status(400).json({ error: `Cannot approve: ${badAddrs.length} recipient address(es) are not sendable (e.g. "${badAddrs[0]}"). Fix or discard the batch.` });
+                }
+            } catch (e) { /* guard is best-effort; sending still validates */ }
             const when = (req.body && req.body.scheduled_for) ? String(req.body.scheduled_for) : null;
             const approver = req.user?.email || 'admin';
             // Portal-channel rows (gala guest messages to members) deliver into the member's
@@ -40297,7 +40362,13 @@ ${extraCss || ''}
         const classification = await eiClassifyReply(text);
         db.run("UPDATE event_campaign_replies SET classification = ? WHERE id = ?", [classification, replyId]);
         let staged = 0; let escalated = false; let draftId = null;
-        if (classification === 'simple') {
+        // Never stage a one-click-sendable draft to an unsendable address — the same
+        // format gate the invitation-staging path applies. Unsendable => escalate.
+        const invEmailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(inv.email || '').trim());
+        if (classification === 'simple' && !invEmailOk) {
+            eiAppendStatus(inv.id, 'escalated', 'Reply received, but the invitee address is not sendable — escalated for a manual answer', { replied_at: 'NOW' });
+        }
+        if (classification === 'simple' && invEmailOk) {
             const draft = await eiDraftSimpleReply(inv, text, facts);
             draftId = require('crypto').randomUUID();
             db.run("INSERT INTO event_campaign_replies (id, campaign_id, invitee_id, direction, body, classification, source, created_by) VALUES (?,?,?, 'outbound_draft', ?, 'simple', 'ai', ?)",
@@ -40312,7 +40383,9 @@ ${extraCss || ''}
             staged = 1;
             eiAppendStatus(inv.id, 'replied', 'Reply received (simple) — a president-voice draft is waiting in the outbox', { replied_at: 'NOW' });
         } else {
-            eiAppendStatus(inv.id, 'escalated', 'Reply received (complex) — escalated to the president and Laura', { replied_at: 'NOW' });
+            if (classification !== 'simple') {
+                eiAppendStatus(inv.id, 'escalated', 'Reply received (complex) — escalated to the president and Laura', { replied_at: 'NOW' });
+            }
             escalated = true;
             const dripKey = 'event_reply_escalate:' + replyId;
             if (!query.get("SELECT 1 x FROM drip_log WHERE user_id = 'event-invite' AND kind = ?", [dripKey])) {
@@ -40854,12 +40927,18 @@ ${extraCss || ''}
             let added = 0; const duplicates = [];
             for (const c of list) {
                 const name = String((c && c.name) || '').trim();
-                const email = String((c && c.email) || '').trim();
+                let email = String((c && c.email) || '').trim();
                 const institution = String((c && c.institution) || '').trim();
                 const country = String((c && c.country) || '').trim();
                 const field = String((c && c.field) || '').trim();
                 const evidence = String((c && c.evidence) || '').trim().slice(0, 400);
                 if (!name && !email) continue;
+                // Same invalid-email handling as the CSV import: junk addresses never
+                // enter the campaign as sendable — keep the person name-only, or skip.
+                if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+                    if (!name) { duplicates.push({ who: email, where: 'skipped — invalid email' }); continue; }
+                    email = '';
+                }
                 const emailKey = email.toLowerCase();
                 if (emailKey && regSet.has(emailKey)) { duplicates.push({ who: name || email, where: 'already registered' }); continue; }
                 let dup = null;

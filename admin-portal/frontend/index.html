@@ -17464,9 +17464,24 @@ President, Med&amp;X</textarea>
         })();
 
         const Toast = {
+            // Dismiss current toasts (optionally only certain types). Used so a fresh
+            // outcome replaces stale validation errors instead of stacking under them.
+            clear(types) {
+                const container = document.getElementById('toastContainer');
+                if (!container) return;
+                Array.from(container.children).forEach(t => {
+                    if (!types || types.some(ty => t.classList.contains(ty))) {
+                        t.classList.add('removing');
+                        setTimeout(() => t.remove(), 300);
+                    }
+                });
+            },
             show(message, type = 'info', duration = 3500) {
                 const container = document.getElementById('toastContainer');
                 if (!container) return;
+                // A success outcome supersedes any error/warning still on screen —
+                // "Title is required" + "Notification sent!" must never coexist.
+                if (type === 'success') this.clear(['error', 'warning']);
                 // A blank pill is worse than no pill — guarantee visible text.
                 if (!message || !String(message).trim()) {
                     message = type === 'error' ? 'Something went wrong — please try again.' : 'Done.';
@@ -22340,6 +22355,8 @@ President, Med&amp;X</textarea>
             },
 
             async sendAdminMessage() {
+                // Each submission attempt replaces stale validation feedback.
+                Toast.clear(['warning', 'error']);
                 const receiver_id = document.getElementById('msgRecipient').value.trim();
                 const title = document.getElementById('msgTitle').value.trim();
                 const content = document.getElementById('msgContent').value.trim();
@@ -22384,7 +22401,13 @@ President, Med&amp;X</textarea>
                         body: JSON.stringify({ group, title, content })
                     });
                     this.closeModal('bulkMessageModal');
-                    Toast.success(`Message sent to ${result.sent} user(s)`);
+                    if (!result.sent) {
+                        Toast.error('Message was not delivered to anyone');
+                    } else if (result.sent < result.total) {
+                        Toast.warning(`Delivered to ${result.sent} of ${result.total} — the rest have no portal account`);
+                    } else {
+                        Toast.success(`Message sent to ${result.sent} user(s)`);
+                    }
                     await this.loadAdminMessages();
                 } catch (err) {
                     console.error('Failed to send bulk message:', err);
@@ -22479,7 +22502,7 @@ President, Med&amp;X</textarea>
                 const input = document.getElementById('replyInput');
                 if (!input) return;
                 const content = input.value.trim();
-                if (!content) return;
+                if (!content) { Toast.warning('Type a reply first'); input.focus(); return; }
 
                 try {
                     await this.api('/api/admin/messages', {
@@ -37452,9 +37475,11 @@ By applying to this program, I give the following consents:
                     if (card) card.style.display = 'block';
                     host.innerHTML = batches.map(b => {
                         const subj = (b.sample && b.sample.subject) ? escapeHtml(b.sample.subject) : '(no subject)';
+                        // Show WHO a one-click Approve & send will mail — the approver must see the address.
+                        const to = (b.sample && b.sample.to) ? ` &rarr; <span style="color:var(--text-secondary);">${escapeHtml(b.sample.to)}${b.count > 1 ? ' +' + (b.count - 1) : ''}</span>` : '';
                         return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg-primary);border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-top:8px;">
                             <div style="min-width:220px;flex:1;">
-                                <div style="font-size:13px;color:var(--text-primary);"><strong>${b.count}</strong> email${b.count === 1 ? '' : 's'} &bull; <span style="color:var(--accent-gold);">${escapeHtml(this.label(b.source_engine))}</span></div>
+                                <div style="font-size:13px;color:var(--text-primary);"><strong>${b.count}</strong> email${b.count === 1 ? '' : 's'} &bull; <span style="color:var(--accent-gold);">${escapeHtml(this.label(b.source_engine))}</span>${to}</div>
                                 <div style="font-size:12px;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px;">${subj}</div>
                             </div>
                             <div style="display:flex;gap:6px;">
@@ -38272,6 +38297,8 @@ By applying to this program, I give the following consents:
             },
 
             async send() {
+                // Each submission attempt replaces stale validation feedback.
+                Toast.clear(['warning', 'error']);
                 const title = document.getElementById('notifTitle').value.trim();
                 const message = document.getElementById('notifMessage').value.trim();
                 const category = document.getElementById('notifCategory').value;
@@ -45441,6 +45468,14 @@ By applying to this program, I give the following consents:
                 const r = await opsApi('/api/admin/audiences/' + encodeURIComponent(audience));
                 if (r.ok && r.d) {
                     this._audienceCounts = r.d;
+                    // Never default to an empty scope: if the preselected scope has 0
+                    // members, hop to the first scope that actually reaches someone
+                    // (keep 'interested' only when every scope is empty).
+                    const order = ['interested', 'registered', 'interested_not_registered'];
+                    if (!(Number(r.d[this._scope]) > 0)) {
+                        const firstNonEmpty = order.find(k => Number(r.d[k]) > 0);
+                        if (firstNonEmpty) { this._scope = firstNonEmpty; this._syncScopeButtons(); }
+                    }
                     this._renderScopeCounts();
                     this.renderPreview();
                 }
@@ -45546,6 +45581,12 @@ By applying to this program, I give the following consents:
                 const scopeLabel = payload.project_key
                     ? `${NAMES[payload.project_key] || payload.project_key} — ${SCOPE_LABEL[this._scope] || 'interested'}`
                     : 'Everyone';
+                // A 0-member scope means the announcement reaches no one — block it
+                // instead of burying "(0 members)" mid-sentence in the confirm text.
+                if (reach === 0) {
+                    Toast.error('This scope has 0 members — pick another scope before publishing.');
+                    return;
+                }
                 let confirmMsg = payload.project_key
                     ? `Publish to ${scopeLabel}${reach != null ? ` (${reach} ${reach === 1 ? 'member' : 'members'})` : ''} — appears in their notification bell.`
                     : `Publish to Everyone — appears in every member's notification bell.`;
@@ -53293,6 +53334,9 @@ By applying to this program, I give the following consents:
                     this._count = d.count || 0;
                     const sample = (d.sample || []).slice(0, 3).map(s => s.email).join(', ');
                     if (el) el.innerHTML = `<strong style="color:var(--text-primary);">${this._count}</strong> recipient${this._count === 1 ? '' : 's'} after filters (test rows excluded)${sample ? ` · e.g. ${sample}` : ''}`;
+                    // No recipients -> no launchable blast (mirrors the backend 400).
+                    const sendBtn = document.getElementById('blastSendBtn');
+                    if (sendBtn && !sendBtn.innerHTML.includes('fa-spinner')) sendBtn.disabled = this._count === 0;
                 } catch (e) { if (el) el.textContent = 'Could not count recipients'; }
             },
             // Preload the composer from a bulk selection (item 16). Nothing is sent here.
@@ -53356,6 +53400,7 @@ By applying to this program, I give the following consents:
                 const out = document.getElementById('blastResult');
                 const btn = document.getElementById('blastSendBtn');
                 if (!subject || !message) { Toast.warning('Subject and message are required'); return; }
+                if (!this._count) { Toast.warning('No recipients match these filters'); return; }
                 const f = this.filters();
                 const fDesc = Object.keys(f).length ? ` (filters: ${Object.entries(f).map(([k, v]) => k + '=' + v).join(', ')})` : '';
                 const who = custom ? `the ${this._count} selected registrant(s)` : `${this._count} registrant(s)${fDesc}`;
@@ -53371,7 +53416,7 @@ By applying to this program, I give the following consents:
                         this.renderPreview();
                     } else { out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid #9b1b22;">${(d.error || 'Send failed')}</div>`; }
                 } catch (e) { out.innerHTML = `<div class="card" style="padding:12px 16px;border-left:4px solid #9b1b22;">Request failed: ${e.message}</div>`; }
-                finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send to registrants'; } }
+                finally { if (btn) { btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send to registrants'; btn.disabled = this._count === 0; } }
             }
         };
 
@@ -56727,7 +56772,7 @@ By applying to this program, I give the following consents:
             try {
                 const r = await this.api('/api/teamchat/polls/' + pollId + '/close', 'POST', {});
                 this._sig = ''; await this.loadMessages(false); await this.loadOverview(true);
-                this.toast('Confirmed for ' + r.when + '. Invites queued for ' + r.recipients + ' admin(s).', 'success');
+                this.toast('Confirmed for ' + r.when + '. Invites queued for ' + r.recipients + ' channel member(s).', 'success');
             } catch (e) { this.toast(e.message, 'error'); }
         },
         openNewDM() {
