@@ -25480,6 +25480,19 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         return `${seq.prefix}-${fiscalYear}-${String(newValue).padStart(3, '0')}`;
     }
 
+    // A closed/archived fiscal year is READ-ONLY. Every finance write endpoint asks
+    // this first and returns 403 with the message when the target year is locked —
+    // before this, "Close Fiscal Year" enforced nothing.
+    function financeYearClosedError(year) {
+        const y = parseInt(year);
+        if (!y) return null;
+        const fy = query.get('SELECT status FROM finance_fiscal_years WHERE year = ?', [y]);
+        if (fy && (fy.status === 'closed' || fy.status === 'archived')) {
+            return `Fiscal year ${y} is closed — reopen it before making changes.`;
+        }
+        return null;
+    }
+
     // Finance Dashboard
     app.get('/api/finance/dashboard', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
@@ -25490,20 +25503,24 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         // Get fiscal year info
         const fiscalYear = query.get('SELECT * FROM finance_fiscal_years WHERE year = ?', [year]);
 
-        // Get totals
-        const income = query.get('SELECT COALESCE(SUM(amount), 0) as total FROM finance_transactions WHERE transaction_type = ? AND fiscal_year = ?', ['income', year]);
-        const expenses = query.get('SELECT COALESCE(SUM(amount), 0) as total FROM finance_transactions WHERE transaction_type = ? AND fiscal_year = ?', ['expense', year]);
+        // Get totals. Draft transactions are money NOT yet moved — excluding them
+        // from every headline aggregate (pending/overdue stay in: committed money).
+        const income = query.get("SELECT COALESCE(SUM(amount), 0) as total FROM finance_transactions WHERE transaction_type = ? AND fiscal_year = ? AND COALESCE(status,'completed') != 'draft'", ['income', year]);
+        const expenses = query.get("SELECT COALESCE(SUM(amount), 0) as total FROM finance_transactions WHERE transaction_type = ? AND fiscal_year = ? AND COALESCE(status,'completed') != 'draft'", ['expense', year]);
 
-        // Get work unit stats
+        // Get work unit stats (USED is derived from the expense ledger, not the stored counter)
         const workUnits = query.all('SELECT * FROM finance_work_units WHERE fiscal_year = ? AND status = ?', [year, 'active']);
         const totalBudget = workUnits.reduce((sum, wu) => sum + (wu.budget_total || 0), 0);
-        const usedBudget = workUnits.reduce((sum, wu) => sum + (wu.budget_used || 0), 0);
+        const usedBudget = (query.get(`SELECT COALESCE(SUM(t.amount), 0) AS total
+            FROM finance_transactions t
+            JOIN finance_work_units wu ON wu.id = t.work_unit_id
+            WHERE wu.fiscal_year = ? AND wu.status = 'active' AND t.transaction_type = 'expense'`, [year]) || {}).total || 0;
 
-        // Get by project
+        // Get by project (drafts excluded — same rule as the headline totals)
         const byProject = query.all(`
             SELECT project, transaction_type, SUM(amount) as total
             FROM finance_transactions
-            WHERE fiscal_year = ? AND project IS NOT NULL
+            WHERE fiscal_year = ? AND project IS NOT NULL AND COALESCE(status,'completed') != 'draft'
             GROUP BY project, transaction_type
         `, [year]);
 
@@ -25536,6 +25553,8 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     app.post('/api/finance/bank-balance', auth, adminOnly, (req, res) => {
         const { balance, date, notes } = req.body;
+        const bbGuard = financeYearClosedError(date ? new Date(date).getFullYear() : null);
+        if (bbGuard) return res.status(403).json({ error: bbGuard });
         const id = uuidv4();
         db.run('INSERT INTO finance_bank_balance (id, balance, date, notes, created_by) VALUES (?, ?, ?, ?, ?)',
             [id, balance, date, notes || null, req.user.id]);
@@ -25566,8 +25585,12 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     app.put('/api/finance/years/:year', auth, adminOnly, (req, res) => {
         const { status, notes } = req.body;
         const year = parseInt(req.params.year);
+        const current = query.get('SELECT status FROM finance_fiscal_years WHERE year = ?', [year]);
 
         if (status === 'closed') {
+            if (current && current.status === 'closed') {
+                return res.status(400).json({ error: `Fiscal year ${year} is already closed.` });
+            }
             // Close all work units for this year
             db.run('UPDATE finance_work_units SET status = ?, closed_at = datetime(?) WHERE fiscal_year = ?',
                 ['closed', 'now', year]);
@@ -25576,6 +25599,16 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         } else if (status === 'archived') {
             db.run('UPDATE finance_fiscal_years SET status = ?, archived_at = datetime(?) WHERE year = ?',
                 ['archived', 'now', year]);
+        } else if (status === 'open') {
+            // Reopen undoes the close CASCADE too: work units force-closed at
+            // close time (closed_at within seconds of the year's own closed_at)
+            // come back as active; units closed individually beforehand stay closed.
+            db.run(`UPDATE finance_work_units SET status = 'active', closed_at = NULL
+                    WHERE fiscal_year = ? AND status = 'closed' AND closed_at IS NOT NULL
+                      AND ABS(strftime('%s', closed_at) - strftime('%s', (SELECT closed_at FROM finance_fiscal_years WHERE year = ?))) <= 5`,
+                [year, year]);
+            db.run('UPDATE finance_fiscal_years SET status = ?, closed_at = NULL, closed_by = NULL, notes = ? WHERE year = ?',
+                ['open', notes, year]);
         } else {
             db.run('UPDATE finance_fiscal_years SET status = ?, notes = ? WHERE year = ?',
                 [status, notes, year]);
@@ -25589,7 +25622,12 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         const year = req.query.year ? parseInt(req.query.year) : null;
         const status = req.query.status;
 
-        let sql = 'SELECT * FROM finance_work_units WHERE 1=1';
+        // USED is LEDGER-DERIVED: the stored budget_used counter drifted from the
+        // actual expense transactions (seeded literals + four separate mutation
+        // paths), so the drilldown header disagreed with its own transaction list.
+        let sql = `SELECT wu.*, COALESCE((SELECT SUM(t.amount) FROM finance_transactions t
+                       WHERE t.work_unit_id = wu.id AND t.transaction_type = 'expense'), 0) AS budget_used_live
+                   FROM finance_work_units wu WHERE 1=1`;
         const params = [];
 
         if (year) {
@@ -25602,15 +25640,25 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         }
         sql += ' ORDER BY code';
 
-        res.json(query.all(sql, params));
+        const rows = query.all(sql, params).map(r => {
+            r.budget_used = r.budget_used_live;
+            delete r.budget_used_live;
+            return r;
+        });
+        res.json(rows);
     });
 
     app.post('/api/finance/work-units', auth, adminOnly, (req, res) => {
         const { code, name, description, grant_source, fiscal_year, budget_total } = req.body;
+        const yearForCode = fiscal_year || new Date().getFullYear();
+        // Work-unit codes identify grants — duplicates make the transaction picker
+        // ambiguous ("which RJ-2026-001 am I booking against?").
+        const dup = query.get('SELECT id FROM finance_work_units WHERE code = ? AND fiscal_year = ?', [code, yearForCode]);
+        if (dup) return res.status(400).json({ error: `Work unit code "${code}" already exists for fiscal year ${yearForCode}` });
         const id = uuidv4();
         db.run(`INSERT INTO finance_work_units (id, code, name, description, grant_source, fiscal_year, budget_total)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, code, name, description || null, grant_source || null, fiscal_year || new Date().getFullYear(), budget_total || 0]);
+            [id, code, name, description || null, grant_source || null, yearForCode, budget_total || 0]);
         saveDb();
         res.json({ success: true, id });
     });
@@ -25619,13 +25667,18 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         const wu = query.get('SELECT * FROM finance_work_units WHERE id = ?', [req.params.id]);
         if (!wu) return res.status(404).json({ error: 'Not found' });
 
-        // Get transactions for this work unit
+        // Get transactions for this work unit; USED derives from this same ledger.
         const transactions = query.all('SELECT * FROM finance_transactions WHERE work_unit_id = ? ORDER BY date DESC', [req.params.id]);
+        wu.budget_used = transactions.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + (t.amount || 0), 0);
         res.json({ ...wu, transactions });
     });
 
     app.put('/api/finance/work-units/:id', auth, adminOnly, (req, res) => {
         const { code, name, description, grant_source, budget_total, status } = req.body;
+        const existing = query.get('SELECT fiscal_year FROM finance_work_units WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Not found' });
+        const dup = query.get('SELECT id FROM finance_work_units WHERE code = ? AND fiscal_year = ? AND id != ?', [code, existing.fiscal_year, req.params.id]);
+        if (dup) return res.status(400).json({ error: `Work unit code "${code}" already exists for fiscal year ${existing.fiscal_year}` });
         db.run(`UPDATE finance_work_units SET code = ?, name = ?, description = ?, grant_source = ?, budget_total = ?, status = ? WHERE id = ?`,
             [code, name, description, grant_source, budget_total, status, req.params.id]);
         saveDb();
@@ -25694,21 +25747,34 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         res.json(query.all(sql, params));
     });
 
+    // The five projects every finance picker/filter offers. Free-form values used
+    // to slip in via the API and become unfilterable orphan rows in reports.
+    const FINANCE_PROJECTS = ['plexus', 'accelerator', 'forum', 'bridges', 'general'];
+
     app.post('/api/finance/transactions', auth, adminOnly, (req, res) => {
         const { transaction_type, amount, date, description, project, work_unit_id, category, payment_method, reference, fiscal_year } = req.body;
+        if (transaction_type !== 'income' && transaction_type !== 'expense') {
+            return res.status(400).json({ error: 'transaction_type must be income or expense' });
+        }
+        if (project && !FINANCE_PROJECTS.includes(project)) {
+            return res.status(400).json({ error: `Unknown project "${project}" — use one of: ${FINANCE_PROJECTS.join(', ')}` });
+        }
+        const amt = Number(amount);
+        if (!Number.isFinite(amt) || amt <= 0) {
+            return res.status(400).json({ error: 'Amount must be a positive number' });
+        }
+        if (!date) return res.status(400).json({ error: 'Date is required' });
         const id = uuidv4();
         const year = fiscal_year || new Date(date).getFullYear();
+        const closedGuard = financeYearClosedError(year);
+        if (closedGuard) return res.status(403).json({ error: closedGuard });
         const transactionNumber = getNextSequenceNumber(transaction_type, year);
 
         db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description, project, work_unit_id, category, payment_method, reference, fiscal_year, created_by)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, transactionNumber, transaction_type, amount, date, description || null, project || null, work_unit_id || null, category || null, payment_method || null, reference || null, year, req.user.id]);
 
-        // Update work unit budget_used if applicable
-        if (work_unit_id && transaction_type === 'expense') {
-            db.run('UPDATE finance_work_units SET budget_used = budget_used + ? WHERE id = ?', [amount, work_unit_id]);
-        }
-
+        // budget_used is ledger-derived at read time — no stored counter to bump.
         saveDb();
         res.json({ success: true, id, transaction_number: transactionNumber });
     });
@@ -25727,22 +25793,17 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
         const { amount, date, description, project, work_unit_id, category, payment_method, reference } = req.body;
-
-        // Update work unit budget if expense and work unit changed
-        if (existing.transaction_type === 'expense') {
-            if (existing.work_unit_id && existing.work_unit_id !== work_unit_id) {
-                db.run('UPDATE finance_work_units SET budget_used = budget_used - ? WHERE id = ?', [existing.amount, existing.work_unit_id]);
-            }
-            if (work_unit_id) {
-                const diff = amount - existing.amount;
-                if (existing.work_unit_id === work_unit_id) {
-                    db.run('UPDATE finance_work_units SET budget_used = budget_used + ? WHERE id = ?', [diff, work_unit_id]);
-                } else {
-                    db.run('UPDATE finance_work_units SET budget_used = budget_used + ? WHERE id = ?', [amount, work_unit_id]);
-                }
-            }
+        const closedGuard = financeYearClosedError(existing.fiscal_year);
+        if (closedGuard) return res.status(403).json({ error: closedGuard });
+        const amt = Number(amount);
+        if (!Number.isFinite(amt) || amt <= 0) {
+            return res.status(400).json({ error: 'Amount must be a positive number' });
+        }
+        if (project && !FINANCE_PROJECTS.includes(project)) {
+            return res.status(400).json({ error: `Unknown project "${project}" — use one of: ${FINANCE_PROJECTS.join(', ')}` });
         }
 
+        // budget_used is ledger-derived at read time — the transaction row itself is the source of truth.
         db.run(`UPDATE finance_transactions SET amount = ?, date = ?, description = ?, project = ?, work_unit_id = ?, category = ?, payment_method = ?, reference = ? WHERE id = ?`,
             [amount, date, description, project, work_unit_id, category, payment_method, reference, req.params.id]);
         saveDb();
@@ -25753,11 +25814,10 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         const existing = query.get('SELECT * FROM finance_transactions WHERE id = ?', [req.params.id]);
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
-        // Reverse work unit budget if expense
-        if (existing.transaction_type === 'expense' && existing.work_unit_id) {
-            db.run('UPDATE finance_work_units SET budget_used = budget_used - ? WHERE id = ?', [existing.amount, existing.work_unit_id]);
-        }
+        const closedGuardDel = financeYearClosedError(existing.fiscal_year);
+        if (closedGuardDel) return res.status(403).json({ error: closedGuardDel });
 
+        // budget_used is ledger-derived at read time — deleting the row is enough.
         db.run('DELETE FROM finance_transactions WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -25794,8 +25854,12 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
         const id = uuidv4();
         const year = fiscal_year || new Date().getFullYear();
-        const seqType = direction === 'incoming' ? 'invoice_incoming' : 'invoice_outgoing';
-        const invoiceNumber = getNextSequenceNumber(seqType, year);
+        const invGuard = financeYearClosedError(year);
+        if (invGuard) return res.status(403).json({ error: invGuard });
+        // Croatian invoicing needs a GAPLESS sequence for issued invoices, so drafts
+        // must not consume a number (create-then-delete used to burn one forever).
+        // Drafts get a provisional label; the real number is assigned at issue time.
+        const invoiceNumber = 'DRAFT-' + id.slice(0, 8);
 
         // Calculate totals from items
         let subtotal = 0, discountTotal = 0, vatTotal = 0;
@@ -25892,44 +25956,67 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     });
 
     app.delete('/api/finance/invoices/:id', auth, adminOnly, (req, res) => {
+        const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
+        if (!invoice) return res.status(404).json({ error: 'Not found' });
+        // A paid invoice has a booked payment in the ledger; deleting it would leave
+        // an orphan income/expense transaction silently inflating the totals.
+        if (invoice.status === 'paid' || invoice.transaction_id) {
+            return res.status(409).json({ error: 'Invoice has a booked payment — void/reverse the payment first.' });
+        }
+        // Issued invoices are part of the gapless numbered sequence and must not vanish.
+        if (invoice.status !== 'draft') {
+            return res.status(409).json({ error: 'Only draft invoices can be deleted. Issued invoices carry a sequence number and must be voided instead.' });
+        }
         db.run('DELETE FROM finance_invoice_items WHERE invoice_id = ?', [req.params.id]);
         db.run('DELETE FROM finance_invoices WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
     });
 
-    // Issue invoice (change status from draft to issued)
+    // Issue invoice (change status from draft to issued). The sequential invoice
+    // number is assigned HERE — issued invoices stay strictly gapless while drafts
+    // (provisional DRAFT-xxxx labels) consume nothing.
     app.post('/api/finance/invoices/:id/issue', auth, adminOnly, (req, res) => {
-        db.run('UPDATE finance_invoices SET status = ?, issue_date = COALESCE(issue_date, date(?)) WHERE id = ?',
-            ['issued', 'now', req.params.id]);
+        const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
+        if (!invoice) return res.status(404).json({ error: 'Not found' });
+        const issueGuard = financeYearClosedError(invoice.fiscal_year);
+        if (issueGuard) return res.status(403).json({ error: issueGuard });
+        let invoiceNumber = invoice.invoice_number;
+        if (!invoiceNumber || /^DRAFT-/.test(invoiceNumber)) {
+            const seqType = invoice.direction === 'incoming' ? 'invoice_incoming' : 'invoice_outgoing';
+            invoiceNumber = getNextSequenceNumber(seqType, invoice.fiscal_year || new Date().getFullYear());
+        }
+        db.run(`UPDATE finance_invoices SET status = ?, invoice_number = ?, issue_date = COALESCE(issue_date, date('now','localtime')) WHERE id = ?`,
+            ['issued', invoiceNumber, req.params.id]);
         saveDb();
-        res.json({ success: true });
+        res.json({ success: true, invoice_number: invoiceNumber });
     });
 
     // Mark invoice as paid
     app.post('/api/finance/invoices/:id/mark-paid', auth, adminOnly, (req, res) => {
         const invoice = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
         if (!invoice) return res.status(404).json({ error: 'Not found' });
+        const paidGuard = financeYearClosedError(invoice.fiscal_year);
+        if (paidGuard) return res.status(403).json({ error: paidGuard });
+        // Drafts carry no sequence number yet — a payment must reference an issued invoice.
+        if (invoice.status === 'draft') return res.status(400).json({ error: 'Issue the invoice before marking it paid.' });
 
-        // Create a transaction for this payment
+        // Create a transaction for this payment. Business dates use the server's
+        // LOCAL calendar day — date('now') is UTC and stamped evening entries tomorrow.
         const transactionType = invoice.direction === 'outgoing' ? 'income' : 'expense';
         const transactionNumber = getNextSequenceNumber(transactionType, invoice.fiscal_year);
         const transactionId = uuidv4();
 
         db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description,
             project, work_unit_id, category, fiscal_year, created_by)
-            VALUES (?, ?, ?, ?, date(?), ?, ?, ?, ?, ?, ?)`,
-            [transactionId, transactionNumber, transactionType, invoice.total, 'now',
+            VALUES (?, ?, ?, ?, date('now','localtime'), ?, ?, ?, ?, ?, ?)`,
+            [transactionId, transactionNumber, transactionType, invoice.total,
              `Payment for invoice ${invoice.invoice_number}`, invoice.project, invoice.work_unit_id,
              'invoice_payment', invoice.fiscal_year, req.user.id]);
 
-        // Update work unit if expense
-        if (transactionType === 'expense' && invoice.work_unit_id) {
-            db.run('UPDATE finance_work_units SET budget_used = budget_used + ? WHERE id = ?', [invoice.total, invoice.work_unit_id]);
-        }
-
-        db.run('UPDATE finance_invoices SET status = ?, paid_date = date(?), transaction_id = ? WHERE id = ?',
-            ['paid', 'now', transactionId, req.params.id]);
+        // budget_used is ledger-derived at read time; the transaction above carries the spend.
+        db.run(`UPDATE finance_invoices SET status = ?, paid_date = date('now','localtime'), transaction_id = ? WHERE id = ?`,
+            ['paid', transactionId, req.params.id]);
 
         saveDb();
         res.json({ success: true, transaction_id: transactionId });
@@ -26086,6 +26173,8 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         const { recipient_name, recipient_iban, payment_type, amount, reference, date, description, project, work_unit_id, fiscal_year } = req.body;
         const id = uuidv4();
         const year = fiscal_year || new Date().getFullYear();
+        const poGuard = financeYearClosedError(year);
+        if (poGuard) return res.status(403).json({ error: poGuard });
         const orderNumber = getNextSequenceNumber('payment_order', year);
 
         db.run(`INSERT INTO finance_payment_orders (id, order_number, recipient_name, recipient_iban, payment_type, amount,
@@ -26107,6 +26196,10 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     app.put('/api/finance/payment-orders/:id', auth, adminOnly, (req, res) => {
         const { recipient_name, recipient_iban, payment_type, amount, reference, date, execution_date, status, description, project, work_unit_id } = req.body;
+        const poRow = query.get('SELECT fiscal_year FROM finance_payment_orders WHERE id = ?', [req.params.id]);
+        if (!poRow) return res.status(404).json({ error: 'Not found' });
+        const poGuard = financeYearClosedError(poRow.fiscal_year);
+        if (poGuard) return res.status(403).json({ error: poGuard });
         db.run(`UPDATE finance_payment_orders SET recipient_name = ?, recipient_iban = ?, payment_type = ?, amount = ?,
             reference = ?, date = ?, execution_date = ?, status = ?, description = ?, project = ?, work_unit_id = ? WHERE id = ?`,
             [recipient_name, recipient_iban, payment_type, amount, reference, date, execution_date, status, description, project, work_unit_id, req.params.id]);
@@ -26115,6 +26208,10 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     });
 
     app.delete('/api/finance/payment-orders/:id', auth, adminOnly, (req, res) => {
+        const poRow = query.get('SELECT fiscal_year FROM finance_payment_orders WHERE id = ?', [req.params.id]);
+        if (!poRow) return res.status(404).json({ error: 'Not found' });
+        const poGuard = financeYearClosedError(poRow.fiscal_year);
+        if (poGuard) return res.status(403).json({ error: poGuard });
         db.run('DELETE FROM finance_payment_orders WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -26165,6 +26262,8 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
         const id = uuidv4();
         const year = fiscal_year || new Date().getFullYear();
+        const toGuard = financeYearClosedError(year);
+        if (toGuard) return res.status(403).json({ error: toGuard });
         const orderNumber = getNextSequenceNumber('travel_order', year);
 
         db.run(`INSERT INTO finance_travel_orders (id, order_number, traveler_id, traveler_name, destination, purpose,
@@ -26259,6 +26358,16 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     app.post('/api/finance/travel-orders/:id/pay', auth, adminOnly, (req, res) => {
         const order = query.get('SELECT * FROM finance_travel_orders WHERE id = ?', [req.params.id]);
         if (!order) return res.status(404).json({ error: 'Not found' });
+        const payGuard = financeYearClosedError(order.fiscal_year);
+        if (payGuard) return res.status(403).json({ error: payGuard });
+
+        // Book the amount actually owed to the traveler: the calculated reimbursement
+        // (cost_total minus any advance already disbursed) — the same number the
+        // Calculate dialog and the printed order's "Za isplatu" line show. Booking
+        // cost_total here double-counted every advance.
+        const payAmount = (order.reimbursement_amount != null)
+            ? order.reimbursement_amount
+            : ((order.cost_total || 0) - (order.advance_amount || 0));
 
         // Create expense transaction
         const transactionNumber = getNextSequenceNumber('expense', order.fiscal_year);
@@ -26266,20 +26375,16 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
         db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description,
             project, work_unit_id, category, fiscal_year, created_by)
-            VALUES (?, ?, 'expense', ?, date(?), ?, ?, ?, 'travel', ?, ?)`,
-            [transactionId, transactionNumber, order.cost_total, 'now',
+            VALUES (?, ?, 'expense', ?, date('now','localtime'), ?, ?, ?, 'travel', ?, ?)`,
+            [transactionId, transactionNumber, payAmount,
              `Travel order ${order.order_number} - ${order.traveler_name}`, order.project, order.work_unit_id,
              order.fiscal_year, req.user.id]);
 
-        // Update work unit budget
-        if (order.work_unit_id) {
-            db.run('UPDATE finance_work_units SET budget_used = budget_used + ? WHERE id = ?', [order.cost_total, order.work_unit_id]);
-        }
-
+        // budget_used is ledger-derived at read time; the transaction above carries the spend.
         db.run(`UPDATE finance_travel_orders SET status = 'paid', paid_at = datetime(?) WHERE id = ?`,
             ['now', req.params.id]);
         saveDb();
-        res.json({ success: true, transaction_id: transactionId });
+        res.json({ success: true, transaction_id: transactionId, amount: payAmount });
     });
 
     // Travel evidence upload
@@ -26446,40 +26551,45 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     });
 
     // Finance Settings
+    // One canonical key pair for the travel rates: the Settings form historically
+    // wrote km_rate/daily_allowance_rate while the travel-order document reads
+    // travel_km_rate/travel_daily_rate — so the saved rate never reached the
+    // printout. Map legacy keys to the canonical ones on every write.
+    const FIN_SETTINGS_KEY_MAP = { km_rate: 'travel_km_rate', daily_allowance_rate: 'travel_daily_rate' };
+    function finUpsertSettings(body) {
+        Object.entries(body || {}).forEach(([rawKey, value]) => {
+            const key = FIN_SETTINGS_KEY_MAP[rawKey] || rawKey;
+            const existing = query.get('SELECT id FROM finance_settings WHERE setting_key = ?', [key]);
+            if (existing) {
+                db.run('UPDATE finance_settings SET setting_value = ?, updated_at = datetime(?) WHERE setting_key = ?',
+                    [value, 'now', key]);
+            } else {
+                db.run('INSERT INTO finance_settings (id, setting_key, setting_value) VALUES (?, ?, ?)',
+                    [uuidv4(), key, value]);
+            }
+        });
+    }
+
     app.get('/api/finance/settings', auth, adminOnly, (req, res) => {
         const settings = {};
         query.all('SELECT setting_key, setting_value FROM finance_settings').forEach(s => {
             settings[s.setting_key] = s.setting_value;
         });
+        // Serve the legacy aliases FROM the canonical keys so older clients keep working.
+        Object.entries(FIN_SETTINGS_KEY_MAP).forEach(([legacy, canonical]) => {
+            if (settings[canonical] != null) settings[legacy] = settings[canonical];
+        });
         res.json(settings);
     });
 
     app.put('/api/finance/settings', auth, adminOnly, (req, res) => {
-        Object.entries(req.body).forEach(([key, value]) => {
-            const existing = query.get('SELECT id FROM finance_settings WHERE setting_key = ?', [key]);
-            if (existing) {
-                db.run('UPDATE finance_settings SET setting_value = ?, updated_at = datetime(?) WHERE setting_key = ?',
-                    [value, 'now', key]);
-            } else {
-                db.run('INSERT INTO finance_settings (id, setting_key, setting_value) VALUES (?, ?, ?)',
-                    [uuidv4(), key, value]);
-            }
-        });
+        finUpsertSettings(req.body);
         saveDb();
         res.json({ success: true });
     });
 
     app.post('/api/finance/settings', auth, adminOnly, (req, res) => {
-        Object.entries(req.body).forEach(([key, value]) => {
-            const existing = query.get('SELECT id FROM finance_settings WHERE setting_key = ?', [key]);
-            if (existing) {
-                db.run('UPDATE finance_settings SET setting_value = ?, updated_at = datetime(?) WHERE setting_key = ?',
-                    [value, 'now', key]);
-            } else {
-                db.run('INSERT INTO finance_settings (id, setting_key, setting_value) VALUES (?, ?, ?)',
-                    [uuidv4(), key, value]);
-            }
-        });
+        finUpsertSettings(req.body);
         saveDb();
         res.json({ success: true });
     });
@@ -26493,7 +26603,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                 SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END) as total_expenses,
                 COUNT(*) as transaction_count
             FROM finance_transactions
-            WHERE fiscal_year = ? AND project IS NOT NULL
+            WHERE fiscal_year = ? AND project IS NOT NULL AND COALESCE(status,'completed') != 'draft'
             GROUP BY project
             ORDER BY total_expenses DESC
         `, [year]);
@@ -26502,9 +26612,11 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     app.get('/api/finance/reports/by-work-unit', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
+        // USED derives from the expense ledger so this report always matches the transactions it counts.
         const report = query.all(`
-            SELECT wu.id, wu.code, wu.name, wu.budget_total, wu.budget_used,
-                (wu.budget_total - wu.budget_used) as budget_remaining,
+            SELECT wu.id, wu.code, wu.name, wu.budget_total,
+                COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0) as budget_used,
+                (wu.budget_total - COALESCE(SUM(CASE WHEN t.transaction_type = 'expense' THEN t.amount ELSE 0 END), 0)) as budget_remaining,
                 COUNT(t.id) as transaction_count
             FROM finance_work_units wu
             LEFT JOIN finance_transactions t ON wu.id = t.work_unit_id
@@ -26522,7 +26634,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                 SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END) as income,
                 SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END) as expenses
             FROM finance_transactions
-            WHERE fiscal_year = ?
+            WHERE fiscal_year = ? AND COALESCE(status,'completed') != 'draft'
             GROUP BY strftime('%Y-%m', date)
             ORDER BY month
         `, [year]);
@@ -26857,6 +26969,15 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     // Confirm bank transfer received (mark as paid) — also creates Finance income record
     // Supports all payment types: plexus (conference), gala, accelerator, forum
+    // One-time cleanup: earlier confirms booked income under year-suffixed project
+    // values ('plexus-2026', …) that no finance filter can select, splitting each
+    // program across two report rows. Fold them into the canonical taxonomy.
+    try {
+        db.run("UPDATE finance_transactions SET project = 'plexus' WHERE project = 'plexus-2026'");
+        db.run("UPDATE finance_transactions SET project = 'accelerator' WHERE project = 'accelerator-2026'");
+        db.run("UPDATE finance_transactions SET project = 'forum' WHERE project = 'forum-2026'");
+    } catch (e) { console.error('[finance] project alias backfill skipped:', e.message); }
+
     app.post('/api/finance/conference-payments/:id/confirm', auth, adminOnly, async (req, res) => {
         try {
             const paymentType = req.body.payment_type || req.query.payment_type || 'plexus';
@@ -26886,7 +27007,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                 description = `Plexus 2026 — ${attendeeName} — ${reg.ticket_name || 'Conference Ticket'}`;
                 amount = reg.amount_paid;
                 invoiceNumber = reg.invoice_number;
-                project = 'plexus-2026';
+                project = 'plexus'; // canonical short taxonomy — the one every finance filter offers
                 category = 'conference-registration';
 
             } else if (paymentType === 'gala') {
@@ -26905,7 +27026,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                 description = `Gala Evening — ${attendeeName} — ${ticketLabel}`;
                 amount = reg.amount_paid || (reg.pricing === 'bundle' ? 174 : 95);
                 invoiceNumber = reg.invoice_number;
-                project = 'plexus-2026';
+                project = 'plexus'; // canonical short taxonomy
                 category = 'gala-registration';
 
             } else if (paymentType === 'accelerator') {
@@ -26925,7 +27046,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                 description = `Accelerator — ${attendeeName} — Processing Fee`;
                 amount = reg.payment_amount || 75;
                 invoiceNumber = reg.application_number;
-                project = 'accelerator-2026';
+                project = 'accelerator'; // canonical short taxonomy
                 category = 'accelerator-fee';
 
             } else if (paymentType === 'forum') {
@@ -26945,7 +27066,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
                 description = `Forum Event — ${attendeeName} — ${reg.event_title || 'Forum Event'}`;
                 amount = reg.payment_amount || reg.price || 0;
                 invoiceNumber = reg.invoice_number;
-                project = 'forum-2026';
+                project = 'forum'; // canonical short taxonomy
                 category = 'forum-event';
 
             } else {
@@ -35417,6 +35538,34 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const filename = String(req.body.filename || 'statement.csv').slice(0, 200);
             if (!rows.length) return res.status(400).json({ error: 'No rows to import.' });
             if (rows.length > 5000) return res.status(400).json({ error: 'Too many rows (max 5000).' });
+
+            // Re-import guard: importing the same statement twice creates a second
+            // batch whose lines can double-confirm the same payments. Detect prior
+            // identical lines / same filename and require an explicit force to proceed.
+            if (!req.body.force) {
+                const priorFile = query.get(
+                    'SELECT batch_id, MAX(created_at) AS created_at FROM bank_statement_lines WHERE source_filename = ? GROUP BY batch_id ORDER BY created_at DESC LIMIT 1',
+                    [filename]);
+                let dupLines = 0;
+                for (const raw of rows) {
+                    const amt = typeof raw.amount === 'number' ? raw.amount : parseFloat(String(raw.amount || '').replace(/[^0-9.\-]/g, ''));
+                    const hit = query.get(
+                        'SELECT 1 AS x FROM bank_statement_lines WHERE line_date = ? AND amount = ? AND payer = ? AND COALESCE(reference, \'\') = ? LIMIT 1',
+                        [String(raw.date || '').slice(0, 40), isNaN(amt) ? 0 : amt, String(raw.payer || '').slice(0, 300), String(raw.reference || '').slice(0, 500)]);
+                    if (hit) dupLines++;
+                }
+                if (priorFile || dupLines > 0) {
+                    return res.status(409).json({
+                        error: 'This statement appears to have been imported already.',
+                        duplicate: {
+                            same_filename_batch: priorFile ? priorFile.batch_id : null,
+                            same_filename_at: priorFile ? priorFile.created_at : null,
+                            matching_lines: dupLines,
+                            total_lines: rows.length
+                        }
+                    });
+                }
+            }
             const candidates = getReconcileCandidates();
             const batchId = uuidv4();
             const now = new Date().toISOString();
@@ -35470,6 +35619,15 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const type = String(req.body.type || row.matched_source || '');
             const regId = String(req.body.reg_id || row.matched_reg_id || '');
             if (!type || !regId) return res.status(400).json({ error: 'Pick a registration to confirm against.' });
+            // Double-count guard: confirming a line against a registrant who is
+            // already paid (e.g. via a duplicate statement batch) silently re-marks
+            // the same payment. Require an explicit force to do it anyway.
+            if (!req.body.force) {
+                const t0 = regTarget(type, regId);
+                if (t0 && (t0.row.payment_status === 'paid' || t0.row.gala_payment_status === 'paid')) {
+                    return res.status(409).json({ error: 'This registrant is already marked paid — confirming again would double-count the same payment.', already_paid: true });
+                }
+            }
             const mark = markRegistrantPaid(type, regId);
             if (!mark.ok) return res.status(400).json({ error: mark.error });
             db.run("UPDATE bank_statement_lines SET status='confirmed', matched_reg_id=?, matched_source=?, confirmed_at=? WHERE id=?",
@@ -42857,6 +43015,15 @@ ${extraCss || ''}
     // Global error handler (must be 4-arg to catch Express errors)
     app.use((err, req, res, next) => {
         console.error('Unhandled error:', err);
+        // body-parser's oversize error (thrown before any route handler runs) is a
+        // client problem, not a server crash — keep the friendly upload message.
+        if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+            return res.status(413).json({ error: 'Files up to 5MB only — larger files belong on SharePoint.' });
+        }
+        // Honor any other 4xx the middleware stack attached (bad JSON = 400, etc.).
+        if (err && Number.isInteger(err.status) && err.status >= 400 && err.status < 500) {
+            return res.status(err.status).json({ error: err.expose && err.message ? err.message : 'Bad request' });
+        }
         res.status(500).json({ error: 'Internal server error' });
     });
 

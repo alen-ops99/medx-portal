@@ -11008,6 +11008,7 @@ President, Med&amp;X</textarea>
                             <p>Financial management and tracking</p>
                         </div>
                         <div style="display: flex; align-items: center; gap: 12px;">
+                            <span id="finYearClosedBadge" style="display: none; background: rgba(155, 27, 34, 0.15); color: var(--danger); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;"><i class="fas fa-lock"></i> Year closed — read-only</span>
                             <label style="font-size: 13px; color: var(--text-muted);">Fiscal Year:</label>
                             <select id="finYearSelector" onchange="FinanceApp.changeYear(this.value)" style="padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: 14px; font-weight: 600;">
                             </select>
@@ -11111,9 +11112,12 @@ President, Med&amp;X</textarea>
                             </div>
                         </div>
 
-                        <div style="margin-top: 20px;">
-                            <button class="btn btn-danger" onclick="FinanceApp.closeYear()">
+                        <div style="margin-top: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <button class="btn btn-danger" id="finCloseYearBtn" onclick="FinanceApp.closeYear()">
                                 <i class="fas fa-lock"></i> Close Fiscal Year
+                            </button>
+                            <button class="btn btn-secondary" id="finReopenYearBtn" onclick="FinanceApp.reopenYear()" style="display: none;">
+                                <i class="fas fa-lock-open"></i> Reopen Year
                             </button>
                         </div>
                     </div>
@@ -15813,6 +15817,19 @@ President, Med&amp;X</textarea>
                         <option value="bridges">Bridges</option>
                         <option value="general">General</option>
                     </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="finPaymentOrderStatus" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                            <option value="pending">Pending</option>
+                            <option value="executed">Executed</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Execution Date</label>
+                        <input type="date" id="finPaymentOrderExecDate" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -34277,6 +34294,14 @@ By applying to this program, I give the following consents:
             currentYear: new Date().getFullYear(),
             invoiceItems: [],
 
+            // The admin's LOCAL calendar day for date-input defaults.
+            // new Date().toISOString() is UTC and pre-stamps every evening entry with
+            // tomorrow's date (and drifts across month/fiscal-year boundaries).
+            localToday() {
+                const d = new Date();
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            },
+
             async init() {
                 await this.loadYears();
                 await this.loadWorkUnits();
@@ -34307,6 +34332,7 @@ By applying to this program, I give the following consents:
             // Year Management
             async loadYears() {
                 const years = await this.api('/api/finance/years');
+                this._years = years; // keep the full objects — status drives the read-only UI
                 const selector = document.getElementById('finYearSelector');
                 if (!selector) return;
 
@@ -34314,14 +34340,40 @@ By applying to this program, I give the following consents:
                 const yearSet = new Set(years.map(y => y.year));
                 yearSet.add(new Date().getFullYear());
                 const sortedYears = [...yearSet].sort((a, b) => b - a);
+                const statusOf = (y) => (years.find(x => x.year === y) || {}).status;
 
                 selector.innerHTML = sortedYears.map(y =>
-                    `<option value="${y}" ${y === this.currentYear ? 'selected' : ''}>${y}</option>`
+                    `<option value="${y}" ${y === this.currentYear ? 'selected' : ''}>${y}${statusOf(y) === 'closed' ? ' (closed)' : statusOf(y) === 'archived' ? ' (archived)' : ''}</option>`
                 ).join('');
+                this.updateYearLockUI();
+            },
+
+            // Is the currently selected fiscal year locked (closed/archived)?
+            isYearClosed() {
+                const y = (this._years || []).find(x => x.year === this.currentYear);
+                return !!(y && (y.status === 'closed' || y.status === 'archived'));
+            },
+
+            // Reflect the closed state everywhere it matters: badge in the header,
+            // Close vs Reopen button, and disabled Add buttons across the tabs.
+            updateYearLockUI() {
+                const closed = this.isYearClosed();
+                const badge = document.getElementById('finYearClosedBadge');
+                if (badge) badge.style.display = closed ? 'inline-block' : 'none';
+                const closeBtn = document.getElementById('finCloseYearBtn');
+                if (closeBtn) closeBtn.style.display = closed ? 'none' : 'inline-block';
+                const reopenBtn = document.getElementById('finReopenYearBtn');
+                if (reopenBtn) reopenBtn.style.display = closed ? 'inline-block' : 'none';
+                // Disable every finance Add/entry button while the year is locked.
+                document.querySelectorAll('#section-finances .card-header .btn-primary').forEach(b => {
+                    b.disabled = closed;
+                    b.title = closed ? `Fiscal year ${this.currentYear} is closed` : '';
+                });
             },
 
             changeYear(year) {
                 this.currentYear = parseInt(year);
+                this.updateYearLockUI();
                 this.loadDashboard();
                 // Reload current tab data
                 const activeTab = document.querySelector('.finance-tab.active');
@@ -34485,7 +34537,7 @@ By applying to this program, I give the following consents:
 
             openBankBalanceModal() {
                 document.getElementById('finBankBalanceAmount').value = '';
-                document.getElementById('finBankBalanceDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('finBankBalanceDate').value = this.localToday();
                 document.getElementById('finBankBalanceNotes').value = '';
                 document.getElementById('finBankBalanceModal').classList.add('active');
             },
@@ -34530,17 +34582,17 @@ By applying to this program, I give the following consents:
                 }
                 tbody.innerHTML = transactions.map(t => `
                     <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 12px; font-weight: 500;">${t.transaction_number}</td>
-                        <td style="padding: 12px;">${t.date}</td>
+                        <td style="padding: 12px; font-weight: 500;">${escapeHtml(t.transaction_number)}</td>
+                        <td style="padding: 12px;">${escapeHtml(t.date)}</td>
                         <td style="padding: 12px;">
                             <span style="background: ${t.transaction_type === 'income' ? 'rgba(21, 128, 61,0.2)' : 'rgba(155, 27, 34,0.2)'}; color: ${t.transaction_type === 'income' ? 'var(--success)' : 'var(--danger)'}; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">
-                                ${t.transaction_type}
+                                ${escapeHtml(t.transaction_type)}
                             </span>
                         </td>
                         <td style="padding: 12px; text-align: right; font-weight: 600; color: ${t.transaction_type === 'income' ? 'var(--success)' : 'var(--danger)'};">${this.formatCurrency(t.amount)}</td>
-                        <td style="padding: 12px;">${t.description || '-'}</td>
-                        <td style="padding: 12px; text-transform: capitalize;">${t.project || '-'}</td>
-                        <td style="padding: 12px;">${t.work_unit_code || '-'}</td>
+                        <td style="padding: 12px;">${escapeHtml(t.description || '-')}</td>
+                        <td style="padding: 12px; text-transform: capitalize;">${escapeHtml(t.project || '-')}</td>
+                        <td style="padding: 12px;">${escapeHtml(t.work_unit_code || '-')}</td>
                         <td style="padding: 12px; text-align: center;">
                             <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.editTransaction('${t.id}')"><i class="fas fa-edit"></i></button>
                             <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.deleteTransaction('${t.id}')"><i class="fas fa-trash"></i></button>
@@ -34553,7 +34605,7 @@ By applying to this program, I give the following consents:
                 document.getElementById('finTransactionId').value = '';
                 document.getElementById('finTransactionType').value = 'income';
                 document.getElementById('finTransactionAmount').value = '';
-                document.getElementById('finTransactionDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('finTransactionDate').value = this.localToday();
                 document.getElementById('finTransactionDesc').value = '';
                 document.getElementById('finTransactionProject').value = '';
                 document.getElementById('finTransactionWorkUnit').value = '';
@@ -34596,12 +34648,21 @@ By applying to this program, I give the following consents:
                     work_unit_id: document.getElementById('finTransactionWorkUnit').value || null
                 };
 
-                if (!data.amount || !data.date) { Toast.warning('Please fill in amount and date'); return; }
+                if (!data.date || !Number.isFinite(data.amount) || data.amount <= 0) {
+                    Toast.warning('Please enter a positive amount and a date');
+                    return;
+                }
+                if (this.isYearClosed()) { Toast.error(`Fiscal year ${this.currentYear} is closed — reopen it before making changes.`); return; }
 
-                if (id) {
-                    await this.api(`/api/finance/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-                } else {
-                    await this.api('/api/finance/transactions', { method: 'POST', body: JSON.stringify(data) });
+                try {
+                    if (id) {
+                        await this.api(`/api/finance/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+                    } else {
+                        await this.api('/api/finance/transactions', { method: 'POST', body: JSON.stringify(data) });
+                    }
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not save the transaction.'));
+                    return;
                 }
 
                 this.closeModal('finTransactionModal');
@@ -34613,7 +34674,12 @@ By applying to this program, I give the following consents:
 
             async deleteTransaction(id) {
                 if (!(await adminConfirm({ destructive: true, title: "Delete this transaction?", confirmText: "Delete" }))) return;
-                await this.api(`/api/finance/transactions/${id}`, { method: 'DELETE' });
+                try {
+                    await this.api(`/api/finance/transactions/${id}`, { method: 'DELETE' });
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not delete the transaction.'));
+                    return;
+                }
                 this.loadTransactions();
                 this.loadDashboard();
                 // Transactions may affect work unit budget_used, refresh work units
@@ -34696,11 +34762,20 @@ By applying to this program, I give the following consents:
                 };
 
                 if (!data.code || !data.name) { Toast.warning('Please fill in code and name'); return; }
+                // Duplicate codes make the transaction picker ambiguous — pre-check
+                // locally, and surface the server's 400 if a race slips through.
+                const clash = (this.workUnits || []).find(wu => wu.code === data.code && wu.id !== id);
+                if (clash) { Toast.warning(`Code ${data.code} is already used by "${clash.name}"`); return; }
 
-                if (id) {
-                    await this.api(`/api/finance/work-units/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-                } else {
-                    await this.api('/api/finance/work-units', { method: 'POST', body: JSON.stringify(data) });
+                try {
+                    if (id) {
+                        await this.api(`/api/finance/work-units/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+                    } else {
+                        await this.api('/api/finance/work-units', { method: 'POST', body: JSON.stringify(data) });
+                    }
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not save the work unit.'));
+                    return;
                 }
 
                 this.closeModal('finWorkUnitModal');
@@ -34813,27 +34888,27 @@ By applying to this program, I give the following consents:
                 }
                 tbody.innerHTML = invoices.map(inv => `
                     <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 12px; font-weight: 600;">${inv.invoice_number}</td>
+                        <td style="padding: 12px; font-weight: 600;">${/^DRAFT-/.test(inv.invoice_number || '') ? '<span style="color: var(--text-muted); font-weight: 500;">Draft (no number yet)</span>' : escapeHtml(inv.invoice_number)}</td>
                         <td style="padding: 12px;">
                             <span style="background: ${inv.direction === 'outgoing' ? 'rgba(21, 128, 61,0.2)' : 'rgba(155, 27, 34,0.2)'}; color: ${inv.direction === 'outgoing' ? 'var(--success)' : 'var(--danger)'}; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
                                 ${inv.direction === 'outgoing' ? 'Outgoing' : 'Incoming'}
                             </span>
                         </td>
-                        <td style="padding: 12px;">${inv.party_name}</td>
-                        <td style="padding: 12px; font-size: 12px; color: var(--text-muted);">${inv.party_oib || '-'}</td>
+                        <td style="padding: 12px;">${escapeHtml(inv.party_name)}</td>
+                        <td style="padding: 12px; font-size: 12px; color: var(--text-muted);">${escapeHtml(inv.party_oib || '-')}</td>
                         <td style="padding: 12px; text-align: right; font-weight: 600;">${this.formatCurrency(inv.total)}</td>
-                        <td style="padding: 12px;">${inv.issue_date || '-'}</td>
-                        <td style="padding: 12px;">${inv.due_date || '-'}</td>
+                        <td style="padding: 12px;">${escapeHtml(inv.issue_date || '-')}</td>
+                        <td style="padding: 12px;">${escapeHtml(inv.due_date || '-')}</td>
                         <td style="padding: 12px; text-align: center;">
                             <span style="background: ${inv.status === 'paid' ? 'rgba(21, 128, 61,0.2)' : inv.status === 'issued' ? 'rgba(180, 83, 9,0.2)' : 'rgba(156,163,175,0.2)'}; color: ${inv.status === 'paid' ? 'var(--success)' : inv.status === 'issued' ? 'var(--warning)' : 'var(--text-muted)'}; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">
-                                ${inv.status}
+                                ${escapeHtml(inv.status)}
                             </span>
                         </td>
                         <td style="padding: 12px; text-align: center;">
-                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.openPrintable('/api/finance/invoices/${inv.id}/pdf', 'Račun ${inv.invoice_number}')" title="Open invoice (print / save as PDF)"><i class="fas fa-file-pdf"></i></button>
+                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.openPrintable('/api/finance/invoices/${inv.id}/pdf', 'Račun ${escapeHtml(inv.invoice_number || '')}')" title="Open invoice (print / save as PDF)"><i class="fas fa-file-pdf"></i></button>
                             ${inv.status === 'draft' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.issueInvoice('${inv.id}')" title="Issue"><i class="fas fa-paper-plane"></i></button>` : ''}
                             ${inv.status === 'issued' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.markInvoicePaid('${inv.id}')" title="Mark Paid"><i class="fas fa-check"></i></button>` : ''}
-                            <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>
+                            ${inv.status === 'draft' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>` : ''}
                         </td>
                     </tr>
                 `).join('');
@@ -34847,7 +34922,7 @@ By applying to this program, I give the following consents:
                 document.getElementById('finInvoicePartyAddress').value = '';
                 document.getElementById('finInvoicePartyOib').value = '';
                 document.getElementById('finInvoicePartyEmail').value = '';
-                document.getElementById('finInvoiceIssueDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('finInvoiceIssueDate').value = this.localToday();
                 document.getElementById('finInvoiceDueDate').value = '';
                 document.getElementById('finInvoiceNotes').value = '';
                 document.getElementById('finInvoiceModalTitle').textContent = 'Create Invoice';
@@ -34861,12 +34936,12 @@ By applying to this program, I give the following consents:
                 const idx = this.invoiceItems.length;
                 this.invoiceItems.push({ description: '', quantity: 1, unit_price: 0, discount_percent: 0, vat_rate: 25 });
                 container.innerHTML += `
-                    <div class="invoice-item" data-idx="${idx}" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: end;">
-                        <input type="text" placeholder="Description" onchange="FinanceApp.updateInvoiceItem(${idx}, 'description', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
-                        <input type="number" placeholder="Qty" value="1" onchange="FinanceApp.updateInvoiceItem(${idx}, 'quantity', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
-                        <input type="number" placeholder="Price" step="0.01" onchange="FinanceApp.updateInvoiceItem(${idx}, 'unit_price', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
-                        <input type="number" placeholder="Disc %" value="0" onchange="FinanceApp.updateInvoiceItem(${idx}, 'discount_percent', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
-                        <input type="number" placeholder="VAT %" value="25" onchange="FinanceApp.updateInvoiceItem(${idx}, 'vat_rate', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                    <div class="invoice-item" data-idx="${idx}" style="display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto; gap: 8px; margin-bottom: 8px; align-items: end;">
+                        <input type="text" placeholder="Description" onchange="FinanceApp.updateInvoiceItem(${idx}, 'description', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <input type="number" placeholder="Qty" value="1" onchange="FinanceApp.updateInvoiceItem(${idx}, 'quantity', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <input type="number" placeholder="Price" step="0.01" onchange="FinanceApp.updateInvoiceItem(${idx}, 'unit_price', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <input type="number" placeholder="Disc %" value="0" onchange="FinanceApp.updateInvoiceItem(${idx}, 'discount_percent', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <input type="number" placeholder="VAT %" value="25" onchange="FinanceApp.updateInvoiceItem(${idx}, 'vat_rate', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                         <button class="btn btn-secondary" style="padding: 8px;" onclick="FinanceApp.removeInvoiceItem(${idx})"><i class="fas fa-times"></i></button>
                     </div>
                 `;
@@ -34889,12 +34964,12 @@ By applying to this program, I give the following consents:
                 container.innerHTML = '';
                 this.invoiceItems.forEach((item, idx) => {
                     container.innerHTML += `
-                        <div class="invoice-item" data-idx="${idx}" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: end;">
-                            <input type="text" placeholder="Description" value="${escapeHtml(item.description)}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'description', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
-                            <input type="number" placeholder="Qty" value="${item.quantity}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'quantity', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
-                            <input type="number" placeholder="Price" step="0.01" value="${item.unit_price}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'unit_price', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
-                            <input type="number" placeholder="Disc %" value="${item.discount_percent}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'discount_percent', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
-                            <input type="number" placeholder="VAT %" value="${item.vat_rate}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'vat_rate', this.value)" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <div class="invoice-item" data-idx="${idx}" style="display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto; gap: 8px; margin-bottom: 8px; align-items: end;">
+                            <input type="text" placeholder="Description" value="${escapeHtml(item.description)}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'description', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                            <input type="number" placeholder="Qty" value="${item.quantity}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'quantity', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                            <input type="number" placeholder="Price" step="0.01" value="${item.unit_price}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'unit_price', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                            <input type="number" placeholder="Disc %" value="${item.discount_percent}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'discount_percent', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                            <input type="number" placeholder="VAT %" value="${item.vat_rate}" onchange="FinanceApp.updateInvoiceItem(${idx}, 'vat_rate', this.value)" style="min-width: 0; width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                             <button class="btn btn-secondary" style="padding: 8px;" onclick="FinanceApp.removeInvoiceItem(${idx})"><i class="fas fa-times"></i></button>
                         </div>
                     `;
@@ -34938,12 +35013,24 @@ By applying to this program, I give the following consents:
                 };
 
                 if (!data.party_name) { Toast.warning('Please fill in party name'); return; }
-                if (data.items.length === 0) { Toast.warning('Please add at least one item'); return; }
+                if (data.items.length === 0) {
+                    Toast.warning('Please add at least one item');
+                    // The Line Items section sits below the fold with no scrollbar cue —
+                    // bring it into view so the error points at something visible.
+                    const itemsEl = document.getElementById('finInvoiceItems');
+                    if (itemsEl) itemsEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
+                }
 
-                if (id) {
-                    await this.api(`/api/finance/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-                } else {
-                    await this.api('/api/finance/invoices', { method: 'POST', body: JSON.stringify(data) });
+                try {
+                    if (id) {
+                        await this.api(`/api/finance/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+                    } else {
+                        await this.api('/api/finance/invoices', { method: 'POST', body: JSON.stringify(data) });
+                    }
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not save the invoice.'));
+                    return;
                 }
 
                 this.closeModal('finInvoiceModal');
@@ -34952,15 +35039,26 @@ By applying to this program, I give the following consents:
             },
 
             async issueInvoice(id) {
-                if (!(await adminConfirm({ title: "Issue this invoice?", confirmText: "Issue" }))) return;
-                await this.api(`/api/finance/invoices/${id}/issue`, { method: 'POST' });
+                if (!(await adminConfirm({ title: "Issue this invoice?", message: "The invoice receives its sequential number now.", confirmText: "Issue" }))) return;
+                try {
+                    const r = await this.api(`/api/finance/invoices/${id}/issue`, { method: 'POST' });
+                    if (r && r.invoice_number) Toast.success(`Issued as ${r.invoice_number}`);
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not issue the invoice.'));
+                    return;
+                }
                 this.loadInvoices();
                 this.loadDashboard();
             },
 
             async markInvoicePaid(id) {
                 if (!(await adminConfirm({ title: "Mark this invoice as paid?", message: "This will create a transaction.", confirmText: "Confirm" }))) return;
-                await this.api(`/api/finance/invoices/${id}/mark-paid`, { method: 'POST' });
+                try {
+                    await this.api(`/api/finance/invoices/${id}/mark-paid`, { method: 'POST' });
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not mark the invoice paid.'));
+                    return;
+                }
                 this.loadInvoices();
                 this.loadDashboard();
                 // Marking paid creates a transaction, so refresh transactions list if it's been loaded
@@ -34969,7 +35067,12 @@ By applying to this program, I give the following consents:
 
             async deleteInvoice(id) {
                 if (!(await adminConfirm({ destructive: true, title: "Delete this invoice?", confirmText: "Delete" }))) return;
-                await this.api(`/api/finance/invoices/${id}`, { method: 'DELETE' });
+                try {
+                    await this.api(`/api/finance/invoices/${id}`, { method: 'DELETE' });
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not delete the invoice.'));
+                    return;
+                }
                 this.loadInvoices();
                 this.loadDashboard();
             },
@@ -34984,17 +35087,18 @@ By applying to this program, I give the following consents:
                 }
                 tbody.innerHTML = orders.map(po => `
                     <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 12px; font-weight: 600;">${po.order_number}</td>
-                        <td style="padding: 12px;">${po.recipient_name}</td>
+                        <td style="padding: 12px; font-weight: 600;">${escapeHtml(po.order_number)}</td>
+                        <td style="padding: 12px;">${escapeHtml(po.recipient_name)}</td>
                         <td style="padding: 12px; text-align: right; font-weight: 600;">${this.formatCurrency(po.amount)}</td>
-                        <td style="padding: 12px;">${po.date}</td>
-                        <td style="padding: 12px; text-transform: capitalize;">${po.project || '-'}</td>
+                        <td style="padding: 12px;">${escapeHtml(po.date)}</td>
+                        <td style="padding: 12px; text-transform: capitalize;">${escapeHtml(po.project || '-')}</td>
                         <td style="padding: 12px; text-align: center;">
                             <span style="background: ${po.status === 'executed' ? 'rgba(21, 128, 61,0.2)' : 'rgba(180, 83, 9,0.2)'}; color: ${po.status === 'executed' ? 'var(--success)' : 'var(--warning)'}; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">
-                                ${po.status}
+                                ${escapeHtml(po.status)}
                             </span>
                         </td>
                         <td style="padding: 12px; text-align: center;">
+                            ${po.status !== 'executed' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.markPaymentOrderExecuted('${po.id}')" title="Mark executed"><i class="fas fa-check"></i></button>` : ''}
                             <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.editPaymentOrder('${po.id}')"><i class="fas fa-edit"></i></button>
                             <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.deletePaymentOrder('${po.id}')"><i class="fas fa-trash"></i></button>
                         </td>
@@ -35002,15 +35106,28 @@ By applying to this program, I give the following consents:
                 `).join('');
             },
 
+            // One-click lifecycle action: the bank transfer is done -> mark executed.
+            async markPaymentOrderExecuted(id) {
+                const po = await this.api(`/api/finance/payment-orders/${id}`);
+                await this.api(`/api/finance/payment-orders/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ ...po, status: 'executed', execution_date: po.execution_date || this.localToday() })
+                });
+                Toast.success(`${po.order_number} marked executed`);
+                this.loadPaymentOrders();
+            },
+
             openPaymentOrderModal() {
                 document.getElementById('finPaymentOrderId').value = '';
                 document.getElementById('finPaymentOrderRecipient').value = '';
                 document.getElementById('finPaymentOrderIban').value = '';
                 document.getElementById('finPaymentOrderAmount').value = '';
-                document.getElementById('finPaymentOrderDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('finPaymentOrderDate').value = this.localToday();
                 document.getElementById('finPaymentOrderRef').value = '';
                 document.getElementById('finPaymentOrderDesc').value = '';
                 document.getElementById('finPaymentOrderProject').value = '';
+                document.getElementById('finPaymentOrderStatus').value = 'pending';
+                document.getElementById('finPaymentOrderExecDate').value = '';
                 document.getElementById('finPaymentOrderModalTitle').textContent = 'Add Payment Order';
                 document.getElementById('finPaymentOrderModal').classList.add('active');
             },
@@ -35025,6 +35142,8 @@ By applying to this program, I give the following consents:
                 document.getElementById('finPaymentOrderRef').value = po.reference || '';
                 document.getElementById('finPaymentOrderDesc').value = po.description || '';
                 document.getElementById('finPaymentOrderProject').value = po.project || '';
+                document.getElementById('finPaymentOrderStatus').value = po.status || 'pending';
+                document.getElementById('finPaymentOrderExecDate').value = po.execution_date || '';
                 document.getElementById('finPaymentOrderModalTitle').textContent = 'Edit Payment Order';
                 document.getElementById('finPaymentOrderModal').classList.add('active');
             },
@@ -35040,7 +35159,10 @@ By applying to this program, I give the following consents:
                     description: document.getElementById('finPaymentOrderDesc').value,
                     project: document.getElementById('finPaymentOrderProject').value || null,
                     fiscal_year: this.currentYear,
-                    status: 'pending'
+                    // Status comes from the modal — an edit save must not clobber an
+                    // executed order back to pending.
+                    status: document.getElementById('finPaymentOrderStatus').value || 'pending',
+                    execution_date: document.getElementById('finPaymentOrderExecDate').value || null
                 };
 
                 if (!data.recipient_name || !data.amount || !data.date) { Toast.warning('Please fill in recipient, amount and date'); return; }
@@ -35127,7 +35249,7 @@ By applying to this program, I give the following consents:
 
             async openTravelOrderModal() {
                 document.getElementById('finTravelOrderId').value = '';
-                document.getElementById('finTravelOrderIssueDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('finTravelOrderIssueDate').value = this.localToday();
                 document.getElementById('finTravelOrderDest').value = '';
                 document.getElementById('finTravelOrderPurpose').value = '';
                 document.getElementById('finTravelOrderDeparture').value = '';
@@ -35655,10 +35777,31 @@ By applying to this program, I give the following consents:
                 const btn = document.getElementById('reconImportBtn');
                 btn.disabled = true; const orig = btn.innerHTML; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Matching...';
                 try {
-                    const res = await this.api('/api/finance/reconcile/import', {
+                    // Raw fetch: a 409 carries structured duplicate info the admin must see.
+                    const doPost = (force) => fetch('/api/finance/reconcile/import', {
                         method: 'POST',
-                        body: JSON.stringify({ filename: this._recon.filename || 'statement.csv', rows })
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+                        body: JSON.stringify({ filename: this._recon.filename || 'statement.csv', rows, force: !!force })
                     });
+                    let raw = await doPost(false);
+                    if (raw.status === 409) {
+                        const dup = (await raw.json().catch(() => ({}))).duplicate || {};
+                        const when = dup.same_filename_at ? ` on ${String(dup.same_filename_at).slice(0, 10)}` : '';
+                        const detail = dup.matching_lines ? ` ${dup.matching_lines} of ${dup.total_lines} lines already exist in a previous batch.` : '';
+                        const ok = await adminConfirm({
+                            destructive: true,
+                            title: 'Statement already imported?',
+                            message: `This statement appears to have been imported already${when}.${detail}\n\nImporting it again risks double-confirming the same payments. Import anyway?`,
+                            confirmText: 'Import anyway'
+                        });
+                        if (!ok) { return; }
+                        raw = await doPost(true);
+                    }
+                    if (!raw.ok) {
+                        const err = await raw.json().catch(() => ({}));
+                        throw new Error(err.error || `Request failed (${raw.status})`);
+                    }
+                    const res = await raw.json();
                     this._recon.batchId = res.batch_id;
                     this._recon.candidates = res.candidates || [];
                     this._recon.highThreshold = res.high_threshold || 0.85;
@@ -35778,7 +35921,29 @@ By applying to this program, I give the following consents:
                 if (!sel || !sel.value) { Toast.error('Pick a registration first.'); return; }
                 const [type, reg_id] = sel.value.split('::');
                 try {
-                    const res = await this.api(`/api/finance/reconcile/line/${lineId}/confirm`, { method: 'POST', body: JSON.stringify({ type, reg_id }) });
+                    // Raw fetch: a 409 means the registrant is already paid and needs
+                    // an explicit human decision, not a generic failure toast.
+                    const doPost = (force) => fetch(`/api/finance/reconcile/line/${lineId}/confirm`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${App.token}` },
+                        body: JSON.stringify({ type, reg_id, force: !!force })
+                    });
+                    let raw = await doPost(false);
+                    if (raw.status === 409) {
+                        const ok = await adminConfirm({
+                            destructive: true,
+                            title: 'Already marked paid',
+                            message: 'This registrant is already marked paid — confirming this line again would count the same payment twice (e.g. from a duplicate statement import). Confirm anyway?',
+                            confirmText: 'Confirm anyway'
+                        });
+                        if (!ok) return;
+                        raw = await doPost(true);
+                    }
+                    if (!raw.ok) {
+                        const err = await raw.json().catch(() => ({}));
+                        throw new Error(err.error || `Request failed (${raw.status})`);
+                    }
+                    const res = await raw.json();
                     Toast.success(`Marked paid: ${res.matched_name || 'registration'}`);
                     await this.refreshReconLines();
                 } catch (e) { Toast.error('Confirm failed: ' + e.message); }
@@ -35914,13 +36079,52 @@ By applying to this program, I give the following consents:
 
             // Close year
             async closeYear() {
-                if (!(await adminConfirm({ title: "Close fiscal year", message: `Close fiscal year ${this.currentYear}? This will close all work units for this year.`, confirmText: "Close year" }))) return;
-                await this.api(`/api/finance/years/${this.currentYear}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ status: 'closed' })
+                if (this.isYearClosed()) { Toast.warning(`Fiscal year ${this.currentYear} is already closed.`); return; }
+                // Consequential + guarded: spell out exactly what closing does and
+                // require the year typed back before proceeding.
+                const typed = await adminPrompt({
+                    title: `Close fiscal year ${this.currentYear}`,
+                    message: `Closing this year will:\n` +
+                        `• make the whole ${this.currentYear} ledger READ-ONLY (no new or edited transactions, invoices, payment or travel orders)\n` +
+                        `• force-close all ${this.currentYear} work units\n` +
+                        `• keep reports and exports available\n\n` +
+                        `You can reopen it later with the Reopen Year button.\n\n` +
+                        `Type ${this.currentYear} to confirm:`
                 });
+                if (typed === null) return;
+                if (String(typed).trim() !== String(this.currentYear)) {
+                    Toast.warning('Year not confirmed — nothing was closed.');
+                    return;
+                }
+                try {
+                    await this.api(`/api/finance/years/${this.currentYear}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ status: 'closed' })
+                    });
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not close the year.'));
+                    return;
+                }
                 Toast.success('Fiscal year closed.');
                 // Closing a year affects all data — do a full refresh
+                await this.loadYears();
+                this.loadWorkUnits();
+                this.refreshAll();
+            },
+
+            async reopenYear() {
+                if (!(await adminConfirm({ title: `Reopen fiscal year ${this.currentYear}?`, message: `The ${this.currentYear} ledger becomes editable again and the work units force-closed at close time come back as active.`, confirmText: "Reopen" }))) return;
+                try {
+                    await this.api(`/api/finance/years/${this.currentYear}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ status: 'open' })
+                    });
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not reopen the year.'));
+                    return;
+                }
+                Toast.success('Fiscal year reopened.');
+                await this.loadYears();
                 this.loadWorkUnits();
                 this.refreshAll();
             },
