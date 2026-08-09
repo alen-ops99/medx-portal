@@ -11823,7 +11823,10 @@ President, Med&amp;X</textarea>
                                 </select>
                                 <select id="prCalendarStatus" onchange="PRApp.refreshCalendarView()" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);">
                                     <option value="">All Statuses</option>
+                                    <option value="idea">Idea</option>
                                     <option value="draft">Draft</option>
+                                    <option value="scheduled">Scheduled</option>
+                                    <option value="approved">Approved</option>
                                     <option value="published">Published</option>
                                 </select>
                                 <!-- Platform filter hidden for simplicity -->
@@ -11952,6 +11955,8 @@ President, Med&amp;X</textarea>
                                         <option value="photo">Photos</option>
                                         <option value="graphic">Graphics</option>
                                         <option value="logo">Logos</option>
+                                        <option value="video">Videos</option>
+                                        <option value="document">Documents</option>
                                         <option value="template">Templates</option>
                                         <option value="ai">AI Generated</option>
                                     </select>
@@ -12044,7 +12049,9 @@ President, Med&amp;X</textarea>
                                         <i class="fas fa-magic"></i> Generate Caption
                                     </button>
                                     <div id="prAiCaptionResult" style="margin-top: 16px; display: none;">
+                                        <div style="font-weight: 600; margin-bottom: 8px;"><i class="fas fa-clipboard-list" style="color: var(--pr-media); margin-right: 6px;"></i>Caption (template mode)</div>
                                         <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; white-space: pre-wrap;" id="prAiGeneratedCaption"></div>
+                                        <p style="font-size: 12px; color: var(--text-muted); margin: 8px 0 0;">Composed from your topic with a tone/platform template — no AI was involved. Treat it as a starting point; add an AI key for real generation.</p>
                                         <div style="margin-top: 12px; display: flex; gap: 8px;">
                                             <button class="btn btn-primary" onclick="PRApp.useGeneratedCaption()"><i class="fas fa-copy"></i> Copy</button>
                                             <button class="btn btn-secondary" onclick="PRApp.generateCaption()"><i class="fas fa-redo"></i> Regenerate</button>
@@ -16199,6 +16206,15 @@ President, Med&amp;X</textarea>
                         <label>End Date</label>
                         <input type="date" id="prCampaignEnd" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="prCampaignStatus" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-primary);">
+                        <option value="planning">Planning</option>
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                        <option value="completed">Completed</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>Goal</label>
@@ -39279,6 +39295,7 @@ By applying to this program, I give the following consents:
                     const d = await this.api('/api/pr/press-releases/draft', { method: 'POST', body: JSON.stringify(payload) });
                     this.pressState.aiGenerated = !d.mock;
                     this.pressRenderEditor({ en: d.en || null, hr: d.hr || null });
+                    if (d.hr && d.hr.untranslated) Toast.show('Croatian (HR) column is untranslated — translate the English draft before publishing.', 'warning');
                     if (d.mock) Toast.show('Drafted from the template baseline. Add your live AI key for a richer first draft.', 'info');
                 } catch (e) {
                     Toast.show('Could not draft the release. You can still write it manually.', 'error');
@@ -39842,6 +39859,13 @@ By applying to this program, I give the following consents:
             // Persist the composer (create or update) and return the calendar id.
             async persistContent() {
                 const id = document.getElementById('prContentId').value;
+                // A calendar entry needs at least a title or a caption — otherwise it
+                // renders as a bare "Untitled" chip. Mirrors the server-side 400.
+                if (!document.getElementById('prContentTitle').value.trim() &&
+                    !document.getElementById('prContentText').value.trim()) {
+                    Toast.error('Add a title or caption before saving.');
+                    return null;
+                }
                 const data = {
                     project: document.getElementById('prContentProject').value,
                     platform: document.getElementById('prContentPlatform').value,
@@ -39864,7 +39888,8 @@ By applying to this program, I give the following consents:
             },
 
             async saveContent() {
-                await this.persistContent();
+                const id = await this.persistContent();
+                if (!id) return; // validation failed — keep the modal open
                 this.closeModal('prContentModal');
                 this.loadCalendar();
                 this.loadDashboard();
@@ -39926,19 +39951,51 @@ By applying to this program, I give the following consents:
                     return;
                 }
 
+                this._posts = posts; // cache for editPost()
                 container.innerHTML = posts.map(p => `
                     <div class="card" style="padding: 16px;">
                         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
                             <i class="${this.platformIcons[p.platform]}" style="font-size: 20px; color: ${this.platformColors[p.platform]};"></i>
                             <div style="flex: 1;">
-                                <div style="font-weight: 600; text-transform: capitalize;">${p.platform}</div>
+                                <div style="font-weight: 600; text-transform: capitalize;">${escapeHtml(p.platform)}</div>
                                 <div style="font-size: 12px; color: var(--text-muted);">${p.published_at?.split('T')[0] || 'No date'}</div>
                             </div>
-                            <span style="background: rgba(var(--plexus-rgb), 0.2); color: var(--plexus); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${p.project || 'General'}</span>
+                            <span style="background: rgba(var(--plexus-rgb), 0.2); color: var(--plexus); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${escapeHtml(p.project || 'General')}</span>
+                            <button class="btn btn-secondary" style="padding: 4px 8px;" title="Edit" onclick="PRApp.editPost('${p.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-secondary" style="padding: 4px 8px;" title="Delete" onclick="PRApp.deletePost('${p.id}')"><i class="fas fa-trash"></i></button>
                         </div>
-                        <p style="font-size: 13px; color: var(--text-secondary); margin: 0;">${p.content_text?.substring(0, 200) || 'No caption'}</p>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 8px;">${escapeHtml(p.content_text?.substring(0, 200) || 'No caption')}</p>
+                        <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap;">
+                            <span><i class="fas fa-heart"></i> ${p.likes || 0}</span>
+                            <span><i class="fas fa-comment"></i> ${p.comments || 0}</span>
+                            <span><i class="fas fa-share"></i> ${p.shares || 0}</span>
+                            <span><i class="fas fa-eye"></i> ${p.reach || 0} reach</span>
+                            <span><i class="fas fa-chart-line"></i> ${(p.engagement_rate || 0).toFixed(1)}% engagement</span>
+                        </div>
                     </div>
                 `).join('');
+            },
+
+            editPost(id) {
+                const p = (this._posts || []).find(x => x.id === id);
+                if (!p) return;
+                document.getElementById('prPostId').value = p.id;
+                document.getElementById('prPostProject').value = p.project || 'plexus';
+                document.getElementById('prPostPlatform').value = p.platform || 'instagram';
+                document.getElementById('prPostDate').value = (p.published_at || '').slice(0, 16);
+                document.getElementById('prPostText').value = p.content_text || '';
+                document.getElementById('prPostLikes').value = p.likes || 0;
+                document.getElementById('prPostComments').value = p.comments || 0;
+                document.getElementById('prPostShares').value = p.shares || 0;
+                document.getElementById('prPostReach').value = p.reach || 0;
+                document.getElementById('prPostModal').classList.add('active');
+            },
+
+            async deletePost(id) {
+                if (!(await adminConfirm({ destructive: true, title: 'Delete this logged post?', confirmText: 'Delete' }))) return;
+                await this.api(`/api/pr/posts/${id}`, { method: 'DELETE' });
+                this.loadPosts();
+                this.loadDashboard();
             },
 
             openPostModal() {
@@ -39955,6 +40012,7 @@ By applying to this program, I give the following consents:
             },
 
             async savePost() {
+                const id = document.getElementById('prPostId').value;
                 const data = {
                     project: document.getElementById('prPostProject').value,
                     platform: document.getElementById('prPostPlatform').value,
@@ -39966,7 +40024,11 @@ By applying to this program, I give the following consents:
                     reach: parseInt(document.getElementById('prPostReach').value) || 0
                 };
 
-                await this.api('/api/pr/posts', { method: 'POST', body: JSON.stringify(data) });
+                if (id) {
+                    await this.api(`/api/pr/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+                } else {
+                    await this.api('/api/pr/posts', { method: 'POST', body: JSON.stringify(data) });
+                }
                 this.closeModal('prPostModal');
                 this.loadPosts();
                 this.loadDashboard();
@@ -40110,7 +40172,9 @@ By applying to this program, I give the following consents:
                 const grid = document.getElementById('prMediaGrid');
 
                 if (!assets.length) {
-                    grid.innerHTML = '<p style="color: var(--text-muted);">No media files. Upload images to build your library.</p>';
+                    grid.innerHTML = (category || search)
+                        ? '<p style="color: var(--text-muted);">No media match this filter.</p>'
+                        : '<p style="color: var(--text-muted);">No media files. Upload images to build your library.</p>';
                     return;
                 }
 
@@ -40238,6 +40302,7 @@ By applying to this program, I give the following consents:
                 document.getElementById('prCampaignEnd').value = '';
                 document.getElementById('prCampaignGoal').value = '';
                 document.getElementById('prCampaignAudience').value = '';
+                document.getElementById('prCampaignStatus').value = 'planning';
                 document.getElementById('prCampaignModalTitle').textContent = 'New Campaign';
                 document.getElementById('prCampaignModal').classList.add('active');
             },
@@ -40252,6 +40317,7 @@ By applying to this program, I give the following consents:
                 document.getElementById('prCampaignEnd').value = c.end_date || '';
                 document.getElementById('prCampaignGoal').value = c.goal || '';
                 document.getElementById('prCampaignAudience').value = c.target_audience || '';
+                document.getElementById('prCampaignStatus').value = c.status || 'planning';
                 document.getElementById('prCampaignModalTitle').textContent = 'Edit Campaign';
                 document.getElementById('prCampaignModal').classList.add('active');
             },
@@ -40259,15 +40325,23 @@ By applying to this program, I give the following consents:
             async saveCampaign() {
                 const id = document.getElementById('prCampaignId').value;
                 const data = {
-                    name: document.getElementById('prCampaignName').value,
+                    name: document.getElementById('prCampaignName').value.trim(),
                     project: document.getElementById('prCampaignProject').value || null,
                     description: document.getElementById('prCampaignDesc').value,
                     start_date: document.getElementById('prCampaignStart').value || null,
                     end_date: document.getElementById('prCampaignEnd').value || null,
                     goal: document.getElementById('prCampaignGoal').value,
                     target_audience: document.getElementById('prCampaignAudience').value,
-                    status: id ? undefined : 'planning'
+                    status: document.getElementById('prCampaignStatus').value || 'planning'
                 };
+                if (!data.name) {
+                    Toast.error('Campaign name is required.');
+                    return;
+                }
+                if (data.start_date && data.end_date && data.end_date < data.start_date) {
+                    Toast.error('End date must be on or after the start date.');
+                    return;
+                }
 
                 if (id) {
                     await this.api(`/api/pr/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -40329,6 +40403,11 @@ By applying to this program, I give the following consents:
                 };
 
                 if (!data.email) { Toast.warning('Email is required'); return; }
+                const emailEl = document.getElementById('prSubscriberEmail');
+                if (!emailEl.checkValidity() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email.trim())) {
+                    Toast.warning('Enter a valid email address');
+                    return;
+                }
 
                 await this.api('/api/pr/subscribers', { method: 'POST', body: JSON.stringify(data) });
                 this.closeModal('prSubscriberModal');
@@ -40528,6 +40607,25 @@ By applying to this program, I give the following consents:
 
             async markUsed(id) {
                 await this.api(`/api/pr/ai-generations/${id}/use`, { method: 'POST' });
+                // "Use" should carry the text somewhere, not just flip a flag: open a
+                // prefilled calendar draft for caption-type generations.
+                try {
+                    const history = await this.api('/api/pr/ai-generations');
+                    const gen = (history || []).find(h => h.id === id);
+                    if (gen && gen.result_text && gen.type !== 'image') {
+                        this.openContentModal();
+                        document.getElementById('prContentText').value = gen.result_text;
+                        if (gen.platform && document.querySelector(`#prContentPlatform option[value="${gen.platform}"]`)) {
+                            document.getElementById('prContentPlatform').value = gen.platform;
+                        }
+                        if (gen.project) {
+                            const projEl = document.getElementById('prContentProject');
+                            if (projEl.querySelector(`option[value="${gen.project}"]`)) projEl.value = gen.project;
+                        }
+                        this.updateCounter();
+                        Toast.success('Draft opened with the generated text — review and save.');
+                    }
+                } catch (e) { /* marking used still succeeded */ }
                 this.loadAiHistory();
             },
 
@@ -42887,7 +42985,7 @@ By applying to this program, I give the following consents:
             // Lowercase + strip Croatian diacritics so one ASCII pattern covers č/ć/š/ž/đ.
             _mealNorm(s) {
                 return String(s == null ? '' : s)
-                    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                     .replace(/đ/g, 'd').replace(/Đ/g, 'd')
                     .toLowerCase();
             },
@@ -48509,6 +48607,13 @@ By applying to this program, I give the following consents:
             },
 
             esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(s == null ? '' : String(s)) : String(s == null ? '' : s); },
+            // Human filename for downloads (mirrors the Signage studio's _fileBase pattern):
+            // transliterate diacritics (č/ć→c ž→z š→s đ→d ü→u …) before slugging.
+            _slugName(s) {
+                return String(s || 'print').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .replace(/đ/g, 'd').replace(/Đ/g, 'd').replace(/ß/g, 'ss')
+                    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'print';
+            },
             async api(path, opts) {
                 const r = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + App.token } }, opts || {}));
                 let d = null; try { d = await r.json(); } catch (e) {}
@@ -48751,12 +48856,19 @@ By applying to this program, I give the following consents:
                 }
                 const d = r.d;
                 const sizeCm = (Math.round(d.pageW / 10 * 10) / 10) + ' × ' + (Math.round(d.pageH / 10 * 10) / 10) + ' cm';
+                // Meaningful download name (gala-evening-badges.pdf) instead of the raw
+                // server UUID — same-origin URL, so the download attribute is honored.
+                const evName = (this.ctx && this.ctx.event && this.ctx.event.name) || this.event;
+                const kindLabel = this.tab === 'badges' ? (this.opts.badges.mode === 'single' ? 'badges-single' : 'badges')
+                    : this.tab === 'banner' ? ('rollup-' + this.opts.banner.size)
+                    : this.tab;
+                const dlName = this._slugName(evName + ' ' + kindLabel) + '.pdf';
                 const warns = (d.warnings || []).map(w => `<div class="pr-warn"><i class="fas fa-triangle-exclamation" style="margin-top:1px;"></i><span>${this.esc(w.note)}</span></div>`).join('');
                 res.innerHTML = `<div class="pr-resultcard">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
                         <div><div style="font-weight:700;color:var(--text-primary);"><i class="fas fa-circle-check" style="color:#1f7a44;"></i> Print-ready PDF</div>
                         <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${d.pages} page${d.pages === 1 ? '' : 's'} · ${sizeCm} · ${(d.bytes / 1024).toFixed(0)} KB${d.cmyk ? ' · CMYK' : ''}</div></div>
-                        <a class="pr-dl" href="${this.esc(d.url)}" download target="_blank" rel="noopener"><i class="fas fa-download"></i> Download PDF</a>
+                        <a class="pr-dl" href="${this.esc(d.url)}" download="${this.esc(dlName)}" target="_blank" rel="noopener"><i class="fas fa-download"></i> Download PDF</a>
                     </div>
                     ${d.cmykRequested && !d.cmyk ? '<div class="pr-warn"><i class="fas fa-triangle-exclamation"></i><span>CMYK conversion was requested but is unavailable on this server — the RGB PDF was kept.</span></div>' : ''}
                     ${warns}
@@ -49546,7 +49658,7 @@ By applying to this program, I give the following consents:
                 if(!p){ wrap.innerHTML=''; return; }
                 this._ensureImg(p).then(function(){ var draw=function(){ try{ var cv=window.MedxCard.render(self._optsFor(p,'portrait')); wrap.innerHTML=''; wrap.appendChild(cv); }catch(e){} }; var go=function(){ window.MedxCard.ready().then(draw).catch(draw); }; if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(go); setTimeout(go,50); } else go(); });
             },
-            _slug(s){ return String(s||'card').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'card'; },
+            _slug(s){ return String(s||'card').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'d').replace(/ß/g,'ss').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'card'; },
             async _renderBlob(p, orient, type, quality){
                 await this._ensureImg(p);
                 if(document.fonts&&document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
@@ -50614,7 +50726,7 @@ By applying to this program, I give the following consents:
             toast(m,t){ if(typeof App!=='undefined'&&App.showToast) App.showToast(m,t); },
             async api(path,opts){ const r=await fetch(path, Object.assign({ headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+App.token } }, opts||{})); let d=null; try{ d=await r.json(); }catch(e){} return { ok:r.ok, status:r.status, d }; },
             _fontsReady(){ var fonts=(document.fonts&&document.fonts.ready)?document.fonts.ready.catch(function(){}):Promise.resolve(); return Promise.all([fonts, window.MedxInvite.ready()]).catch(function(){}); },
-            _slug(s){ return String(s||'invitation').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48)||'invitation'; },
+            _slug(s){ return String(s||'invitation').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'d').replace(/ß/g,'ss').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48)||'invitation'; },
             _validEmail(e){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(e||'').trim()); },
             _invOpts(){ return { language:this.state.language, name:this.state.name, title:this.state.title, institution:this.state.institution, personal:this.state.personal }; },
             _invPayload(){ return { name:this.state.name.trim(), title:this.state.title.trim(), institution:this.state.institution.trim(), language:this.state.language, personal_sentence:this.state.personal.trim(), email:this.state.email.trim() }; },

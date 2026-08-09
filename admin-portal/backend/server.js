@@ -177,7 +177,12 @@ function buildMeetingIcs(opts) {
     return lines.join('\r\n') + '\r\n';
 }
 
-const MEDX_LOGO_URL = 'https://medx-user-portal.onrender.com/assets/logo.png';
+// Serve the logo from THIS portal's own origin. The old user-portal hotlink
+// (https://medx-user-portal.onrender.com/assets/logo.png) ships with
+// Cross-Origin-Resource-Policy: same-origin, so the admin's live email preview
+// (a cross-origin fetch from the admin origin) rendered a broken image. The
+// admin frontend serves the identical asset at /assets/logo.png.
+const MEDX_LOGO_URL = (process.env.RENDER_EXTERNAL_URL || process.env.ADMIN_PORTAL_URL || ('http://localhost:' + (process.env.PORT || 3002))).replace(/\/+$/, '') + '/assets/logo.png';
 // Press releases render as standalone documents (web page, PDF, Word) that can be viewed from a
 // different origin than the logo host, so the letterhead logo is inlined as an origin-independent
 // data URI. That avoids a cross-origin resource-policy block on the public release page and a
@@ -10225,8 +10230,11 @@ async function initializeApp() {
             { project: 'accelerator', name: 'Program Brochure 2026', type: 'document', file_name: 'accelerator-brochure-2026.pdf', file_size: 3200000, mime_type: 'application/pdf', description: 'Accelerator program overview brochure', tags: 'document,brochure,accelerator' }
         ];
         mediaAssets.forEach(a => {
-            db.run(`INSERT INTO pr_media_assets (id, project, name, asset_type, file_name, file_size, mime_type, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [uuidv4(), a.project, a.name, a.type, a.file_name, a.file_size, a.mime_type, a.description, a.tags]);
+            // category drives the library filter; keep it in sync with the seed type
+            // (before this, every seed defaulted to category 'photo' and the
+            // Logos/Graphics/Templates filters came up empty against shipped assets).
+            db.run(`INSERT INTO pr_media_assets (id, project, name, asset_type, category, file_name, file_size, mime_type, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [uuidv4(), a.project, a.name, a.type, a.type, a.file_name, a.file_size, a.mime_type, a.description, a.tags]);
         });
 
         // ========================================
@@ -23785,12 +23793,23 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             // section instead of failing the whole draft.
             const pull = (sql) => { try { return query.all(sql); } catch (e) { return []; } };
 
-            // Pull upcoming Plexus sessions
-            const sessions = pull(`SELECT title, day, start_time FROM sessions ORDER BY day, start_time LIMIT 5`);
+            // Pull upcoming Plexus sessions. sessions.day is a 1-based day INDEX, not a
+            // date — resolve it against the conference start_date so the dateline reads
+            // "Dec 4 at 09:00" instead of a bare "1". Breaks are programme filler, skip them.
+            const sessions = pull(`SELECT s.title, s.day, s.start_time, c.start_date
+                                   FROM sessions s LEFT JOIN conferences c ON c.id = s.conference_id
+                                   WHERE COALESCE(s.session_type, 'talk') <> 'break'
+                                   ORDER BY s.day, s.start_time LIMIT 5`);
             if (sessions.length) {
                 parts.push('UPCOMING SESSIONS');
                 sessions.forEach(s => {
-                    parts.push(`- ${s.title || 'Untitled session'} (${s.day || 'TBD'} at ${s.start_time || 'TBD'})`);
+                    let when = s.day ? `Day ${s.day}` : 'TBD';
+                    if (s.start_date && /^\d{4}-\d{2}-\d{2}/.test(s.start_date) && s.day) {
+                        const d = new Date(s.start_date.slice(0, 10) + 'T00:00:00Z');
+                        d.setUTCDate(d.getUTCDate() + (Number(s.day) - 1));
+                        if (!isNaN(d)) when = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                    }
+                    parts.push(`- ${s.title || 'Untitled session'} (${when} at ${s.start_time || 'TBD'})`);
                 });
             }
 
@@ -27049,6 +27068,10 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             sql += ' AND platform = ?';
             params.push(platform);
         }
+        if (req.query.status) {
+            sql += ' AND LOWER(status) = ?';
+            params.push(String(req.query.status).toLowerCase());
+        }
 
         sql += ' ORDER BY scheduled_date, scheduled_time';
         res.json(query.all(sql, params));
@@ -27062,6 +27085,9 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     app.post('/api/pr/calendar', auth, (req, res) => {
         const { project, platform, scheduled_date, scheduled_time, title, content_text, image_url, link_url, hashtags, campaign_id, status } = req.body;
+        if (!String(title || '').trim() && !String(content_text || '').trim()) {
+            return res.status(400).json({ error: 'title or content_text required' });
+        }
         const id = uuidv4();
         db.run(`INSERT INTO pr_content_calendar (id, project, platform, scheduled_date, scheduled_time, title, content_text, image_url, link_url, hashtags, campaign_id, status, created_by)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -27072,6 +27098,9 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     app.put('/api/pr/calendar/:id', auth, (req, res) => {
         const { project, platform, scheduled_date, scheduled_time, title, content_text, image_url, link_url, hashtags, campaign_id, status } = req.body;
+        if (!String(title || '').trim() && !String(content_text || '').trim()) {
+            return res.status(400).json({ error: 'title or content_text required' });
+        }
         db.run(`UPDATE pr_content_calendar SET project = ?, platform = ?, scheduled_date = ?, scheduled_time = ?, title = ?, content_text = ?, image_url = ?, link_url = ?, hashtags = ?, campaign_id = ?, status = ?, updated_at = datetime('now')
             WHERE id = ?`,
             [project, platform, scheduled_date, scheduled_time || null, title || null, content_text || null, image_url || null, link_url || null, hashtags || null, campaign_id || null, status, req.params.id]);
@@ -27170,9 +27199,21 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     });
 
     app.delete('/api/pr/calendar/:id', auth, (req, res) => {
-        db.run('DELETE FROM pr_content_calendar WHERE id = ?', [req.params.id]);
-        saveDb();
-        res.json({ success: true });
+        try {
+            // pr_posts.calendar_id carries a FOREIGN KEY to this row. Detach the
+            // published-post history first (preserve the posts, drop the link) so
+            // the delete cannot die on the constraint.
+            db.run('UPDATE pr_posts SET calendar_id = NULL WHERE calendar_id = ?', [req.params.id]);
+            db.run('DELETE FROM pr_content_calendar WHERE id = ?', [req.params.id]);
+            saveDb();
+            res.json({ success: true });
+        } catch (e) {
+            if (/FOREIGN KEY/i.test(e.message || '')) {
+                return res.status(409).json({ error: 'This item has linked records — delete or unlink them first.' });
+            }
+            console.error('[pr] calendar delete', e.message);
+            res.status(500).json({ error: 'Internal server error' });
+        }
     });
 
     // Social Media Posts
@@ -27217,10 +27258,16 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     });
 
     app.put('/api/pr/posts/:id', auth, (req, res) => {
-        const { likes, comments, shares, reach, impressions } = req.body;
+        const existing = query.get('SELECT * FROM pr_posts WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Not found' });
+        const { likes, comments, shares, reach, impressions, project, platform, content_text, published_at } = req.body;
         const engagementRate = (reach > 0) ? ((likes + comments + shares) / reach * 100) : 0;
-        db.run(`UPDATE pr_posts SET likes = ?, comments = ?, shares = ?, reach = ?, impressions = ?, engagement_rate = ? WHERE id = ?`,
-            [likes || 0, comments || 0, shares || 0, reach || 0, impressions || 0, engagementRate, req.params.id]);
+        db.run(`UPDATE pr_posts SET likes = ?, comments = ?, shares = ?, reach = ?, impressions = ?, engagement_rate = ?,
+                    project = ?, platform = ?, content_text = ?, published_at = ? WHERE id = ?`,
+            [likes || 0, comments || 0, shares || 0, reach || 0, impressions || 0, engagementRate,
+             project || existing.project, platform || existing.platform,
+             (content_text !== undefined) ? content_text : existing.content_text,
+             published_at || existing.published_at, req.params.id]);
         saveDb();
         res.json({ success: true });
     });
@@ -27322,8 +27369,13 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         res.json(query.all(sql, params));
     });
 
+    // Mailing-list hygiene: one shared format check for every path that writes an address.
+    const prValidEmail = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v || '').trim());
+
     app.post('/api/pr/subscribers', auth, (req, res) => {
-        const { email, first_name, last_name, subscribed_projects, language, source } = req.body;
+        const { first_name, last_name, subscribed_projects, language, source } = req.body;
+        const email = String(req.body.email || '').trim().toLowerCase();
+        if (!prValidEmail(email)) return res.status(400).json({ error: 'Invalid email address' });
         const id = uuidv4();
         try {
             db.run(`INSERT INTO pr_subscribers (id, email, first_name, last_name, subscribed_projects, language, source)
@@ -27337,7 +27389,9 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     });
 
     app.put('/api/pr/subscribers/:id', auth, (req, res) => {
-        const { email, first_name, last_name, subscribed_projects, language, status } = req.body;
+        const { first_name, last_name, subscribed_projects, language, status } = req.body;
+        const email = String(req.body.email || '').trim().toLowerCase();
+        if (!prValidEmail(email)) return res.status(400).json({ error: 'Invalid email address' });
         db.run(`UPDATE pr_subscribers SET email = ?, first_name = ?, last_name = ?, subscribed_projects = ?, language = ?, status = ?
             WHERE id = ?`,
             [email, first_name || null, last_name || null, subscribed_projects || 'all', language || 'hr', status, req.params.id]);
@@ -27378,11 +27432,13 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
         subscribers.forEach(sub => {
             try {
-                const existing = query.get('SELECT id FROM pr_subscribers WHERE email = ?', [sub.email]);
+                const email = String(sub.email || '').trim().toLowerCase();
+                if (!prValidEmail(email)) { skipped++; return; }
+                const existing = query.get('SELECT id FROM pr_subscribers WHERE email = ?', [email]);
                 if (!existing) {
                     db.run(`INSERT INTO pr_subscribers (id, email, first_name, last_name, subscribed_projects, language, source)
                         VALUES (?, ?, ?, ?, ?, ?, 'import')`,
-                        [uuidv4(), sub.email, sub.first_name || null, sub.last_name || null, sub.subscribed_projects || 'all', sub.language || 'hr']);
+                        [uuidv4(), email, sub.first_name || null, sub.last_name || null, sub.subscribed_projects || 'all', sub.language || 'hr']);
                     imported++;
                 } else {
                     skipped++;
@@ -27412,6 +27468,15 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         limits: { fileSize: 10 * 1024 * 1024 }
     });
 
+    // One-time backfill for DBs seeded before category was written: seed rows carry
+    // their real type in asset_type but defaulted category to 'photo', hiding logos
+    // and documents from the category filter. Idempotent; user uploads (asset_type
+    // NULL) are untouched.
+    try {
+        db.run(`UPDATE pr_media_assets SET category = asset_type
+                WHERE asset_type IS NOT NULL AND asset_type <> '' AND (category IS NULL OR category = 'photo') AND asset_type <> category`);
+    } catch (e) { console.error('[pr] media category backfill skipped:', e.message); }
+
     app.get('/api/pr/media', auth, (req, res) => {
         const { project, category, search } = req.query;
         let sql = 'SELECT * FROM pr_media_assets WHERE 1=1';
@@ -27422,7 +27487,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             params.push(project);
         }
         if (category) {
-            sql += ' AND category = ?';
+            sql += ' AND COALESCE(category, asset_type) = ?';
             params.push(category);
         }
         if (search) {
@@ -27516,6 +27581,10 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     app.post('/api/pr/campaigns', auth, (req, res) => {
         const { project, name, description, goal, start_date, end_date, budget, target_audience, platforms, kpis } = req.body;
+        if (!String(name || '').trim()) return res.status(400).json({ error: 'Campaign name is required' });
+        if (start_date && end_date && String(end_date) < String(start_date)) {
+            return res.status(400).json({ error: 'End date must be on or after the start date' });
+        }
         const id = uuidv4();
         db.run(`INSERT INTO pr_campaigns (id, project, name, description, goal, start_date, end_date, budget, target_audience, platforms, kpis, created_by)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -27526,9 +27595,15 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     app.put('/api/pr/campaigns/:id', auth, (req, res) => {
         const { project, name, description, goal, start_date, end_date, status, budget, spent, target_audience, platforms, kpis } = req.body;
+        if (!String(name || '').trim()) return res.status(400).json({ error: 'Campaign name is required' });
+        if (start_date && end_date && String(end_date) < String(start_date)) {
+            return res.status(400).json({ error: 'End date must be on or after the start date' });
+        }
+        const existing = query.get('SELECT status FROM pr_campaigns WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Not found' });
         db.run(`UPDATE pr_campaigns SET project = ?, name = ?, description = ?, goal = ?, start_date = ?, end_date = ?, status = ?, budget = ?, spent = ?, target_audience = ?, platforms = ?, kpis = ?, updated_at = datetime('now')
             WHERE id = ?`,
-            [project || null, name, description || null, goal || null, start_date || null, end_date || null, status, budget || 0, spent || 0, target_audience || null, platforms || null, kpis || null, req.params.id]);
+            [project || null, name, description || null, goal || null, start_date || null, end_date || null, status || existing.status || 'planning', budget || 0, spent || 0, target_audience || null, platforms || null, kpis || null, req.params.id]);
         saveDb();
         res.json({ success: true });
     });
@@ -27740,15 +27815,21 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     // Deterministic template baseline for the body (first-class fallback when aiDraft is in mock mode).
     function pressDeterministicBody(description, city, dateLabel, lang) {
         const hr = String(lang).toLowerCase() === 'hr';
+        const dateline = `${city}, ${dateLabel}`.replace(/^, |, $/g, '');
+        if (hr) {
+            // No live translation is available here. Never paste the English
+            // description in as a finished Croatian body — ship an explicit
+            // needs-translation placeholder instead so nothing untranslated
+            // can slip into a published release.
+            return `<p><strong>${seatEsc(dateline)}</strong> —</p>\n` +
+                `<p><em>[Prijevod potreban] Hrvatski nacrt nije generiran automatski — prevedite englesku verziju prije objave.</em></p>`;
+        }
         const desc = String(description == null ? '' : description).trim();
         const blocks = desc ? desc.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean) : [];
-        const lead = blocks.shift() || (hr ? 'Med&X objavljuje novu vijest.' : 'Med&X shares an announcement.');
-        const dateline = `${city}, ${dateLabel}`.replace(/^, |, $/g, '');
+        const lead = blocks.shift() || 'Med&X shares an announcement.';
         let html = `<p><strong>${seatEsc(dateline)}</strong> — ${seatEsc(lead).replace(/\n/g, '<br>')}</p>`;
         if (blocks.length) html += '\n' + blocks.map((b) => `<p>${seatEsc(b).replace(/\n/g, '<br>')}</p>`).join('\n');
-        html += hr
-            ? '\n<p>Med&X i dalje gradi mostove u biomedicini u Hrvatskoj i dijaspori.</p>'
-            : '\n<p>Med&X continues to build bridges in biomedicine across Croatia and the global diaspora.</p>';
+        html += '\n<p>Med&X continues to build bridges in biomedicine across Croatia and the global diaspora.</p>';
         return html;
     }
     function pressSummaryFrom(text, lang) {
@@ -27772,6 +27853,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             if (r && r.text && !r.mock) { bodyText = r.text.trim(); mock = false; }
         } catch (e) { bodyText = ''; }
         let bodyHtml;
+        let untranslated = false;
         if (bodyText) {
             const dateline = `${city}, ${dateLabel}`.replace(/^, |, $/g, '');
             const paras = pressParagraphs(bodyText);
@@ -27779,8 +27861,9 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             bodyHtml = paras.replace(/^<p>/, `<p><strong>${seatEsc(dateline)}</strong> — `);
         } else {
             bodyHtml = pressDeterministicBody(description, city, dateLabel, lang);
+            if (hr) untranslated = true; // the HR fallback is a translate-me placeholder, not prose
         }
-        return { body: bodyHtml, summary: pressSummaryFrom(bodyHtml, lang), mock };
+        return { body: bodyHtml, summary: pressSummaryFrom(bodyHtml, lang), mock, untranslated };
     }
 
     // Full investor-relations render used by preview, PDF, Word, and the public web page.
@@ -27865,7 +27948,7 @@ h1{font-size:20pt;line-height:1.15;margin:12px 0 6px}
 .block h4{font-family:Arial,sans-serif;font-size:8.5pt;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${accent};margin:0 0 5px}
 .block p{margin:0;color:#3f382f;font-size:10.5pt}
 </style></head><body>
-<div class="h">${logo.replace('pr-logo', '').replace('pr-word', 'word')}<div style="font-family:Arial,sans-serif;font-size:8.5pt;letter-spacing:.16em;text-transform:uppercase;color:#8a8178">Press release</div></div>
+<div class="h">${logo.replace('pr-logo', '').replace('pr-word', 'word')}<div style="font-family:Arial,sans-serif;font-size:8.5pt;letter-spacing:.16em;text-transform:uppercase;color:#8a8178">${hr ? 'Priop&#263;enje za medije' : 'Press release'}</div></div>
 <p class="fir">${forImmediate}</p>
 ${row.tag ? `<span class="tag">${seatEsc(row.tag)}</span>` : ''}
 <h1>${seatEsc(row.title || '')}</h1>
@@ -27917,7 +28000,7 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
                     dateline_city: city, dateline_date: isoDate,
                     summary: draft.summary, body: draft.body,
                     boilerplate: pressBoilerplateDefault(lang), contact_block: pressContactDefault(lang),
-                    mock: draft.mock
+                    mock: draft.mock, untranslated: !!draft.untranslated
                 };
                 if (draft.mock) out.mock = true;
             }
@@ -36556,25 +36639,17 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                     const platforms = (Array.isArray(it.platforms) && it.platforms.length) ? it.platforms : ['instagram'];
                     for (const platform of platforms) {
                         if (!platform || platform === 'email') continue;
+                        // Publish doctrine: plan approval only STAGES posts on the calendar.
+                        // Nothing touches Publer here — each item goes through the existing
+                        // per-post review path (POST /api/pr/calendar/:id/approve-schedule),
+                        // which is the one and only Publer handoff. No external_post_id,
+                        // no published_at, no pr_posts row at this stage.
                         const id = uuidv4();
-                        db.run(`INSERT INTO pr_content_calendar (id, project, platform, scheduled_date, scheduled_time, title, content_text, image_url, status, created_by, approved_by, approved_at)
-                                VALUES (?,?,?,?,?,?,?,?, 'approved', ?, ?, datetime('now'))`,
-                            [id, it.project_key || 'medx', platform, it.date || row.period_start, '10:00', it.title || null, it.body || null, image || null, req.user?.id || null, req.user?.id || null]);
+                        db.run(`INSERT INTO pr_content_calendar (id, project, platform, scheduled_date, scheduled_time, title, content_text, image_url, status, created_by)
+                                VALUES (?,?,?,?,?,?,?,?, 'scheduled', ?)`,
+                            [id, it.project_key || 'medx', platform, it.date || row.period_start, '10:00', it.title || null, it.body || null, image || null, req.user?.id || null]);
                         socialCreated++;
-                        const cal = query.get('SELECT * FROM pr_content_calendar WHERE id = ?', [id]);
-                        try {
-                            const result = await publishToPubler(cal);
-                            const finalStatus = result.mock ? 'published' : (result.ok ? 'scheduled' : 'approved');
-                            db.run(`UPDATE pr_content_calendar SET status = ?, external_post_id = ?, publish_note = ?,
-                                    published_at = CASE WHEN ? = 'published' THEN datetime('now') ELSE published_at END WHERE id = ?`,
-                                [finalStatus, result.external_post_id || null, result.note || null, finalStatus, id]);
-                            if (result.mock) mock++; else if (result.ok) scheduled++;
-                            if (result.ok) {
-                                db.run(`INSERT INTO pr_posts (id, project, platform, content_text, image_url, external_post_id, published_at, status, calendar_id)
-                                        VALUES (?,?,?,?,?,?,?,?,?)`,
-                                    [uuidv4(), cal.project, cal.platform, cal.content_text, cal.image_url, result.external_post_id || null, new Date().toISOString(), result.mock ? 'published (mock)' : 'scheduled', id]);
-                            }
-                        } catch (e) { /* leave the row as approved */ }
+                        scheduled++;
                     }
                 }
             }
