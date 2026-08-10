@@ -15590,7 +15590,7 @@ President, Med&amp;X</textarea>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="FinanceApp.closeModal('finBankBalanceModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="FinanceApp.saveBankBalance()">Save</button>
+                <button class="btn btn-primary" onclick="FinanceApp.saveBankBalance(this)">Save</button>
             </div>
         </div>
     </div>
@@ -15647,7 +15647,7 @@ President, Med&amp;X</textarea>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="FinanceApp.closeModal('finTransactionModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="FinanceApp.saveTransaction()">Save</button>
+                <button class="btn btn-primary" onclick="FinanceApp.saveTransaction(this)">Save</button>
             </div>
         </div>
     </div>
@@ -15767,7 +15767,7 @@ President, Med&amp;X</textarea>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="FinanceApp.closeModal('finInvoiceModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="FinanceApp.saveInvoice()">Save</button>
+                <button class="btn btn-primary" onclick="FinanceApp.saveInvoice(this)">Save</button>
             </div>
         </div>
     </div>
@@ -15834,7 +15834,7 @@ President, Med&amp;X</textarea>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="FinanceApp.closeModal('finPaymentOrderModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="FinanceApp.savePaymentOrder()">Save</button>
+                <button class="btn btn-primary" onclick="FinanceApp.savePaymentOrder(this)">Save</button>
             </div>
         </div>
     </div>
@@ -34408,6 +34408,24 @@ By applying to this program, I give the following consents:
                 return res.json();
             },
 
+            // F5 fix: shared reentry guard for the finance save paths. A fast double-click
+            // on Save used to fire the awaited POST twice and create duplicate money rows
+            // (transactions, bank balances, invoices, payment orders). While one save is in
+            // flight the second call is dropped, and the clicked Save button is disabled
+            // for the duration so the user sees the click landed.
+            _saveInFlight: {},
+            async _withSaveGuard(key, btn, fn) {
+                if (this._saveInFlight[key]) return;
+                this._saveInFlight[key] = true;
+                if (btn) btn.disabled = true;
+                try {
+                    return await fn();
+                } finally {
+                    this._saveInFlight[key] = false;
+                    if (btn) btn.disabled = false;
+                }
+            },
+
             // Račun and Putni nalog are print documents: the server returns an A4-styled HTML
             // page (Content-Disposition: inline) carrying its own "Ispis / Print" button. Saving
             // that response under a .pdf name produced a file that no PDF reader could open, so
@@ -34542,7 +34560,8 @@ By applying to this program, I give the following consents:
                 document.getElementById('finBankBalanceModal').classList.add('active');
             },
 
-            async saveBankBalance() {
+            async saveBankBalance(btn) {
+                return this._withSaveGuard('bankBalance', btn, async () => {
                 const balance = parseFloat(document.getElementById('finBankBalanceAmount').value);
                 const date = document.getElementById('finBankBalanceDate').value;
                 const notes = document.getElementById('finBankBalanceNotes').value;
@@ -34557,6 +34576,7 @@ By applying to this program, I give the following consents:
                 this.closeModal('finBankBalanceModal');
                 this.loadBankBalance();
                 this.loadDashboard();
+                });
             },
 
             async deleteBankBalance(id) {
@@ -34637,7 +34657,8 @@ By applying to this program, I give the following consents:
                 document.getElementById('finTransactionModal').classList.add('active');
             },
 
-            async saveTransaction() {
+            async saveTransaction(btn) {
+                return this._withSaveGuard('transaction', btn, async () => {
                 const id = document.getElementById('finTransactionId').value;
                 const data = {
                     transaction_type: document.getElementById('finTransactionType').value,
@@ -34670,6 +34691,7 @@ By applying to this program, I give the following consents:
                 this.loadDashboard();
                 // Transactions may affect work unit budget_used, refresh work units
                 this.loadWorkUnits();
+                });
             },
 
             async deleteTransaction(id) {
@@ -34995,7 +35017,8 @@ By applying to this program, I give the following consents:
                 document.getElementById('finInvoiceTotal').textContent = this.formatCurrency(total);
             },
 
-            async saveInvoice() {
+            async saveInvoice(btn) {
+                return this._withSaveGuard('invoice', btn, async () => {
                 const id = document.getElementById('finInvoiceId').value;
                 const data = {
                     direction: document.getElementById('finInvoiceDirection2').value,
@@ -35036,6 +35059,7 @@ By applying to this program, I give the following consents:
                 this.closeModal('finInvoiceModal');
                 this.loadInvoices();
                 this.loadDashboard();
+                });
             },
 
             async issueInvoice(id) {
@@ -35148,7 +35172,8 @@ By applying to this program, I give the following consents:
                 document.getElementById('finPaymentOrderModal').classList.add('active');
             },
 
-            async savePaymentOrder() {
+            async savePaymentOrder(btn) {
+                return this._withSaveGuard('paymentOrder', btn, async () => {
                 const id = document.getElementById('finPaymentOrderId').value;
                 const data = {
                     recipient_name: document.getElementById('finPaymentOrderRecipient').value,
@@ -35176,6 +35201,7 @@ By applying to this program, I give the following consents:
                 this.closeModal('finPaymentOrderModal');
                 this.loadPaymentOrders();
                 this.loadDashboard();
+                });
             },
 
             async deletePaymentOrder(id) {
