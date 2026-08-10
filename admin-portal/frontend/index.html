@@ -34779,9 +34779,12 @@ By applying to this program, I give the following consents:
                     grant_source: document.getElementById('finWorkUnitSource').value,
                     budget_total: parseFloat(document.getElementById('finWorkUnitBudget').value) || 0,
                     description: document.getElementById('finWorkUnitDesc').value,
-                    fiscal_year: this.currentYear,
-                    status: 'active'
+                    fiscal_year: this.currentYear
                 };
+                // F3: only a CREATE sets status. The modal has no status field, and
+                // sending 'active' on edit silently resurrected closed work units —
+                // an edit now leaves the row's existing status untouched.
+                if (!id) data.status = 'active';
 
                 if (!data.code || !data.name) { Toast.warning('Please fill in code and name'); return; }
                 // Duplicate codes make the transaction picker ambiguous — pre-check

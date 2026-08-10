@@ -25692,12 +25692,18 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     app.put('/api/finance/work-units/:id', auth, adminOnly, (req, res) => {
         const { code, name, description, grant_source, budget_total, status } = req.body;
-        const existing = query.get('SELECT fiscal_year FROM finance_work_units WHERE id = ?', [req.params.id]);
+        const existing = query.get('SELECT * FROM finance_work_units WHERE id = ?', [req.params.id]);
         if (!existing) return res.status(404).json({ error: 'Not found' });
         const dup = query.get('SELECT id FROM finance_work_units WHERE code = ? AND fiscal_year = ? AND id != ?', [code, existing.fiscal_year, req.params.id]);
         if (dup) return res.status(400).json({ error: `Work unit code "${code}" already exists for fiscal year ${existing.fiscal_year}` });
+        // F3: an edit that omits a field keeps the stored value — the edit modal used
+        // to hardcode status:'active' and silently resurrect closed work units, so
+        // status (and every optional field) only changes when explicitly sent.
+        const keep = (sent, cur) => sent === undefined ? cur : sent;
         db.run(`UPDATE finance_work_units SET code = ?, name = ?, description = ?, grant_source = ?, budget_total = ?, status = ? WHERE id = ?`,
-            [code, name, description, grant_source, budget_total, status, req.params.id]);
+            [keep(code, existing.code), keep(name, existing.name), keep(description, existing.description),
+             keep(grant_source, existing.grant_source), keep(budget_total, existing.budget_total),
+             keep(status, existing.status), req.params.id]);
         saveDb();
         res.json({ success: true });
     });
@@ -25809,7 +25815,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         const existing = query.get('SELECT * FROM finance_transactions WHERE id = ?', [req.params.id]);
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
-        const { amount, date, description, project, work_unit_id, category, payment_method, reference } = req.body;
+        const { transaction_type, amount, date, description, project, work_unit_id, category, payment_method, reference } = req.body;
         const closedGuard = financeYearClosedError(existing.fiscal_year);
         if (closedGuard) return res.status(403).json({ error: closedGuard });
         const amt = Number(amount);
@@ -25819,12 +25825,29 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         if (project && !FINANCE_PROJECTS.includes(project)) {
             return res.status(400).json({ error: `Unknown project "${project}" — use one of: ${FINANCE_PROJECTS.join(', ')}` });
         }
+        // F1: the edit modal offers the type select but the PUT silently dropped it —
+        // the save "succeeded" while the DB kept the old type. Update it, and when the
+        // type actually changes assign a number from the correct sequence (income P- /
+        // expense R-) so ledger numbering stays self-consistent.
+        if (transaction_type !== undefined && !['income', 'expense'].includes(transaction_type)) {
+            return res.status(400).json({ error: "transaction_type must be 'income' or 'expense'" });
+        }
+        const newType = transaction_type === undefined ? existing.transaction_type : transaction_type;
+        const newNumber = newType === existing.transaction_type
+            ? existing.transaction_number
+            : getNextSequenceNumber(newType, existing.fiscal_year);
 
+        // F2: a UI edit used to NULL category/payment_method/reference (fields the
+        // modal doesn't carry). Keep the stored value for any field the request omits;
+        // an explicit null still clears (that is how the modal unassigns work_unit_id).
+        const keep = (sent, cur) => sent === undefined ? cur : sent;
         // budget_used is ledger-derived at read time — the transaction row itself is the source of truth.
-        db.run(`UPDATE finance_transactions SET amount = ?, date = ?, description = ?, project = ?, work_unit_id = ?, category = ?, payment_method = ?, reference = ? WHERE id = ?`,
-            [amount, date, description, project, work_unit_id, category, payment_method, reference, req.params.id]);
+        db.run(`UPDATE finance_transactions SET transaction_type = ?, transaction_number = ?, amount = ?, date = ?, description = ?, project = ?, work_unit_id = ?, category = ?, payment_method = ?, reference = ? WHERE id = ?`,
+            [newType, newNumber, amt, keep(date, existing.date), keep(description, existing.description),
+             keep(project, existing.project), keep(work_unit_id, existing.work_unit_id), keep(category, existing.category),
+             keep(payment_method, existing.payment_method), keep(reference, existing.reference), req.params.id]);
         saveDb();
-        res.json({ success: true });
+        res.json({ success: true, transaction_number: newNumber });
     });
 
     app.delete('/api/finance/transactions/:id', auth, adminOnly, (req, res) => {
@@ -25833,6 +25856,14 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
         const closedGuardDel = financeYearClosedError(existing.fiscal_year);
         if (closedGuardDel) return res.status(403).json({ error: closedGuardDel });
+
+        // F10: a paid invoice references its booked payment via
+        // finance_invoices.transaction_id — a bare DELETE hit that FK and surfaced
+        // as a raw 500. Explain what blocks the delete instead.
+        const linkedInvoice = query.get('SELECT invoice_number FROM finance_invoices WHERE transaction_id = ?', [req.params.id]);
+        if (linkedInvoice) {
+            return res.status(400).json({ error: `This transaction is the booked payment for invoice ${linkedInvoice.invoice_number} — void or delete that invoice first.` });
+        }
 
         // budget_used is ledger-derived at read time — deleting the row is enough.
         db.run('DELETE FROM finance_transactions WHERE id = ?', [req.params.id]);
@@ -25931,7 +25962,24 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
 
     app.put('/api/finance/invoices/:id', auth, adminOnly, (req, res) => {
         const { party_name, party_address, party_oib, party_email, issue_date, due_date,
-            fiscalized, notes, project, work_unit_id, items } = req.body;
+            fiscalized, notes, project, work_unit_id, direction, items } = req.body;
+
+        const existing = query.get('SELECT * FROM finance_invoices WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Not found' });
+
+        // F7: the modal offers the direction select but the PUT silently dropped it.
+        // Direction drives the UR-/IR- numbering sequence, so it may only change while
+        // the invoice is still an unnumbered draft.
+        let newDirection = existing.direction;
+        if (direction !== undefined && direction !== existing.direction) {
+            if (!['incoming', 'outgoing'].includes(direction)) {
+                return res.status(400).json({ error: "direction must be 'incoming' or 'outgoing'" });
+            }
+            if (existing.status !== 'draft') {
+                return res.status(400).json({ error: 'Direction can only be changed on draft invoices — issued invoices already carry a sequence number.' });
+            }
+            newDirection = direction;
+        }
 
         // Recalculate totals
         let subtotal = 0, discountTotal = 0, vatTotal = 0;
@@ -25946,10 +25994,10 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         });
         const total = subtotal - discountTotal + vatTotal;
 
-        db.run(`UPDATE finance_invoices SET party_name = ?, party_address = ?, party_oib = ?, party_email = ?,
+        db.run(`UPDATE finance_invoices SET direction = ?, party_name = ?, party_address = ?, party_oib = ?, party_email = ?,
             issue_date = ?, due_date = ?, fiscalized = ?, subtotal = ?, discount_total = ?, vat_total = ?, total = ?,
             notes = ?, project = ?, work_unit_id = ? WHERE id = ?`,
-            [party_name, party_address, party_oib, party_email, issue_date, due_date, fiscalized ? 1 : 0,
+            [newDirection, party_name, party_address, party_oib, party_email, issue_date, due_date, fiscalized ? 1 : 0,
              subtotal, discountTotal, vatTotal, total, notes, project, work_unit_id, req.params.id]);
 
         // Replace items
