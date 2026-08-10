@@ -25493,6 +25493,23 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
         return null;
     }
 
+    // Book an income row in the finance ledger. Single home for "money arrived"
+    // bookings so Conference-Payments Mark Paid and bank-reconcile Confirm produce
+    // identical ledger rows (F8: reconcile-confirmed revenue used to bypass the
+    // ledger, so dashboard KPIs and by-project reports understated income).
+    // Caller owns saveDb(). Returns the assigned transaction number.
+    function bookFinanceIncome({ amount, date, description, project, category, paymentMethod, reference, fiscalYear, userId }) {
+        const year = fiscalYear || new Date().getFullYear();
+        const txDate = date || new Date().toISOString().split('T')[0];
+        const transactionNumber = getNextSequenceNumber('income', year);
+        db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description, project, category, payment_method, reference, fiscal_year, status, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [uuidv4(), transactionNumber, 'income', amount, txDate,
+             description || null, project || null, category || null,
+             paymentMethod || null, reference || null, year, 'completed', userId || null]);
+        return transactionNumber;
+    }
+
     // Finance Dashboard
     app.get('/api/finance/dashboard', auth, adminOnly, (req, res) => {
         const year = parseInt(req.query.year) || new Date().getFullYear();
@@ -27074,12 +27091,11 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
             }
 
             // Create Finance income record so it shows in Finance dashboard
-            const transactionNumber = getNextSequenceNumber('income', year);
-            db.run(`INSERT INTO finance_transactions (id, transaction_number, transaction_type, amount, date, description, project, category, payment_method, reference, fiscal_year, status, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [uuidv4(), transactionNumber, 'income', amount, today,
-                 description, project, category,
-                 paymentMethod, invoiceNumber, year, 'completed', req.user.id]);
+            // (shared with the bank-reconcile confirm paths — see bookFinanceIncome)
+            bookFinanceIncome({
+                amount, date: today, description, project, category,
+                paymentMethod, reference: invoiceNumber, fiscalYear: year, userId: req.user.id
+            });
 
             saveDb();
 
@@ -35361,6 +35377,40 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         return { ok: true, row: t.row, table: t.table };
     }
 
+    // F8: how a reconcile-confirmed payment is booked into the finance ledger, per
+    // registrant table — mirrors the project/category the Conference-Payments Mark
+    // Paid endpoint books for the equivalent payment type.
+    const RECON_LEDGER_META = {
+        registrations:                  { project: 'plexus',  category: 'conference-registration', label: 'Plexus Conference' },
+        gala_registrations:             { project: 'plexus',  category: 'gala-registration',       label: 'Gala Evening' },
+        croatians_abroad_registrations: { project: 'plexus',  category: 'gala-registration',       label: 'Croatians Abroad' },
+        bridges_registrations:          { project: 'bridges', category: 'bridges-registration',    label: 'Building Bridges' },
+    };
+
+    // Book the income for one reconcile-confirmed statement line (F8). The statement
+    // line's amount is the actual money that arrived; fall back to the registration's
+    // own amount when the line carries none. `mark` is the successful result of
+    // markRegistrantPaid. Returns the transaction number, or null when nothing is
+    // bookable. Caller owns saveDb().
+    function bookReconcileIncome(line, mark, userId) {
+        const meta = RECON_LEDGER_META[mark.table];
+        if (!meta) return null;
+        const row = mark.row;
+        const amount = Number(line && line.amount) > 0 ? Number(line.amount)
+            : (Number(row.amount_paid) > 0 ? Number(row.amount_paid) : 0);
+        if (!(amount > 0)) return null;
+        const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.email || 'Registrant';
+        return bookFinanceIncome({
+            amount,
+            description: `Bank reconcile — ${name} — ${meta.label}`,
+            project: meta.project,
+            category: meta.category,
+            paymentMethod: 'bank_transfer',
+            reference: row.invoice_number || (line && line.batch_id) || null,
+            userId
+        });
+    }
+
     // Mark a registrant paid (for manual / bank-transfer payments).
     app.post('/api/admin/registrant/:type/:id/mark-paid', auth, adminOnly, (req, res) => {
         try {
@@ -35622,19 +35672,23 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             // Double-count guard: confirming a line against a registrant who is
             // already paid (e.g. via a duplicate statement batch) silently re-marks
             // the same payment. Require an explicit force to do it anyway.
-            if (!req.body.force) {
-                const t0 = regTarget(type, regId);
-                if (t0 && (t0.row.payment_status === 'paid' || t0.row.gala_payment_status === 'paid')) {
-                    return res.status(409).json({ error: 'This registrant is already marked paid — confirming again would double-count the same payment.', already_paid: true });
-                }
+            const t0 = regTarget(type, regId);
+            const wasPaid = !!(t0 && (t0.row.payment_status === 'paid' || t0.row.gala_payment_status === 'paid'));
+            if (!req.body.force && wasPaid) {
+                return res.status(409).json({ error: 'This registrant is already marked paid — confirming again would double-count the same payment.', already_paid: true });
             }
             const mark = markRegistrantPaid(type, regId);
             if (!mark.ok) return res.status(400).json({ error: mark.error });
+            // F8: book the income into the finance ledger exactly like Conference-Payments
+            // Mark Paid does — reconcile-confirmed revenue must reach KPIs/by-project.
+            // A force-re-confirm of an already-paid registrant books nothing (their
+            // payment was already booked once).
+            const bookedTx = wasPaid ? null : bookReconcileIncome(row, mark, req.user.id);
             db.run("UPDATE bank_statement_lines SET status='confirmed', matched_reg_id=?, matched_source=?, confirmed_at=? WHERE id=?",
                 [regId, type, new Date().toISOString(), row.id]);
             saveDb();
-            logAudit(req, 'reconcile.confirm', `${mark.row.email || regId} (${type}) ← ${row.payer || 'statement line'} €${row.amount}`);
-            res.json({ success: true, matched_name: `${mark.row.first_name || ''} ${mark.row.last_name || ''}`.trim() || mark.row.email || regId });
+            logAudit(req, 'reconcile.confirm', `${mark.row.email || regId} (${type}) ← ${row.payer || 'statement line'} €${row.amount}${bookedTx ? ` booked ${bookedTx}` : ''}`);
+            res.json({ success: true, transaction_number: bookedTx, matched_name: `${mark.row.first_name || ''} ${mark.row.last_name || ''}`.trim() || mark.row.email || regId });
         } catch (e) { console.error('[reconcile] confirm failed:', e.message); res.status(500).json({ error: e.message }); }
     });
 
@@ -35682,6 +35736,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 const mark = markRegistrantPaid(pick.type, pick.id);
                 if (!mark.ok) { failed.push({ id: row.id, error: mark.error }); continue; }
                 used.add(pick.id);
+                // F8: book the income into the finance ledger (candidates are unpaid by
+                // construction, so this cannot double-book an already-booked payment).
+                bookReconcileIncome(row, mark, req.user && req.user.id);
                 db.run("UPDATE bank_statement_lines SET status='confirmed', matched_reg_id=?, matched_source=?, confidence=?, confirmed_at=? WHERE id=?",
                     [pick.id, pick.type, pick.confidence, now, row.id]);
                 confirmed++;
