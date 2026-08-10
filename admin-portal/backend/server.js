@@ -8871,6 +8871,23 @@ async function initializeApp() {
         } catch (e) { console.error('[FOUNDER RESET] failed:', e.message); }
     }
 
+    // ---- ONE-TIME automatic founder unlock (2026-08-10 lockout recovery) ----
+    // Fires exactly once, ever: a marker table records that it ran, so future boots/deploys
+    // never touch the password again (protecting the self-chosen password the founder sets next).
+    // Resets juginovic.alen@gmail.com to a fixed temp with must_change_password armed so first
+    // login forces a real password. Self-contained — no env var, no dashboard needed.
+    try {
+        db.run(`CREATE TABLE IF NOT EXISTS founder_recovery_log (id TEXT PRIMARY KEY, done_at TEXT)`);
+        const already = query.get("SELECT id FROM founder_recovery_log WHERE id = 'unlock-2026-08-10'");
+        if (!already) {
+            const tHash = await bcrypt.hash('MedX-Unlock-2026', 10);
+            db.run("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE email = 'juginovic.alen@gmail.com'", [tHash]);
+            db.run("INSERT INTO founder_recovery_log (id, done_at) VALUES ('unlock-2026-08-10', ?)", [new Date().toISOString()]);
+            saveDb();
+            console.warn("[FOUNDER UNLOCK] one-time reset applied for juginovic.alen@gmail.com; must_change_password armed.");
+        }
+    } catch (e) { console.error('[FOUNDER UNLOCK] failed:', e.message); }
+
     // The president's account is the FOUNDER (gates the Team Access usage panel). Seeded
     // idempotently at every boot so a restored/older DB copy self-heals; is_founder is never
     // grantable through any endpoint — this boot seed is the only writer.
