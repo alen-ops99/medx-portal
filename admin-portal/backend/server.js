@@ -8856,6 +8856,21 @@ async function initializeApp() {
         console.log('Alen admin user created');
     }
 
+    // ---- One-time founder password recovery (env-gated) ----
+    // When the founder is locked out and email delivery is down, set FOUNDER_RESET_PW in the
+    // Render env to a value you choose, redeploy once: this resets juginovic.alen@gmail.com to
+    // that password with must_change_password armed (forces a self-set password on first login),
+    // then REMOVE the env var. Never active unless the env var is present; logs loudly, never
+    // prints the value. Only ever writes the founder's own row.
+    if (process.env.FOUNDER_RESET_PW && String(process.env.FOUNDER_RESET_PW).length >= 8) {
+        try {
+            const rHash = await bcrypt.hash(String(process.env.FOUNDER_RESET_PW), 10);
+            db.run("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE email = 'juginovic.alen@gmail.com'", [rHash]);
+            saveDb();
+            console.warn("[FOUNDER RESET] juginovic.alen@gmail.com password reset from FOUNDER_RESET_PW; must_change_password armed. REMOVE the env var now.");
+        } catch (e) { console.error('[FOUNDER RESET] failed:', e.message); }
+    }
+
     // The president's account is the FOUNDER (gates the Team Access usage panel). Seeded
     // idempotently at every boot so a restored/older DB copy self-heals; is_founder is never
     // grantable through any endpoint — this boot seed is the only writer.
