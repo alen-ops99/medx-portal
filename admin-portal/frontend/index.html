@@ -34810,9 +34810,13 @@ By applying to this program, I give the following consents:
 
             async deleteWorkUnit(id) {
                 if (!(await adminConfirm({ destructive: true, title: "Delete this work unit?", confirmText: "Delete" }))) return;
-                const result = await this.api(`/api/finance/work-units/${id}`, { method: 'DELETE' });
-                if (result.error) {
-                    Toast.error(result.error);
+                // F4: this.api THROWS on non-2xx — the old `result.error` check never
+                // ran, so the server's delete-guard 400 ("has transactions") died as an
+                // unhandled rejection and the user saw nothing happen.
+                try {
+                    await this.api(`/api/finance/work-units/${id}`, { method: 'DELETE' });
+                } catch (e) {
+                    Toast.error(friendlyError(e, 'Could not delete the work unit.'));
                     return;
                 }
                 this.loadWorkUnits();
@@ -34931,6 +34935,7 @@ By applying to this program, I give the following consents:
                         </td>
                         <td style="padding: 12px; text-align: center;">
                             <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.openPrintable('/api/finance/invoices/${inv.id}/pdf', 'Račun ${escapeHtml(inv.invoice_number || '')}')" title="Open invoice (print / save as PDF)"><i class="fas fa-file-pdf"></i></button>
+                            ${inv.status === 'draft' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.editInvoice('${inv.id}')" title="Edit"><i class="fas fa-edit"></i></button>` : ''}
                             ${inv.status === 'draft' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.issueInvoice('${inv.id}')" title="Issue"><i class="fas fa-paper-plane"></i></button>` : ''}
                             ${inv.status === 'issued' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.markInvoicePaid('${inv.id}')" title="Mark Paid"><i class="fas fa-check"></i></button>` : ''}
                             ${inv.status === 'draft' ? `<button class="btn btn-secondary" style="padding: 4px 8px;" onclick="FinanceApp.deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>` : ''}
@@ -34952,7 +34957,36 @@ By applying to this program, I give the following consents:
                 document.getElementById('finInvoiceNotes').value = '';
                 document.getElementById('finInvoiceModalTitle').textContent = 'Create Invoice';
                 this.invoiceItems = [];
+                this.renderInvoiceItems(); // clear any rows left from a previous open
                 this.addInvoiceItem();
+                document.getElementById('finInvoiceModal').classList.add('active');
+            },
+
+            // F6: load a draft invoice into the modal for editing. The backend PUT and
+            // the saveInvoice edit branch always worked — the list just never offered
+            // a way to open an invoice for editing.
+            async editInvoice(id) {
+                const inv = await this.api(`/api/finance/invoices/${id}`);
+                document.getElementById('finInvoiceId').value = inv.id;
+                document.getElementById('finInvoiceDirection2').value = inv.direction || 'outgoing';
+                document.getElementById('finInvoiceFiscalized').value = inv.fiscalized ? '1' : '0';
+                document.getElementById('finInvoicePartyName').value = inv.party_name || '';
+                document.getElementById('finInvoicePartyAddress').value = inv.party_address || '';
+                document.getElementById('finInvoicePartyOib').value = inv.party_oib || '';
+                document.getElementById('finInvoicePartyEmail').value = inv.party_email || '';
+                document.getElementById('finInvoiceIssueDate').value = inv.issue_date || '';
+                document.getElementById('finInvoiceDueDate').value = inv.due_date || '';
+                document.getElementById('finInvoiceNotes').value = inv.notes || '';
+                document.getElementById('finInvoiceModalTitle').textContent = 'Edit Invoice';
+                this.invoiceItems = (inv.items || []).map(it => ({
+                    description: it.description || '',
+                    quantity: it.quantity || 1,
+                    unit_price: it.unit_price || 0,
+                    discount_percent: it.discount_percent || 0,
+                    vat_rate: it.vat_rate || 0
+                }));
+                this.renderInvoiceItems();
+                if (this.invoiceItems.length === 0) this.addInvoiceItem();
                 document.getElementById('finInvoiceModal').classList.add('active');
             },
 
@@ -35560,8 +35594,8 @@ By applying to this program, I give the following consents:
                             ${p.due_date ? `<div style="font-size: 11px;">Due: ${p.due_date}</div>` : ''}
                         </td>
                         <td style="padding: 12px 16px; text-align: center;">
-                            ${(p.payment_status === 'pending' || p.payment_status === 'unpaid') && p.amount > 0 && p.source === 'plexus' ?
-                                `<button onclick="FinanceApp.confirmConferencePayment('${p.id}', '${this.escapeHtml(p.attendee)}')" style="padding: 6px 14px; background: var(--success); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                            ${(p.payment_status === 'pending' || p.payment_status === 'unpaid') && p.amount > 0 ?
+                                `<button onclick="FinanceApp.confirmConferencePayment('${p.id}', '${this.escapeHtml(p.attendee)}', '${p.source}')" style="padding: 6px 14px; background: var(--success); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
                                     <i class="fas fa-check"></i> Mark Paid
                                 </button>` :
                                 p.payment_status === 'paid' ? '<span style="color: var(--text-muted); font-size: 12px;"><i class="fas fa-check-double"></i></span>' : '—'
@@ -35571,11 +35605,16 @@ By applying to this program, I give the following consents:
                 }).join('');
             },
 
-            async confirmConferencePayment(regId, attendeeName) {
+            // F9: the Mark Paid button used to render only for source==='plexus'
+            // although the backend confirm endpoint fully supports gala, accelerator
+            // and forum — those rows now get the button and pass their source through
+            // as payment_type so each books with its own project/category semantics.
+            async confirmConferencePayment(regId, attendeeName, source = 'plexus') {
                 if (!(await adminConfirm({ title: "Confirm bank transfer", message: `Confirm bank transfer received from ${attendeeName}?`, confirmText: "Confirm" }))) return;
 
                 const res = await this.api(`/api/finance/conference-payments/${regId}/confirm`, {
-                    method: 'POST'
+                    method: 'POST',
+                    body: JSON.stringify({ payment_type: source })
                 });
 
                 if (res.success) {
