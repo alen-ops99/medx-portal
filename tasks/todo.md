@@ -11,10 +11,10 @@ Branch: redesign/member-portal. Design source: ~/Downloads/uploads/export/medx-m
 
 ## Phase 1 — Staging backend ($0)
 - [x] deploy/staging/launcher.js (both backends, one DB, /__admin prefix, waking 503) + build-seed.js + README
-- [ ] deploy/staging/seed.sql.gz scrubbed seed (agent running) + SEED-NOTES.md
-- [ ] user server.js: honour CORS_ORIGIN env in the hardcoded allowlist (branch only)
-- [ ] Render free web service `medx-staging` via API from this branch; verify /__staging/health, member + admin login, admin publish → member sees it
-- [ ] Netlify admin review site (proxy to /__admin) so admins can drive the chain on staging
+- [x] deploy/staging/seed.sql.gz scrubbed seed + SEED-NOTES.md (13 team kept, 43 pseudonymized, password Plexus2026!)
+- [x] user server.js: honour CORS_ORIGIN env in the hardcoded allowlist (branch only)
+- [x] Render free web service `medx-staging` (srv-da90uugae00c73dig42g, frankfurt) + Turso DB medx-staging; verified health, member+admin login, admin→member propagation
+- [x] Netlify admin review site https://medx-admin-portal-staging.netlify.app (entry /wake.html)
 
 ## Phase 2 — Member front end v2 (user-portal/frontend-v2, no build step)
 - [ ] Shell: Portal Chrome (top bar, stats strip, email banner, drawer), router (path-style, keeps /plexus?event=&ticket=&from=website&mxt=), api.js (JWT in localStorage medx_user_token, waking-state retry), auth screens

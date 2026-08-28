@@ -167,7 +167,7 @@ function route(url) {
 
 function wakingPayload() {
     return {
-        waking: true,
+        waking: !allReady(),
         member: !!(children.member && children.member.ready),
         admin: !!(children.admin && children.admin.ready),
         uptime_s: Math.round((Date.now() - STARTED) / 1000),
