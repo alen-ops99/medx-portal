@@ -112,8 +112,13 @@ with sync_playwright() as pw:
     page.goto(B + '/app/auth/signin', wait_until='domcontentloaded'); wait_awake(page); settle(page)
     try:
         page.fill('input[name=email]', EMAIL); page.fill('input[name=password]', PASSWORD); page.press('input[name=password]', 'Enter')
-        page.wait_for_url('**/app/**', timeout=60000); wait_awake(page); settle(page, 1500)
-        logged_in = '/app/auth' not in page.url
+        t0 = time.time(); logged_in = False
+        while time.time() - t0 < 240:            # survives a staging cold start (~2 min)
+            wait_awake(page, 30); page.wait_for_timeout(1000)
+            if '/app/auth' not in page.url: logged_in = True; break
+            err = page.locator('[data-role=error]')
+            if err.count() and err.first.inner_text().strip(): print('sign-in error: ' + err.first.inner_text().strip()); break
+        settle(page, 1500)
     except Exception as e:
         logged_in = False
     print(('LOGIN OK ' if logged_in else 'LOGIN FAILED ') + page.url)
