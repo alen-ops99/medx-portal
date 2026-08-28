@@ -38,7 +38,7 @@ ROUTES = [r for r in a.routes.split(',') if r] or [
     '/app/mentorship', '/app/opportunities', '/app/projects',
 ]
 SEL = '[data-act], [data-nav], button, a[href], [role=button]'
-CHROME = '#mx-desktop-chrome, #mx-mobile-chrome, .mx-drawer, .mx-scrim, .mx-pop, .mx-search'
+CHROME = '#mx-desktop-chrome, #mx-mobile-chrome, #mx-drawer, #mx-scrim, .mx-drawer, .mx-scrim, .mx-pop, .mx-search, [id^=mx-pop], [id^=mx-search]'
 DESTRUCTIVE = re.compile(r'sign ?out|log ?out|delete|remove|cancel|unsubscribe|decline|withdraw|revoke|leave', re.I)
 out_dir = os.path.dirname(a.out) or '.'
 os.makedirs(out_dir, exist_ok=True)
@@ -57,13 +57,14 @@ def reset_overlays(page):
     try:
         for _ in range(3):
             if page.locator('.mx-modal').count(): close_modal(page); continue
-            scrim = page.locator('.mx-scrim')
-            opened = False
-            for sel in ('.mx-scrim', '.mx-pop', '.mx-search'):
-                loc = page.locator(sel)
-                if loc.count() and loc.first.is_visible(): opened = True
-            if not opened: return
-            page.keyboard.press('Escape'); page.wait_for_timeout(250)
+            state = page.evaluate("() => ({ drawer: document.body.classList.contains('drawer-open'), pop: !!document.querySelector('.mx-pop, [id^=mx-pop]'), search: !!document.querySelector('.mx-search, [id^=mx-search]') })")
+            if state['drawer']:
+                page.evaluate("() => { const s = document.getElementById('mx-scrim'); if (s) s.click(); }")
+                page.wait_for_timeout(350); continue
+            if state['pop'] or state['search']:
+                page.keyboard.press('Escape'); page.wait_for_timeout(200)
+                page.mouse.click(4, 500); page.wait_for_timeout(250); continue
+            return
     except Exception:
         pass
 
@@ -156,6 +157,7 @@ with sync_playwright() as pw:
             el = els.nth(i); i += 1
             try:
                 if not el.is_visible(): continue
+                if el.get_attribute('aria-hidden') == 'true': continue
                 in_chrome = el.evaluate("(e, sel) => !!e.closest(sel)", CHROME)
                 if in_chrome and not only_chrome_here: continue
                 label = (el.get_attribute('data-act') or el.get_attribute('data-nav') or el.get_attribute('aria-label') or el.inner_text(timeout=500) or el.get_attribute('href') or '').strip().replace('\n', ' ')[:60]
