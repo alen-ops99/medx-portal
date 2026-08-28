@@ -1,0 +1,27 @@
+/* ============================================================================
+   Messages screen (js/views/messages.js — Source: Messages.dc.html)
+   Injected by the view. Behaviour + responsive ONLY — the look stays in the
+   artboard's inline styles inside the view templates (see ARCHITECTURE.md §4).
+   ≤700px (incl. the 430px Mobile Portal pattern): the two-pane grid becomes
+   list ↔ conversation as two stacked views; `.mx-msg-open` on the grid shows
+   the conversation, the ← back control returns to the list.
+   ========================================================================== */
+
+.mx-msg-back { display: none !important; }
+
+/* thread rows + composer never leak horizontal scroll */
+.mx-msg-grid { min-width: 0; }
+.mx-msg-grid textarea { min-width: 0; }
+
+@media (max-width: 900px) {
+  .mx-msg-grid { grid-template-columns: 300px 1fr !important; }
+}
+
+@media (max-width: 700px) {
+  .mx-msg-grid { grid-template-columns: 1fr !important; }
+  .mx-msg-grid .mx-msg-conv { display: none !important; }
+  .mx-msg-grid.mx-msg-open .mx-msg-conv { display: flex !important; }
+  .mx-msg-grid.mx-msg-open .mx-msg-list { display: none !important; }
+  .mx-msg-back { display: inline-flex !important; }
+  .mx-msg-list { border-right: 0 !important; }
+}
