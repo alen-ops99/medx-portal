@@ -202,6 +202,8 @@ const server = http.createServer((req, res) => {
         const ok = allReady();
         res.statusCode = ok ? 200 : 503;
         res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Access-Control-Allow-Origin', '*'); // wake pages on the Netlify sites poll this
         return res.end(JSON.stringify({ ok, mode: USE_TURSO ? 'turso' : 'file', seeded, ...wakingPayload() }));
     }
     if (url === '/__staging/emails' || url.startsWith('/__staging/emails/')) return serveEmails(url, res);
