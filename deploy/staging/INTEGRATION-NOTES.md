@@ -59,3 +59,8 @@
 - Profile screen (optional add later): Newsletter prefs row via GET/PUT /api/v2/newsletter/preferences; manage_url links the preference center.
 - GO-LIVE env: V2_CARDS_EMAIL_SINCE (suppress card backfill on first prod boot — otherwise it emails the whole eligible list), EMAIL_LOGO_URL (white wordmark).
 - Open: verification-link copy says 48h, expiry is 24h (server.js:11330) — Alen decides; site FAQ newsletter retarget = website content task.
+
+## From CURATOR (done)
+- Staging content now canonical (Novinarski dom cap 100, abstracts gone, hosts fixed, Boston de-Harvarded, news/announcements real, diacritics fixed). Log: deploy/staging/CONTENT-CURATION-2026-08-28.md (incl. restore SQL for 2 deleted rows).
+- BRANCH FIX at integration: admin server.js:3232 startup "migration" rewrites ALL forum_events rows with no WHERE at every boot (canonical values revert; also re-adds Laura's placeholder photo) — wrap in an app_state one-time guard. ⚠ Same behavior exists in PROD main = report to Alen as a prod bug.
+- STAGING DB task at integration: team admin accounts have allowed_sections=[] (403 everywhere; only founder works) — grant full sections to the team so reviewers can drive the admin portal.
