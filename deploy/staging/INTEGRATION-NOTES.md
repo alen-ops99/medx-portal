@@ -40,3 +40,22 @@
 ## From NETWORK builder (done, committed)
 - No shared changes requested.
 - CURATOR/staging data: 12+ blank/junk institutions ("sgseg", "QA - DELETE"); one nameless account; internal admin/test accounts publicly listed in the directory; country codes vs names mixed. Pseudonymized "Member NNN" names are by design (seed scrub) — reviewers should be told.
+
+
+## From EMAILS builder (done, committed) — SERVER.JS PATCH LIST (apply verbatim at integration)
+- :11341–11359 issueEmailVerification template block (ends `, loc);`) -> const emailHtml = require('./v2/email-templates').confirmEmail({ firstName: user.first_name, verifyUrl, locale: loc, validFor: hr ? '24 sata' : '24 hours' });
+- :11301–11309 /api/resend-verification block -> confirmEmail({ firstName: user.first_name, verifyUrl, validFor: null });
+- :20001–20021 Plexus welcome -> ticketConfirmation({ firstName: userName, eventName: 'Plexus Conference 2026', headlineHtml: 'Plexus 2026 — seat <i>confirmed</i>.', dateLabel: lookupEventWhen('plexus', regId) || 'December 4–5, 2026', guestLabel: userName, ticketNumber: invoiceNumber, ticketLabel: ticket.name, priceLabel: price > 0 ? `€${price.toFixed(2)} · ${paymentStatus === 'paid' ? 'paid' : 'payment pending'}` : 'Free', qrPngUrl: qrImageUrl(regId), passUrl: `${QR_BASE_URL}/app/plexus/mine`, walletUrl: `${QR_BASE_URL}/app/me`, calendarUrl: `${QR_BASE_URL}/calendar/plexus.ics` })
+- :26968–26984 gala approval -> ticketConfirmation({ firstName: updated.first_name, eventName: 'Plexus Gala Evening 2026', headlineHtml: 'Gala Evening — invitation <i>approved</i>.', dateLabel: lookupEventWhen('gala', updated.id) || 'December 5, 2026 · 19:00', guestLabel: `${updated.first_name} ${updated.last_name}`.trim(), ticketLabel: updated.pricing || undefined, note: 'Your invitation is approved — one step left: payment. Your seat and its entry QR are confirmed the moment it completes.', ctaLabel: 'COMPLETE PAYMENT →', passUrl: portalUrl })
+- :17460–17472 forum confirmation -> ticketConfirmation({ firstName: greetName, eventName: event.title, dateLabel: eventDate, venue, ticketNumber: qrCode, ctaLabel: 'OPEN THE PORTAL →', passUrl: 'https://medx-user-portal.onrender.com/app/forum', note: `Keep reference <strong>${qrCode}</strong> — you'll need it at check-in. Schedule updates are posted in the portal.` })
+- :28925–28933 ticketEmailHtml -> (rid, greetName) => ticketConfirmation({ firstName: greetName, eventName: cfg.name, dateLabel: cfg.whenLine.replace(/&middot;/g, '·'), note: cfg.whenNote || undefined, qrPngUrl: qrImageUrl(rid), passUrl: `${QR_BASE_URL}/app/me` })
+
+## From EMAILS builder — home.js diffs
+1. load() settle: add `nl: api.get('/api/v2/newsletter/preferences'),` after topics; return `nl: r.nl || null,`.
+2. render(): st init -> derive nlLabels from D.nl.subscribed/topics (all -> ALL_TOPIC; else map via TOPIC_KEY reverse), st = { expanded:false, nlTopics: nlLabels || (followedLabels.length ? followedLabels : [ALL_TOPIC]), nlDone: !!nlLabels, nlCount: nlLabels ? nlLabels.length : 0 }.
+3. nlSub handler -> POST /api/v2/newsletter/subscribe { topics[, email: typed] }; toast pending_confirmation ? confirm-inbox copy : done(count). (Newsletter now separate from follows.)
+
+## From EMAILS builder — misc
+- Profile screen (optional add later): Newsletter prefs row via GET/PUT /api/v2/newsletter/preferences; manage_url links the preference center.
+- GO-LIVE env: V2_CARDS_EMAIL_SINCE (suppress card backfill on first prod boot — otherwise it emails the whole eligible list), EMAIL_LOGO_URL (white wordmark).
+- Open: verification-link copy says 48h, expiry is 24h (server.js:11330) — Alen decides; site FAQ newsletter retarget = website content task.
