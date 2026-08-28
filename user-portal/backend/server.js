@@ -29414,6 +29414,16 @@ By applying to this program, I provide the following consents:
         res.json({ count: recentErrors.length, errors: recentErrors.slice().reverse() });
     });
 
+    // frontend-v2 backend additions (user-portal/backend/v2/*.js) — mounted before the 404
+    // catch-all; each module owns /api/v2/<feature>/… (2026-08-28, member portal redesign).
+    try {
+        require('./v2')(app, {
+            db: () => db, auth, adminOnly, optionalAuth, sendEmail, JWT_SECRET,
+            ROOT: path.join(__dirname, '..', '..'),
+            log: (...a) => console.log('[v2]', ...a),
+        });
+    } catch (e) { console.error('[v2] mount failed:', e.message); }
+
     // API 404 handler — return JSON instead of HTML
     app.all('/api/*', (req, res) => {
         res.status(404).json({ error: 'API endpoint not found' });
