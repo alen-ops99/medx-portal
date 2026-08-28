@@ -36,3 +36,7 @@
 - FACTS additions (optional): bridges.next.venue null, bridges.perEvening '40–50'. ARCHITECTURE §0 rows → built.
 - CURATOR/staging data: Boston row says "Harvard Faculty Club"/"symposium at Harvard" (must lose Harvard branding); Zurich/Washington rows dated past but flagged upcoming; gala schedule 18:00 vs event 19:00; awards row titled "Biomedical Forum Annual Awards"; gala description "pojjpojpo"; 5 speakers vs 4 hardcoded on /plexus page.
 - Note: medx.hr Boston pre-registration still goes to a Google Form — the portal's bridges registrations and that form don't meet (for the report to Alen).
+
+## From NETWORK builder (done, committed)
+- No shared changes requested.
+- CURATOR/staging data: 12+ blank/junk institutions ("sgseg", "QA - DELETE"); one nameless account; internal admin/test accounts publicly listed in the directory; country codes vs names mixed. Pseudonymized "Member NNN" names are by design (seed scrub) — reviewers should be told.
