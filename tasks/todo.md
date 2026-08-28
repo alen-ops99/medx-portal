@@ -7,7 +7,7 @@ Branch: redesign/member-portal. Design source: ~/Downloads/uploads/export/medx-m
 
 ## Phase 0 — Truth (DONE 2026-08-28)
 - [x] Three audits: design/verify-2026-08-28/{USER,ADMIN,WEBSITE}-*-CONNECTIONS.md (all live-probed)
-- [ ] Master doc + gap matrix (agent running): design/PORTAL-CONNECTIONS-MASTER-2026-08-28.md, verify-2026-08-28/REDESIGN-GAP-MATRIX.md
+- [x] Master doc + gap matrix: design/PORTAL-CONNECTIONS-MASTER-2026-08-28.md, verify-2026-08-28/REDESIGN-GAP-MATRIX.md (copies in ~/Downloads)
 
 ## Phase 1 — Staging backend ($0)
 - [x] deploy/staging/launcher.js (both backends, one DB, /__admin prefix, waking 503) + build-seed.js + README
@@ -17,10 +17,10 @@ Branch: redesign/member-portal. Design source: ~/Downloads/uploads/export/medx-m
 - [x] Netlify admin review site https://medx-admin-portal-staging.netlify.app (entry /wake.html)
 
 ## Phase 2 — Member front end v2 (user-portal/frontend-v2, no build step)
-- [ ] Shell: Portal Chrome (top bar, stats strip, email banner, drawer), router (path-style, keeps /plexus?event=&ticket=&from=website&mxt=), api.js (JWT in localStorage medx_user_token, waking-state retry), auth screens
-- [ ] Screens in parallel (one agent each, gap matrix = contract): Home · Plexus overview/program/Zagreb/My Plexus · Gala · Accelerator + 7-step wizard (port existing logic) · Forum · Bridges · Network · Messages · Profile · My Med&X wallet · empty states · system pages · mobile (≤430px bottom tabs) · PWA manifest/icons
-- [ ] Every control from the README wiring map → endpoint; MISSING backend pieces → implement on the branch (staging deploys them) and list in the report
-- [ ] Netlify site for v2 (new site; keep the mock review site untouched)
+- [x] Shell: Portal Chrome (top bar, stats strip, email banner, drawer), router (path-style, keeps /plexus?event=&ticket=&from=website&mxt=), api.js (JWT in localStorage medx_user_token, waking-state retry), auth screens
+- [x] Screens in parallel (9 builders, all QA'd 29-58 checks each): Home · Plexus overview/program/Zagreb/My Plexus · Gala · Accelerator + 7-step wizard (port existing logic) · Forum · Bridges · Network · Messages · Profile · My Med&X wallet · empty states · system pages · mobile (≤430px bottom tabs) · PWA manifest/icons
+- [x] Every control wired; 12 v2 backend modules (forum codes, newsletter, attendance cards, network search, messages, profile, wallet PDFs, meta tables); integration diffs applied to shell + 6 email call sites + server fixes
+- [x] Netlify site https://medx-member-portal-v2.netlify.app (mock review site untouched)
 
 ## Phase 3 — Verify (Alen: "check in the end that all buttons and connections work")
 - [ ] Playwright sweep on the Netlify build against staging: every screen, every button → handler fires, network call succeeds, no console errors; admin→member chain test (publish speaker/program/status in admin → visible in member v2); website hooks unchanged
