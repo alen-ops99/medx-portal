@@ -49,9 +49,23 @@ summary = dict(controls=0, ok=0, no_effect=0, empty_toast=0, mailto=0, external=
 
 def dom_hash(page):
     try:
-        return page.evaluate("() => { const v = document.querySelector('#view') || document.body; return v.innerHTML.length + ':' + v.innerText.slice(0, 4000); }")
+        return page.evaluate("() => document.body.innerHTML.length + ':' + ((document.querySelector('#view')||document.body).innerText.length)")
     except Exception:
         return ''
+
+def reset_overlays(page):
+    try:
+        for _ in range(3):
+            if page.locator('.mx-modal').count(): close_modal(page); continue
+            scrim = page.locator('.mx-scrim')
+            opened = False
+            for sel in ('.mx-scrim', '.mx-pop', '.mx-search'):
+                loc = page.locator(sel)
+                if loc.count() and loc.first.is_visible(): opened = True
+            if not opened: return
+            page.keyboard.press('Escape'); page.wait_for_timeout(250)
+    except Exception:
+        pass
 
 def wait_awake(page, max_s=200):
     t0 = time.time()
@@ -160,33 +174,46 @@ with sync_playwright() as pw:
                 rows.append((route, label, kind, 'EXTERNAL', href)); summary['external'] += 1; continue
             if DESTRUCTIVE.search(label) and not a.destructive:
                 rows.append((route, label, kind, 'SKIPPED (destructive)', '')); continue
+            box = None
+            try: box = el.bounding_box()
+            except Exception: box = None
+            if not box or box['width'] < 2 or box['height'] < 2 or box['x'] + box['width'] <= 0 or box['y'] + box['height'] <= 0:
+                continue  # off-canvas (closed drawer/panel) — not a user-reachable control right now
             before_url = page.url; before_dom = dom_hash(page); before_net = net_counter['n']; before_toast = toast_text(page)
             effect = None; detail = ''
+            downloads = []
+            handler = lambda d: downloads.append(d)
+            page.on('download', handler)
             try:
-                with page.expect_download(timeout=1500) as dl_info:
-                    el.click(timeout=3000)
-                d = dl_info.value; effect = 'DOWNLOAD'; detail = d.suggested_filename
+                el.click(timeout=3500)
             except PWTimeout:
-                pass
+                effect = 'BLOCKED'; detail = 'click not actionable (covered/disabled)'; summary['errors'] += 1
             except Exception as e:
                 effect = 'ERROR'; detail = str(e).split('\n')[0][:120]; summary['errors'] += 1
-            page.wait_for_timeout(700)
+            # classify: poll up to ~1.6 s for the first observable effect
             if effect is None:
-                t = toast_text(page)
-                if page.url != before_url:
-                    effect = 'NAV'; detail = page.url.replace(B, '')
-                elif page.locator('.mx-modal').count():
-                    effect = 'MODAL'; close_modal(page)
-                elif t is not None and t != before_toast:
-                    if t == '': effect = 'EMPTY TOAST'; summary['empty_toast'] += 1
-                    else: effect = 'TOAST'; detail = t[:100]
-                elif net_counter['n'] > before_net:
-                    effect = 'NET'; detail = f'{net_counter["n"] - before_net} call(s)'
-                elif dom_hash(page) != before_dom:
-                    effect = 'DOM'
-                else:
-                    effect = 'NO EFFECT'; summary['no_effect'] += 1
+                for _ in range(8):
+                    page.wait_for_timeout(200)
+                    t = toast_text(page)
+                    if downloads:
+                        effect = 'DOWNLOAD'; detail = downloads[0].suggested_filename; break
+                    if page.url != before_url:
+                        effect = 'NAV'; detail = page.url.replace(B, ''); break
+                    if page.locator('.mx-modal').count():
+                        effect = 'MODAL'; break
+                    if t is not None and t != before_toast:
+                        if t == '': effect = 'EMPTY TOAST'; summary['empty_toast'] += 1
+                        else: effect = 'TOAST'; detail = t[:100]
+                        break
+                if effect is None:
+                    if net_counter['n'] > before_net: effect = 'NET'; detail = f'{net_counter["n"] - before_net} call(s)'
+                    elif dom_hash(page) != before_dom: effect = 'DOM'
+                    else: effect = 'NO EFFECT'; summary['no_effect'] += 1
+            try: page.remove_listener('download', handler)
+            except Exception: pass
+            reset_overlays(page)
             if effect in ('NAV', 'MODAL', 'TOAST', 'DOWNLOAD', 'NET', 'DOM'): summary['ok'] += 1
+            if effect == 'MODAL': close_modal(page)
             rows.append((route, label, kind, effect, detail))
             if effect == 'NAV' and page.url != base_url:
                 page.goto(B + route, wait_until='domcontentloaded'); wait_awake(page); settle(page, 600)
