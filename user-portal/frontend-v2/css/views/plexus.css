@@ -1,0 +1,57 @@
+/* css/views/plexus.css — Plexus screen group (overview · program · zagreb · mine).
+   Injected once by js/views/plexus.js. Rules here carry NO look: only responsive overrides for the
+   artboards' inline layouts (class hooks prefixed mx-, translated from responsive.css) and the
+   behaviour the artboard expressed through prototype state (bio modal, sticky bits). */
+
+/* tab strip (OVERVIEW · MY PLEXUS & REGISTER · PROGRAM & SPEAKERS · EXPLORE ZAGREB) never wraps mid-label */
+.mx-plexus-tabs a, .mx-plexus-tabs span { white-space: nowrap; }
+
+/* speaker portraits / institution logos dropped into the artboard's striped placeholder boxes */
+.mx-portrait { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.mx-logo { height: 24px; width: auto; max-width: 130px; object-fit: contain; margin-top: 2px; align-self: flex-start; display: block; }
+
+/* bio modal sheet (Plexus Conference.dc.html › bio overlay): tall bios scroll inside the sheet */
+.mx-bio-sheet { max-height: 88vh; overflow-y: auto; box-sizing: border-box; }
+
+/* QR pass image (My Plexus › "03 · MY PASS") */
+.mx-qr { width: 148px; height: 148px; object-fit: contain; background: #fff; border: 1px solid rgba(25,21,18,.16); padding: 8px; box-sizing: content-box; display: block; }
+
+/* speaker search field — the artboard draws it as a styled span; here it is a real input with the same inline look */
+.mx-speaker-q { font-family: Inter, sans-serif; background: transparent; border-radius: 0; box-sizing: border-box; }
+.mx-speaker-q:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
+
+@media (max-width: 900px) {
+  /* ink program section: text column + (200px photo | text) grid → single column */
+  .mx-grid-photo { grid-template-columns: 1fr !important; }
+  .mx-grid-photo > div:first-child { min-height: 180px; }
+  /* program header row (ADD TO CALENDAR · DOWNLOAD PDF · hint) wraps */
+  .mx-prog-head { flex-wrap: wrap !important; }
+  .mx-prog-head > .mx-hint { margin-left: 0 !important; flex-basis: 100%; }
+  .mx-speakers-head { flex-wrap: wrap !important; }
+  .mx-speakers-head > .mx-speaker-q { margin-left: 0 !important; width: 100% !important; }
+  /* hero paddings not covered by the shared hooks */
+  .mx-pad-hero-z { padding: 48px 18px 40px !important; }
+  .mx-pad-mine { padding: 32px 18px 26px !important; }
+  .mx-pad-ink { padding: 24px 18px 26px !important; }
+  /* My Plexus hero facts column loses its left rule when stacked */
+  .mx-mine-facts { border-left: 0 !important; padding-left: 0 !important; }
+  .mx-min-420 { min-width: 0 !important; }
+  /* Zagreb mosaic + photo strip rows get shorter */
+  .mx-zagreb-grid { grid-auto-rows: 190px !important; }
+  .mx-photo-strip { grid-auto-rows: 130px !important; }
+  /* at-a-glance and program rows wrap their right-hand labels */
+  .mx-glance-row, .mx-day-row { flex-wrap: wrap !important; }
+}
+@media (max-width: 700px) {
+  /* My Plexus hero + overview connect strip: the text column takes the full row, facts/CTA drop
+     below (the artboard's inline flex:1 sets flex-basis:0% — override needs !important) */
+  .mx-min-420 { flex-basis: 100% !important; }
+}
+@media (max-width: 500px) {
+  .mx-span-2 { grid-column: auto !important; }
+  .mx-display-52, .mx-display-54 { font-size: 30px !important; }
+  .mx-display-42 { font-size: 28px !important; }
+  .mx-session-indent { padding-left: 0 !important; }
+  .mx-speaker-filters { flex-wrap: wrap; }
+  .mx-bio-sheet { padding: 20px 18px !important; }
+}
