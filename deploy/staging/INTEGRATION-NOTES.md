@@ -14,3 +14,8 @@
 - server.js v2 mount ctx (~29420): add `awardPoints, rewardsSettingNum` so profile PATCH awards completion points.
 - Columns added by module: users.title/city/specialties/updates_opt_in/profile_saved_at (+user_profiles mirrors). Completion formula server-side (photo20/spec15/bio15/name10/inst10/title10/country10/verified5/saved5).
 - Seed: users.country mixes codes/names; 0 photos/bios; founder row missing diacritic.
+
+## From MESSAGES builder (done, committed)
+- chrome.js refresh(): add `inbox: api.get('/api/v2/messages/unread-count')` to the settle map; unread = (r.notifs?.unreadCount||0)+(r.inbox?.unread||0); same in the only:'notifications' branch.
+- Note for Alen/report: admin replies do NOT email members today (artboard footer promises it) — candidate server-side follow-up.
+- Seed: pjero.bacic lacks admin `member-ops` section (admin inbox 403) — curator/me: extend allowed_sections on staging; zero seeded messages; one pending connection.
