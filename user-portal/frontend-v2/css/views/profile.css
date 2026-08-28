@@ -1,0 +1,28 @@
+/* ============================================================================
+   Med&X member portal v2 — PROFILE & SETTINGS (js/views/profile.js)
+   Source: Profile.dc.html. The look lives in the view's inline styles (artboard
+   verbatim); this file only adds behaviour and responsive overrides on mx-*
+   hooks, mirroring the css/app.css conventions. Injected by the view.
+   ========================================================================== */
+
+/* photo upload states */
+.mx-profile-photo { transition: opacity .25s ease; }
+.mx-profile-photo.busy { opacity: .45; }
+
+/* completion bar movement (artboard bar is a plain width) */
+.mx-profile-bar { transition: width .45s ease; }
+
+/* chips + switches: same focus ring the rest of the portal uses (app.css) */
+[data-act="tgSpec"][aria-pressed="true"]:hover { background: #7e151b !important; border-color: #7e151b !important; }
+
+/* ---- responsive (desktop-first, matching §9 of ARCHITECTURE.md) -------- */
+@media (max-width: 900px) {
+  .mx-profile-grid { grid-template-columns: 1fr !important; }
+  .mx-profile-pad { padding-left: 18px !important; padding-right: 18px !important; }
+}
+@media (max-width: 500px) {
+  .mx-profile-title { font-size: 26px !important; }
+  .mx-cardrow { padding-left: 16px !important; padding-right: 16px !important; }
+  .mx-profile-row { flex-wrap: wrap; }
+  .mx-profile-photo-row { flex-wrap: wrap; }
+}
