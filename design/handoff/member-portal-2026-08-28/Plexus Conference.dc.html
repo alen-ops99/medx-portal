@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+</style>
+</helmet>
+<div data-screen-label="Plexus Conference" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <dc-import name="Portal Chrome" active="Plexus" hint-size="100%,150px"></dc-import>
+  <div style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">PROJECTS</span>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">PLEXUS CONFERENCE</span>
+    <div style="flex:1"></div>
+  </div>
+  <div style="position:relative;overflow:hidden">
+    <img src="assets/photo-stage.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.66) 0%,rgba(25,21,18,.5) 55%,rgba(25,21,18,.82) 100%)"></div>
+    <div style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
+      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">PRE-REGISTRATION OPEN · FREE · 9TH YEAR · CAPPED AT 100 SEATS</span>
+      <div style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">Plexus Conference <i style="color:#c9a962">2026</i></div>
+      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px">December 4–5, 2026 · Novinarski dom, Zagreb — keynotes, research, and the Gala Evening.</div>
+      <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
+        <a href="My Plexus.dc.html" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none" style-hover="background:#7e151b;color:#f7f1e6">REGISTER NOW →</a>
+        <a href="Plexus Program.dc.html" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none" style-hover="border-color:#f7f1e6;color:#f7f1e6">VIEW SCHEDULE</a>
+        <span onClick="{{ interested }}" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" style-hover="border-color:#f7f1e6">{{ interestedLabel }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
+        <span onClick="{{ tgFollow }}" style="width:34px;height:18px;flex:none;cursor:pointer;background:{{ followBg }};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:{{ followKnob }}"></span></span>
+        <span style="display:flex;flex-direction:column;gap:3px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">GET UPDATES FROM PLEXUS · {{ followLabel }}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">Email + portal alerts · manage topics in Profile &amp; settings</span></span>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">STARTS IN</span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">{{ cdDays }}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">DAYS</span></span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">{{ cdHrs }}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">HOURS</span></span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">{{ cdMin }}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">MINUTES</span></span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">GALA EARLY BIRD UNTIL SEP 1</span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">DEC 4–5 · NOVINARSKI DOM, ZAGREB</span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span onClick="{{ dlIcs }}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962;cursor:pointer">ADD TO CALENDAR →</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px;cursor:pointer">OVERVIEW</span>
+    <a href="My Plexus.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" style-hover="color:#191512">MY PLEXUS &amp; REGISTER</a>
+    <a href="Plexus Program.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" style-hover="color:#191512">PROGRAM &amp; SPEAKERS</a>
+    <a href="Plexus Zagreb.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" style-hover="color:#191512">EXPLORE ZAGREB</a>
+  </div>
+  <div style="padding:0 36px">
+    <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 4px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">ON THE PLEXUS STAGE</span>
+      <a href="Plexus Program.dc.html" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-left:10px">ALL SPEAKERS →</a>
+    </div>
+    <div style="font-size:13px;color:#4a4239;max-width:640px;line-height:1.55">Global hospital and university leaders headline Plexus 2026, alongside the full conference speaker programme.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;padding:18px 0 24px">
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239">PORTRAIT · LORD SMITH</div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:7px;flex:1">
+          <span style="align-self:flex-start;padding:3px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">CONFIRMED</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">Lord Smith of Finsbury</span>
+          <span style="font-size:12px;color:#4a4239">Chancellor, University of Cambridge</span>
+          <div style="height:24px;width:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 6px,transparent 6px 12px);display:flex;align-items:center;justify-content:center;font:600 8px ui-monospace,Menlo,monospace;color:#4a4239;margin-top:2px">CAMBRIDGE LOGO</div>
+          <span onClick="{{ vb0 }}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto;cursor:pointer">VIEW BIO →</span>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239">PORTRAIT · J. SPISSO</div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:7px;flex:1">
+          <span style="align-self:flex-start;padding:3px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">CONFIRMED</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">Johnese Spisso, MPA</span>
+          <span style="font-size:12px;color:#4a4239">President, UCLA Health · CEO, UCLA Hospital System</span>
+          <div style="height:24px;width:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 6px,transparent 6px 12px);display:flex;align-items:center;justify-content:center;font:600 8px ui-monospace,Menlo,monospace;color:#4a4239;margin-top:2px">UCLA HEALTH LOGO</div>
+          <span onClick="{{ vb1 }}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto;cursor:pointer">VIEW BIO →</span>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239">PORTRAIT · M. DEL CARMEN</div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:7px;flex:1">
+          <span style="align-self:flex-start;padding:3px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">CONFIRMED</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">Dr Marcela del Carmen</span>
+          <span style="font-size:12px;color:#4a4239">President, Massachusetts General Hospital</span>
+          <div style="height:24px;width:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 6px,transparent 6px 12px);display:flex;align-items:center;justify-content:center;font:600 8px ui-monospace,Menlo,monospace;color:#4a4239;margin-top:2px">MGH LOGO</div>
+          <span onClick="{{ vb2 }}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto;cursor:pointer">VIEW BIO →</span>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239">PORTRAIT · K. SMITH</div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:7px;flex:1">
+          <span style="align-self:flex-start;padding:3px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">CONFIRMED</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">Dr Kevin Smith</span>
+          <span style="font-size:12px;color:#4a4239">President &amp; CEO, University Health Network</span>
+          <div style="height:24px;width:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 6px,transparent 6px 12px);display:flex;align-items:center;justify-content:center;font:600 8px ui-monospace,Menlo,monospace;color:#4a4239;margin-top:2px">UHN LOGO</div>
+          <span onClick="{{ vb3 }}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto;cursor:pointer">VIEW BIO →</span>
+        </div>
+      </div>
+    </div>
+    <div style="border-top:1px solid rgba(25,21,18,.16)">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 12px">
+        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">02</span>
+        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">THIS YEAR'S THREADS</span>
+        <span style="font-size:12px;color:#4a4239">Two conversations run through everything on the program.</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding-bottom:26px">
+        <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #9b1b22;background:#fdfaf3;padding:20px 22px;display:flex;flex-direction:column;gap:8px">
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">THREAD 01</span>
+          <span style="font-family:Fraunces,serif;font-size:21px;line-height:1.2">Artificial intelligence <i style="color:#9b1b22">in medicine</i></span>
+          <span style="font-size:12.5px;color:#4a4239;line-height:1.6">Where AI is already changing diagnosis, research, and hospital practice — and what it means for clinicians here.</span>
+        </div>
+        <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #c9a962;background:#fdfaf3;padding:20px 22px;display:flex;flex-direction:column;gap:8px">
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626">THREAD 02</span>
+          <span style="font-family:Fraunces,serif;font-size:21px;line-height:1.2">The career paths of <i style="color:#6e5626">biomedical leaders</i></span>
+          <span style="font-size:12.5px;color:#4a4239;line-height:1.6">How the people running the world's leading hospitals and universities built their careers — told first-hand.</span>
+        </div>
+      </div>
+    </div>
+    </div>
+  <div style="background:#191512;color:#f7f1e6;padding:32px 36px 34px">
+    <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:48px">
+      <div>
+        <div style="display:flex;align-items:baseline;gap:14px;padding-bottom:12px">
+          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962">03</span>
+          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">THE PROGRAM</span>
+          <a href="Plexus Program.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962;margin-left:10px;text-decoration:none">FULL PROGRAM →</a>
+        </div>
+        <div style="display:flex;gap:16px;align-items:baseline;padding:11px 0;border-bottom:1px solid rgba(247,241,230,.14)">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#c9a962;width:88px;flex:none">FRI, DEC 4</span>
+          <span style="font-family:Fraunces,serif;font-size:16px">Opening, keynotes &amp; workshops</span>
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.55)">09:00 – 19:00</span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:baseline;padding:11px 0;border-bottom:1px solid rgba(247,241,230,.14)">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#c9a962;width:88px;flex:none">FRI, 18:00</span>
+          <span style="font-family:Fraunces,serif;font-size:16px">Welcome Reception</span>
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.55)">FREE</span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:baseline;padding:11px 0;border-bottom:1px solid rgba(247,241,230,.14)">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#c9a962;width:88px;flex:none">SAT, DEC 5</span>
+          <span style="font-family:Fraunces,serif;font-size:16px">Research, panels &amp; closing keynote</span>
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.55)">FROM 09:00</span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:baseline;padding:11px 0">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#c9a962;width:88px;flex:none">SAT, 19:30</span>
+          <span style="font-family:Fraunces,serif;font-size:16px">Gala Evening <i style="color:#c9a962">&amp;</i> Annual Awards</span>
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.55)">ESPLANADE</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:center">
+        <div style="position:relative;min-height:210px"><img src="assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top;border:1px solid rgba(201,169,98,.5)"></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.2em;color:#c9a962">EXCLUSIVE EVENING EVENT · THE JEWEL OF PLEXUS</span>
+          <span style="font-family:Fraunces,serif;font-size:23px;line-height:1.15">Gala Evening <i style="color:#c9a962">&amp;</i> Awards Ceremony</span>
+          <span style="font-size:12px;color:rgba(247,241,230,.7);line-height:1.55">Saturday, December 5, 19:30 — Grand Ballroom, Hotel Esplanade Zagreb. Five courses, keynote addresses, live music — seating limited to keep the room personal.</span>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+            <a href="My Plexus.dc.html" style="padding:10px 16px;background:#c9a962;color:#191512;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;text-decoration:none">RSVP · {{ galaPrice }} →</a>
+            <span style="font-size:11px;color:rgba(247,241,230,.55)">Same form as Plexus — pick the conference, the Gala, or both.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:26px;margin-top:26px;border:1px solid rgba(201,169,98,.45);padding:18px 22px;flex-wrap:wrap">
+      <span style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:300px">
+        <span style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962">04</span>
+          <span style="font:600 12px Inter,sans-serif;letter-spacing:.16em">CONNECT WITH PARTICIPANTS</span>
+          <span style="padding:2px 7px;border:1px solid rgba(201,169,98,.5);color:#c9a962;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">+10 PTS PER CONNECTION</span>
+        </span>
+        <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">Meet the room before you walk into it.</span>
+        <span style="font-size:12px;color:rgba(247,241,230,.65);line-height:1.5">Find attendees, send messages, and schedule 1-on-1 meetings — across Plexus and the Gala.</span>
+      </span>
+      <a href="Network.dc.html" style="padding:13px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.15em;flex:none" style-hover="background:#7e151b;color:#f7f1e6">OPEN THE NETWORK →</a>
+    </div>
+  </div>
+  <div style="padding:0 36px">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;gap:12px;padding:34px 0 24px">
+      <img src="assets/photo-hall.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+      <img src="assets/photo-ballroom.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+      <img src="assets/photo-candlelit.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+      <div style="background:#efe7d8;color:#191512;padding:18px 20px;display:flex;flex-direction:column;justify-content:center;gap:8px">
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#9b1b22">MOMENTS FROM PAST CONFERENCES</span>
+        <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;line-height:1.35">2,500+ researchers and clinicians, built across our Plexus conferences.</span>
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">ALL PHOTOS →</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px;border-top:1px solid rgba(25,21,18,.16);padding:20px 0 32px;flex-wrap:wrap">
+      <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">Questions about Plexus — attending, speaking, sponsoring?</span>
+      <span style="font-size:12px;color:#4a4239">Message us — you're signed in, so replies land right here in your portal inbox.</span>
+      <div style="flex:1"></div>
+      <a href="Messages.dc.html" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#7e151b;color:#f7f1e6">MESSAGE US →</a>
+    </div>
+  </div>
+  <sc-if value="{{ bioOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ bioClose }}" style="position:fixed;inset:0;background:rgba(25,21,18,.55);z-index:70;display:flex;align-items:center;justify-content:center;padding:30px">
+      <div onClick="{{ stop }}" style="background:#fdfaf3;max-width:520px;width:100%;padding:26px 30px;border-top:3px solid #9b1b22">
+        <div style="display:flex;align-items:baseline;gap:12px"><span style="font-family:Fraunces,serif;font-size:24px;flex:1">{{ bioName }}</span><span onClick="{{ bioClose }}" style="cursor:pointer;color:#4a4239;font-size:18px">×</span></div>
+        <div style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:4px">{{ bioRole }}</div>
+        <div style="font-size:13px;color:#4a4239;line-height:1.65;margin-top:12px">{{ bioText }}</div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { follow: false, interested: false, bio: null };
+  bios = [
+    { name: 'Lord Smith of Finsbury', role: 'CHANCELLOR, UNIVERSITY OF CAMBRIDGE', text: 'Chris Smith, Lord Smith of Finsbury, is Chancellor of the University of Cambridge and a former UK Secretary of State. He has led some of Britain\u2019s foremost cultural and academic institutions, and speaks on leadership across public life and academia.' },
+    { name: 'Johnese Spisso, MPA', role: 'PRESIDENT, UCLA HEALTH · CEO, UCLA HOSPITAL SYSTEM', text: 'Johnese Spisso leads UCLA Health, one of the top-ranked academic health systems in the United States, with three decades of experience running complex academic medical centers.' },
+    { name: 'Dr Marcela del Carmen', role: 'PRESIDENT, MASSACHUSETTS GENERAL HOSPITAL', text: 'Marcela del Carmen is President of Massachusetts General Hospital and a gynecologic oncologist and professor at Harvard Medical School; she previously served as chief medical officer of the Mass General Physicians Organization.' },
+    { name: 'Dr Kevin Smith', role: 'PRESIDENT & CEO, UNIVERSITY HEALTH NETWORK', text: 'Kevin Smith leads University Health Network in Toronto, Canada\u2019s largest research hospital network, and is a professor at the University of Toronto with a long record in hospital leadership.' }
+  ];
+  componentDidMount() { this.tick = setInterval(() => this.forceUpdate(), 30000); }
+  componentWillUnmount() { clearInterval(this.tick); }
+  renderVals() {
+    const ms = Math.max(0, new Date('2026-12-04T09:00:00+01:00') - new Date());
+    const pad = (n) => String(n).padStart(2, '0');
+    const b = this.state.bio === null ? null : this.bios[this.state.bio];
+    return {
+      cdDays: String(Math.floor(ms / 86400000)),
+      cdHrs: pad(Math.floor(ms / 3600000) % 24),
+      cdMin: pad(Math.floor(ms / 60000) % 60),
+      galaPrice: new Date() < new Date('2026-09-01T00:00:00+02:00') ? '€150' : '€175',
+      dlIcs: () => {
+        const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MedX//Portal//EN','BEGIN:VEVENT','UID:plexus2026@medx.hr','DTSTAMP:20260819T090000Z','DTSTART;TZID=Europe/Zagreb:20261204T090000','DTEND;TZID=Europe/Zagreb:20261205T190000','SUMMARY:Plexus Conference 2026','LOCATION:Novinarski dom\\, Zagreb','END:VEVENT','END:VCALENDAR'].join('\r\n');
+        const a = document.createElement('a'); a.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics); a.download = 'plexus-2026.ics'; a.click();
+      },
+      interested: () => this.setState({ interested: true, follow: true }),
+      interestedLabel: this.state.interested ? '✓ NOTED — UPDATES ON' : "I'M INTERESTED",
+      vb0: () => this.setState({ bio: 0 }), vb1: () => this.setState({ bio: 1 }), vb2: () => this.setState({ bio: 2 }), vb3: () => this.setState({ bio: 3 }),
+      bioOpen: !!b, bioName: b ? b.name : '', bioRole: b ? b.role : '', bioText: b ? b.text : '',
+      bioClose: () => this.setState({ bio: null }),
+      stop: e => e.stopPropagation(),
+      tgFollow: () => this.setState(s => ({ follow: !s.follow })),
+      followBg: this.state.follow ? '#9b1b22' : 'rgba(247,241,230,.3)',
+      followKnob: this.state.follow ? '18px' : '2px',
+      followLabel: this.state.follow ? 'ON' : 'OFF'
+    };
+  }
+}
+</script>
+</body>
+</html>

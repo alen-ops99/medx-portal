@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+input{font-family:Inter,sans-serif}
+input:focus{outline:1px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Network" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <dc-import name="Portal Chrome" active="Network" hint-size="100%,150px"></dc-import>
+  <div style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">NETWORK</span>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">PEOPLE</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px;cursor:pointer">PEOPLE</span>
+    <a href="Messages.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" style-hover="color:#191512">MESSAGES</a>
+    <a href="My MedX.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" style-hover="color:#191512">MY CARD</a>
+  </div>
+  <div style="border-bottom:1px solid rgba(25,21,18,.16);padding:40px 36px 30px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px">
+    <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#9b1b22">RESEARCHERS &amp; CLINICIANS, WORLDWIDE</span>
+    <span style="font-family:Fraunces,serif;font-size:36px;line-height:1.15;white-space:nowrap">Your next collaborator is <i style="color:#9b1b22">already here</i>.</span>
+    <span style="font-size:13.5px;color:#4a4239;max-width:520px;line-height:1.6">Find them, say hello, trade what you know. A message here has started collaborations, warm intros, and more than one paper.</span>
+    <div style="display:flex;gap:10px;margin-top:8px;width:100%;max-width:640px">
+      <input value="{{ q }}" onChange="{{ setQ }}" placeholder="Try anything — a name, a city, ‘sleep’, ‘oncology, Zagreb’…" style="flex:1;border:1px solid rgba(25,21,18,.3);background:#fdfaf3;padding:13px 16px;font-size:13.5px;color:#191512">
+      <span style="padding:13px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;align-self:stretch;display:inline-flex;align-items:center" style-hover="background:#7e151b">SEARCH</span>
+    </div>
+    <span style="font-size:11px;color:#4a4239">One field, every angle — names, institutions, specialties, cities, and programs all match.</span>
+  </div>
+  <div style="padding:0 36px 8px">
+    <sc-if value="{{ noSearch }}" hint-placeholder-val="{{ true }}">
+      <a href="Biomedical Forum.dc.html" style="display:flex;align-items:center;gap:14px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-top:20px;color:#191512" style-hover="background:#f7efdf">
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626;flex:none">FROM THE FORUM</span>
+        <span style="width:1px;height:26px;background:rgba(25,21,18,.15);flex:none"></span>
+        <sc-if value="{{ fIsSpot }}" hint-placeholder-val="{{ true }}"><span style="width:34px;height:34px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">{{ fInit }}</span></sc-if>
+        <span style="flex:1;min-width:0"><span style="display:block;font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">{{ fTag }}</span><span style="display:block;font-family:Fraunces,serif;font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ fHeadline }}</span></span>
+        <span style="font-size:11px;color:#4a4239;white-space:nowrap;flex:none">{{ fWhen }}</span>
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none;white-space:nowrap">OPEN FEED →</span>
+      </a>
+      <div style="display:flex;align-items:baseline;gap:14px;padding:22px 0 12px">
+        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">PEOPLE FOR YOU</span>
+        <span style="font-size:12px;color:#4a4239">Requests first, then members worth a hello.</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding-bottom:10px">
+        <sc-for list="{{ forYou }}" as="m" hint-placeholder-count="6">
+          <div style="border:1px solid {{ m.cardBd }};background:#fdfaf3;display:flex;flex-direction:column">
+            <div style="height:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9px ui-monospace,Menlo,monospace;color:#4a4239;position:relative">{{ m.photo }}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid {{ m.whyBd }};background:{{ m.whyBg }};color:{{ m.whyFg }};font:600 8.5px Inter,sans-serif;letter-spacing:.14em">{{ m.why }}</span></div>
+            <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px;flex:1">
+              <span style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">{{ m.name }}</span>
+              <span style="font-size:11.5px;color:#4a4239;line-height:1.4">{{ m.sub }}</span>
+              <sc-if value="{{ m.isRequest }}" hint-placeholder-val="{{ false }}">
+                <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
+                  <span onClick="{{ m.accept }}" style="flex:1;text-align:center;padding:9px 0;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" style-hover="background:#7e151b">ACCEPT</span>
+                  <span onClick="{{ m.decline }}" style="flex:1;text-align:center;padding:9px 0;border:1px solid rgba(25,21,18,.25);font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" style-hover="border-color:#191512">DECLINE</span>
+                </span>
+              </sc-if>
+              <sc-if value="{{ m.isSuggestion }}" hint-placeholder-val="{{ true }}">
+                <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
+                  <span onClick="{{ m.connect }}" style="flex:1;text-align:center;padding:9px 0;background:{{ m.cnBg }};color:{{ m.cnFg }};border:1px solid {{ m.cnBd }};font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">{{ m.cnLabel }}</span>
+                  <a href="Messages.dc.html" style="flex:1;text-align:center;padding:9px 0;border:1px solid rgba(25,21,18,.25);font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#191512" style-hover="border-color:#191512">MESSAGE</a>
+                </span>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px;padding:16px 0 12px;border-top:1px solid rgba(25,21,18,.16)">
+        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">02</span>
+        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">MY NETWORK</span>
+        <span style="font-size:12px;color:#4a4239">{{ connCountLabel }}</span>
+      </div>
+      <sc-if value="{{ hasConns }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width:960px">
+          <sc-for list="{{ myNetwork }}" as="m" hint-placeholder-count="2">
+            <div style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+              <span style="width:40px;height:40px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none">{{ m.init }}</span>
+              <span style="flex:1;min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">{{ m.name }}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">{{ m.sub }}</span></span>
+              <span style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">CONNECTED ✓</span>
+              <a href="Messages.dc.html" style="padding:9px 15px;background:#9b1b22;color:#f7f1e6;font:600 9px Inter,sans-serif;letter-spacing:.14em" style-hover="background:#7e151b;color:#f7f1e6">MESSAGE</a>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ noConns }}" hint-placeholder-val="{{ true }}">
+        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:22px;display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;max-width:960px">
+          <span style="width:28px;height:1px;background:#c9a962"></span>
+          <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">No connections yet.</span>
+          <span style="font-size:12px;color:#4a4239">Accept a request or say hello above — everyone you connect with lives here.</span>
+        </div>
+      </sc-if>
+      <div style="display:flex;justify-content:center;align-items:baseline;gap:14px;padding:20px 0 30px">
+        <span style="padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" style-hover="border-color:#191512">BROWSE ALL 50 MEMBERS ↓</span>
+        <span style="font-size:11.5px;color:#4a4239">or search above.</span>
+      </div>
+    </sc-if>
+    <sc-if value="{{ searching }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:22px 0 12px">
+        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">SEARCH RESULTS</span>
+        <div style="flex:1"></div>
+        <span style="font-size:11.5px;color:#4a4239">{{ resultCount }} of 50 members match</span>
+      </div>
+      <div style="max-width:960px">
+        <sc-for list="{{ results }}" as="m" hint-placeholder-count="4">
+          <div style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+            <span style="width:40px;height:40px;background:{{ m.avBg }};color:{{ m.avFg }};display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none">{{ m.init }}</span>
+            <span style="flex:1;min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">{{ m.name }}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">{{ m.sub }}</span></span>
+            <span onClick="{{ m.connect }}" style="padding:9px 15px;background:{{ m.cnBg }};color:{{ m.cnFg }};border:1px solid {{ m.cnBd }};font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer">{{ m.cnLabel }}</span>
+            <a href="Messages.dc.html" style="padding:9px 15px;border:1px solid rgba(25,21,18,.25);font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#191512" style-hover="border-color:#191512">MESSAGE</a>
+          </div>
+        </sc-for>
+      </div>
+      <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:26px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;max-width:960px">
+          <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">No members match "{{ q }}".</span>
+          <span style="font-size:12px;color:#4a4239">Try a name, institution, specialty, or city.</span>
+        </div>
+      </sc-if>
+      <div style="padding:14px 0 30px"></div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  state = { q: '', requests: ['Pjero Bačić', 'Nada Rakić'], connected: [], forumTop: null };
+  feedFallback = { kind: 'spotlight', tag: 'MEMBER OF THE WEEK', name: 'Dr. Iva Šarić', init: 'IŠ', when: '2 days ago' };
+  componentDidMount() { try { const raw = localStorage.getItem('medx_forum_feed_v2'); if (raw) { const f = JSON.parse(raw); if (Array.isArray(f) && f.length) this.setState({ forumTop: f[0] }); } } catch (e) {} }
+  suggestedList = [
+    { init: 'EW', name: 'Dr. Emma Wilson', sub: 'Johns Hopkins Medicine · Baltimore', photo: 'PORTRAIT · E. WILSON', why: 'SHARED FIELD' },
+    { init: 'LH', name: 'Luka Horvat', sub: 'University of Zagreb', photo: 'PORTRAIT · L. HORVAT', why: 'ATTENDS PLEXUS' },
+    { init: 'DJ', name: 'Doria Juric', sub: 'University Hospital of Basel', photo: 'PORTRAIT · D. JURIC', why: 'NEW MEMBER' },
+    { init: 'JC', name: 'Dr. James Chen', sub: 'Stanford University', photo: 'PORTRAIT · J. CHEN', why: 'MUTUAL CONTACTS' },
+    { init: 'VV', name: 'Vlasta Vuković Cvetković', sub: 'KBC Rijeka · Department of Neurology', photo: 'PORTRAIT · V. VUKOVIĆ', why: 'SHARED FIELD' },
+    { init: 'MP', name: 'Marija Pranjić', sub: 'Program Director · the Accelerator', photo: 'PORTRAIT · M. PRANJIĆ', why: 'MED&X TEAM' }
+  ];
+  directory = [
+    { init: 'ZW', name: 'Zheng Wei Wong', sub: 'RCSI · Dublin', avBg: '#191512', avFg: '#f7f1e6' },
+    { init: 'LP', name: 'Lea Pogac', sub: 'University of Zagreb', avBg: '#9b1b22', avFg: '#f7f1e6' },
+    { init: 'VV', name: 'Vlasta Vuković Cvetković', sub: 'KBC Rijeka · Department of Neurology', avBg: '#c9a962', avFg: '#191512' },
+    { init: 'TS', name: 'Tara Sustar', sub: 'University of Rijeka', avBg: '#191512', avFg: '#f7f1e6' },
+    { init: 'MP', name: 'Marija Pranjić', sub: 'Program Director · the Accelerator', avBg: '#9b1b22', avFg: '#f7f1e6' },
+    { init: 'IN', name: 'Ivan Nikolić', sub: 'Zagreb', avBg: '#c9a962', avFg: '#191512' },
+    { init: 'PV', name: 'Paula Vučica', sub: 'Split', avBg: '#191512', avFg: '#f7f1e6' },
+    { init: 'EW', name: 'Dr. Emma Wilson', sub: 'Johns Hopkins Medicine · Baltimore', avBg: '#9b1b22', avFg: '#f7f1e6' },
+    { init: 'LH', name: 'Luka Horvat', sub: 'University of Zagreb', avBg: '#c9a962', avFg: '#191512' },
+    { init: 'JC', name: 'Dr. James Chen', sub: 'Stanford University', avBg: '#191512', avFg: '#f7f1e6' }
+  ];
+  conn(name) {
+    const isConn = this.state.connected.includes(name);
+    return {
+      cnLabel: isConn ? 'CONNECTED ✓' : 'CONNECT',
+      cnBg: isConn ? 'transparent' : '#9b1b22',
+      cnFg: isConn ? '#6e5626' : '#f7f1e6',
+      cnBd: isConn ? 'rgba(201,169,98,.65)' : '#9b1b22',
+      connect: () => { if (!isConn) this.setState(s => ({ connected: s.connected.concat([name]) })); }
+    };
+  }
+  renderVals() {
+    const q = this.state.q.trim().toLowerCase();
+    const results = this.directory.filter(m => (m.name + ' ' + m.sub).toLowerCase().includes(q));
+    const requestCards = this.state.requests.map(name => ({
+      name,
+      sub: 'Wants to connect with you',
+      photo: 'PORTRAIT · ' + name.split(' ').map(w => w[0]).join('. '),
+      why: 'REQUEST', whyBd: '#9b1b22', whyBg: '#9b1b22', whyFg: '#f7f1e6',
+      cardBd: 'rgba(155,27,34,.45)',
+      isRequest: true, isSuggestion: false,
+      accept: () => this.setState(s => ({ requests: s.requests.filter(r => r !== name), connected: s.connected.concat([name]) })),
+      decline: () => this.setState(s => ({ requests: s.requests.filter(r => r !== name) }))
+    }));
+    const suggestionCards = this.suggestedList.slice(0, 8 - requestCards.length).map(m => Object.assign({
+      whyBd: 'rgba(201,169,98,.65)', whyBg: '#fdfaf3', whyFg: '#6e5626',
+      cardBd: 'rgba(25,21,18,.16)',
+      isRequest: false, isSuggestion: true
+    }, m, this.conn(m.name)));
+    const fTop = this.state.forumTop || this.feedFallback;
+    return {
+      q: this.state.q,
+      fTag: fTop.tag, fHeadline: fTop.name || fTop.title, fWhen: fTop.when, fIsSpot: fTop.kind === 'spotlight', fInit: fTop.init || '',
+      setQ: (e) => this.setState({ q: e.target.value }),
+      noSearch: !q, searching: !!q,
+      forYou: requestCards.concat(suggestionCards),
+      myNetwork: this.state.connected.map(name => {
+        const hit = this.directory.find(d => d.name === name) || this.suggestedList.find(d => d.name === name);
+        return { name, sub: hit ? hit.sub : 'Med&X member', init: name.split(' ').map(w => w[0]).join('').replace(/[^A-ZŠĐČĆŽ]/gi, '').toUpperCase().slice(0, 2) };
+      }),
+      hasConns: this.state.connected.length > 0,
+      noConns: this.state.connected.length === 0,
+      connCountLabel: this.state.connected.length === 0 ? 'The people you\u2019ve connected with.' : this.state.connected.length + (this.state.connected.length === 1 ? ' connection' : ' connections'),
+      results: results.map(m => Object.assign({}, m, this.conn(m.name))),
+      resultCount: String(results.length),
+      noResults: results.length === 0
+    };
+  }
+}
+</script>
+</body>
+</html>

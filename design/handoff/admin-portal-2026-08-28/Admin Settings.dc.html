@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus,select:focus{outline:2px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Settings" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <a href="Admin Plexus Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PROJECTS</a>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">SETTINGS</span>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;width:180px;min-width:60px;flex:0 1 180px;box-sizing:border-box;cursor:text;overflow:hidden"><span style="color:#6d6459">⌕</span><span style="font-size:12px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search or type a task…</span></span>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:22px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span style="font-family:Fraunces,serif;font-size:30px">Settings &amp; tools</span>
+      <span style="font-size:12.5px;color:#6d6459">the once-in-a-while things — everything is here, nothing was deleted</span>
+    </div>
+    <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">SYSTEM HEALTH</span>
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;background:#f8f1e2;color:#7a6432;padding:3px 8px">17 OK · 7 TO CHECK · 0 FAILING</span>
+        <span style="font-size:11px;color:#6d6459">{{ lastRun }}</span>
+        <div style="flex:1"></div>
+        <span onClick="{{ runChecks }}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.2);font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" style-hover="border-color:#201b16">{{ runLabel }}</span>
+      </div>
+      <div style="padding:6px 20px 14px">
+        <sc-for list="{{ health }}" as="h" hint-placeholder-count="4">
+          <div style="display:flex;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.06)">
+            <span style="width:8px;height:8px;background:{{ h.dot }};flex:none;transform:translateY(-1px)"></span>
+            <span style="font-size:13px;font-weight:600;width:230px;flex:none">{{ h.name }}</span>
+            <span style="font-size:12px;color:#6d6459;flex:1">{{ h.note }}</span>
+          </div>
+        </sc-for>
+        <span style="display:block;font-size:11.5px;color:#6d6459;margin-top:10px">Run this before every event and any time something seems off — it checks email, payments, database and event setup in one go.</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">TEAM ACCESS</span>
+          <span style="font-size:11.5px;color:#6d6459">admins run everything · scanner staff only check people in</span>
+          <div style="flex:1"></div>
+          <span onClick="{{ inviteToggle }}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">+ INVITE</span>
+        </div>
+        <sc-if value="{{ inviteOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6;flex-wrap:wrap">
+            <input value="{{ invEmail }}" onChange="{{ onInvEmail }}" placeholder="Email — e.g. ana@medx.hr" style="flex:1;min-width:170px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16"></input>
+            <select value="{{ invRole }}" onChange="{{ onInvRole }}" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px;font:400 12.5px Inter,sans-serif;color:#201b16"><option>ADMIN</option><option>SCANNER</option></select>
+            <span onClick="{{ sendInvite }}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">SEND INVITE</span>
+            <span style="font-size:11px;color:#6d6459;flex-basis:100%">Admins run everything · scanner staff see only the Event Day check-in — the invite email carries a one-tap join link.</span>
+          </div>
+        </sc-if>
+        <sc-for list="{{ team }}" as="t" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
+            <span style="width:28px;height:28px;background:#eee9df;color:#4a4239;display:inline-flex;align-items:center;justify-content:center;font:600 10px Inter,sans-serif;flex:none">{{ t.ini }}</span>
+            <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">{{ t.name }}</span><span style="display:block;font-size:11px;color:#6d6459">{{ t.email }}</span></span>
+            <sc-if value="{{ t.pending }}" hint-placeholder-val="{{ false }}"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f8f1e2;color:#7a6432;padding:3px 7px;white-space:nowrap">INVITE PENDING</span></sc-if>
+            <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:3px 7px;white-space:nowrap">{{ t.role }}</span>
+            <span onClick="{{ t.perms }}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap" style-hover="color:#201b16">PERMISSIONS</span>
+          </div>
+          <sc-if value="{{ t.permsOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:8px;align-items:center;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.07);background:#fdfbf6;flex-wrap:wrap">
+              <sc-for list="{{ t.mods }}" as="m" hint-placeholder-count="5">
+                <span onClick="{{ m.tg }}" style="padding:5px 10px;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;cursor:pointer;background:{{ m.bg }};color:{{ m.fg }};border:1px solid {{ m.bd }}">{{ m.name }}</span>
+              </sc-for>
+              <div style="flex:1"></div>
+              <span onClick="{{ t.revoke }}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:{{ t.revokeColor }};cursor:pointer">{{ t.revokeLabel }}</span>
+            </div>
+          </sc-if>
+        </sc-for>
+        <div style="padding:11px 20px;font-size:11.5px;color:#6d6459">13 teammates · 6 shown here · only you see who uses the portal and how much</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #201b16;background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:9px">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">ORGANISATION &amp; PAYMENTS</span>
+          <span style="font-size:11.5px;color:#6d6459;line-height:1.5">Legal details that appear on invoices, receipts and fiscal reports.</span>
+          <label style="display:flex;flex-direction:column;gap:4px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">OIB · TAX NUMBER</span><input value="{{ orgOib }}" onChange="{{ onOrgOib }}" placeholder="e.g. 12345678901" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px ui-monospace,monospace;color:#201b16"></input></label>
+          <label style="display:flex;flex-direction:column;gap:4px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">IBAN · BANK TRANSFERS</span><input value="{{ orgIban }}" onChange="{{ onOrgIban }}" placeholder="HR__ ____ ____ ____ ____ _" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px ui-monospace,monospace;color:#201b16"></input></label>
+          <label style="display:flex;flex-direction:column;gap:4px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">FIRA KEY · FISCAL INVOICES</span><input value="{{ orgFira }}" onChange="{{ onOrgFira }}" placeholder="paste the key from FIRA" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px ui-monospace,monospace;color:#201b16"></input></label>
+          <span onClick="{{ orgSave }}" style="padding:9px 13px;background:{{ orgSaveBg }};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;text-align:center">{{ orgSaveLabel }}</span>
+          <span style="font-size:11px;color:#6d6459">Filling IBAN and FIRA clears two of the seven health checks above.</span>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:4px">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;margin-bottom:6px">WHAT THE PUBLIC &amp; MEMBERS SEE</span>
+          <sc-for list="{{ textTools }}" as="t" hint-placeholder-count="3">
+            <a href="{{ t.href }}" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(32,27,22,.06);color:#201b16" style-hover="color:#9b1b22">
+              <span style="font-size:12.5px;flex:1">{{ t.name }}</span>
+              <span style="font-size:11px;color:#6d6459">{{ t.note }}</span>
+              <span style="font:600 10px Inter,sans-serif;color:#9b1b22">→</span>
+            </a>
+          </sc-for>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">MAKE &amp; STORE THINGS — MOVED TO THE STUDIO</span>
+          <span style="font-size:12.5px;color:#6d6459;line-height:1.6">Badges, certificates, the print suite, social cards, brand assets and stored files now live in their own place in the header.</span>
+          <a href="Admin Studio.dc.html" style="padding:10px 14px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;text-align:center" style-hover="background:#9b1b22;color:#f6f2ea">OPEN THE STUDIO →</a>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">AUDIT LOG</span>
+          <span style="font-size:11.5px;color:#6d6459">who changed what, forever</span>
+          <div style="flex:1"></div>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer" onClick="{{ auditToggle }}">{{ auditLabel }}</span>
+        </div>
+        <sc-for list="{{ audit }}" as="a" hint-placeholder-count="4">
+          <div style="display:flex;gap:12px;align-items:baseline;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.06)">
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;width:88px;flex:none">{{ a.when }}</span>
+            <span style="font-size:12.5px;flex:1">{{ a.what }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">TEAM LIBRARY</span>
+          <span style="font-size:11.5px;color:#6d6459">guides &amp; files everyone reaches for</span>
+          <div style="flex:1"></div>
+          <label style="padding:8px 13px;border:1px solid rgba(32,27,22,.2);font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" style-hover="border-color:#201b16">UPLOAD A FILE<input type="file" onChange="{{ uploadFile }}" style="display:none"></input></label>
+        </div>
+        <sc-for list="{{ library }}" as="f" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.06)">
+            <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f1e7d4;color:#7a6432;padding:3px 7px;white-space:nowrap;flex:none">{{ f.kind }}</span>
+            <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:600">{{ f.name }}</span><span style="display:block;font-size:11px;color:#6d6459">{{ f.note }}</span></span>
+            <span onClick="{{ f.open }}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap">OPEN</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#201b16;color:#f6f2ea;padding:12px 18px;font:600 10px Inter,sans-serif;letter-spacing:.14em;z-index:80;border-left:3px solid #c9a962;display:flex;gap:14px;align-items:center;white-space:nowrap">{{ toastMsg }}<sc-if value="{{ toastUndoable }}" hint-placeholder-val="{{ false }}"><span onClick="{{ toastUndo }}" style="color:#c9a962;cursor:pointer">UNDO</span></sc-if></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { toast: null, lastRunAt: null, running: false, inviteOpen: false, invEmail: '', invRole: 'ADMIN', permsOpen: null, revokeConfirm: null, auditOpen: false,
+    orgOib: '', orgIban: '', orgFira: '', orgSaved: false,
+    team: [
+      { ini: 'AJ', name: 'Alen Juginović', email: 'juginovic.alen@gmail.com', role: 'FOUNDER', pending: false, mods: ['TODAY', 'PROJECTS', 'INBOX', 'PEOPLE', 'MONEY', 'EVENT DAY'] },
+      { ini: 'LR', name: 'Laura Rodman', email: 'laura.rodman@medx.hr', role: 'ADMIN', pending: false, mods: ['TODAY', 'PROJECTS', 'INBOX', 'PEOPLE', 'MONEY', 'EVENT DAY'] },
+      { ini: 'MV', name: 'Miro Vuković', email: 'vp@medx.hr', role: 'ADMIN', pending: false, mods: ['TODAY', 'PROJECTS', 'INBOX', 'PEOPLE', 'MONEY', 'EVENT DAY'] },
+      { ini: 'MP', name: 'Marija Pranjić', email: 'marija.pranjic@medx.hr', role: 'ADMIN', pending: false, mods: ['TODAY', 'PROJECTS', 'INBOX', 'PEOPLE', 'EVENT DAY'] },
+      { ini: 'IN', name: 'Ivan Nikolić', email: 'ivan.nikolic102@gmail.com', role: 'SCANNER', pending: true, mods: ['EVENT DAY'] },
+      { ini: 'NR', name: 'Nada Rakić', email: 'nada.rakic@medx.hr', role: 'ADMIN', pending: true, mods: ['TODAY', 'PROJECTS', 'INBOX'] }
+    ],
+    library: [
+      { kind: 'HANDBOOK', name: 'Operations Handbook', note: 'plain-language guide to every job in this portal' },
+      { kind: 'RUNBOOK', name: 'If something breaks', note: 'the emergency one-pager — keep it findable' },
+      { kind: 'DECK', name: 'Who we are — 15 slides', note: 'the evergreen Med&X presentation' },
+      { kind: 'PDF', name: 'Gala sponsorship brochure', note: 'tier ladder and reach, ready to email' },
+      { kind: 'TEMPLATE', name: 'Logo-use agreement', note: 'send before any partner uses the Med&X mark' }
+    ]};
+  allMods = ['TODAY', 'PROJECTS', 'INBOX', 'PEOPLE', 'MONEY', 'EVENT DAY'];
+  componentDidMount() { document.title = 'Med&X Admin — Settings'; }
+  componentWillUnmount() { clearTimeout(this.tt); clearTimeout(this.rt); }
+  showToast(msg, undo) { clearTimeout(this.tt); this.setState({ toast: { msg, undo: undo || null } }); this.tt = setTimeout(() => this.setState({ toast: null }), 4000); }
+  renderVals() {
+    const s = this.state;
+    return {
+      lastRun: s.running ? 'checking…' : s.lastRunAt ? 'last run ' + s.lastRunAt : 'last run today 06:00 (auto)',
+      runLabel: s.running ? 'CHECKING…' : 'RUN CHECKS AGAIN',
+      runChecks: () => { if (s.running) return; this.setState({ running: true }); this.rt = setTimeout(() => { const t = new Date(); this.setState({ running: false, lastRunAt: 'today ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') }); this.showToast('ALL 24 CHECKS RAN — SAME 7 STILL WANT A LOOK'); }, 1400); },
+      health: [
+        { dot: '#2f7d4f', name: 'Email provider', note: 'Configured — sender Med&X <noreply@medx.hr>' },
+        { dot: '#b7791f', name: 'Card payments (Stripe)', note: 'Runs on the member portal — check there before the event' },
+        { dot: s.orgFira.trim() ? '#2f7d4f' : '#b7791f', name: 'Croatian fiscal invoicing', note: s.orgFira.trim() ? 'FIRA key set — fiscal invoices will issue' : 'FIRA key not set — paid registrations get no fiscal invoice yet · fill it in Organisation & payments' },
+        { dot: s.orgIban.trim() ? '#2f7d4f' : '#b7791f', name: 'Bank transfer IBAN', note: s.orgIban.trim() ? 'Set — transfers reconcile by reference' : 'Not set — guests can only pay by card until you add it · fill it in Organisation & payments' },
+        { dot: '#2f7d4f', name: 'Database & backups', note: 'Reachable, 8 core tables present, cloud sync on' },
+        { dot: '#2f7d4f', name: 'Event readiness', note: 'Plexus 2026 active · 5 ticket types · Gala €150 OPEN' }
+      ],
+      team: s.team.map((t, i) => ({
+        ...t,
+        permsOpen: s.permsOpen === i,
+        perms: () => this.setState(x => ({ permsOpen: x.permsOpen === i ? null : i, revokeConfirm: null })),
+        mods: this.allMods.map(m => { const on = t.mods.includes(m); return { name: m, bg: on ? '#201b16' : 'transparent', fg: on ? '#f6f2ea' : '#6d6459', bd: on ? '#201b16' : 'rgba(32,27,22,.25)', tg: () => { if (t.role === 'FOUNDER') { this.showToast('THE FOUNDER ALWAYS HAS EVERYTHING'); return; } this.setState(x => ({ team: x.team.map((q, j) => j === i ? { ...q, mods: on ? q.mods.filter(z => z !== m) : q.mods.concat([m]) } : q) })); } }; }),
+        revoke: () => { if (t.role === 'FOUNDER') { this.showToast('YOU CANNOT REMOVE YOURSELF'); return; } if (s.revokeConfirm !== i) { this.setState({ revokeConfirm: i }); return; } const snapshot = this.state.team; this.setState(x => ({ team: x.team.filter((q, j) => j !== i), permsOpen: null, revokeConfirm: null })); this.showToast('ACCESS REMOVED — THEY CAN NO LONGER SIGN IN', () => this.setState({ team: snapshot })); },
+        revokeLabel: s.revokeConfirm === i ? 'SURE? REMOVE ACCESS' : 'REMOVE ACCESS',
+        revokeColor: s.revokeConfirm === i ? '#9b1b22' : '#6d6459'
+      })),
+      inviteOpen: s.inviteOpen, inviteToggle: () => this.setState(x => ({ inviteOpen: !x.inviteOpen })),
+      invEmail: s.invEmail, invRole: s.invRole,
+      onInvEmail: e => this.setState({ invEmail: e.target.value }), onInvRole: e => this.setState({ invRole: e.target.value }),
+      sendInvite: () => { const em = s.invEmail.trim(); if (!em || !em.includes('@')) { this.showToast('TYPE A REAL EMAIL FIRST'); return; } const nm = em.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); this.setState(x => ({ team: x.team.concat([{ ini: nm.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase(), name: nm, email: em, role: x.invRole, pending: true, mods: x.invRole === 'SCANNER' ? ['EVENT DAY'] : ['TODAY', 'PROJECTS', 'INBOX'] }]), invEmail: '', inviteOpen: false })); this.showToast('INVITE SENT TO ' + em.toUpperCase()); },
+      orgOib: s.orgOib, orgIban: s.orgIban, orgFira: s.orgFira,
+      onOrgOib: e => this.setState({ orgOib: e.target.value, orgSaved: false }),
+      onOrgIban: e => this.setState({ orgIban: e.target.value, orgSaved: false }),
+      onOrgFira: e => this.setState({ orgFira: e.target.value, orgSaved: false }),
+      orgSaveBg: s.orgSaved ? '#1e6e42' : '#9b1b22',
+      orgSaveLabel: s.orgSaved ? '✓ SAVED — INVOICES USE THESE NOW' : 'SAVE ORGANISATION DETAILS',
+      orgSave: () => { this.setState({ orgSaved: true }); this.showToast('SAVED — HEALTH CHECKS UPDATE ABOVE'); },
+      textTools: [
+        { name: 'Publish news', note: 'one post — tick member portal, public website, or both', href: 'Admin Inbox.dc.html#announcements' },
+        { name: 'Member portal text', note: 'home-screen cards, project pages', href: 'Admin Member Pages.dc.html' },
+        { name: 'Website text', note: 'medx.hr page copy — same editor, website tab', href: 'Admin Member Pages.dc.html' },
+        { name: 'Sign-up form pages', note: 'public links for short events', href: 'Admin Links.dc.html' }
+      ],
+      auditOpen: s.auditOpen, auditToggle: () => this.setState(x => ({ auditOpen: !x.auditOpen })),
+      auditLabel: s.auditOpen ? 'SHOW LESS' : 'FULL LOG →',
+      audit: [
+        { when: 'TODAY 15:43', what: 'Alen set their own password (invite temp retired)' },
+        { when: 'TODAY 12:28', what: 'Weekly advisor reviews generated (auto)' },
+        { when: 'AUG 8', what: 'Login from new device — juginovic.alen@gmail.com' },
+        { when: 'AUG 5', what: 'Laura marked 3 payment nags done' },
+        { when: 'JUL 29', what: 'Gala price €150 confirmed until Sep 1' }
+      ].concat(s.auditOpen ? [
+        { when: 'JUL 25', what: 'Miro reviewed the Money ledger (read-only)' },
+        { when: 'JUL 22', what: 'Gala guest list export — Laura' },
+        { when: 'JUL 20', what: 'Member page “Accelerator” text edited — Alen' },
+        { when: 'JUL 18', what: 'New team invite — nada.rakic@medx.hr' },
+        { when: 'JUL 14', what: 'Plexus registration form opened to the public' }
+      ] : []),
+      library: s.library.map(f => ({ ...f, open: () => this.showToast('OPENS THE STORED FILE — PRODUCTION') })),
+      uploadFile: e => { const f = e.target.files && e.target.files[0]; if (!f) return; const ext = (f.name.split('.').pop() || 'FILE').toUpperCase().slice(0, 8); this.setState(x => ({ library: [{ kind: ext, name: f.name, note: 'uploaded just now · visible to the whole team' }].concat(x.library) })); this.showToast('ADDED TO THE TEAM LIBRARY'); },
+      toastOn: !!s.toast, toastMsg: s.toast ? s.toast.msg : '',
+      toastUndoable: !!(s.toast && s.toast.undo),
+      toastUndo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+input,textarea{font-family:Inter,sans-serif}
+input:focus,textarea:focus{outline:1px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Messages" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <dc-import name="Portal Chrome" active="Network" hint-size="100%,150px"></dc-import>
+  <div style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">NETWORK</span>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">MESSAGES</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <a href="Network.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" style-hover="color:#191512">PEOPLE</a>
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px;cursor:pointer">MESSAGES</span>
+    <a href="My MedX.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" style-hover="color:#191512">MY CARD</a>
+  </div>
+  <div style="display:grid;grid-template-columns:340px 1fr;align-items:stretch;min-height:560px">
+    <div style="border-right:1px solid rgba(25,21,18,.16);display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:12px;padding:16px 22px 12px">
+        <span style="font-family:Fraunces,serif;font-size:22px">Inbox</span>
+        <div style="flex:1"></div>
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">NEW MESSAGE →</span>
+      </div>
+      <div style="padding:0 22px 12px">
+        <input placeholder="Search conversations…" style="width:100%;box-sizing:border-box;border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:9px 12px;font-size:12.5px;color:#191512">
+      </div>
+      <sc-for list="{{ threads }}" as="t" hint-placeholder-count="4">
+        <div onClick="{{ t.open }}" style="display:flex;gap:13px;align-items:flex-start;padding:14px 22px;cursor:pointer;border-top:1px solid rgba(25,21,18,.1);background:{{ t.bg }};border-left:2px solid {{ t.edge }}" style-hover="background:rgba(25,21,18,.04)">
+          <span style="width:36px;height:36px;background:{{ t.avBg }};color:{{ t.avFg }};display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;flex:none">{{ t.init }}</span>
+          <span style="flex:1;min-width:0">
+            <span style="display:flex;align-items:baseline;gap:8px">
+              <span style="font-size:13px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.name }}</span>
+              <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#4a4239;flex:none">{{ t.when }}</span>
+            </span>
+            <span style="display:block;font-size:11px;color:#4a4239;margin-top:2px">{{ t.sub }}</span>
+            <span style="display:block;font-size:12px;color:{{ t.prevC }};margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:{{ t.prevW }}">{{ t.preview }}</span>
+          </span>
+          <sc-if value="{{ t.unread }}" hint-placeholder-val="{{ false }}"><span style="width:7px;height:7px;background:#9b1b22;flex:none;margin-top:5px"></span></sc-if>
+        </div>
+      </sc-for>
+      <div style="flex:1"></div>
+      <div style="padding:14px 22px;border-top:1px solid rgba(25,21,18,.16);font-size:11px;color:#4a4239;line-height:1.5">You're signed in as <strong style="color:#191512">Alen Juginović</strong> · replies also arrive by email if you're away.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;background:#fdfaf3">
+      <div style="display:flex;align-items:center;gap:13px;padding:14px 26px;border-bottom:1px solid rgba(25,21,18,.16)">
+        <span style="width:34px;height:34px;background:{{ curAvBg }};color:{{ curAvFg }};display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">{{ curInit }}</span>
+        <span style="display:flex;flex-direction:column;line-height:1.3">
+          <span style="font-size:13.5px;font-weight:600">{{ curName }}</span>
+          <span style="font-size:11px;color:#4a4239">{{ curSub }}</span>
+        </span>
+        <div style="flex:1"></div>
+        <sc-if value="{{ curOfficial }}" hint-placeholder-val="{{ true }}">
+          <span style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.14em">OFFICIAL · MED&amp;X TEAM</span>
+        </sc-if>
+      </div>
+      <div style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">
+        <sc-for list="{{ msgs }}" as="m" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:4px;align-self:{{ m.side }};max-width:62%;align-items:{{ m.alignItems }}">
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">{{ m.meta }}</span>
+            <span style="padding:12px 15px;font-size:13px;line-height:1.55;background:{{ m.bg }};color:{{ m.fg }};border:1px solid {{ m.bd }}">{{ m.text }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-end;padding:16px 26px 20px;border-top:1px solid rgba(25,21,18,.16)">
+        <textarea value="{{ draft }}" onChange="{{ setDraft }}" placeholder="Write a message…" rows="2" style="flex:1;border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:11px 13px;font-size:13px;color:#191512;resize:none"></textarea>
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;padding-bottom:12px" style-hover="color:#191512">ATTACH</span>
+        <span onClick="{{ send }}" style="padding:12px 18px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" style-hover="background:#7e151b">SEND →</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  state = { cur: 0, draft: '', sent: [] };
+  threads = [
+    { init: 'MX', name: 'Med&X Coordinators', sub: 'Official team inbox', when: 'TODAY', official: true, avBg: '#9b1b22', avFg: '#f7f1e6', unread: true,
+      msgs: [
+        { who: 'you', meta: 'YOU · YESTERDAY, 18:42', text: 'Hi — for the Accelerator, does the mentor letter need to come from my current PI, or can a previous supervisor write it?' },
+        { who: 'them', meta: 'MED&X COORDINATORS · TODAY, 09:15', text: 'Hi Alen — either works. What matters is that the writer has directly supervised your research. A previous supervisor is perfectly fine.' },
+        { who: 'them', meta: 'MED&X COORDINATORS · TODAY, 09:16', text: 'One tip: ask them to mention your project one-liner so the committee can connect the letter to your application.' }
+      ] },
+    { init: 'EW', name: 'Dr. Emma Wilson', sub: 'Johns Hopkins Medicine', when: 'FRI', official: false, avBg: '#191512', avFg: '#f7f1e6', unread: false,
+      msgs: [
+        { who: 'them', meta: 'DR. EMMA WILSON · FRIDAY, 14:02', text: 'Great to connect! Will you be at the welcome reception on the 4th? Would love to talk sleep biomarkers.' },
+        { who: 'you', meta: 'YOU · FRIDAY, 16:30', text: 'Yes — arriving Thursday evening. Let\u2019s find each other at the reception.' }
+      ] },
+    { init: 'LH', name: 'Luka Horvat', sub: 'University of Zagreb', when: 'JUL 28', official: false, avBg: '#c9a962', avFg: '#191512', unread: false,
+      msgs: [
+        { who: 'them', meta: 'LUKA HORVAT · JUL 28, 11:20', text: 'Thanks for the warm intro to the Boston group — the call went really well.' }
+      ] }
+  ];
+  renderVals() {
+    const cur = this.state.cur;
+    const t = this.threads[cur];
+    const sent = this.state.sent.filter(s => s.thread === cur);
+    return {
+      threads: this.threads.map((th, i) => ({
+        init: th.init, name: th.name, sub: th.sub, when: th.when,
+        avBg: th.avBg, avFg: th.avFg,
+        unread: th.unread && i !== cur,
+        preview: th.msgs[th.msgs.length - 1].text,
+        prevC: th.unread && i !== cur ? '#191512' : '#4a4239',
+        prevW: th.unread && i !== cur ? '600' : '400',
+        bg: i === cur ? 'rgba(201,169,98,.12)' : 'transparent',
+        edge: i === cur ? '#c9a962' : 'transparent',
+        open: () => this.setState({ cur: i })
+      })),
+      curInit: t.init, curName: t.name, curSub: t.sub, curOfficial: t.official,
+      curAvBg: t.avBg, curAvFg: t.avFg,
+      msgs: t.msgs.concat(sent.map(s => ({ who: 'you', meta: 'YOU · JUST NOW', text: s.text }))).map(m => ({
+        meta: m.meta, text: m.text,
+        side: m.who === 'you' ? 'flex-end' : 'flex-start',
+        alignItems: m.who === 'you' ? 'flex-end' : 'flex-start',
+        bg: m.who === 'you' ? '#191512' : '#f7f1e6',
+        fg: m.who === 'you' ? '#f7f1e6' : '#191512',
+        bd: m.who === 'you' ? '#191512' : 'rgba(25,21,18,.2)'
+      })),
+      draft: this.state.draft,
+      setDraft: (e) => this.setState({ draft: e.target.value }),
+      send: () => {
+        const text = this.state.draft.trim();
+        if (!text) return;
+        this.setState(s => ({ sent: s.sent.concat([{ thread: s.cur, text }]), draft: '' }));
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

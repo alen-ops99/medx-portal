@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+</helmet>
+<div style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6">
+  <div style="display:flex;align-items:center;gap:20px;padding:0 36px;height:60px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span onClick="{{ tg }}" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+      <span style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#191512"></span><span style="width:18px;height:2px;background:#191512"></span><span style="width:12px;height:2px;background:#191512"></span></span>
+      <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.18em">MENU</span>
+    </span>
+    <a href="Med&amp;X Home.dc.html" style="display:block"><img src="assets/logo.png" alt="med&amp;X" style="height:22px;display:block"></a>
+    <div style="flex:1"></div>
+    <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">SEARCH</span>
+    <span style="display:flex;align-items:center;gap:6px;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">ALERTS<span style="width:6px;height:6px;background:#c9a962;display:inline-block"></span></span>
+    <span style="width:1px;height:18px;background:rgba(25,21,18,.16)"></span>
+    <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.14em"><span style="color:#191512">EN</span><span style="color:#4a4239;opacity:.55"> · HR</span></span>
+    <a href="My MedX.dc.html" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#191512" style-hover="color:#191512">
+      <span style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">AJ</span>
+      <span style="display:flex;flex-direction:column;line-height:1.25"><span style="font-size:12.5px;font-weight:600">Alen Juginović</span><span style="font-size:10.5px;color:#4a4239">Med&amp;X Member</span></span>
+    </a>
+  </div>
+  <div style="display:flex;align-items:center;gap:24px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.18em;color:#4a4239">{{ todayLabel }}</span>
+    <div style="flex:1"></div>
+    <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">0</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">POINTS</span></span>
+    <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">0</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">REGISTRATIONS</span></span>
+    <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">0</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">FOLLOWING</span></span>
+    <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">2026</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">MEMBER SINCE</span></span>
+  </div>
+  <sc-if value="{{ showBanner }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;align-items:center;gap:14px;padding:9px 36px;background:#f1e8d3;border-bottom:1px solid rgba(25,21,18,.16)">
+      <span style="width:6px;height:6px;background:#c9a962;flex:none"></span>
+      <span style="font-size:12.5px;color:#4a4239">Confirm your email to unlock everything. Link sent to <strong style="color:#191512">alen_juginovic@hms.harvard.edu</strong>.</span>
+      <div style="flex:1"></div>
+      <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">RESEND LINK</span>
+      <span onClick="{{ hideBanner }}" style="color:#4a4239;cursor:pointer">×</span>
+    </div>
+  </sc-if>
+  <div onClick="{{ cl }}" style="position:fixed;inset:0;z-index:40;transition:background .5s ease;background:rgba(25,21,18,{{ sc }});pointer-events:{{ pe }};cursor:pointer"></div>
+  <div style="position:fixed;top:0;left:-312px;width:300px;max-height:100%;z-index:41;background:#191512;color:#f7f1e6;transition:transform .6s cubic-bezier(.22,1,.36,1);transform:translateX({{ dx }});display:flex;flex-direction:column;padding:24px 0 28px;box-sizing:border-box;box-shadow:12px 0 44px rgba(25,21,18,.4);overflow-y:auto">
+    <div style="display:flex;align-items:center;padding:0 26px"><img src="assets/logo-white.png" alt="med&amp;X" style="height:20px;display:block"><div style="flex:1"></div><span onClick="{{ cl }}" style="font-size:20px;color:rgba(247,241,230,.7);cursor:pointer" style-hover="color:#f7f1e6">×</span></div>
+    <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin:30px 0 8px">PORTAL</div>
+    <div style="display:flex;flex-direction:column">
+      <a href="Med&amp;X Home.dc.html" style="{{ navHome }}" style-hover="color:#f7f1e6">Home</a>
+      <span style="display:block;padding:9px 26px;font-size:14px;color:rgba(247,241,230,.72)">Projects</span>
+      <a href="Plexus Conference.dc.html" style="{{ navPlexus }}" style-hover="color:#f7f1e6">Plexus Conference</a>
+      <a href="Gala Evening.dc.html" style="{{ navGala }}" style-hover="color:#f7f1e6">Gala Evening</a>
+      <a href="Accelerator.dc.html" style="{{ navAccel }}" style-hover="color:#f7f1e6">The Accelerator</a>
+      <a href="Biomedical Forum.dc.html" style="{{ navForum }}" style-hover="color:#f7f1e6">Biomedical Forum</a>
+      <a href="Building Bridges.dc.html" style="{{ navBridges }}" style-hover="color:#f7f1e6">Building Bridges</a>
+      <a href="Network.dc.html" style="{{ navNetwork }}" style-hover="color:#f7f1e6">Network</a>
+      <a href="My MedX.dc.html" style="{{ navMy }}" style-hover="color:#f7f1e6">My Med&amp;X</a>
+    </div>
+    <div style="height:1px;background:rgba(247,241,230,.14);margin:14px 26px"></div>
+    <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin-bottom:8px">QUICK LINKS</div>
+    <div style="display:flex;flex-direction:column">
+      <a href="Profile.dc.html" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Profile &amp; settings</a>
+      <a href="Network.dc.html" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Member directory</a>
+      <a href="My MedX.dc.html" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Event tickets</a>
+      <span style="padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);cursor:pointer" style-hover="color:#f7f1e6">Mentorship</span>
+      <a href="My MedX.dc.html" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Certificates</a>
+      <span style="padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);cursor:pointer" style-hover="color:#f7f1e6">Opportunity board</span>
+      <a href="Biomedical Forum.dc.html" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Forum eligibility</a>
+    </div>
+    <div style="height:1px;background:rgba(247,241,230,.14);margin:14px 26px"></div>
+    <a href="https://medx.hr" target="_blank" style="display:block;padding:0 26px;font-size:13px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Website ↗</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1360, &quot;height&quot;: 180}, &quot;active&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;Home&quot;, &quot;options&quot;: [&quot;Home&quot;, &quot;Plexus&quot;, &quot;Gala&quot;, &quot;Accelerator&quot;, &quot;Forum&quot;, &quot;Bridges&quot;, &quot;Network&quot;, &quot;My Med&amp;X&quot;], &quot;tsType&quot;: &quot;string&quot;}, &quot;emailConfirmed&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { menu: false, banner: true };
+  renderVals() {
+    const now = new Date();
+    const days = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+    const months = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+    const a = this.props.active ?? '';
+    const base = 'display:block;padding:9px 26px;font-size:14px;color:rgba(247,241,230,.72);text-decoration:none';
+    const act = 'display:block;padding:9px 24px;border-left:2px solid #c9a962;background:rgba(201,169,98,.08);font-size:14px;font-weight:600;color:#f7f1e6;text-decoration:none';
+    const sub = 'display:block;padding:5px 26px 5px 42px;font-size:12.5px;color:rgba(247,241,230,.55);text-decoration:none';
+    const subAct = 'display:block;padding:5px 26px 5px 40px;border-left:2px solid #c9a962;background:rgba(201,169,98,.08);font-size:12.5px;font-weight:600;color:#f7f1e6;text-decoration:none';
+    const nav = (k, isSub) => a === k ? (isSub ? subAct : act) : (isSub ? sub : base);
+    return {
+      todayLabel: days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear() + ' · ZAGREB',
+      showBanner: this.state.banner && !(this.props.emailConfirmed ?? false),
+      hideBanner: () => this.setState({ banner: false }),
+      dx: this.state.menu ? '312px' : '0px',
+      sc: this.state.menu ? '0.45' : '0',
+      pe: this.state.menu ? 'auto' : 'none',
+      tg: () => this.setState(s => ({ menu: !s.menu })),
+      cl: () => this.setState({ menu: false }),
+      navHome: nav('Home'), navPlexus: nav('Plexus', true), navGala: nav('Gala', true), navAccel: nav('Accelerator', true), navForum: nav('Forum', true), navBridges: nav('Bridges', true), navNetwork: nav('Network'), navMy: nav('My Med&X')
+    };
+  }
+}
+</script>
+</body>
+</html>

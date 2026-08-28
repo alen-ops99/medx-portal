@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+</style>
+</helmet>
+<div data-screen-label="Plexus Program" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <dc-import name="Portal Chrome" active="Plexus" hint-size="100%,150px"></dc-import>
+  <div style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">PROJECTS</span>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <a href="Plexus Conference.dc.html" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" style-hover="color:#191512">PLEXUS CONFERENCE</a>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">PROGRAM &amp; SPEAKERS</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <a href="Plexus Conference.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" style-hover="color:#191512">OVERVIEW</a>
+    <a href="My Plexus.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" style-hover="color:#191512">MY PLEXUS &amp; REGISTER</a>
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px;cursor:pointer">PROGRAM &amp; SPEAKERS</span>
+    <a href="Plexus Zagreb.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" style-hover="color:#191512">EXPLORE ZAGREB</a>
+  </div>
+  <div style="padding:0 36px">
+    <div style="display:flex;align-items:baseline;gap:14px;padding:26px 0 12px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">THE PROGRAM</span>
+      <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;margin-left:10px">ADD TO CALENDAR →</span>
+      <span style="padding:8px 14px;border:1px solid rgba(25,21,18,.3);font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;margin-left:6px" style-hover="border-color:#191512">DOWNLOAD PROGRAM · PDF</span>
+      <span style="font-size:11.5px;color:#4a4239;margin-left:auto">Tap a day to expand its sessions.</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr;gap:0;padding-bottom:6px;max-width:960px">
+      <div>
+        <div onClick="{{ tg0 }}" style="display:flex;gap:16px;align-items:baseline;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12);cursor:pointer">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;width:100px;flex:none">FRI, DEC 4</span>
+          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">Opening, keynotes &amp; workshops</span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">09:00 – 19:00</span>
+          <span style="font-size:11px;color:#9b1b22">{{ chev0 }}</span>
+        </div>
+        <sc-if value="{{ d0Open }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:8px 0 14px 116px;display:flex;flex-direction:column;gap:7px;border-bottom:1px solid rgba(25,21,18,.12)">
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">09:00</span>Registration &amp; coffee</span>
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">10:00</span>Opening ceremony and welcome</span>
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">11:00</span>Keynote lecture and panel discussion</span>
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">13:00</span>Lunch</span>
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">14:30</span>Fireside chats with our speakers</span>
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">18:00</span>Welcome Reception — networking drinks</span>
+            <span style="font-size:11px;color:#4a4239;font-style:italic">Final session times are published closer to the event.</span>
+          </div>
+        </sc-if>
+        <div style="display:flex;gap:16px;align-items:baseline;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;width:100px;flex:none">FRI, 18:00</span>
+          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">Welcome Reception — networking drinks</span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">FREE</span>
+        </div>
+        <div onClick="{{ tg1 }}" style="display:flex;gap:16px;align-items:baseline;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12);cursor:pointer">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;width:100px;flex:none">SAT, DEC 5</span>
+          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">Research, panels &amp; closing keynote</span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">FROM 09:00</span>
+          <span style="font-size:11px;color:#9b1b22">{{ chev1 }}</span>
+        </div>
+        <sc-if value="{{ d1Open }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:8px 0 14px 116px;display:flex;flex-direction:column;gap:7px;border-bottom:1px solid rgba(25,21,18,.12)">
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">09:00</span>Coffee &amp; breakfast with the speakers</span>
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">10:00</span>Research presentations</span>
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">13:00</span>Panels and closing keynote</span>
+            <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">19:30</span>Gala Evening and Annual Awards</span>
+            <span style="font-size:11px;color:#4a4239;font-style:italic">Final session times are published closer to the event.</span>
+          </div>
+        </sc-if>
+        <div style="display:flex;gap:16px;align-items:baseline;padding:12px 0">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6e5626;width:100px;flex:none">SAT, 19:30</span>
+          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">Gala Evening <i style="color:#9b1b22">&amp;</i> Annual Awards</span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6e5626">HOTEL ESPLANADE</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:12px;padding:10px 0 24px;flex-wrap:wrap">
+      <span style="font-size:12px;font-style:italic;color:#4a4239">The detailed program is in preparation — session times appear here as they are published, and registered members hear first.</span>
+      <a href="My Plexus.dc.html" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em">REGISTER — FREE →</a>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:1px solid rgba(25,21,18,.16);padding:24px 0 12px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">02</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">SPEAKERS</span>
+      <div style="display:flex;margin-left:14px;gap:6px">
+        <sc-for list="{{ spFilters }}" as="f" hint-placeholder-count="3">
+          <span onClick="{{ f.set }}" style="padding:7px 12px;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};font:600 9px Inter,sans-serif;letter-spacing:.15em;cursor:pointer">{{ f.label }}</span>
+        </sc-for>
+      </div>
+      <span style="margin-left:auto;border:1px solid rgba(25,21,18,.22);padding:8px 14px;font-size:12px;color:#4a4239;width:220px">Search speakers…</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;padding-bottom:10px">
+      <sc-for list="{{ speakers }}" as="sp" hint-placeholder-count="4">
+        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+          <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239;position:relative">{{ sp.photo }}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">{{ sp.tag }}</span></div>
+          <div style="padding:14px 16px;display:flex;flex-direction:column;gap:6px;flex:1">
+            <span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">{{ sp.name }}</span>
+            <span style="font-size:11.5px;color:#4a4239">{{ sp.role }}</span>
+            <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:auto;cursor:pointer">BIO + ADD SESSION →</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font-size:12px;color:#4a4239;padding-bottom:24px">Click a speaker to view their full bio and add their session to your schedule.</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:20px;padding:18px 36px 30px;border-top:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">Questions about the program?</span>
+    <span style="font-size:12px;color:#4a4239">Message us — replies land right here in your portal inbox.</span>
+    <div style="flex:1"></div>
+    <a href="Messages.dc.html" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#7e151b;color:#f7f1e6">MESSAGE US →</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { d0: true, d1: false, spf: 'ALL' };
+  allSpeakers = [
+    { name: 'Lord Smith of Finsbury', role: 'Chancellor, University of Cambridge', photo: 'PORTRAIT · LORD SMITH', ev: 'GALA' },
+    { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', photo: 'PORTRAIT · J. SPISSO', ev: 'PLEXUS' },
+    { name: 'Dr Marcela del Carmen', role: 'President, Massachusetts General Hospital', photo: 'PORTRAIT · M. DEL CARMEN', ev: 'PLEXUS' },
+    { name: 'Dr Kevin Smith', role: 'President & CEO, University Health Network', photo: 'PORTRAIT · K. SMITH', ev: 'GALA' }
+  ];
+  renderVals() {
+    const f = this.state.spf;
+    return {
+      d0Open: this.state.d0, d1Open: this.state.d1,
+      tg0: () => this.setState(s => ({ d0: !s.d0 })),
+      tg1: () => this.setState(s => ({ d1: !s.d1 })),
+      chev0: this.state.d0 ? '▲ COLLAPSE' : '▼ EXPAND',
+      chev1: this.state.d1 ? '▲ COLLAPSE' : '▼ EXPAND',
+      spFilters: ['ALL', 'PLEXUS', 'GALA'].map(label => ({
+        label,
+        set: () => this.setState({ spf: label }),
+        bd: f === label ? '#191512' : 'rgba(25,21,18,.3)',
+        bg: f === label ? '#191512' : 'transparent',
+        fg: f === label ? '#f7f1e6' : '#4a4239'
+      })),
+      speakers: this.allSpeakers.filter(s => f === 'ALL' || s.ev === f).map(s => Object.assign({ tag: s.ev }, s))
+    };
+  }
+}
+</script>
+</body>
+</html>

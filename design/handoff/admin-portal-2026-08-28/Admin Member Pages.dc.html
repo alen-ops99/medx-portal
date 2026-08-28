@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus{outline:2px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Member Pages" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">PROJECTS</span>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;width:180px;min-width:60px;flex:0 1 180px;box-sizing:border-box;cursor:text;overflow:hidden"><span style="color:#6d6459">⌕</span><span style="font-size:12px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search or type a task…</span></span>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span style="font-family:Fraunces,serif;font-size:30px">What members <i>see</i></span>
+      <span style="font-size:12.5px;color:#6d6459">everything member-facing, per project — edit here, it changes on the portal the moment you save</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <sc-for list="{{ projTabs }}" as="p" hint-placeholder-count="5">
+        <span onClick="{{ p.go }}" style="padding:8px 14px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;background:{{ p.bg }};color:{{ p.fg }};border:1px solid {{ p.bd }}">{{ p.name }}</span>
+      </sc-for>
+    </div>
+    <div style="display:grid;grid-template-columns:1.55fr 1fr;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">{{ curName }} — MEMBER-FACING CONTENT</span>
+          <div style="flex:1"></div>
+          <a href="{{ curLive }}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">OPEN THE LIVE PAGE ↗</a>
+        </div>
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.08);flex-wrap:wrap">
+            <span style="width:150px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">{{ r.label }}</span>
+            <input value="{{ r.value }}" onChange="{{ r.edit }}" style="flex:1;min-width:180px;border:1px solid rgba(32,27,22,.2);background:#f6f2ea;padding:8px 11px;font:400 13px Inter,sans-serif;color:#201b16">
+            <span onClick="{{ r.toggle }}" title="Click to publish or unpublish" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;padding:4px 9px;cursor:pointer;background:{{ r.chipBg }};color:{{ r.chipFg }};white-space:nowrap">{{ r.chip }}</span>
+          </div>
+        </sc-for>
+        <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;flex-wrap:wrap">
+          <span onClick="{{ save }}" style="padding:10px 18px;background:{{ saveBg }};color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer" style-hover="background:#7e151b">{{ saveLabel }}</span>
+          <span style="font-size:11.5px;color:#6d6459">Draft rows stay hidden from members until you publish them.</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:10px">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">HOW IT LOOKS ON THEIR HOME</span>
+          <div style="border:1px solid rgba(25,21,18,.16);background:#f7f1e6;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
+            <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">{{ prevTag }}</span>
+            <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.2">{{ prevTitle }}</span>
+            <span style="font-size:12px;color:#4a4239">{{ prevDetail }}</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;margin-top:4px">OPEN →</span>
+          </div>
+          <span style="font-size:11.5px;color:#6d6459;line-height:1.5">This card updates live as you type on the left — what you see is what they get.</span>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">REGISTRATION FORM</span>
+          <span style="font-size:12.5px;color:#6d6459;line-height:1.6">{{ formNote }}</span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer">✎ EDIT THE FORM FIELDS</span>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fdfbf6;padding:14px 20px;font-size:12px;color:#6d6459;line-height:1.6">
+          Anything saved here is versioned — <a href="Admin Settings.dc.html">the audit log</a> remembers who changed what, and nothing is ever lost.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() { document.title = 'Med&X Admin — What members see'; }
+  pages = {
+    plexus: { name: 'PLEXUS WEEK', live: 'https://spiffy-crostata-b8882f.netlify.app/Plexus%20Conference.dc.html', tag: 'DEC 4–5 · ZAGREB', form: 'Free conference registration — name, email, institution. Gala seats are a paid add-on with the early-bird price switch on Sep 1.', rows: [
+      { id: 'p1', label: 'STATUS LABEL', value: 'Pre-registration open', on: true },
+      { id: 'p2', label: 'DETAIL LINE', value: 'December 4–5, 2026 · Zagreb · Free entry', on: true },
+      { id: 'p3', label: 'PROGRAM & SPEAKERS', value: 'In preparation — published when you build it', on: false },
+      { id: 'p4', label: 'KEY DATES', value: 'Early bird until Sep 1 · Conference Dec 4–5', on: true },
+      { id: 'p5', label: 'ZAGREB CITY GUIDE', value: 'Trams, airport, on-foot — the visitor page', on: true }
+    ]},
+    gala: { name: 'GALA EVENING', live: 'https://spiffy-crostata-b8882f.netlify.app/Gala%20Evening.dc.html', tag: 'DEC 5 · HOTEL ESPLANADE', form: 'Seat reservation with payment — €150 early bird, €175 from Sep 1. The waitlist opens itself when seats run out.', rows: [
+      { id: 'g1', label: 'STATUS LABEL', value: 'Early-bird seats on sale', on: true },
+      { id: 'g2', label: 'DETAIL LINE', value: 'December 5, 2026 · Hotel Esplanade · black tie', on: true },
+      { id: 'g3', label: 'PRICES', value: '€150 until Sep 1 · €175 after', on: true },
+      { id: 'g4', label: 'EVENING PROGRAM', value: 'At a glance — reception, dinner, auction, dancing', on: true },
+      { id: 'g5', label: 'DRESS CODE NOTE', value: 'Black tie — gowns & tuxedos', on: false }
+    ]},
+    accelerator: { name: 'ACCELERATOR', live: 'https://spiffy-crostata-b8882f.netlify.app/Accelerator.dc.html', tag: 'OPENS DEC 8, 2026', form: 'The 7-step application wizard — personal, education, motivation, documents. Submissions land in the Review Room.', rows: [
+      { id: 'a1', label: 'STATUS LABEL', value: 'Applications open December 8', on: true },
+      { id: 'a2', label: 'DETAIL LINE', value: 'Research internships · applications open Dec 8, 2026', on: true },
+      { id: 'a3', label: 'HOST INSTITUTIONS', value: '4 institutions listed — synced from the hub', on: true },
+      { id: 'a4', label: 'PREVIOUS COHORTS', value: '15 fellows, rotating names & photos', on: true },
+      { id: 'a5', label: 'KEY DATES', value: 'Open Nov · close Mar 15 · interviews Apr', on: true }
+    ]},
+    forum: { name: 'BIOMEDICAL FORUM', live: 'https://spiffy-crostata-b8882f.netlify.app/Biomedical%20Forum.dc.html', tag: 'BY INVITATION', form: 'Two doors: the invitation-code unlock for invitees, and the public interest form that feeds your candidate pipeline.', rows: [
+      { id: 'f1', label: 'STATUS LABEL', value: 'A network that gathers once a year', on: true },
+      { id: 'f2', label: 'DETAIL LINE', value: 'Next gathering · May 28–29, 2027', on: true },
+      { id: 'f3', label: 'FORUM FEED', value: 'Spotlights & news — published from the hub', on: true },
+      { id: 'f4', label: 'MEMBER LIST', value: 'Visible to Forum members only', on: true },
+      { id: 'f5', label: 'INTEREST FORM', value: '4 questions — feeds the candidate pipeline', on: true }
+    ]},
+    bridges: { name: 'BUILDING BRIDGES', live: 'https://spiffy-crostata-b8882f.netlify.app/Building%20Bridges.dc.html', tag: 'NEXT · BOSTON, SEP 18–21', form: 'Open registration per city — 80 spots in Boston. Closing it here closes the form on the member page instantly.', rows: [
+      { id: 'b1', label: 'STATUS LABEL', value: 'Boston — registration open', on: true },
+      { id: 'b2', label: 'DETAIL LINE', value: 'Sep 18–21 · venue announced soon · free', on: true },
+      { id: 'b3', label: 'CITY RECAPS', value: 'Photos & numbers per past city', on: true },
+      { id: 'b4', label: 'NEXT-EVENT PHOTO', value: 'Boston skyline image on the hero — venue photo when announced', on: true },
+      { id: 'b5', label: 'SPEAKER LIST', value: 'Announced closer to the date', on: false }
+    ]}
+  };
+  state = { proj: 'plexus', saved: false, edits: {} };
+  renderVals() {
+    const s = this.state;
+    const keys = ['plexus', 'gala', 'accelerator', 'forum', 'bridges'];
+    const page = this.pages[s.proj];
+    const rows = page.rows.map(r => {
+      const cur = s.edits[r.id] || {};
+      const val = cur.value ?? r.value;
+      const on = cur.on ?? r.on;
+      return {
+        label: r.label, value: val,
+        chip: on ? 'PUBLISHED' : 'DRAFT',
+        chipBg: on ? '#e4efe7' : '#eee9df', chipFg: on ? '#22563a' : '#6d6459',
+        edit: e => { const v = e.target.value; this.setState(x => ({ saved: false, edits: { ...x.edits, [r.id]: { ...x.edits[r.id], value: v } } })); },
+        toggle: () => this.setState(x => ({ saved: false, edits: { ...x.edits, [r.id]: { ...x.edits[r.id], on: !((x.edits[r.id] || {}).on ?? r.on) } } }))
+      };
+    });
+    const v = id => (s.edits[id] || {}).value ?? page.rows.find(r => r.id === id).value;
+    return {
+      projTabs: keys.map(k => ({
+        name: this.pages[k].name,
+        bg: k === s.proj ? '#201b16' : '#fff', fg: k === s.proj ? '#fff' : '#6d6459', bd: k === s.proj ? '#201b16' : 'rgba(32,27,22,.25)',
+        go: () => this.setState({ proj: k, saved: false })
+      })),
+      curName: page.name, curLive: page.live, rows,
+      prevTag: page.tag, prevTitle: v(page.rows[0].id), prevDetail: v(page.rows[1].id),
+      formNote: page.form,
+      saveBg: s.saved ? '#1e6e42' : '#9b1b22',
+      saveLabel: s.saved ? '✓ SAVED — LIVE FOR MEMBERS' : 'SAVE TO MEMBER PORTAL',
+      save: () => this.setState({ saved: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

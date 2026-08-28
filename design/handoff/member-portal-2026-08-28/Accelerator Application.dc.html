@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+input,select,textarea{font-family:Inter,sans-serif}
+input:focus,select:focus,textarea:focus{outline:1px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Accelerator Application" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <dc-import name="Portal Chrome" active="Accelerator" hint-size="100%,150px"></dc-import>
+  <div style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">PROJECTS</span>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <a href="Accelerator.dc.html" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em">THE ACCELERATOR</a>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">MY APPLICATION</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <a href="Accelerator.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" style-hover="color:#191512">OVERVIEW</a>
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px;cursor:pointer">MY APPLICATION</span>
+  </div>
+  <div style="background:#191512;color:#f7f1e6;padding:26px 36px 22px">
+    <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">MED&amp;X ACCELERATOR · SUMMER 2027</span>
+      <span style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#c9a962;font:600 9px Inter,sans-serif;letter-spacing:.14em">DRAFT · NOT YET SUBMITTED</span>
+      <div style="flex:1"></div>
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">CLOSES MARCH 15, 2027</span>
+    </div>
+    <div style="font-family:Fraunces,serif;font-size:34px;margin-top:8px">My <i style="color:#c9a962">Application</i></div>
+    <div style="font-size:12.5px;color:rgba(247,241,230,.7);margin-top:5px">Your progress saves automatically · leave and come back any time.</div>
+  </div>
+  <div style="display:flex;justify-content:center;gap:0;padding:18px 36px 0;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <sc-for list="{{ steps }}" as="st" hint-placeholder-count="7">
+      <div onClick="{{ st.go }}" style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:0 18px 14px;cursor:pointer;position:relative">
+        <span style="width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;background:{{ st.bg }};color:{{ st.fg }};border:1px solid {{ st.bd }}">{{ st.mark }}</span>
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:{{ st.lc }}">{{ st.label }}</span>
+        <span style="position:absolute;left:0;right:0;bottom:-1px;height:2px;background:{{ st.bar }}"></span>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 280px;gap:26px;padding:26px 36px 10px;align-items:start">
+    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
+      <sc-if value="{{ isPersonal }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:24px 28px 8px">
+          <div style="display:flex;align-items:baseline;gap:14px">
+            <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+            <span style="font-family:Fraunces,serif;font-size:22px">Personal Information</span>
+          </div>
+          <div style="font-size:12px;color:#4a4239;margin-top:4px">Fields marked <span style="color:#9b1b22">*</span> are required.</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;padding:18px 28px 26px">
+          <label style="display:flex;flex-direction:column;gap:6px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">FIRST NAME <span style="color:#9b1b22">*</span></span>
+            <input defaultValue="Alen" style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">LAST NAME <span style="color:#9b1b22">*</span></span>
+            <input defaultValue="Juginović" style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512">
+          </label>
+          <label style="grid-column:1 / -1;display:flex;flex-direction:column;gap:6px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EMAIL <span style="color:#9b1b22">*</span></span>
+            <input defaultValue="alen_juginovic@hms.harvard.edu" style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">PHONE</span>
+            <input placeholder="+1 234 567 8900" style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">DATE OF BIRTH <span style="color:#9b1b22">*</span></span>
+            <input placeholder="mm/dd/yyyy" style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">NATIONALITY <span style="color:#9b1b22">*</span></span>
+            <input placeholder="e.g. Croatian" style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">COUNTRY OF RESIDENCE <span style="color:#9b1b22">*</span></span>
+            <select style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512">
+              <option>United States</option>
+              <option>Croatia</option>
+              <option>United Kingdom</option>
+              <option>Germany</option>
+              <option>Other</option>
+            </select>
+          </label>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:24px 28px 8px">
+          <div style="display:flex;align-items:baseline;gap:14px">
+            <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">07</span>
+            <span style="font-family:Fraunces,serif;font-size:22px">Review &amp; Submit</span>
+          </div>
+          <div style="font-size:12px;color:#4a4239;margin-top:4px">Check each section before submitting · you can still edit until the deadline.</div>
+        </div>
+        <div style="padding:14px 28px 26px">
+          <sc-for list="{{ reviewRows }}" as="row" hint-placeholder-count="6">
+            <div style="display:flex;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+              <span style="width:12px;height:12px;border:1px solid {{ row.boxBd }};background:{{ row.boxBg }};flex:none"></span>
+              <span style="font-family:Fraunces,serif;font-size:15.5px;flex:1">{{ row.name }}</span>
+              <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:{{ row.stC }}">{{ row.status }}</span>
+              <span onClick="{{ row.go }}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">EDIT →</span>
+            </div>
+          </sc-for>
+          <div style="display:flex;align-items:center;gap:14px;padding-top:18px;flex-wrap:wrap">
+            <span style="padding:12px 20px;background:rgba(155,27,34,.35);color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:not-allowed">SUBMIT APPLICATION</span>
+            <span style="font-size:11.5px;color:#4a4239">Enabled once every section is complete.</span>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isEmbedded }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:24px 28px 8px">
+          <div style="display:flex;align-items:baseline;gap:14px">
+            <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">{{ stepNo }}</span>
+            <span style="font-family:Fraunces,serif;font-size:22px">{{ stepTitle }}</span>
+          </div>
+        </div>
+        <div style="margin:14px 28px 26px;height:260px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:0 24px">
+          <span style="font:600 9px ui-monospace,Menlo,monospace;color:#4a4239;letter-spacing:.08em">BUILD NOTE · EMBED THE EXISTING {{ stepMono }} FORM HERE · SAME FIELDS, RESTYLED PER STEP 01</span>
+          <span style="font-size:11.5px;color:#4a4239;max-width:420px">Instruction for implementation, not a member-facing screen: this step reuses the current portal's form unchanged · inputs, labels and buttons take the styling defined on Personal Information.</span>
+        </div>
+      </sc-if>
+      <div style="display:flex;align-items:center;padding:16px 28px;border-top:1px solid rgba(25,21,18,.16)">
+        <span onClick="{{ goPrev }}" style="padding:11px 18px;border:1px solid {{ prevBd }};font:600 10px Inter,sans-serif;letter-spacing:.16em;color:{{ prevC }};cursor:{{ prevCur }}">← PREVIOUS</span>
+        <div style="flex:1"></div>
+        <span style="font-size:11px;color:#4a4239;margin-right:16px">Saved just now</span>
+        <sc-if value="{{ showContinue }}" hint-placeholder-val="{{ true }}">
+          <span onClick="{{ goNext }}" style="padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" style-hover="background:#7e151b">CONTINUE →</span>
+        </sc-if>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:20px 22px">
+        <div style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">APPLICATION CHECKLIST</div>
+        <div style="margin-top:12px;display:flex;flex-direction:column">
+          <sc-for list="{{ checklist }}" as="c" hint-placeholder-count="6">
+            <div style="display:flex;gap:11px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(25,21,18,.1)">
+              <span style="width:11px;height:11px;border:1px solid {{ c.bd }};background:{{ c.bg }};flex:none"></span>
+              <span style="font-size:12px;color:{{ c.tc }}">{{ c.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:8px;padding-top:14px">
+          <span style="font-family:Fraunces,serif;font-size:30px;color:#c9a962">{{ pct }}</span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">COMPLETE</span>
+        </div>
+        <div style="height:3px;background:rgba(25,21,18,.12);position:relative;margin-top:6px"><span style="position:absolute;left:0;top:0;bottom:0;background:#c9a962;width:{{ pctW }}"></span></div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px 22px;display:flex;flex-direction:column;gap:8px">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">BEFORE YOU START</span>
+        <span style="font-size:12px;color:#4a4239;line-height:1.55">Have your CV, a mentor letter, and a one-line project summary ready · you'll upload them in Documents.</span>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px 22px;display:flex;flex-direction:column;gap:9px;align-items:flex-start">
+        <span style="font-family:Fraunces,serif;font-style:italic;font-size:14.5px;color:#4a4239">Stuck on a question?</span>
+        <span style="font-size:11.5px;color:#4a4239;line-height:1.5">Message us · the coordinators reply right here in your portal inbox.</span>
+        <a href="Messages.dc.html" style="padding:9px 14px;background:#9b1b22;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#7e151b;color:#f7f1e6">MESSAGE US →</a>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:20px;padding:14px 36px 30px;flex-wrap:wrap">
+    <span style="font-size:11.5px;color:#4a4239">Results arrive by emailed access code (AX26–XXXX) · look them up any time on <a href="Accelerator.dc.html">the Accelerator page</a>.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;step&quot;: {&quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 1, &quot;min&quot;: 1, &quot;max&quot;: 7, &quot;step&quot;: 1, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Wizard&quot;}}">
+class Component extends DCLogic {
+  state = { step: null };
+  labels = ['PERSONAL', 'EDUCATION', 'PROGRAM', 'SUPPLEMENTARY', 'DOCUMENTS', 'CONSENT', 'REVIEW'];
+  checkItems = ['Personal info completed', 'Education details added', 'Institution preferences selected', 'Motivation statement written', 'Documents uploaded', 'Application reviewed'];
+  renderVals() {
+    const step = this.state.step ?? (this.props.step ?? 1);
+    const go = (n) => () => this.setState({ step: Math.min(7, Math.max(1, n)) });
+    const doneCount = Math.min(step - 1, 5);
+    const pctN = Math.round((Math.min(doneCount, 6) / 6) * 100);
+    const title = ['Personal Information', 'Education', 'Program Preferences', 'Supplementary', 'Documents', 'Consent', 'Review & Submit'][step - 1];
+    return {
+      steps: this.labels.map((label, i) => {
+        const n = i + 1, cur = n === step, done = n < step;
+        return {
+          label, go: go(n),
+          mark: done ? '✓' : String(n),
+          bg: cur ? '#9b1b22' : done ? '#191512' : 'transparent',
+          fg: cur || done ? '#f7f1e6' : '#4a4239',
+          bd: cur ? '#9b1b22' : done ? '#191512' : 'rgba(25,21,18,.3)',
+          lc: cur ? '#9b1b22' : done ? '#191512' : '#4a4239',
+          bar: cur ? '#9b1b22' : 'transparent'
+        };
+      }),
+      isPersonal: step === 1,
+      isReview: step === 7,
+      isEmbedded: step > 1 && step < 7,
+      stepNo: '0' + step, stepTitle: title,
+      stepMono: this.labels[step - 1],
+      reviewRows: this.checkItems.map((name, i) => {
+        const ok = i < doneCount;
+        return {
+          name, go: go(i + 2 > 6 ? 6 : i + 1),
+          status: ok ? 'COMPLETE' : 'INCOMPLETE',
+          stC: ok ? '#191512' : '#9b1b22',
+          boxBg: ok ? '#c9a962' : 'transparent',
+          boxBd: ok ? '#c9a962' : 'rgba(25,21,18,.35)'
+        };
+      }),
+      checklist: this.checkItems.map((label, i) => {
+        const ok = i < doneCount;
+        return { label, bg: ok ? '#c9a962' : 'transparent', bd: ok ? '#c9a962' : 'rgba(25,21,18,.35)', tc: ok ? '#191512' : '#4a4239' };
+      }),
+      pct: pctN + '%', pctW: pctN + '%',
+      goPrev: step > 1 ? go(step - 1) : () => {},
+      prevBd: step > 1 ? 'rgba(25,21,18,.3)' : 'rgba(25,21,18,.14)',
+      prevC: step > 1 ? '#191512' : 'rgba(25,21,18,.3)',
+      prevCur: step > 1 ? 'pointer' : 'default',
+      goNext: go(step + 1),
+      showContinue: step < 7
+    };
+  }
+}
+</script>
+</body>
+</html>

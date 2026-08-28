@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus{outline:1px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Home" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></span>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">TODAY</span>
+        <a href="Admin Plexus Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PROJECTS</a>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <span style="position:relative;flex:0 1 200px;min-width:70px">
+        <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;box-sizing:border-box"><span style="color:#6d6459">⌕</span><input value="{{ q }}" onChange="{{ onQ }}" placeholder="Search or jump to…" style="border:none;background:transparent;font-size:12px;color:#201b16;width:100%;padding:0"></input></span>
+        <sc-if value="{{ qOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:37px;left:0;width:300px;right:auto;background:#fff;border:1px solid rgba(32,27,22,.18);box-shadow:0 12px 30px rgba(32,27,22,.16);z-index:70;max-height:300px;overflow:auto">
+            <sc-for list="{{ qResults }}" as="r" hint-placeholder-count="5">
+              <a href="{{ r.href }}" style="display:flex;align-items:baseline;gap:10px;padding:9px 12px;border-bottom:1px solid rgba(32,27,22,.06);color:#201b16;font-size:12.5px" style-hover="background:#f6f2ea;color:#201b16"><span style="font:600 8px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;width:54px;flex:none">{{ r.kind }}</span><span style="flex:1;min-width:0">{{ r.label }}</span></a>
+            </sc-for>
+            <sc-if value="{{ qEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:10px 12px;font-size:12px;color:#6d6459">No matches — try a screen, a person, or a project.</div></sc-if>
+          </div>
+        </sc-if>
+      </span>
+      <span style="position:relative;flex:none">
+        <span onClick="{{ menuToggle }}" title="Your profile" style="width:30px;height:30px;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;cursor:pointer" style-hover="background:#9b1b22">{{ avatarInitials }}</span>
+        <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:38px;right:0;width:260px;background:#fff;border:1px solid rgba(32,27,22,.18);box-shadow:0 12px 30px rgba(32,27,22,.16);z-index:60;padding:16px 18px;display:flex;flex-direction:column;gap:10px;text-align:left">
+            <span style="font-family:Fraunces,serif;font-size:17px">{{ adminName }}</span>
+            <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.15em;color:#6d6459;margin-top:-4px">FOUNDER · FULL ACCESS</span>
+            <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;margin-top:4px">DISPLAY NAME</span>
+            <input value="{{ nameDraft }}" onChange="{{ onNameDraft }}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 13px Inter,sans-serif;color:#201b16;width:100%;box-sizing:border-box"></input>
+            <span onClick="{{ saveName }}" style="padding:9px 12px;background:{{ nameSaveBg }};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;text-align:center">{{ nameSaveLabel }}</span>
+            <div style="display:flex;gap:14px;border-top:1px solid rgba(32,27,22,.1);padding-top:10px">
+              <a href="Admin Settings.dc.html" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">TEAM ACCESS →</a>
+              <a href="https://spiffy-crostata-b8882f.netlify.app/Auth.dc.html" target="_blank" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22">SIGN OUT</a>
+            </div>
+          </div>
+        </sc-if>
+      </span>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:26px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span style="font-family:Fraunces,serif;font-size:30px;white-space:nowrap">{{ greeting }}, <i>{{ firstName }}</i>.</span>
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">{{ todayLabel }}</span>
+      <div style="flex:1"></div>
+      <span onClick="{{ custToggle }}" title="Choose which numbers and shortcuts show on your Today page — each admin keeps their own setup" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;cursor:pointer;border:1px solid rgba(32,27,22,.18);padding:5px 10px;background:{{ custBg }}" style-hover="color:#201b16;border-color:#201b16">✎ CUSTOMISE</span>
+      <a href="Admin Settings.dc.html" title="Opens the health checks — 7 items want a look before the events" style="display:flex;align-items:center;gap:7px;font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#b7791f" style-hover="color:#201b16"><span style="width:7px;height:7px;background:#b7791f;border-radius:50%"></span>17 OK · 7 TO CHECK →</a>
+    </div>
+    <sc-if value="{{ custOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:14px 20px;display:flex;gap:34px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">YOUR NUMBERS</span>
+          <sc-for list="{{ custKpis }}" as="c" hint-placeholder-count="4">
+            <span onClick="{{ c.tg }}" style="display:flex;gap:9px;align-items:center;font-size:12.5px;cursor:pointer"><span style="width:12px;height:12px;border:1px solid rgba(32,27,22,.4);background:{{ c.bg }};flex:none"></span>{{ c.label }}</span>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">YOUR SHORTCUTS</span>
+          <sc-for list="{{ custScs }}" as="c" hint-placeholder-count="4">
+            <span onClick="{{ c.tg }}" style="display:flex;gap:9px;align-items:center;font-size:12.5px;cursor:pointer"><span style="width:12px;height:12px;border:1px solid rgba(32,27,22,.4);background:{{ c.bg }};flex:none"></span>{{ c.label }}</span>
+          </sc-for>
+        </div>
+        <span style="font-size:11.5px;color:#6d6459;max-width:280px;line-height:1.55;margin-left:auto">Saved on this device, per admin — Laura and Miro keep their own Today.</span>
+      </div>
+    </sc-if>
+    <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+    <div style="display:grid;grid-template-columns:repeat({{ kpiCount }},1fr)">
+      <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+        <a href="{{ k.href }}" style="padding:18px 22px;border-right:1px solid rgba(32,27,22,.12);display:block;color:#201b16" style-hover="background:#fdfbf6;color:#201b16">
+          <div style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">{{ k.k }}</div>
+          <div style="font-family:Fraunces,serif;font-size:34px;margin-top:4px">{{ k.v }}</div>
+          <div style="font-size:11.5px;color:{{ k.subColor }}">{{ k.sub }}</div>
+        </a>
+      </sc-for>
+    </div>
+    <div style="border-top:1px solid rgba(32,27,22,.12);padding:14px 22px 16px">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">REGISTRATIONS — LAST 30 DAYS</span>
+        <span style="font-family:Fraunces,serif;font-size:18px">27</span>
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459">ALL EVENTS · CONFERENCE + GALA + BOSTON</span>
+        <div style="flex:1"></div>
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">{{ sparkRange }}</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:stretch">
+        <div style="display:flex;flex-direction:column;justify-content:space-between;width:20px;flex:none;font:600 8.5px Inter,sans-serif;color:#6d6459;text-align:right;padding:1px 0 3px"><span>30</span><span>15</span><span>0</span></div>
+        <svg viewBox="0 0 300 46" style="flex:1;min-width:0;height:54px;display:block" preserveAspectRatio="none">
+          <defs><linearGradient id="regfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(155,27,34,.16)"></stop><stop offset="1" stop-color="rgba(155,27,34,0)"></stop></linearGradient></defs>
+          <line x1="0" y1="5" x2="300" y2="5" stroke="rgba(32,27,22,.06)" stroke-width="1"></line>
+          <line x1="0" y1="25" x2="300" y2="25" stroke="rgba(32,27,22,.08)" stroke-width="1"></line>
+          <path d="M0,43 L30,42.5 L60,42 L90,41 L120,39.5 L150,36 L170,28 L200,20 L230,14 L260,10 L300,7 L300,45 L0,45 Z" fill="url(#regfill)" stroke="none"></path>
+          <polyline points="0,43 30,42.5 60,42 90,41 120,39.5 150,36 170,28 200,20 230,14 260,10 300,7" fill="none" stroke="#9b1b22" stroke-width="1.8"></polyline>
+          <line x1="0" y1="45" x2="300" y2="45" stroke="rgba(32,27,22,.18)" stroke-width="1"></line>
+        </svg>
+      </div>
+    </div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">YOUR PROJECTS</span>
+        <span style="font-size:11.5px;color:#6d6459">each one is a hub — everything for that project lives inside</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
+        <a href="Admin Plexus Hub.dc.html" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;padding:16px;display:flex;flex-direction:column;gap:6px;color:#201b16" style-hover="border-color:rgba(32,27,22,.35);color:#201b16">
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22">LIVE · DEC 4–5</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">Plexus Week 2026</span>
+          <span style="font-size:11.5px;color:#6d6459;line-height:1.5">2 registered of 100 · 21 gala paid<br>Conference + Gala + Donor Night</span>
+        </a>
+        <a href="Admin Accelerator Hub.dc.html" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px;display:flex;flex-direction:column;gap:6px;color:#201b16" style-hover="border-color:rgba(32,27,22,.35);color:#201b16">
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#b7791f">OPENS DEC 8, 2026</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">Accelerator</span>
+          <span style="font-size:11.5px;color:#6d6459;line-height:1.5">0 applications yet<br>4 host institutions ready</span>
+        </a>
+        <a href="Admin Forum Hub.dc.html" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px;display:flex;flex-direction:column;gap:6px;color:#201b16" style-hover="border-color:rgba(32,27,22,.35);color:#201b16">
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">BY INVITATION</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">Biomedical Forum</span>
+          <span style="font-size:11.5px;color:#6d6459;line-height:1.5">2 members · 3 candidates<br>gathering May 28–29, 2027</span>
+        </a>
+        <a href="Admin Bridges Hub.dc.html" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px;display:flex;flex-direction:column;gap:6px;color:#201b16" style-hover="border-color:rgba(32,27,22,.35);color:#201b16">
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#2f7d4f">NEXT · BOSTON · SEP 2026</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">Building Bridges</span>
+          <span style="font-size:11.5px;color:#6d6459;line-height:1.5">4 past editions · 0 Boston sign-ups<br>Sep 18–21 · venue announced soon</span>
+        </a>
+        <a href="Admin Settings.dc.html" style="border:1px dashed rgba(32,27,22,.25);background:transparent;padding:16px;display:flex;flex-direction:column;gap:6px;color:#201b16" style-hover="border-color:rgba(32,27,22,.5);color:#201b16">
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">EVERYTHING ELSE</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">More tools</span>
+          <span style="font-size:11.5px;color:#6d6459;line-height:1.5">Website &amp; portal text, team access, health, audit, team library…</span>
+        </a>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">NEEDS YOUR ATTENTION</span>
+          <span style="min-width:18px;height:18px;padding:0 5px;background:#9b1b22;color:#fff;font:600 11px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">{{ attnCount }}</span>
+          <div style="flex:1"></div>
+          <span style="font-size:11.5px;color:#6d6459">everything urgent, in one list</span>
+        </div>
+        <sc-for list="{{ attn }}" as="a" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.08)">
+            <span style="width:8px;height:8px;background:{{ a.dot }};flex:none"></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:14px;font-weight:600">{{ a.title }}</span>
+              <span style="display:block;font-size:12px;color:#6d6459;margin-top:2px">{{ a.sub }}</span>
+            </span>
+            <a href="{{ a.href }}" style="padding:8px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" style-hover="background:#7e151b;color:#fff">{{ a.cta }}</a>
+            <span onClick="{{ a.dismiss }}" title="Hides for you until tomorrow — the row returns until the thing itself is resolved" style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" style-hover="color:#201b16">SNOOZE 1D</span>
+          </div>
+        </sc-for>
+        <sc-if value="{{ attnEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:26px 20px;text-align:center;font-size:13px;color:#6d6459">Nothing urgent. Enjoy the quiet.</div>
+        </sc-if>
+        <div style="display:flex;gap:18px;padding:12px 20px">
+          <span style="font-size:11.5px;color:#6d6459">Snoozed rows return tomorrow — a row only disappears for good when the thing itself is resolved.</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">DO IT NOW</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">edit via ✎ CUSTOMISE</span></div>
+          <div style="padding:14px 20px 16px;display:flex;flex-direction:column;gap:10px">
+            <sc-for list="{{ shortcuts }}" as="s" hint-placeholder-count="4">
+              <a href="{{ s.href }}" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:{{ s.bg }};border:1px solid {{ s.bd }};color:{{ s.fg }};font:600 10.5px Inter,sans-serif;letter-spacing:.14em" style-hover="border-color:#201b16"><sc-if value="{{ s.gold }}" hint-placeholder-val="{{ false }}"><span style="width:6px;height:6px;background:#c9a962"></span></sc-if>{{ s.label }}</a>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">COMING UP</span>
+        <div style="display:flex;gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.08)"><span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;white-space:nowrap">MON</span><span style="font-size:12.5px;flex:1">Weekly pulse email waits in the Outbox</span></div>
+        <div style="display:flex;gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.08)"><span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap">SEP 1</span><span style="font-size:12.5px;flex:1">Gala early-bird ends — price moves to €175 · {{ ebDays }} days away</span></div>
+        <div style="display:flex;gap:12px;align-items:baseline;padding:8px 0"><span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;white-space:nowrap">SEP 18–21</span><span style="font-size:12.5px;flex:1">Building Bridges — Boston · exact date &amp; venue announced soon</span></div>
+        <a href="Admin Calendar.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">FULL CALENDAR →</a>
+      </div>
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">TEAM TASKS</span><span style="min-width:18px;height:18px;padding:0 5px;background:#201b16;color:#fff;font:600 11px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">{{ taskCount }}</span><div style="flex:1"></div><span onClick="{{ addToggle }}" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer">+ ADD TASK</span></div>
+        <sc-if value="{{ adding }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;align-items:center;padding:6px 0;flex-wrap:wrap">
+            <input value="{{ taskDraft }}" onChange="{{ onTaskDraft }}" placeholder="What needs doing?" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font-size:12.5px;color:#201b16;flex:1;min-width:140px"></input>
+            <select value="{{ taskWho }}" onChange="{{ onTaskWho }}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px;font-size:12px;color:#201b16">
+              <option>ALEN</option><option>LAURA</option><option>MIRO</option><option>MARIJA</option>
+            </select>
+            <span onClick="{{ addTask }}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">ADD</span>
+          </div>
+        </sc-if>
+        <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="4">
+          <div style="display:flex;gap:11px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.08)">
+            <span onClick="{{ t.done }}" title="Tick = done for the whole team — undo appears for a few seconds" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.35);flex:none;cursor:pointer" style-hover="border-color:#9b1b22"></span>
+            <span style="font-size:12.5px;flex:1;min-width:0">{{ t.title }}</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:{{ t.dueColor }};white-space:nowrap">{{ t.meta }}</span>
+          </div>
+        </sc-for>
+        <sc-if value="{{ tasksEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:8px 0;font-size:12.5px;color:#6d6459;font-style:italic">All clear — nothing open.</div></sc-if>
+        <a href="Admin Calendar.dc.html#tasks" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">ALL TASKS →</a>
+      </div>
+    </div>
+    <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+      <div onClick="{{ wrToggle }}" style="display:flex;align-items:center;gap:12px;padding:14px 20px;cursor:pointer">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;white-space:nowrap">THE WEEKLY READ</span>
+        <span style="font-size:12.5px;flex:1;min-width:0;line-height:1.5">Chase the 4 unpaid Gala seats before the Sep 1 price change, restart Gala invitations, and put the Plexus link in Monday's pulse.</span>
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">{{ wrLabel }}</span>
+      </div>
+      <sc-if value="{{ wrOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="border-top:1px solid rgba(32,27,22,.12)">
+          <div style="display:flex;gap:14px;align-items:baseline;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.08)"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;width:44px;flex:none">GROW</span><span style="font-size:13px;flex:1">Invitation campaigns are idle — restart the Gala invite flow this week.</span><a href="Admin Plexus Hub.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">OPEN →</a></div>
+          <div style="display:flex;gap:14px;align-items:baseline;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.08)"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#b7791f;width:44px;flex:none">MONEY</span><span style="font-size:13px;flex:1">Gala dominates revenue; four guests are unpaid — chase before the Sep 1 price change.</span><a href="Admin Money.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">OPEN →</a></div>
+          <div style="display:flex;gap:14px;align-items:baseline;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.08)"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#2f7d4f;width:44px;flex:none">OPS</span><span style="font-size:13px;flex:1">Conference sign-ups are far behind the 100-seat cap — put the Plexus link in the next newsletter.</span><a href="Admin Inbox.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">OPEN →</a></div>
+          <div style="display:flex;gap:14px;align-items:baseline;padding:12px 20px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;width:44px;flex:none">LEGAL</span><span style="font-size:13px;flex:1">Logo use lacks a formal agreement trail — add the template to the team library.</span><a href="Admin Settings.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">OPEN →</a></div>
+          <div style="padding:10px 20px;border-top:1px solid rgba(32,27,22,.08);font-size:11px;color:#6d6459">Compiled every Monday by four AI advisors — Growth, Money, Ops, Legal — from your live numbers. Advice only; they never change anything. Sample lines in this mock.</div>
+        </div>
+      </sc-if>
+    </div>
+    <div style="display:flex;gap:20px;align-items:center;padding-top:2px;flex-wrap:wrap">
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">ADMIN:</span>
+      <a href="Admin Settings.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#b7791f" style-hover="color:#201b16">SYSTEM HEALTH · 17 OK · 7 TO CHECK</a>
+      <a href="Admin Settings.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459" style-hover="color:#201b16">AUDIT LOG</a>
+      <a href="https://spiffy-crostata-b8882f.netlify.app/Med%26X%20Home.dc.html" target="_blank" target="_blank" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459" style-hover="color:#201b16">VIEW MEMBER PORTAL ↗</a>
+    </div>
+  </div>
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#201b16;color:#f6f2ea;padding:12px 18px;font:600 10px Inter,sans-serif;letter-spacing:.14em;z-index:80;border-left:3px solid #c9a962;display:flex;gap:14px;align-items:center;white-space:nowrap">{{ toastMsg }}<sc-if value="{{ toastUndoable }}" hint-placeholder-val="{{ false }}"><span onClick="{{ toastUndo }}" style="color:#c9a962;cursor:pointer;letter-spacing:.14em">UNDO</span></sc-if></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1360, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { snoozed: [], wrOpen: false, menuOpen: false, adminName: 'Alen Juginović', nameDraft: 'Alen Juginović', nameSaved: false,
+    q: '', custOpen: false, prefs: null, tasks: null, adding: false, taskDraft: '', taskWho: 'ALEN', toast: null };
+  seedTasks = [
+    { id: 1, title: 'Confirm Esplanade menu with events team', who: 'LAURA', due: '2026-08-08', proj: 'GALA' },
+    { id: 2, title: 'Send speaker invitation shortlist to board', who: 'ALEN', due: '2026-08-09', proj: 'PLEXUS' },
+    { id: 3, title: 'Draft Gala invitation copy (EN + HR)', who: 'ALEN', due: '2026-08-09', proj: 'GALA' },
+    { id: 4, title: 'Collect Boston venue photos for Bridges page', who: 'MARIJA', due: '2026-08-21', proj: 'BRIDGES' }
+  ];
+  palette = [
+    { kind: 'SCREEN', label: 'Today', href: 'Admin Home.dc.html' },
+    { kind: 'SCREEN', label: 'Plexus Week hub', href: 'Admin Plexus Hub.dc.html' },
+    { kind: 'SCREEN', label: 'Accelerator hub', href: 'Admin Accelerator Hub.dc.html' },
+    { kind: 'SCREEN', label: 'Accelerator — Review Room', href: 'Admin Accelerator Review.dc.html' },
+    { kind: 'SCREEN', label: 'Biomedical Forum hub', href: 'Admin Forum Hub.dc.html' },
+    { kind: 'SCREEN', label: 'Building Bridges hub', href: 'Admin Bridges Hub.dc.html' },
+    { kind: 'SCREEN', label: 'Inbox — email, outbox, chat', href: 'Admin Inbox.dc.html' },
+    { kind: 'SCREEN', label: 'People', href: 'Admin People.dc.html' },
+    { kind: 'SCREEN', label: 'Money', href: 'Admin Money.dc.html' },
+    { kind: 'SCREEN', label: 'Calendar & tasks', href: 'Admin Calendar.dc.html' },
+    { kind: 'SCREEN', label: 'Studio', href: 'Admin Studio.dc.html' },
+    { kind: 'SCREEN', label: 'Settings', href: 'Admin Settings.dc.html' },
+    { kind: 'SCREEN', label: 'Event Day room', href: 'Admin Event Day.dc.html' },
+    { kind: 'SCREEN', label: 'What members see', href: 'Admin Member Pages.dc.html' },
+    { kind: 'ACTION', label: 'New task', href: 'Admin Calendar.dc.html#tasks' },
+    { kind: 'ACTION', label: 'Open the check-in scanner', href: 'Admin Event Day.dc.html' },
+    { kind: 'ACTION', label: 'Email registrants', href: 'Admin Inbox.dc.html' },
+    { kind: 'ACTION', label: 'Create a guest pass', href: 'Admin People.dc.html' },
+    { kind: 'PERSON', label: 'Ivana Barišić — Gala, paid', href: 'Admin People.dc.html' },
+    { kind: 'PERSON', label: 'Simon Mikulandra — Gala, VIP', href: 'Admin People.dc.html' },
+    { kind: 'PERSON', label: 'Nikica Darabos — Gala, to chase', href: 'Admin People.dc.html' },
+    { kind: 'PERSON', label: 'Marko Petrović — member', href: 'Admin People.dc.html' },
+    { kind: 'PERSON', label: 'Dr. Iva Šarić — Forum member', href: 'Admin People.dc.html' },
+    { kind: 'PERSON', label: 'Petra Novak — guest pass, Boston', href: 'Admin People.dc.html' }
+  ];
+  componentDidMount() {
+    document.title = 'Med&X Admin — Today';
+    try {
+      const n = localStorage.getItem('medx_admin_display_name'); if (n) this.setState({ adminName: n, nameDraft: n });
+      const p = localStorage.getItem('medx_admin_today_prefs'); if (p) this.setState({ prefs: JSON.parse(p) });
+      const t = localStorage.getItem('medx_admin_tasks_v1'); if (t) this.setState({ tasks: JSON.parse(t) });
+    } catch (e) {}
+  }
+  componentWillUnmount() { clearTimeout(this.tt); }
+  getTasks() { return this.state.tasks || this.seedTasks; }
+  saveTasks(list) { this.setState({ tasks: list }); try { localStorage.setItem('medx_admin_tasks_v1', JSON.stringify(list)); } catch (e) {} }
+  getPrefs() { return this.state.prefs || { kDays: true, kConf: true, kGala: true, kMoney: true, sScan: true, sEmail: true, sNews: true, sFind: true }; }
+  savePrefs(p) { this.setState({ prefs: p }); try { localStorage.setItem('medx_admin_today_prefs', JSON.stringify(p)); } catch (e) {} }
+  showToast(msg, undo) { clearTimeout(this.tt); this.setState({ toast: { msg, undo: undo || null } }); this.tt = setTimeout(() => this.setState({ toast: null }), 4000); }
+  renderVals() {
+    const now = new Date();
+    const days = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+    const months = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+    const mShort = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const h = now.getHours();
+    const greeting = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    const name = this.state.adminName.trim() || 'Alen Juginović';
+    const initials = name.split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+    const dayMs = 86400000;
+    const mid = v => { if (v instanceof Date) return new Date(v.getFullYear(), v.getMonth(), v.getDate()); const p = String(v).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+    const today0 = mid(now);
+    const plexusDays = Math.max(0, Math.round((mid('2026-12-04') - today0) / dayMs));
+    const ebDays = Math.max(0, Math.round((mid('2026-09-01') - today0) / dayMs));
+    const waitDays = Math.max(0, Math.round((today0 - mid('2026-07-29')) / dayMs));
+    const start = new Date(today0 - 29 * dayMs);
+    const sparkRange = mShort[start.getMonth()] + ' ' + start.getDate() + ' — ' + mShort[now.getMonth()] + ' ' + now.getDate();
+    const prefs = this.getPrefs();
+    const tasks = this.getTasks();
+    const overdue = tasks.filter(t => mid(t.due) < today0);
+    const oldest = overdue.length ? Math.max(...overdue.map(t => Math.round((today0 - mid(t.due)) / dayMs))) : 0;
+    const items = [
+      { id: 'outbox', dot: '#c9a962', title: '5 emails are waiting for your OK', sub: 'Weekly pulses, a Gala guest message + the Boston survey — nothing sends without you', cta: 'REVIEW & SEND', href: 'Admin Inbox.dc.html' },
+      { id: 'message', dot: '#c9a962', title: 'A member message is waiting', sub: 'Ivana Barišić asked about an invoice for her clinic — your reply lands in her portal inbox', cta: 'REPLY', href: 'Admin Inbox.dc.html#messages' },
+      { id: 'payment', dot: '#9b1b22', title: 'Gala payment pending — Nikica Darabos', sub: 'Reserved July 29 · ' + waitDays + ' days waiting · reminder queues to the Outbox for your OK', cta: 'CHASE PAYMENT', href: 'Admin Money.dc.html' },
+      { id: 'tasks', dot: '#9b1b22', title: overdue.length + ' overdue task' + (overdue.length === 1 ? '' : 's'), sub: 'Oldest is ' + oldest + ' days — one shared list with Calendar', cta: 'OPEN TASKS', href: 'Admin Calendar.dc.html#tasks', hide: overdue.length === 0 }
+    ].filter(i => !i.hide);
+    const attn = items.filter(i => !this.state.snoozed.includes(i.id)).map(i => Object.assign({}, i, {
+      dismiss: () => { this.setState(s => ({ snoozed: s.snoozed.concat([i.id]) })); this.showToast('SNOOZED FOR 1 DAY', () => this.setState(s => ({ snoozed: s.snoozed.filter(x => x !== i.id) }))); }
+    }));
+    const kpiDefs = [
+      { on: prefs.kDays, k: 'DAYS TO PLEXUS', v: String(plexusDays), sub: 'December 4–5 · Novinarski dom, Zagreb', subColor: '#6d6459', href: 'Admin Plexus Hub.dc.html' },
+      { on: prefs.kConf, k: 'CONFERENCE REGISTERED', v: '2', sub: 'free entry · cap 100', subColor: '#6d6459', href: 'Admin People.dc.html' },
+      { on: prefs.kGala, k: 'GALA SEATS PAID', v: '21', sub: '4 payments to chase · early bird ends Sep 1', subColor: '#9b1b22', href: 'Admin People.dc.html' },
+      { on: prefs.kMoney, k: 'COLLECTED THIS YEAR', v: '€3,150', sub: '21 Gala payments · all of Money →', subColor: '#6d6459', href: 'Admin Money.dc.html' }
+    ].filter(k => k.on);
+    const scDefs = [
+      { on: prefs.sScan, label: 'REHEARSE THE SCANNER', href: 'Admin Event Day.dc.html', gold: true, bg: '#201b16', bd: '#201b16', fg: '#f6f2ea' },
+      { on: prefs.sEmail, label: 'EMAIL PLEXUS REGISTRANTS', href: 'Admin Inbox.dc.html', gold: false, bg: 'transparent', bd: 'rgba(32,27,22,.2)', fg: '#201b16' },
+      { on: prefs.sNews, label: 'POST NEWS TO MEMBERS', href: 'Admin Inbox.dc.html#announcements', gold: false, bg: 'transparent', bd: 'rgba(32,27,22,.2)', fg: '#201b16' },
+      { on: prefs.sFind, label: 'FIND A PERSON', href: 'Admin People.dc.html', gold: false, bg: 'transparent', bd: 'rgba(32,27,22,.2)', fg: '#201b16' }
+    ].filter(s => s.on);
+    const qv = this.state.q.trim().toLowerCase();
+    const qResults = qv ? this.palette.filter(p => p.label.toLowerCase().includes(qv)).slice(0, 8) : [];
+    const fmtDue = t => {
+      const d = mid(t.due), diff = Math.round((d - today0) / dayMs);
+      if (diff < 0) return { meta: t.who + ' · ' + Math.abs(diff) + 'D OVERDUE', dueColor: '#9b1b22' };
+      if (diff === 0) return { meta: t.who + ' · DUE TODAY', dueColor: '#b7791f' };
+      const dd = new Date(d);
+      return { meta: t.who + ' · DUE ' + mShort[dd.getMonth()] + ' ' + dd.getDate(), dueColor: '#6d6459' };
+    };
+    const mkCust = (key, label) => ({ label, bg: prefs[key] ? '#9b1b22' : 'transparent', tg: () => { const p = Object.assign({}, prefs); p[key] = !p[key]; this.savePrefs(p); } });
+    return {
+      greeting, firstName: name.split(/\s+/)[0], avatarInitials: initials, adminName: name,
+      menuOpen: this.state.menuOpen, menuToggle: () => this.setState(s => ({ menuOpen: !s.menuOpen })),
+      nameDraft: this.state.nameDraft, onNameDraft: e => this.setState({ nameDraft: e.target.value, nameSaved: false }),
+      nameSaveBg: this.state.nameSaved ? '#1e6e42' : '#9b1b22',
+      nameSaveLabel: this.state.nameSaved ? '✓ SAVED' : 'SAVE',
+      saveName: () => { const v = (this.state.nameDraft || '').trim() || 'Alen Juginović'; this.setState({ adminName: v, nameDraft: v, nameSaved: true }); try { localStorage.setItem('medx_admin_display_name', v); } catch (e) {} },
+      todayLabel: days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear(),
+      q: this.state.q, onQ: e => this.setState({ q: e.target.value }),
+      qOpen: !!qv, qResults, qEmpty: !!qv && qResults.length === 0,
+      custOpen: this.state.custOpen, custToggle: () => this.setState(s => ({ custOpen: !s.custOpen })),
+      custBg: this.state.custOpen ? '#f6f2ea' : '#fff',
+      custKpis: [mkCust('kDays', 'Days to Plexus'), mkCust('kConf', 'Conference registered'), mkCust('kGala', 'Gala seats paid'), mkCust('kMoney', 'Collected this year')],
+      custScs: [mkCust('sScan', 'Rehearse the scanner'), mkCust('sEmail', 'Email Plexus registrants'), mkCust('sNews', 'Post news to members'), mkCust('sFind', 'Find a person')],
+      kpis: kpiDefs, kpiCount: String(Math.max(1, kpiDefs.length)),
+      shortcuts: scDefs,
+      sparkRange, ebDays: String(ebDays),
+      attn, attnCount: attn.length, attnEmpty: attn.length === 0,
+      tasks: tasks.map(t => Object.assign({ title: t.title }, fmtDue(t), {
+        done: () => { const rest = this.getTasks().filter(x => x.id !== t.id); const gone = t; this.saveTasks(rest); this.showToast('DONE — REMOVED FOR THE WHOLE TEAM', () => this.saveTasks(this.getTasks().concat([gone]))); }
+      })),
+      taskCount: String(tasks.length), tasksEmpty: tasks.length === 0,
+      adding: this.state.adding, addToggle: () => this.setState(s => ({ adding: !s.adding })),
+      taskDraft: this.state.taskDraft, onTaskDraft: e => this.setState({ taskDraft: e.target.value }),
+      taskWho: this.state.taskWho, onTaskWho: e => this.setState({ taskWho: e.target.value }),
+      addTask: () => {
+        const v = this.state.taskDraft.trim();
+        if (!v) { this.showToast('TYPE THE TASK FIRST'); return; }
+        const d7 = new Date(); d7.setDate(d7.getDate() + 7);
+        const list = [{ id: Date.now(), title: v, who: this.state.taskWho, due: d7.getFullYear() + '-' + String(d7.getMonth() + 1).padStart(2, '0') + '-' + String(d7.getDate()).padStart(2, '0'), proj: 'GENERAL' }].concat(this.getTasks());
+        this.saveTasks(list); this.setState({ taskDraft: '', adding: false }); this.showToast('TASK ADDED — VISIBLE TO THE WHOLE TEAM');
+      },
+      toastOn: !!this.state.toast, toastMsg: this.state.toast ? this.state.toast.msg : '',
+      toastUndoable: !!(this.state.toast && this.state.toast.undo),
+      toastUndo: () => { const u = this.state.toast && this.state.toast.undo; this.setState({ toast: null }); if (u) u(); },
+      wrOpen: this.state.wrOpen,
+      wrLabel: this.state.wrOpen ? 'HIDE' : 'READ THIS WEEK →',
+      wrToggle: () => this.setState(s => ({ wrOpen: !s.wrOpen }))
+    };
+  }
+}
+</script>
+</body>
+</html>

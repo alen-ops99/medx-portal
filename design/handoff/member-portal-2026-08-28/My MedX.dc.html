@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+</style>
+</helmet>
+<div data-screen-label="My Med&X" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <dc-import name="Portal Chrome" active="My Med&amp;X" hint-size="100%,150px"></dc-import>
+  <div style="display:grid;grid-template-columns:1fr 1fr;align-items:stretch;border-bottom:1px solid rgba(25,21,18,.16)">
+    <div style="padding:42px 48px 26px 36px;display:flex;flex-direction:column;justify-content:center">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <span style="width:28px;height:1px;background:#c9a962"></span>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#9b1b22">MY MED&amp;X · MEMBERSHIP, TICKETS &amp; RECORD</span>
+      </div>
+      <div style="font-family:Fraunces,serif;font-size:44px;line-height:1.08">Your membership, <i>Alen</i>.</div>
+      <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:440px;margin-top:14px">Your member card and tickets — one QR admits you to everything you're registered for.</div>
+      <div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap">
+        <span style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">DOWNLOAD CARD</span>
+        <span style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" style-hover="border-color:#191512">ADD TO PHONE WALLET</span>
+      </div>
+      <div style="font-size:12px;color:#4a4239;margin-top:16px;max-width:440px;line-height:1.55">Apple and Google Wallet supported · per-event tickets live below in <strong style="color:#191512">My wallet</strong>.</div>
+    </div>
+    <div style="position:relative;display:flex;align-items:center;justify-content:center;padding:36px;overflow:hidden">
+      <div style="position:absolute;inset:0;background-image:url('assets/photo-candlelit.jpg');background-size:cover;background-position:center"></div>
+      <div style="position:absolute;inset:0;background:rgba(25,21,18,.72)"></div>
+      <div onClick="{{ flipCard }}" style="position:relative;width:450px;background:linear-gradient(135deg,#221c17 0%,#191512 55%,#14100d 100%);color:#f7f1e6;padding:26px 28px;box-shadow:0 24px 60px rgba(0,0,0,.5);cursor:pointer;transition:transform .5s cubic-bezier(.22,1,.36,1);transform:perspective(1100px) rotateY({{ cardRy }})">
+        <div style="position:absolute;inset:9px;border:1px solid rgba(201,169,98,.55);pointer-events:none"></div>
+        <div style="position:absolute;inset:12px;border:1px solid rgba(201,169,98,.2);pointer-events:none"></div>
+        <sc-if value="{{ cardBack }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 0 8px;text-align:center">
+            <div style="width:120px;height:120px;background:#f7f1e6;padding:9px;box-sizing:border-box">
+              <div style="width:100%;height:100%;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 10px ui-monospace,Menlo,monospace;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,transparent 3px 6px)">QR</div>
+            </div>
+            <div style="font-family:Fraunces,serif;font-style:italic;font-size:19px;color:#c9a962">Jedna karta, sva vrata.</div>
+            <div style="font-size:11px;color:rgba(247,241,230,.55)">One card, every door · tap to flip back</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ cardFront }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:center">
+          <img src="assets/logo-white.png" alt="med&amp;X" style="height:19px;display:block">
+          <div style="flex:1"></div>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.22em;color:#c9a962">MEMBER CARD · 2026</span>
+        </div>
+        <div style="width:34px;height:1px;background:#c9a962;margin:26px 0 14px"></div>
+        <div style="display:flex;align-items:flex-end;gap:20px">
+          <div style="flex:1;min-width:0">
+            <div style="font:600 8.5px Inter,sans-serif;letter-spacing:.2em;color:rgba(247,241,230,.5)">MEMBER</div>
+            <div style="font-family:Fraunces,serif;font-size:25px;margin-top:4px">Alen <i style="color:#c9a962">Juginović</i></div>
+            <div style="font-size:11.5px;color:rgba(247,241,230,.65);margin-top:5px">Physician · Member since 2026</div>
+            <span style="display:inline-block;margin-top:12px;padding:4px 9px;background:rgba(201,169,98,.16);color:#c9a962;font:600 8.5px Inter,sans-serif;letter-spacing:.16em">MEMBER IN GOOD STANDING</span>
+          </div>
+          <div style="width:92px;height:92px;background:#f7f1e6;flex:none;padding:8px;box-sizing:border-box">
+            <div style="width:100%;height:100%;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 10px ui-monospace,Menlo,monospace;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,transparent 3px 6px)">QR</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;margin-top:18px;padding-top:12px;border-top:1px solid rgba(247,241,230,.14)">
+          <span style="font:600 9px ui-monospace,Menlo,monospace;letter-spacing:.18em;color:rgba(247,241,230,.45)">N° 2026-0042</span>
+          <div style="flex:1"></div>
+          <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.2em;color:rgba(247,241,230,.45)">FAST CHECK-IN AT MED&amp;X EVENTS</span>
+        </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+  <div style="border-bottom:1px solid rgba(25,21,18,.16)">
+    <div style="padding:13px 36px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">REWARDS</span>
+      <span style="font-size:12.5px;color:#4a4239"><strong style="color:#191512">0 points</strong> · earn at every event and connection, redeem for seats and perks.</span>
+      <div style="flex:1"></div>
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:pointer">OPEN REWARDS →</span>
+    </div>
+  </div>
+  <div style="padding:0 36px">
+    <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 14px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">MY WALLET</span>
+      <div style="display:flex;margin-left:14px">
+        <span onClick="{{ showCur }}" style="padding:8px 14px;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;border:1px solid rgba(25,21,18,.3);background:{{ curBg }};color:{{ curFg }}">CURRENT TICKETS</span>
+        <span onClick="{{ showPast }}" style="padding:8px 14px;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;border:1px solid rgba(25,21,18,.3);border-left:none;background:{{ pastBg }};color:{{ pastFg }}">PAST PURCHASES</span>
+      </div>
+    </div>
+    <sc-if value="{{ walletCur }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="display:flex;gap:16px;align-items:center;padding:15px 18px;border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
+          <div style="width:44px;height:44px;flex:none;background:#f7f1e6;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 8px ui-monospace,Menlo,monospace;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,#f7f1e6 3px 6px)">QR</div>
+          <span style="flex:1;min-width:0"><span style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-family:Fraunces,serif;font-size:16.5px">Plexus Conference 2026</span><span style="padding:2px 6px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EXAMPLE</span></span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">December 4–5 · Zagreb · Free entry, confirmed</span><span style="display:flex;gap:14px;flex-wrap:wrap;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;margin-top:7px">
+            <span style="color:#9b1b22;cursor:pointer">DOWNLOAD</span>
+            <span style="color:#9b1b22;cursor:pointer">EMAIL</span>
+            <span style="color:#9b1b22;cursor:pointer">ADD TO WALLET</span>
+          </span></span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;padding:15px 18px;border:1px solid rgba(201,169,98,.55);background:#fdfaf3">
+          <div style="width:44px;height:44px;flex:none;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 8px ui-monospace,Menlo,monospace;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,#f7f1e6 3px 6px)">QR</div>
+          <span style="flex:1;min-width:0"><span style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-family:Fraunces,serif;font-size:16.5px">Gala <i style="color:#9b1b22">Evening</i> 2026</span><span style="padding:2px 6px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EXAMPLE</span></span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">December 5 · Hotel Esplanade · €150, seat reserved</span><span style="display:flex;gap:14px;flex-wrap:wrap;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;margin-top:7px">
+            <span style="color:#9b1b22;cursor:pointer">DOWNLOAD</span>
+            <span style="color:#9b1b22;cursor:pointer">EMAIL</span>
+            <span style="color:#9b1b22;cursor:pointer">ADD TO WALLET</span>
+          </span></span>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:baseline;padding:12px 0 26px">
+        <span style="font-size:12px;color:#4a4239">These are examples — your real tickets appear here as you register.</span>
+        <a href="Plexus Conference.dc.html" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em">BROWSE EVENTS →</a>
+      </div>
+    </sc-if>
+    <sc-if value="{{ walletPast }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-bottom:26px">
+        <div style="display:flex;gap:16px;align-items:center;padding:13px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+          <span style="flex:1"><span style="display:flex;gap:8px;align-items:baseline"><span style="font-family:Fraunces,serif;font-size:17px">Gala Evening 2025 — one seat</span><span style="padding:2px 6px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EXAMPLE</span></span><span style="display:block;font-size:12px;color:#4a4239;margin-top:2px">Order #1284 · December 5, 2025</span></span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">€150 · PAID</span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">RECEIPT →</span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;padding:13px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+          <span style="flex:1"><span style="display:flex;gap:8px;align-items:baseline"><span style="font-family:Fraunces,serif;font-size:17px">Plexus Conference 2025 — registration</span><span style="padding:2px 6px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EXAMPLE</span></span><span style="display:block;font-size:12px;color:#4a4239;margin-top:2px">Order #0917 · December 4, 2025</span></span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">FREE ENTRY</span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">CONFIRMATION →</span>
+        </div>
+        <div style="font-size:12px;color:#4a4239;padding-top:10px">Free registrations come with a confirmation rather than a receipt · certificates of attendance live under <strong style="color:#191512">My record</strong> below. Ask us anything about an order — <span style="color:#9b1b22;cursor:pointer">contact the team</span>.</div>
+      </div>
+    </sc-if>
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:1px solid rgba(25,21,18,.16);padding:24px 0 16px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">02</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">MY RECORD</span>
+      <span style="font-size:12px;color:#4a4239;margin-left:10px">Attendance and year-in-review cards arrive by email automatically when you register.</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;padding-bottom:28px">
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:7px">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">EVENTS</span>
+        <span style="font-size:12.5px;color:#4a4239;line-height:1.5">Your events appear here after you register. <a href="Plexus Conference.dc.html">Browse events</a></span>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:7px">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">CERTIFICATES</span>
+        <span style="display:flex;gap:8px;align-items:baseline"><span style="font-family:Fraunces,serif;font-size:15px">Certificate of Attendance</span><span style="padding:2px 6px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EXAMPLE</span></span>
+        <span style="font-size:12px;color:#4a4239">Certificates appear here after events you attend — download any time.</span>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:7px">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">BADGES</span>
+        <span style="display:flex;gap:8px;flex-wrap:wrap">
+          <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.13em">FIRST CONFERENCE</span>
+          <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.13em">PRESENTER</span>
+          <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EXAMPLE</span>
+        </span>
+        <span style="font-size:12px;color:#4a4239">Recognition you earn across Med&amp;X events collects here.</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:14px;border-top:1px solid rgba(25,21,18,.16);padding:24px 0 6px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">03</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">SETTINGS</span>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;width:120px;flex:none">NAME</span>
+      <span style="font-size:13.5px;flex:1">Alen Juginović</span>
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">CHANGE →</span>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;width:120px;flex:none">EMAIL</span>
+      <span style="font-size:13.5px;flex:1">alen_juginovic@hms.harvard.edu <span style="padding:2px 6px;margin-left:6px;border:1px solid rgba(155,27,34,.45);color:#9b1b22;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">UNCONFIRMED</span></span>
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">CHANGE →</span>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;width:120px;flex:none">PASSWORD</span>
+      <span style="font-size:13.5px;flex:1">••••••••</span>
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">CHANGE →</span>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;width:120px;flex:none">LANGUAGE</span>
+      <span style="font-size:13.5px;flex:1"><span style="font-weight:600">English</span> · Hrvatski</span>
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">SWITCH →</span>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;width:120px;flex:none">PROJECTS I FOLLOW</span>
+      <span style="font-size:13.5px;flex:1;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">Plexus Conference ×</span>
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">Gala Evening ×</span>
+        <span style="padding:5px 10px;border:1px dashed rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">+ ADD</span>
+      </span>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;padding:12px 0 26px">
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;width:120px;flex:none">MY INTERESTS</span>
+      <span style="font-size:13.5px;flex:1;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">Neuroscience ×</span>
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">Sleep Medicine ×</span>
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">Oncology ×</span>
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">Public Health ×</span>
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">Biotech ×</span>
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">AI in Medicine ×</span>
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">Mental Health ×</span>
+        <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px">Genetics ×</span>
+        <span style="padding:5px 10px;border:1px dashed rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">+ ADD</span>
+      </span>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px;border-top:1px solid rgba(25,21,18,.16);padding:20px 0 32px;flex-wrap:wrap">
+      <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">Don't see something, or something looks wrong?</span>
+      <span style="font-size:12px;color:#4a4239">Message us — you're signed in, so replies land right here in your portal inbox.</span>
+      <div style="flex:1"></div>
+      <a href="Messages.dc.html" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#7e151b;color:#f7f1e6">MESSAGE US →</a>
+    </div>
+  </div>
+  
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  cardVals() {
+    return {
+      flipCard: () => this.setState(s => ({ cardBack: !s.cardBack })),
+      cardBack: !!this.state.cardBack,
+      cardFront: !this.state.cardBack,
+      cardRy: this.state.cardBack ? '360deg' : '0deg'
+    };
+  }
+  state = { tab: 'cur', modal: null, pick: 0 };
+  renderVals() {
+    const cur = this.state.tab === 'cur';
+    const opts = [
+      { label: 'PLEXUS 2026', lead: "I'M ATTENDING", name: 'Plexus Conference 2026', sub: 'DECEMBER 4–5 · ZAGREB' },
+      { label: 'GALA EVENING', lead: "I'LL BE AT THE", name: 'Gala Evening 2026', sub: 'DECEMBER 5 · HOTEL ESPLANADE, ZAGREB' },
+      { label: 'ACCELERATOR', lead: 'I WAS SELECTED FOR THE', name: 'Med&X Accelerator', sub: 'PARTNER LABS & CLINICS · 2027' },
+      { label: 'BUILDING BRIDGES', lead: "I'M ATTENDING", name: 'Building Bridges', sub: 'SEPTEMBER 2026 · BOSTON' }
+    ];
+    const p = opts[this.state.pick];
+    return Object.assign(this.cardVals(), {
+      walletCur: cur, walletPast: !cur,
+      showCur: () => this.setState({ tab: 'cur' }),
+      showPast: () => this.setState({ tab: 'past' }),
+      curBg: cur ? '#191512' : 'transparent', curFg: cur ? '#f7f1e6' : '#4a4239',
+      pastBg: cur ? 'transparent' : '#191512', pastFg: cur ? '#4a4239' : '#f7f1e6',
+      modalYear: this.state.modal === 'year',
+      modalAttend: this.state.modal === 'attend',
+      openYear: () => this.setState({ modal: 'year' }),
+      openAttend: () => this.setState({ modal: 'attend' }),
+      closeModal: () => this.setState({ modal: null }),
+      attendChips: opts.map((o, i) => ({ label: o.label, on: () => this.setState({ pick: i }), bg: i === this.state.pick ? '#191512' : 'transparent', fg: i === this.state.pick ? '#f7f1e6' : '#4a4239' })),
+      cardLead: p.lead, cardName: p.name, cardSub: p.sub
+    });
+  }
+}
+</script>
+</body>
+</html>

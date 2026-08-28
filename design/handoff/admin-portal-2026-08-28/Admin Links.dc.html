@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus,select:focus{outline:1px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Link Generator" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">PROJECTS</span>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:22px">
+    <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <a href="Admin Plexus Hub.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6d6459" style-hover="color:#201b16">← PLEXUS WEEK</a>
+          <span style="font-family:Fraunces,serif;font-size:30px">Invitations &amp; <i>links</i></span>
+        </div>
+        <div style="font-size:12.5px;color:#6d6459;margin-top:4px">One link per audience — paid, VIP, diaspora, sponsors. Share it anywhere; every sign-up lands in <a href="Admin Registrations.dc.html">Registrations</a> tagged with its source.</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 360px;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.12)">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">LIVE LINKS</span>
+          <span style="font-size:11.5px;color:#6d6459">every visit and sign-up is counted per link</span>
+        </div>
+        <sc-for list="{{ links }}" as="l" hint-placeholder-count="4">
+          <div style="padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.08);display:flex;flex-direction:column;gap:7px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;padding:3px 7px;background:{{ l.kBg }};color:{{ l.kFg }};white-space:nowrap">{{ l.kind }}</span>
+              <span style="font-size:13px;font-weight:600;flex:1;min-width:120px">{{ l.name }}</span>
+              <span style="font-size:11px;color:#6d6459;white-space:nowrap">{{ l.stats }}</span>
+              <span onClick="{{ l.pause }}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:{{ l.pauseColor }};cursor:pointer;white-space:nowrap" style-hover="color:#201b16">{{ l.pauseLabel }}</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span style="font:600 11.5px ui-monospace,monospace;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:8px 11px;flex:1;min-width:200px;color:{{ l.urlColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ l.url }}</span>
+              <span onClick="{{ l.copy }}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">{{ l.copyLabel }}</span>
+              <span onClick="{{ l.qr }}" title="A print-ready QR of this link" style="padding:8px 11px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" style-hover="border-color:#201b16">QR</span>
+            </div>
+          </div>
+        </sc-for>
+        <div style="padding:11px 18px;font-size:11px;color:#6d6459">Pausing a link keeps its history — the page it opens simply says registration is closed.</div>
+      </div>
+      <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;position:sticky;top:16px">
+        <div style="padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">NEW LINK</span></div>
+        <div style="padding:14px 18px 18px;display:flex;flex-direction:column;gap:10px">
+          <label style="display:flex;flex-direction:column;gap:4px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">EVENT</span>
+            <select value="{{ nEvent }}" onChange="{{ onNEvent }}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 10px;font:400 13px Inter,sans-serif;color:#201b16"><option>Gala Evening</option><option>Plexus Conference</option><option>Building Bridges Boston</option><option>Donor Night</option><option>Forum gathering 2027</option></select></label>
+          <label style="display:flex;flex-direction:column;gap:4px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">WHO IS IT FOR</span>
+            <select value="{{ nKind }}" onChange="{{ onNKind }}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 10px;font:400 13px Inter,sans-serif;color:#201b16"><option>PUBLIC — pays full price</option><option>VIP — free, named guests</option><option>DIASPORA — special rate</option><option>SPONSOR — table booking</option></select></label>
+          <label style="display:flex;flex-direction:column;gap:4px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">USE LIMIT · OPTIONAL</span>
+            <input value="{{ nLimit }}" onChange="{{ onNLimit }}" placeholder="e.g. 10 — blank for unlimited" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 10px;font:400 13px Inter,sans-serif;color:#201b16"></input></label>
+          <label style="display:flex;flex-direction:column;gap:4px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">NOTE TO YOURSELF · OPTIONAL</span>
+            <input value="{{ nNote }}" onChange="{{ onNNote }}" placeholder="e.g. for the embassy mailing list" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 10px;font:400 13px Inter,sans-serif;color:#201b16"></input></label>
+          <span onClick="{{ create }}" style="padding:11px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;text-align:center" style-hover="background:#7e151b">CREATE THE LINK</span>
+          <span style="font-size:11px;color:#6d6459;line-height:1.55">The link is live the moment it's created — copy it from the list. VIP links skip payment entirely; sponsor links open the table-booking form.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#201b16;color:#f6f2ea;padding:12px 18px;font:600 10px Inter,sans-serif;letter-spacing:.14em;z-index:80;border-left:3px solid #c9a962;white-space:nowrap">{{ toastMsg }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1360, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { toast: '', copied: null, nEvent: 'Gala Evening', nKind: 'PUBLIC — pays full price', nLimit: '', nNote: '',
+    links: [
+      { id: 1, kind: 'PUBLIC', name: 'Gala Evening — main link', url: 'medx.hr/r/gala26', stats: '212 visits · 25 sign-ups', paused: false },
+      { id: 2, kind: 'PUBLIC', name: 'Plexus Conference — main link', url: 'medx.hr/r/plexus26', stats: '160 visits · 2 sign-ups', paused: false },
+      { id: 3, kind: 'VIP', name: 'Gala VIP — board & partners', url: 'medx.hr/r/gala26-vip-k4m2', stats: '8 visits · 1 sign-up · limit 10', paused: false },
+      { id: 4, kind: 'DIASPORA', name: 'Boston — diaspora mailing list', url: 'medx.hr/r/boston26-hr', stats: '0 visits · goes out with the September email', paused: false }
+    ]};
+  kindStyle = { PUBLIC: ['#eee9df', '#4a4239'], VIP: ['#f1e7d4', '#7a6432'], DIASPORA: ['#e8eef7', '#2c4a73'], SPONSOR: ['#e4efe7', '#22563a'] };
+  componentDidMount() { document.title = 'Med&X Admin — Invitations & links'; }
+  componentWillUnmount() { clearTimeout(this.tt); }
+  showToast(msg) { clearTimeout(this.tt); this.setState({ toast: msg }); this.tt = setTimeout(() => this.setState({ toast: '' }), 3800); }
+  renderVals() {
+    const s = this.state;
+    return {
+      links: s.links.map(l => {
+        const c = this.kindStyle[l.kind] || this.kindStyle.PUBLIC;
+        return { ...l, kBg: c[0], kFg: c[1],
+          urlColor: l.paused ? '#9a9086' : '#201b16',
+          copyLabel: s.copied === l.id ? '✓ COPIED' : 'COPY',
+          copy: () => { try { navigator.clipboard.writeText('https://' + l.url); } catch (e) {} this.setState({ copied: l.id }); this.showToast('LINK COPIED — PASTE IT ANYWHERE'); },
+          qr: () => this.showToast('PRINT-READY QR DOWNLOADS IN PRODUCTION'),
+          pauseLabel: l.paused ? 'RESUME' : 'PAUSE',
+          pauseColor: l.paused ? '#1e6e42' : '#9a9086',
+          pause: () => { this.setState(x => ({ links: x.links.map(p => p.id === l.id ? { ...p, paused: !p.paused } : p) })); this.showToast(l.paused ? 'LINK LIVE AGAIN' : 'PAUSED — THE PAGE NOW SAYS REGISTRATION IS CLOSED'); }
+        };
+      }),
+      nEvent: s.nEvent, nKind: s.nKind, nLimit: s.nLimit, nNote: s.nNote,
+      onNEvent: e => this.setState({ nEvent: e.target.value }),
+      onNKind: e => this.setState({ nKind: e.target.value }),
+      onNLimit: e => this.setState({ nLimit: e.target.value }),
+      onNNote: e => this.setState({ nNote: e.target.value }),
+      create: () => {
+        const kind = s.nKind.split(' ')[0];
+        const slugBase = { 'Gala Evening': 'gala26', 'Plexus Conference': 'plexus26', 'Building Bridges Boston': 'boston26', 'Donor Night': 'donor26', 'Forum gathering 2027': 'forum27' }[s.nEvent] || 'event';
+        const suffix = kind === 'PUBLIC' ? '' : '-' + kind.toLowerCase().slice(0, 3) + '-' + Math.random().toString(36).slice(2, 6);
+        const lim = parseInt(s.nLimit, 10);
+        this.setState(x => ({ links: [{ id: Date.now(), kind, name: s.nEvent + ' — ' + (s.nNote.trim() || kind.toLowerCase() + ' link'), url: 'medx.hr/r/' + slugBase + suffix, stats: '0 visits · just created' + (lim ? ' · limit ' + lim : ''), paused: false }].concat(x.links), nLimit: '', nNote: '' }));
+        this.showToast('LINK CREATED — IT IS LIVE NOW, COPY IT FROM THE LIST');
+      },
+      toastOn: !!s.toast, toastMsg: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

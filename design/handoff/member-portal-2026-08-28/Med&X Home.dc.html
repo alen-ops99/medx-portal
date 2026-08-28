@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+</style>
+</helmet>
+<div data-screen-label="Home" style="position:relative;overflow:hidden;font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <div style="display:flex;align-items:center;gap:20px;padding:0 36px;height:60px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span onClick="{{ tg }}" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+      <span style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#191512"></span><span style="width:18px;height:2px;background:#191512"></span><span style="width:12px;height:2px;background:#191512"></span></span>
+      <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.18em">MENU</span>
+    </span>
+    <img src="assets/logo.png" alt="med&amp;X" style="height:22px;display:block">
+    <div style="flex:1"></div>
+    <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">SEARCH</span>
+    <span style="display:flex;align-items:center;gap:6px;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">ALERTS<span style="width:6px;height:6px;background:#c9a962;display:inline-block"></span></span>
+    <span style="width:1px;height:18px;background:rgba(25,21,18,.16)"></span>
+    <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.14em"><span style="color:#191512">EN</span><span style="color:#4a4239;opacity:.55"> · HR</span></span>
+    <a href="My MedX.dc.html" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#191512" style-hover="color:#191512">
+      <span style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">AJ</span>
+      <span style="display:flex;flex-direction:column;line-height:1.25"><span style="font-size:12.5px;font-weight:600">Alen Juginović</span><span style="font-size:10.5px;color:#4a4239">Med&amp;X Member</span></span>
+    </a>
+  </div>
+  <div style="display:flex;align-items:center;gap:24px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.18em;color:#4a4239">{{ todayLabel }}</span>
+    <div style="flex:1"></div>
+    <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">0</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">POINTS</span></span>
+    <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">0</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">REGISTRATIONS</span></span>
+    <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">0</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">FOLLOWING</span></span>
+    <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">2026</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">MEMBER SINCE</span></span>
+  </div>
+  <div style="border-bottom:1px solid rgba(25,21,18,.16);position:relative;overflow:hidden">
+    <div style="display:grid;grid-template-columns:minmax(240px,300px) 1fr minmax(240px,300px);align-items:start;position:relative">
+    <div style="display:flex;flex-direction:column;gap:8px;padding:16px 20px 0 0;order:3">
+      <sc-if value="{{ showStart }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;background:#fdfaf3;border:1px solid rgba(25,21,18,.16)">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 12px 7px">
+            <span style="width:6px;height:6px;background:#c9a962;flex:none"></span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6e5626">GETTING STARTED · {{ startCount }}</span>
+            <div style="flex:1"></div>
+            <span onClick="{{ hideStart }}" style="color:#4a4239;cursor:pointer;line-height:1">×</span>
+          </div>
+          <sc-if value="{{ showBanner }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 12px;border-top:1px solid rgba(25,21,18,.08)">
+              <span style="width:11px;height:11px;border:1px solid rgba(25,21,18,.35);flex:none;margin-top:2px"></span>
+              <span style="font-size:12px;line-height:1.5;color:#4a4239;flex:1">Confirm your email · <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">RESEND LINK</span></span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ showNudge }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 12px 10px;border-top:1px solid rgba(25,21,18,.08)">
+              <span style="width:11px;height:11px;border:1px solid rgba(25,21,18,.35);flex:none;margin-top:2px"></span>
+              <span style="font-size:12px;line-height:1.5;color:#4a4239;flex:1">Complete your profile — <strong style="color:#191512">40%</strong> done · <a href="Profile.dc.html" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">EDIT PROFILE →</a></span>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </div>
+    <img src="assets/mark-x.png" alt="" style="position:absolute;left:6%;top:24%;width:52px;opacity:.13;transform:rotate(-12deg);pointer-events:none;user-select:none">
+    <img src="assets/mark-x.png" alt="" style="position:absolute;left:3%;bottom:16%;width:80px;opacity:.09;transform:rotate(7deg);pointer-events:none;user-select:none">
+    <img src="assets/mark-x.png" alt="" style="position:absolute;left:14%;bottom:38%;width:34px;opacity:.11;transform:rotate(-4deg);pointer-events:none;user-select:none">
+    <img src="assets/mark-x.png" alt="" style="position:absolute;right:6%;top:20%;width:66px;opacity:.11;transform:rotate(9deg) scaleX(-1);pointer-events:none;user-select:none">
+    <img src="assets/mark-x.png" alt="" style="position:absolute;right:12%;bottom:20%;width:44px;opacity:.13;transform:rotate(-8deg);pointer-events:none;user-select:none">
+    <img src="assets/mark-x.png" alt="" style="position:absolute;right:2.5%;bottom:44%;width:30px;opacity:.1;transform:rotate(14deg) scaleX(-1);pointer-events:none;user-select:none">
+    <div style="padding:54px 12px 46px;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;order:2">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <span style="width:28px;height:1px;background:#c9a962"></span>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#9b1b22">YOUR NEXT EVENT · PLEXUS 2026</span>
+        <span style="width:28px;height:1px;background:#c9a962"></span>
+      </div>
+      <div style="font-family:Fraunces,serif;font-size:46px;line-height:1.08">{{ greeting }}, <i>Alen</i>.</div>
+      <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:460px;margin-top:14px">Plexus 2026 is open for registration — two days in Zagreb, this December. Discover what's next.</div>
+      <div style="display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;justify-content:center">
+        <a href="My MedX.dc.html" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" style-hover="background:#7e151b;color:#f7f1e6">EVENT TICKETS →</a>
+        <a href="My MedX.dc.html" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#191512;text-decoration:none;white-space:nowrap" style-hover="border-color:#191512;color:#191512">CHECK IN</a>
+        <a href="My MedX.dc.html" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#191512;text-decoration:none;white-space:nowrap" style-hover="border-color:#191512;color:#191512">MY MED&amp;X</a>
+      </div>
+    </div>
+    <span style="order:1"></span>
+    </div>
+  </div>
+  <div style="background:#191512;color:#f7f1e6;padding:20px 36px;display:flex;align-items:center;gap:34px;border-bottom:1px solid rgba(25,21,18,.16);box-sizing:border-box">
+      <span style="display:flex;flex-direction:column;gap:4px;flex:none">
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">NEXT EVENT · PRE-REGISTRATION OPEN</span>
+        <span style="font-family:Fraunces,serif;font-size:23px;line-height:1.15">Plexus Conference <i style="color:#c9a962">2026</i></span>
+        <span style="font-size:12px;color:rgba(247,241,230,.65)">December 4–5, 2026 · Zagreb, Croatia · Free entry</span>
+      </span>
+      <span style="width:1px;align-self:stretch;background:rgba(247,241,230,.18)"></span>
+      <span style="display:flex;align-items:baseline;gap:20px">
+        <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:30px;color:#c9a962">{{ cdDays }}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">DAYS</span></span>
+        <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:30px;color:#c9a962">{{ cdHrs }}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">HOURS</span></span>
+        <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:30px;color:#c9a962">{{ cdMin }}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">MINUTES</span></span>
+      </span>
+      <span style="margin-left:auto;display:flex;gap:12px">
+        <a href="Plexus Program.dc.html" style="padding:12px 18px;border:1px solid rgba(247,241,230,.35);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#f7f1e6" style-hover="border-color:#f7f1e6;color:#f7f1e6">VIEW SCHEDULE</a>
+        <a href="My Plexus.dc.html" style="padding:12px 18px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#b8994f;color:#191512">REGISTER NOW →</a>
+      </span>
+    </div>
+  <div style="padding:0 36px">
+    <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 18px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">OUR PROJECTS</span>
+      <span style="font-size:12.5px;color:#4a4239">Apply, register, and follow every Med&amp;X project from here.</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;padding-bottom:30px">
+      <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #9b1b22;background:#fdfaf3;display:flex;flex-direction:column;box-sizing:border-box">
+        <img src="assets/photo-stage.jpg" alt="" style="width:100%;height:110px;object-fit:cover;display:block">
+        <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">PRE-REGISTRATION OPEN</span>
+          <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">Plexus Conference 2026</span>
+          <span style="font-size:12px;color:#4a4239;line-height:1.5">December 4–5, 2026 · Zagreb · Free entry</span>
+          <a href="Plexus Conference.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto">REGISTER →</a>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(201,169,98,.55);background:#191512;color:#f7f1e6;display:flex;flex-direction:column;box-sizing:border-box">
+        <img src="assets/photo-gala.jpg" alt="" style="width:100%;height:110px;object-fit:cover;object-position:top;display:block">
+        <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#c9a962">RESERVE YOUR SEAT</span>
+          <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">Gala <i style="color:#c9a962">Evening</i></span>
+          <span style="font-size:12px;color:rgba(247,241,230,.65);line-height:1.5">Sat, December 5 · Hotel Esplanade · €150 through 1 Sep</span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962;margin-top:auto;cursor:pointer">RESERVE SEAT →</span>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;box-sizing:border-box">
+        <img src="assets/photo-candlelit.jpg" alt="" style="width:100%;height:110px;object-fit:cover;display:block">
+        <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">OPENS DECEMBER 8</span>
+          <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">The Accelerator</span>
+          <span style="font-size:12px;color:#4a4239;line-height:1.5">Partner labs and clinics · December 8, 2026</span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto;cursor:pointer">LEARN MORE →</span>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;box-sizing:border-box">
+        <img src="assets/photo-ballroom.jpg" alt="" style="width:100%;height:110px;object-fit:cover;display:block">
+        <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6e5626">BY INVITATION</span>
+          <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">Biomedical Forum</span>
+          <span style="font-size:12px;color:#4a4239;line-height:1.5">Forum gathering · May 28–29, 2027</span>
+          <a href="Biomedical Forum.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto">ENTER CODE →</a>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;box-sizing:border-box">
+        <img src="assets/photo-hall.jpg" alt="" style="width:100%;height:110px;object-fit:cover;display:block">
+        <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">BOSTON · SEPT 2026</span>
+          <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">Building Bridges</span>
+          <span style="font-size:12px;color:#4a4239;line-height:1.5">Boston · September 18–21, 2026</span>
+          <a href="Building Bridges.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto">VIEW PROGRAM →</a>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:34px;border-top:1px solid rgba(25,21,18,.16);padding:22px 0 10px;align-items:start">
+      <div>
+        <div style="display:flex;align-items:baseline;gap:12px;padding-bottom:4px">
+          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">02</span>
+          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">LATEST FROM MED&amp;X</span>
+          <div style="flex:1"></div>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">SEE ALL →</span>
+        </div>
+        <a href="Building Bridges.dc.html" style="display:flex;gap:16px;align-items:baseline;padding:14px 0;border-bottom:1px solid rgba(25,21,18,.1);color:#191512" style-hover="color:#9b1b22">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#9b8f80;flex:none;width:52px">JUL 2</span>
+          <span style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.25;flex:1;min-width:0">Building Bridges returns to Boston this September</span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">READ →</span>
+        </a>
+        <a href="Accelerator.dc.html" style="display:flex;gap:16px;align-items:baseline;padding:14px 0;border-bottom:1px solid rgba(25,21,18,.1);color:#191512" style-hover="color:#9b1b22">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#9b8f80;flex:none;width:52px">JUL 2</span>
+          <span style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.25;flex:1;min-width:0">Accelerator applications open December 8</span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">READ →</span>
+        </a>
+        <a href="Plexus Conference.dc.html" style="display:flex;gap:16px;align-items:baseline;padding:14px 0;border-bottom:1px solid rgba(25,21,18,.1);color:#191512" style-hover="color:#9b1b22">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#9b8f80;flex:none;width:52px">JUL 2</span>
+          <span style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.25;flex:1;min-width:0">Plexus 2026 registration is open — free entry</span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">READ →</span>
+        </a>
+        <a href="Biomedical Forum.dc.html" style="display:flex;gap:16px;align-items:baseline;padding:14px 0;color:#191512" style-hover="color:#9b1b22">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#9b8f80;flex:none;width:52px">JUN 24</span>
+          <span style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.25;flex:1;min-width:0">Biomedical Forum 2027 — venue shortlisted, members vote next month</span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">READ →</span>
+        </a>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:15px 18px 8px">
+          <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:4px">
+            <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;color:#6e5626">KEY DATES</span>
+            <div style="flex:1"></div>
+            <span onClick="{{ dlIcs }}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">ADD →</span>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(25,21,18,.1)">
+            <span style="width:7px;height:7px;background:#c9a962;flex:none"></span>
+            <span style="font-size:13px;color:#191512;flex:1;line-height:1.3">Gala early bird — €150</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#9b8f80;white-space:nowrap">UNTIL SEP 1</span>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(25,21,18,.1)">
+            <span style="width:7px;height:7px;background:#9b1b22;flex:none"></span>
+            <span style="font-size:13px;color:#191512;flex:1;line-height:1.3">Accelerator applications open</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#9b8f80;white-space:nowrap">DEC 8</span>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;padding:9px 0">
+            <span style="width:7px;height:7px;background:#191512;flex:none"></span>
+            <span style="font-size:13px;color:#191512;flex:1;line-height:1.3">Plexus Conference &amp; Gala</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#9b8f80;white-space:nowrap">DEC 4–5</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-bottom:28px">
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">MED&amp;X NEWSLETTER</span>
+      <span style="font-size:12px;color:#4a4239;flex:none">Project news in your inbox — pick topics.</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:220px">
+        <sc-for list="{{ nlTopics }}" as="t" hint-placeholder-count="6">
+          <span onClick="{{ t.tg }}" style="padding:5px 9px;border:1px solid {{ t.bd }};background:{{ t.bg }};color:{{ t.fg }};font:600 8.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer">{{ t.label }}</span>
+        </sc-for>
+      </div>
+      <sc-if value="{{ nlNotSub }}" hint-placeholder-val="{{ true }}">
+        <input placeholder="alen_juginovic@hms.harvard.edu" style="border:1px solid rgba(25,21,18,.25);background:#fff;padding:9px 12px;font:13px Inter,sans-serif;color:#191512;width:250px;flex:none">
+        <span onClick="{{ nlSub }}" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;flex:none" style-hover="background:#7e151b">SUBSCRIBE →</span>
+      </sc-if>
+      <sc-if value="{{ nlIsSub }}" hint-placeholder-val="{{ false }}">
+        <span style="padding:6px 10px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;flex:none">SUBSCRIBED · {{ nlCount }} · MANAGE IN SETTINGS</span>
+      </sc-if>
+    </div>
+    <a href="Biomedical Forum.dc.html" style="display:flex;align-items:center;gap:14px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-bottom:26px;color:#191512" style-hover="background:#f7efdf">
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626;flex:none">FROM THE FORUM</span>
+      <span style="width:1px;height:26px;background:rgba(25,21,18,.15);flex:none"></span>
+      <sc-if value="{{ fIsSpot }}" hint-placeholder-val="{{ true }}"><span style="width:34px;height:34px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">{{ fInit }}</span></sc-if>
+      <span style="flex:1;min-width:0"><span style="display:block;font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">{{ fTag }}</span><span style="display:block;font-family:Fraunces,serif;font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ fHeadline }}</span></span>
+      <span style="font-size:11px;color:#4a4239;white-space:nowrap;flex:none">{{ fWhen }}</span>
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none;white-space:nowrap">OPEN FEED →</span>
+    </a>
+  </div>
+  <div style="position:relative;overflow:hidden">
+    <img src="assets/photo-candlelit.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    <div style="position:absolute;inset:0;background:rgba(25,21,18,.8)"></div>
+    <div style="position:relative;padding:36px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;color:#f7f1e6">
+      <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">03 · GROW YOUR NETWORK</span>
+      <span style="font-family:Fraunces,serif;font-size:26px;line-height:1.3;max-width:640px">Med&amp;X is a community <i style="color:#c9a962">first</i>. Meet the people behind the programs.</span>
+      <div style="display:flex;flex-wrap:wrap;gap:12px 30px;align-items:baseline;justify-content:center">
+        <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:24px;color:#c9a962">2,500+</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.7)">GUESTS SO FAR</span></span>
+        <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:24px;color:#c9a962">11</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.7)">NOBEL LAUREATES</span></span>
+        <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:24px;color:#c9a962">30+</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.7)">COUNTRIES</span></span>
+        <span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:24px;color:#c9a962">50+</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.7)">SPEAKERS HOSTED</span></span>
+      </div>
+      <a href="Network.dc.html" style="padding:12px 22px;background:#c9a962;color:#191512;font:600 10.5px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#b8994f;color:#191512">OPEN THE NETWORK →</a>
+    </div>
+  </div>
+  <div onClick="{{ cl }}" style="position:fixed;inset:0;z-index:40;transition:background .5s ease;background:rgba(25,21,18,{{ sc }});pointer-events:{{ pe }};cursor:pointer"></div>
+  <div style="position:fixed;top:0;left:-312px;width:300px;max-height:100%;z-index:41;background:#191512;color:#f7f1e6;transition:transform .6s cubic-bezier(.22,1,.36,1);transform:translateX({{ dx }});display:flex;flex-direction:column;padding:24px 0 28px;box-sizing:border-box;box-shadow:12px 0 44px rgba(25,21,18,.4);overflow-y:auto">
+    <div style="display:flex;align-items:center;padding:0 26px"><img src="assets/logo-white.png" alt="med&amp;X" style="height:20px;display:block"><div style="flex:1"></div><span onClick="{{ cl }}" style="font-size:20px;color:rgba(247,241,230,.7);cursor:pointer" style-hover="color:#f7f1e6">×</span></div>
+    <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin:30px 0 8px">PORTAL</div>
+    <div style="display:flex;flex-direction:column">
+      <span style="padding:9px 26px 9px 24px;border-left:2px solid #c9a962;background:rgba(201,169,98,.08);font-size:14px;font-weight:600;cursor:pointer">Home</span>
+      <span style="padding:9px 26px;font-size:14px;color:rgba(247,241,230,.72);cursor:pointer" style-hover="color:#f7f1e6">Projects</span>
+      <a href="Plexus Conference.dc.html" style="display:block;padding:5px 26px 5px 42px;font-size:12.5px;color:rgba(247,241,230,.55);text-decoration:none" style-hover="color:#f7f1e6">Plexus Conference</a>
+      <a href="Gala Evening.dc.html" style="display:block;padding:5px 26px 5px 42px;font-size:12.5px;color:rgba(247,241,230,.55);text-decoration:none" style-hover="color:#f7f1e6">Gala Evening</a>
+      <a href="Accelerator.dc.html" style="display:block;padding:5px 26px 5px 42px;font-size:12.5px;color:rgba(247,241,230,.55);text-decoration:none" style-hover="color:#f7f1e6">The Accelerator</a>
+      <a href="Biomedical Forum.dc.html" style="display:block;padding:5px 26px 5px 42px;font-size:12.5px;color:rgba(247,241,230,.55);text-decoration:none" style-hover="color:#f7f1e6">Biomedical Forum</a>
+      <a href="Building Bridges.dc.html" style="display:block;padding:5px 26px 5px 42px;font-size:12.5px;color:rgba(247,241,230,.55);text-decoration:none" style-hover="color:#f7f1e6">Building Bridges</a>
+      <a href="Network.dc.html" style="display:block;padding:9px 26px;font-size:14px;color:rgba(247,241,230,.72);text-decoration:none" style-hover="color:#f7f1e6">Network</a>
+      <a href="My MedX.dc.html" style="display:block;padding:9px 26px;font-size:14px;color:rgba(247,241,230,.72);text-decoration:none" style-hover="color:#f7f1e6">My Med&amp;X</a>
+    </div>
+    <div style="height:1px;background:rgba(247,241,230,.14);margin:14px 26px"></div>
+    <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin-bottom:8px">QUICK LINKS</div>
+    <div style="display:flex;flex-direction:column">
+      <a href="Network.dc.html" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Member directory</a>
+      <a href="My MedX.dc.html" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Event tickets</a>
+      <span style="padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);cursor:pointer" style-hover="color:#f7f1e6">Mentorship</span>
+      <a href="My MedX.dc.html" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Certificates</a>
+      <span style="padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);cursor:pointer" style-hover="color:#f7f1e6">Opportunity board</span>
+      <a href="Biomedical Forum.dc.html" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" style-hover="color:#f7f1e6">Forum eligibility</a>
+    </div>
+    <div style="height:1px;background:rgba(247,241,230,.14);margin:14px 26px"></div>
+    <span style="padding:0 26px;font-size:13px;color:rgba(247,241,230,.6);cursor:pointer" style-hover="color:#f7f1e6">Website ↗</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;emailConfirmed&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;State&quot;}, &quot;profileComplete&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;State&quot;}}">
+class Component extends DCLogic {
+  state = { menu: false, profileDoneClick: null, bannerHidden: false, nlTopics: ['ALL MED&X'], nlDone: false, forumTop: null };
+  nlAll = ['ALL MED&X', 'PLEXUS', 'GALA EVENING', 'ACCELERATOR', 'BUILDING BRIDGES', 'BIOMEDICAL FORUM'];
+  feedFallback = { kind: 'spotlight', tag: 'MEMBER OF THE WEEK', name: 'Dr. Iva Šarić', init: 'IŠ', when: '2 days ago' };
+  componentDidMount() {
+    this.tick = setInterval(() => this.forceUpdate(), 30000);
+    try { const raw = localStorage.getItem('medx_forum_feed_v2'); if (raw) { const f = JSON.parse(raw); if (Array.isArray(f) && f.length) this.setState({ forumTop: f[0] }); } } catch (e) {}
+  }
+  componentWillUnmount() { clearInterval(this.tick); }
+  renderVals() {
+    const done = this.state.profileDoneClick ?? (this.props.profileComplete ?? false);
+    const picked = this.state.nlTopics;
+    const ms = Math.max(0, new Date('2026-12-04T09:00:00+01:00') - new Date());
+    const pad = (n) => String(n).padStart(2, '0');
+    const now = new Date();
+    const days = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+    const months = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+    // Easter egg: the greeting follows the clock, and once in a while arrives in Croatian.
+    this._hr = this._hr ?? Math.random();
+    const slot = now.getHours() < 12 ? 0 : now.getHours() < 18 ? 1 : 2;
+    const greeting = (this._hr < 0.15 ? ['Dobro jutro', 'Dobar dan', 'Dobra večer'] : ['Good morning', 'Good afternoon', 'Good evening'])[slot];
+    const fTop = this.state.forumTop || this.feedFallback;
+    return {
+      greeting,
+      fTag: fTop.tag, fHeadline: fTop.name || fTop.title, fWhen: fTop.when, fIsSpot: fTop.kind === 'spotlight', fInit: fTop.init || '',
+      todayLabel: days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear() + ' · ZAGREB',
+      showBanner: !(this.props.emailConfirmed ?? false),
+      showNudge: !done, profileDone: done,
+      showStart: !this.state.bannerHidden && (!(this.props.emailConfirmed ?? false) || !done),
+      hideStart: () => this.setState({ bannerHidden: true }),
+      startCount: (((this.props.emailConfirmed ?? false) ? 0 : 1) + (done ? 0 : 1)) === 2 ? '2 STEPS LEFT' : '1 STEP LEFT',
+      dlIcs: () => {
+        const ev = (uid, start, end, sum, loc) => ['BEGIN:VEVENT','UID:' + uid + '@medx.hr','DTSTAMP:20260819T090000Z','DTSTART;VALUE=DATE:' + start,'DTEND;VALUE=DATE:' + end,'SUMMARY:' + sum, loc ? 'LOCATION:' + loc : null,'END:VEVENT'].filter(Boolean);
+        const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MedX//Portal//EN'].concat(
+          ev('galaearlybird', '20260901', '20260902', 'Gala early bird ends — €150 until today'),
+          ev('accelopen', '20261208', '20261209', 'Med&X Accelerator applications open'),
+          ev('plexus2026', '20261204', '20261206', 'Plexus Conference 2026 & Gala Evening', 'Novinarski dom\\, Zagreb')
+        ).concat(['END:VCALENDAR']).join('\r\n');
+        const a = document.createElement('a'); a.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics); a.download = 'medx-key-dates.ics'; a.click();
+      },
+      cdDays: String(Math.floor(ms / 86400000)),
+      cdHrs: pad(Math.floor(ms / 3600000) % 24),
+      cdMin: pad(Math.floor(ms / 60000) % 60),
+      dx: this.state.menu ? '312px' : '0px',
+      sc: this.state.menu ? '0.45' : '0',
+      pe: this.state.menu ? 'auto' : 'none',
+      tg: () => this.setState(s => ({ menu: !s.menu })),
+      cl: () => this.setState({ menu: false }),
+      nlTopics: this.nlAll.map(label => {
+        const on = picked.includes(label);
+        return {
+          label,
+          tg: () => this.setState(s => ({ nlTopics: on ? s.nlTopics.filter(x => x !== label) : (label === 'ALL MED&X' ? ['ALL MED&X'] : s.nlTopics.filter(x => x !== 'ALL MED&X').concat([label])) })),
+          bd: on ? '#9b1b22' : 'rgba(25,21,18,.22)',
+          bg: on ? '#9b1b22' : 'transparent',
+          fg: on ? '#f7f1e6' : '#191512'
+        };
+      }),
+      nlNotSub: !this.state.nlDone,
+      nlIsSub: this.state.nlDone,
+      nlSub: () => { if (picked.length) this.setState({ nlDone: true }); },
+      nlCount: picked.length + (picked.length === 1 ? ' TOPIC' : ' TOPICS')
+    };
+  }
+}
+</script>
+</body>
+</html>

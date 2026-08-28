@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus{outline:2px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Accelerator Review" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">PROJECTS</span>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;width:180px;min-width:60px;flex:0 1 180px;box-sizing:border-box;cursor:text;overflow:hidden"><span style="color:#6d6459">⌕</span><span style="font-size:12px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search or type a task…</span></span>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:44px;display:flex;align-items:center;gap:20px">
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">PROJECTS</span>
+      <a href="Admin Plexus Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PLEXUS WEEK 2026</a>
+      <span style="font:600 11px Inter,sans-serif;letter-spacing:.13em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">ACCELERATOR</span>
+      <a href="Admin Forum Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">BIOMEDICAL FORUM</a>
+      <a href="Admin Bridges Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">BUILDING BRIDGES</a>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:22px">
+    <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <a href="Admin Accelerator Hub.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6d6459" style-hover="color:#201b16">← ACCELERATOR</a>
+          <span style="font-family:Fraunces,serif;font-size:30px">The <i>Review Room</i> — Cohort 2027</span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;background:#f8f1e2;color:#7a6432;padding:4px 8px">SHOWING SAMPLE APPLICANTS</span>
+        </div>
+        <div style="font-size:12.5px;color:#6d6459;margin-top:4px">Applications land here the moment someone submits the wizard — score, interview, rank, place. Every change saves for the whole team.</div>
+      </div>
+      <div style="flex:1"></div>
+      <span onClick="{{ exportCsv }}" style="padding:10px 16px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap;cursor:pointer" style-hover="border-color:#201b16">EXPORT RANKING (CSV)</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1.55fr 1fr;gap:22px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <sc-for list="{{ apps }}" as="a" hint-placeholder-count="3">
+          <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.08);flex-wrap:wrap">
+              <span style="width:34px;height:34px;flex:none;background:#201b16;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">{{ a.init }}</span>
+              <span style="min-width:0"><span style="display:block;font-size:14px;font-weight:600">{{ a.name }}</span><span style="display:block;font-size:11.5px;color:#6d6459">{{ a.uni }}</span></span>
+              <div style="flex:1"></div>
+              <span onClick="{{ a.toggleFile }}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;white-space:nowrap;color:#9b1b22;cursor:pointer">{{ a.fileLabel }}</span>
+              <span onClick="{{ a.cycle }}" title="Click to move to the next stage" style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;background:{{ a.stageBg }};color:{{ a.stageFg }};padding:4px 9px;cursor:pointer;white-space:nowrap">{{ a.stage }}</span>
+            </div>
+            <sc-if value="{{ a.open }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:0;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6">
+                <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px;border-right:1px solid rgba(32,27,22,.08)">
+                  <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">THE APPLICATION</span>
+                  <span style="font-size:12.5px;line-height:1.6;color:#4a4239"><b style="color:#201b16">Project, in one line:</b> {{ a.project }}</span>
+                  <span style="font-size:12.5px;line-height:1.6;color:#4a4239"><b style="color:#201b16">Why the Accelerator:</b> {{ a.why }}</span>
+                  <span style="font-size:12.5px;line-height:1.6;color:#4a4239"><b style="color:#201b16">Host preferences:</b> {{ a.prefs }}</span>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <sc-for list="{{ a.docs }}" as="d" hint-placeholder-count="4">
+                      <span onClick="{{ d.open }}" style="padding:6px 10px;border:1px solid rgba(32,27,22,.2);font:600 8.5px Inter,sans-serif;letter-spacing:.11em;cursor:pointer;background:#fff" style-hover="border-color:#201b16">⤓ {{ d.name }}</span>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="padding:14px 18px;display:flex;flex-direction:column;gap:9px">
+                  <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">DECISION</span>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <span onClick="{{ a.accept }}" style="padding:9px 13px;background:{{ a.acceptBg }};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">{{ a.acceptLabel }}</span>
+                    <span onClick="{{ a.decline }}" style="padding:9px 13px;border:1px solid rgba(32,27,22,.2);color:{{ a.declineColor }};font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" style-hover="border-color:#9b1b22">{{ a.declineLabel }}</span>
+                  </div>
+                  <span style="font-size:11px;color:#6d6459;line-height:1.5">Accepting queues the offer email + paperwork in the Outbox · declining queues a kind no — both wait for your OK.</span>
+                  <textarea rows="2" value="{{ a.note }}" onChange="{{ a.setNote }}" placeholder="Private reviewer note — the team sees it, the applicant never does" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12px Inter,sans-serif;color:#201b16;resize:vertical"></textarea>
+                </div>
+              </div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:10px 18px;padding:12px 18px;flex-wrap:wrap">
+              <sc-for list="{{ a.cells }}" as="c" hint-placeholder-count="4">
+                <span style="display:flex;align-items:center;gap:7px;white-space:nowrap"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">{{ c.label }}</span><input value="{{ c.val }}" onChange="{{ c.set }}" title="0–5" style="width:36px;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:6px 0;font:600 12px Inter,sans-serif;color:#201b16;text-align:center;box-sizing:border-box"></span>
+              </sc-for>
+              <div style="flex:1"></div>
+              <span style="display:flex;align-items:baseline;gap:6px;white-space:nowrap"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">TOTAL</span><span style="font-family:Fraunces,serif;font-size:21px;color:#9b1b22">{{ a.total }}</span><span style="font-size:10.5px;color:#9a9086">/ 5</span></span>
+              <span onClick="{{ a.sendLink }}" style="padding:8px 12px;background:{{ a.sendBg }};color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">{{ a.sendLabel }}</span>
+            </div>
+          </div>
+        </sc-for>
+        <div style="border:1px dashed rgba(32,27,22,.3);padding:14px 18px;font-size:12px;color:#6d6459;line-height:1.6;background:transparent">
+          When applications open in December, real submissions replace these samples automatically. Scores are per-reviewer and averaged; the ranking updates live.
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff">
+          <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">SCORING CRITERIA</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">yours to define</span></div>
+          <div style="padding:10px 18px 14px;display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ crits }}" as="c" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:8px">
+                <input value="{{ c.name }}" onChange="{{ c.rename }}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;min-width:0">
+                <span onClick="{{ c.remove }}" title="Remove criterion" style="font:600 12px Inter,sans-serif;color:#9a9086;cursor:pointer;padding:4px" style-hover="color:#9b1b22">✕</span>
+              </div>
+            </sc-for>
+            <div style="display:flex;gap:8px">
+              <input value="{{ critDraft }}" onChange="{{ onCritDraft }}" placeholder="Add a criterion — e.g. English fluency" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;min-width:0">
+              <span onClick="{{ addCrit }}" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;display:flex;align-items:center" style-hover="background:#7e151b">ADD</span>
+            </div>
+            <span style="font-size:11px;color:#6d6459">Scale is 0–5 · every applicant is scored on every criterion.</span>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">INTERVIEWS</span></div>
+          <div style="padding:12px 18px 16px;display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:#4a4239;line-height:1.55">
+            <span>“Send interview link” emails the applicant a booking link and notifies the interviewer — you never leave this page.</span>
+            <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-top:1px solid rgba(32,27,22,.08)"></div>
+            <sc-for list="{{ interviewers }}" as="iv" hint-placeholder-count="2">
+              <div style="display:flex;gap:12px;align-items:center;padding:2px 0"><span style="width:26px;height:26px;flex:none;background:#f6f2ea;border:1px solid rgba(32,27,22,.15);display:inline-flex;align-items:center;justify-content:center;font:600 10px Fraunces,serif">{{ iv.ini }}</span><span style="flex:1;font-size:12.5px">{{ iv.name }}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459">{{ iv.slots }}</span></div>
+            </sc-for>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer" onClick="{{ intToggle }}">+ ADD INTERVIEWER</span>
+            <sc-if value="{{ intOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:8px">
+                <input value="{{ intDraft }}" onChange="{{ onIntDraft }}" placeholder="Name — e.g. Dr. Ana Beriš" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12px Inter,sans-serif;color:#201b16;min-width:0"></input>
+                <span onClick="{{ addInt }}" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;display:flex;align-items:center">ADD</span>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fdfbf6;padding:14px 18px;font-size:12px;color:#6d6459;line-height:1.6">
+          Ranked fellows are matched to the <a href="Admin Accelerator Hub.dc.html">host institutions</a> by preference and spots — the match proposal appears here after ranking.
+        </div>
+      </div>
+    </div>
+  </div>
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#201b16;color:#f6f2ea;padding:12px 18px;font:600 10px Inter,sans-serif;letter-spacing:.14em;z-index:80;border-left:3px solid #c9a962;display:flex;gap:14px;align-items:center;white-space:nowrap">{{ toastMsg }}<sc-if value="{{ toastUndoable }}" hint-placeholder-val="{{ false }}"><span onClick="{{ toastUndo }}" style="color:#c9a962;cursor:pointer">UNDO</span></sc-if></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    critDraft: '', openFile: null, intOpen: false, intDraft: '', declineConfirm: null, toast: null,
+    notes: {}, interviewers: [
+      { ini: 'DK', name: 'Dr. Davor Kust — clinical track', slots: '2 SLOTS/WK' },
+      { ini: 'IM', name: 'Prof. Iva Marković — research track', slots: '3 SLOTS/WK' }
+    ],
+    crits: [
+      { id: 'c1', name: 'Research potential' },
+      { id: 'c2', name: 'Motivation & fit' },
+      { id: 'c3', name: 'Academic record' },
+      { id: 'c4', name: 'Recommendation letters' }
+    ],
+    apps: [
+      { id: 1, name: 'Ivana Horvat', uni: 'University of Zagreb School of Medicine · Y5', scores: { c1: 5, c2: 4, c3: 5, c4: 4 }, stage: 1, sent: false,
+        project: 'Sleep fragmentation and post-operative delirium — a prospective cohort on the cardiac ward.', why: 'Wants a summer in a high-volume US research group before residency; aims to bring a delirium-screening protocol back to Zagreb.', prefs: '1. Cleveland Clinic · 2. Mayo Clinic', docs: ['CV.pdf', 'Motivation.pdf', 'Letter — Prof. Beriš.pdf', 'Transcript.pdf'] },
+      { id: 2, name: 'Marko Perić', uni: 'University of Split · biochemistry MSc', scores: { c1: 4, c2: 5, c3: 3, c4: 4 }, stage: 0, sent: false,
+        project: 'CRISPR screening of tumour-suppressor variants in colorectal cell lines.', why: 'MSc thesis maps to an active Columbia lab; his mentor collaborated with the PI on two papers.', prefs: '1. Columbia · 2. University of Zurich', docs: ['CV.pdf', 'Motivation.pdf', 'Letter — Dr. Šitum.pdf'] },
+      { id: 3, name: 'Ana Novak', uni: 'University of Rijeka · pharmacy Y4', scores: { c1: 3, c2: 4, c3: 4, c4: 3 }, stage: 2, sent: true,
+        project: 'Pharmacokinetics of antihypertensives in geriatric polypharmacy.', why: 'Interested in clinical-trial design; wants exposure to a hospital research pharmacy.', prefs: '1. University of Zurich · 2. Mayo Clinic', docs: ['CV.pdf', 'Motivation.pdf', 'Letter — Prof. Vukelić.pdf', 'Transcript.pdf'] }
+    ]
+  };
+  componentDidMount() { document.title = 'Med&X Admin — Review Room'; }
+  componentWillUnmount() { clearTimeout(this.tt); }
+  showToast(msg, undo) { clearTimeout(this.tt); this.setState({ toast: { msg, undo: undo || null } }); this.tt = setTimeout(() => this.setState({ toast: null }), 4200); }
+  stages = [
+    { label: 'NEW', bg: '#eee9df', fg: '#4a4239' },
+    { label: 'SCORED', bg: '#f8f1e2', fg: '#7a6432' },
+    { label: 'INTERVIEW', bg: '#e8eef7', fg: '#2c4a73' },
+    { label: 'RANKED', bg: '#e4efe7', fg: '#22563a' }
+  ];
+  setScore(appId, critId, raw) {
+    let v = parseFloat(String(raw).replace(',', '.'));
+    if (isNaN(v)) v = 0; v = Math.max(0, Math.min(5, v));
+    this.setState(s => ({ apps: s.apps.map(a => a.id === appId ? { ...a, scores: { ...a.scores, [critId]: v } } : a) }));
+  }
+  renderVals() {
+    const s = this.state;
+    return {
+      exportCsv: () => {
+        const rows = s.apps.map(a => { const vals = s.crits.map(c => a.scores[c.id] ?? 0); const avg = vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : 0; return { a, avg }; }).sort((x, y) => y.avg - x.avg);
+        const csv = ['Rank,Name,University,Stage,Average'].concat(rows.map((r, i) => (i + 1) + ',"' + r.a.name + '","' + r.a.uni + '","' + this.stages[r.a.stage].label + '",' + r.avg.toFixed(2))).join('\n');
+        const el = document.createElement('a'); el.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv); el.download = 'accelerator-ranking.csv'; el.click();
+        this.showToast('RANKING EXPORTED · CSV');
+      },
+      intOpen: s.intOpen, intToggle: () => this.setState(x => ({ intOpen: !x.intOpen })),
+      intDraft: s.intDraft, onIntDraft: e => this.setState({ intDraft: e.target.value }),
+      addInt: () => { const n = s.intDraft.trim(); if (!n) { this.showToast('TYPE THE INTERVIEWER\u2019S NAME'); return; } this.setState(x => ({ interviewers: x.interviewers.concat([{ ini: n.replace(/^(prof\.|dr\.)\s*/i, '').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase(), name: n, slots: 'SET SLOTS' }]), intDraft: '', intOpen: false })); this.showToast('ADDED — THEY GET A BOOKING CALENDAR BY EMAIL'); },
+      interviewers: s.interviewers,
+      critDraft: s.critDraft,
+      onCritDraft: e => this.setState({ critDraft: e.target.value }),
+      addCrit: () => { const n = s.critDraft.trim(); if (!n) return; this.setState(st => ({ crits: st.crits.concat([{ id: 'c' + Date.now(), name: n }]), critDraft: '' })); },
+      crits: s.crits.map(c => ({
+        name: c.name,
+        rename: e => { const v = e.target.value; this.setState(st => ({ crits: st.crits.map(x => x.id === c.id ? { ...x, name: v } : x) })); },
+        remove: () => this.setState(st => ({ crits: st.crits.filter(x => x.id !== c.id) }))
+      })),
+      apps: s.apps.map(a => {
+        const st = this.stages[a.stage];
+        const vals = s.crits.map(c => a.scores[c.id] ?? 0);
+        const avg = vals.length ? (vals.reduce((x, y) => x + y, 0) / vals.length) : 0;
+        return {
+          init: a.name.split(/\s+/).map(w => w[0]).join('').toUpperCase(),
+          name: a.name, uni: a.uni,
+          stage: st.label, stageBg: st.bg, stageFg: st.fg,
+          cycle: () => this.setState(x => ({ apps: x.apps.map(p => p.id === a.id ? { ...p, stage: (p.stage + 1) % 4 } : p) })),
+          open: s.openFile === a.id,
+          fileLabel: s.openFile === a.id ? 'CLOSE FILE' : 'OPEN FILE →',
+          toggleFile: () => this.setState(x => ({ openFile: x.openFile === a.id ? null : a.id, declineConfirm: null })),
+          project: a.project, why: a.why, prefs: a.prefs,
+          docs: a.docs.map(d => ({ name: d.toUpperCase(), open: () => this.showToast(d.toUpperCase() + ' OPENS IN THE VIEWER — PRODUCTION') })),
+          note: s.notes[a.id] || '',
+          setNote: e => { const v = e.target.value; this.setState(x => ({ notes: { ...x.notes, [a.id]: v } })); },
+          accept: () => { this.setState(x => ({ apps: x.apps.map(p => p.id === a.id ? { ...p, stage: 3 } : p) })); this.showToast('ACCEPTED — OFFER + PAPERWORK QUEUED IN THE OUTBOX'); },
+          acceptBg: a.stage === 3 ? '#1e6e42' : '#201b16',
+          acceptLabel: a.stage === 3 ? '✓ ACCEPTED — RANKED' : 'ACCEPT → OFFER',
+          decline: () => { if (s.declineConfirm !== a.id) { this.setState({ declineConfirm: a.id }); return; } const snap = JSON.parse(JSON.stringify(this.state.apps)); this.setState(x => ({ apps: x.apps.filter(p => p.id !== a.id), declineConfirm: null, openFile: null })); this.showToast('DECLINED — A KIND NO QUEUES IN THE OUTBOX', () => this.setState({ apps: snap })); },
+          declineLabel: s.declineConfirm === a.id ? 'SURE? DECLINE' : 'DECLINE',
+          declineColor: s.declineConfirm === a.id ? '#9b1b22' : '#6d6459',
+          cells: s.crits.map(c => ({
+            label: c.name.split(' ')[0].toUpperCase(),
+            val: String(a.scores[c.id] ?? 0),
+            set: e => this.setScore(a.id, c.id, e.target.value)
+          })),
+          total: (Math.round(avg * 10) / 10).toFixed(1),
+          sendBg: a.sent ? '#1e6e42' : '#201b16',
+          sendLabel: a.sent ? '✓ INTERVIEW LINK SENT' : 'SEND INTERVIEW LINK',
+          sendLink: () => { if (a.sent) return; this.setState(x => ({ apps: x.apps.map(p => p.id === a.id ? { ...p, sent: true, stage: Math.max(p.stage, 2) } : p) })); this.showToast('BOOKING LINK EMAILED — INTERVIEWER NOTIFIED'); }
+        };
+      }),
+      toastOn: !!s.toast, toastMsg: s.toast ? s.toast.msg : '',
+      toastUndoable: !!(s.toast && s.toast.undo),
+      toastUndo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

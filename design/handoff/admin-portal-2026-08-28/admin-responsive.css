@@ -1,0 +1,69 @@
+/* Med&X ADMIN portal — responsive overrides. Selectors match the browser-serialized
+   style attribute (space after colons/semicolons, 0 → 0px). Desktop unchanged. */
+
+@media (max-width: 960px) {
+  /* page gutters */
+  [style*="padding: 0px 28px"] { padding-left: 16px !important; padding-right: 16px !important; }
+  [style*="padding: 30px 28px"] { padding-left: 16px !important; padding-right: 16px !important; }
+  [style*="padding: 34px 28px"] { padding-left: 16px !important; padding-right: 16px !important; }
+
+  /* top nav: wrap into two rows */
+  [style*="height: 58px"] { height: auto !important; flex-wrap: wrap !important; padding-top: 10px !important; padding-bottom: 10px !important; gap: 10px 16px !important; }
+  [style*="height: 58px"] [style*="height: 100%"] { height: auto !important; flex-wrap: wrap; }
+  [style*="height: 44px"] { height: auto !important; flex-wrap: wrap !important; padding-top: 8px !important; padding-bottom: 8px !important; gap: 6px 14px !important; }
+  [style*="height: 44px"] [style*="height: 100%"] { height: auto !important; }
+  [style*="border-bottom: 2px solid rgb(155, 27, 34)"][style*="height: 100%"] { height: auto !important; padding: 4px 0 !important; }
+
+  /* KPI strips and stat grids → 2 columns */
+  [style*="grid-template-columns: repeat(5, 1fr)"] { grid-template-columns: 1fr 1fr !important; }
+  [style*="grid-template-columns: repeat(4, 1fr)"] { grid-template-columns: 1fr 1fr !important; }
+  [style*="grid-template-columns: repeat(4, 1fr) auto"] { grid-template-columns: 1fr 1fr !important; }
+  [style*="grid-template-columns: repeat(3, 1fr)"] { grid-template-columns: 1fr 1fr !important; }
+
+  /* two-pane layouts → stacked */
+  [style*="grid-template-columns: 1.6fr 1fr"],
+  [style*="grid-template-columns: 1.55fr 1fr"],
+  [style*="grid-template-columns: 1.5fr 1fr"],
+  [style*="grid-template-columns: 1.4fr 1fr"],
+  [style*="grid-template-columns: 1fr 1fr;"],
+  [style*="grid-template-columns: 1fr 330px"],
+  [style*="grid-template-columns: 1fr 360px"],
+  [style*="grid-template-columns: 1fr 340px"],
+  [style*="grid-template-columns: 260px 1fr"],
+  [style*="grid-template-columns: 280px 1fr"],
+  [style*="grid-template-columns: 300px 1fr"] { grid-template-columns: 1fr !important; }
+
+  /* sticky side panels behave inline */
+  [style*="position: sticky"] { position: static !important; }
+
+  /* wide table headers/rows: let them scroll horizontally instead of crushing */
+  [style*="grid-template-columns: 2fr 1.1fr 1.6fr auto"] { grid-template-columns: 1.6fr 1fr auto !important; }
+  [style*="grid-template-columns: 2fr 1.1fr 1.6fr auto"] > span:nth-child(2) { display: none !important; }
+  [style*="grid-template-columns: auto 1.9fr 1.2fr 1fr auto"] { grid-template-columns: auto 1.6fr 1fr auto !important; }
+  [style*="grid-template-columns: auto 1.9fr 1.2fr 1fr auto"] > span:nth-child(3) { display: none !important; }
+  [style*="grid-template-columns: 1.7fr 92px 96px 1fr auto"] { grid-template-columns: 1.4fr 76px 90px auto !important; }
+  [style*="grid-template-columns: 1.7fr 92px 96px 1fr auto"] > span:nth-child(4) { grid-column: 1 / -1; }
+
+  /* year board: month grid gets tighter label column */
+  [style*="grid-template-columns: 170px repeat(12, 1fr)"] { grid-template-columns: 110px repeat(12, 1fr) !important; }
+}
+
+@media (max-width: 620px) {
+  [style*="grid-template-columns: repeat(5, 1fr)"],
+  [style*="grid-template-columns: repeat(4, 1fr)"],
+  [style*="grid-template-columns: repeat(4, 1fr) auto"],
+  [style*="grid-template-columns: repeat(3, 1fr)"] { grid-template-columns: 1fr !important; }
+  [style*="border-right: 1px solid rgba(32, 27, 22, 0.1)"] { border-right: none !important; border-bottom: 1px solid rgba(32,27,22,.1); }
+  [style*="border-right: 1px solid rgba(32, 27, 22, 0.12)"] { border-right: none !important; border-bottom: 1px solid rgba(32,27,22,.12); }
+
+  /* headline type down a step */
+  [style*="font-family: Fraunces, serif; font-size: 34px"] { font-size: 24px !important; }
+  [style*="font-family: Fraunces, serif; font-size: 30px"] { font-size: 22px !important; }
+  [style*="font-family: Fraunces, serif; font-size: 32px"] { font-size: 24px !important; }
+
+  /* search box: allow shrink */
+  [style*="flex: 0 1 200px"], [style*="flex: 0 1 180px"] { flex: 1 1 120px !important; }
+
+  /* toasts fit phones */
+  [style*="position: fixed"][style*="border-left: 3px solid rgb(201, 169, 98)"] { white-space: normal !important; max-width: 88vw; text-align: center; flex-wrap: wrap; justify-content: center; }
+}

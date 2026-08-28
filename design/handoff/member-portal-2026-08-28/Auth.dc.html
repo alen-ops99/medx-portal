@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#191512;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+input{font-family:Inter,sans-serif}
+input:focus{outline:1px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Auth" style="font-family:Inter,sans-serif;color:#191512;min-height:100vh">
+  <sc-if value="{{ vWelcome }}" hint-placeholder-val="{{ true }}">
+    <div style="position:relative;min-height:100vh;overflow:hidden;display:flex;flex-direction:column">
+      <img src="assets/photo-ballroom.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.86) 100%)"></div>
+      <div style="position:relative;display:flex;align-items:center;padding:22px 36px">
+        <div style="flex:1"></div>
+        <span style="display:flex;gap:2px;font:600 10px Inter,sans-serif;letter-spacing:.14em"><span style="padding:5px 9px;background:#c9a962;color:#191512;cursor:pointer">EN</span><span style="padding:5px 9px;color:rgba(247,241,230,.6);border:1px solid rgba(247,241,230,.25);cursor:pointer" style-hover="color:#f7f1e6">HR</span></span>
+      </div>
+      <div style="position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 36px 70px;color:#f7f1e6">
+        <img src="assets/logo-white.png" alt="med&amp;X" style="height:34px;display:block">
+        <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.28em;color:#c9a962;margin-top:18px">MEMBER PORTAL</span>
+        <div style="font-family:Fraunces,serif;font-size:clamp(30px,6vw,46px);line-height:1.12;max-width:680px;margin-top:18px">Where Croatian medicine and science <i style="color:#c9a962">meet the world</i>.</div>
+        <span style="width:34px;height:1px;background:#9b1b22;margin-top:20px"></span>
+        <div style="font-size:14.5px;line-height:1.6;color:rgba(247,241,230,.8);max-width:500px;margin-top:18px">The Med&amp;X network — Croatian scientists, physicians, and biomedical leaders from around the world, and everything they build together, in one place.</div>
+        <div style="display:flex;gap:13px;margin-top:30px;flex-wrap:wrap;justify-content:center">
+          <span onClick="{{ goCreate }}" style="padding:15px 30px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">CREATE ACCOUNT →</span>
+          <span onClick="{{ goSignin }}" style="padding:15px 30px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" style-hover="border-color:#f7f1e6">SIGN IN</span>
+        </div>
+        <div style="display:flex;gap:10px 22px;margin-top:44px;flex-wrap:wrap;justify-content:center;font:600 9px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.55)">
+          <span style="white-space:nowrap">PLEXUS CONFERENCE</span><span style="color:#c9a962">·</span><span style="white-space:nowrap">GALA EVENING</span><span style="color:#c9a962">·</span><span style="white-space:nowrap">THE ACCELERATOR</span><span style="color:#c9a962">·</span><span style="white-space:nowrap">BIOMEDICAL FORUM</span><span style="color:#c9a962">·</span><span style="white-space:nowrap">BUILDING BRIDGES</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ vPanel }}" hint-placeholder-val="{{ false }}">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));min-height:100vh">
+      <div style="position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:240px">
+        <img src="assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.66) 0%,rgba(25,21,18,.88) 100%)"></div>
+        <div style="position:relative;flex:1;display:flex;flex-direction:column;padding:clamp(20px,4vw,38px);color:#f7f1e6">
+          <span onClick="{{ goWelcome }}" style="cursor:pointer;align-self:flex-start"><img src="assets/logo-white.png" alt="med&amp;X" style="height:24px;display:block"></span>
+          <div style="flex:1;min-height:24px"></div>
+          <div style="font-family:Fraunces,serif;font-style:italic;font-size:27px;line-height:1.35;max-width:360px">"The room where Croatian medicine meets the world."</div>
+          <span style="width:28px;height:1px;background:#c9a962;margin:18px 0 12px"></span>
+          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:rgba(247,241,230,.65)">ONE ACCOUNT · FIVE PROJECTS · ONE WORLDWIDE NETWORK</span>
+        </div>
+      </div>
+      <div style="background:#f7f1e6;display:flex;flex-direction:column;padding:30px 0">
+        <div style="display:flex;align-items:center;padding:0 clamp(20px,5vw,44px)">
+          <div style="flex:1"></div>
+          <span style="display:flex;gap:2px;font:600 9.5px Inter,sans-serif;letter-spacing:.14em"><span style="padding:4px 8px;background:#191512;color:#f7f1e6;cursor:pointer">EN</span><span style="padding:4px 8px;color:#4a4239;border:1px solid rgba(25,21,18,.25);cursor:pointer" style-hover="border-color:#191512">HR</span></span>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:30px clamp(20px,5vw,44px);max-width:430px;width:100%;margin:0 auto;box-sizing:border-box">
+          <sc-if value="{{ vCreate }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-family:Fraunces,serif;font-weight:600;font-size:13px;color:#9b1b22">01</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#191512">DETAILS</span>
+              <span style="flex:1;height:1px;background:rgba(25,21,18,.16)"></span>
+              <span style="font-family:Fraunces,serif;font-weight:600;font-size:13px;color:rgba(25,21,18,.35)">02</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:rgba(25,21,18,.4)">CONFIRM EMAIL</span>
+              <span style="flex:1;height:1px;background:rgba(25,21,18,.16)"></span>
+              <span style="font-family:Fraunces,serif;font-weight:600;font-size:13px;color:rgba(25,21,18,.35)">03</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:rgba(25,21,18,.4)">YOU'RE IN</span>
+            </div>
+            <div style="font-family:Fraunces,serif;font-size:clamp(26px,7vw,33px);line-height:1.12;margin-top:22px">Join the Med&amp;X <i>community</i>.</div>
+            <div style="font-size:13px;color:#4a4239;line-height:1.55;margin-top:10px">One account for the Plexus Conference, the Gala, the Accelerator, the Forum, and Building Bridges.</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px">
+              <span style="display:flex;flex-direction:column;gap:6px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">FIRST NAME *</span><input placeholder="Alen" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box"></span>
+              <span style="display:flex;flex-direction:column;gap:6px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">LAST NAME *</span><input placeholder="Juginović" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box"></span>
+            </div>
+            <span style="display:flex;flex-direction:column;gap:6px;margin-top:12px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EMAIL *</span><input placeholder="you@institution.edu" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box"></span>
+            <span style="display:flex;flex-direction:column;gap:6px;margin-top:12px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">PASSWORD *</span><input type="password" placeholder="Min 8 characters" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box"></span>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+              <span style="display:flex;flex-direction:column;gap:6px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">INSTITUTION</span><input placeholder="University / company" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box"></span>
+              <span style="display:flex;flex-direction:column;gap:6px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">COUNTRY *</span><input placeholder="Croatia" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box"></span>
+            </div>
+            <div onClick="{{ tgTerms }}" style="display:flex;gap:10px;align-items:flex-start;margin-top:16px;cursor:pointer">
+              <span style="width:15px;height:15px;border:1px solid {{ termsBd }};background:{{ termsBg }};flex:none;display:inline-flex;align-items:center;justify-content:center;color:#f7f1e6;font-size:10px;margin-top:1px">{{ termsCheck }}</span>
+              <span style="font-size:12px;color:#4a4239;line-height:1.5">I agree to the <a href="#" style="color:#9b1b22;text-decoration:underline">Terms and Privacy Policy</a>. We never share your data.</span>
+            </div>
+            <span onClick="{{ goVerify }}" style="margin-top:20px;padding:14px 0;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center" style-hover="background:#7e151b">CREATE ACCOUNT →</span>
+            <div style="display:flex;gap:16px;margin-top:16px;font-size:12px;color:#4a4239">
+              <span>Already a member? <span onClick="{{ goSignin }}" style="color:#9b1b22;font-weight:600;cursor:pointer">Sign in</span></span>
+              <div style="flex:1"></div>
+              <span onClick="{{ goWelcome }}" style="cursor:pointer" style-hover="color:#191512">← Back</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ vVerify }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-family:Fraunces,serif;font-weight:600;font-size:13px;color:#6e5626">01</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6e5626">DETAILS ✓</span>
+              <span style="flex:1;height:1px;background:#c9a962"></span>
+              <span style="font-family:Fraunces,serif;font-weight:600;font-size:13px;color:#9b1b22">02</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#191512">CONFIRM EMAIL</span>
+              <span style="flex:1;height:1px;background:rgba(25,21,18,.16)"></span>
+              <span style="font-family:Fraunces,serif;font-weight:600;font-size:13px;color:rgba(25,21,18,.35)">03</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:rgba(25,21,18,.4)">YOU'RE IN</span>
+            </div>
+            <span style="width:28px;height:1px;background:#c9a962;margin-top:30px"></span>
+            <div style="font-family:Fraunces,serif;font-size:clamp(26px,7vw,33px);line-height:1.12;margin-top:14px">Check your <i>email</i>.</div>
+            <div style="font-size:13.5px;color:#4a4239;line-height:1.6;margin-top:12px">We sent a confirmation link to <strong style="color:#191512">alen_juginovic@hms.harvard.edu</strong>. Open it to confirm your account.</div>
+            <span onClick="{{ goDone }}" style="margin-top:24px;padding:14px 0;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center" style-hover="background:#7e151b">CONTINUE TO MED&amp;X →</span>
+            <span style="margin-top:10px;padding:13px 0;border:1px solid rgba(25,21,18,.3);font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center;color:#191512" style-hover="border-color:#191512">RESEND LINK</span>
+            <div style="font-size:11.5px;color:#4a4239;line-height:1.6;margin-top:16px">Can't find it? Check spam or promotions — it can take a minute. You can start exploring right away; a gentle reminder stays at the top until your email is confirmed.</div>
+          </sc-if>
+          <sc-if value="{{ vSignin }}" hint-placeholder-val="{{ false }}">
+            <span style="width:28px;height:1px;background:#c9a962"></span>
+            <div style="font-family:Fraunces,serif;font-size:clamp(26px,7vw,33px);line-height:1.12;margin-top:14px">Welcome <i>back</i>.</div>
+            <div style="font-size:13px;color:#4a4239;margin-top:8px">Your projects, tickets, and people are where you left them.</div>
+            <span style="display:flex;flex-direction:column;gap:6px;margin-top:24px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EMAIL</span><input placeholder="you@institution.edu" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box"></span>
+            <span style="display:flex;flex-direction:column;gap:6px;margin-top:12px"><span style="display:flex"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">PASSWORD</span><span style="flex:1"></span><span onClick="{{ goForgot }}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer">FORGOT?</span></span><input type="password" placeholder="••••••••" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box"></span>
+            <span onClick="{{ goDone }}" style="margin-top:20px;padding:14px 0;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center" style-hover="background:#7e151b">SIGN IN →</span>
+            <div style="margin-top:18px;text-align:center;font-size:12.5px;color:#4a4239">New to Med&amp;X? <span onClick="{{ goCreate }}" style="color:#9b1b22;font-weight:600;cursor:pointer;white-space:nowrap">Create an account</span></div>
+            <div style="margin-top:8px;text-align:center;font-size:12.5px;color:#4a4239">Invited to the Biomedical Forum? <span onClick="{{ goCode }}" style="color:#9b1b22;font-weight:600;cursor:pointer;white-space:nowrap">Enter your code</span></div>
+          </sc-if>
+          <sc-if value="{{ vForgot }}" hint-placeholder-val="{{ false }}">
+            <span style="width:28px;height:1px;background:#c9a962"></span>
+            <div style="font-family:Fraunces,serif;font-size:clamp(26px,7vw,33px);line-height:1.12;margin-top:14px">Reset your <i>password</i>.</div>
+            <sc-if value="{{ notSent }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:13px;color:#4a4239;line-height:1.55;margin-top:10px">Enter the email on your account and we'll send a reset link.</div>
+              <span style="display:flex;flex-direction:column;gap:6px;margin-top:22px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">EMAIL</span><input placeholder="you@institution.edu" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box"></span>
+              <span onClick="{{ sendReset }}" style="margin-top:20px;padding:14px 0;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center" style-hover="background:#7e151b">SEND RESET LINK →</span>
+            </sc-if>
+            <sc-if value="{{ isSent }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1px solid rgba(201,169,98,.65);background:#fdfaf3;padding:18px;margin-top:18px;display:flex;flex-direction:column;gap:6px">
+                <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626">LINK SENT ✓</span>
+                <span style="font-size:13px;color:#4a4239;line-height:1.55">If that address has an account, a reset link is on its way. It can take a minute — check spam too.</span>
+              </div>
+              <span style="margin-top:14px;padding:13px 0;border:1px solid rgba(25,21,18,.3);font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center;color:#191512" style-hover="border-color:#191512">RESEND</span>
+            </sc-if>
+            <div style="display:flex;margin-top:16px;font-size:12px;color:#4a4239">
+              <span onClick="{{ goSignin }}" style="cursor:pointer" style-hover="color:#191512"><span style="white-space:nowrap">← Back to sign in</span></span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ vCode }}" hint-placeholder-val="{{ false }}">
+            <span style="padding:4px 10px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.16em;align-self:flex-start;white-space:nowrap">BIOMEDICAL FORUM · BY INVITATION</span>
+            <div style="font-family:Fraunces,serif;font-size:clamp(26px,7vw,33px);line-height:1.12;margin-top:18px">Enter your <i>invitation code</i>.</div>
+            <div style="font-size:13px;color:#4a4239;line-height:1.55;margin-top:10px">Your code arrived by email with your invitation. It joins you to the Forum network and unlocks registration for the annual gathering.</div>
+            <span style="display:flex;flex-direction:column;gap:6px;margin-top:22px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">INVITATION CODE</span><input placeholder="FRM-XXXX-XXXX" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:13px;font:600 15px ui-monospace,Menlo,monospace;letter-spacing:.14em;color:#191512;width:100%;box-sizing:border-box;text-align:center"></span>
+            <span onClick="{{ goDone }}" style="margin-top:20px;padding:14px 0;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center" style-hover="background:#7e151b">VERIFY CODE →</span>
+            <div style="font-size:11.5px;color:#4a4239;margin-top:14px;line-height:1.55">No account yet? The code works either way — we'll create your account in the next step.</div>
+            <div style="display:flex;margin-top:14px;font-size:12px;color:#4a4239">
+              <span onClick="{{ goSignin }}" style="cursor:pointer" style-hover="color:#191512"><span style="white-space:nowrap">← Back to sign in</span></span>
+            </div>
+          </sc-if>
+        </div>
+        <div style="padding:0 24px;font-size:10.5px;color:rgba(74,66,57,.7);display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+          <span style="white-space:nowrap">© Med&amp;X 2026 · Zagreb</span><a href="#" style="color:rgba(74,66,57,.7)">Privacy</a><a href="#" style="color:rgba(74,66,57,.7)">Terms</a>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;view&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;Welcome&quot;, &quot;options&quot;: [&quot;Welcome&quot;, &quot;Sign in&quot;, &quot;Create account&quot;, &quot;Verify email&quot;, &quot;Reset password&quot;, &quot;Invitation code&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;State&quot;}}">
+class Component extends DCLogic {
+  state = { view: null, terms: false, sent: false };
+  renderVals() {
+    const v = this.state.view ?? (this.props.view ?? 'Welcome');
+    const go = (name) => () => this.setState({ view: name, sent: false });
+    return {
+      vWelcome: v === 'Welcome',
+      vPanel: v !== 'Welcome',
+      vCreate: v === 'Create account',
+      vVerify: v === 'Verify email',
+      vSignin: v === 'Sign in',
+      vForgot: v === 'Reset password',
+      vCode: v === 'Invitation code',
+      goWelcome: go('Welcome'), goCreate: go('Create account'), goVerify: go('Verify email'),
+      goSignin: go('Sign in'), goForgot: go('Reset password'), goCode: go('Invitation code'),
+      goDone: () => { window.location.href = 'Med&X Home.dc.html'; },
+      tgTerms: () => this.setState(s => ({ terms: !s.terms })),
+      termsBd: this.state.terms ? '#9b1b22' : 'rgba(25,21,18,.35)',
+      termsBg: this.state.terms ? '#9b1b22' : 'transparent',
+      termsCheck: this.state.terms ? '✓' : '',
+      sendReset: () => this.setState({ sent: true }),
+      notSent: !this.state.sent, isSent: this.state.sent
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus,textarea:focus,select:focus{outline:2px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Inbox" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <a href="Admin Plexus Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PROJECTS</a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;gap:6px;box-sizing:border-box">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">{{ outboxCount }}</span></span>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <span onClick="{{ goChat }}" title="Team chat — one click from anywhere" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none;cursor:pointer" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<sc-if value="{{ chatUnreadTotal }}" hint-placeholder-val="{{ false }}"><span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">{{ chatUnreadTotal }}</span></sc-if></span>
+      <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;width:180px;min-width:60px;flex:0 1 180px;box-sizing:border-box;cursor:text;overflow:hidden"><span style="color:#6d6459">⌕</span><span style="font-size:12px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search or type a task…</span></span>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:22px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span style="font-family:Fraunces,serif;font-size:30px">Inbox</span>
+      <span style="font-size:12.5px;color:#6d6459">every way you reach members and guests — emails wait for your OK before they send</span>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:1px solid rgba(32,27,22,.18)">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <span onClick="{{ t.go }}" style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:{{ t.color }};border-bottom:{{ t.line }};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap">{{ t.name }}<sc-if value="{{ t.badge }}" hint-placeholder-val="{{ false }}"><span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">{{ t.badge }}</span></sc-if></span>
+      </sc-for>
+    </div>
+    <sc-if value="{{ isOutbox }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
+            <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">WAITING FOR YOUR OK</span>
+            <span style="font-size:11.5px;color:#6d6459">the portal never emails anyone on its own — every batch stops here first</span>
+          </div>
+          <sc-for list="{{ outboxGroups }}" as="g" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08)">
+              <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">{{ g.label }}</span>
+              <div style="flex:1"></div>
+              <sc-if value="{{ g.multi }}" hint-placeholder-val="{{ false }}"><span onClick="{{ g.approveAll }}" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#1e6e42;cursor:pointer;white-space:nowrap" style-hover="color:#201b16">APPROVE ALL {{ g.count }} →</span></sc-if>
+            </div>
+            <sc-for list="{{ g.items }}" as="o" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.08)">
+                <span style="font-family:Fraunces,serif;font-size:18px;width:30px;text-align:center;flex:none">{{ o.count }}</span>
+                <span style="flex:1;min-width:0">
+                  <span style="display:block;font-size:13.5px;font-weight:600">{{ o.title }}</span>
+                  <span style="display:block;font-size:11.5px;color:#6d6459;margin-top:2px">{{ o.sub }}</span>
+                </span>
+                <sc-if value="{{ o.deferred }}" hint-placeholder-val="{{ false }}">
+                  <span style="padding:7px 11px;background:#f8f1e2;color:#7a6432;font:600 9px Inter,sans-serif;letter-spacing:.12em;white-space:nowrap">SENDS TOMORROW 09:00</span>
+                  <span onClick="{{ o.cancelLater }}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" style-hover="color:#201b16">CANCEL</span>
+                </sc-if>
+                <sc-if value="{{ o.active }}" hint-placeholder-val="{{ true }}">
+                  <span onClick="{{ o.approve }}" style="padding:8px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">APPROVE &amp; SEND</span>
+                  <span onClick="{{ o.later }}" style="padding:8px 12px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;color:#6d6459;white-space:nowrap" style-hover="color:#201b16;border-color:#201b16">SEND LATER</span>
+                  <span onClick="{{ o.discard }}" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;color:{{ o.discardColor }};white-space:nowrap" style-hover="color:#9b1b22">{{ o.discardLabel }}</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </sc-for>
+          <sc-if value="{{ outboxEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:26px 20px;text-align:center;font-size:13px;color:#6d6459">Outbox is clear — nothing waiting to send.</div>
+          </sc-if>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start">
+          <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+            <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">EMAIL EVERYONE REGISTERED</span>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">WHO</span><select onChange="{{ onAudience }}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16"><option>Everyone (all events) — 27 people</option><option>Plexus Conference 2026 — 2 people</option><option>Gala Evening — 25 people (21 paid · 4 unpaid)</option><option>Building Bridges Boston — 0 people</option><option>Newsletter subscribers — 1 person</option></select></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">ONLY THOSE WHO…</span><select style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16"><option>No filter — everyone</option><option>Haven’t paid yet</option><option>Are checked in</option><option>Are not checked in</option></select></label>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <span onClick="{{ toggleManual }}" style="padding:7px 12px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;background:{{ manualChip.bg }};color:{{ manualChip.fg }};border:1px solid {{ manualChip.bd }}">✓ PICK PEOPLE BY HAND</span>
+              <span style="font-size:11.5px;color:#6d6459">{{ manualNote }}</span>
+            </div>
+            <sc-if value="{{ manual }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1px solid rgba(32,27,22,.12);background:#fdfbf6;padding:8px 14px;max-height:172px;overflow:auto">
+                <sc-for list="{{ pickPeople }}" as="p" hint-placeholder-count="5">
+                  <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;padding:6px 0;border-bottom:1px solid rgba(32,27,22,.05);cursor:pointer"><input type="checkbox" checked="{{ p.on }}" onChange="{{ p.tg }}"><span style="flex:1;min-width:0">{{ p.name }}</span><span style="font:600 8px Inter,sans-serif;letter-spacing:.11em;color:#9a9086;white-space:nowrap">{{ p.tag }}</span></label>
+                </sc-for>
+              </div>
+            </sc-if>
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">SUBJECT</span><input value="{{ subject }}" onChange="{{ onSubject }}" placeholder="e.g. Plexus 2026 — final details" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16"></label>
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">MESSAGE</span><textarea value="{{ body }}" onChange="{{ onBody }}" rows="5" placeholder="Plain text. Each empty line starts a new paragraph. Every recipient is greeted by their own first name automatically." style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;resize:vertical"></textarea></label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <span onClick="{{ queueEmail }}" style="padding:10px 16px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">PUT IN OUTBOX</span>
+              <span style="padding:10px 14px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:#201b16;white-space:nowrap" style-hover="border-color:#201b16">SEND A TEST TO MYSELF</span>
+              <span style="font-size:11.5px;color:#6d6459">{{ audienceNote }}</span>
+            </div>
+          </div>
+          <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">HOW IT WILL LOOK</span>
+            <div style="border:1px solid rgba(32,27,22,.12)">
+              <div style="background:#191512;padding:13px 16px"><img src="assets/logo-white.png" alt="Med&amp;X" style="height:15px;display:block"></div>
+              <div style="padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+                <span style="font-size:12.5px">Dear Alen,</span>
+                <span style="font-size:12.5px;color:#6d6459;line-height:1.55">{{ previewBody }}</span>
+                <span style="font-size:10.5px;color:#6d6459;border-top:1px solid rgba(32,27,22,.1);padding-top:8px">Each recipient is greeted with their own first name.</span>
+              </div>
+            </div>
+            <span style="font-size:11.5px;color:#6d6459;line-height:1.5">Test rows are excluded automatically. Replies go to your Med&amp;X address.</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ isMessages }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:340px 1fr;gap:22px;align-items:start">
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="padding:12px 16px;border-bottom:1px solid rgba(32,27,22,.12);display:flex;gap:8px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;background:#201b16;color:#f6f2ea;padding:6px 10px;cursor:pointer">NEEDS A REPLY</span>
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;padding:6px 10px;cursor:pointer" style-hover="color:#201b16">ALL</span>
+          </div>
+          <sc-for list="{{ threads }}" as="th" hint-placeholder-count="2">
+            <div onClick="{{ th.open }}" style="padding:13px 16px;border-bottom:1px solid rgba(32,27,22,.08);cursor:pointer;background:{{ th.bg }}">
+              <div style="display:flex;gap:8px;align-items:center"><sc-if value="{{ th.unread }}" hint-placeholder-val="{{ false }}"><span style="width:7px;height:7px;border-radius:50%;background:#9b1b22;flex:none"></span></sc-if><span style="font-size:13px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ th.name }}</span><span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:2px 6px;white-space:nowrap">{{ th.topic }}</span><span style="font:600 9px Inter,sans-serif;color:#6d6459;white-space:nowrap">{{ th.when }}</span></div>
+              <div style="font-size:11.5px;color:#6d6459;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ th.last }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff;display:flex;flex-direction:column;min-height:380px">
+          <div style="padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.12);display:flex;align-items:center;gap:10px">
+            <span style="font-size:14px;font-weight:600">{{ openName }}</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">{{ openMeta }}</span>
+            <div style="flex:1"></div>
+            <span onClick="{{ toggleRead }}" style="padding:6px 10px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;color:#6d6459;white-space:nowrap" style-hover="color:#201b16;border-color:#201b16">{{ readLabel }}</span>
+            <span onClick="{{ archiveThread }}" style="padding:6px 10px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;color:#6d6459;white-space:nowrap" style-hover="color:#9b1b22;border-color:#9b1b22">ARCHIVE</span>
+            <a href="Admin People.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap">VIEW PERSON →</a>
+          </div>
+          <div style="flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+            <sc-for list="{{ openMsgs }}" as="m" hint-placeholder-count="2">
+              <div style="max-width:70%;align-self:{{ m.side }};background:{{ m.bg }};color:{{ m.fg }};padding:10px 14px;font-size:13px;line-height:1.5">{{ m.text }}<span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.1em;margin-top:5px;opacity:.6">{{ m.when }}</span></div>
+            </sc-for>
+          </div>
+          <div style="padding:14px 20px;border-top:1px solid rgba(32,27,22,.12);display:flex;gap:10px">
+            <input value="{{ reply }}" onChange="{{ onReply }}" onKeyDown="{{ replyKey }}" placeholder="Reply as Med&amp;X…" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16">
+            <span onClick="{{ sendReply }}" style="padding:10px 16px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;display:flex;align-items:center" style-hover="background:#7e151b">SEND</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ isAnnounce }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:1fr 380px;gap:22px;align-items:start">
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">POST TO MEMBERS’ NOTIFICATION BELL</span>
+          <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">WHO SHOULD SEE THIS?</span><select style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16"><option>Everyone</option><option>Plexus followers</option><option>Gala guests</option><option>Accelerator followers</option><option>Forum members</option><option>Building Bridges followers</option></select></label>
+          <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">TITLE</span><input value="{{ annTitle }}" onChange="{{ onAnnTitle }}" placeholder="e.g. Gala early-bird ends September 1" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16"></label>
+          <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">MESSAGE</span><textarea value="{{ annBody }}" onChange="{{ onAnnBody }}" rows="4" placeholder="Write the details members should read." style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;resize:vertical"></textarea></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">LINK (OPTIONAL)</span><input placeholder="e.g. the Gala page" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16"></label>
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">SHOW UNTIL</span><select style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16"><option>Removed by hand</option><option>One week</option><option>Two weeks</option><option>The event date</option></select></label>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#4a4239;cursor:pointer"><input type="checkbox">Also send a push notification to followers’ phones</label>
+          <span onClick="{{ publishAnn }}" style="padding:11px 16px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;text-align:center" style-hover="background:#7e151b">PUBLISH ANNOUNCEMENT</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">HOW MEMBERS SEE IT — THE BELL, TOP RIGHT OF THEIR PORTAL</span>
+            <div style="border:1px solid rgba(32,27,22,.12)">
+              <div style="background:#191512;padding:9px 14px;display:flex;align-items:center;gap:8px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">NOTIFICATIONS</span><span style="font-size:10px;color:rgba(246,242,234,.55)">1 new</span></div>
+              <div style="padding:12px 14px;display:flex;gap:10px">
+                <span style="width:8px;height:8px;border-radius:50%;background:#9b1b22;flex:none;margin-top:5px"></span>
+                <span style="flex:1;min-width:0">
+                  <span style="display:block;font-size:13.5px;font-weight:600">{{ annPrevTitle }}</span>
+                  <span style="display:block;font-size:12px;color:#6d6459;line-height:1.5;margin-top:2px">{{ annPrevBody }}</span>
+                  <span style="display:block;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#9a9086;margin-top:5px">JUST NOW · EVERYONE</span>
+                </span>
+              </div>
+            </div>
+            <span style="font-size:11.5px;color:#6d6459">It also lands in their Messages, so nothing disappears.</span>
+          </div>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="padding:12px 18px;border-bottom:1px solid rgba(32,27,22,.12);font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">RECENT ANNOUNCEMENTS</div>
+        <sc-for list="{{ recentAnn }}" as="r" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid rgba(32,27,22,.08)">
+            <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:600">{{ r.title }}</span><span style="display:block;font-size:11px;color:#6d6459;margin-top:2px">{{ r.meta }}</span></span>
+            <span onClick="{{ r.remove }}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:{{ r.removeColor }};cursor:pointer;white-space:nowrap" style-hover="color:#9b1b22">{{ r.removeLabel }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ isNews }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start">
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">SUBSCRIBERS</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">people pick topics when they subscribe</span></div>
+          <div style="padding:10px 20px 6px">
+            <sc-for list="{{ nlTopics }}" as="t" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.06)">
+                <span style="width:130px;flex:none;font-size:12.5px">{{ t.name }}</span>
+                <span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span style="display:block;width:{{ t.pct }};height:100%;background:#c9a962"></span></span>
+                <span style="font:600 11px Inter,sans-serif;width:20px;text-align:right">{{ t.n }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:10px 20px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span onClick="{{ nlOpen }}" style="padding:11px 16px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer" style-hover="background:#7e151b">+ NEW NEWSLETTER</span>
+            <span style="font-size:11.5px;color:#6d6459">Anyone can subscribe from the portal home or medx.hr.</span>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="padding:12px 18px;border-bottom:1px solid rgba(32,27,22,.12);font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">DRAFTS &amp; HISTORY</div>
+          <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.08)">
+            <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">Med&amp;X Monthly Digest — August 2026</span><span style="display:block;font-size:11px;color:#6d6459;margin-top:2px">Draft · to all subscribers</span></span>
+            <span onClick="{{ nlEditDraft }}" style="padding:7px 12px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" style-hover="border-color:#201b16">EDIT</span>
+          </div>
+          <div style="padding:22px 18px;font-size:12.5px;color:#6d6459;text-align:center">Nothing sent yet — the August digest is ready when you are.</div>
+        </div>
+      </div>
+      <sc-if value="{{ nlCompose }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">WRITE THE NEWSLETTER</span><div style="flex:1"></div><span onClick="{{ nlClose }}" style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer" style-hover="color:#9b1b22">✕ CLOSE</span></div>
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">SUBJECT</span><input value="{{ nlSubject }}" onChange="{{ onNlSubject }}" placeholder="e.g. Med&amp;X in September — Boston, early birds, new faces" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16"></label>
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">TO</span><select style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16"><option>All subscribers — 1</option><option>Plexus topic — 1</option><option>Gala topic — 0</option><option>Accelerator topic — 0</option><option>Building Bridges topic — 0</option><option>Forum topic — 0</option></select></label>
+          </div>
+          <label style="display:flex;flex-direction:column;gap:5px"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">MESSAGE</span><textarea value="{{ nlBody }}" onChange="{{ onNlBody }}" rows="5" placeholder="Same plain-text rules as emails — the branded header and footer are added automatically." style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;resize:vertical"></textarea></label>
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:#4a4239;cursor:pointer"><input type="checkbox" checked>Send as email</label>
+            <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:#4a4239;cursor:pointer"><input type="checkbox" checked>Post in the member portal</label>
+            <div style="flex:1"></div>
+            <span onClick="{{ nlQueue }}" style="padding:10px 16px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer" style-hover="background:#7e151b">QUEUE IN OUTBOX →</span>
+          </div>
+          <span style="font-size:11px;color:#6d6459">It waits in “Waiting for your OK” like everything else — nothing sends by itself.</span>
+        </div>
+      </sc-if>
+    </sc-if>
+    <sc-if value="{{ isChat }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:250px 1fr;gap:22px;align-items:start">
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="padding:12px 16px;border-bottom:1px solid rgba(32,27,22,.12);display:flex;align-items:center;gap:8px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">CHANNELS</span><div style="flex:1"></div><span onClick="{{ chAddToggle }}" title="New channel" style="font:600 14px Inter,sans-serif;color:#6d6459;cursor:pointer" style-hover="color:#201b16">+</span></div>
+          <sc-if value="{{ chAdding }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6">
+              <input value="{{ chNew }}" onChange="{{ onChNew }}" placeholder="channel name" style="flex:1;min-width:0;border:1px solid rgba(32,27,22,.25);background:#fff;padding:7px 9px;font:400 12px Inter,sans-serif;color:#201b16">
+              <span onClick="{{ chCreate }}" style="padding:7px 10px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.1em;cursor:pointer;display:flex;align-items:center" style-hover="background:#7e151b">ADD</span>
+            </div>
+          </sc-if>
+          <sc-for list="{{ channels }}" as="c" hint-placeholder-count="5">
+            <div onClick="{{ c.open }}" style="display:flex;align-items:center;gap:9px;padding:10px 16px;cursor:pointer;background:{{ c.bg }};border-bottom:1px solid rgba(32,27,22,.06)">
+              <span style="font:600 11px Inter,sans-serif;color:#6d6459">#</span>
+              <span style="font-size:13px;flex:1;min-width:0;font-weight:{{ c.w }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</span>
+              <sc-if value="{{ c.n }}" hint-placeholder-val="{{ false }}"><span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">{{ c.n }}</span></sc-if>
+              <sc-if value="{{ c.canDel }}" hint-placeholder-val="{{ false }}"><span onClick="{{ c.del }}" title="Delete channel — history is archived, never lost" style="font:600 10px Inter,sans-serif;color:{{ c.delColor }};cursor:pointer" style-hover="color:#9b1b22">{{ c.delLabel }}</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff;display:flex;flex-direction:column;min-height:400px">
+          <div style="padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.12);display:flex;align-items:center;gap:10px">
+            <span style="font-size:14px;font-weight:600"># {{ chOpenName }}</span>
+            <span style="font-size:11px;color:#6d6459">your Med&amp;X team, in real time — members never see this</span>
+            <div style="flex:1"></div>
+            <span onClick="{{ proposeMeeting }}" style="padding:7px 12px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" style-hover="border-color:#201b16">PROPOSE A MEETING</span>
+          </div>
+          <div style="flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+            <sc-if value="{{ chEmpty }}" hint-placeholder-val="{{ false }}"><div style="font-size:12.5px;color:#6d6459;font-style:italic">No messages yet — say hello, share a file, or propose a meeting.</div></sc-if>
+            <sc-for list="{{ chMsgs }}" as="m" hint-placeholder-count="3">
+              <div style="display:flex;gap:10px">
+                <span style="width:28px;height:28px;background:{{ m.av }};color:#fff;display:inline-flex;align-items:center;justify-content:center;font:600 10px Inter,sans-serif;flex:none">{{ m.ini }}</span>
+                <span style="flex:1;min-width:0">
+                  <span style="font-size:12.5px;font-weight:600">{{ m.who }} <span style="font:400 10px Inter,sans-serif;color:#6d6459;margin-left:6px">{{ m.when }}</span></span>
+                  <sc-if value="{{ m.re }}" hint-placeholder-val="{{ false }}"><span style="display:block;font-size:11px;color:#6d6459;border-left:2px solid #c9a962;padding-left:8px;margin-top:3px">↩ {{ m.re }}</span></sc-if>
+                  <span style="display:block;font-size:13px;line-height:1.5;margin-top:2px">{{ m.text }}</span>
+                </span>
+                <span onClick="{{ m.reply }}" title="Reply to this message" style="font:600 11px Inter,sans-serif;color:#c9beb2;cursor:pointer;flex:none" style-hover="color:#9b1b22">↩</span>
+              </div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ replyBar }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 20px;border-top:1px solid rgba(32,27,22,.12);background:#fdfbf6">
+              <span style="font-size:11.5px;color:#6d6459;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Replying to <b>{{ replyBar }}</b></span>
+              <span onClick="{{ clearReply }}" style="font:600 10px Inter,sans-serif;color:#6d6459;cursor:pointer" style-hover="color:#9b1b22">✕</span>
+            </div>
+          </sc-if>
+          <div style="padding:14px 20px;border-top:1px solid rgba(32,27,22,.12);display:flex;gap:10px">
+            <label title="Attach files or pictures — or just drag them into the chat" style="padding:10px 12px;border:1px solid rgba(32,27,22,.2);font:600 12px Inter,sans-serif;color:#6d6459;cursor:pointer;display:flex;align-items:center" style-hover="border-color:#201b16;color:#201b16">⊕<input type="file" onChange="{{ chFilePick }}" style="display:none"></input></label>
+            <input value="{{ chDraft }}" onChange="{{ onChDraft }}" onKeyDown="{{ chKey }}" placeholder="Message # {{ chOpenName }}… — Enter sends" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16">
+            <span onClick="{{ chSend }}" style="padding:10px 16px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;display:flex;align-items:center" style-hover="background:#000">SEND</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#201b16;color:#f6f2ea;padding:12px 18px;font:600 10px Inter,sans-serif;letter-spacing:.14em;z-index:80;border-left:3px solid #c9a962;display:flex;gap:14px;align-items:center;white-space:nowrap">{{ toastMsg }}<sc-if value="{{ toastUndoable }}" hint-placeholder-val="{{ false }}"><span onClick="{{ toastUndo }}" style="color:#c9a962;cursor:pointer">UNDO</span></sc-if></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    tab: 'outbox', outbox: [
+      { id: 1, count: 13, kind: 'pulse', title: 'Weekly pulse — week of August 10', sub: 'to juginovic.alen@gmail.com +12 more' },
+      { id: 3, count: 13, kind: 'pulse', title: 'Weekly pulse — week of August 3', sub: 'to juginovic.alen@gmail.com +12 more' },
+      { id: 4, count: 5, kind: 'pulse', title: 'Weekly pulse — week of July 20', sub: 'to juginovic.alen@gmail.com +4 more' },
+      { id: 2, count: 1, kind: 'guest', title: 'Gala guest message — Plexus Gala Evening 2026', sub: 'to simonmikulandra@yahoo.com' },
+      { id: 5, count: 80, kind: 'survey', title: 'Morning-after survey — Building Bridges Boston', sub: 'queues itself for 08:00 the morning after the Boston evening · three questions · results land in the Board pack' }
+    ],
+    subject: '', body: '', queued: false,
+    audience: 'Everyone (all events) — 33 people',
+    manual: false,
+    people: [
+      { id: 1, name: 'Ivana Barišić', tag: 'GALA', on: true },
+      { id: 2, name: 'Simon Mikulandra', tag: 'GALA', on: true },
+      { id: 3, name: 'Nikica Darabos', tag: 'GALA · UNPAID', on: true },
+      { id: 4, name: 'Marko Petrović', tag: 'MEMBER', on: false },
+      { id: 5, name: 'Ana Novak', tag: 'PLEXUS', on: false },
+      { id: 6, name: 'Ivan Kovač', tag: 'PLEXUS', on: false },
+      { id: 7, name: 'Dr. Iva Šarić', tag: 'FORUM', on: false },
+      { id: 8, name: 'Petra Novak', tag: 'BOSTON', on: false }
+    ],
+    openThread: 0, reply: '',
+    threads: [
+      { name: 'Ivana Barišić', topic: 'GALA', unread: true, when: 'TODAY', meta: 'GALA GUEST · ZAGREB', last: 'Could I get an invoice for the Gala seat made out to my clinic?', msgs: [
+        { side: 'flex-start', bg: '#f6f2ea', fg: '#201b16', text: 'Could I get an invoice for the Gala seat made out to my clinic?', when: 'TODAY 09:12' }
+      ]},
+      { name: 'Marko Petrović', topic: 'ACCELERATOR', unread: false, when: 'FRI', meta: 'MEMBER · SPLIT', last: 'Is it certain Accelerator applications open December 8? Planning my rotation…', msgs: [
+        { side: 'flex-start', bg: '#f6f2ea', fg: '#201b16', text: 'Is it certain Accelerator applications open December 8? Planning my rotation around it.', when: 'FRI 16:40' },
+        { side: 'flex-end', bg: '#191512', fg: '#f6f2ea', text: 'Yes — December 8, 2026. You\u2019ll see it on your home screen the day it opens.', when: 'FRI 17:05' }
+      ]}
+    ],
+    nlCompose: false, nlSubject: '', nlBody: '',
+    annTitle: '', annBody: '',
+    recentAnn: [
+      { title: 'Building Bridges returns to Boston this September', meta: 'Building Bridges · 7/2/2026 · 0 following' },
+      { title: 'Accelerator applications open December 8', meta: 'Accelerator · 7/2/2026 · push · 0 following' },
+      { title: 'Plexus 2026 — registration is open', meta: 'Plexus · 7/2/2026 · 1 following' }
+    ],
+    chOpen: 0, chDraft: '', chAdding: false, chNew: '', replyTo: null,
+    channels: ['general', 'announcements', 'PR', 'Finances', 'accelerator — applications', 'bridges — logistics', 'bridges — speakers'],
+    chLogs: { general: [
+      { id: 1, ini: 'LR', av: '#9b1b22', who: 'Laura Rodman', when: 'YESTERDAY 17:52', text: 'e tu je chat, ako radi?' },
+      { id: 2, ini: 'LR', av: '#9b1b22', who: 'Laura Rodman', when: '12:46', text: 'jel ti dobivas info ovu kao ping ili ne?' },
+      { id: 3, ini: 'AJ', av: '#201b16', who: 'Alen Juginović', when: '12:51', text: 'ne, moram posebno otvoriti chat da vidim' }
+    ] },
+    chUnread: { 'general': 2, 'accelerator — applications': 1 },
+    deferredIds: [], confirmId: null, annConfirm: null, chDelConfirm: null, toast: null
+  };
+  componentDidMount() {
+    document.title = 'Med&X Admin — Inbox';
+    this.applyHash = () => { const h = (location.hash || '').replace('#', ''); const map = { chat: 'chat', announcements: 'announce', messages: 'messages', news: 'news', outbox: 'outbox' }; if (map[h]) this.setState({ tab: map[h] }); };
+    this.applyHash(); window.addEventListener('hashchange', this.applyHash);
+  }
+  componentWillUnmount() { clearTimeout(this.tt); window.removeEventListener('hashchange', this.applyHash); }
+  showToast(msg, undo) { clearTimeout(this.tt); this.setState({ toast: { msg, undo: undo || null } }); this.tt = setTimeout(() => this.setState({ toast: null }), 4000); }
+  senderName() { try { return localStorage.getItem('medx_admin_display_name') || 'Alen Juginović'; } catch (e) { return 'Alen Juginović'; } }
+  renderVals() {
+    const s = this.state;
+    const outboxN = s.outbox.length;
+    const unreadMsgs = s.threads.filter(t => t.unread).length;
+    const chatSum = Object.values(s.chUnread).reduce((a, b) => a + b, 0);
+    const totalBadge = outboxN + unreadMsgs + chatSum;
+    const tabs = [
+      { id: 'outbox', name: 'EMAIL & OUTBOX', badge: outboxN ? String(outboxN) : null },
+      { id: 'messages', name: 'MEMBER MESSAGES', badge: unreadMsgs ? String(unreadMsgs) : null },
+      { id: 'announce', name: 'ANNOUNCEMENTS', badge: null },
+      { id: 'news', name: 'NEWSLETTER', badge: null },
+      { id: 'chat', name: 'TEAM CHAT', badge: chatSum ? String(chatSum) : null }
+    ].map(t => ({ ...t, color: s.tab === t.id ? '#201b16' : '#6d6459', line: s.tab === t.id ? '2px solid #9b1b22' : '2px solid transparent', go: () => { if (t.id === 'chat') { this.setState(x => { const cn = x.channels[x.chOpen] || 'general'; const u = Object.assign({}, x.chUnread); delete u[cn]; return { tab: 'chat', chUnread: u, confirmId: null }; }); } else this.setState({ tab: t.id, confirmId: null }); } }));
+    const rmWithUndo = (o, msg) => {
+      const snapshot = this.state.outbox;
+      this.setState(st => ({ outbox: st.outbox.filter(x => x.id !== o.id), confirmId: null }));
+      this.showToast(msg, () => this.setState({ outbox: snapshot }));
+    };
+    const kindLabels = [
+      { k: 'pulse', label: 'WEEKLY PULSES — ROUTINE' },
+      { k: 'guest', label: 'GUEST & MEMBER MESSAGES' },
+      { k: 'survey', label: 'SURVEYS & FOLLOW-UPS' },
+      { k: 'newsletter', label: 'NEWSLETTERS' },
+      { k: 'other', label: 'ONE-OFF EMAILS' }
+    ];
+    const outboxGroups = [];
+    kindLabels.forEach(kk => {
+      const items = s.outbox.filter(o => (o.kind || 'other') === kk.k);
+      if (!items.length) return;
+      outboxGroups.push({
+        label: kk.label, count: String(items.length), multi: items.length > 1,
+        approveAll: () => { const snapshot = this.state.outbox; const n = items.reduce((a, o) => a + o.count, 0); this.setState(st => ({ outbox: st.outbox.filter(o => (o.kind || 'other') !== kk.k) })); this.showToast('SENT ' + items.length + ' BATCHES · ' + n + ' RECIPIENTS', () => this.setState({ outbox: snapshot })); },
+        items: items.map(o => ({
+          ...o, count: String(o.count),
+          deferred: s.deferredIds.includes(o.id),
+          active: !s.deferredIds.includes(o.id),
+          approve: () => rmWithUndo(o, 'SENT TO ' + o.count + ' RECIPIENT' + (o.count === 1 ? '' : 'S')),
+          later: () => { this.setState(st => ({ deferredIds: st.deferredIds.concat([o.id]), confirmId: null })); this.showToast('SCHEDULED — SENDS TOMORROW 09:00'); },
+          cancelLater: () => this.setState(st => ({ deferredIds: st.deferredIds.filter(x => x !== o.id) })),
+          discard: () => { if (s.confirmId !== o.id) { this.setState({ confirmId: o.id }); return; } rmWithUndo(o, 'DISCARDED — NOTHING WAS SENT'); },
+          discardLabel: s.confirmId === o.id ? 'SURE? DISCARD' : 'DISCARD',
+          discardColor: s.confirmId === o.id ? '#9b1b22' : '#6d6459'
+        }))
+      });
+    });
+    const pickedN = s.people.filter(p => p.on).length;
+    const th = s.threads[s.openThread] || { name: '—', meta: '', msgs: [], unread: false };
+    const cname = s.channels[s.chOpen] || 'general';
+    const log = s.chLogs[cname] || [];
+    const pushMsg = (text) => {
+      const nm = this.senderName();
+      const ini = nm.split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+      this.setState(st => { const cn = st.channels[st.chOpen] || 'general'; const logs = Object.assign({}, st.chLogs); logs[cn] = (logs[cn] || []).concat([{ id: Date.now(), ini, av: '#201b16', who: nm, when: 'just now', re: st.replyTo || null, text }]); return { chLogs: logs, chDraft: '', replyTo: null }; });
+    };
+    const sendChat = () => { if (this.state.chDraft.trim()) pushMsg(this.state.chDraft.trim()); };
+    return {
+      outboxCount: String(totalBadge), tabs, outboxGroups,
+      isOutbox: s.tab === 'outbox', isMessages: s.tab === 'messages', isAnnounce: s.tab === 'announce', isNews: s.tab === 'news', isChat: s.tab === 'chat',
+      outboxEmpty: outboxN === 0,
+      goChat: () => this.setState({ tab: 'chat' }),
+      chatUnreadTotal: chatSum ? String(chatSum) : null,
+      subject: s.subject, body: s.body,
+      onSubject: e => this.setState({ subject: e.target.value }),
+      onBody: e => this.setState({ body: e.target.value }),
+      onAudience: e => this.setState({ audience: e.target.value }),
+      manual: s.manual,
+      toggleManual: () => this.setState(x => ({ manual: !x.manual })),
+      manualChip: s.manual ? { bg: '#201b16', fg: '#fff', bd: '#201b16' } : { bg: '#f6f2ea', fg: '#6d6459', bd: 'rgba(32,27,22,.25)' },
+      manualNote: s.manual ? pickedN + ' of ' + s.people.length + ' picked by hand — ticks override the dropdowns' : 'or tick exactly who gets it, person by person',
+      pickPeople: s.people.map(p => ({ ...p, tg: () => this.setState(x => ({ people: x.people.map(q => q.id === p.id ? { ...q, on: !q.on } : q) })) })),
+      audienceNote: s.manual ? pickedN + ' hand-picked recipients · test rows excluded' : '27 recipients after filters · test rows excluded',
+      previewBody: s.body.trim() || 'Start typing the message to see it rendered here\u2026',
+      queueEmail: () => { if (!s.subject.trim() && !s.body.trim()) { this.showToast('WRITE A SUBJECT OR MESSAGE FIRST'); return; } this.setState(st => { const n = st.manual ? st.people.filter(p => p.on).length : 27; return { outbox: [{ id: Date.now(), count: n, kind: 'other', title: st.subject.trim() || 'Untitled email', sub: 'to ' + n + ' recipients — queued just now' }].concat(st.outbox), subject: '', body: '' }; }); this.showToast('QUEUED — WAITING FOR YOUR OK ABOVE'); },
+      threads: s.threads.map((t, i) => ({ ...t, bg: i === s.openThread ? '#f6f2ea' : '#fff', open: () => this.setState(x => ({ openThread: i, threads: x.threads.map((q, j) => j === i ? { ...q, unread: false } : q) })) })),
+      openName: th.name, openMeta: th.meta,
+      readLabel: th.unread ? 'MARK READ' : 'MARK UNREAD',
+      toggleRead: () => this.setState(x => ({ threads: x.threads.map((q, j) => j === x.openThread ? { ...q, unread: !q.unread } : q) })),
+      archiveThread: () => { const snapshot = this.state.threads; this.setState(x => ({ threads: x.threads.filter((q, j) => j !== x.openThread), openThread: 0 })); this.showToast('THREAD ARCHIVED — HIDDEN, NEVER DELETED', () => this.setState({ threads: snapshot })); },
+      openMsgs: th.msgs, reply: s.reply,
+      onReply: e => this.setState({ reply: e.target.value }),
+      replyKey: e => { if (e.key === 'Enter') { e.preventDefault(); if (this.state.reply.trim()) { this.setState(st => { const t2 = st.threads.map((t, i) => i === st.openThread ? { ...t, msgs: t.msgs.concat([{ side: 'flex-end', bg: '#191512', fg: '#f6f2ea', text: st.reply.trim(), when: 'JUST NOW' }]) } : t); return { threads: t2, reply: '' }; }); this.showToast('REPLY SENT — LANDS IN THEIR PORTAL INBOX'); } } },
+      sendReply: () => { if (s.reply.trim()) { this.setState(st => { const t2 = st.threads.map((t, i) => i === st.openThread ? { ...t, msgs: t.msgs.concat([{ side: 'flex-end', bg: '#191512', fg: '#f6f2ea', text: st.reply.trim(), when: 'JUST NOW' }]) } : t); return { threads: t2, reply: '' }; }); this.showToast('REPLY SENT — LANDS IN THEIR PORTAL INBOX'); } },
+      annTitle: s.annTitle, annBody: s.annBody,
+      onAnnTitle: e => this.setState({ annTitle: e.target.value }),
+      onAnnBody: e => this.setState({ annBody: e.target.value }),
+      annPrevTitle: s.annTitle.trim() || 'No title yet — this preview updates as you type.',
+      annPrevBody: s.annBody.trim() || 'No message yet — members will see exactly what you write here.',
+      publishAnn: () => { if (!s.annTitle.trim()) { this.showToast('GIVE THE ANNOUNCEMENT A TITLE FIRST'); return; } this.setState(st => ({ recentAnn: [{ title: st.annTitle.trim(), meta: 'Everyone · just now' }].concat(st.recentAnn), annTitle: '', annBody: '' })); this.showToast('PUBLISHED TO THE MEMBER BELL'); },
+      recentAnn: s.recentAnn.map((r, i) => ({
+        ...r,
+        remove: () => { if (s.annConfirm !== i) { this.setState({ annConfirm: i }); return; } const snapshot = this.state.recentAnn; this.setState(st => ({ recentAnn: st.recentAnn.filter((q, j) => j !== i), annConfirm: null })); this.showToast('ANNOUNCEMENT REMOVED FROM THE BELL', () => this.setState({ recentAnn: snapshot })); },
+        removeLabel: s.annConfirm === i ? 'SURE? REMOVE' : 'REMOVE',
+        removeColor: s.annConfirm === i ? '#9b1b22' : '#6d6459'
+      })),
+      nlTopics: [
+        { name: 'All Med&X', n: '1', pct: '100%' },
+        { name: 'Plexus', n: '1', pct: '100%' },
+        { name: 'Gala Evening', n: '0', pct: '0%' },
+        { name: 'Accelerator', n: '0', pct: '0%' },
+        { name: 'Building Bridges', n: '0', pct: '0%' },
+        { name: 'Biomedical Forum', n: '0', pct: '0%' }
+      ],
+      nlCompose: s.nlCompose, nlSubject: s.nlSubject, nlBody: s.nlBody,
+      nlOpen: () => this.setState({ nlCompose: true }),
+      nlClose: () => this.setState({ nlCompose: false }),
+      nlEditDraft: () => this.setState({ nlCompose: true, nlSubject: 'Med&X Monthly Digest — August 2026', nlBody: 'Dragi svi — here is what happened across Med&X this month…' }),
+      onNlSubject: e => this.setState({ nlSubject: e.target.value }),
+      onNlBody: e => this.setState({ nlBody: e.target.value }),
+      nlQueue: () => { if (s.nlSubject.trim() || s.nlBody.trim()) { this.setState(st => ({ outbox: [{ id: Date.now(), count: 1, kind: 'newsletter', title: st.nlSubject.trim() || 'Untitled newsletter', sub: 'to all subscribers · email + member portal — queued just now' }].concat(st.outbox), nlCompose: false, nlSubject: '', nlBody: '', tab: 'outbox' })); this.showToast('QUEUED — WAITING FOR YOUR OK'); } },
+      chAdding: s.chAdding, chNew: s.chNew,
+      chAddToggle: () => this.setState(x => ({ chAdding: !x.chAdding })),
+      onChNew: e => this.setState({ chNew: e.target.value }),
+      chCreate: () => { const n = s.chNew.trim().toLowerCase().replace(/\s+/g, '-'); if (!n) { this.showToast('TYPE A CHANNEL NAME FIRST'); return; } this.setState(x => ({ channels: x.channels.concat([n]), chNew: '', chAdding: false, chOpen: x.channels.length })); },
+      channels: s.channels.map((c, i) => ({
+        name: c,
+        n: (s.chUnread[c] && i !== s.chOpen) ? String(s.chUnread[c]) : null,
+        w: i === s.chOpen ? '600' : '400', bg: i === s.chOpen ? '#f6f2ea' : '#fff',
+        canDel: c !== 'general',
+        open: () => this.setState(x => { const u = Object.assign({}, x.chUnread); delete u[c]; return { chOpen: i, chUnread: u, chDelConfirm: null }; }),
+        del: (e) => { if (e && e.stopPropagation) e.stopPropagation(); if (s.chDelConfirm !== i) { this.setState({ chDelConfirm: i }); return; } const snapCh = this.state.channels, snapOpen = this.state.chOpen; this.setState(x => ({ channels: x.channels.filter((q, j) => j !== i), chOpen: 0, chDelConfirm: null })); this.showToast('CHANNEL DELETED — HISTORY ARCHIVED', () => this.setState({ channels: snapCh, chOpen: snapOpen })); },
+        delLabel: s.chDelConfirm === i ? 'DELETE?' : '✕',
+        delColor: s.chDelConfirm === i ? '#9b1b22' : '#c9beb2'
+      })),
+      chOpenName: cname,
+      chEmpty: log.length === 0,
+      chMsgs: log.map(m => ({ ...m, reply: () => this.setState({ replyTo: m.who + ': “' + m.text.slice(0, 60) + (m.text.length > 60 ? '…' : '') + '”' }) })),
+      chDraft: s.chDraft,
+      replyBar: s.replyTo, clearReply: () => this.setState({ replyTo: null }),
+      chFilePick: e => { const f = e.target.files && e.target.files[0]; if (f) { pushMsg('[file] ' + f.name + ' — uploaded to # ' + cname); this.showToast('FILE POSTED TO THE CHANNEL'); } },
+      onChDraft: e => this.setState({ chDraft: e.target.value }),
+      chKey: e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } },
+      chSend: sendChat,
+      proposeMeeting: () => { pushMsg('Proposed a meeting — “Gala seating review”. Times: Tue 14:00 · Wed 09:30 · Thu 16:00. Vote by replying; closing the poll queues calendar invites in the Outbox.'); this.showToast('MEETING POLL POSTED TO # ' + cname.toUpperCase()); },
+      toastOn: !!s.toast, toastMsg: s.toast ? s.toast.msg : '',
+      toastUndoable: !!(s.toast && s.toast.undo),
+      toastUndo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

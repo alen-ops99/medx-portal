@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus,select:focus{outline:1px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Gala Management" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">PROJECTS</span>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:22px">
+    <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <a href="Admin Plexus Hub.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6d6459" style-hover="color:#201b16">← PLEXUS WEEK</a>
+          <span style="font-family:Fraunces,serif;font-size:30px">The <i>Gala Evening</i></span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;background:#f1e7d4;color:#7a6432;padding:4px 8px">DEC 5 · HOTEL ESPLANADE</span>
+        </div>
+        <div style="font-size:12.5px;color:#6d6459;margin-top:4px">Guest list, seating, meals, waitlist — everything for the night, on one page. Seats are non-refundable; cancelling frees the seat for the waitlist.</div>
+      </div>
+      <div style="flex:1"></div>
+      <span onClick="{{ kitchenCsv }}" style="padding:10px 15px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" style-hover="border-color:#201b16">KITCHEN SHEET (CSV)</span>
+      <a href="Admin Event Day.dc.html" style="padding:11px 15px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" style-hover="background:#9b1b22;color:#f6f2ea">EVENT DAY ROOM →</a>
+    </div>
+    <div style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(5,1fr)">
+      <div style="padding:15px 18px;border-right:1px solid rgba(32,27,22,.1)"><div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">RESERVED</div><div style="font-family:Fraunces,serif;font-size:28px;margin-top:2px">{{ kReserved }}</div><div style="font-size:11px;color:#6d6459">seats spoken for</div></div>
+      <div style="padding:15px 18px;border-right:1px solid rgba(32,27,22,.1)"><div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">PAID</div><div style="font-family:Fraunces,serif;font-size:28px;margin-top:2px;color:#1e6e42">{{ kPaid }}</div><div style="font-size:11px;color:#6d6459">{{ kPaidSub }}</div></div>
+      <div style="padding:15px 18px;border-right:1px solid rgba(32,27,22,.1)"><div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">TO CHASE</div><div style="font-family:Fraunces,serif;font-size:28px;margin-top:2px;color:#9b1b22">{{ kChase }}</div><div style="font-size:11px;color:#6d6459">{{ kChaseSub }}</div></div>
+      <div style="padding:15px 18px;border-right:1px solid rgba(32,27,22,.1)"><div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">SEATED</div><div style="font-family:Fraunces,serif;font-size:28px;margin-top:2px">{{ kSeated }}</div><div style="font-size:11px;color:#6d6459">of {{ kReserved }} · rest unassigned</div></div>
+      <div style="padding:15px 18px"><div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">ROOM</div><div style="font-family:Fraunces,serif;font-size:28px;margin-top:2px">10 × 8</div><div style="font-size:11px;color:#6d6459">tables × seats · limited by design</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.55fr 1fr;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.12);flex-wrap:wrap">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">GUEST LIST</span>
+          <input value="{{ q }}" onChange="{{ onQ }}" placeholder="Find a guest…" style="flex:1;min-width:140px;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16">
+          <span onClick="{{ addToggle }}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">+ ADD GUEST</span>
+        </div>
+        <sc-if value="{{ addOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;align-items:center;padding:11px 18px;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6;flex-wrap:wrap">
+            <input value="{{ ngName }}" onChange="{{ onNgName }}" placeholder="Guest name" style="flex:1;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16"></input>
+            <select value="{{ ngKind }}" onChange="{{ onNgKind }}" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px;font:400 12px Inter,sans-serif;color:#201b16"><option>INVOICE — €150</option><option>VIP — FREE</option><option>SPONSOR SEAT</option></select>
+            <span onClick="{{ addGuest }}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">ADD</span>
+            <span style="font-size:11px;color:#6d6459;flex-basis:100%">Invoice guests get a payment email queued in the Outbox · VIP and sponsor seats count as paid.</span>
+          </div>
+        </sc-if>
+        <div style="display:grid;grid-template-columns:1.7fr 92px 96px 1fr auto;gap:10px;padding:8px 18px;border-bottom:1px solid rgba(32,27,22,.12);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;align-items:center"><span>GUEST</span><span>TABLE</span><span>MEAL</span><span>STATUS</span><span></span></div>
+        <sc-for list="{{ guests }}" as="g" hint-placeholder-count="8">
+          <div style="display:grid;grid-template-columns:1.7fr 92px 96px 1fr auto;gap:10px;padding:9px 18px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center">
+            <span style="min-width:0"><span style="display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ g.name }}</span><span style="display:block;font-size:10.5px;color:#6d6459">{{ g.sub }}</span></span>
+            <select value="{{ g.table }}" onChange="{{ g.setTable }}" style="border:1px solid rgba(32,27,22,.2);background:#f6f2ea;padding:6px 4px;font:600 11px Inter,sans-serif;color:#201b16;width:100%">
+              <option>—</option><option>T1</option><option>T2</option><option>T3</option><option>T4</option><option>T5</option><option>T6</option><option>T7</option><option>T8</option><option>T9</option><option>T10</option>
+            </select>
+            <select value="{{ g.meal }}" onChange="{{ g.setMeal }}" style="border:1px solid rgba(32,27,22,.2);background:#f6f2ea;padding:6px 4px;font:600 11px Inter,sans-serif;color:#201b16;width:100%">
+              <option>STANDARD</option><option>VEGETARIAN</option><option>VEGAN</option><option>GLUTEN-FREE</option>
+            </select>
+            <span style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+              <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:{{ g.stBg }};color:{{ g.stFg }};white-space:nowrap">{{ g.status }}</span>
+              <sc-if value="{{ g.canChase }}" hint-placeholder-val="{{ false }}"><span onClick="{{ g.chase }}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#9b1b22;cursor:pointer;white-space:nowrap" style-hover="color:#201b16">{{ g.chaseLabel }}</span></sc-if>
+              <sc-if value="{{ g.canPay }}" hint-placeholder-val="{{ false }}"><span onClick="{{ g.pay }}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#1e6e42;cursor:pointer;white-space:nowrap">MARK PAID</span></sc-if>
+            </span>
+            <span onClick="{{ g.cancel }}" title="Frees the seat — the waitlist gets an automatic offer. Seats are non-refundable." style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:{{ g.cancelColor }};cursor:pointer;white-space:nowrap" style-hover="color:#9b1b22">{{ g.cancelLabel }}</span>
+          </div>
+        </sc-for>
+        <div style="padding:10px 18px;font-size:11px;color:#6d6459">Group bookings (the table of four, the group of five) hold their seats under one payer — split them from the row when names arrive.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff">
+          <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">SEATING BOARD</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">assign tables in the list — this fills in live</span></div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px 18px">
+            <sc-for list="{{ tables }}" as="t" hint-placeholder-count="10">
+              <div title="{{ t.who }}" style="border:1px solid {{ t.bd }};background:{{ t.bg }};padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px">
+                <span style="font:600 10px Inter,sans-serif;letter-spacing:.1em;color:#201b16">{{ t.name }}</span>
+                <span style="font-family:Fraunces,serif;font-size:16px;color:{{ t.fg }}">{{ t.n }}/8</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:0 18px 14px;font-size:11px;color:#6d6459">Hover a table to see who sits there · the head table is T1. The walk-the-room 3D view builds on this same plan in production.</div>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">MEALS — KITCHEN COUNT</span></div>
+          <div style="padding:12px 18px 14px;display:flex;flex-direction:column;gap:7px">
+            <sc-for list="{{ meals }}" as="m" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:10px"><span style="width:110px;flex:none;font-size:12px">{{ m.name }}</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span style="display:block;width:{{ m.pct }};height:100%;background:#c9a962"></span></span><span style="font:600 11px Inter,sans-serif;width:24px;text-align:right">{{ m.n }}</span></div>
+            </sc-for>
+            <span style="font-size:11px;color:#6d6459;margin-top:3px">Final counts go to the Esplanade on Nov 15 — the kitchen sheet export uses exactly these numbers.</span>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">WAITLIST</span><span style="min-width:18px;height:18px;padding:0 5px;background:#201b16;color:#fff;font:600 11px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">{{ wlCount }}</span></div>
+          <sc-for list="{{ waitlist }}" as="w" hint-placeholder-count="1">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid rgba(32,27,22,.07)">
+              <span style="flex:1;min-width:0;font-size:12.5px;font-weight:600">{{ w.name }}</span>
+              <span style="font-size:10.5px;color:#6d6459;white-space:nowrap">{{ w.since }}</span>
+              <span onClick="{{ w.offer }}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#9b1b22;cursor:pointer;white-space:nowrap">{{ w.offerLabel }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ wlEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:12px 18px;font-size:12px;color:#6d6459;font-style:italic;border-bottom:1px solid rgba(32,27,22,.07)">Empty — when the room fills, new requests land here.</div></sc-if>
+          <div style="display:flex;gap:8px;padding:11px 18px">
+            <input value="{{ wlDraft }}" onChange="{{ onWlDraft }}" placeholder="Add to waitlist — name" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12px Inter,sans-serif;color:#201b16;min-width:0">
+            <span onClick="{{ addWl }}" style="padding:8px 12px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;display:flex;align-items:center">ADD</span>
+          </div>
+          <div style="padding:0 18px 12px;font-size:11px;color:#6d6459">A freed seat auto-offers to the top of this list — they get 24 h before it moves on.</div>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fdfbf6;padding:14px 18px;display:flex;flex-direction:column;gap:6px">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">THE NIGHT</span>
+          <span style="font-size:12px;color:#4a4239;line-height:1.7">19:00 doors · 19:30 dinner · 21:00 Annual Awards · 22:00 performers (announced this autumn) · 23:30 carriages<br>Charity auction and the 3D room walk-through open from here as the night takes shape.</span>
+          <span style="display:flex;gap:14px;flex-wrap:wrap"><a href="Admin Money.dc.html" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">AUCTION PLEDGES → MONEY</a><a href="Admin Member Pages.dc.html" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">EDIT THE MEMBER PAGE →</a></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#201b16;color:#f6f2ea;padding:12px 18px;font:600 10px Inter,sans-serif;letter-spacing:.14em;z-index:80;border-left:3px solid #c9a962;display:flex;gap:14px;align-items:center;white-space:nowrap">{{ toastMsg }}<sc-if value="{{ toastUndoable }}" hint-placeholder-val="{{ false }}"><span onClick="{{ toastUndo }}" style="color:#c9a962;cursor:pointer">UNDO</span></sc-if></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1360, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { q: '', addOpen: false, ngName: '', ngKind: 'INVOICE — €150', wlDraft: '', cancelConfirm: null, toast: null,
+    waitlist: [],
+    guests: [
+      { id: 1, name: 'Simon Mikulandra', sub: 'VIP · paid Aug 8', table: 'T1', meal: 'STANDARD', paid: true, vip: true, chased: false },
+      { id: 2, name: 'Ivana Barišić', sub: 'paid Aug 6 · KBC Zagreb', table: '—', meal: 'VEGETARIAN', paid: true, chased: false },
+      { id: 3, name: 'KBC cardiology — table of four', sub: '4 seats · paid by invoice Aug 2', table: 'T2', meal: 'STANDARD', paid: true, seats: 4, chased: false },
+      { id: 4, name: 'Early group of five', sub: '5 seats · bank transfer Jul 30', table: 'T3', meal: 'STANDARD', paid: true, seats: 5, chased: false },
+      { id: 5, name: 'Ten individual paid guests', sub: '10 seats · cards · names on file', table: '—', meal: 'STANDARD', paid: true, seats: 10, chased: false },
+      { id: 6, name: 'Nikica Darabos', sub: 'reserved Jul 29 · payment pending', table: '—', meal: 'STANDARD', paid: false, chased: false },
+      { id: 7, name: 'Tomislav Šarić', sub: 'reserved Aug 1 · payment pending', table: '—', meal: 'STANDARD', paid: false, chased: false },
+      { id: 8, name: 'Jelena Vidić', sub: 'reserved Aug 3 · payment pending', table: '—', meal: 'VEGAN', paid: false, chased: false },
+      { id: 9, name: 'Davor Klarić', sub: 'reserved Aug 5 · payment pending', table: '—', meal: 'STANDARD', paid: false, chased: false }
+    ]};
+  componentDidMount() { document.title = 'Med&X Admin — Gala Evening'; }
+  componentWillUnmount() { clearTimeout(this.tt); }
+  showToast(msg, undo) { clearTimeout(this.tt); this.setState({ toast: { msg, undo: undo || null } }); this.tt = setTimeout(() => this.setState({ toast: null }), 4200); }
+  seatsOf(g) { return g.seats || 1; }
+  renderVals() {
+    const s = this.state;
+    const q = s.q.trim().toLowerCase();
+    const list = s.guests.filter(g => !q || g.name.toLowerCase().includes(q));
+    const reserved = s.guests.reduce((t, g) => t + this.seatsOf(g), 0);
+    const paidSeats = s.guests.filter(g => g.paid).reduce((t, g) => t + this.seatsOf(g), 0);
+    const chaseGuests = s.guests.filter(g => !g.paid);
+    const owed = chaseGuests.reduce((t, g) => t + this.seatsOf(g) * 150, 0);
+    const seated = s.guests.filter(g => g.table !== '—').reduce((t, g) => t + this.seatsOf(g), 0);
+    const tableNames = ['T1','T2','T3','T4','T5','T6','T7','T8','T9','T10'];
+    const tables = tableNames.map(tn => {
+      const at = s.guests.filter(g => g.table === tn);
+      const n = at.reduce((t, g) => t + this.seatsOf(g), 0);
+      return { name: tn, n: String(n), who: at.length ? at.map(g => g.name).join(' · ') : 'empty', bg: n ? (n >= 8 ? '#f1e7d4' : '#fdfbf6') : 'transparent', bd: n ? '#c9a962' : 'rgba(32,27,22,.18)', fg: n >= 8 ? '#7a6432' : '#201b16' };
+    });
+    const mealKinds = ['STANDARD', 'VEGETARIAN', 'VEGAN', 'GLUTEN-FREE'];
+    const mealCounts = mealKinds.map(mk => ({ name: mk.charAt(0) + mk.slice(1).toLowerCase(), n: s.guests.filter(g => g.meal === mk).reduce((t, g) => t + this.seatsOf(g), 0) }));
+    const mealMax = Math.max(1, ...mealCounts.map(m => m.n));
+    return {
+      kReserved: String(reserved), kPaid: String(paidSeats),
+      kPaidSub: '€' + (paidSeats * 150).toLocaleString('en-US') + ' collected',
+      kChase: String(chaseGuests.reduce((t, g) => t + this.seatsOf(g), 0)),
+      kChaseSub: '€' + owed.toLocaleString('en-US') + ' outstanding',
+      kSeated: String(seated),
+      q: s.q, onQ: e => this.setState({ q: e.target.value }),
+      addOpen: s.addOpen, addToggle: () => this.setState(x => ({ addOpen: !x.addOpen })),
+      ngName: s.ngName, ngKind: s.ngKind,
+      onNgName: e => this.setState({ ngName: e.target.value }), onNgKind: e => this.setState({ ngKind: e.target.value }),
+      addGuest: () => { const n = s.ngName.trim(); if (!n) { this.showToast('TYPE THE GUEST\u2019S NAME FIRST'); return; } const vip = s.ngKind !== 'INVOICE — €150'; this.setState(x => ({ guests: [{ id: Date.now(), name: n, sub: vip ? s.ngKind.toLowerCase() + ' · added just now' : 'invoice queued · added just now', table: '—', meal: 'STANDARD', paid: vip, chased: false }].concat(x.guests), ngName: '', addOpen: false })); this.showToast(vip ? 'ADDED — COUNTS AS PAID' : 'ADDED — PAYMENT EMAIL QUEUED IN THE OUTBOX'); },
+      guests: list.map(g => ({
+        name: g.name, sub: g.sub, table: g.table, meal: g.meal,
+        status: g.paid ? (g.vip ? 'VIP · PAID' : 'PAID') : 'PENDING',
+        stBg: g.paid ? '#e4efe7' : '#f7e3e4', stFg: g.paid ? '#22563a' : '#7e151b',
+        canChase: !g.paid, canPay: !g.paid,
+        chaseLabel: g.chased ? 'QUEUED ✓' : 'CHASE',
+        chase: () => { if (g.chased) return; this.setState(x => ({ guests: x.guests.map(p => p.id === g.id ? { ...p, chased: true } : p) })); this.showToast('REMINDER QUEUED IN THE OUTBOX'); },
+        pay: () => { const snap = JSON.parse(JSON.stringify(this.state.guests)); this.setState(x => ({ guests: x.guests.map(p => p.id === g.id ? { ...p, paid: true, sub: p.sub.replace('payment pending', 'paid just now').replace('· pending', '· paid just now') } : p) })); this.showToast('MARKED PAID — MONEY UPDATES TOO', () => this.setState({ guests: snap })); },
+        setTable: e => { const v = e.target.value; this.setState(x => ({ guests: x.guests.map(p => p.id === g.id ? { ...p, table: v } : p) })); },
+        setMeal: e => { const v = e.target.value; this.setState(x => ({ guests: x.guests.map(p => p.id === g.id ? { ...p, meal: v } : p) })); },
+        cancel: () => { if (s.cancelConfirm !== g.id) { this.setState({ cancelConfirm: g.id }); return; } const snap = JSON.parse(JSON.stringify(this.state.guests)); this.setState(x => ({ guests: x.guests.filter(p => p.id !== g.id), cancelConfirm: null })); this.showToast('SEAT FREED — WAITLIST GETS THE OFFER · NO REFUND ISSUED', () => this.setState({ guests: snap })); },
+        cancelLabel: s.cancelConfirm === g.id ? 'SURE? CANCEL' : '✕ CANCEL',
+        cancelColor: s.cancelConfirm === g.id ? '#9b1b22' : '#9a9086'
+      })),
+      tables,
+      meals: mealCounts.map(m => ({ name: m.name, n: String(m.n), pct: Math.round((m.n / mealMax) * 100) + '%' })),
+      kitchenCsv: () => {
+        const csv = ['Meal,Seats'].concat(mealCounts.map(m => m.name + ',' + m.n)).join('\n');
+        const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv); a.download = 'gala-kitchen-sheet.csv'; a.click();
+        this.showToast('KITCHEN SHEET DOWNLOADED');
+      },
+      wlCount: String(s.waitlist.length), wlEmpty: s.waitlist.length === 0,
+      waitlist: s.waitlist.map(w => ({ ...w, offerLabel: w.offered ? 'OFFER SENT ✓' : 'OFFER A SEAT', offer: () => { if (w.offered) return; this.setState(x => ({ waitlist: x.waitlist.map(p => p.id === w.id ? { ...p, offered: true } : p) })); this.showToast('OFFER EMAILED — 24 H TO ACCEPT'); } })),
+      wlDraft: s.wlDraft, onWlDraft: e => this.setState({ wlDraft: e.target.value }),
+      addWl: () => { const n = s.wlDraft.trim(); if (!n) return; this.setState(x => ({ waitlist: x.waitlist.concat([{ id: Date.now(), name: n, since: 'added just now', offered: false }]), wlDraft: '' })); },
+      toastOn: !!s.toast, toastMsg: s.toast ? s.toast.msg : '',
+      toastUndoable: !!(s.toast && s.toast.undo),
+      toastUndo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

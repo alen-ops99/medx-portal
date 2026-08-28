@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus{outline:2px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Calendar" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <a href="Admin Plexus Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PROJECTS</a>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">CALENDAR</span>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;width:180px;min-width:60px;flex:0 1 180px;box-sizing:border-box;cursor:text;overflow:hidden"><span style="color:#6d6459">⌕</span><span style="font-size:12px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search or type a task…</span></span>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:22px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+      <span style="font-family:Fraunces,serif;font-size:30px">Calendar</span>
+      <span style="font-size:12.5px;color:#6d6459">everything Med&amp;X is running, this year and next</span>
+      <div style="flex:1"></div>
+      <span onClick="{{ exportPdf }}" title="A print-ready year board in the Med&amp;X look — one page, made to email to colleagues" style="padding:9px 14px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" style-hover="border-color:#201b16">EXPORT PDF</span>
+      <span onClick="{{ exportCsv }}" style="padding:9px 14px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" style-hover="border-color:#201b16">EXPORT CSV</span>
+      <span onClick="{{ toggleAdd }}" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">+ ADD ENTRY</span>
+    </div>
+    <div style="border:1px solid rgba(32,27,22,.14);border-left:3px solid #c9a962;background:#fff;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">NEXT UP</span>
+      <span style="font-size:13.5px;font-weight:600">Gala early-bird deadline — September 1</span>
+      <span style="font-size:12px;color:#6d6459">in {{ ebDays }} days · price moves €150 → €175</span>
+      <div style="flex:1"></div>
+      <a href="Admin Plexus Hub.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap">OPEN PLEXUS →</a>
+    </div>
+    <sc-if value="{{ adding }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;padding:14px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;white-space:nowrap">NEW ENTRY</span>
+        <input value="{{ evName }}" onChange="{{ onEvName }}" placeholder="What — e.g. Sponsor dinner, Split" style="flex:2;min-width:180px;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16">
+        <select onChange="{{ onEvMonth }}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 10px;font:400 12.5px Inter,sans-serif;color:#201b16"><option>JAN</option><option>FEB</option><option>MAR</option><option>APR</option><option>MAY</option><option>JUN</option><option>JUL</option><option>AUG</option><option>SEP</option><option>OCT</option><option>NOV</option><option>DEC</option></select>
+        <select onChange="{{ onEvProj }}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 10px;font:400 12.5px Inter,sans-serif;color:#201b16"><option>Plexus</option><option>Gala</option><option>Bridges</option><option>Forum</option><option>Other</option></select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#4a4239;cursor:pointer;white-space:nowrap"><input type="checkbox" checked="{{ evSolid }}" onChange="{{ onEvSolid }}">confirmed</label>
+        <span onClick="{{ addEntry }}" style="padding:9px 15px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">ADD TO 2026</span>
+      </div>
+    </sc-if>
+    <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:18px 20px">
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-family:Fraunces,serif;font-size:20px">2026</span>
+        <span style="font-size:11.5px;color:#6d6459">solid = confirmed · outlined = potential · the red line is today</span>
+        <span onClick="{{ toggleEdit }}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:{{ editColor }};cursor:pointer;border:1px solid rgba(32,27,22,.18);padding:4px 8px" style-hover="color:#201b16">{{ editLabel }}</span>
+        <div style="flex:1"></div>
+        <span style="display:flex;gap:12px;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:5px;font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459"><span style="width:9px;height:9px;background:#9b1b22"></span>PLEXUS</span>
+          <span style="display:flex;align-items:center;gap:5px;font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459"><span style="width:9px;height:9px;background:#c9a962"></span>GALA</span>
+          <span style="display:flex;align-items:center;gap:5px;font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459"><span style="width:9px;height:9px;background:#3f5f8a"></span>BRIDGES</span>
+          <span style="display:flex;align-items:center;gap:5px;font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459"><span style="width:9px;height:9px;background:#6a4a8c"></span>FORUM</span>
+        </span>
+      </div>
+      <div style="position:relative">
+        <div style="display:grid;grid-template-columns:170px repeat(12,1fr);border-bottom:1px solid rgba(32,27,22,.14)">
+          <span></span>
+          <sc-for list="{{ months }}" as="m" hint-placeholder-count="12"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;padding:4px 0;text-align:center;border-left:1px solid rgba(32,27,22,.06)">{{ m }}</span></sc-for>
+        </div>
+        <sc-for list="{{ rows2026 }}" as="r" hint-placeholder-count="5">
+          <div style="display:grid;grid-template-columns:170px repeat(12,1fr);align-items:center;border-bottom:1px solid rgba(32,27,22,.06)">
+            <span style="padding:9px 0;min-width:0;display:flex;align-items:center;gap:7px"><sc-if value="{{ editMode }}" hint-placeholder-val="{{ false }}"><span onClick="{{ r.remove }}" title="Delete this entry" style="font:600 11px Inter,sans-serif;color:#9b1b22;cursor:pointer;flex:none">✕</span></sc-if><span style="min-width:0"><span style="display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span><span style="display:block;font-size:10px;color:#6d6459">{{ r.date }}</span></span></span>
+            <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="12">
+              <span style="height:34px;border-left:1px solid rgba(32,27,22,.06);display:flex;align-items:center;padding:0 3px;box-sizing:border-box"><span style="width:100%;height:12px;background:{{ c.bg }};border:{{ c.bd }};box-sizing:border-box"></span></span>
+            </sc-for>
+          </div>
+        </sc-for>
+        <div style="position:absolute;top:0;bottom:0;left:calc(170px + (100% - 170px) * {{ todayPct }});width:0;border-left:2px solid #9b1b22;pointer-events:none"></div>
+        <span style="position:absolute;top:-4px;left:calc(170px + (100% - 170px) * {{ todayPct }} - 22px);font:600 8px Inter,sans-serif;letter-spacing:.1em;color:#9b1b22;background:#fff;padding:0 4px">TODAY</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin:18px 0 12px">
+        <span style="font-family:Fraunces,serif;font-size:20px">2027</span>
+      </div>
+      <div style="display:grid;grid-template-columns:170px repeat(12,1fr);border-bottom:1px solid rgba(32,27,22,.14)">
+        <span></span>
+        <sc-for list="{{ months }}" as="m" hint-placeholder-count="12"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;padding:4px 0;text-align:center;border-left:1px solid rgba(32,27,22,.06)">{{ m }}</span></sc-for>
+      </div>
+      <sc-for list="{{ rows2027 }}" as="r" hint-placeholder-count="2">
+        <div style="display:grid;grid-template-columns:170px repeat(12,1fr);align-items:center;border-bottom:1px solid rgba(32,27,22,.06)">
+          <span style="padding:9px 0;min-width:0"><span style="display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span><span style="display:block;font-size:10px;color:#6d6459">{{ r.date }}</span></span>
+          <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="12">
+            <span style="height:34px;border-left:1px solid rgba(32,27,22,.06);display:flex;align-items:center;padding:0 3px;box-sizing:border-box"><span style="width:100%;height:12px;background:{{ c.bg }};border:{{ c.bd }};box-sizing:border-box"></span></span>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+    <div id="tasks" style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">TEAM TASKS</span>
+          <span style="min-width:18px;height:18px;padding:0 5px;background:#9b1b22;color:#fff;font:600 11px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">{{ taskCount }}</span>
+          <div style="flex:1"></div>
+          <span style="font-size:11.5px;color:#6d6459">tick it and it disappears for everyone</span>
+        </div>
+        <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
+            <span onClick="{{ t.done }}" style="width:18px;height:18px;border:1.5px solid rgba(32,27,22,.35);cursor:pointer;flex:none" style-hover="border-color:#9b1b22"></span>
+            <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">{{ t.title }}</span><span style="display:block;font-size:11px;color:{{ t.dueColor }};margin-top:1px">{{ t.due }}</span></span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;padding:3px 7px;background:#eee9df;color:#4a4239;white-space:nowrap">{{ t.who }}</span>
+          </div>
+        </sc-for>
+        <div style="display:flex;gap:10px;padding:14px 20px">
+          <input value="{{ taskDraft }}" onChange="{{ onTaskDraft }}" placeholder="Add a task — e.g. “Book the Esplanade tasting menu call”" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16">
+          <span onClick="{{ addTask }}" style="padding:9px 14px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;display:flex;align-items:center" style-hover="background:#000">ADD</span>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:2px">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;margin-bottom:8px">KEY DATES</span>
+        <sc-for list="{{ keyDates }}" as="k" hint-placeholder-count="6">
+          <sc-if value="{{ k.sep }}" hint-placeholder-val="{{ false }}">
+            <div style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9a9086;padding:10px 0 4px">{{ k.sep }}</div>
+          </sc-if>
+          <sc-if value="{{ k.t }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(32,27,22,.06)">
+              <span style="width:8px;height:8px;background:{{ k.c }};flex:none"></span>
+              <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.11em;color:#201b16;width:66px;flex:none">{{ k.d }}</span>
+              <span style="font-size:12.5px;flex:1;min-width:0">{{ k.t }}</span>
+            </div>
+          </sc-if>
+        </sc-for>
+        <span style="font-size:11px;color:#6d6459;margin-top:10px">These feed the member portal’s “Key dates” automatically.</span>
+      </div>
+    </div>
+  </div>
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#201b16;color:#f6f2ea;padding:12px 18px;font:600 10px Inter,sans-serif;letter-spacing:.14em;z-index:80;border-left:3px solid #c9a962;display:flex;gap:14px;align-items:center;white-space:nowrap">{{ toastMsg }}<sc-if value="{{ toastUndoable }}" hint-placeholder-val="{{ false }}"><span onClick="{{ toastUndo }}" style="color:#c9a962;cursor:pointer">UNDO</span></sc-if></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { adding: false, editMode: false, evName: '', evMonth: 0, evProj: 'Plexus', evSolid: true, toast: null, tasks: null, taskDraft: '',
+    board: [
+      { id: 1, name: 'Building Bridges — Boston', date: 'Sep 18–21 · venue announced soon', color: '#3f5f8a', cells: [8], dashed: false },
+      { id: 2, name: 'Plexus early-bird deadline', date: '1 Sep — Gala price changes', color: '#c9a962', cells: [8], dashed: false },
+      { id: 3, name: 'Donor Night — Croatians Abroad', date: '4 Dec · Zagreb', color: '#9b1b22', cells: [11], dashed: false },
+      { id: 4, name: 'Plexus Week — Conference', date: '4–5 Dec · Novinarski dom · free', color: '#9b1b22', cells: [11], dashed: false },
+      { id: 5, name: 'Plexus Gala Evening', date: '5 Dec · Hotel Esplanade', color: '#c9a962', cells: [11], dashed: false },
+      { id: 6, name: 'Accelerator applications open', date: '8 Dec · member portal', color: '#9b1b22', cells: [11], dashed: false }
+    ]};
+  seedTasks = [
+    { id: 1, title: 'Confirm Esplanade menu with events team', who: 'LAURA', due: '2026-08-08' },
+    { id: 2, title: 'Send speaker invitation shortlist to board', who: 'ALEN', due: '2026-08-09' },
+    { id: 3, title: 'Draft Gala invitation copy (EN + HR)', who: 'ALEN', due: '2026-08-09' },
+    { id: 4, title: 'Collect Boston venue photos for Bridges page', who: 'MARIJA', due: '2026-08-21' }
+  ];
+  componentDidMount() { document.title = 'Med&X Admin — Calendar'; try { const t = localStorage.getItem('medx_admin_tasks_v1'); if (t) this.setState({ tasks: JSON.parse(t) }); } catch (e) {} }
+  componentWillUnmount() { clearTimeout(this.tt); }
+  showToast(msg, undo) { clearTimeout(this.tt); this.setState({ toast: { msg, undo: undo || null } }); this.tt = setTimeout(() => this.setState({ toast: null }), 4000); }
+  getTasks() { return this.state.tasks || this.seedTasks; }
+  saveTasks(list) { this.setState({ tasks: list }); try { localStorage.setItem('medx_admin_tasks_v1', JSON.stringify(list)); } catch (e) {} }
+  mkRow(name, date, color, cells, dashed) {
+    return { name, date, cells: Array.from({ length: 12 }, (_, i) => cells.includes(i) ? { bg: dashed ? 'transparent' : color, bd: dashed ? '1.5px dashed ' + color : 'none' } : { bg: 'transparent', bd: 'none' }) };
+  }
+  renderVals() {
+    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const s = this.state;
+    const mid = v => { if (v instanceof Date) return new Date(v.getFullYear(), v.getMonth(), v.getDate()); const p = String(v).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+    const now = new Date(); const today0 = mid(now);
+    const dayMs = 86400000;
+    const yStart = new Date(2026, 0, 1);
+    const pct = Math.min(1, Math.max(0, (today0 - yStart) / (365 * dayMs)));
+    const tasks = this.getTasks();
+    const projColor = { Plexus: '#9b1b22', Gala: '#c9a962', Bridges: '#3f5f8a', Forum: '#6a4a8c', Other: '#201b16' };
+    const fmtDue = t => {
+      const diff = Math.round((mid(t.due) - today0) / dayMs);
+      if (diff < 0) return { due: 'Overdue — ' + Math.abs(diff) + ' day' + (Math.abs(diff) === 1 ? '' : 's'), dueColor: '#9b1b22' };
+      if (diff === 0) return { due: 'Due today', dueColor: '#b7791f' };
+      const d = mid(t.due);
+      return { due: 'Due ' + months[d.getMonth()] + ' ' + d.getDate(), dueColor: '#6d6459' };
+    };
+    return {
+      months,
+      todayPct: pct.toFixed(3),
+      ebDays: String(Math.max(0, Math.round((mid('2026-09-01') - today0) / dayMs))),
+      adding: s.adding, toggleAdd: () => this.setState(x => ({ adding: !x.adding })),
+      evName: s.evName, onEvName: e => this.setState({ evName: e.target.value }),
+      onEvMonth: e => this.setState({ evMonth: e.target.selectedIndex }),
+      onEvProj: e => this.setState({ evProj: e.target.value }),
+      evSolid: s.evSolid, onEvSolid: () => this.setState(x => ({ evSolid: !x.evSolid })),
+      addEntry: () => { const n = s.evName.trim(); if (!n) { this.showToast('NAME THE ENTRY FIRST'); return; } this.setState(x => ({ board: x.board.concat([{ id: Date.now(), name: n, date: months[x.evMonth] + ' 2026 · ' + x.evProj, color: projColor[x.evProj], cells: [x.evMonth], dashed: !x.evSolid }]), evName: '', adding: false })); this.showToast('ADDED TO THE 2026 BOARD'); },
+      editMode: s.editMode,
+      toggleEdit: () => this.setState(x => ({ editMode: !x.editMode })),
+      editLabel: s.editMode ? '✓ DONE EDITING' : '✎ EDIT ENTRIES',
+      editColor: s.editMode ? '#1e6e42' : '#6d6459',
+      rows2026: s.board.map(b => ({ ...this.mkRow(b.name, b.date, b.color, b.cells, b.dashed), remove: () => { const snapshot = this.state.board; this.setState(x => ({ board: x.board.filter(q => q.id !== b.id) })); this.showToast('ENTRY REMOVED', () => this.setState({ board: snapshot })); } })),
+      rows2027: [
+        this.mkRow('Accelerator — review & interviews', 'Window announced at the Dec 8 opening', '#9b1b22', [0, 1, 2], true),
+        this.mkRow('Biomedical Forum — annual gathering', '28–29 May 2027 · Split or Zagreb', '#6a4a8c', [4], true)
+      ],
+      exportCsv: () => {
+        const csv = ['Entry,Date,Kind'].concat(s.board.map(b => '"' + b.name + '","' + b.date + '","' + (b.dashed ? 'potential' : 'confirmed') + '"')).join('\n');
+        const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv); a.download = 'medx-calendar-2026.csv'; a.click();
+        this.showToast('CALENDAR EXPORTED · CSV');
+      },
+      exportPdf: () => this.showToast('PRINT-READY YEAR BOARD — GENERATED IN PRODUCTION'),
+      taskCount: String(tasks.length),
+      tasks: tasks.map(t => ({ title: t.title, who: t.who, ...fmtDue(t), done: () => { const rest = this.getTasks().filter(x => x.id !== t.id); const gone = t; this.saveTasks(rest); this.showToast('DONE — REMOVED FOR THE WHOLE TEAM', () => this.saveTasks(this.getTasks().concat([gone]))); } })),
+      taskDraft: s.taskDraft,
+      onTaskDraft: e => this.setState({ taskDraft: e.target.value }),
+      addTask: () => { const v = s.taskDraft.trim(); if (!v) { this.showToast('TYPE THE TASK FIRST'); return; } const d7 = new Date(); d7.setDate(d7.getDate() + 7); const due = d7.getFullYear() + '-' + String(d7.getMonth() + 1).padStart(2, '0') + '-' + String(d7.getDate()).padStart(2, '0'); this.saveTasks([{ id: Date.now(), title: v, who: 'YOU', due }].concat(this.getTasks())); this.setState({ taskDraft: '' }); this.showToast('TASK ADDED — IT SHOWS ON TODAY TOO'); },
+      keyDates: [
+        { sep: 'THIS YEAR — 2026' },
+        { d: 'SEP 1', t: 'Gala early-bird ends — €150 → €175', c: '#c9a962' },
+        { d: 'SEP 18–21', t: 'Building Bridges Boston · date announced soon', c: '#3f5f8a' },
+        { d: 'NOV 15', t: 'Final headcount to Hotel Esplanade', c: '#c9a962' },
+        { d: 'DEC 4–5', t: 'Plexus Week — conference, Donor Night, Gala', c: '#9b1b22' },
+        { d: 'DEC 8', t: 'Accelerator applications open', c: '#9b1b22' },
+        { sep: 'NEXT YEAR — 2027' },
+        { d: 'WINTER', t: 'Accelerator — two-phase review, then interviews', c: '#9b1b22' },
+        { d: 'MAY 28–29', t: 'Biomedical Forum gathering · Split or Zagreb', c: '#6a4a8c' }
+      ],
+      toastOn: !!s.toast, toastMsg: s.toast ? s.toast.msg : '',
+      toastUndoable: !!(s.toast && s.toast.undo),
+      toastUndo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

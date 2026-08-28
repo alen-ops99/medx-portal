@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus{outline:2px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Bridges Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">PROJECTS</span>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;width:180px;min-width:60px;flex:0 1 180px;box-sizing:border-box;cursor:text;overflow:hidden"><span style="color:#6d6459">⌕</span><span style="font-size:12px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search or type a task…</span></span>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:44px;display:flex;align-items:center;gap:20px">
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">PROJECTS</span>
+      <a href="Admin Plexus Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PLEXUS WEEK 2026</a>
+      <a href="Admin Accelerator Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">ACCELERATOR</a>
+      <a href="Admin Forum Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">BIOMEDICAL FORUM</a>
+      <span style="font:600 11px Inter,sans-serif;letter-spacing:.13em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">BUILDING BRIDGES</span>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-family:Fraunces,serif;font-size:30px">Building Bridges <i>in Biomedicine</i></span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;background:#e7ecf3;color:#31517e;padding:4px 8px">NEXT · BOSTON · SEP 18–21</span>
+        </div>
+        <div style="font-size:12.5px;color:#6d6459;margin-top:4px">Evenings connecting Croatian and international biomedicine · open registration, 40–50 guests per city</div>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Member Pages.dc.html" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" style-hover="background:#9b1b22;color:#fff">WHAT MEMBERS SEE — MANAGE ↗</a>
+    </div>
+    <div style="display:flex;gap:36px;align-items:baseline;border-top:1px solid rgba(32,27,22,.18);border-bottom:1px solid rgba(32,27,22,.18);padding:16px 2px;flex-wrap:wrap">
+      <span style="white-space:nowrap"><span style="font-family:Fraunces,serif;font-size:26px">4</span> <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">EVENTS · 4 CITIES, 3 COUNTRIES</span></span>
+      <span style="white-space:nowrap"><span style="font-family:Fraunces,serif;font-size:26px">150+</span> <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">GUESTS HOSTED</span></span>
+      <span style="white-space:nowrap"><span style="font-family:Fraunces,serif;font-size:26px">0</span> <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">BOSTON SIGN-UPS · OF 80</span></span>
+      <span style="white-space:nowrap"><span style="font-family:Fraunces,serif;font-size:26px">{{ cdDays }}</span> <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">DAYS TO BOSTON · SEP 18–21</span></span>
+    </div>
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">EVENTS</span>
+          <span style="font-size:11.5px;color:#6d6459">one row per city — recaps publish to the member page</span>
+          <div style="flex:1"></div>
+          <span onClick="{{ newCityToggle }}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">+ NEW CITY</span>
+        </div>
+        <sc-if value="{{ newCityOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;align-items:center;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);flex-wrap:wrap">
+            <input value="{{ ncCity }}" onChange="{{ onNcCity }}" placeholder="City — e.g. Munich" style="flex:1;min-width:130px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16"></input>
+            <input value="{{ ncWhen }}" onChange="{{ onNcWhen }}" placeholder="When — e.g. Spring 2027" style="width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16"></input>
+            <span onClick="{{ ncAdd }}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">ADD</span>
+          </div>
+        </sc-if>
+        <sc-for list="{{ events }}" as="e" hint-placeholder-count="6">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;width:76px;flex:none">{{ e.date }}</span>
+            <span style="flex:1;min-width:0"><span style="display:block;font-size:13.5px;font-weight:600">{{ e.city }}</span><span style="display:block;font-size:11px;color:#6d6459">{{ e.venue }}</span></span>
+            <sc-if value="{{ e.upcoming }}" hint-placeholder-val="{{ false }}"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e7ecf3;color:#31517e;padding:3px 8px;white-space:nowrap">UPCOMING</span></sc-if>
+            <sc-if value="{{ e.past }}" hint-placeholder-val="{{ true }}"><span style="font-size:11.5px;color:#6d6459;white-space:nowrap">{{ e.stats }}</span></sc-if>
+            <a href="{{ e.href }}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap" style-hover="color:#201b16">{{ e.action }}</a>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #3f5f8a;background:#fff">
+          <div style="padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">BOSTON — READY TO RUN</span></div>
+          <div style="padding:12px 20px 16px;display:flex;flex-direction:column;gap:10px">
+          <sc-for list="{{ checklist }}" as="c" hint-placeholder-count="4">
+            <div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(32,27,22,.06)">
+              <span style="width:16px;height:16px;border:1.5px solid {{ c.bd }};background:{{ c.bg }};display:inline-flex;align-items:center;justify-content:center;color:#fff;font:700 10px Inter,sans-serif;flex:none">{{ c.tick }}</span>
+              <span style="font-size:12.5px;flex:1;color:{{ c.fg }}">{{ c.name }}</span>
+            </div>
+          </sc-for>
+          <span style="font-size:11px;color:#6d6459">Invitations and reminders queue in the Outbox, as always. Guest counts for past editions live on each recap — fill them once and the member page updates.</span>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff">
+          <div style="display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">FOLLOW-UPS</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">never lose a good contact again</span></div>
+          <div style="padding:10px 20px 16px;display:flex;flex-direction:column;gap:6px">
+            <sc-for list="{{ fu }}" as="f" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.07)">
+                <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">{{ f.name }}</span><span style="display:block;font-size:11.5px;color:#6d6459;margin-top:1px">{{ f.why }}</span></span>
+                <span style="font:600 8px Inter,sans-serif;letter-spacing:.11em;background:#eee9df;color:#4a4239;padding:3px 7px;white-space:nowrap">{{ f.tag }}</span>
+                <span onClick="{{ f.remove }}" title="Done — remove" style="font:600 11px Inter,sans-serif;color:#9a9086;cursor:pointer" style-hover="color:#1e6e42">✓</span>
+              </div>
+            </sc-for>
+            <input value="{{ fuName }}" onChange="{{ onFuName }}" placeholder="Who — e.g. Dr. Sarah Chen, Harvard" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;margin-top:4px">
+            <div style="display:flex;gap:8px">
+              <input value="{{ fuWhy }}" onChange="{{ onFuWhy }}" placeholder="Why — e.g. wants to mentor an Accelerator fellow" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;min-width:0">
+              <span onClick="{{ addFu }}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;display:flex;align-items:center" style-hover="background:#7e151b">ADD</span>
+            </div>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">AFTER EACH EVENING</span>
+          <span style="font-size:12.5px;color:#6d6459;line-height:1.6">Upload a few photos, type the guest count, press publish — the city card on the member page updates itself. Thank-you notes go out the next morning.</span>
+          <a href="Admin Inbox.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">PREPARE THANK-YOU EMAIL →</a>
+        </div>
+      </div>
+    </div>
+    <div style="border:1px solid rgba(32,27,22,.14);background:#fff;margin-top:22px">
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">STATS FOR MEDIA &amp; SPONSORS</span>
+        <span style="font-size:11.5px;color:#6d6459">pick a scope, type over any number — then copy the line for a press kit or sponsor deck</span>
+        <div style="flex:1"></div>
+        <span onClick="{{ scBridges }}" style="padding:6px 11px;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;cursor:pointer;background:{{ chipBridges.bg }};color:{{ chipBridges.fg }};border:1px solid {{ chipBridges.bd }}">BUILDING BRIDGES</span>
+        <span onClick="{{ scAll }}" style="padding:6px 11px;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;cursor:pointer;background:{{ chipAll.bg }};color:{{ chipAll.fg }};border:1px solid {{ chipAll.bd }}">ALL MED&amp;X</span>
+        <span onClick="{{ scYear }}" style="padding:6px 11px;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;cursor:pointer;background:{{ chipYear.bg }};color:{{ chipYear.fg }};border:1px solid {{ chipYear.bd }}">2026 ONLY</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr)">
+        <div style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.08)">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">GUESTS HOSTED</div>
+          <input value="{{ stGuests }}" onChange="{{ onStGuests }}" style="border:none;border-bottom:1px dashed rgba(32,27,22,.3);background:transparent;font:600 26px Fraunces,serif;color:#201b16;width:100px;padding:2px 0;margin-top:4px">
+        </div>
+        <div style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.08)">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">CITIES</div>
+          <input value="{{ stCities }}" onChange="{{ onStCities }}" style="border:none;border-bottom:1px dashed rgba(32,27,22,.3);background:transparent;font:600 26px Fraunces,serif;color:#201b16;width:100px;padding:2px 0;margin-top:4px">
+        </div>
+        <div style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.08)">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">COUNTRIES</div>
+          <input value="{{ stCountries }}" onChange="{{ onStCountries }}" style="border:none;border-bottom:1px dashed rgba(32,27,22,.3);background:transparent;font:600 26px Fraunces,serif;color:#201b16;width:100px;padding:2px 0;margin-top:4px">
+        </div>
+        <div style="padding:16px 20px">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">SPEAKERS</div>
+          <input value="{{ stSpeakers }}" onChange="{{ onStSpeakers }}" style="border:none;border-bottom:1px dashed rgba(32,27,22,.3);background:transparent;font:600 26px Fraunces,serif;color:#201b16;width:100px;padding:2px 0;margin-top:4px">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;border-top:1px solid rgba(32,27,22,.1);padding:12px 20px;flex-wrap:wrap">
+        <span style="font-family:Fraunces,serif;font-size:15px;font-style:italic;flex:1;min-width:240px">“{{ statLine }}”</span>
+        <span onClick="{{ copyLine }}" style="padding:9px 14px;background:{{ copyBg }};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">{{ copyLabel }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() { document.title = 'Med&X Admin — Building Bridges hub'; }
+  state = {
+    scope: 'bridges', copied: false, fuName: '', fuWhy: '', newCityOpen: false, ncCity: '', ncWhen: '', extraEvents: [],
+    stats: {
+      bridges: { guests: '150+', cities: '4', countries: '3', speakers: '12' },
+      all: { guests: '2,500+', cities: '6', countries: '4', speakers: '50+' },
+      y2026: { guests: '90+', cities: '2', countries: '2', speakers: '8' }
+    },
+    fu: [
+      { id: 1, name: 'Dr. Sarah Chen — Boston postdoc', why: 'Offered to mentor an Accelerator fellow', tag: 'ACCELERATOR' },
+      { id: 2, name: 'Ivan Peros — Boston biotech', why: 'Asked about sponsoring the next evening', tag: 'SPONSOR' }
+    ]
+  };
+  setStat(key, v) { this.setState(s => ({ copied: false, stats: { ...s.stats, [s.scope]: { ...s.stats[s.scope], [key]: v } } })); }
+  renderVals() {
+    const s = this.state;
+    const st = s.stats[s.scope];
+    const scopeName = s.scope === 'bridges' ? 'Building Bridges in Biomedicine' : s.scope === 'all' ? 'across all Med&X projects' : 'Med&X in 2026';
+    const line = st.guests + ' guests · ' + st.cities + ' cities · ' + st.countries + ' countries · ' + st.speakers + ' speakers — ' + scopeName;
+    const chip = on => on ? { bg: '#201b16', fg: '#fff', bd: '#201b16' } : { bg: '#f6f2ea', fg: '#6d6459', bd: 'rgba(32,27,22,.25)' };
+    return {
+      stGuests: st.guests, stCities: st.cities, stCountries: st.countries, stSpeakers: st.speakers,
+      onStGuests: e => this.setStat('guests', e.target.value), onStCities: e => this.setStat('cities', e.target.value),
+      onStCountries: e => this.setStat('countries', e.target.value), onStSpeakers: e => this.setStat('speakers', e.target.value),
+      chipBridges: chip(s.scope === 'bridges'), chipAll: chip(s.scope === 'all'), chipYear: chip(s.scope === 'y2026'),
+      scBridges: () => this.setState({ scope: 'bridges', copied: false }), scAll: () => this.setState({ scope: 'all', copied: false }), scYear: () => this.setState({ scope: 'y2026', copied: false }),
+      statLine: line, copyBg: s.copied ? '#1e6e42' : '#201b16', copyLabel: s.copied ? '✓ COPIED' : 'COPY FOR PRESS',
+      copyLine: () => { try { navigator.clipboard.writeText(line); } catch (e) {} this.setState({ copied: true }); },
+      fuName: s.fuName, fuWhy: s.fuWhy,
+      onFuName: e => this.setState({ fuName: e.target.value }), onFuWhy: e => this.setState({ fuWhy: e.target.value }),
+      addFu: () => { const n = s.fuName.trim(); if (!n) return; this.setState(x => ({ fu: x.fu.concat([{ id: Date.now(), name: n, why: x.fuWhy.trim() || 'Follow up', tag: 'FOLLOW UP' }]), fuName: '', fuWhy: '' })); },
+      fu: s.fu.map(f => ({ ...f, remove: () => this.setState(x => ({ fu: x.fu.filter(y => y.id !== f.id) })) })),
+      cdDays: String(Math.max(0, Math.floor((new Date('2026-09-18T18:00:00-04:00') - new Date()) / 86400000))),
+      newCityOpen: s.newCityOpen, newCityToggle: () => this.setState(x => ({ newCityOpen: !x.newCityOpen })),
+      ncCity: s.ncCity, ncWhen: s.ncWhen,
+      onNcCity: e => this.setState({ ncCity: e.target.value }), onNcWhen: e => this.setState({ ncWhen: e.target.value }),
+      ncAdd: () => { const c = s.ncCity.trim(); if (!c) return; this.setState(x => ({ extraEvents: [{ date: (x.ncWhen.trim() || 'TBD').toUpperCase(), city: c, venue: 'Venue to scout', upcoming: true, past: false, stats: '', action: 'PLAN →', href: 'Admin Member Pages.dc.html' }].concat(x.extraEvents), ncCity: '', ncWhen: '', newCityOpen: false })); },
+      events: s.extraEvents.concat([
+        { date: 'SEP 18–21', city: 'Boston', venue: 'Venue announced soon · exact date TBA', upcoming: true, past: false, stats: '', action: 'MANAGE →', href: 'Admin Member Pages.dc.html' },
+        { date: 'EDITION 04', city: 'Zürich', venue: 'ETH Zentrum', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' },
+        { date: 'EDITION 03', city: 'New York', venue: 'Consulate General of Croatia', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' },
+        { date: 'EDITION 02', city: 'London', venue: 'Embassy of Croatia', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' },
+        { date: 'EDITION 01', city: 'Washington DC', venue: 'NIH Campus', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' }
+      ]),
+      checklist: [
+        { name: 'Dates locked — Sep 18–21 window', done: true },
+        { name: 'Venue — scouting, announced soon', done: false },
+        { name: 'Sign-up form live (80 spots)', done: true },
+        { name: 'Speakers confirmed', done: false },
+        { name: 'Invitation campaign queued', done: false },
+        { name: 'Reminders scheduled (7 / 2 days)', done: false }
+      ].map(c => ({ name: c.name, tick: c.done ? '✓' : '', bg: c.done ? '#2f7d4f' : 'transparent', bd: c.done ? '#2f7d4f' : 'rgba(32,27,22,.35)', fg: c.done ? '#201b16' : '#6d6459' }))
+    };
+  }
+}
+</script>
+</body>
+</html>

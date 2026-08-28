@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus,select:focus{outline:1px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Registrations" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <a href="Admin Plexus Hub.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PROJECTS</a>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box">PEOPLE</span>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <a href="Admin People.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6d6459" style-hover="color:#201b16">← PEOPLE</a>
+          <span style="font-family:Fraunces,serif;font-size:30px">Registrations</span>
+        </div>
+        <div style="font-size:12.5px;color:#6d6459;margin-top:4px">Every sign-up across every event — filter, open the file, act. New submissions appear here the second the form is sent.</div>
+      </div>
+      <div style="flex:1"></div>
+      <span onClick="{{ emailSel }}" style="padding:10px 15px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" style-hover="border-color:#201b16">EMAIL SELECTED · {{ selCount }}</span>
+      <span onClick="{{ exportCsv }}" style="padding:10px 15px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" style-hover="background:#7e151b">EXPORT CSV · {{ rowCount }}</span>
+    </div>
+    <div style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(4,1fr)">
+      <div style="padding:14px 18px;border-right:1px solid rgba(32,27,22,.1)"><div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">ALL REGISTRATIONS</div><div style="font-family:Fraunces,serif;font-size:26px;margin-top:2px">27</div></div>
+      <div style="padding:14px 18px;border-right:1px solid rgba(32,27,22,.1)"><div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">CONFERENCE</div><div style="font-family:Fraunces,serif;font-size:26px;margin-top:2px">2 <span style="font-size:13px;color:#6d6459">of 100</span></div></div>
+      <div style="padding:14px 18px;border-right:1px solid rgba(32,27,22,.1)"><div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">GALA</div><div style="font-family:Fraunces,serif;font-size:26px;margin-top:2px">25 <span style="font-size:13px;color:#9b1b22">4 unpaid</span></div></div>
+      <div style="padding:14px 18px"><div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">BOSTON</div><div style="font-family:Fraunces,serif;font-size:26px;margin-top:2px">0 <span style="font-size:13px;color:#6d6459">of 80</span></div></div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 13px;flex:1;min-width:220px"><span style="color:#6d6459">⌕</span><input value="{{ q }}" onChange="{{ onQ }}" placeholder="Name, email, note — e.g. “vegan”, “pending”, “kbc”" style="border:none;background:transparent;font:400 13px Inter,sans-serif;color:#201b16;flex:1;outline:none;padding:0"></span>
+      <select value="{{ evFilter }}" onChange="{{ onEvFilter }}" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 11px;font:600 11px Inter,sans-serif;color:#201b16"><option>ALL EVENTS</option><option>PLEXUS CONFERENCE</option><option>GALA EVENING</option><option>BOSTON</option><option>DONOR NIGHT</option></select>
+      <sc-for list="{{ statusChips }}" as="sc" hint-placeholder-count="3">
+        <span onClick="{{ sc.go }}" style="padding:9px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;background:{{ sc.bg }};color:{{ sc.fg }};border:1px solid {{ sc.bd }};white-space:nowrap">{{ sc.name }}</span>
+      </sc-for>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 330px;gap:22px;align-items:start">
+      <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:9px 16px;border-bottom:1px solid rgba(32,27,22,.14);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;align-items:center"><span onClick="{{ selAll }}" title="Select everything shown" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:{{ allBg }}"></span><span>WHO</span><span>EVENT</span><span>STATUS</span><span>WHEN</span></div>
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="9">
+          <div onClick="{{ r.open }}" style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:11px 16px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center;cursor:pointer;background:{{ r.bg }}">
+            <span onClick="{{ r.tick }}" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:{{ r.tickBg }};flex:none"></span>
+            <span style="min-width:0"><span style="display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span><span style="display:block;font-size:10.5px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.email }}</span></span>
+            <span style="font-size:11.5px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.event }}</span>
+            <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:{{ r.stBg }};color:{{ r.stFg }};white-space:nowrap;justify-self:start">{{ r.status }}</span>
+            <span style="font:600 9px Inter,sans-serif;color:#9a9086;white-space:nowrap">{{ r.when }}</span>
+          </div>
+        </sc-for>
+        <sc-if value="{{ rowsEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:24px 16px;text-align:center;font-size:13px;color:#6d6459">Nothing matches these filters.</div></sc-if>
+        <div style="padding:10px 16px;font-size:11px;color:#6d6459">{{ footNote }}</div>
+      </div>
+      <div style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;position:sticky;top:16px">
+        <div style="padding:15px 18px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;gap:12px;align-items:center">
+          <span style="width:38px;height:38px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none">{{ pIni }}</span>
+          <span style="min-width:0"><span style="display:block;font-size:14.5px;font-weight:600">{{ pName }}</span><span style="display:block;font-size:11px;color:#6d6459">{{ pMeta }}</span></span>
+        </div>
+        <div style="padding:12px 18px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid rgba(32,27,22,.08)">
+          <sc-for list="{{ pFacts }}" as="f" hint-placeholder-count="4">
+            <div style="display:flex;gap:10px;align-items:baseline"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;width:86px;flex:none">{{ f.k }}</span><span style="font-size:12.5px;flex:1;line-height:1.5">{{ f.v }}</span></div>
+          </sc-for>
+        </div>
+        <div style="padding:12px 18px;display:flex;gap:8px;flex-wrap:wrap">
+          <sc-for list="{{ pActions }}" as="ac" hint-placeholder-count="3">
+            <span onClick="{{ ac.run }}" style="padding:8px 12px;background:{{ ac.bg }};border:1px solid {{ ac.bd }};color:{{ ac.fg }};font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap" style-hover="border-color:#201b16">{{ ac.label }}</span>
+          </sc-for>
+        </div>
+        <div style="padding:0 18px 14px;font-size:11px;color:#6d6459;line-height:1.5">The full person page — membership, messages, money history — opens from <a href="Admin People.dc.html">People</a>.</div>
+      </div>
+    </div>
+  </div>
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#201b16;color:#f6f2ea;padding:12px 18px;font:600 10px Inter,sans-serif;letter-spacing:.14em;z-index:80;border-left:3px solid #c9a962;display:flex;gap:14px;align-items:center;white-space:nowrap">{{ toastMsg }}<sc-if value="{{ toastUndoable }}" hint-placeholder-val="{{ false }}"><span onClick="{{ toastUndo }}" style="color:#c9a962;cursor:pointer">UNDO</span></sc-if></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1360, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { q: '', evFilter: 'ALL EVENTS', status: 'ALL', sel: 0, ticked: [], cancelConfirm: null, toast: null,
+    regs: [
+      { id: 1, name: 'Ivana Barišić', email: 'ivana.barisic@kbc-zagreb.hr', event: 'Gala Evening', status: 'PAID', when: 'AUG 6', facts: [['SEAT', 'Paid €150 · card · table unassigned'], ['MEAL', 'Vegetarian'], ['NOTE', 'Asked about an invoice for her clinic — thread in Inbox'], ['SOURCE', 'Member portal — My Plexus form']] },
+      { id: 2, name: 'Simon Mikulandra', email: 'simonmikulandra@yahoo.com', event: 'Gala Evening', status: 'PAID', when: 'AUG 8', facts: [['SEAT', 'VIP · paid · table T1'], ['MEAL', 'Standard'], ['SOURCE', 'VIP link']] },
+      { id: 3, name: 'Nikica Darabos', email: 'n.darabos@gmail.com', event: 'Gala Evening', status: 'PENDING', when: 'JUL 29', facts: [['SEAT', 'Reserved · payment pending'], ['REMINDER', 'Queues to the Outbox from here'], ['SOURCE', 'Public registration form']] },
+      { id: 4, name: 'Tomislav Šarić', email: 'tomislav.saric@gmail.com', event: 'Gala Evening', status: 'PENDING', when: 'AUG 1', facts: [['SEAT', 'Reserved · payment pending'], ['SOURCE', 'Public registration form']] },
+      { id: 5, name: 'Jelena Vidić', email: 'jvidic@mef.hr', event: 'Gala Evening', status: 'PENDING', when: 'AUG 3', facts: [['SEAT', 'Reserved · payment pending'], ['MEAL', 'Vegan'], ['SOURCE', 'Member portal']] },
+      { id: 6, name: 'Davor Klarić', email: 'davor.klaric@inet.hr', event: 'Gala Evening', status: 'PENDING', when: 'AUG 5', facts: [['SEAT', 'Reserved · €150 outstanding'], ['SOURCE', 'Public registration form']] },
+      { id: 7, name: 'KBC cardiology — table of four', email: 'invoice · kbc-zagreb.hr', event: 'Gala Evening', status: 'PAID', when: 'AUG 2', facts: [['SEATS', '4 · paid by invoice INV-2026-013'], ['TABLE', 'T2'], ['SOURCE', 'Invoice booking']] },
+      { id: 8, name: 'Marko Petrović', email: 'marko.petrovic@mefst.hr', event: 'Plexus Conference', status: 'FREE', when: 'JUL 20', facts: [['ENTRY', 'Free · confirmed'], ['CHECK-IN', 'QR in his member wallet'], ['SOURCE', 'Member portal — My Plexus']] },
+      { id: 9, name: 'Dr. Maja Horvat', email: 'maja.horvat@kcus.ba', event: 'Plexus Conference', status: 'FREE', when: 'AUG 9', facts: [['ENTRY', 'Free · confirmed'], ['CHECK-IN', 'QR in her member wallet'], ['SOURCE', 'Member portal — My Plexus']] }
+    ]};
+  componentDidMount() { document.title = 'Med&X Admin — Registrations'; }
+  componentWillUnmount() { clearTimeout(this.tt); }
+  showToast(msg, undo) { clearTimeout(this.tt); this.setState({ toast: { msg, undo: undo || null } }); this.tt = setTimeout(() => this.setState({ toast: null }), 4200); }
+  renderVals() {
+    const s = this.state;
+    const q = s.q.trim().toLowerCase();
+    const evMap = { 'ALL EVENTS': null, 'PLEXUS CONFERENCE': 'Plexus Conference', 'GALA EVENING': 'Gala Evening', 'BOSTON': 'Building Bridges Boston', 'DONOR NIGHT': 'Donor Night' };
+    const list = s.regs.filter(r =>
+      (!evMap[s.evFilter] || r.event === evMap[s.evFilter]) &&
+      (s.status === 'ALL' || r.status === s.status) &&
+      (!q || (r.name + ' ' + r.email + ' ' + r.event + ' ' + r.status + ' ' + r.facts.map(f => f.join(' ')).join(' ')).toLowerCase().includes(q)));
+    const stStyle = st => st === 'PAID' ? ['#e4efe7', '#22563a'] : st === 'PENDING' ? ['#f7e3e4', '#7e151b'] : ['#eee9df', '#4a4239'];
+    const selIdx = Math.min(s.sel, Math.max(0, list.length - 1));
+    const p = list[selIdx] || s.regs[0];
+    const chip = on => on ? { bg: '#201b16', fg: '#f6f2ea', bd: '#201b16' } : { bg: '#fff', fg: '#6d6459', bd: 'rgba(32,27,22,.2)' };
+    const ghost = { bg: 'transparent', bd: 'rgba(32,27,22,.2)', fg: '#201b16' };
+    const acts = [{ label: 'RESEND CONFIRMATION', ...ghost, run: () => this.showToast('CONFIRMATION RE-EMAILED TO ' + p.email.toUpperCase()) },
+      { label: 'EMAIL', bg: '#9b1b22', bd: '#9b1b22', fg: '#fff', run: () => { location.href = 'Admin Inbox.dc.html'; } }];
+    if (p.status === 'PENDING') acts.push({ label: 'MARK PAID', ...ghost, run: () => { const snap = JSON.parse(JSON.stringify(this.state.regs)); this.setState(x => ({ regs: x.regs.map(r => r.id === p.id ? { ...r, status: 'PAID' } : r) })); this.showToast('MARKED PAID — MONEY & GALA PAGES UPDATE', () => this.setState({ regs: snap })); } });
+    acts.push({ label: s.cancelConfirm === p.id ? 'SURE? CANCEL' : 'CANCEL REGISTRATION', bg: 'transparent', bd: 'rgba(32,27,22,.2)', fg: s.cancelConfirm === p.id ? '#9b1b22' : '#6d6459', run: () => { if (s.cancelConfirm !== p.id) { this.setState({ cancelConfirm: p.id }); return; } const snap = JSON.parse(JSON.stringify(this.state.regs)); this.setState(x => ({ regs: x.regs.filter(r => r.id !== p.id), cancelConfirm: null, sel: 0 })); this.showToast('CANCELLED — THE SEAT IS FREED', () => this.setState({ regs: snap })); } });
+    return {
+      q: s.q, onQ: e => this.setState({ q: e.target.value, sel: 0 }),
+      evFilter: s.evFilter, onEvFilter: e => this.setState({ evFilter: e.target.value, sel: 0 }),
+      statusChips: ['ALL', 'PAID', 'PENDING', 'FREE'].map(st => ({ name: st, ...chip(s.status === st), go: () => this.setState({ status: st, sel: 0 }) })),
+      rows: list.map((r, i) => { const c = stStyle(r.status); return { name: r.name, email: r.email, event: r.event, when: r.when, status: r.status, stBg: c[0], stFg: c[1], bg: i === selIdx ? '#f6f2ea' : '#fff', tickBg: s.ticked.includes(r.id) ? '#9b1b22' : 'transparent', tick: e => { if (e && e.stopPropagation) e.stopPropagation(); this.setState(x => ({ ticked: x.ticked.includes(r.id) ? x.ticked.filter(t => t !== r.id) : x.ticked.concat([r.id]) })); }, open: () => this.setState({ sel: i, cancelConfirm: null }) }; }),
+      rowsEmpty: list.length === 0,
+      rowCount: String(list.length),
+      selCount: String(s.ticked.length),
+      allBg: s.ticked.length && s.ticked.length === list.length ? '#9b1b22' : 'transparent',
+      selAll: () => this.setState(x => ({ ticked: x.ticked.length === list.length ? [] : list.map(r => r.id) })),
+      footNote: 'Showing ' + list.length + ' of 27 registrations · in production the rest stream in as you scroll',
+      emailSel: () => { if (!s.ticked.length) { this.showToast('TICK AT LEAST ONE ROW FIRST'); return; } this.showToast('EMAIL TO ' + s.ticked.length + ' PEOPLE — QUEUED IN THE OUTBOX FOR YOUR OK'); },
+      exportCsv: () => {
+        const csv = ['Name,Email,Event,Status,When'].concat(list.map(r => '"' + r.name + '","' + r.email + '","' + r.event + '","' + r.status + '","' + r.when + '"')).join('\n');
+        const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv); a.download = 'medx-registrations.csv'; a.click();
+        this.showToast('EXPORTED ' + list.length + ' ROWS · CSV');
+      },
+      pIni: p.name.replace('Dr. ', '').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase(),
+      pName: p.name, pMeta: p.event + ' · registered ' + p.when,
+      pFacts: p.facts.map(([k, v]) => ({ k, v })),
+      pActions: acts,
+      toastOn: !!s.toast, toastMsg: s.toast ? s.toast.msg : '',
+      toastUndoable: !!(s.toast && s.toast.undo),
+      toastUndo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

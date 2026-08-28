@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+</style>
+</helmet>
+<div data-screen-label="Gala Evening" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <dc-import name="Portal Chrome" active="Gala" hint-size="100%,150px"></dc-import>
+  <div style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">PROJECTS</span>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">MED&amp;X GALA EVENING</span>
+  </div>
+    <div style="position:relative;overflow:hidden">
+    <img src="assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.7) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
+    <div style="position:relative;padding:58px 36px 48px;display:flex;flex-direction:column;align-items:center;text-align:center">
+      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">MED&amp;X ANNUAL AWARDS · BLACK TIE · SEATS LIMITED</span>
+      <div style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">Med&amp;X Gala <i style="color:#c9a962">Evening</i></div>
+      <div style="font-family:Fraunces,serif;font-style:italic;font-size:21px;color:#c9a962;margin-top:14px">Saturday, 5 December 2026 · 19:00</div>
+      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:8px">Where Croatian medicine and science meet the world · Grand Ballroom, Hotel Esplanade Zagreb</div>
+      <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
+        <a href="My Plexus.dc.html" style="padding:13px 22px;background:#c9a962;color:#191512;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none" style-hover="background:#b8994f;color:#191512">RESERVE YOUR SEAT →</a>
+        <span onClick="{{ dlIcs }}" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" style-hover="border-color:#f7f1e6">ADD TO CALENDAR</span>
+      </div>
+      <div style="font-size:11px;color:rgba(247,241,230,.55);margin-top:10px">One form covers the conference and the Gala — RESERVE YOUR SEAT opens My Plexus &amp; Register.</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
+        <span onClick="{{ tgFollow }}" style="width:34px;height:18px;flex:none;cursor:pointer;background:{{ followBg }};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:{{ followKnob }}"></span></span>
+        <span style="display:flex;flex-direction:column;gap:3px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">GET UPDATES FROM THE GALA · {{ followLabel }}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">Email + portal alerts · manage topics in Profile &amp; settings</span></span>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">THE EVENING BEGINS IN</span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">{{ cdDays }}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">DAYS</span></span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">{{ cdHrs }}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">HOURS</span></span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">{{ cdMin }}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">MINUTES</span></span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">DECEMBER 5, 19:00 · HOTEL ESPLANADE</span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">BLACK TIE / FORMAL ATTIRE</span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">SEATS LIMITED · €150 UNTIL SEP 1 · €175 AFTER</span>
+  </div>
+  <div style="padding:0 36px">
+    <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 4px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">ON STAGE THAT NIGHT</span>
+      <a href="Plexus Program.dc.html" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;margin-left:10px">ALL SPEAKERS →</a>
+    </div>
+    <div style="font-size:13px;color:#4a4239;max-width:640px;line-height:1.55">The heads of the world's foremost hospitals and universities, in Zagreb, in person, for one evening.</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:18px 0 10px">
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239">PORTRAIT · LORD SMITH</div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">Lord Smith of Finsbury</span><span style="font-size:11.5px;color:#4a4239">Chancellor, University of Cambridge</span></div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239">PORTRAIT · J. SPISSO</div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">Johnese Spisso, MPA</span><span style="font-size:11.5px;color:#4a4239">President, UCLA Health</span></div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239">PORTRAIT · M. DEL CARMEN</div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">Dr Marcela del Carmen</span><span style="font-size:11.5px;color:#4a4239">President, Massachusetts General Hospital</span></div>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239">PORTRAIT · K. SMITH</div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">Dr Kevin Smith</span><span style="font-size:11.5px;color:#4a4239">President &amp; CEO, University Health Network</span></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:baseline;justify-content:center;gap:14px;padding:16px 0 10px">
+      <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">FEATURED PERFORMERS</span>
+      <span style="padding:2px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">{{ perfBadge }}</span>
+    </div>
+    <div style="display:flex;gap:16px;justify-content:center;padding-bottom:26px">
+      <sc-for list="{{ performers }}" as="p" hint-placeholder-count="2">
+        <div style="width:260px;border:1px solid rgba(201,169,98,.5);background:#191512;color:#f7f1e6;padding:16px;display:flex;gap:12px;align-items:center">
+          <span style="width:44px;height:44px;background:rgba(201,169,98,.16);flex:none;display:flex;align-items:center;justify-content:center;font:600 14px Fraunces,serif;color:#c9a962">{{ p.init }}</span>
+          <span><span style="display:block;font-family:Fraunces,serif;font-size:15px">{{ p.name }}</span><span style="display:block;font-size:11.5px;color:rgba(247,241,230,.6)">{{ p.role }}</span></span>
+        </div>
+      </sc-for>
+    </div>
+  <div style="background:#191512;color:#f7f1e6;padding:30px 32px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:11px;margin:2px 0 24px">
+      <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">02 · WHY WE GATHER</span>
+      <span style="font-family:Fraunces,serif;font-size:23px;line-height:1.3;max-width:660px">Accelerating Croatian medicine and science through <i style="color:#c9a962">international collaboration</i>.</span>
+      <span style="font-size:12.5px;color:rgba(247,241,230,.7);line-height:1.6;max-width:680px">This is the night Croatian medicine and science meet the world. Over dinner and a shared table, the evening turns to the challenges and opportunities of international biomedical collaboration, with panels on high-performance leadership. Every seat is placed to build a bridge.</span>
+      <span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:2px">
+        <span style="padding:4px 9px;border:1px solid rgba(201,169,98,.5);color:#c9a962;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">SEATING LIMITED BY DESIGN</span>
+        <span style="padding:4px 9px;border:1px solid rgba(201,169,98,.5);color:#c9a962;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">HIGH-PERFORMANCE LEADERSHIP PANELS</span>
+      </span>
+      <a href="My Plexus.dc.html" style="margin-top:6px;padding:12px 20px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;text-decoration:none" style-hover="background:#b8994f;color:#191512">RSVP · {{ galaPrice }} →</a>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;gap:12px;padding:24px 0">
+      <img src="assets/photo-candlelit.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+      <img src="assets/photo-ballroom.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+      <img src="assets/photo-hall.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+      <div style="background:#efe7d8;padding:16px 18px;display:flex;flex-direction:column;justify-content:center;gap:7px">
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#9b1b22">MOMENTS FROM PREVIOUS GALAS</span>
+        <span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;line-height:1.35;color:#191512">World-class speakers, bridge-building at one table.</span>
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">ALL PHOTOS →</span>
+      </div>
+    </div>
+    <div style="border-top:1px solid rgba(25,21,18,.16);padding-bottom:8px">
+      <div style="display:grid;grid-template-columns:1fr 380px;gap:44px;align-items:start">
+        <div>
+        <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 12px">
+          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">03</span>
+          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">THE EVENING AT A GLANCE</span>
+        </div>
+        <div style="display:flex;gap:18px;align-items:baseline;padding:13px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;width:56px;flex:none">19:00</span>
+          <span style="font-family:Fraunces,serif;font-size:16.5px">Welcome reception and champagne</span>
+        </div>
+        <div style="display:flex;gap:18px;align-items:baseline;padding:13px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;width:56px;flex:none">20:00</span>
+          <span style="font-family:Fraunces,serif;font-size:16.5px;flex:1">Gala dinner, keynotes and panels</span>
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">UNTIL 23:30</span>
+        </div>
+        <div style="display:flex;gap:18px;align-items:baseline;padding:13px 0">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6e5626;width:56px;flex:none">21:45</span>
+          <span style="font-family:Fraunces,serif;font-size:16.5px">Med&amp;X Annual Awards <i style="color:#9b1b22">ceremony</i></span>
+        </div>
+        <div style="font-family:Fraunces,serif;font-style:italic;font-size:13.5px;color:#4a4239;line-height:1.6;padding:4px 0 14px;max-width:640px">Panels with our speakers on high-performance leadership and the challenges and opportunities of international biomedical collaboration. The Awards honor those who did the most to internationalize Croatian medicine and science this year. Detailed program follows soon.</div>
+        </div>
+        <div style="padding-top:24px;display:flex;flex-direction:column;gap:10px">
+          <div style="border:1px solid rgba(201,169,98,.8);padding:9px">
+            <img src="assets/photo-candlelit.jpg" alt="" style="width:100%;height:210px;object-fit:cover;display:block">
+          </div>
+          <div style="display:flex;align-items:center">
+            <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#4a4239">GALA 2025 · HOTEL ESPLANADE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div style="display:flex;align-items:center;gap:20px;padding:18px 36px 30px;border-top:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">Questions about the Gala · seats, tables, dietary needs?</span>
+    <span style="font-size:12px;color:#4a4239">Message us · replies land right here in your portal inbox.</span>
+    <div style="flex:1"></div>
+    <a href="Messages.dc.html" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#7e151b;color:#f7f1e6">MESSAGE US →</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;performersAnnounced&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Admin state&quot;}}">
+class Component extends DCLogic {
+  state = { follow: false };
+  componentDidMount() { this.tick = setInterval(() => this.forceUpdate(), 30000); }
+  componentWillUnmount() { clearInterval(this.tick); }
+  renderVals() {
+    const ms = Math.max(0, new Date('2026-12-05T19:00:00+01:00') - new Date());
+    const pad = (n) => String(n).padStart(2, '0');
+    const announced = this.props.performersAnnounced ?? false;
+    return {
+      perfBadge: announced ? 'ICONIC CROATIAN MUSICIANS' : 'TWO PERFORMERS CONFIRMED · NAMES ANNOUNCED CLOSER TO DECEMBER',
+      performers: announced
+        ? [{ init: 'TC', name: 'Tatiana “Tajči” Cameron', role: 'Croatian-American vocalist' }, { init: 'AG', name: 'Ante Gelo', role: 'Guitarist' }]
+        : [{ init: '♪', name: 'Headline performer — announced this autumn', role: 'Iconic Croatian vocalist · confirmed' }, { init: '♪', name: 'Second performer — announced this autumn', role: 'Acclaimed Croatian instrumentalist · confirmed' }],
+      cdDays: String(Math.floor(ms / 86400000)),
+      galaPrice: new Date() < new Date('2026-09-01T00:00:00+02:00') ? '€150' : '€175',
+      dlIcs: () => {
+        const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MedX//Portal//EN','BEGIN:VEVENT','UID:gala2026@medx.hr','DTSTAMP:20260819T090000Z','DTSTART;TZID=Europe/Zagreb:20261205T190000','DTEND;TZID=Europe/Zagreb:20261205T233000','SUMMARY:Med&X Gala Evening 2026','LOCATION:Grand Ballroom\\, Hotel Esplanade Zagreb','END:VEVENT','END:VCALENDAR'].join('\r\n');
+        const a = document.createElement('a'); a.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics); a.download = 'medx-gala-2026.ics'; a.click();
+      },
+      cdHrs: pad(Math.floor(ms / 3600000) % 24),
+      cdMin: pad(Math.floor(ms / 60000) % 60),
+      tgFollow: () => this.setState(s => ({ follow: !s.follow })),
+      followBg: this.state.follow ? '#9b1b22' : 'rgba(247,241,230,.3)',
+      followKnob: this.state.follow ? '18px' : '2px',
+      followLabel: this.state.follow ? 'ON' : 'OFF'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+</style>
+</helmet>
+<div data-screen-label="Accelerator" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <dc-import name="Portal Chrome" active="Accelerator" hint-size="100%,150px"></dc-import>
+  <div style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">PROJECTS</span>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">THE ACCELERATOR</span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px;cursor:pointer">OVERVIEW</span>
+    <a href="Accelerator Application.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" style-hover="color:#191512">MY APPLICATION</a>
+  </div>
+  <div style="position:relative;overflow:hidden">
+    <img src="assets/photo-hall.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
+    <div style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
+      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">APPLICATIONS OPEN DECEMBER 8 · SUMMER 2027 PLACEMENTS</span>
+      <div style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">The Med&amp;X <i style="color:#c9a962">Accelerator</i></div>
+      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:560px">For Croatian medical and biomedical students, young researchers, and young physicians. Summer research internships at Cleveland Clinic, Mayo Clinic, Columbia, and the University of Zurich.</div>
+      <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
+        <span onClick="{{ notify }}" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" style-hover="background:#7e151b">{{ notifyHero }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
+        <span onClick="{{ tgFollow }}" style="width:34px;height:18px;flex:none;cursor:pointer;background:{{ followBg }};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:{{ followKnob }}"></span></span>
+        <span style="display:flex;flex-direction:column;gap:3px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">GET UPDATES FROM THE ACCELERATOR · {{ followLabel }}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">Email + portal alerts · manage topics in Profile &amp; settings</span></span>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">APPLICATIONS OPEN IN</span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">{{ openDays }}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">DAYS</span></span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">8–12 WEEKS</span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">4 HOST INSTITUTIONS · USA &amp; EUROPE</span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">5–10 POSITIONS</span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">€800–1,000 STIPEND</span>
+  </div>
+  <div style="padding:0 36px">
+    <div style="display:flex;align-items:baseline;gap:14px;padding:26px 0 10px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">THE PROGRAM</span>
+    </div>
+    <div style="font-size:13.5px;color:#4a4239;line-height:1.65;max-width:860px">A prestigious summer research program placing exceptional Croatian students and early-career researchers at world-renowned labs and clinics. The mission goes beyond the internship: experience an amazing institution, grow professionally and personally, and bring that knowledge home · building lasting bridges in biomedicine between Croatia and the world.</div>
+    <div style="display:flex;align-items:baseline;gap:14px;padding:16px 0 8px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">WHO IT'S FOR</span><span style="font-size:12px;color:#4a4239">Croatian citizens at the start of their careers — wherever in the world you study or work.</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 18px">
+      <span style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em">SENIOR MEDICAL STUDENTS</span>
+      <span style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em">BIOCHEMISTRY &amp; BIOMEDICAL ENGINEERING STUDENTS</span>
+      <span style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em">EARLY-CAREER RESEARCHERS · 0–3 YRS POST-GRADUATION</span>
+      <span style="padding:6px 11px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9.5px Inter,sans-serif;letter-spacing:.14em">CROATIAN CITIZENSHIP REQUIRED</span>
+    </div>
+    <div id="acc-hosts" style="display:flex;align-items:baseline;gap:14px;padding:4px 0 12px">
+      <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">HOST LABS &amp; CLINICS</span>
+      <span style="font-size:12px;color:#4a4239">Click an institution to learn more · specific placements depend on mentor availability.</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding-bottom:14px">
+      <sc-for list="{{ hosts }}" as="h" hint-placeholder-count="4">
+        <div onClick="{{ h.pick }}" style="border:1px solid {{ h.bd }};background:#fdfaf3;padding:16px;display:flex;gap:13px;align-items:center;cursor:pointer" style-hover="border-color:#191512">
+          <span style="width:46px;height:46px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 11px Fraunces,serif;flex:none">{{ h.abbr }}</span>
+          <span style="min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:14.5px;line-height:1.2">{{ h.name }}</span><span style="display:block;font-size:11px;color:#4a4239;margin-top:2px">{{ h.city }}</span></span>
+        </div>
+      </sc-for>
+    </div>
+    <sc-if value="{{ hostOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:14px 18px;margin-bottom:14px;display:flex;gap:14px;align-items:baseline">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">{{ hostAbbr }}</span>
+        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;flex:1">{{ hostBlurb }}</span>
+        <span onClick="{{ hostClose }}" style="color:#4a4239;cursor:pointer;flex:none">×</span>
+      </div>
+    </sc-if>
+    <div style="padding-bottom:14px"></div>
+  </div>
+  <div style="padding:0 36px">
+    <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 14px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">02</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">WHAT'S INCLUDED</span>
+    </div>
+  </div>
+  <div style="background:#191512;color:#f7f1e6;padding:30px 36px 32px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center">
+    <span style="display:flex;align-items:baseline;gap:12px;justify-content:center;flex-wrap:wrap"><span style="font-family:Fraunces,serif;font-size:36px;color:#c9a962">€800–1,000</span><span style="font-size:13px;color:rgba(247,241,230,.7)">fellowship stipend for travel, living expenses, and health insurance</span></span>
+    <span style="display:flex;gap:9px;flex-wrap:wrap;justify-content:center;font:600 9px Inter,sans-serif;letter-spacing:.14em">
+      <span style="padding:6px 11px;border:1px solid rgba(247,241,230,.25);color:rgba(247,241,230,.85)">VISA DOCUMENTATION</span>
+      <span style="padding:6px 11px;border:1px solid rgba(247,241,230,.25);color:rgba(247,241,230,.85)">HOUSING ASSISTANCE</span>
+      <span style="padding:6px 11px;border:1px solid rgba(247,241,230,.25);color:rgba(247,241,230,.85)">TRAVEL ARRANGEMENTS</span>
+      <span style="padding:6px 11px;border:1px solid rgba(247,241,230,.25);color:rgba(247,241,230,.85)">ONBOARDING SUPPORT</span>
+      <span style="padding:6px 11px;border:1px solid rgba(247,241,230,.25);color:rgba(247,241,230,.85)">MENTORSHIP PROGRAM</span>
+      <span style="padding:6px 11px;border:1px solid rgba(247,241,230,.25);color:rgba(247,241,230,.85)">CERTIFICATE OF COMPLETION</span>
+    </span>
+  </div>
+  <div style="padding:0 36px">
+    <div id="acc-selection" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 14px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">03</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">HOW SELECTION WORKS</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:6px">
+        <span style="font-family:Fraunces,serif;font-size:22px;color:#9b1b22">1</span>
+        <span style="font-family:Fraunces,serif;font-size:15.5px">Submit your application</span>
+        <span style="font-size:12px;color:#4a4239;line-height:1.5">Online form with your CV, mentor letter, and required documents · opens December 8, 2026.</span>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:6px">
+        <span style="font-family:Fraunces,serif;font-size:22px;color:#9b1b22">2</span>
+        <span style="font-family:Fraunces,serif;font-size:15.5px">Document review</span>
+        <span style="font-size:12px;color:#4a4239;line-height:1.5">Two-phase document review by the selection committee; shortlisted candidates advance.</span>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:6px">
+        <span style="font-family:Fraunces,serif;font-size:22px;color:#9b1b22">3</span>
+        <span style="font-family:Fraunces,serif;font-size:15.5px">Interview round</span>
+        <span style="font-size:12px;color:#4a4239;line-height:1.5">Interviews with two Croatian biomedical professionals, scheduled after document review.</span>
+      </div>
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:6px">
+        <span style="font-family:Fraunces,serif;font-size:22px;color:#9b1b22">4</span>
+        <span style="font-family:Fraunces,serif;font-size:15.5px">Selection &amp; onboarding</span>
+        <span style="font-size:12px;color:#4a4239;line-height:1.5">Results arrive by email with your access code · fellowship paperwork begins.</span>
+      </div>
+    </div>
+    <div style="font-family:Fraunces,serif;font-style:italic;font-size:13.5px;color:#4a4239;padding:14px 0 22px">Being selected by Med&amp;X does not guarantee placement · final acceptance is subject to the host institution's approval.</div>
+    <div style="border-top:1px solid rgba(25,21,18,.16);padding-bottom:8px">
+      <div>
+        <div id="acc-application" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 12px">
+          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">04</span>
+          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">YOUR APPLICATION</span>
+        </div>
+        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:24px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
+          <span style="width:28px;height:1px;background:#c9a962"></span>
+          <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px;color:#4a4239">No application yet · they open December 8, 2026.</span>
+          <span style="font-size:12.5px;color:#4a4239;max-width:380px">Ready your CV and a mentor letter, plus a one-line summary of your project. Your application and its status will live here.</span>
+          <span style="margin-top:6px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center"><span style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" style-hover="background:#7e151b" onClick="{{ notify }}">{{ notifySmall }}</span><a href="Accelerator Application.dc.html" style="padding:10px 16px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512" style-hover="border-color:#191512">PREVIEW THE APPLICATION →</a></span>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;padding:14px 0 20px;flex-wrap:wrap">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">RESULTS LOOKUP</span>
+          <input placeholder="AX26-XXXX" value="{{ code }}" onChange="{{ onCode }}" style="border:1px solid rgba(25,21,18,.25);padding:9px 13px;font:600 11px ui-monospace,Menlo,monospace;color:#191512;background:#fdfaf3;letter-spacing:.1em;width:110px"></input>
+          <span onClick="{{ viewResults }}" style="padding:10px 15px;background:#191512;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer" style-hover="background:#2c2620">VIEW RESULTS</span>
+          <span style="font-size:11.5px;color:#4a4239">Access codes arrive by email after the review completes.</span>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 8px">
+          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">05</span>
+          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">THE TEAM</span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+          <span style="width:36px;height:36px;background:#9b1b22;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;flex:none">MP</span>
+          <span style="flex:1"><span style="display:block;font-size:13.5px;font-weight:600">Marija Pranjić</span><span style="display:block;font-size:11.5px;color:#4a4239">Program Director · coordinates partner institutions and mentors across Europe and the US</span></span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+          <span style="width:36px;height:36px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;flex:none">MV</span>
+          <span style="flex:1"><span style="display:block;font-size:13.5px;font-weight:600">Dr. Miro Vuković</span><span style="display:block;font-size:11.5px;color:#4a4239">Vice President · strategic lead for Med&amp;X partnerships</span></span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(25,21,18,.12)">
+          <span style="width:36px;height:36px;background:#9b1b22;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;flex:none">MG</span>
+          <span style="flex:1"><span style="display:block;font-size:13.5px;font-weight:600">Marina Grubić, MD</span><span style="display:block;font-size:11.5px;color:#4a4239">Vice President, Human Resources · fellow onboarding and mentor relations</span></span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;padding:10px 0">
+          <span style="width:36px;height:36px;background:#c9a962;color:#191512;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;flex:none">AJ</span>
+          <span style="flex:1"><span style="display:block;font-size:13.5px;font-weight:600">Dr. Alen Juginović</span><span style="display:block;font-size:11.5px;color:#4a4239">Founder &amp; President, Med&amp;X · sleep neuroscientist at Harvard Medical School</span></span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:14px;padding:20px 0 10px">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">PREVIOUS COHORTS</span>
+          <span style="font-size:12px;color:#4a4239">The people who went — and where.</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1.2fr;grid-auto-rows:220px;gap:12px;padding-bottom:24px">
+          <div style="background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239">PHOTO · COHORT ARRIVAL, BOSTON</div>
+          <div style="background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239">PHOTO · LAB DAY</div>
+          <div style="background:#191512;color:#f7f1e6;padding:18px 22px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">FELLOWS {{ cohortRange }}</span>
+              <div style="flex:1"></div>
+              <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.55)">{{ cohortPage }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;margin-top:10px">
+              <sc-for list="{{ fellows }}" as="f" hint-placeholder-count="5">
+                <div style="display:flex;gap:12px;align-items:baseline;padding:6px 0;border-bottom:1px solid rgba(247,241,230,.12)">
+                  <span style="font-family:Fraunces,serif;font-size:14px;flex:1">{{ f.name }}</span>
+                  <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:rgba(247,241,230,.6)">{{ f.where }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="margin-top:auto;font-size:10.5px;color:rgba(247,241,230,.5)">18 fellows across the 2024–2026 cohorts · placed at our host institutions.</div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  <div style="border-top:1px solid rgba(25,21,18,.16)">
+      <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 8px">
+        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">06</span>
+        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">FREQUENTLY ASKED</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 44px;align-items:start;padding-bottom:24px">
+        <sc-for list="{{ faqs }}" as="q" hint-placeholder-count="5">
+          <div style="border-bottom:1px solid rgba(25,21,18,.12)">
+            <div onClick="{{ q.tg }}" style="display:flex;gap:12px;align-items:center;padding:11px 0;cursor:pointer"><span style="font-size:13px;flex:1">{{ q.q }}</span><span style="color:#9b1b22;font-size:11px">{{ q.chev }}</span></div>
+            <sc-if value="{{ q.open }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12.5px;color:#4a4239;line-height:1.6;padding:0 0 14px;max-width:520px">{{ q.a }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </div>
+  <div style="display:flex;align-items:center;gap:20px;padding:18px 36px 30px;border-top:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">Questions about applying, placements, or eligibility?</span>
+    <span style="font-size:12px;color:#4a4239">Message us · the coordinators reply right here in your portal inbox.</span>
+    <div style="flex:1"></div>
+    <a href="Messages.dc.html" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#7e151b;color:#f7f1e6">MESSAGE US →</a>
+  </div>
+  <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#191512;color:#f7f1e6;padding:12px 20px;font:600 10px Inter,sans-serif;letter-spacing:.15em;z-index:60;border-left:3px solid #c9a962;white-space:nowrap">{{ toastMsg }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { follow: false, cohortPage: 0, notified: false, host: null, faqOpen: null, code: '', toast: '' };
+  fellows = [
+    { name: 'Stela Lara Tenšek', where: 'CLASS OF 2025' }, { name: 'Katarina Kordić', where: 'CLASS OF 2025' },
+    { name: 'Sara Bonet', where: 'CLASS OF 2025' }, { name: 'Dora Softić', where: 'CLASS OF 2025' },
+    { name: 'Filip Jakov Klisović', where: 'CLASS OF 2025' }, { name: 'Dejana Vujnović', where: 'CLASS OF 2025' },
+    { name: 'Gracia Grabarić', where: 'CLASS OF 2024' }, { name: 'Karlo Dužević', where: 'CLASS OF 2024' }
+  ];
+  hostList = [
+    { abbr: 'CCF', name: 'Cleveland Clinic', city: 'Cleveland, USA', blurb: 'Consistently ranked among the world\u2019s top hospitals — fellows join active research groups with a named mentor.' },
+    { abbr: 'MAYO', name: 'Mayo Clinic', city: 'Rochester, USA', blurb: 'A longtime Accelerator host — clinical and translational research placements across the Rochester campus.' },
+    { abbr: 'COL', name: 'Columbia University', city: 'New York, USA', blurb: 'Placements at Columbia University Irving Medical Center, across the biomedical sciences.' },
+    { abbr: 'UZH', name: 'University of Zurich', city: 'Zurich, Switzerland', blurb: 'Clinical and translational placements with University of Zurich and University Hospital Zurich groups.' }
+  ];
+  faqList = [
+    { q: 'What are the eligibility requirements?', a: 'Croatian citizenship is required. The program is aimed at senior medical, biochemistry-related, and biomedical engineering students, and early-career researchers up to three years post-graduation — wherever in the world you currently study or work.' },
+    { q: 'Is the program paid? What funding is available?', a: 'Yes — fellows receive a €800–1,000 stipend toward travel, living costs, and health insurance, plus visa documentation, housing assistance, travel arrangements, and onboarding support.' },
+    { q: 'How competitive is the selection process?', a: 'Highly — 5–10 positions are awarded per cycle across all host institutions. A strong mentor letter and a clear one-line summary of your project matter most.' },
+    { q: 'What is the application timeline?', a: 'Applications open December 8, 2026 and stay open for a limited window. Document review then runs in two phases, shortlisted candidates are interviewed, and results arrive by email with your access code.' },
+    { q: 'Can I apply to multiple institutions?', a: 'You submit one application and state your preferences — the selection committee matches selected fellows with host institutions, subject to mentor availability and final host approval.' }
+  ];
+  componentDidMount() { this.rot = setInterval(() => this.setState(s => ({ cohortPage: (s.cohortPage + 1) % 2 })), 4500); }
+  componentWillUnmount() { clearInterval(this.rot); clearTimeout(this.tt); }
+  showToast(msg) { clearTimeout(this.tt); this.setState({ toast: msg }); this.tt = setTimeout(() => this.setState({ toast: '' }), 3000); }
+  renderVals() {
+    const ms = Math.max(0, new Date('2026-12-08T09:00:00+01:00') - new Date());
+    const pg = this.state.cohortPage;
+    const selHost = this.state.host === null ? null : this.hostList[this.state.host];
+    return {
+      fellows: this.fellows.slice(pg * 4, pg * 4 + 4),
+      cohortRange: '2024–2026',
+      cohortPage: (pg + 1) + ' / 2',
+      openDays: String(Math.ceil(ms / 86400000)),
+      hosts: this.hostList.map((h, i) => Object.assign({}, h, {
+        bd: this.state.host === i ? '#191512' : 'rgba(25,21,18,.16)',
+        pick: () => this.setState(s => ({ host: s.host === i ? null : i }))
+      })),
+      hostOpen: !!selHost,
+      hostAbbr: selHost ? selHost.name : '',
+      hostBlurb: selHost ? selHost.blurb : '',
+      hostClose: () => this.setState({ host: null }),
+      faqs: this.faqList.map((f, i) => ({
+        q: f.q, a: f.a,
+        open: this.state.faqOpen === i,
+        chev: this.state.faqOpen === i ? '▲' : '▾',
+        tg: () => this.setState(s => ({ faqOpen: s.faqOpen === i ? null : i }))
+      })),
+      notifyHero: this.state.notified ? '✓ ON THE LIST — WE\u2019LL EMAIL YOU AT OPENING' : 'GET NOTIFIED WHEN APPLICATIONS OPEN',
+      notifySmall: this.state.notified ? '✓ ON THE LIST' : 'GET NOTIFIED →',
+      notify: () => { this.setState({ notified: true, follow: true }); this.showToast('NOTED — WE\u2019LL EMAIL YOU THE DAY APPLICATIONS OPEN'); },
+      code: this.state.code,
+      onCode: e => this.setState({ code: e.target.value }),
+      viewResults: () => this.showToast(this.state.code.trim() ? 'NO RESULTS YET — THE REVIEW HAS NOT COMPLETED' : 'ENTER THE ACCESS CODE FROM YOUR EMAIL'),
+      toastOn: !!this.state.toast, toastMsg: this.state.toast,
+      tgFollow: () => this.setState(s => ({ follow: !s.follow })),
+      followBg: this.state.follow ? '#9b1b22' : 'rgba(247,241,230,.3)',
+      followKnob: this.state.follow ? '18px' : '2px',
+      followLabel: this.state.follow ? 'ON' : 'OFF'
+    };
+  }
+}
+</script>
+</body>
+</html>

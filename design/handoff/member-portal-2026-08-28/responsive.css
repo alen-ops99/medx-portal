@@ -1,0 +1,94 @@
+/* Med&X member portal — responsive overrides for phone & narrow widths.
+   Selectors are written in the BROWSER-SERIALIZED style-attribute form
+   (space after colons/semicolons, 0 → 0px, rgba/repeat with spaces, hex → rgb). */
+
+@media (max-width: 900px) {
+  /* ---- page gutters 36px → 18px ---- */
+  [style*="padding: 0px 36px"] { padding-left: 18px !important; padding-right: 18px !important; }
+  [style*="padding: 54px 36px 44px"] { padding: 38px 18px 32px !important; }
+  [style*="padding: 58px 36px 48px"] { padding: 38px 18px 34px !important; }
+  [style*="padding: 56px 36px 46px"] { padding: 38px 18px 34px !important; }
+  [style*="padding: 13px 36px"] { padding: 12px 18px !important; }
+  [style*="padding: 10px 36px"] { padding: 9px 18px !important; }
+  [style*="padding: 9px 36px"] { padding: 8px 18px !important; }
+  [style*="padding: 20px 36px"] { padding: 16px 18px !important; }
+  [style*="padding: 30px 36px 32px"] { padding: 24px 18px 26px !important; }
+  [style*="padding: 32px 36px 34px"] { padding: 24px 18px 26px !important; }
+  [style*="padding: 34px 36px 38px"] { padding: 26px 18px 30px !important; }
+  [style*="padding: 18px 36px 30px"] { padding: 16px 18px 26px !important; }
+  [style*="padding: 20px 36px 30px"] { padding: 16px 18px 26px !important; }
+  [style*="padding: 24px 36px"] { padding: 18px !important; }
+  [style*="padding: 42px 48px 26px 36px"] { padding: 28px 18px 20px !important; }
+  [style*="padding: 36px"] { padding: 24px 18px !important; }
+
+  /* ---- top bar: wrap instead of overflow ---- */
+  [style*="height: 60px"] { height: auto !important; flex-wrap: wrap !important; padding: 10px 18px !important; gap: 10px 14px !important; }
+  [style*="height: 60px"] > span, [style*="height: 60px"] > a { white-space: nowrap; }
+  /* member-stats strip: date on its own line, stats wrap below */
+  [style*="gap: 24px; padding: 10px 36px"] { flex-wrap: wrap !important; gap: 6px 16px !important; }
+  [style*="gap: 24px; padding: 10px 36px"] > span:first-child { flex-basis: 100%; white-space: nowrap; }
+
+  /* ---- rows that must wrap ---- */
+  [style*="justify-content: center; gap: 26px"] { flex-wrap: wrap !important; gap: 10px 18px !important; }
+  [style*="align-items: baseline; gap: 14px"] { flex-wrap: wrap !important; }
+  [style*="align-items: baseline; gap: 12px"] { flex-wrap: wrap !important; }
+
+  /* ---- multi-column grids → 2 columns ---- */
+  [style*="grid-template-columns: repeat(5, 1fr)"] { grid-template-columns: 1fr 1fr !important; }
+  [style*="grid-template-columns: repeat(4, 1fr)"] { grid-template-columns: 1fr 1fr !important; }
+  [style*="grid-template-columns: repeat(6, 1fr)"] { grid-template-columns: 1fr 1fr !important; }
+  [style*="grid-template-columns: 1fr 1fr 1fr 1fr"] { grid-template-columns: 1fr 1fr !important; }
+
+  /* ---- sidebar / asymmetric layouts → single column ---- */
+  [style*="grid-template-columns: 1fr 380px"],
+  [style*="grid-template-columns: 1.6fr 1fr"],
+  [style*="grid-template-columns: 1fr 300px"],
+  [style*="grid-template-columns: 1fr 340px"],
+  [style*="grid-template-columns: 230px 1fr 260px"],
+  [style*="grid-template-columns: 200px 1fr"],
+  [style*="grid-template-columns: 1fr 1.1fr"],
+  [style*="grid-template-columns: 340px 1fr"],
+  [style*="grid-template-columns: minmax(240px, 300px) 1fr minmax(240px, 300px)"] { grid-template-columns: 1fr !important; }
+
+  /* cohort mosaic: stack, keep photo cells visible */
+  [style*="grid-template-columns: 1fr 1fr 1.2fr"] { grid-template-columns: 1fr !important; grid-auto-rows: auto !important; }
+  [style*="grid-template-columns: 1fr 1fr 1.2fr"] > div { min-height: 190px; }
+  /* bridges next-event photo cell */
+  [style*="grid-template-columns: 230px 1fr 260px"] > div:first-child { min-height: 150px; }
+
+  /* member card + wide inputs */
+  [style*="width: 450px"] { width: 100% !important; max-width: 450px; }
+  [style*="width: 250px"] { width: 100% !important; max-width: 250px; }
+}
+
+@media (max-width: 700px) {
+  [style*="grid-template-columns: repeat(3, 1fr)"] { grid-template-columns: 1fr !important; }
+  [style*="grid-template-columns: 1fr 1fr;"] { grid-template-columns: 1fr !important; }
+  [style*="grid-template-columns: 1fr 1fr 1fr;"] { grid-template-columns: 1fr !important; }
+  [style*="gap: 0px 44px"] { gap: 0 !important; }
+  /* hide the identity name/subtitle — avatar stays */
+  [style*="height: 60px"] a[href="My MedX.dc.html"] span[style*="flex-direction: column"] { display: none !important; }
+}
+
+@media (max-width: 500px) {
+  [style*="grid-template-columns: repeat(5, 1fr)"],
+  [style*="grid-template-columns: repeat(4, 1fr)"],
+  [style*="grid-template-columns: repeat(6, 1fr)"],
+  [style*="grid-template-columns: 1fr 1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+  /* display type scales down */
+  [style*="font-size: 52px"] { font-size: 30px !important; }
+  [style*="font-size: 48px"] { font-size: 28px !important; }
+  [style*="font-size: 46px"] { font-size: 28px !important; }
+  [style*="font-size: 44px"] { font-size: 26px !important; }
+  [style*="font-family: Fraunces, serif; font-size: 36px"] { font-size: 28px !important; }
+  [style*="font-family: Fraunces, serif; font-size: 34px"] { font-size: 26px !important; }
+  [style*="font-family: Fraunces, serif; font-size: 30px"] { font-size: 22px !important; }
+
+  /* toasts fit the screen */
+  [style*="position: fixed"][style*="border-left: 3px solid rgb(201, 169, 98)"] { white-space: normal !important; max-width: 86vw; text-align: center; }
+
+  /* inputs full width */
+  [style*="width: 230px"] { width: 100% !important; }
+  [style*="width: 220px"] { width: 100% !important; }
+}

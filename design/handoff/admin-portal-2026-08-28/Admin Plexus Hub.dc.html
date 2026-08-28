@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="admin-responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f2ea;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#201b16}
+input:focus{outline:2px solid #9b1b22;outline-offset:-1px}
+</style>
+</helmet>
+<div data-screen-label="Admin Plexus Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
+      <a href="Admin Home.dc.html" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 7px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">ADMIN</span></a>
+      <div style="display:flex;gap:22px;align-items:center;height:100%">
+        <a href="Admin Home.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">TODAY</a>
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box;cursor:pointer">PROJECTS</span>
+        <a href="Admin Inbox.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;gap:6px" style-hover="color:#201b16">INBOX<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">9</span></a>
+        <a href="Admin People.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">PEOPLE</a>
+        <a href="Admin Money.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">MONEY</a>
+        <a href="Admin Calendar.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">CALENDAR</a>
+        <a href="Admin Studio.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">STUDIO</a>
+        <a href="Admin Settings.dc.html" style="font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center" style-hover="color:#201b16">SETTINGS</a>
+      </div>
+      <div style="flex:1"></div>
+      <a href="Admin Inbox.dc.html#chat" title="Team chat — straight to the chat tab" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" style-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>TEAM CHAT<span style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">3</span></a>
+      <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;width:180px;min-width:60px;flex:0 1 180px;box-sizing:border-box;cursor:text;overflow:hidden"><span style="color:#6d6459">⌕</span><span style="font-size:12px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Search or type a task…</span></span>
+      <a href="Admin Settings.dc.html" title="Your profile — display name, photo, sign-out" style="width:30px;height:30px;flex:none;background:#201b16;color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 11px Inter,sans-serif" style-hover="background:#9b1b22;color:#f6f2ea">AJ</a>
+    </div>
+  </div>
+  <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 28px;display:flex;gap:24px;align-items:center;height:44px">
+      <a href="Admin Home.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9a9086" style-hover="color:#201b16">PROJECTS</a>
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#201b16;border-bottom:2px solid #9b1b22;padding:15px 0 13px">PLEXUS WEEK 2026</span>
+      <a href="Admin Accelerator Hub.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9a9086" style-hover="color:#201b16">ACCELERATOR</a>
+      <a href="Admin Forum Hub.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9a9086" style-hover="color:#201b16">BIOMEDICAL FORUM</a>
+      <a href="Admin Bridges Hub.dc.html" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9a9086" style-hover="color:#201b16">BUILDING BRIDGES</a>
+    </div>
+  </div>
+  <div style="max-width:1180px;margin:0 auto;padding:34px 28px 60px">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+      <div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-family:Fraunces,serif;font-size:34px;white-space:nowrap">Plexus Week <i>2026</i></span>
+          <span style="background:#1e6e42;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.14em;padding:4px 8px">LIVE FOR MEMBERS</span>
+        </div>
+        <div style="font-size:13px;color:#6d6459;margin-top:6px">Conference (free, cap 100) + Gala Evening + Donor Night · 4–5 December · Novinarski dom, Zagreb</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="Admin Member Pages.dc.html" style="border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:10px 16px;white-space:nowrap" style-hover="background:#9b1b22;color:#fff">WHAT MEMBERS SEE — MANAGE ↗</a>
+        <a href="Admin Event Day.dc.html" style="background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 16px;white-space:nowrap" style-hover="background:#9b1b22">EVENT DAY ROOM →</a>
+      </div>
+    </div>
+    <div style="border:1px solid rgba(32,27,22,.14);background:#fff;margin-top:22px">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr)">
+        <div title="…i isto toliko noći." style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1)">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">DAYS TO GO</div>
+          <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">{{ cdDays }}</div>
+          <div style="font-size:11px;color:#6d6459">Dec 4–5 · Zagreb</div>
+        </div>
+        <a href="Admin People.dc.html" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block" style-hover="background:#fdfbf6;color:#201b16">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">CONFERENCE REGISTERED</div>
+          <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">2</div>
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">CAP 100 · OPEN LIST →</div>
+        </a>
+        <a href="Admin People.dc.html" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block" style-hover="background:#fdfbf6;color:#201b16">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">GALA SEATS</div>
+          <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">25</div>
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">21 PAID · 4 TO CHASE →</div>
+        </a>
+        <div style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1)">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">SPEAKERS</div>
+          <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">0</div>
+          <div style="font-size:11px;color:#6d6459">program in draft</div>
+        </div>
+        <a href="Admin Money.dc.html" style="padding:16px 20px;color:#201b16;display:block" style-hover="background:#fdfbf6;color:#201b16">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">COLLECTED</div>
+          <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">€3,150</div>
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">OPEN MONEY →</div>
+        </a>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr) auto;border-top:1px solid rgba(32,27,22,.1)">
+        <div style="padding:10px 20px;display:flex;flex-direction:column;gap:2px;border-right:1px solid rgba(32,27,22,.08)">
+          <span style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;background:#c9a962;flex:none"></span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em">SEP 1</span></span>
+          <span style="font-size:12px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Early-bird ends → €175</span>
+        </div>
+        <div style="padding:10px 20px;display:flex;flex-direction:column;gap:2px;border-right:1px solid rgba(32,27,22,.08)">
+          <span style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;background:#c9a962;flex:none"></span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em">NOV 15</span></span>
+          <span style="font-size:12px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Final headcount to Esplanade</span>
+        </div>
+        <div style="padding:10px 20px;display:flex;flex-direction:column;gap:2px;border-right:1px solid rgba(32,27,22,.08)">
+          <span style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;background:#9b1b22;flex:none"></span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em">DEC 4</span></span>
+          <span style="font-size:12px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Donor Night · Event Day wakes up</span>
+        </div>
+        <div style="padding:10px 20px;display:flex;flex-direction:column;gap:2px">
+          <span style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;background:#9b1b22;flex:none"></span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em">DEC 5</span></span>
+          <span style="font-size:12px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Conference day two + Gala</span>
+        </div>
+        <a href="Admin Calendar.dc.html" style="display:flex;align-items:center;padding:0 20px;border-left:1px solid rgba(32,27,22,.08);font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">CALENDAR →</a>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid rgba(32,27,22,.14);margin-top:22px">
+      <div style="padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;align-items:center;gap:10px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em">BEFORE THE WEEK</span><span style="font-size:12px;color:#9a9086">in priority order — what is not done yet</span><div style="flex:1"></div><span title="Reorder, rename or add rows — this list is shared by the whole team" style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;cursor:pointer" style-hover="color:#201b16">✎ EDIT LIST</span></div>
+          <sc-for list="{{ beforeRows }}" as="r" hint-placeholder-count="5">
+            <a href="{{ r.href }}" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16" style-hover="background:#fdfbf6">
+              <span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:{{ r.tagColor }}">{{ r.tag }}</span>
+              <span style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;white-space:nowrap">{{ r.name }}</span><span style="font-size:12px;color:#6d6459;min-width:0">{{ r.status }}</span></span>
+              <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">{{ r.action }} →</span>
+            </a>
+          </sc-for>
+    </div>
+    <div style="display:grid;grid-template-columns:1.55fr 1fr;gap:22px;margin-top:22px;align-items:start">
+      <div style="display:grid;gap:22px">
+        <div style="background:#fff;border:1px solid rgba(32,27,22,.14)">
+          <div style="padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em">THE GALA EVENING</span><span style="font-size:12px;color:#9a9086">Dec 5 · Hotel Esplanade</span><div style="flex:1"></div><a href="Admin Event Day.dc.html" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">FULL VIEW →</a></div>
+          <sc-for list="{{ galaRows }}" as="r" hint-placeholder-count="3">
+            <a href="{{ r.href }}" style="display:flex;align-items:center;gap:14px;padding:15px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16" style-hover="background:#fdfbf6">
+              <span style="width:110px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.13em;color:{{ r.tagColor }}">{{ r.tag }}</span>
+              <span style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:600">{{ r.name }}</span><span style="display:block;font-size:12px;color:#6d6459;margin-top:2px">{{ r.status }}</span></span>
+              <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">{{ r.action }} →</span>
+            </a>
+          </sc-for>
+          <div style="padding:12px 20px;font-size:12px;color:#6d6459">More tools: <a href="Admin Gala.dc.html">3D ballroom planner</a> · <a href="Admin Gala.dc.html">charity auctions</a> — both open from the Gala page</div>
+        </div>
+        <div style="background:#fff;border:1px solid rgba(32,27,22,.14);padding:16px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em">AFTER THE WEEK</span>
+          <span style="font-size:13px;color:#6d6459;flex:1;min-width:200px">Certificates, thank-yous &amp; photo recap unlock Dec 6.</span>
+          <span title="Duplicates this hub with dates cleared — available after the 2026 edition closes" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap;color:#9a9086;border:1px dashed rgba(32,27,22,.3);padding:6px 10px">START PLEXUS 2027 · AFTER DEC 6</span>
+        </div>
+      </div>
+      <div style="display:grid;gap:22px">
+        <div style="background:#fff;border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962">
+          <div style="padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;align-items:baseline;gap:10px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap">WHAT MEMBERS SEE</span><span style="font-size:12px;color:#9a9086;white-space:nowrap">their home card</span></div>
+          <div style="padding:4px 20px 20px">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;margin-top:16px">STATUS LABEL</div>
+          <input value="{{ statusLabel }}" onChange="{{ onLabel }}" style="width:100%;box-sizing:border-box;margin-top:6px;background:#f6f2ea;border:1px solid rgba(32,27,22,.25);padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;margin-top:12px">DETAIL LINE</div>
+          <input value="{{ detailLine }}" onChange="{{ onDetail }}" style="width:100%;box-sizing:border-box;margin-top:6px;background:#f6f2ea;border:1px solid rgba(32,27,22,.25);padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16">
+          <button onClick="{{ onSave }}" style="margin-top:14px;background:{{ saveBg }};color:#fff;border:none;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 18px;cursor:pointer">{{ saveLabel }}</button>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(32,27,22,.1)"><a href="Admin Member Pages.dc.html" style="font:600 9px Inter,sans-serif;letter-spacing:.14em">MANAGE THE FULL MEMBER PAGE →</a></div>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(32,27,22,.14);background:#fdfbf6;padding:16px 20px;font-size:12.5px;color:#6d6459;line-height:1.6">
+          <span style="color:#1e6e42;font-weight:600">✓ CME accredited</span> — certificates auto-send after the week. <a href="Admin Settings.dc.html">Settings → documents</a>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;margin-top:30px;flex-wrap:wrap">
+      <span style="font-size:12px;color:#9a9086"><b style="color:#6d6459">2026 edition</b> · nothing is ever deleted — tickets &amp; receipts stay valid forever.</span>
+      <span title="Locks this edition read-only once the week is over — available after Dec 6" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#c9beb2;border:1px dashed rgba(32,27,22,.25);padding:5px 9px">ARCHIVE · AFTER THE WEEK</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { statusLabel: 'Pre-registration open', detailLine: 'December 4–5, 2026 · Novinarski dom, Zagreb · free entry', saved: false };
+  componentDidMount() { document.title = 'Med&X Admin — Plexus Week hub'; }
+  renderVals() {
+    return {
+      cdDays: String(Math.max(0, Math.floor((new Date('2026-12-04T09:00:00+01:00') - new Date()) / 86400000))),
+      statusLabel: this.state.statusLabel,
+      detailLine: this.state.detailLine,
+      saveBg: this.state.saved ? '#1e6e42' : '#9b1b22',
+      saveLabel: this.state.saved ? '✓ SAVED — MEMBERS SEE IT NOW' : 'SAVE TO MEMBER PORTAL',
+      onLabel: (e) => this.setState({ statusLabel: e.target.value, saved: false }),
+      onDetail: (e) => this.setState({ detailLine: e.target.value, saved: false }),
+      onSave: () => this.setState({ saved: true }),
+      beforeRows: [
+        { tag: 'OPEN NOW', tagColor: '#1e6e42', name: 'Registrations', status: '2 of 100 signed up · form live', action: 'OPEN LIST', href: 'Admin Registrations.dc.html' },
+        { tag: 'NEEDS WORK', tagColor: '#9b1b22', name: 'Program & speakers', status: 'Schedule in draft · 0 speakers invited', action: 'BUILD', href: 'Admin Member Pages.dc.html' },
+        { tag: 'TRAVEL', tagColor: '#b07d10', name: 'Speaker itineraries', status: 'Flights, hotel nights & airport pickups per speaker — nothing filed yet', action: 'MANAGE', href: 'Admin Calendar.dc.html' },
+        { tag: 'SET', tagColor: '#6d6459', name: 'Tickets & prices', status: 'Gala €150 → €175 on Sep 1', action: 'EDIT', href: 'Admin Money.dc.html' },
+        { tag: 'QUEUED', tagColor: '#b07d10', name: 'Emails to registrants', status: '3 reminders queued in the Outbox', action: 'REVIEW', href: 'Admin Inbox.dc.html' },
+        { tag: 'AUTO', tagColor: '#6d6459', name: 'Invitations & short links', status: 'Paid · VIP · diaspora — one link each, shared anywhere', action: 'GET LINK', href: 'Admin Links.dc.html' }
+      ],
+      galaRows: [
+        { tag: '21 PAID', tagColor: '#1e6e42', name: 'Guest list & seating', status: '25 reserved · 4 to chase · seating chart open', action: 'SEAT', href: 'Admin Gala.dc.html' },
+        { tag: 'AUTO', tagColor: '#6d6459', name: 'Waitlist', status: 'Auto-offers a freed seat · 24 h to accept', action: 'VIEW', href: 'Admin Gala.dc.html' },
+        { tag: '0 INVITED', tagColor: '#9b1b22', name: 'Donor Night — Croatians Abroad', status: 'Dec 4 · guest list empty', action: 'INVITE', href: 'Admin Links.dc.html' },
+        { tag: 'ON THE DAY', tagColor: '#6d6459', name: 'Check-in, ops map & stage Q&A', status: 'Live tools in the Event Day room', action: 'REHEARSE', href: 'Admin Event Day.dc.html' }
+      ],
+      keyDates: []
+    };
+  }
+}
+</script>
+</body>
+</html>

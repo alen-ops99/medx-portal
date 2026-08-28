@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<link href="responsive.css" rel="stylesheet">
+<style>
+body{margin:0;background:#f7f1e6;font-family:Inter,sans-serif}
+a{color:#9b1b22;text-decoration:none}a:hover{color:#191512}
+</style>
+</helmet>
+<div data-screen-label="Building Bridges" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <dc-import name="Portal Chrome" active="Bridges" hint-size="100%,150px"></dc-import>
+  <div style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">PROJECTS</span>
+    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">BUILDING BRIDGES</span>
+  </div>
+  <div style="position:relative;overflow:hidden">
+    <img src="assets/photo-stage.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
+    <div style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
+      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">NEXT EDITION · BOSTON · SEPTEMBER 18–21, 2026</span>
+      <div style="font-family:Fraunces,serif;font-size:48px;line-height:1.1;color:#f7f1e6;margin-top:20px">Building Bridges <i style="color:#c9a962">in Biomedicine</i></div>
+      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:600px">Connecting Croatian medicine and science with international medicine and science — intimate evenings of 40–50, built for collaboration that outlasts the night.</div>
+      <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
+        <a href="#bb-next" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#7e151b">REGISTER FOR BOSTON →</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
+        <span onClick="{{ tgFollow }}" style="width:34px;height:18px;flex:none;cursor:pointer;background:{{ followBg }};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:{{ followKnob }}"></span></span>
+        <span style="display:flex;flex-direction:column;gap:3px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">GET UPDATES FROM BUILDING BRIDGES · {{ followLabel }}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">Email + portal alerts · manage topics in Profile &amp; settings</span></span>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">4</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">CITIES WORLDWIDE</span></span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">150+</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">GUESTS HOSTED</span></span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px">4</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">EVENTS COMPLETED</span></span>
+    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
+    <span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px;color:#c9a962">40–50</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">GUESTS PER EVENING</span></span>
+  </div>
+  <div style="padding:0 36px">
+    <div style="display:flex;align-items:baseline;gap:14px;padding:26px 0 10px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">01</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">THE MISSION</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:44px;align-items:start;padding-bottom:20px">
+      <div>
+        <div style="font-size:13.5px;color:#4a4239;line-height:1.65">Building Bridges connects Croatian biomedical professionals across the globe with leading institutions in their local cities. Through intimate evenings of 40–50 guests, we create connections that advance careers and foster international collaboration.</div>
+        <div style="display:flex;align-items:baseline;gap:14px;padding:16px 0 8px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">WHO IT'S FOR</span><span style="font-size:12px;color:#4a4239">Registration is open to everyone — the evenings are made for:</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em">RESEARCHERS</span>
+          <span style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em">PHYSICIANS</span>
+          <span style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em">LEADERS IN BIOMEDICINE</span>
+        </div>
+      </div>
+      <div style="border-left:1px solid rgba(25,21,18,.16);padding-left:32px;display:flex;flex-direction:column;gap:11px">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">EVERY EVENING BRINGS</span>
+        <span style="display:flex;gap:10px;align-items:baseline;font-size:13px"><span style="width:6px;height:6px;background:#9b1b22;flex:none;align-self:center"></span>Keynotes from the host city's leading institutions</span>
+        <span style="display:flex;gap:10px;align-items:baseline;font-size:13px"><span style="width:6px;height:6px;background:#9b1b22;flex:none;align-self:center"></span>Structured networking, professionally facilitated</span>
+        <span style="display:flex;gap:10px;align-items:baseline;font-size:13px"><span style="width:6px;height:6px;background:#9b1b22;flex:none;align-self:center"></span>Prestigious venues, dinner and drinks</span>
+        <span style="display:flex;gap:10px;align-items:baseline;font-size:13px"><span style="width:6px;height:6px;background:#c9a962;flex:none;align-self:center"></span>40–50 guests, so every conversation counts</span>
+      </div>
+    </div>
+    <div id="bb-next" style="display:flex;align-items:baseline;gap:14px;padding:16px 0 12px;border-top:1px solid rgba(25,21,18,.16)">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">02</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">NEXT EVENT</span>
+    </div>
+    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:grid;grid-template-columns:230px 1fr 260px;align-items:stretch">
+      <div style="position:relative;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239;text-align:center;padding:0 14px">PHOTO · BOSTON VENUE — ANNOUNCED SOON</div>
+      <div style="padding:24px 28px;display:flex;flex-direction:column;gap:8px">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">BOSTON · SEPTEMBER 18–21, 2026 · EXACT DATE ANNOUNCED SOON</span>
+        <span style="font-family:Fraunces,serif;font-size:26px;line-height:1.15">Building Bridges — Boston 2026</span>
+        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">An evening connecting the Croatian biomedical community of greater Boston with colleagues at the city's leading institutions. Keynotes, structured networking, and a shared table.</span>
+        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px"><strong style="color:#191512">The goal:</strong> every guest leaves with at least one collaboration worth continuing — a co-author, a mentor, a clinical exchange.</span>
+        <span style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <span style="padding:4px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">ONLY 80 SPOTS</span>
+          <span style="padding:4px 9px;border:1px solid rgba(25,21,18,.22);color:#4a4239;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">KEYNOTES · NETWORKING · RECEPTION</span>
+        </span>
+      </div>
+      <div style="background:#191512;color:#f7f1e6;padding:22px 24px;display:flex;flex-direction:column;justify-content:center;gap:10px;text-align:center">
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">EVENT STARTS IN</span>
+        <span style="display:flex;justify-content:center;gap:14px">
+          <span style="display:flex;flex-direction:column"><span style="font-family:Fraunces,serif;font-size:26px">{{ cdDays }}</span><span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.6)">DAYS</span></span>
+          <span style="display:flex;flex-direction:column"><span style="font-family:Fraunces,serif;font-size:26px">{{ cdHrs }}</span><span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.6)">HOURS</span></span>
+          <span style="display:flex;flex-direction:column"><span style="font-family:Fraunces,serif;font-size:26px">{{ cdMin }}</span><span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.6)">MINS</span></span>
+        </span>
+        <span style="padding:11px 0;background:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" style-hover="background:#7e151b">REGISTER →</span>
+      </div>
+    </div>
+    <div id="bb-schedule" style="display:flex;align-items:baseline;gap:14px;padding:26px 0 6px">
+      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">03</span>
+      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">WHERE WE'VE BEEN</span>
+      <span style="font-size:12px;color:#4a4239">Four evenings so far — each one, a room full of new collaborations.</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding-bottom:26px">
+      <sc-for list="{{ cities }}" as="c" hint-placeholder-count="5">
+        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+          <sc-if value="{{ c.hasImg }}" hint-placeholder-val="{{ false }}">
+            <img src="{{ c.img }}" alt="" style="width:100%;height:130px;object-fit:cover;display:block">
+          </sc-if>
+          <sc-if value="{{ c.noImg }}" hint-placeholder-val="{{ true }}">
+            <div style="height:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239;text-align:center;padding:0 12px">{{ c.photoLabel }}</div>
+          </sc-if>
+          <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:5px;flex:1">
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">{{ c.date }}</span>
+            <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">{{ c.city }}</span>
+            <span style="font-size:11.5px;color:#4a4239">{{ c.venue }}</span>
+            <span style="font-size:11.5px;color:#4a4239;line-height:1.5;font-style:italic">{{ c.note }}</span>
+            <span style="display:flex;gap:14px;border-top:1px solid rgba(25,21,18,.1);padding-top:9px;margin-top:auto">
+              <span style="display:flex;align-items:baseline;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;color:#9b1b22">{{ c.guests }}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#4a4239">GUESTS</span></span>
+              <span style="display:flex;align-items:baseline;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;color:#9b1b22">{{ c.conns }}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#4a4239">NEW CONNECTIONS</span></span>
+            </span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:20px;padding:18px 36px 30px;border-top:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">Want Building Bridges in your city, or a seat at the next evening?</span>
+    <span style="font-size:12px;color:#4a4239">Message us · replies land right here in your portal inbox.</span>
+    <div style="flex:1"></div>
+    <a href="Messages.dc.html" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em" style-hover="background:#7e151b;color:#f7f1e6">MESSAGE US →</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  state = { follow: false };
+  renderVals() {
+    const ms = Math.max(0, new Date('2026-09-18T18:00:00-04:00') - new Date());
+    const pad = (n) => String(n).padStart(2, '0');
+    return {
+      cities: [
+        { date: 'EDITION 04 · MOST RECENT', city: 'Zürich', venue: 'ETH Zentrum', guests: '—', conns: '—', photoLabel: 'PHOTO · ZÜRICH EVENING', note: 'Clinicians and engineers from across the Swiss research hub, in one room.' },
+        { date: 'EDITION 03', city: 'New York', venue: 'Consulate General of Croatia', guests: '—', conns: '—', photoLabel: 'PHOTO · CONSULATE EVENING, NEW YORK', note: 'An evening at the Consulate General with Croatian-American physicians and researchers.' },
+        { date: 'EDITION 02', city: 'London', venue: 'Embassy of Croatia', guests: '—', conns: '—', photoLabel: 'PHOTO · LONDON RECEPTION', note: 'At the Croatian Embassy — the UK\u2019s Croatian medical community met London\u2019s institutions.' },
+        { date: 'EDITION 01 · THE FIRST', city: 'Washington DC', venue: 'NIH Campus', guests: '—', conns: '—', photoLabel: 'PHOTO · WASHINGTON EVENING', note: 'Where Building Bridges began — researchers from the institutes met the Croatian community of the capital region.' }
+      ].map(c => Object.assign({ hasImg: !!c.img, noImg: !c.img }, c)),
+      cdDays: String(Math.floor(ms / 86400000)),
+      cdHrs: pad(Math.floor(ms / 3600000) % 24),
+      cdMin: pad(Math.floor(ms / 60000) % 60),
+      tgFollow: () => this.setState(s => ({ follow: !s.follow })),
+      followBg: this.state.follow ? '#9b1b22' : 'rgba(247,241,230,.3)',
+      followKnob: this.state.follow ? '18px' : '2px',
+      followLabel: this.state.follow ? 'ON' : 'OFF'
+    };
+  }
+}
+</script>
+</body>
+</html>
