@@ -1,0 +1,29 @@
+/* css/views/me.css — My Med&X (js/views/me.js). Injected by the view.
+   Source: My MedX.dc.html (+ Empty States.dc.html wallet state).
+   Artboard markup keeps its inline styles verbatim — these rules only add behaviour
+   (card flip motion) and the responsive overrides the export's responsive.css implies. */
+
+/* member card — the flip transition is inline; respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .mx-me-card { transition: none !important; }
+}
+
+/* ≤900px: hero becomes one column (card panel below the intro), grids collapse via mx-grid-* */
+@media (max-width: 900px) {
+  .mx-me-hero { grid-template-columns: 1fr !important; }
+  .mx-me-intro { padding: 34px 18px 22px !important; }
+  .mx-me-cardpanel { padding: 26px 18px !important; }
+}
+
+/* ≤700px: record cards single column (mx-grid-3 handles it), wallet cards single column */
+@media (max-width: 700px) {
+  .mx-me-card { width: 100% !important; max-width: 450px; }
+}
+
+/* ≤500px (and the 430px Mobile Portal pattern): settings rows wrap — the label takes its own
+   line, the action stays reachable; ticket rows wrap the same way */
+@media (max-width: 500px) {
+  .mx-me-row { flex-wrap: wrap !important; row-gap: 6px; }
+  .mx-me-row > .mx-me-label { width: 100% !important; }
+  .mx-me-card { padding: 22px 18px !important; }
+}
