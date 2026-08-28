@@ -1,0 +1,62 @@
+/* ============================================================================
+   Med&X member portal v2 — ACCELERATOR screen CSS (injected by js/views/accelerator.js)
+   Sources: Accelerator.dc.html + Accelerator Application.dc.html (their <style> blocks) and
+   responsive.css. Artboard markup keeps its inline styles verbatim; the rules here only add
+   the artboards' own base rules (select focus), behaviour states (drag-over, disabled) and
+   the responsive overrides the artboards express through responsive.css.
+   ========================================================================== */
+
+/* the Application artboard's helmet rules — crimson focus on every control, incl. <select> */
+[data-screen-label="Accelerator Application"] select:focus,
+[data-screen-label="Accelerator Application"] input:focus,
+[data-screen-label="Accelerator Application"] textarea:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
+[data-screen-label="Accelerator Application"] select { -webkit-appearance: none; appearance: none; border-radius: 0;
+  background-image: linear-gradient(45deg, transparent 50%, #4a4239 50%), linear-gradient(135deg, #4a4239 50%, transparent 50%);
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 30px; }
+[data-screen-label="Accelerator Application"] input[type="checkbox"] { accent-color: #9b1b22; }
+[data-screen-label="Accelerator"] input:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
+
+/* document drop zone — drag-over + keyboard focus states (look is inline) */
+.mx-ax-drop { transition: border-color .15s ease, background .15s ease; }
+.mx-ax-drop.is-over, .mx-ax-drop:focus-visible { border-color: #9b1b22 !important; background: #fdfaf3 !important; outline: 0; }
+
+/* disabled controls (submit before completion, Previous on step 1) */
+[data-screen-label="Accelerator Application"] [aria-disabled="true"] { cursor: not-allowed; }
+
+/* results table (v2 addition under RESULTS LOOKUP) */
+.mx-ax-results { overflow-x: auto; }
+.mx-ax-results table { border-collapse: collapse; width: 100%; min-width: 520px; }
+
+/* cohorts panel rows scroll if the admin list is long */
+.mx-ax-fellows { min-height: 0; }
+
+/* ---- responsive (responsive.css → class hooks) ---- */
+@media (max-width: 900px) {
+  .mx-ax-cohorts { grid-template-columns: 1fr 1fr !important; grid-auto-rows: minmax(180px, auto) !important; }
+  .mx-ax-cohorts > div:last-child { grid-column: 1 / -1; }
+  .mx-ax-hosts { grid-template-columns: 1fr 1fr !important; }
+  .mx-ax-selection { grid-template-columns: 1fr 1fr !important; }
+  .mx-ax-wizard { grid-template-columns: 1fr !important; }
+  .mx-ax-stepper > div { padding: 0 10px 12px !important; }
+}
+@media (max-width: 700px) {
+  .mx-ax-faq { grid-template-columns: 1fr !important; }
+  .mx-ax-fields { grid-template-columns: 1fr !important; }
+  .mx-ax-fields > label { grid-column: auto !important; }
+  .mx-ax-cohorts { grid-template-columns: 1fr !important; }
+  .mx-ax-cohorts > div:first-child, .mx-ax-cohorts > div:nth-child(2) { min-height: 120px; }
+  .mx-ax-display-52 { font-size: 34px !important; }
+  .mx-ax-display-34 { font-size: 26px !important; }
+  .mx-ax-band { gap: 8px 14px !important; }
+  .mx-ax-band > span[style*="width:1px"] { display: none !important; }
+}
+@media (max-width: 500px) {
+  .mx-ax-hosts, .mx-ax-selection { grid-template-columns: 1fr !important; }
+  .mx-ax-stepper > div { padding: 0 6px 10px !important; }
+  .mx-ax-stepper > div > span:nth-child(2) { font-size: 7.5px !important; letter-spacing: .08em !important; }
+  .mx-ax-panel-pad { padding-left: 16px !important; padding-right: 16px !important; }
+  .mx-ax-footer { flex-wrap: wrap; gap: 10px; }
+  .mx-ax-footer > div[style*="flex:1"] { flex-basis: 100%; display: none; }
+  .mx-ax-lookup input { width: 100% !important; box-sizing: border-box; }
+  .mx-ax-display-52 { font-size: 30px !important; }
+}
