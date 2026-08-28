@@ -1,0 +1,132 @@
+/* ============================================================================
+   Med&X member portal v2 — APP CSS (chrome, layout, overlays, responsive)
+   Sources: Portal Chrome.dc.html (chrome), Mobile Portal.dc.html (≤430px
+   pattern), responsive.css (≤900 / ≤700 / ≤500 rules — translated from the
+   export's [style*=…] selectors to the class hooks the v2 templates carry),
+   Profile.dc.html (toast), System Pages.dc.html + deploy/staging/launcher.js
+   (waking overlay voice).
+   Artboard markup keeps its inline styles verbatim; rules here only add
+   behaviour (drawer motion, hover/focus, responsive overrides, overlays).
+   ========================================================================== */
+
+/* ---- base (from the artboards' own <style> blocks) ---------------------- */
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: #f7f1e6; font-family: Inter, sans-serif; color: #191512; }
+body[data-layout="auth"] { background: #191512; }
+a { color: #9b1b22; text-decoration: none; }
+a:hover { color: #191512; }
+input, textarea, select, button { font-family: Inter, sans-serif; }
+input:focus, textarea:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+
+/* clickable spans from the artboards (onClick → data-act): pointer + keyboard focus ring */
+[data-act], [data-nav] { cursor: pointer; }
+[data-act]:focus-visible, [data-nav]:focus-visible, a:focus-visible, button:focus-visible {
+  outline: 1px solid #9b1b22; outline-offset: 3px;
+}
+[data-act][aria-disabled="true"] { opacity: .55; cursor: default; }
+
+/* ---- shell -------------------------------------------------------------- */
+#app { position: relative; min-height: 100vh; }
+#view { position: relative; }
+/* Home artboard root: position:relative;overflow:hidden;min-height:100vh (inline on the view root) */
+
+/* ---- Portal Chrome: drawer + scrim (Portal Chrome.dc.html) --------------- */
+/* The drawer/scrim markup and inline styles are verbatim; these rules only carry the
+   open/closed state that the mock expressed through {{ dx }} {{ sc }} {{ pe }}. */
+#mx-scrim { position: fixed; inset: 0; z-index: 40; transition: background .5s ease; background: rgba(25,21,18,0); pointer-events: none; cursor: pointer; }
+#mx-drawer { position: fixed; top: 0; left: -312px; width: 300px; max-height: 100%; height: 100%; z-index: 41; background: #191512; color: #f7f1e6;
+  transition: transform .6s cubic-bezier(.22,1,.36,1); transform: translateX(0px); display: flex; flex-direction: column;
+  padding: 24px 0 28px; box-sizing: border-box; box-shadow: 12px 0 44px rgba(25,21,18,.4); overflow-y: auto; }
+body.drawer-open #mx-scrim { background: rgba(25,21,18,.45); pointer-events: auto; }
+body.drawer-open #mx-drawer { transform: translateX(312px); }
+#mx-drawer a, #mx-drawer [data-act] { transition: color .15s ease; }
+
+/* ---- top-bar dropdowns (SEARCH / ALERTS) — no artboard; built from tokens ---- */
+.mx-pop { position: absolute; top: 60px; right: 36px; z-index: 35; width: 380px; max-width: calc(100vw - 36px); background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: 0 10px 34px rgba(25,21,18,.15); }
+.mx-pop-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid rgba(25,21,18,.16); }
+.mx-pop-list { max-height: 60vh; overflow-y: auto; }
+.mx-pop-row { display: flex; gap: 12px; align-items: flex-start; padding: 11px 16px; border-bottom: 1px solid rgba(25,21,18,.1); color: #191512; cursor: pointer; }
+.mx-pop-row:hover { background: #f7efdf; }
+.mx-pop-row:last-child { border-bottom: 0; }
+.mx-search { position: fixed; inset: 0; z-index: 50; background: rgba(25,21,18,.55); display: flex; align-items: flex-start; justify-content: center; padding: 10vh 18px 0; }
+.mx-search-panel { width: 640px; max-width: 100%; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: 0 16px 44px rgba(25,21,18,.35); }
+.mx-search-panel input { border: 0; border-bottom: 1px solid rgba(25,21,18,.16); background: transparent; padding: 18px 20px; font: 16px Inter, sans-serif; color: #191512; width: 100%; box-sizing: border-box; }
+.mx-search-panel input:focus { outline: 0; }
+.mx-search-panel input::-webkit-search-cancel-button, .mx-search-panel input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+.mx-search-group { padding: 10px 20px 4px; font: 600 9px Inter, sans-serif; letter-spacing: .16em; color: #6e5626; }
+
+/* ---- toast (Profile.dc.html bottom toast, verbatim look) ----------------- */
+.mx-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(12px); background: #191512; color: #f7f1e6; padding: 12px 20px;
+  font: 600 10px Inter, sans-serif; letter-spacing: .15em; text-transform: uppercase; z-index: 70; border-left: 3px solid #c9a962; white-space: nowrap;
+  opacity: 0; transition: opacity .25s ease, transform .25s ease; max-width: calc(100vw - 36px); box-sizing: border-box; }
+.mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.mx-toast.error { border-left-color: #9b1b22; }
+@media (max-width: 500px) { .mx-toast { white-space: normal; max-width: 86vw; text-align: center; } }
+
+/* ---- modal / confirm (brand vocabulary: ink scrim, cream sheet, hairlines) ---- */
+.mx-modal { position: fixed; inset: 0; z-index: 60; background: rgba(25,21,18,.55); display: flex; align-items: center; justify-content: center; padding: 18px; }
+.mx-modal-sheet { background: #f7f1e6; width: 460px; max-width: 100%; box-shadow: 0 10px 34px rgba(25,21,18,.35); }
+.mx-modal-head { padding: 12px 22px; border-bottom: 1px solid rgba(25,21,18,.16); font: 600 9.5px Inter, sans-serif; letter-spacing: .16em; color: #9b1b22; text-transform: uppercase; display: flex; align-items: center; }
+.mx-modal-body { padding: 22px; font-size: 13px; color: #4a4239; line-height: 1.6; }
+.mx-modal-body .mx-modal-title { font-family: Fraunces, serif; font-size: 22px; line-height: 1.15; color: #191512; margin-bottom: 10px; }
+.mx-modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 0 22px 22px; flex-wrap: wrap; }
+
+/* ---- "waking up" overlay (staging backend boots for up to ~2 min) --------- */
+.mx-waking { position: fixed; inset: 0; z-index: 80; background: #191512; color: #f7f1e6; display: flex; align-items: center; justify-content: center; text-align: center; padding: 32px; }
+.mx-waking-inner { max-width: 440px; display: flex; flex-direction: column; align-items: center; }
+.mx-waking .line { font-family: Fraunces, serif; font-style: italic; font-size: 34px; line-height: 1.1; margin-top: 20px; }
+.mx-waking .why { font-size: 14px; color: rgba(247,241,230,.8); margin: 14px 0 0; line-height: 1.6; }
+.mx-waking .status { font: 600 10px Inter, sans-serif; letter-spacing: .16em; color: #c9a962; margin-top: 22px; }
+.mx-waking .bar { width: 120px; height: 1px; background: rgba(247,241,230,.18); margin-top: 18px; position: relative; overflow: hidden; }
+.mx-waking .bar::after { content: ""; position: absolute; left: -40%; top: 0; width: 40%; height: 100%; background: #c9a962; animation: mx-sweep 1.6s ease-in-out infinite; }
+@keyframes mx-sweep { to { left: 100%; } }
+
+/* ---- hero photo rotation (Home photo band) ------------------------------ */
+.mx-rotator img { transition: opacity 1.2s ease; }
+.mx-rotator img.out { opacity: 0; }
+
+/* ---- responsive (translated from responsive.css; hooks = class names) ----- */
+@media (max-width: 900px) {
+  .mx-gutter { padding-left: 18px !important; padding-right: 18px !important; }
+  .mx-pad-hero { padding: 38px 18px 32px !important; }
+  .mx-pad-band { padding: 16px 18px !important; }
+  .mx-pad-36 { padding: 24px 18px !important; }
+  .mx-topbar { height: auto !important; flex-wrap: wrap !important; padding: 10px 18px !important; gap: 10px 14px !important; }
+  .mx-topbar > span, .mx-topbar > a { white-space: nowrap; }
+  .mx-stats { flex-wrap: wrap !important; gap: 6px 16px !important; }
+  .mx-stats > span:first-child { flex-basis: 100%; white-space: nowrap; }
+  .mx-wrap-row { flex-wrap: wrap !important; }
+  .mx-wrap-center { flex-wrap: wrap !important; gap: 10px 18px !important; }
+  .mx-grid-5, .mx-grid-4, .mx-grid-6 { grid-template-columns: 1fr 1fr !important; }
+  .mx-grid-side, .mx-grid-latest, .mx-grid-hero { grid-template-columns: 1fr !important; }
+  .mx-w250 { width: 100% !important; max-width: 250px; }
+  .mx-pop { right: 18px; }
+}
+@media (max-width: 700px) {
+  .mx-grid-3, .mx-grid-2 { grid-template-columns: 1fr !important; }
+  .mx-topbar .mx-identity-text { display: none !important; }
+  .mx-next-event { flex-wrap: wrap !important; }
+  .mx-next-event > .mx-vrule { display: none !important; }
+  .mx-next-event > .mx-cta-row { margin-left: 0 !important; }
+}
+@media (max-width: 500px) {
+  .mx-grid-5, .mx-grid-4, .mx-grid-6 { grid-template-columns: 1fr !important; }
+  .mx-display-46 { font-size: 28px !important; }
+  .mx-display-30 { font-size: 22px !important; }
+  .mx-display-26 { font-size: 20px !important; }
+  .mx-w230, .mx-w220 { width: 100% !important; }
+}
+
+/* ---- ≤430px: the Mobile Portal pattern (Mobile Portal.dc.html) ----------- */
+/* Desktop chrome hides; the compact sticky top bar + ink bottom tab bar show. The view
+   content keeps its desktop templates (stacked by the rules above) — "carry full content". */
+#mx-mobile-top, #mx-tabbar, .mx-mobile-only { display: none !important; }
+@media (max-width: 430px) {
+  body[data-layout="portal"] #mx-desktop-chrome { display: none !important; }
+  body[data-layout="portal"] #mx-mobile-top, body[data-layout="portal"] .mx-mobile-only { display: flex !important; }
+  body[data-layout="portal"] #mx-tabbar { display: flex !important; }
+  body[data-layout="portal"] #view { padding-bottom: 86px; }
+  .mx-pop { top: 52px; right: 0; width: 100vw; max-width: 100vw; }
+}

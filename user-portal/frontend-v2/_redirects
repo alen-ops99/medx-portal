@@ -1,0 +1,57 @@
+# Netlify redirects — member portal v2 (staging). Order matters: first match wins.
+# 1) Every server-rendered path + the API proxy to the staging backend (status 200 = proxy, URL unchanged).
+#    Placeholder host: https://medx-staging.onrender.com — sed it to the real Render host on deploy.
+# 2) Everything else → the SPA shell (index.html) and the client router (/app/…).
+/api  https://medx-staging.onrender.com/api  200
+/api/*  https://medx-staging.onrender.com/api/:splat  200
+/plexus  https://medx-staging.onrender.com/plexus  200
+/plexus/*  https://medx-staging.onrender.com/plexus/:splat  200
+/forum  https://medx-staging.onrender.com/forum  200
+/forum/*  https://medx-staging.onrender.com/forum/:splat  200
+/apply  https://medx-staging.onrender.com/apply  200
+/apply/*  https://medx-staging.onrender.com/apply/:splat  200
+/evaluate  https://medx-staging.onrender.com/evaluate  200
+/evaluate/*  https://medx-staging.onrender.com/evaluate/:splat  200
+/pay  https://medx-staging.onrender.com/pay  200
+/pay/*  https://medx-staging.onrender.com/pay/:splat  200
+/pass  https://medx-staging.onrender.com/pass  200
+/pass/*  https://medx-staging.onrender.com/pass/:splat  200
+/invite  https://medx-staging.onrender.com/invite  200
+/invite/*  https://medx-staging.onrender.com/invite/:splat  200
+/reset-password  https://medx-staging.onrender.com/reset-password  200
+/reset-password/*  https://medx-staging.onrender.com/reset-password/:splat  200
+/qr  https://medx-staging.onrender.com/qr  200
+/qr/*  https://medx-staging.onrender.com/qr/:splat  200
+/calendar  https://medx-staging.onrender.com/calendar  200
+/calendar/*  https://medx-staging.onrender.com/calendar/:splat  200
+/verify  https://medx-staging.onrender.com/verify  200
+/verify/*  https://medx-staging.onrender.com/verify/:splat  200
+/r  https://medx-staging.onrender.com/r  200
+/r/*  https://medx-staging.onrender.com/r/:splat  200
+/unsubscribe  https://medx-staging.onrender.com/unsubscribe  200
+/unsubscribe/*  https://medx-staging.onrender.com/unsubscribe/:splat  200
+/email-prefs  https://medx-staging.onrender.com/email-prefs  200
+/email-prefs/*  https://medx-staging.onrender.com/email-prefs/:splat  200
+/donate  https://medx-staging.onrender.com/donate  200
+/donate/*  https://medx-staging.onrender.com/donate/:splat  200
+/uploads  https://medx-staging.onrender.com/uploads  200
+/uploads/*  https://medx-staging.onrender.com/uploads/:splat  200
+/f  https://medx-staging.onrender.com/f  200
+/f/*  https://medx-staging.onrender.com/f/:splat  200
+/speaker  https://medx-staging.onrender.com/speaker  200
+/speaker/*  https://medx-staging.onrender.com/speaker/:splat  200
+/__staging  https://medx-staging.onrender.com/__staging  200
+/__staging/*  https://medx-staging.onrender.com/__staging/:splat  200
+/__admin  https://medx-staging.onrender.com/__admin  200
+/__admin/*  https://medx-staging.onrender.com/__admin/:splat  200
+/invite-success  https://medx-staging.onrender.com/invite-success  200
+/invite-cancelled  https://medx-staging.onrender.com/invite-cancelled  200
+/verify-certificate  https://medx-staging.onrender.com/verify-certificate  200
+/building-bridges  https://medx-staging.onrender.com/building-bridges  200
+/donor-night  https://medx-staging.onrender.com/donor-night  200
+/terms  https://medx-staging.onrender.com/terms  200
+/privacy  https://medx-staging.onrender.com/privacy  200
+/health  https://medx-staging.onrender.com/health  200
+
+# SPA fallback
+/*  /index.html  200

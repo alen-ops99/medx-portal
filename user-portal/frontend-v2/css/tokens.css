@@ -1,0 +1,106 @@
+/* ============================================================================
+   Med&X member portal v2 — DESIGN TOKENS
+   Source: BRAND-BRIEF.md + README "Design Tokens" (member export 2026-08-28).
+   Every value below is copied from the brief; the artboards use these literal
+   values inline. Use the variables for NEW elements; leave the copied artboard
+   markup with its inline literals (traceability to the .dc.html files).
+   ========================================================================== */
+:root {
+  /* colours (exact, non-negotiable) */
+  --ink: #191512;             /* near-black — dark surfaces, primary text        */
+  --cream: #f7f1e6;           /* warm paper page ground — never pure white        */
+  --card: #fdfaf3;            /* card cream                                       */
+  --crimson: #9b1b22;         /* primary action                                   */
+  --crimson-hover: #7e151b;
+  --gold: #c9a962;            /* premium moments, hairline flourishes             */
+  --gold-hover: #d9bd7f;
+  --gold-btn-hover: #b8994f;  /* gold filled button hover (artboards)             */
+  --gold-dark: #6e5626;       /* dark-on-light gold text                          */
+  --soft: #4a4239;            /* secondary text                                   */
+  --muted: #9b8f80;           /* dates / tertiary labels (Home news dates)        */
+  --banner: #f1e8d3;          /* email-confirm banner ground                      */
+  --hair: rgba(25,21,18,.16);        /* hairline on light                         */
+  --hair-soft: rgba(25,21,18,.1);    /* row separators inside cards               */
+  --hair-ink: rgba(247,241,230,.25); /* hairline on ink                           */
+  --hair-ink-soft: rgba(247,241,230,.14);
+  --scrim: rgba(25,21,18,.45);
+
+  /* typography */
+  --font-display: Fraunces, serif;   /* optical sizing on; italics for emphasis  */
+  --font-ui: Inter, sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+
+  /* shape & motion */
+  --radius: 0px;                       /* square corners everywhere, no pills    */
+  --gutter: 36px;                      /* page gutter (desktop)                  */
+  --gutter-m: 18px;                    /* page gutter (≤900px)                   */
+  --drawer-w: 300px;
+  --ease-drawer: cubic-bezier(.22,1,.36,1);
+  --shadow-drawer: 12px 0 44px rgba(25,21,18,.4);
+  --shadow-sheet: 0 10px 34px rgba(25,21,18,.15);
+}
+
+/* ---- repeated utility vocabulary (only where the design repeats itself) ---- */
+
+/* micro-label: 9–11px Inter 600 uppercase, tracked — eyebrows, buttons, tags */
+.micro        { font: 600 10.5px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
+.micro-9      { font: 600 9px var(--font-ui);    letter-spacing: .15em; text-transform: uppercase; white-space: nowrap; }
+.micro-10     { font: 600 10px var(--font-ui);   letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
+
+/* numbered section eyebrow — "01 · OUR PROJECTS" (house signature) */
+.eyebrow      { display: flex; align-items: baseline; gap: 14px; }
+.eyebrow-n    { font-family: var(--font-display); font-weight: 600; font-size: 14px; color: var(--crimson); }
+.eyebrow-t    { font: 600 14px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
+.eyebrow-s    { font-size: 12.5px; color: var(--soft); }
+
+/* buttons — crimson filled / hairline ghost / gold filled; uppercase micro text; never wrap */
+.btn-primary, .btn-ghost, .btn-gold, .btn-ghost-ink {
+  display: inline-block; padding: 12px 20px; font: 600 10.5px var(--font-ui); letter-spacing: .16em;
+  text-transform: uppercase; text-decoration: none; cursor: pointer; white-space: nowrap; border-radius: var(--radius);
+  border: 0; line-height: normal; text-align: center; box-sizing: border-box;
+}
+.btn-primary  { background: var(--crimson); color: var(--cream); }
+.btn-primary:hover { background: var(--crimson-hover); color: var(--cream); }
+.btn-ghost    { border: 1px solid rgba(25,21,18,.35); color: var(--ink); background: transparent; }
+.btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
+.btn-ghost-ink { border: 1px solid rgba(247,241,230,.35); color: var(--cream); background: transparent; }
+.btn-ghost-ink:hover { border-color: var(--cream); color: var(--cream); }
+.btn-gold     { background: var(--gold); color: var(--ink); }
+.btn-gold:hover { background: var(--gold-btn-hover); color: var(--ink); }
+.btn-primary[disabled], .btn-ghost[disabled], .btn-gold[disabled] { opacity: .55; cursor: default; }
+
+/* card — cream sheet with a 1px hairline; no shadow, no radius */
+.card         { background: var(--card); border: 1px solid var(--hair); box-sizing: border-box; }
+.card-ink     { background: var(--ink); color: var(--cream); border: 1px solid rgba(201,169,98,.55); box-sizing: border-box; }
+
+/* hairlines */
+.hairline     { height: 1px; background: var(--hair); }
+.hairline-ink { height: 1px; background: var(--hair-ink-soft); }
+.rule-gold    { display: inline-block; width: 28px; height: 1px; background: var(--gold); }
+.rule-crimson { display: inline-block; width: 34px; height: 1px; background: var(--crimson); }
+.dot-gold     { display: inline-block; width: 6px; height: 6px; background: var(--gold); }
+
+/* toggle — 34×18 rectangle, 14px square knob, crimson when on */
+.toggle       { position: relative; display: inline-block; width: 34px; height: 18px; background: rgba(25,21,18,.25); cursor: pointer; flex: none; }
+.toggle::after{ content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: var(--cream); transition: left .2s ease; }
+.toggle.on    { background: var(--crimson); }
+.toggle.on::after { left: 18px; }
+
+/* chips — square, hairline, crimson when selected (newsletter topics, specialties) */
+.chip         { display: inline-block; padding: 5px 9px; border: 1px solid rgba(25,21,18,.22); background: transparent; color: var(--ink);
+                font: 600 8.5px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+.chip.on      { border-color: var(--crimson); background: var(--crimson); color: var(--cream); }
+
+/* inputs — card cream fill, hairline, crimson focus outline (Auth / Profile vocabulary) */
+.input        { border: 1px solid rgba(25,21,18,.25); background: #fdfaf3; padding: 11px 12px; font: 13px var(--font-ui); color: var(--ink); width: 100%; box-sizing: border-box; border-radius: 0; }
+.input:focus  { outline: 1px solid var(--crimson); outline-offset: -1px; }
+.label        { font: 600 10px var(--font-ui); letter-spacing: .14em; color: var(--soft); text-transform: uppercase; }
+
+/* empty-state voice: italic Fraunces line + one sentence + one CTA */
+.empty        { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 30px 22px 32px; }
+.empty-line   { font-family: var(--font-display); font-style: italic; font-size: 17px; }
+.empty-why    { font-size: 12.5px; color: var(--soft); max-width: 400px; line-height: 1.55; }
+
+/* striped placeholder (spots awaiting real content) */
+.placeholder  { border: 1px dashed rgba(25,21,18,.3); background: repeating-linear-gradient(45deg, rgba(25,21,18,.05) 0 8px, transparent 8px 16px);
+                display: flex; align-items: center; justify-content: center; font: 600 8.5px var(--font-mono); color: var(--soft); }

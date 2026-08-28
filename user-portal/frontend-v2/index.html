@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Med&X Member Portal</title>
+<meta name="description" content="Med&X member portal — Plexus Conference, Gala Evening, the Accelerator, the Biomedical Forum and Building Bridges, in one place.">
+<meta name="theme-color" content="#191512">
+<meta name="color-scheme" content="light">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Med&X">
+<!-- fonts: exactly the artboards' Google Fonts request (server CSP allows fonts.googleapis/gstatic) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+<!-- runtime config — the deploy stamps config.staging.js / config.production.js into this block (scripts/apply-config.js) -->
+<script>/* MEDX_CONFIG:start */window.MEDX_CONFIG={apiBase:'',env:'production'};/* MEDX_CONFIG:end */</script>
+<script>
+/* Seamless hand-off from medx.hr: ?mxt=<token> adopts that session before the app boots, then cleans the
+   URL (mirrors user-portal/frontend/index.html:54 — the key name is shared with the website). */
+(function(){try{var p=new URLSearchParams(location.search);var t=p.get('mxt');if(t){localStorage.setItem('medx_user_token',t);p.delete('mxt');var q=p.toString();history.replaceState(null,'',location.pathname+(q?'?'+q:'')+location.hash);}}catch(e){}})();
+</script>
+</head>
+<body data-layout="portal">
+<div id="app">
+  <header id="chrome"></header>
+  <main id="view" aria-live="polite"></main>
+</div>
+<div id="chrome-overlays"></div>
+<noscript>
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px;background:#f7f1e6;color:#191512;font-family:Inter,sans-serif">
+    <div><div style="font-family:Fraunces,serif;font-style:italic;font-size:30px">The portal needs JavaScript.</div><p style="font-size:14px;color:#4a4239;margin-top:12px">Enable it in your browser settings, then reload this page.</p></div>
+  </div>
+</noscript>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

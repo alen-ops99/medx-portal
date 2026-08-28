@@ -1,0 +1,44 @@
+# Netlify — Med&X member portal v2 (review/staging site).
+# Redirect/proxy rules live in _redirects (kept as a file so `sed` can retarget the backend host).
+[build]
+  base    = "user-portal/frontend-v2"
+  publish = "."
+  # stamp the staging runtime config into index.html (config.staging.js → the MEDX_CONFIG block)
+  command = "node scripts/apply-config.js staging"
+
+[build.processing]
+  skip_processing = true      # no asset bundling/minification — plain ES modules, served as-is
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Service-Worker-Allowed = "/"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=600, must-revalidate"
+
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=600, must-revalidate"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
