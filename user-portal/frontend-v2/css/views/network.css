@@ -1,0 +1,27 @@
+/* ============================================================================
+   Med&X member portal v2 — NETWORK · PEOPLE screen CSS
+   Source: Network.dc.html (injected by js/views/network.js).
+   Convention (ARCHITECTURE §4): the artboard markup keeps its inline styles
+   verbatim; classes here are `mx-net-*` hooks that carry ONLY responsive
+   overrides and behaviour — never look.
+   ========================================================================== */
+
+/* the 36px-headline is nowrap on the artboard (desktop); let it wrap on small screens */
+@media (max-width: 900px) {
+  .mx-net-h1 { white-space: normal !important; font-size: 30px !important; }
+}
+@media (max-width: 500px) {
+  .mx-net-h1 { font-size: 25px !important; }
+  /* search field + button keep one line but shrink */
+  .mx-net-search input { min-width: 0; }
+  /* directory / results / my-network rows: identity takes the full first line,
+     state chip + actions wrap underneath (buttons never squeeze or wrap mid-label) */
+  .mx-net-row { flex-wrap: wrap !important; row-gap: 10px !important; }
+  .mx-net-id { flex-basis: 100% !important; }
+}
+
+/* row hover — the artboard's list rows are plain; give pointer feedback only */
+.mx-net-row:hover { background: rgba(253, 250, 243, .8); }
+
+/* keep the connect/message buttons from collapsing on narrow rows */
+.mx-net-act { flex: none; }
