@@ -124,5 +124,5 @@ report.splice(4, 0,
 
 const text = report.join('\n');
 if (outFile) { fs.mkdirSync(path.dirname(path.resolve(outFile)), { recursive: true }); fs.writeFileSync(outFile, text); console.log(`wrote ${outFile}`); }
+else console.log(text);
 console.log(`changed ${summary.changed.length}, added ${summary.added.length}, removed ${summary.removed.length}, unchanged ${summary.unchanged.length}`);
-if (!outFile) console.log(text);
