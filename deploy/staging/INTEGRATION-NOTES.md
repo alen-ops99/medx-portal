@@ -7,3 +7,10 @@
   Errors: `e.data?.code==='unknown'` → invalid-code copy; bare 404 → offline copy; else e.message. Optional: prefill from ?code=.
 - Backend bug found: `/api/my/events` forum branch selects nonexistent columns → forum registrations never reach wallet/stats (server.js fix at integration).
 - Seed content: no future forum_events besides the seeded forum-2027-gathering; forum_news future-dated (Sep 1 / Oct 15); only 2 forum_members.
+
+## From PROFILE builder (done, committed)
+- home.js load(): add `comp: api.get('/api/v2/profile/completion')` to settle; replace `completion: profileCompletion(me, r.net),` with the r.comp-based object (fallback to client calc when absent).
+- server.js ~11907 `/api/auth/me` SELECT: append `, email_verified`; app.js refreshMe: preserve prev.email_verified when undefined.
+- server.js v2 mount ctx (~29420): add `awardPoints, rewardsSettingNum` so profile PATCH awards completion points.
+- Columns added by module: users.title/city/specialties/updates_opt_in/profile_saved_at (+user_profiles mirrors). Completion formula server-side (photo20/spec15/bio15/name10/inst10/title10/country10/verified5/saved5).
+- Seed: users.country mixes codes/names; 0 photos/bios; founder row missing diacritic.
