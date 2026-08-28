@@ -118,7 +118,9 @@ async function load() {
     impact: api.get('/api/public/impact', { noAuth: true }),
     topics: api.get('/api/notify-topics'),
     next: api.get('/api/me/next-event'),
-    net: api.get('/api/networking/profile')
+    net: api.get('/api/networking/profile'),
+    comp: api.get('/api/v2/profile/completion'),
+    nl: api.get('/api/v2/newsletter/preferences')
   });
   if (r.me) session.update(Object.assign({}, r.me, { email_verified: (session.user || {}).email_verified }));
   const me = session.user || r.me || {};
@@ -130,7 +132,10 @@ async function load() {
     me, conf, projects, feed, impact: r.impact,
     followed: (r.topics && r.topics.projects) || [],
     next: r.next || {},
-    completion: profileCompletion(me, r.net),
+    completion: r.comp && Array.isArray(r.comp.items)
+      ? { pct: r.comp.percent, done: r.comp.done, total: r.comp.total, items: r.comp.items, complete: !!r.comp.complete }
+      : profileCompletion(me, r.net), // fallback while the server formula is unavailable
+    nl: r.nl || null,
     keyDates: keyDates || COPY.keyDates.fallback, keyDatesFromApi: !!keyDates,
     countdownTo: conf && conf.start_date ? String(conf.start_date).slice(0, 10) + 'T09:00:00+01:00' : FACTS.plexus.startAt,
     shortName: ((r.next && r.next.event_name) || (conf && conf.name) || FACTS.plexus.name).replace(/\s*Conference\s*/i, ' ').trim(),
@@ -421,15 +426,14 @@ const handlers = {
   },
   nlSub: async (el) => {
     if (!st.nlTopics.length) return ui.toast(COPY.newsletter.pick, { kind: 'error' });
-    const projects = st.nlTopics.includes(ALL_TOPIC) ? FACTS.projectOrder.slice() : st.nlTopics.map(l => TOPIC_KEY[l]).filter(Boolean);
+    const topics = st.nlTopics.includes(ALL_TOPIC) ? ['all'] : st.nlTopics.map(l => TOPIC_KEY[l]).filter(Boolean);
+    const typed = ((rootEl.querySelector('[data-role="nlEmail"]') || {}).value || '').trim();
     el.setAttribute('aria-disabled', 'true');
     try {
-      // GAP: no member newsletter endpoint exists — topic follows are the closest real store (see ARCHITECTURE.md › gaps)
-      await Promise.all(projects.map(p => api.post('/api/notify-topics', { project: p, on: true })));
+      const r = await api.post('/api/v2/newsletter/subscribe', typed ? { topics, email: typed } : { topics });
       st.nlDone = true; st.nlCount = st.nlTopics.length;
       rerender('[data-block="newsletter"]', blockNewsletter());
-      ui.toast(COPY.newsletter.done(st.nlCount));
-      chrome.refresh();
+      ui.toast(r && r.pending_confirmation ? 'Check that inbox — one click there confirms the subscription.' : COPY.newsletter.done(st.nlCount));
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   }
 };
@@ -462,7 +466,9 @@ export default {
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     const followedLabels = D.followed.map(k => Object.keys(TOPIC_KEY).find(l => TOPIC_KEY[l] === k)).filter(Boolean);
-    st = { expanded: false, nlTopics: followedLabels.length ? followedLabels : [ALL_TOPIC], nlDone: false, nlCount: 0 };
+    const nlKeys = D.nl && D.nl.subscribed ? D.nl.topics : null;
+    const nlLabels = nlKeys ? (nlKeys.includes('all') ? [ALL_TOPIC] : nlKeys.map(k => Object.keys(TOPIC_KEY).find(l => TOPIC_KEY[l] === k)).filter(Boolean)) : null;
+    st = { expanded: false, nlTopics: nlLabels || (followedLabels.length ? followedLabels : [ALL_TOPIC]), nlDone: !!nlLabels, nlCount: nlLabels ? nlLabels.length : 0 };
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     startTimers();

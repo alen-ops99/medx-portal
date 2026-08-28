@@ -75,8 +75,8 @@ async function refreshMe() {
   try {
     const me = await api.get('/api/auth/me');
     const prev = session.user || {};
-    // GET /api/auth/me does not expose email_verified (see ARCHITECTURE.md › gaps) — keep the flag we hold
-    session.update(Object.assign({}, me, { email_verified: prev.email_verified }));
+    // Prefer the server's email_verified (added to /api/auth/me on this branch); keep ours when absent
+    session.update(Object.assign({}, me, me.email_verified === undefined ? { email_verified: prev.email_verified } : {}));
     chrome.refresh();
   } catch (e) { /* 401 handled by api.js; network errors keep the cached user */ }
 }

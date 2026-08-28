@@ -1567,6 +1567,8 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             if(form && typeof form.requestSubmit === 'function'){ form.requestSubmit(); }
             else { plexSubmit(new Event('submit')); }
         }
+        // ?pick=conference,gala — preselect event cards for deep links from the member portal (2026-08-28)
+        try{(new URLSearchParams(location.search).get('pick')||'').split(',').forEach(function(k){var el=document.querySelector('.event-option[data-key="'+k.trim()+'"]');if(el&&!el.classList.contains('selected'))plexToggle(el);});}catch(e){}
         </script>`;
 
         return res.send(PLEXUS_SHELL(inner + clientJs, 'Plexus 2026 — Reserve Your Place'));
@@ -5864,7 +5866,8 @@ function syncMemberEarnedPoints(userId, email) {
                 if (r.payment_status === 'paid' && Number(r.amount_paid) > 0) awardPoints(userId, Math.floor(Number(r.amount_paid)) * rate, 'payment', 'gala:' + r.id, 'Gala registration');
                 if (r.checked_in) awardPoints(userId, checkin, 'checkin', 'gala:' + r.id, 'Gala check-in');
             }
-            const forum = query.all("SELECT id, payment_amount, payment_status, checked_in FROM forum_event_registrations WHERE email = ?", [em]);
+            // forum_event_registrations has no email column — resolve via forum_members.user_id (fix 2026-08-28)
+            const forum = query.all("SELECT r.id, r.payment_amount, r.payment_status, r.checked_in FROM forum_event_registrations r JOIN forum_members m ON r.member_id = m.id WHERE m.user_id = ?", [userId]);
             for (const r of forum) {
                 if (r.payment_status === 'paid' && Number(r.payment_amount) > 0) awardPoints(userId, Math.floor(Number(r.payment_amount)) * rate, 'payment', 'forum:' + r.id, 'Forum registration');
                 if (r.checked_in) awardPoints(userId, checkin, 'checkin', 'forum:' + r.id, 'Forum check-in');
@@ -11298,15 +11301,8 @@ async function initializeApp() {
 
             const baseUrl = `${req.protocol}://${req.get('host')}`;
             const verifyUrl = `${baseUrl}/api/verify-email?token=${verificationToken}`;
-            const emailHtml = buildEmailTemplate('Verify Your Email', `
-                <p>Hi ${user.first_name || 'there'},</p>
-                <p>Here is your new verification link. Please click the button below to verify your email address:</p>
-                <div style="text-align: center; margin: 32px 0;">
-                    <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Verify Email Address</a>
-                </div>
-                <p style="color: #64748b; font-size: 13px;">If the button doesn't work, copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
-            `);
+            // Redesign 2026-08-28: brand template (Emails.dc.html) via v2/email-templates
+            const emailHtml = require('./v2/email-templates').confirmEmail({ firstName: user.first_name, verifyUrl, validFor: null });
             await sendEmail(email, 'Verify your Med&X account', emailHtml);
             console.log(`[Auth] Verification email resent to ${email}`);
             res.json({ success: true, message: 'Verification email sent. Please check your inbox.' });
@@ -11335,25 +11331,8 @@ async function initializeApp() {
         console.log(`[Auth] Verification link for ${user.email}: ${verifyUrl}`);
         const loc = memberLocale(user);
         const hr = loc === 'hr';
-        const emailHtml = buildEmailTemplate(hr ? 'Potvrdite svoju e-poštu' : 'Confirm your email', hr ? `
-            <p>Poštovani ${user.first_name || ''},</p>
-            <p>Dobro došli u Med&amp;X. Molimo potvrdite svoju adresu e-pošte kako biste dovršili postavljanje računa.</p>
-            <div style="text-align: center; margin: 32px 0;">
-                <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Potvrdite e-poštu</a>
-            </div>
-            <p style="color: #64748b; font-size: 13px;">Ako gumb ne radi, kopirajte i zalijepite ovu poveznicu u svoj preglednik:</p>
-            <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
-            <p style="color: #64748b; font-size: 13px; margin-top: 24px;">Ova poveznica istječe za 24 sata. Ako niste otvorili Med&amp;X račun, slobodno zanemarite ovu poruku.</p>
-        ` : `
-            <p>Hi ${user.first_name || 'there'},</p>
-            <p>Welcome to Med&amp;X. Please confirm your email address to finish setting up your account.</p>
-            <div style="text-align: center; margin: 32px 0;">
-                <a href="${verifyUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 16px;">Confirm my email</a>
-            </div>
-            <p style="color: #64748b; font-size: 13px;">If the button doesn't work, copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #64748b; font-size: 13px;">${verifyUrl}</p>
-            <p style="color: #64748b; font-size: 13px; margin-top: 24px;">This link expires in 24 hours. If you didn't create a Med&amp;X account, you can ignore this email.</p>
-        `, loc);
+        // Redesign 2026-08-28: brand template (Emails.dc.html) via v2/email-templates
+        const emailHtml = require('./v2/email-templates').confirmEmail({ firstName: user.first_name, verifyUrl, locale: loc, validFor: hr ? '24 sata' : '24 hours' });
         try {
             await sendEmail(user.email, hr ? 'Potvrdite svoj Med&X račun' : 'Confirm your Med&X account', emailHtml);
         } catch (e) { console.error('Verification email error for', user.email, e && e.message); }
@@ -11904,7 +11883,7 @@ async function submitReset(e){
     });
 
     app.get('/api/auth/me', auth, (req, res) => {
-        const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_public_profile FROM users WHERE id = ?', [req.user.id]);
+        const user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, photo_url, is_admin, is_public_profile, email_verified FROM users WHERE id = ?', [req.user.id]);
         // Never fall back to another user's row. If the JWT resolves to no profile row
         // (deleted or not yet synced), return an empty profile seeded only from the token
         // identity so the client can bind to the authenticated user and nobody else.
@@ -14596,20 +14575,23 @@ By applying to this program, I provide the following consents:
             const appYear = year || new Date().getFullYear();
             const id = uuidv4();
 
+            // Attach the active program so /api/accelerator/applications/my can find the row (fix 2026-08-28)
+            const activeProgram = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1 ORDER BY year DESC LIMIT 1');
+
             // Generate work number based on count
             const count = query.get('SELECT COUNT(*) as cnt FROM accelerator_applications WHERE year = ?', [appYear]);
             const workNum = String((count?.cnt || 0) + 1).padStart(3, '0');
             const appNumber = `ACC${String(appYear).slice(-2)}-${workNum}`;
 
             db.run(`INSERT INTO accelerator_applications (
-                id, year, user_id, application_number, work_number,
+                id, year, user_id, program_id, application_number, work_number,
                 first_name, last_name, email, phone, date_of_birth, oib, address,
                 nationality, country_of_residence,
                 current_institution, degree_program, year_of_study, gpa, ects_total,
                 program_type, selected_institution, alternative_institution,
                 previous_experience, special_arrangements, gdpr_consent, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-                id, appYear, req.user.id, appNumber, workNum,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                id, appYear, req.user.id, activeProgram ? activeProgram.id : null, appNumber, workNum,
                 first_name ?? null, last_name ?? null, email ?? null, phone ?? null, date_of_birth ?? null, oib ?? null, address ?? null,
                 nationality ?? null, country_of_residence ?? null,
                 current_institution ?? null, degree_program ?? null, year_of_study ?? null, gpa ?? null, ects_total ?? null,
@@ -16350,7 +16332,10 @@ By applying to this program, I provide the following consents:
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        const filePath = path.join(uploadsDir, 'accelerator', doc.file_name);
+        // column is stored_filename (file_name never existed) — fall back to the stored file_path (fix 2026-08-28)
+        const storedName = doc.stored_filename || (doc.file_path ? path.basename(doc.file_path) : null);
+        if (!storedName) return res.status(404).json({ error: 'File not found on disk' });
+        const filePath = path.join(uploadsDir, 'accelerator', storedName);
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'File not found on disk' });
         }
@@ -16366,7 +16351,7 @@ By applying to this program, I provide the following consents:
             return res.status(403).json({ error: 'Access denied' });
         }
         const docs = query.all(`
-            SELECT id, document_type, original_filename, file_name, file_size, mime_type, uploaded_at, verified
+            SELECT id, document_type, original_filename, stored_filename, file_size, mime_type, uploaded_at, upload_status
             FROM accelerator_documents
             WHERE application_id = ?
             ORDER BY document_type`, [req.params.id]);
@@ -17457,19 +17442,17 @@ By applying to this program, I provide the following consents:
                     : '';
                 const venue = event.location_name || '';
                 const greetName = name ? name.split(' ')[0] : 'there';
-                const emailHtml = buildEmailTemplate('Registration confirmed', `
-                    <p>Hi ${greetName},</p>
-                    <p>You're registered for <strong>${event.title}</strong>.</p>
-                    <p>
-                        ${eventDate ? `<strong>Date:</strong> ${eventDate}<br>` : ''}
-                        ${venue ? `<strong>Location:</strong> ${venue}<br>` : ''}
-                        <strong>Reference:</strong> ${qrCode}
-                    </p>
-                    <p>Keep this reference — you'll need it for check-in on the day.</p>
-                    <p>Details and any schedule updates are posted in the Med&X portal at <a href="https://medx-user-portal.onrender.com">medx-user-portal.onrender.com</a>.</p>
-                    <p>Looking forward to seeing you there.</p>
-                    <p style="color: #94a3b8; font-size: 12px;">Med&X — Annual Biomedical Forum 2026</p>
-                `);
+                // Redesign 2026-08-28: brand template (Emails.dc.html) via v2/email-templates
+                const emailHtml = require('./v2/email-templates').ticketConfirmation({
+                    firstName: greetName,
+                    eventName: event.title,
+                    dateLabel: eventDate,
+                    venue,
+                    ticketNumber: qrCode,
+                    ctaLabel: 'OPEN THE PORTAL →',
+                    passUrl: 'https://medx-user-portal.onrender.com/app/forum',
+                    note: `Keep reference <strong>${qrCode}</strong> — you'll need it at check-in. Schedule updates are posted in the portal.`
+                });
                 sendEmail(email, `You're registered — ${event.title}`, emailHtml).catch(err => {
                     console.error('[Forum] Confirmation email failed (non-blocking):', err.message);
                 });
@@ -19998,24 +19981,21 @@ By applying to this program, I provide the following consents:
                         ? '<p style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px 16px; border-radius: 8px; color: #1e40af;">Please complete your card payment to secure your spot.</p>'
                         : `<p style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px 16px; border-radius: 8px; color: #1e40af;">Please transfer <strong>&euro;${price.toFixed(2)}</strong> to our bank account using reference <strong>${invoiceNumber}</strong> to secure your spot.</p>`;
 
-                sendEmail(userEmail, 'Welcome to Plexus 2026!', buildEmailTemplate('Welcome to Plexus 2026!', `
-                    <p>Dear ${userName},</p>
-                    <p>Thank you for registering for <strong>Plexus 2026</strong>! We are thrilled to have you join us.</p>
-                    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Ticket</td>
-                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${ticket.name}</td></tr>
-                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Invoice Number</td>
-                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${invoiceNumber}</td></tr>
-                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Amount</td>
-                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">&euro;${price.toFixed(2)}</td></tr>
-                        <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Payment Status</td>
-                            <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${paymentStatus === 'paid' ? 'Paid' : 'Pending'}</td></tr>
-                    </table>
-                    ${paymentInfo}
-                    <p style="margin-top: 20px;">If you have any questions, feel free to reach out to us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
-                    <p>We look forward to seeing you at Plexus 2026!</p>
-                    <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
-                `));
+                // Redesign 2026-08-28: brand template (Emails.dc.html) via v2/email-templates
+                sendEmail(userEmail, 'Welcome to Plexus 2026!', require('./v2/email-templates').ticketConfirmation({
+                    firstName: userName,
+                    eventName: 'Plexus Conference 2026',
+                    headlineHtml: 'Plexus 2026 — seat <i>confirmed</i>.',
+                    dateLabel: lookupEventWhen('plexus', regId) || 'December 4–5, 2026',
+                    guestLabel: userName,
+                    ticketNumber: invoiceNumber,
+                    ticketLabel: ticket.name,
+                    priceLabel: price > 0 ? `€${price.toFixed(2)} · ${paymentStatus === 'paid' ? 'paid' : 'payment pending'}` : 'Free',
+                    qrPngUrl: qrImageUrl(regId),
+                    passUrl: `${QR_BASE_URL}/app/plexus/mine`,
+                    walletUrl: `${QR_BASE_URL}/app/me`,
+                    calendarUrl: `${QR_BASE_URL}/calendar/plexus.ics`
+                }));
             } catch (emailErr) {
                 console.warn('Plexus registration email failed:', emailErr.message);
             }
@@ -26965,21 +26945,18 @@ By applying to this program, I provide the following consents:
         if (status === 'approved' && updated && updated.email) {
             try {
                 const portalUrl = process.env.PORTAL_URL || 'https://medx-user-portal.onrender.com';
-                sendEmail(updated.email, 'Your Gala Evening Invitation Has Been Approved!', buildEmailTemplate('Invitation Approved', `
-                    <p>Dear ${updated.first_name},</p>
-                    <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
-                        Your invitation to the Plexus 2026 Gala Evening has been approved!
-                    </p>
-                    <p>We are delighted to welcome you to an exclusive evening of networking, fine dining, and celebration with leading minds in biomedicine.</p>
-                    ${updated.pricing ? `<p><strong>Ticket Category:</strong> ${updated.pricing}</p>` : ''}
-                    <p style="margin-top: 20px;">To secure your spot, please complete your payment at your earliest convenience:</p>
-                    <div style="text-align: center; margin: 24px 0;">
-                        <a href="${portalUrl}" style="display: inline-block; background: #C9A962; color: #0f172a; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px;">Complete Payment</a>
-                    </div>
-                    <p>If you have any questions or need assistance with payment, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
-                    <p>We look forward to seeing you there!</p>
-                    <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
-                `));
+                // Redesign 2026-08-28: brand template (Emails.dc.html) via v2/email-templates
+                sendEmail(updated.email, 'Your Gala Evening Invitation Has Been Approved!', require('./v2/email-templates').ticketConfirmation({
+                    firstName: updated.first_name,
+                    eventName: 'Plexus Gala Evening 2026',
+                    headlineHtml: 'Gala Evening — invitation <i>approved</i>.',
+                    dateLabel: lookupEventWhen('gala', updated.id) || 'December 5, 2026 · 19:00',
+                    guestLabel: `${updated.first_name} ${updated.last_name}`.trim(),
+                    ticketLabel: updated.pricing || undefined,
+                    note: 'Your invitation is approved — one step left: payment. Your seat and its entry QR are confirmed the moment it completes.',
+                    ctaLabel: 'COMPLETE PAYMENT →',
+                    passUrl: portalUrl
+                }));
             } catch (emailErr) {
                 console.warn('Gala approval email failed:', emailErr.message);
             }
@@ -28920,14 +28897,15 @@ By applying to this program, I provide the following consents:
             if (!evt.registration_open) return res.status(403).json({ error: 'Registration for this event has closed. Write to laura.rodman@medx.hr and we will help.' });
 
             // Ticket email body — universal hosted-QR pattern (buildTicketQrBlock + PNG attachment).
-            const ticketEmailHtml = (rid, greetName) => buildEmailTemplate(cfg.emailTitle, `
-                    <p>Dear <strong>${escapeHtml(greetName)}</strong>,</p>
-                    <p>${cfg.emailLede}</p>
-                    <p style="font-size:14px;color:#475569;"><strong>${cfg.whenLine}</strong>${cfg.whenNote ? `<br><em style="color:#94a3b8;">${cfg.whenNote}</em>` : ''}</p>
-                    ${buildTicketQrBlock(rid, { label: cfg.name, caption: 'Present this QR at arrival' })}
-                    <p>We look forward to welcoming you in Zagreb.</p>
-                    <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Warm regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
-                `);
+            // Redesign 2026-08-28: brand template (Emails.dc.html) via v2/email-templates
+            const ticketEmailHtml = (rid, greetName) => require('./v2/email-templates').ticketConfirmation({
+                firstName: greetName,
+                eventName: cfg.name,
+                dateLabel: cfg.whenLine.replace(/&middot;/g, '·'),
+                note: cfg.whenNote || undefined,
+                qrPngUrl: qrImageUrl(rid),
+                passUrl: `${QR_BASE_URL}/app/me`
+            });
 
             // Dedup by (event, email) — a duplicate submission re-sends the existing ticket email
             // instead of creating a second seat. Only rows that actually HOLD a seat match (same
@@ -29419,6 +29397,7 @@ By applying to this program, I provide the following consents:
     try {
         require('./v2')(app, {
             db: () => db, auth, adminOnly, optionalAuth, sendEmail, JWT_SECRET,
+            awardPoints, rewardsSettingNum,
             ROOT: path.join(__dirname, '..', '..'),
             log: (...a) => console.log('[v2]', ...a),
         });

@@ -3228,21 +3228,31 @@ async function initializeApp() {
     // NOTE: the custom_answers/applied_for/reg_link_token ALTERs on the registration tables run
     // LATER (after those tables are created — gala/forum/bridges/CA are defined further down).
 
-    // Fix forum event dates (migration — runs on every startup)
+    // Fix forum event dates — ONE-TIME migration. It used to run a no-WHERE UPDATE + dedupe on
+    // EVERY startup, silently rewriting all forum_events (incl. admin edits and future gatherings)
+    // at each boot. Guarded with an app_state marker 2026-08-28; never re-runs once marked.
     try {
-        // Update ALL forum events to correct dates
-        db.run(`UPDATE forum_events SET
-            title = 'Annual Biomedical Forum 2026',
-            description = 'Three-day forum: Day 1 (May 25) Split, Day 2 (May 26) Zagreb, Day 3 (May 27) Gala Dinner at The Westin Zagreb.',
-            start_date = '2026-05-25', end_date = '2026-05-27',
-            location_name = 'Split & Zagreb, Croatia',
-            is_paid = 1, price = 150, status = 'published'`);
-        // Keep only one event
-        const forumEvents = query.all("SELECT id FROM forum_events ORDER BY id");
-        if (forumEvents.length > 1) {
-            for (let i = 1; i < forumEvents.length; i++) {
-                db.run('DELETE FROM forum_events WHERE id = ?', [forumEvents[i].id]);
+        db.run(`CREATE TABLE IF NOT EXISTS app_state (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`);
+        const forumFixDone = query.get("SELECT 1 FROM app_state WHERE key = 'forum_events_date_fix_2026'");
+        if (!forumFixDone) {
+            db.run(`UPDATE forum_events SET
+                title = 'Annual Biomedical Forum 2026',
+                description = 'Three-day forum: Day 1 (May 25) Split, Day 2 (May 26) Zagreb, Day 3 (May 27) Gala Dinner at The Westin Zagreb.',
+                start_date = '2026-05-25', end_date = '2026-05-27',
+                location_name = 'Split & Zagreb, Croatia',
+                is_paid = 1, price = 150, status = 'published'`);
+            // Keep only one event
+            const forumEvents = query.all("SELECT id FROM forum_events ORDER BY id");
+            if (forumEvents.length > 1) {
+                for (let i = 1; i < forumEvents.length; i++) {
+                    db.run('DELETE FROM forum_events WHERE id = ?', [forumEvents[i].id]);
+                }
             }
+            db.run("INSERT OR REPLACE INTO app_state (key, value) VALUES ('forum_events_date_fix_2026', 'done')");
         }
     } catch(e) {}
 

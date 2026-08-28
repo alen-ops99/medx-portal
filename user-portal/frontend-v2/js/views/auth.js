@@ -356,15 +356,21 @@ const handlers = {
     if (!code) return showError(COPY.code.errors.empty);
     const done = busy(el, COPY.code.busy);
     try {
-      // GAP: no invitation-code endpoint exists in the backend yet (forum_invitations.invitation_code is only
-      // written by admin). This is the endpoint name the Forum needs; a 404 is handled as "not connected".
-      const r = await api.post('/api/forum/invitations/redeem', { code, email: (session.user || {}).email || undefined }, { noAuth: !session.isAuthed });
-      ui.toast((r && r.message) || COPY.code.ok);
-      router.replace(session.isAuthed ? '/app/forum' : '/app/auth/signup');
+      if (session.isAuthed) {
+        const r = await api.post('/api/v2/forum/redeem-code', { code });
+        ui.toast((r && r.message) || COPY.code.ok);
+        router.replace('/app/forum');
+      } else {
+        await api.post('/api/v2/forum/check-code', { code }, { noAuth: true });
+        try { sessionStorage.setItem('medx_forum_code', code); } catch (e) {}
+        ui.toast(COPY.code.ok);
+        router.replace('/app/auth/signup?next=%2Fapp%2Fforum'); // the forum view auto-redeems the stored code
+      }
     } catch (e) {
       done();
-      if (e.status === 404) { showError(COPY.code.errors.offline); ui.toast(COPY.code.errors.offline, { kind: 'error', ms: 5000 }); }
-      else if (e.status === 400 || e.status === 403 || e.status === 410) showError(COPY.code.errors.invalid);
+      const kind = e.data && e.data.code;
+      if (kind === 'unknown' || e.status === 400 || e.status === 403 || e.status === 409 || e.status === 410) showError(COPY.code.errors.invalid);
+      else if (e.status === 404) { showError(COPY.code.errors.offline); ui.toast(COPY.code.errors.offline, { kind: 'error', ms: 5000 }); }
       else showError(e.message);
     }
   }

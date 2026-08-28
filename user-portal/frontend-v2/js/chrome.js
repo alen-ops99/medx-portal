@@ -294,7 +294,13 @@ export const chrome = {
   async refresh({ only } = {}) {
     if (!session.isAuthed) return;
     if (only === 'notifications') {
-      try { const n = await api.get('/api/user-notifications?limit=10'); state.set({ unread: n.unreadCount || 0, notifications: n.notifications || [] }); } catch (e) {}
+      try {
+        const [n, inb] = await Promise.all([
+          api.get('/api/user-notifications?limit=10'),
+          api.get('/api/v2/messages/unread-count').catch(() => null)
+        ]);
+        state.set({ unread: (n.unreadCount || 0) + ((inb && inb.unread) || 0), notifications: n.notifications || [] });
+      } catch (e) {}
       return;
     }
     const r = await api.settle({
@@ -302,7 +308,8 @@ export const chrome = {
       events: api.get('/api/my/events'),
       topics: api.get('/api/notify-topics'),
       meta: api.get('/api/member/meta'),
-      notifs: api.get('/api/user-notifications?limit=10')
+      notifs: api.get('/api/user-notifications?limit=10'),
+      inbox: api.get('/api/v2/messages/unread-count')
     });
     const u = state.get().user || {};
     const stats = {
@@ -312,7 +319,7 @@ export const chrome = {
       following: r.topics ? (r.topics.projects || []).length : null,
       since: r.meta && r.meta.member_since ? String(r.meta.member_since).slice(0, 4) : null
     };
-    state.set({ stats, unread: r.notifs ? (r.notifs.unreadCount || 0) : 0, notifications: r.notifs ? (r.notifs.notifications || []) : [] });
+    state.set({ stats, unread: (r.notifs ? (r.notifs.unreadCount || 0) : 0) + (r.inbox ? (r.inbox.unread || 0) : 0), notifications: r.notifs ? (r.notifs.notifications || []) : [] });
   }
 };
 export default chrome;

@@ -31,7 +31,8 @@ export const FACTS = Object.freeze({
   }),
   bridges: Object.freeze({
     name: 'Building Bridges', longName: 'Building Bridges in Biomedicine',
-    next: Object.freeze({ city: 'Boston', start: '2026-09-18', end: '2026-09-21', label: 'September 18–21, 2026', short: 'Sept 2026' }),
+    next: Object.freeze({ city: 'Boston', start: '2026-09-18', end: '2026-09-21', label: 'September 18–21, 2026', short: 'Sept 2026', venue: null }),
+    perEvening: '40–50',
     editions: Object.freeze([
       { n: '01', city: 'Washington', host: 'NIH' }, { n: '02', city: 'London', host: 'Embassy' },
       { n: '03', city: 'New York', host: 'Consulate' }, { n: '04', city: 'Zürich', host: 'ETH' }
