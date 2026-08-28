@@ -1,0 +1,30 @@
+/* css/views/forum.css — Biomedical Forum screen (injected by js/views/forum.js).
+   Source: Biomedical Forum.dc.html. The copied artboard markup keeps its inline styles;
+   rules here only add responsive behaviour (mx-* hooks carry no look — ARCHITECTURE §4). */
+
+/* hero display type: 52px on desktop (inline) → tighter on small screens */
+@media (max-width: 900px) {
+  .mx-display-52 { font-size: 42px !important; }
+}
+@media (max-width: 500px) {
+  .mx-display-52 { font-size: 30px !important; }
+}
+
+/* gathering schedule rows: the fixed 210px title column stacks below 700px */
+@media (max-width: 700px) {
+  .mx-forum-schedrow { flex-wrap: wrap; gap: 6px 20px !important; }
+  .mx-forum-schedtitle { min-width: 0 !important; flex: 1 1 auto !important; }
+  .mx-forum-schedrow > span:last-child { flex-basis: 100%; padding-left: 68px; }
+}
+
+/* stage indicator: hide the 56px connector lines once the stages wrap */
+@media (max-width: 500px) {
+  .mx-forum-stageline { display: none !important; }
+}
+
+/* invitation-code row: input takes the full line at phone width */
+@media (max-width: 430px) {
+  .mx-forum-coderow { width: 100%; }
+  .mx-forum-coderow input[data-role="code"] { flex: 1 1 100%; width: 100% !important; }
+  .mx-forum-coderow [data-act="unlock"] { flex: 1 1 auto; text-align: center; }
+}
