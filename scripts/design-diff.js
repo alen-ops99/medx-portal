@@ -24,7 +24,7 @@ const { execFileSync } = require('child_process');
 const args = process.argv.slice(2);
 const outIdx = args.indexOf('--out');
 const outFile = outIdx >= 0 ? args[outIdx + 1] : null;
-const dirs = args.filter((a, i) => a !== '--out' && i !== outIdx + 1);
+const dirs = args.filter((a, i) => a !== '--out' && !(outIdx >= 0 && i === outIdx + 1));
 if (dirs.length !== 2) {
     console.error('usage: node scripts/design-diff.js <old-export-dir> <new-export-dir> [--out report.md]');
     process.exit(2);
@@ -42,6 +42,7 @@ function pretty(html) {
     return html
         .replace(/>\s*</g, '>\n<')
         .replace(/(<[^>]+>)([^<\n]+)/g, '$1\n$2')
+        .replace(/([^>\n])\s*</g, '$1\n<')
         .split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
 }
 const textRuns = html => new Set(
