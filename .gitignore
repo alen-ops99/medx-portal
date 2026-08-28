@@ -43,3 +43,4 @@ deploy/staging/seed.db
 deploy/staging/data/
 deploy/staging/seed.sql.gz
 deploy/staging/*.db
+user-portal/frontend-v2/_qa/
