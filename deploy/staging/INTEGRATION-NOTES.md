@@ -30,3 +30,9 @@
 - CURATOR/staging data: intake_windows opens 2026-11-01 (canonical Dec 8) → PUT /api/accelerator/intake/window; institutions = 8 US schools, canonical hosts (Cleveland/Mayo/Columbia/Zurich) missing; "Dr. Example" mentor lines; stale key dates + program deadline.
 - FOR ALEN (policy): the live portal charges a €75 accelerator fee — the design does not mention it; kept for now.
 - Pre-existing backend defects (server.js, candidates for the fix pass): GET /api/accelerator/applications/:id/documents + /documents/:docId/download 500 (select non-existent file_name/verified columns); member POST /api/accelerator/applications never sets program_id (applications/my misses wizard rows); no server-side open-window gate on that POST.
+
+## From GALA+BRIDGES builder (done, committed)
+- server.js /plexus inline script ?pick= preselect: TWO builders asked for this — use the plexToggle variant (Gala builder) so the form's own logic runs; verify plexToggle/plexRecompute names at apply time. Single insertion only.
+- FACTS additions (optional): bridges.next.venue null, bridges.perEvening '40–50'. ARCHITECTURE §0 rows → built.
+- CURATOR/staging data: Boston row says "Harvard Faculty Club"/"symposium at Harvard" (must lose Harvard branding); Zurich/Washington rows dated past but flagged upcoming; gala schedule 18:00 vs event 19:00; awards row titled "Biomedical Forum Annual Awards"; gala description "pojjpojpo"; 5 speakers vs 4 hardcoded on /plexus page.
+- Note: medx.hr Boston pre-registration still goes to a Google Form — the portal's bridges registrations and that form don't meet (for the report to Alen).
