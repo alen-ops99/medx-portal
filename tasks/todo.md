@@ -1,3 +1,36 @@
+# MEMBER PORTAL REDESIGN → functional review build (started 2026-08-28)
+Directive: build the Claude-Design member portal as a WORKING app, every button wired to the real
+backend, deployed for team review on Render (staging backend) + Netlify (front end). NOT on main,
+NOT on the prod Render services, NOT on medx.hr until Alen signs off. No spending without asking.
+Branch: redesign/member-portal. Design source: ~/Downloads/uploads/export/medx-member-portal-final
+(identical to the mocks at medx-member-portal-review.netlify.app; team comments due Sun 2026-08-30 → fold in).
+
+## Phase 0 — Truth (DONE 2026-08-28)
+- [x] Three audits: design/verify-2026-08-28/{USER,ADMIN,WEBSITE}-*-CONNECTIONS.md (all live-probed)
+- [ ] Master doc + gap matrix (agent running): design/PORTAL-CONNECTIONS-MASTER-2026-08-28.md, verify-2026-08-28/REDESIGN-GAP-MATRIX.md
+
+## Phase 1 — Staging backend ($0)
+- [x] deploy/staging/launcher.js (both backends, one DB, /__admin prefix, waking 503) + build-seed.js + README
+- [ ] deploy/staging/seed.sql.gz scrubbed seed (agent running) + SEED-NOTES.md
+- [ ] user server.js: honour CORS_ORIGIN env in the hardcoded allowlist (branch only)
+- [ ] Render free web service `medx-staging` via API from this branch; verify /__staging/health, member + admin login, admin publish → member sees it
+- [ ] Netlify admin review site (proxy to /__admin) so admins can drive the chain on staging
+
+## Phase 2 — Member front end v2 (user-portal/frontend-v2, no build step)
+- [ ] Shell: Portal Chrome (top bar, stats strip, email banner, drawer), router (path-style, keeps /plexus?event=&ticket=&from=website&mxt=), api.js (JWT in localStorage medx_user_token, waking-state retry), auth screens
+- [ ] Screens in parallel (one agent each, gap matrix = contract): Home · Plexus overview/program/Zagreb/My Plexus · Gala · Accelerator + 7-step wizard (port existing logic) · Forum · Bridges · Network · Messages · Profile · My Med&X wallet · empty states · system pages · mobile (≤430px bottom tabs) · PWA manifest/icons
+- [ ] Every control from the README wiring map → endpoint; MISSING backend pieces → implement on the branch (staging deploys them) and list in the report
+- [ ] Netlify site for v2 (new site; keep the mock review site untouched)
+
+## Phase 3 — Verify (Alen: "check in the end that all buttons and connections work")
+- [ ] Playwright sweep on the Netlify build against staging: every screen, every button → handler fires, network call succeeds, no console errors; admin→member chain test (publish speaker/program/status in admin → visible in member v2); website hooks unchanged
+- [ ] Report to Alen: URLs, test logins, what is wired, what is stubbed, what needs him (Turso platform token, Stripe test key, photos)
+
+## Phase 4 — Go-live (only on Alen's sign-off; separate session)
+- [ ] Merge to main → Render prod (frontend dir swap, CORS/CSP entries, SW cache stamp), medx.hr links unchanged
+
+---
+
 # Admin Portal Overhaul — Alen's comments 2026-07-25 ("skeleton → muscles")
 
 Directive given verbally before his 2h call; computer is ours. Plan → deep review (1-2h, three
