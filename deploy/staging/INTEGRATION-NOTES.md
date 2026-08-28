@@ -24,3 +24,9 @@
 - server.js /plexus clientJs (≈:1569, after plexRetry, before </script>): add the ?pick= preselect IIFE (in the builder's report; splits pick on comma → .event-option[data-key] .selected + plexRecompute()).
 - Seed: conferences.venue_name "Hotel Esplanade" + max_capacity 200 (canonical: Novinarski dom, cap 100); plexus_settings key_dates keep abstracts + Sep 30; gala_settings.description starts "pojjpojpo"; gala time 19:00 vs design 19:30 — CURATOR territory; speaker bios all empty; impact 92 guests.
 - v2_speaker_meta (logo/event_tag) adminOnly PUT until the Speakers manager ships; conference photos writer added (adminOnly).
+
+## From ACCELERATOR builder (done, committed)
+- No shared changes requested.
+- CURATOR/staging data: intake_windows opens 2026-11-01 (canonical Dec 8) → PUT /api/accelerator/intake/window; institutions = 8 US schools, canonical hosts (Cleveland/Mayo/Columbia/Zurich) missing; "Dr. Example" mentor lines; stale key dates + program deadline.
+- FOR ALEN (policy): the live portal charges a €75 accelerator fee — the design does not mention it; kept for now.
+- Pre-existing backend defects (server.js, candidates for the fix pass): GET /api/accelerator/applications/:id/documents + /documents/:docId/download 500 (select non-existent file_name/verified columns); member POST /api/accelerator/applications never sets program_id (applications/my misses wizard rows); no server-side open-window gate on that POST.
