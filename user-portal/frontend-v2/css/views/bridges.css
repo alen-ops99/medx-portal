@@ -1,0 +1,14 @@
+/* css/views/bridges.css — Building Bridges screen (js/views/bridges.js; injected by the view).
+   Responsive overrides ONLY — the look lives inline in the copied artboard markup
+   (ARCHITECTURE.md §4: mx-* hooks never carry look). */
+
+@media (max-width: 900px) {
+  /* next-event card: photo · body · countdown → stacked */
+  .mx-bb-next { grid-template-columns: 1fr !important; }
+  .mx-bb-next > div:first-child { min-height: 150px; }
+  /* past-city cards: 3 columns → 2 */
+  .mx-bb-cities { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 700px) {
+  .mx-bb-cities { grid-template-columns: 1fr !important; }
+}
