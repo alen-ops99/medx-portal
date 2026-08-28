@@ -38,13 +38,26 @@ const ADMIN_FRONT = (process.env.STAGING_ADMIN_URL || `${SELF}/__admin`).replace
 const BOOT_ID = crypto.randomBytes(4).toString('hex');
 const STARTED = Date.now();
 
+// Persistent mode: a dedicated STAGING Turso database (never the production one). The env
+// names are deliberately different from production's TURSO_DATABASE_URL/TURSO_AUTH_TOKEN so a
+// copy-pasted prod env can never leak in — those two are stripped from the children below.
+const TURSO_URL = (process.env.STAGING_TURSO_URL || '').trim();
+const TURSO_TOKEN = (process.env.STAGING_TURSO_TOKEN || '').trim();
+const USE_TURSO = !!(TURSO_URL && TURSO_TOKEN);
+if (USE_TURSO && /medx-portal-alen-ops99|medx-portal\./i.test(TURSO_URL)) {
+    console.error('[staging] FATAL: STAGING_TURSO_URL points at the PRODUCTION database — refusing to start');
+    process.exit(1);
+}
+
 function log(...a) { console.log(`[staging ${new Date().toISOString()}]`, ...a); }
 
-// ── 1. Fresh DB from the scrubbed seed on every cold start ─────────────────────────
+// ── 1. Database: Turso replica per backend (persistent) or one seeded file (ephemeral) ──
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(EMAIL_DIR, { recursive: true });
 let seeded = false;
-if (!fs.existsSync(DB_FILE)) {
+if (USE_TURSO) {
+    log(`Turso mode: ${TURSO_URL.replace(/^libsql:\/\//, '')} — each backend keeps its own embedded replica in ${DATA_DIR}`);
+} else if (!fs.existsSync(DB_FILE)) {
     if (!fs.existsSync(SEED_DB)) {
         console.error(`[staging] FATAL: seed DB missing at ${SEED_DB} — run "node deploy/staging/build-seed.js" in the build step`);
         process.exit(1);
@@ -64,16 +77,20 @@ const JWT_SECRET = process.env.JWT_SECRET || (() => {
 })();
 
 const STRIP_PREFIXES = ['RENDER', 'TURSO_', 'STRIPE_', 'BREVO_', 'RESEND_', 'GOOGLE_SHEETS', 'FIRA_', 'PICKER_', 'CLOUDINARY', 'AMADEUS_', 'PUBLER_', 'VAPID_PRIVATE'];
-function childEnv(extra) {
+function childEnv(name, extra) {
     const env = {};
     for (const [k, v] of Object.entries(process.env)) {
         if (STRIP_PREFIXES.some(p => k.startsWith(p))) continue;
         env[k] = v;
     }
+    if (USE_TURSO) {
+        env.TURSO_DATABASE_URL = TURSO_URL;
+        env.TURSO_AUTH_TOKEN = TURSO_TOKEN;
+    }
     Object.assign(env, {
         NODE_ENV: 'staging',
         JWT_SECRET,
-        DATABASE_PATH: DB_FILE,
+        DATABASE_PATH: USE_TURSO ? path.join(DATA_DIR, `${name}-replica.db`) : DB_FILE,
         EMAIL_DUMP_DIR: EMAIL_DIR,
         EMAIL_FROM: process.env.EMAIL_FROM || 'Med&X staging <noreply@medx.hr>',
         SITE_PUBLIC_URL: process.env.SITE_PUBLIC_URL || 'https://www.medx.hr',
@@ -87,7 +104,7 @@ const children = {};
 function start(name, dir, env, port) {
     const child = spawn(process.execPath, ['server.js'], {
         cwd: path.join(ROOT, dir),
-        env: childEnv({ PORT: String(port), ...env }),
+        env: childEnv(name, { PORT: String(port), ...env }),
         stdio: ['ignore', 'inherit', 'inherit'],
     });
     children[name] = { child, port, ready: false, exited: false };
@@ -185,7 +202,7 @@ const server = http.createServer((req, res) => {
         const ok = allReady();
         res.statusCode = ok ? 200 : 503;
         res.setHeader('Content-Type', 'application/json');
-        return res.end(JSON.stringify({ ok, seeded, ...wakingPayload() }));
+        return res.end(JSON.stringify({ ok, mode: USE_TURSO ? 'turso' : 'file', seeded, ...wakingPayload() }));
     }
     if (url === '/__staging/emails' || url.startsWith('/__staging/emails/')) return serveEmails(url, res);
 

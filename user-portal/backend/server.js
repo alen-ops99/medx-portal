@@ -589,7 +589,10 @@ app.use(cors({
         'https://medx.hr', 'https://www.medx.hr',
         'https://medx-website-preview.netlify.app',
         'https://medx-admin-portal.onrender.com',
-        'http://localhost:3000', 'http://localhost:3001', 'http://localhost:8899'
+        'http://localhost:3000', 'http://localhost:3001', 'http://localhost:8899',
+        // Extra origins from the environment (comma-separated) — lets the staging/review
+        // front ends on Netlify call this API directly (2026-08-28). Additive only.
+        ...String(process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean)
     ].filter(Boolean)
 }));
 

@@ -16,8 +16,8 @@ const SRC = path.join(__dirname, 'seed.sql.gz');
 const OUT = path.join(__dirname, 'seed.db');
 
 if (!fs.existsSync(SRC)) {
-    console.error(`[build-seed] missing ${SRC}`);
-    process.exit(1);
+    console.log(`[build-seed] no ${path.basename(SRC)} in the repo — skipping (Turso mode: the staging database itself is the seed)`);
+    process.exit(0);
 }
 const Database = require(path.join(ROOT, 'user-portal', 'backend', 'node_modules', 'libsql'));
 for (const suffix of ['', '-wal', '-shm', '-journal']) { try { fs.unlinkSync(OUT + suffix); } catch (e) {} }
