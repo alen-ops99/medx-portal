@@ -521,7 +521,7 @@ module.exports = function mountWallet(app, ctx) {
                 doc.font(F.bold).fontSize(8).fillColor(GOLD).text('PAYMENT RECEIVED', 50, 118, { characterSpacing: 2 });
                 doc.font(F.bold).fontSize(23).fillColor(INK).text('Receipt', 50, 134);
                 let y = 178;
-                y = factRow(doc, F, 50, y, 'Receipt no.', item.invoice_number || (invoice && invoice.invoice_number) || String(item.id).slice(0, 8).toUpperCase(), 480);
+                y = factRow(doc, F, 50, y, 'Reference', item.invoice_number || (invoice && invoice.invoice_number) || String(item.id).slice(0, 8).toUpperCase(), 480);
                 y = factRow(doc, F, 50, y, 'Order date', longDate((invoice && invoice.paid_at) || (txn && txn.created_at) || item.order_date), 480);
                 const billing = meta.billing || {};
                 const billName = billing.name || item.guest_name || fullName(user);
@@ -552,18 +552,21 @@ module.exports = function mountWallet(app, ctx) {
                     doc.text(val, W - 150, y, { width: 100, align: 'right' });
                     y += bold ? 20 : 16;
                 };
-                if (invoice && invoice.subtotal != null) {
-                    totalRow('Subtotal', eur(invoice.subtotal));
-                    totalRow(`VAT ${Number(invoice.vat_rate || 25)}%`, eur(invoice.vat_amount || 0));
-                    totalRow('Total paid', eur(invoice.total != null ? invoice.total : item.amount), true);
-                } else {
-                    totalRow('Total paid', eur(item.amount), true);
-                }
+                // FIRA RULE (Alen, 2026-08-29): invoices are issued ONLY through the FIRA fiscal
+                // system — this document is a payment confirmation and must never carry its own
+                // VAT breakdown or read as an invoice. It references the fiscal invoice instead.
+                totalRow('Total paid', eur(invoice && invoice.total != null ? invoice.total : item.amount), true);
+                const firaNo = meta.fira_invoice_number || (invoice && (invoice.fira_invoice_number || invoice.fira_number)) || null;
                 const payBits = [];
                 if (txn) payBits.push(`Paid by ${txn.payment_method || 'card'} via ${txn.payment_provider || 'Stripe'}`);
                 if (txn && txn.provider_transaction_id) payBits.push(`ref ${txn.provider_transaction_id}`);
-                if (meta.fira_invoice_number) payBits.push(`fiscal invoice ${meta.fira_invoice_number}`);
+                if (firaNo) payBits.push(`fiscal invoice (FIRA) ${firaNo}`);
                 if (payBits.length) doc.font(F.body).fontSize(9).fillColor(SOFT).text(F.safe(payBits.join(' · ')), 50, y + 6, { width: W - 100 });
+                doc.font(F.body).fontSize(8.5).fillColor(SOFT).text(
+                    firaNo
+                        ? 'This is a payment receipt, not an invoice. The fiscal invoice for this payment was issued through the FIRA fiscal system under the number above.'
+                        : 'This is a payment receipt, not an invoice. Invoices are issued exclusively through the FIRA fiscal system — contact info@medx.hr if you need one.',
+                    50, doc.y + 8, { width: W - 100 });
                 if (hosted) doc.font(F.body).fontSize(9).fillColor(CRIMSON).text(String(hosted), 50, doc.y + 6, { width: W - 100 });
                 footerLine(doc, F, 'Med&X Association · Zagreb, Croatia');
             });
