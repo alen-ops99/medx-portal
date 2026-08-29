@@ -130,3 +130,6 @@ body.drawer-open #mx-drawer { transform: translateX(312px); }
   body[data-layout="portal"] #view { padding-bottom: 86px; }
   .mx-pop { top: 52px; right: 0; width: 100vw; max-width: 100vw; }
 }
+
+/* Netlify HUD badge iframe overlaps bottom-right controls on the review deploy — hide it (2026-08-28) */
+#nl-badge-frame, iframe[id^="nl-badge"] { display: none !important; pointer-events: none !important; }

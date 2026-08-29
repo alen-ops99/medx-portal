@@ -233,7 +233,7 @@ with sync_playwright() as pw:
             page.goto(B + route, wait_until='domcontentloaded'); wait_awake(page); settle(page, 800)
             try:
                 overflow = page.evaluate('() => document.documentElement.scrollWidth - window.innerWidth')
-                tabbar = page.locator('#mx-mobile-chrome, .mx-tabbar, [data-role=tabbar]').count() > 0
+                tabbar = page.locator('#mx-tabbar').count() > 0 and page.locator('#mx-tabbar').first.is_visible()
             except Exception:
                 overflow, tabbar = -1, False
             mobile.append((route, overflow, tabbar))
