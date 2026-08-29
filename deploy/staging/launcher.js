@@ -70,6 +70,28 @@ if (USE_TURSO) {
     log(`reusing existing ${DB_FILE}`);
 }
 
+// ── 1b. Restore seeded upload files (speaker portraits, galleries, logos) ───────────
+// Runtime uploads live on the ephemeral disk and vanish at every cold start, while their
+// DB rows persist in Turso — so reviewers would see broken images after each sleep.
+// deploy/staging/uploads-seed/ is committed; copy it over the backend's uploads dir at boot.
+try {
+    const SEED_UPLOADS = path.join(__dirname, 'uploads-seed');
+    const TARGET_UPLOADS = path.join(ROOT, 'user-portal', 'backend', 'uploads');
+    if (fs.existsSync(SEED_UPLOADS)) {
+        let n = 0;
+        const copyDir = (src, dst) => {
+            fs.mkdirSync(dst, { recursive: true });
+            for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+                const s = path.join(src, e.name), d = path.join(dst, e.name);
+                if (e.isDirectory()) copyDir(s, d);
+                else if (!fs.existsSync(d)) { fs.copyFileSync(s, d); n++; }
+            }
+        };
+        copyDir(SEED_UPLOADS, TARGET_UPLOADS);
+        log(`restored ${n} seeded upload file(s) into user-portal/backend/uploads`);
+    }
+} catch (e) { console.error('[staging] uploads-seed restore failed:', e.message); }
+
 // ── 2. Child environments ───────────────────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET || (() => {
     log('WARN: JWT_SECRET not set — using a per-boot random secret (sessions reset on restart)');
