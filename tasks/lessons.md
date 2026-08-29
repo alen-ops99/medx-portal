@@ -51,3 +51,10 @@ SERVED files, then a reachability verdict per hit — auditors organized by feat
 area will miss organs that sit outside any feature's happy path. Also: fixes via
 raw bash/python rewrites invalidate the Edit tool's read state — re-Read before
 mixing the two.
+
+## 2026-08-28 — member portal redesign build
+- Money: NEVER create paid infra without asking (EC2 attempt cancelled; rule saved to memory). Use Render free + Netlify + Turso free.
+- Netlify sites created via API ship the "Built with Netlify" HUD badge iframe bottom-right — it COVERS page controls; disable `built_with_badge_enabled` via PATCH /sites/:id on every new site.
+- zsh eats `?` in unquoted args (route lists) — quote them.
+- sqlite3 ≥3.50 `.dump` emits unistr() that libsql rejects — dump via Python iterdump.
+- Admin server.js had a no-WHERE forum_events UPDATE running at EVERY boot (same class as the EUR-0 ticket-zeroing bug). Now app_state-guarded on the branch; prod main still has it.

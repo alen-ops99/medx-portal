@@ -23,8 +23,8 @@ Branch: redesign/member-portal. Design source: ~/Downloads/uploads/export/medx-m
 - [x] Netlify site https://medx-member-portal-v2.netlify.app (mock review site untouched)
 
 ## Phase 3 — Verify (Alen: "check in the end that all buttons and connections work")
-- [ ] Playwright sweep on the Netlify build against staging: every screen, every button → handler fires, network call succeeds, no console errors; admin→member chain test (publish speaker/program/status in admin → visible in member v2); website hooks unchanged
-- [ ] Report to Alen: URLs, test logins, what is wired, what is stubbed, what needs him (Turso platform token, Stripe test key, photos)
+- [x] Playwright sweep DONE 2026-08-28: 18 routes, ~180 controls — 0 console errors, 0 failed API calls, 0 empty toasts, 0 dead buttons (only by-design no-ops: disabled Prev on wizard step 1, already-active EN/topic chips); mobile 430px: no overflow, tab bar everywhere; admin→member chain verified live (project-status edit propagated in ~40s). Netlify HUD badge was covering bottom-right controls → disabled at site level + CSS guard
+- [x] Report to Alen 2026-08-28: ~/Downloads/MedX Portal Review Build 2026-08-28/REVIEW-GUIDE.md + chat summary
 
 ## Phase 4 — Go-live (only on Alen's sign-off; separate session)
 - [ ] Merge to main → Render prod (frontend dir swap, CORS/CSP entries, SW cache stamp), medx.hr links unchanged
