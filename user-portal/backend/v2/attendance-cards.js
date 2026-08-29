@@ -259,6 +259,26 @@ module.exports = function mountAttendanceCards(app, ctx) {
             });
         } catch (e) { console.error('[v2/cards] plexus query:', e.message); }
         try {
+            // Public /plexus-form conference registrations (croatians_abroad_registrations) —
+            // free seats confirmed on submit, so they earn a card too. E2E fix 2026-08-29.
+            push(q.all(`SELECT ca.id AS ref, ca.user_id, ca.email, ca.first_name, ca.last_name, ca.institution, ca.created_at,
+                               c.name AS ev_name, c.year, c.start_date, c.end_date, c.venue_city
+                        FROM croatians_abroad_registrations ca
+                        JOIN conferences c ON c.is_active = 1
+                        WHERE ca.selected_conference = 1
+                          AND COALESCE(ca.conference_status,'') NOT IN ('cancelled')
+                          AND NOT EXISTS (SELECT 1 FROM registrations r2 WHERE lower(r2.email) = lower(ca.email))
+                          AND COALESCE(NULLIF(c.end_date,''), NULLIF(c.start_date,''), '9999') >= date('now')
+                          AND ${notExists('plexus', 'ca.id')}`), (r) => {
+                const short = shortEventName(r.ev_name, r.year);
+                const dateLabel = fmtRange(r.start_date, r.end_date);
+                const city = r.venue_city || 'Zagreb';
+                return { kind: 'plexus', ref: r.ref, createdAt: r.created_at, userId: r.user_id || userIdByEmail(r.email), email: (r.email || '').toLowerCase(), r,
+                    eventName: short, dateLabel, city, sub: r.institution || '',
+                    eyebrow: `${short} · ${city}`, metaLine: [city, dateLabel].filter(Boolean).join(' · '), hashtag: '#' + short.replace(/\s+/g, '').toUpperCase() };
+            });
+        } catch (e) { console.error('[v2/cards] plexus-form query:', e.message); }
+        try {
             push(q.all(`SELECT gr.id AS ref, gr.user_id, gr.email, gr.first_name, gr.last_name, gr.institution, gr.created_at,
                                g.title AS ev_name, g.date AS start_date, g.venue
                         FROM gala_registrations gr LEFT JOIN gala_settings g ON g.id = 'default'

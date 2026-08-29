@@ -13048,6 +13048,18 @@ async function submitReset(e){
                     venue: [r.venue_name, r.venue_city].filter(Boolean).join(', '), paid: r.payment_status === 'paid' || r.status === 'confirmed',
                     checked_in: !!r.checked_in, calendar: '/calendar/plexus.ics' });
             });
+            // E2E fix 2026-08-29: public /plexus-form registrations live in croatians_abroad_registrations.
+            const hasPlexus = items.some(i => i.evt === 'plexus');
+            q(`SELECT ca.id, ca.conference_status, ca.conference_checked_in, c.name, c.start_date, c.end_date, c.venue_name, c.venue_city
+               FROM croatians_abroad_registrations ca
+               LEFT JOIN conferences c ON c.is_active = 1
+               WHERE ca.selected_conference = 1 AND COALESCE(ca.conference_status,'') <> 'cancelled'
+                 AND (ca.user_id = ? OR LOWER(ca.email) = ?)`, [req.user.id, emL]).forEach(r => {
+                if (hasPlexus) return;
+                items.push({ id: r.id, evt: 'plexus', title: r.name || 'Plexus Conference', date: r.start_date, end_date: r.end_date,
+                    venue: [r.venue_name, r.venue_city].filter(Boolean).join(', '), paid: true,
+                    checked_in: !!r.conference_checked_in, calendar: '/calendar/plexus.ics' });
+            });
             q(`SELECT gr.id, gr.payment_status, gr.status, gr.checked_in, g.title, g.date, g.venue
                FROM gala_registrations gr LEFT JOIN gala_settings g ON g.id = 'default' WHERE LOWER(gr.email) = ?`, [emL]).forEach(r => {
                 items.push({ id: r.id, evt: 'gala', title: r.title || 'Gala Evening', date: r.date, venue: r.venue || '',
@@ -21498,7 +21510,30 @@ By applying to this program, I provide the following consents:
             JOIN users u ON r.user_id = u.id
             WHERE r.conference_id = ? AND r.user_id = ?`, [conf.id, req.user.id]);
 
-        if (!reg) return res.json(null);
+        if (!reg) {
+            // E2E fix 2026-08-29: the public /plexus form stores its registrations in
+            // croatians_abroad_registrations (source='plexus') — surface them here so
+            // My Plexus stops saying "REGISTER NOW" after a real registration.
+            try {
+                const meRow = query.get('SELECT email, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || {};
+                const ca = query.get(`SELECT * FROM croatians_abroad_registrations
+                    WHERE selected_conference = 1 AND COALESCE(conference_status,'') <> 'cancelled'
+                      AND (user_id = ? OR lower(email) = lower(?))
+                    ORDER BY created_at DESC LIMIT 1`, [req.user.id, meRow.email || req.user.email || '__none__']);
+                if (ca) {
+                    return res.json({
+                        id: ca.id, ca: true, source: ca.source || 'plexus', conference_id: conf.id,
+                        user_id: req.user.id, email: ca.email, first_name: ca.first_name, last_name: ca.last_name,
+                        status: ca.conference_status === 'pre-registered' ? 'confirmed' : (ca.conference_status || 'confirmed'),
+                        payment_status: 'free', amount_paid: 0,
+                        ticket_name: 'Plexus Conference — free registration', includes_gala: !!ca.selected_gala,
+                        checked_in: !!ca.conference_checked_in, created_at: ca.created_at, invoice_number: ca.invoice_number || null,
+                        details: null
+                    });
+                }
+            } catch (e) { /* fall through to null */ }
+            return res.json(null);
+        }
 
         const details = query.get('SELECT * FROM registration_details WHERE registration_id = ?', [reg.id]);
         res.json({ ...reg, details });
@@ -28242,6 +28277,11 @@ By applying to this program, I provide the following consents:
                  finalGala ? 'pending' : null,
                  galaRegistrationId, regSource, linkedUserId]
             );
+            // E2E fix 2026-08-29: link the row to an existing member account by e-mail even
+            // without the ?mxt hand-off, so the portal (My Plexus / wallet / cards) sees it.
+            try {
+                if (!linkedUserId) db.run('UPDATE croatians_abroad_registrations SET user_id = (SELECT id FROM users WHERE lower(email) = lower(?)) WHERE id = ? AND user_id IS NULL', [email, regId]);
+            } catch (e) { /* linking is best-effort */ }
             saveDb();
 
             // Denormalize answers + what they applied for onto the CA row (and the linked gala row)

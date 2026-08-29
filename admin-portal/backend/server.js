@@ -124,6 +124,18 @@ async function sendEmail(to, subject, htmlContent, attachments, replyTo, fromOve
         }
     }
 
+    // Staging/dev: dump the HTML so reviewers can open what "would have been sent"
+    // (mirrors user-portal server.js — the launcher serves the dir at /__staging/emails).
+    if (process.env.EMAIL_DUMP_DIR) {
+        try {
+            const fsDump = require('fs');
+            fsDump.mkdirSync(process.env.EMAIL_DUMP_DIR, { recursive: true });
+            const safe = String(subject || 'email').replace(/[^a-z0-9]+/gi, '_').slice(0, 80);
+            fsDump.writeFileSync(require('path').join(process.env.EMAIL_DUMP_DIR, safe + '_' + Date.now() + '.html'),
+                `<!-- ADMIN backend · to: ${to} -->\n` + (htmlContent || ''));
+        } catch (e) { /* best-effort */ }
+    }
+
     // No email provider configured. In production this is an ERROR, not a quiet mock —
     // report failure loudly so callers and logs never pretend mail went out.
     if (process.env.NODE_ENV === 'production') {
@@ -11258,8 +11270,17 @@ async function initializeApp() {
         try {
             const idOrEmail = req.params.id;
             // Try by ID first, then by email
-            let user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, is_admin, created_at FROM users WHERE id = ?', [idOrEmail]);
-            if (!user) user = query.get('SELECT id, email, first_name, last_name, phone, institution, country, bio, is_admin, created_at FROM users WHERE email = ?', [idOrEmail]);
+            // E2E fix 2026-08-29: include the redesign profile fields (title/photo_url/specialties/city
+            // are ALTER-added by the member portal's v2 profile module) with a fallback for DBs
+            // that predate them — a SELECT naming a missing column throws in SQLite.
+            const profCols = 'id, email, first_name, last_name, phone, institution, country, bio, is_admin, created_at';
+            const profColsExt = profCols + ', title, photo_url, specialties, city';
+            const getUserBy = (col, val) => {
+                try { return query.get(`SELECT ${profColsExt} FROM users WHERE ${col} = ?`, [val]); }
+                catch (e) { return query.get(`SELECT ${profCols} FROM users WHERE ${col} = ?`, [val]); }
+            };
+            let user = getUserBy('id', idOrEmail);
+            if (!user) user = getUserBy('email', idOrEmail);
 
             // If user not found by ID/email, check forum registrations directly (for invite-only registrants)
             if (!user) {

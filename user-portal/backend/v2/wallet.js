@@ -168,6 +168,25 @@ module.exports = function mountWallet(app, ctx) {
             invoice_number: r.invoice_number || null, order_date: r.registered_at, checked_in: !!r.checked_in, calendar: null
         };
     }
+    function plexusConf() {
+        return tryGet('SELECT name, start_date, end_date, venue_name, venue_city FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1') || {};
+    }
+    // Public /plexus-form registrations (croatians_abroad_registrations, source='plexus') —
+    // the conference portion is free; the gala portion already surfaces via its linked
+    // gala_registrations row. E2E fix 2026-08-29.
+    function bagFromCA(r) {
+        const c = plexusConf();
+        return {
+            kind: 'plexus', id: r.id, table: 'croatians_abroad_registrations', title: c.name || 'Plexus Conference',
+            ticket_name: 'Free registration', date: c.start_date, end_date: c.end_date,
+            venue: [c.venue_name, c.venue_city].filter(Boolean).join(', '),
+            guest_name: ((r.first_name || '') + ' ' + (r.last_name || '')).trim(), email: (r.email || '').toLowerCase(), user_id: r.user_id || null,
+            amount: 0, free: true, paid: true, money: false, pending: false,
+            status: String(r.conference_status || '') === 'cancelled' ? 'cancelled' : 'confirmed',
+            invoice_number: r.invoice_number || null, order_date: r.created_at, checked_in: !!r.conference_checked_in,
+            calendar: '/calendar/plexus.ics', includes_gala: !!Number(r.selected_gala)
+        };
+    }
     function bagFromSignup(r) {
         return {
             kind: 'signup-form', id: r.id, table: 'signup_form_responses', title: r.form_title || 'Med&X event',
@@ -199,6 +218,13 @@ module.exports = function mountWallet(app, ctx) {
         tryAll(`SELECT sr.*, sf.title AS form_title, sf.event_date, sf.event_time, sf.venue, sf.slug
                   FROM signup_form_responses sr JOIN signup_forms sf ON sr.form_id = sf.id
                  WHERE lower(sr.email) = ?`, [em]).forEach(r => items.push(bagFromSignup(r)));
+        // Public /plexus-form conference registrations — only when no registrations-table
+        // Plexus ticket already covers the member (avoids doubles). E2E fix 2026-08-29.
+        if (!items.some(i => i.kind === 'plexus')) {
+            tryAll(`SELECT * FROM croatians_abroad_registrations
+                     WHERE selected_conference = 1 AND COALESCE(conference_status,'') <> 'cancelled'
+                       AND (user_id = ? OR lower(email) = ?)`, [user.id, em]).forEach(r => items.push(bagFromCA(r)));
+        }
         return items;
     }
 
@@ -226,6 +252,9 @@ module.exports = function mountWallet(app, ctx) {
                       FROM signup_form_responses sr JOIN signup_forms sf ON sr.form_id = sf.id
                      WHERE sr.id = ? AND lower(sr.email) = ?`, [id, em]);
         if (r) return bagFromSignup(r);
+        r = tryGet(`SELECT * FROM croatians_abroad_registrations
+                     WHERE id = ? AND selected_conference = 1 AND (user_id = ? OR lower(email) = ?)`, [id, user.id, em]);
+        if (r) return bagFromCA(r);
         return null;
     }
 
