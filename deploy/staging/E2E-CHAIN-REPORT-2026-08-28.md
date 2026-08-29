@@ -163,3 +163,8 @@ Reverted/deleted during the run: bridges detail_line, E2E session, E2E speaker, 
 - Free-instance restarts wipe the outbox and any uploaded files on ephemeral disk; DB state survives via Turso.
 - No 403s: pjero's account covered every admin section touched (member-ops, plexus, bridges, forum, accelerator, gala) — the founder fallback was never needed.
 - No 5xx responses were observed in any UI session across all scenarios.
+
+## Post-report fixes (2026-08-29, commit 378b86f — all verified live on staging)
+- S8 FIXED: /plexus-form registrations (croatians_abroad_registrations) now surface in `/api/plexus/my-registration`, `/api/my/events`, the v2 wallet, and the attendance-card sweep; user_id linked by e-mail at insert. Verified: member010 shows registered in My Plexus (UI screenshot s8-fixed-my-plexus.png) + wallet ticket + card generated (~2 min) + card email in the outbox.
+- S9 email-leg FIXED: admin backend now honours EMAIL_DUMP_DIR — admin-side sends appear at /__staging/emails (provider-missing responses still report failure by design).
+- S11 FIXED: admin users/:id/profile returns title/photo_url/specialties/city (fallback for DBs predating those columns). Verified with member003's E2E profile edits.
