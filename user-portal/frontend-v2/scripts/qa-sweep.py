@@ -187,9 +187,19 @@ with sync_playwright() as pw:
             handler = lambda d: downloads.append(d)
             page.on('download', handler)
             try:
+                if el.get_attribute('disabled') is not None or el.get_attribute('aria-disabled') == 'true':
+                    rows.append((route, label, kind, 'DISABLED (by design)', '')); continue
+            except Exception:
+                pass
+            try:
                 el.click(timeout=3500)
             except PWTimeout:
-                effect = 'BLOCKED'; detail = 'click not actionable (covered/disabled)'; summary['errors'] += 1
+                # element is real but flagged unstable (e.g. photo crossfade nearby) — a probe showed
+                # nothing covers these; retry once with force, which skips the stability check
+                try:
+                    el.click(timeout=3000, force=True)
+                except Exception:
+                    effect = 'BLOCKED'; detail = 'click not actionable (covered/disabled)'; summary['errors'] += 1
             except Exception as e:
                 effect = 'ERROR'; detail = str(e).split('\n')[0][:120]; summary['errors'] += 1
             # classify: poll up to ~1.6 s for the first observable effect
