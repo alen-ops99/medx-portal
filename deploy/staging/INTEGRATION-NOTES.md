@@ -67,3 +67,8 @@
 
 ## FROM ALEN (2026-08-30) — portal build queue
 - ⚠ GUEST-AWARE QR SCANNING: 9 of 28 paid gala registrations carry guest_count>0. The door scanner must treat one QR as a PARTY (admit N people: "2 of 3 checked in"), never "already scanned" after the first guest. Touch: admin check-in routes (resolveRegFromCode/passAccess), check-in UI counter, member wallet copy ("this QR admits you + N guests"). Build on the branch with the admin redesign.
+
+## FIRA invoices — findings 2026-08-30 + build queue
+- Every CA-gala payment creates a FIRA fiscal invoice in the Stripe webhook (logs: 59/1/1 Aug 25 … 63/1/1 Aug 30 13:50, all "created (no VAT)", zero failures in the visible window). The portal itself never emails the invoice PDF (pdfUrl comes back null) and does NOT persist the FIRA id/number on gala/CA rows (only one legacy payment_transactions row carries fira_invoice_number 39/1/1).
+- Whether customers RECEIVED invoices depends solely on FIRA's own "email invoice to customer" behaviour (order carries billing.email) — verifiable only in the FIRA dashboard (no read API with our key; GET order needs the numeric FIRA id we never stored).
+- BUILD: (1) webhook stores firaId + invoiceNumber (+ pdfUrl when present) on gala_registrations / croatians_abroad_registrations / payment_transactions.metadata; (2) ticket email shows "Fiscal invoice (FIRA) 63/1/1" + link when FIRA returns a PDF URL; (3) wallet receipts reference it (already coded to read fira_invoice_number); (4) nightly sentinel: count paid registrations without a FIRA number ⇒ alert. FIRA rule stays: invoices ONLY from FIRA.
