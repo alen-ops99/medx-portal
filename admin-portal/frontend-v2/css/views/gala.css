@@ -1,0 +1,28 @@
+/* css/views/gala.css — Admin Gala destination (js/views/gala.js; injected by the view).
+   Responsive overrides + focus affordances ONLY — the look lives inline in the copied
+   artboard markup (ARCHITECTURE.md §4: mx-* hooks never carry look). The two-pane grid
+   collapse and the KPI strip already come from css/app.css (.mx-two / .mx-kpi). */
+
+/* The artboard's helmet focus rule, scoped to this screen (inputs + selects). */
+[data-screen-label="Admin Gala Management"] input:focus,
+[data-screen-label="Admin Gala Management"] select:focus,
+[data-screen-label="Admin Gala Management"] textarea:focus {
+  outline: 1px solid #9b1b22;
+  outline-offset: -1px;
+}
+
+@media (max-width: 960px) {
+  /* board tiles: 5 across → 4 across once the right pane goes full-width */
+  [data-block="board"] { grid-template-columns: repeat(4, 1fr) !important; }
+}
+
+@media (max-width: 620px) {
+  /* guest rows: the 5-column grid stacks — name full width, selects side by side,
+     status + cancel on their own line */
+  .mx-gala-head { display: none !important; }
+  .mx-gala-row { grid-template-columns: 1fr 1fr !important; }
+  .mx-gala-row > span:first-child { grid-column: 1 / -1; }
+  .mx-gala-row > span:nth-last-child(2) { grid-column: 1 / 2; }
+  .mx-gala-row > span:last-child { grid-column: 2 / 3; justify-self: end; }
+  [data-block="board"] { grid-template-columns: repeat(3, 1fr) !important; }
+}
