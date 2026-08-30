@@ -1,0 +1,13 @@
+/* css/views/event-day.css — Event Day view hooks (behaviour + responsive only; the artboard's
+   look lives inline in js/views/eventday.js). Loaded by the view, id mx-css-event-day. */
+
+/* camera feed fills the artboard's 180px scan square; the laser line stays on top */
+.mx-ed-cam { flex: none; }
+.mx-ed-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+
+/* long door lists scroll inside the card, never the page sideways */
+.mx-ed-doorlist { overscroll-behavior: contain; }
+
+@media (max-width: 960px) {
+  .mx-ed-doorlist { max-height: none !important; }
+}

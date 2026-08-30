@@ -1,0 +1,10 @@
+/* css/views/settings.css — Settings view hooks (behaviour + responsive only; the artboard's look
+   lives inline in js/views/settings.js). Loaded by the view, id mx-css-settings. */
+
+/* permission chip rows wrap without pushing the card wider than the column */
+[data-block^="perm-"] { overflow-x: hidden; }
+
+@media (max-width: 620px) {
+  /* the audit filter input takes the full header row on phones */
+  [data-role="auditFilter"] { width: 100% !important; }
+}

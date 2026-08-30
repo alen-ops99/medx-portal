@@ -1,0 +1,10 @@
+/* css/views/studio.css — Studio view hooks (behaviour + responsive only; the artboard's look
+   lives inline in js/views/studio.js). Loaded by the view, id mx-css-studio. */
+
+/* the recent-cards strip scrolls sideways inside its row, never the page */
+.mx-st-cards { overscroll-behavior-x: contain; scrollbar-width: thin; }
+
+@media (max-width: 960px) {
+  /* print/certificate preview keeps a usable height on smaller screens */
+  [data-role="previewFrame"] { height: 380px !important; }
+}
