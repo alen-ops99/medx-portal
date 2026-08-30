@@ -1,0 +1,16 @@
+/* css/views/links.css — RESPONSIVE HOOKS ONLY for js/views/links.js.
+   Source: Admin Links.dc.html + admin-responsive.css (artboard markup keeps its inline styles
+   verbatim; rules here never carry look — ARCHITECTURE §4 naming rules).
+   The 1fr 360px grid (.mx-side) and the sticky NEW LINK panel (.mx-sticky) collapse via
+   css/app.css at ≤960px; the link rows already wrap through their own flex-wrap. */
+
+/* Real link URLs are long base64 payloads (the artboard mocks short slugs): without a 0 minimum
+   the 1fr grid track inherits the URL's intrinsic width and shoves the NEW LINK panel off-screen.
+   min-width:0 lets the monospace pill's own overflow:hidden ellipsis (inline, verbatim) do its job. */
+.mx-links-grid > * { min-width: 0; }
+.mx-links-grid [data-row] > div { min-width: 0; }
+
+/* ≤620px: give the monospace URL pill the full row so COPY / QR never squeeze it to nothing. */
+@media (max-width: 620px) {
+  .mx-links-grid [data-row] span[style*="ui-monospace"] { flex: 1 1 100% !important; min-width: 0 !important; }
+}

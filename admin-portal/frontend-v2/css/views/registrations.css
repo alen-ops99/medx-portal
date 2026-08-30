@@ -1,0 +1,18 @@
+/* css/views/registrations.css — RESPONSIVE HOOKS ONLY for js/views/registrations.js.
+   Source: Admin Registrations.dc.html + admin-responsive.css (the artboard markup keeps its
+   inline styles verbatim; rules here never carry look — ARCHITECTURE §4 naming rules).
+   The two-pane grid (.mx-side) and sticky panel (.mx-sticky) already collapse via css/app.css. */
+
+/* ≤960px: the artboard's 1fr 330px grid goes single-column (app.css .mx-side); the file panel
+   drops below the table and loses stickiness (app.css .mx-sticky). */
+
+/* Long real emails/institutions must never inflate the 1fr track past the page (the row cells'
+   inline overflow:hidden ellipses need a 0 track minimum to engage). */
+.mx-regs-grid > * { min-width: 0; }
+
+/* ≤620px: the row grid drops the EVENT and WHEN columns so WHO + STATUS stay readable. */
+@media (max-width: 620px) {
+  .mx-regrow { grid-template-columns: auto 1.9fr 1fr !important; }
+  [data-block="table"] > div:first-child { grid-template-columns: auto 1.9fr 1fr !important; }
+  .mx-reg-event, .mx-reg-when { display: none !important; }
+}

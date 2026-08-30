@@ -1,4 +1,356 @@
-// Source: Admin Registrations.dc.html — STUB (title + IN PROGRESS). Replace this file with the real module; js/routes.js already points here.
-import { makeStub } from './_stub.js';
+// Source: Admin Registrations.dc.html
+// Blocks (artboard order): "Title row" (← PEOPLE · Registrations · EMAIL SELECTED · EXPORT CSV) ›
+// "Stat strip" (ALL · CONFERENCE · GALA · BOSTON — every number is a door that sets the filter) ›
+// "Filter row" (search · event select · status chips) › "All-events table" + "Registration file"
+// side panel (facts + contextual actions). The header is js/chrome.js.
+// Data: ONE cross-event union — GET /api/v2/registrations/all (backend/v2/registrations.js) over
+// registrations + gala + bridges + forum + croatians_abroad (source='plexus' = the public form) +
+// signup_form_responses, each row tagged with its source link (README: "Every sign-up lands in
+// Registrations tagged with its source link"). Bulk email + resend-confirmation stage
+// pending_approval rows in scheduled_emails — NOTHING sends without the Outbox OK (note 2).
+import { api } from '../api.js';
+import { ui, esc, fmt } from '../ui.js';
+import { FACTS } from '../facts.js';
+import { chrome } from '../chrome.js';
+import router from '../router.js';
+
 export const SOURCE = 'Admin Registrations.dc.html';
-export default makeStub({ source: SOURCE, title: 'Registrations', headline: 'Registrations', tabs: [] });
+
+export const COPY = {
+  title: 'Registrations', back: '← PEOPLE',
+  sub: 'Every sign-up across every event — filter, open the file, act. New submissions appear here the second the form is sent.',
+  emailSel: n => `EMAIL SELECTED · ${n}`, exportCsv: n => `EXPORT CSV · ${n}`,
+  stats: { all: 'ALL REGISTRATIONS', conference: 'CONFERENCE', gala: 'GALA', boston: 'BOSTON', of: n => `of ${n}`, unpaid: n => `${n} unpaid` },
+  searchPh: 'Name, email, note — e.g. “vegan”, “pending”, “kbc”',
+  events: [['all', 'ALL EVENTS'], ['conference', 'PLEXUS CONFERENCE'], ['gala', 'GALA EVENING'], ['boston', 'BOSTON'], ['donor', 'DONOR NIGHT'], ['bridges', 'BUILDING BRIDGES'], ['forum', 'FORUM'], ['signup', 'SIGN-UP FORMS']],   // first five per the artboard; the rest are live data (v2)
+  chips: ['ALL', 'PAID', 'PENDING', 'FREE'],
+  cols: { who: 'WHO', event: 'EVENT', status: 'STATUS', when: 'WHEN' },
+  empty: 'Nothing matches these filters.',
+  foot: (n, t) => `Showing ${n} of ${t} registration${t === 1 ? '' : 's'}`, more: 'SHOW MORE',
+  linkFilter: l => `SOURCE LINK · ${l}`, clearLink: '× CLEAR',
+  panel: {
+    registered: w => `registered ${w}`, none: 'No registrations to show — the file panel fills as sign-ups arrive.',
+    people: 'The full person page — membership, messages, money history — opens from <a href="/people">People</a>.',
+    source: 'SOURCE'
+  },
+  acts: {
+    resend: 'RESEND CONFIRMATION', email: 'EMAIL', markPaid: 'MARK PAID',
+    cancel: 'CANCEL REGISTRATION', cancelSure: 'SURE? CANCEL', remove: 'REMOVE RESPONSE', removeSure: 'SURE? REMOVE', openGala: 'OPEN THE GALA ROW'
+  },
+  toast: {
+    tickFirst: 'TICK AT LEAST ONE ROW FIRST',
+    queuedBulk: n => `EMAIL TO ${n} ${n === 1 ? 'PERSON' : 'PEOPLE'} — QUEUED IN THE OUTBOX FOR YOUR OK`,
+    queuedResend: 'CONFIRMATION QUEUED IN THE OUTBOX FOR YOUR OK',
+    exported: n => `EXPORTED ${n} ROWS · CSV`,
+    cancelled: 'CANCELLED — THE SEAT IS FREED', restored: 'REGISTRATION RESTORED',
+    removed: 'RESPONSE REMOVED — THIS ONE IS PERMANENT',
+    markedPaid: 'MARKED PAID — MONEY & GALA PAGES UPDATE',
+    galaRowMissing: 'THE LINKED GALA ROW IS NOT IN THIS LIST — CLEARING FILTERS'
+  },
+  compose: { eyebrow: 'QUEUES IN THE OUTBOX', title: n => `Email ${n} ${n === 1 ? 'person' : 'people'}`, subject: 'SUBJECT', message: 'MESSAGE', note: 'Nothing sends now — this stages the emails in Inbox → Outbox for an explicit Approve & send.', queue: 'QUEUE FOR YOUR OK', cancel: 'CANCEL', needBoth: 'SUBJECT AND MESSAGE FIRST' },
+  csvName: 'medx-registrations.csv'
+};
+
+// artboard stStyle(): PAID / PENDING / everything else; CANCELLED greys out (v2 — the mock had no cancelled rows)
+const ST = { PAID: ['#e4efe7', '#22563a'], PENDING: ['#f7e3e4', '#7e151b'], FREE: ['#eee9df', '#4a4239'], CANCELLED: ['#eee9df', '#9a9086'] };
+const LINK_TAG = { VIP: ['#f1e7d4', '#7a6432'], DIASPORA: ['#e8eef7', '#2c4a73'], LINK: ['#eee9df', '#4a4239'] };
+
+let D = null, st = null, unbind = null, rootEl = null, reqId = 0, qTimer = null;
+
+function loadCss() {
+  if (!document.getElementById('mx-css-registrations')) {
+    const l = document.createElement('link'); l.id = 'mx-css-registrations'; l.rel = 'stylesheet'; l.href = '/css/views/registrations.css'; document.head.appendChild(l);
+  }
+}
+
+// ---------------------------------------------------------------- data
+async function load() {
+  const my = ++reqId;
+  const p = new URLSearchParams();
+  if (st.q.trim()) p.set('q', st.q.trim());
+  if (st.event !== 'all') p.set('event', st.event);
+  if (st.status !== 'ALL') p.set('status', st.status);
+  if (st.link) p.set('link', st.link);
+  p.set('limit', String(st.limit));
+  const r = await api.get('/api/v2/registrations/all?' + p.toString());
+  if (my !== reqId) return false;                        // a newer request superseded this one
+  D = r || { rows: [], total: 0, grand_total: 0, stats: {} };
+  if (st.sel && !D.rows.some(x => x.key === st.sel)) st.sel = null;
+  return true;
+}
+const rows = () => (D && Array.isArray(D.rows)) ? D.rows : [];
+const selRow = () => rows().find(r => r.key === st.sel) || rows()[0] || null;
+
+// ---------------------------------------------------------------- blocks (artboard markup verbatim)
+function blockTitle() {
+  return `
+  <!-- dc: Admin Registrations.dc.html › "Title row" -->
+  <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+    <div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <a href="/people" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6d6459" data-hover="color:#201b16">${COPY.back}</a>
+        <span class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px">${COPY.title}</span>
+      </div>
+      <div style="font-size:12.5px;color:#6d6459;margin-top:4px">${COPY.sub}</div>
+    </div>
+    <div style="flex:1"></div>
+    <span data-act="emailSel" data-role="emailSel" style="padding:10px 15px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.emailSel(st.ticked.size)}</span>
+    <span data-act="exportCsv" data-role="exportCsv" style="padding:10px 15px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.exportCsv(rows().length)}</span>
+  </div>
+  <!-- /dc -->`;
+}
+function blockStats() {
+  const s = (D && D.stats) || {};
+  const cap = s.conference_cap || FACTS.plexus.cap;
+  const cell = (act, label, num, sub, subColor, last) => `
+      <span data-act="${act}" role="button" style="padding:14px 18px;${last ? '' : 'border-right:1px solid rgba(32,27,22,.1);'}cursor:pointer;display:block" data-hover="background:#fdfbf6"><span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${label}</span><span style="display:block;font-family:Fraunces,serif;font-size:26px;margin-top:2px">${num} ${sub ? `<span style="font-size:13px;color:${subColor}">${sub}</span>` : ''}</span></span>`;
+  return `
+  <!-- dc: Admin Registrations.dc.html › "Stat strip" -->
+  <div data-block="stats" class="mx-grid-4" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(4,1fr)">
+    ${cell('statAll', COPY.stats.all, s.all == null ? '—' : s.all, '', '#6d6459')}
+    ${cell('statConf', COPY.stats.conference, s.conference == null ? '—' : s.conference, cap ? COPY.stats.of(cap) : '', '#6d6459')}
+    ${cell('statGala', COPY.stats.gala, s.gala == null ? '—' : s.gala, s.gala_unpaid ? COPY.stats.unpaid(s.gala_unpaid) : '', '#9b1b22')}
+    ${cell('statBoston', COPY.stats.boston, s.boston == null ? '—' : s.boston, s.boston_cap ? COPY.stats.of(s.boston_cap) : '', '#6d6459', true)}
+  </div>
+  <!-- /dc -->`;
+}
+function blockFilters() {
+  const chip = on => on ? 'background:#201b16;color:#f6f2ea;border:1px solid #201b16' : 'background:#fff;color:#6d6459;border:1px solid rgba(32,27,22,.2)';
+  return `
+  <!-- dc: Admin Registrations.dc.html › "Filter row" -->
+  <div data-block="filters" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 13px;flex:1;min-width:220px"><span style="color:#6d6459">⌕</span><input data-role="regq" value="${esc(st.q)}" placeholder="${esc(COPY.searchPh)}" aria-label="Search registrations" style="border:none;background:transparent;font:400 13px Inter,sans-serif;color:#201b16;flex:1;outline:none;padding:0"></span>
+    <select data-role="ev" aria-label="Event filter" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 11px;font:600 11px Inter,sans-serif;color:#201b16">${COPY.events.map(([k, label]) => `<option value="${k}"${st.event === k ? ' selected' : ''}>${label}</option>`).join('')}</select>
+    ${COPY.chips.map(c => `<span data-act="chip" data-chip="${c}" style="padding:9px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;${chip(st.status === c)};white-space:nowrap">${c}</span>`).join('')}
+    ${st.link ? `<span data-v2="link-filter" style="display:flex;align-items:center;gap:8px;padding:9px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;background:#f8f1e2;color:#7a6432;white-space:nowrap">${esc(COPY.linkFilter(st.linkLabel || st.link.slice(0, 10)))}<span data-act="clearLink" style="cursor:pointer;color:#9b1b22">${COPY.clearLink}</span></span>` : ''}
+  </div>
+  <!-- /dc -->`;
+}
+function rowHtml(r, selected) {
+  const c = ST[r.status] || ST.FREE;
+  const lt = r.link ? (LINK_TAG[r.link.kind] || LINK_TAG.LINK) : null;
+  return `
+      <div data-act="open" data-key="${esc(r.key)}" role="button" aria-label="Open ${esc(r.name)}" class="mx-regrow" style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:11px 16px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center;cursor:pointer;background:${selected ? '#f6f2ea' : '#fff'}">
+        <span data-act="tick" data-key="${esc(r.key)}" role="checkbox" aria-checked="${st.ticked.has(r.key)}" aria-label="Select ${esc(r.name)}" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:${st.ticked.has(r.key) ? '#9b1b22' : 'transparent'};flex:none"></span>
+        <span style="min-width:0"><span style="display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${r.status === 'CANCELLED' ? 'color:#9a9086;text-decoration:line-through' : ''}">${esc(r.name)}</span><span style="display:block;font-size:10.5px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.email)}</span></span>
+        <span class="mx-reg-event" style="min-width:0;display:flex;align-items:center;gap:6px"><span style="font-size:11.5px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.event)}</span>${lt ? `<span data-act="linkTag" data-link="${esc(r.link.ref)}" data-label="${esc(r.link.label)}" title="Source link — click to see every sign-up from it" style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:${lt[0]};color:${lt[1]};white-space:nowrap;cursor:pointer;flex:none">${esc(r.link.kind === 'LINK' ? 'LINK' : r.link.kind)}</span>` : ''}</span>
+        <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:${c[0]};color:${c[1]};white-space:nowrap;justify-self:start">${esc(r.status)}</span>
+        <span class="mx-reg-when" style="font:600 9px Inter,sans-serif;color:#9a9086;white-space:nowrap">${esc(fmt.dayLabel(r.when) || '')}</span>
+      </div>`;
+}
+function blockTable() {
+  const list = rows(); const sel = selRow();
+  const allTicked = list.length && list.every(r => st.ticked.has(r.key));
+  const more = D && D.total > list.length;
+  return `
+      <div data-block="table" style="border:1px solid rgba(32,27,22,.14);background:#fff">
+        <div style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:9px 16px;border-bottom:1px solid rgba(32,27,22,.14);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;align-items:center"><span data-act="selAll" role="checkbox" aria-checked="${!!allTicked}" title="Select everything shown" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:${allTicked ? '#9b1b22' : 'transparent'}"></span><span>${COPY.cols.who}</span><span class="mx-reg-event">${COPY.cols.event}</span><span>${COPY.cols.status}</span><span class="mx-reg-when">${COPY.cols.when}</span></div>
+        ${list.map(r => rowHtml(r, sel && r.key === sel.key)).join('')}
+        ${!list.length ? `<div style="padding:24px 16px;text-align:center;font-size:13px;color:#6d6459">${COPY.empty}</div>` : ''}
+        <div style="padding:10px 16px;font-size:11px;color:#6d6459;display:flex;gap:14px;align-items:baseline">${COPY.foot(list.length, D ? D.total : 0)}<div style="flex:1"></div>${more ? `<span data-act="more" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.more} · ${D.total - list.length}</span>` : ''}</div>
+      </div>`;
+}
+function panelActions(r) {
+  const ghost = 'background:transparent;border:1px solid rgba(32,27,22,.2);color:#201b16';
+  const acts = [];
+  if (r.email) acts.push({ act: 'resend', label: COPY.acts.resend, style: ghost });
+  if (r.email) acts.push({ act: 'emailOne', label: COPY.acts.email, style: 'background:#9b1b22;border:1px solid #9b1b22;color:#fff' });
+  if (r.can_mark_paid && ['conference', 'gala', 'bridges', 'croatians-abroad'].includes(r.type)) acts.push({ act: 'markPaid', label: COPY.acts.markPaid, style: ghost });
+  if (r.gala_id) acts.push({ act: 'openGala', label: COPY.acts.openGala, style: ghost });
+  if (r.status !== 'CANCELLED') {
+    const confirming = st.cancelConfirm === r.key;
+    const isSignup = r.type === 'signup';
+    acts.push({ act: 'cancel', label: confirming ? (isSignup ? COPY.acts.removeSure : COPY.acts.cancelSure) : (isSignup ? COPY.acts.remove : COPY.acts.cancel), style: `background:transparent;border:1px solid rgba(32,27,22,.2);color:${confirming ? '#9b1b22' : '#6d6459'}` });
+  }
+  return acts;
+}
+function blockPanel() {
+  const r = selRow();
+  if (!r) return `
+      <div data-block="panel" class="mx-sticky" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;position:sticky;top:16px">
+        <div class="empty" style="padding:30px 18px 32px"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">No file open.</span><span class="empty-why">${COPY.panel.none}</span></div>
+      </div>`;
+  const ini = r.name.replace('Dr. ', '').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+  const facts = (r.facts || []).concat([[COPY.panel.source, r.source || '—']]);
+  return `
+      <!-- dc: Admin Registrations.dc.html › "Registration file" -->
+      <div data-block="panel" class="mx-sticky" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;position:sticky;top:16px">
+        <div style="padding:15px 18px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;gap:12px;align-items:center">
+          <span style="width:38px;height:38px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none">${esc(ini)}</span>
+          <span style="min-width:0"><span style="display:block;font-size:14.5px;font-weight:600">${esc(r.name)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.event)} · ${esc(COPY.panel.registered(fmt.dayLabel(r.when) || '—'))}</span></span>
+        </div>
+        <div style="padding:12px 18px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid rgba(32,27,22,.08)">
+          ${facts.map(([k, v]) => `<div style="display:flex;gap:10px;align-items:baseline"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;width:86px;flex:none">${esc(k)}</span><span style="font-size:12.5px;flex:1;line-height:1.5">${esc(v)}</span></div>`).join('')}
+        </div>
+        <div style="padding:12px 18px;display:flex;gap:8px;flex-wrap:wrap">
+          ${panelActions(r).map(a => `<span data-act="${a.act}" data-key="${esc(r.key)}" style="padding:8px 12px;${a.style};font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${a.label}</span>`).join('')}
+        </div>
+        <div style="padding:0 18px 14px;font-size:11px;color:#6d6459;line-height:1.5">${COPY.panel.people}</div>
+      </div>
+      <!-- /dc -->`;
+}
+function template() {
+  return `
+<div data-screen-label="Admin Registrations" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:20px">
+    ${blockTitle()}
+    ${blockStats()}
+    ${blockFilters()}
+    <!-- dc: Admin Registrations.dc.html › "All-events table" -->
+    <div class="mx-side mx-regs-grid" style="display:grid;grid-template-columns:1fr 330px;gap:22px;align-items:start">
+      ${blockTable()}
+      ${blockPanel()}
+    </div>
+    <!-- /dc -->
+  </div>
+</div>`;
+}
+
+// ---------------------------------------------------------------- behaviour
+function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
+function redrawData() {
+  rerender('[data-block="stats"]', blockStats());
+  rerender('[data-block="table"]', blockTable());
+  rerender('[data-block="panel"]', blockPanel());
+  syncButtons();
+}
+function syncButtons() {
+  const e1 = rootEl && rootEl.querySelector('[data-role="emailSel"]'); if (e1) e1.textContent = COPY.emailSel(st.ticked.size);
+  const e2 = rootEl && rootEl.querySelector('[data-role="exportCsv"]'); if (e2) e2.textContent = COPY.exportCsv(rows().length);
+}
+async function refetch(alsoFilters) {
+  if (!(await load()) || !rootEl) return;
+  if (alsoFilters) rerender('[data-block="filters"]', blockFilters());
+  redrawData();
+  bindInputs();
+}
+function bindInputs() {
+  const q = rootEl.querySelector('[data-role="regq"]');
+  if (q && !q.dataset.bound) {
+    q.dataset.bound = '1';
+    q.addEventListener('input', () => { st.q = q.value; clearTimeout(qTimer); qTimer = setTimeout(() => refetch(false), 250); });
+  }
+  const ev = rootEl.querySelector('[data-role="ev"]');
+  if (ev && !ev.dataset.bound) {
+    ev.dataset.bound = '1';
+    ev.addEventListener('change', () => { st.event = ev.value; st.sel = null; refetch(false); });
+  }
+}
+function setFilter(patch) { Object.assign(st, patch); st.sel = null; refetch(true); }
+
+function csvExport() {
+  const list = rows();
+  const cell = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = ['Name,Email,Institution,Event,Status,When,Source'].concat(
+    list.map(r => [r.name, r.email, r.institution, r.event, r.status, r.when || '', r.source || ''].map(cell).join(',')));
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('﻿' + lines.join('\n'));   // BOM keeps diacritics intact in Excel
+  a.download = COPY.csvName; a.click();
+  ui.toast(COPY.toast.exported(list.length));
+}
+
+function composeModal(recipients) {
+  const m = ui.modal({
+    eyebrow: COPY.compose.eyebrow,
+    title: COPY.compose.title(recipients.length),
+    body: `
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label style="display:flex;flex-direction:column;gap:4px"><span class="label">${COPY.compose.subject}</span><input data-role="cSubject" class="input" maxlength="180"></label>
+        <label style="display:flex;flex-direction:column;gap:4px"><span class="label">${COPY.compose.message}</span><textarea data-role="cMessage" class="input" rows="6" style="resize:vertical;font:400 13px Inter,sans-serif"></textarea></label>
+        <span style="font-size:11.5px;color:#6d6459;line-height:1.5">${COPY.compose.note}</span>
+      </div>`,
+    actions: [
+      { label: COPY.compose.cancel },
+      { label: COPY.compose.queue, kind: 'primary', onClick: () => {
+          const subject = m.el.querySelector('[data-role="cSubject"]').value.trim();
+          const message = m.el.querySelector('[data-role="cMessage"]').value.trim();
+          if (!subject || !message) { ui.toast(COPY.compose.needBoth); return false; }
+          api.post('/api/v2/registrations/bulk-email', { recipients, subject, message })
+            .then(r => { ui.toast(COPY.toast.queuedBulk(r.staged || recipients.length)); st.ticked.clear(); redrawData(); chrome.refresh(); })
+            .catch(e => ui.toast(e.message, { kind: 'error' }));
+        } }
+    ]
+  });
+  const s = m.el.querySelector('[data-role="cSubject"]'); if (s) s.focus();
+}
+
+const handlers = {
+  open: (el, ev) => { if (ev.target.closest('[data-act]') !== el) return; st.sel = el.dataset.key; st.cancelConfirm = null; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); },
+  tick: (el) => { const k = el.dataset.key; st.ticked.has(k) ? st.ticked.delete(k) : st.ticked.add(k); rerender('[data-block="table"]', blockTable()); syncButtons(); },
+  selAll: () => { const list = rows(); const all = list.length && list.every(r => st.ticked.has(r.key)); list.forEach(r => all ? st.ticked.delete(r.key) : st.ticked.add(r.key)); rerender('[data-block="table"]', blockTable()); syncButtons(); },
+  chip: (el) => setFilter({ status: el.dataset.chip }),
+  clearLink: () => setFilter({ link: null, linkLabel: null }),
+  linkTag: (el, ev) => { ev.stopPropagation(); setFilter({ link: el.dataset.link, linkLabel: el.dataset.label }); },
+  statAll: () => setFilter({ event: 'all', status: 'ALL', link: null, linkLabel: null, q: '' }),
+  statConf: () => setFilter({ event: 'conference', status: 'ALL' }),
+  statGala: () => setFilter({ event: 'gala', status: 'ALL' }),
+  statBoston: () => setFilter({ event: 'boston', status: 'ALL' }),
+  more: () => { st.limit += 400; refetch(false); },
+  emailSel: () => {
+    if (!st.ticked.size) { ui.toast(COPY.toast.tickFirst); return; }
+    const seen = new Set(); const recips = [];
+    rows().forEach(r => { if (st.ticked.has(r.key) && r.email && !seen.has(r.email.toLowerCase())) { seen.add(r.email.toLowerCase()); recips.push({ email: r.email, name: r.name }); } });
+    if (!recips.length) { ui.toast(COPY.toast.tickFirst); return; }
+    composeModal(recips);
+  },
+  exportCsv: () => csvExport(),
+  emailOne: () => { const r = selRow(); if (r && r.email) composeModal([{ email: r.email, name: r.name }]); },
+  resend: async (el) => {
+    const r = selRow(); if (!r) return;
+    el.setAttribute('aria-disabled', 'true');
+    try { await api.post(`/api/v2/registrations/${encodeURIComponent(r.type)}/${encodeURIComponent(r.id)}/resend-confirmation`); ui.toast(COPY.toast.queuedResend); chrome.refresh(); }
+    catch (e) { ui.toast(e.message, { kind: 'error' }); }
+    el.removeAttribute('aria-disabled');
+  },
+  markPaid: async (el) => {
+    const r = selRow(); if (!r) return;
+    el.setAttribute('aria-disabled', 'true');
+    try { await api.post(`/api/admin/registrant/${encodeURIComponent(r.type)}/${encodeURIComponent(r.id)}/mark-paid`); ui.toast(COPY.toast.markedPaid); await refetch(false); }
+    catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
+  openGala: () => {
+    const r = selRow(); if (!r || !r.gala_id) return;
+    const target = 'gala:' + r.gala_id;
+    if (rows().some(x => x.key === target)) { st.sel = target; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); }
+    else { ui.toast(COPY.toast.galaRowMissing); st.q = ''; st.event = 'gala'; st.status = 'ALL'; st.link = null; st.sel = target; refetch(true); }
+  },
+  cancel: async (el) => {
+    const r = selRow(); if (!r) return;
+    if (st.cancelConfirm !== r.key) { st.cancelConfirm = r.key; rerender('[data-block="panel"]', blockPanel()); return; }   // two-step confirm, per the artboard
+    st.cancelConfirm = null;
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      if (r.type === 'signup') {                          // existing hard-delete route — permanent, no undo
+        await api.del(`/api/admin/signup-forms/${encodeURIComponent(r.form_id)}/responses/${encodeURIComponent(r.id)}`);
+        ui.toast(COPY.toast.removed);
+      } else {
+        const body = r.type === 'croatians-abroad' ? { event: r.ca_event } : {};
+        const resp = await api.post(`/api/v2/registrations/${encodeURIComponent(r.type)}/${encodeURIComponent(r.id)}/cancel`, body);
+        const prev = resp && resp.previous_status;
+        ui.toast(COPY.toast.cancelled, { undo: async () => {
+          try { await api.post(`/api/v2/registrations/${encodeURIComponent(r.type)}/${encodeURIComponent(r.id)}/restore`, Object.assign({ status: prev || 'pending' }, body)); ui.toast(COPY.toast.restored); }
+          catch (e) { ui.toast(e.message, { kind: 'error' }); }
+          if (rootEl) refetch(false);
+        } });
+      }
+      await refetch(false);
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  }
+};
+
+export default {
+  title: 'Registrations',
+  async render(root, ctx) {
+    rootEl = root; loadCss();
+    st = { q: String(ctx.query.q || ''), event: String(ctx.query.event || 'all'), status: 'ALL',
+      link: ctx.query.link ? String(ctx.query.link) : null, linkLabel: ctx.query.label ? String(ctx.query.label) : null,
+      limit: 400, sel: null, ticked: new Set(), cancelConfirm: null };
+    D = null;
+    await load();
+    if (rootEl !== root) return;                          // navigated away while loading
+    root.innerHTML = template();
+    unbind = ui.bind(root, handlers);
+    bindInputs();
+  },
+  destroy() { clearTimeout(qTimer); qTimer = null; reqId++; if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null; }
+};
