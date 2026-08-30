@@ -1,0 +1,20 @@
+/* css/views/forum-hub.css — Forum hub screen (injected by js/views/forum.js).
+   Behaviour + responsive hooks ONLY — the look lives in the artboard's inline styles
+   (ARCHITECTURE §4: mx-/view class hooks never carry look). */
+
+/* the three-cell overview band: 2 columns ≤960, 1 column ≤620 */
+@media (max-width: 960px) {
+  .fh-band { grid-template-columns: 1fr 1fr !important; }
+  .fh-band > :nth-child(3) { grid-column: 1 / -1; border-top: 1px solid rgba(32, 27, 22, .1); }
+  .fh-band > a { border-right: none !important; }
+}
+@media (max-width: 620px) {
+  .fh-band { grid-template-columns: 1fr !important; }
+  .fh-band > * { border-right: none !important; border-bottom: 1px solid rgba(32, 27, 22, .08); }
+}
+
+/* the feed card: composer over list on small screens */
+@media (max-width: 960px) {
+  .fh-feed { grid-template-columns: 1fr !important; }
+  .fh-feed > :first-child { border-right: none !important; border-bottom: 1px solid rgba(32, 27, 22, .1); }
+}

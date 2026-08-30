@@ -1,0 +1,17 @@
+/* css/views/bridges-hub.css — Building Bridges hub screen (injected by js/views/bridges.js).
+   Behaviour + responsive hooks ONLY — the look lives in the artboard's inline styles
+   (ARCHITECTURE §4: mx-/view class hooks never carry look). */
+
+/* the stats widget's four cells: 2×2 ≤960, single column ≤620 */
+@media (max-width: 960px) {
+  .bh-stats-grid { grid-template-columns: 1fr 1fr !important; }
+  .bh-stats-grid > div { border-right: none !important; border-bottom: 1px solid rgba(32, 27, 22, .08); }
+}
+@media (max-width: 620px) {
+  .bh-stats-grid { grid-template-columns: 1fr !important; }
+}
+
+/* the open stat band wraps into rows on phones (it is a flex row with wrap already) */
+@media (max-width: 620px) {
+  .bh-band { gap: 14px 24px !important; }
+}
