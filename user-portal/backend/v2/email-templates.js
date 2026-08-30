@@ -41,8 +41,10 @@ const T = {
 };
 
 function logoUrl() {
+    // Netlify CDN default: always on, no sleep, serves today (the jsDelivr @main path only
+    // resolves after the redesign merges — it rendered as a broken image; fixed 2026-08-30).
     return process.env.EMAIL_LOGO_URL
-        || 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend-v2/assets/logo-white.png';
+        || 'https://medx-member-portal-v2.netlify.app/assets/logo-white.png';
 }
 
 function esc(v) {
@@ -140,47 +142,51 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
 }
 
 // ---------------------------------------------------------------- 02 · TICKET CONFIRMATION
-function ticketConfirmation({ firstName, eventName, dateLabel, venue, qrPngUrl, passUrl, walletUrl,
+function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue, qrPngUrl, passUrl, walletUrl,
                               calendarUrl, ticketLabel, priceLabel, guestLabel, ticketNumber,
                               headlineHtml, note, ctaLabel } = {}) {
     const fieldRow = (label, valueHtml) => `
-        <tr><td style="padding:4px 0;vertical-align:baseline;width:64px;${microStyle(T.soft, 9, '.16em')}">${label}</td>
-            <td style="padding:4px 0 4px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
+        <tr><td style="padding:5px 0;vertical-align:baseline;width:58px;${microStyle(T.soft, 9, '.14em')}">${label}</td>
+            <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
     const guestLine = guestLabel
         ? esc(guestLabel) + (ticketNumber ? ` · N° ${esc(ticketNumber)}` : '')
         : (ticketNumber ? `N° ${esc(ticketNumber)}` : '');
+    // WHEN: one stacked line per event (mobile 2026-08-30 fix — several events never share a line)
+    const whenHtml = Array.isArray(whenLines) && whenLines.length
+        ? whenLines.map(l => `<span style="display:block;font-family:${T.sans};font-size:13px;line-height:1.5;color:${T.ink};">${esc(l)}</span>`).join('')
+        : (dateLabel ? `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dateLabel)}</span>` : '');
     const rows = [
         fieldRow('EVENT', `<span style="font-family:${T.serif};font-size:16px;color:${T.ink};">${esc(eventName || 'Med&X event')}</span>`),
-        dateLabel ? fieldRow('WHEN', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dateLabel)}</span>`) : '',
+        whenHtml ? fieldRow('WHEN', whenHtml) : '',
         venue ? fieldRow('WHERE', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(venue)}</span>`) : '',
         guestLine ? fieldRow('GUEST', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${guestLine}</span>`) : '',
         ticketLabel ? fieldRow('TICKET', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(ticketLabel)}</span>`) : '',
         priceLabel ? fieldRow('PRICE', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(priceLabel)}</span>`) : ''
     ].join('');
-    // QR panel — artboard draws an 84px slot; rendered at 120px so door scanners read it
-    // from the phone screen (deliberate, documented deviation; the PNG itself is ≥220px).
-    const qrCell = qrPngUrl ? `
-        <td width="120" align="center" style="vertical-align:middle;padding-left:20px;">
-          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid ${T.hairline};padding:7px;">
-            <img src="${escUrl(qrPngUrl)}" alt="Your entry QR code" width="106" height="106" style="display:block;width:106px;height:106px;border:0;">
-          </td></tr></table>
-        </td>` : '';
+    // QR: its own full-width centred row BELOW the facts (2026-08-30 — the old side cell crushed
+    // the text column to ~80px on phones). 120px render so door scanners read it off a screen.
+    const qrBlock = qrPngUrl ? `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-top:1px solid rgba(25,21,18,.12);"><tr>
+            <td align="center" style="padding-top:16px;">
+              <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid ${T.hairline};padding:8px;">
+                <img src="${escUrl(qrPngUrl)}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;">
+              </td></tr></table>
+              <div style="${microStyle(T.soft, 9, '.14em')};margin-top:8px;">YOUR ENTRY QR · SHOW AT THE DOOR</div>
+            </td>
+          </tr></table>` : '';
+    const ctaUrl = passUrl || walletUrl;
     const body = `
-    <div style="padding:36px 40px 30px;">
+    <div style="padding:32px 28px 26px;">
       <span style="${microStyle(T.gold)}">YOU'RE GOING</span>
-      <div style="font-family:${T.serif};font-size:28px;line-height:1.15;color:${T.ink};margin-top:10px;">${headlineHtml || `${esc(eventName || 'Your seat')} — seat <i>confirmed</i>.`}</div>
+      <div style="font-family:${T.serif};font-size:26px;line-height:1.18;color:${T.ink};margin-top:10px;">${headlineHtml || `${esc(eventName || 'Your seat')} — seat <i>confirmed</i>.`}</div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border:1px solid rgba(201,169,98,.65);background:${T.cardCream};">
-        <tr><td style="padding:20px 24px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td style="vertical-align:middle;"><table role="presentation" cellpadding="0" cellspacing="0">${rows}</table></td>
-            ${qrCell}
-          </tr></table>
+        <tr><td style="padding:18px 20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
+          ${qrBlock}
         </td></tr>
       </table>
-      <div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:14px;">${note || `Your member QR admits you at every door — it's also in <a href="${escUrl(walletUrl || passUrl)}" style="color:${T.soft};text-decoration:underline;">your phone wallet</a> and in <strong style="color:${T.ink};">My Med&amp;X</strong>.`}</div>
-      <div style="text-align:center;margin:22px 0 4px;">
-        ${btn(ctaLabel || 'OPEN MY TICKETS →', passUrl || walletUrl)}${calendarUrl ? `<span style="display:inline-block;width:8px;">&nbsp;</span>${btn('ADD TO CALENDAR', calendarUrl, 'ghost')}` : ''}
-      </div>
+      <div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:14px;">${note || 'Present the QR above at the door — it admits you to everything you are registered for. Questions? Just reply to this email.'}</div>
+      ${ctaUrl ? `<div style="text-align:center;margin:22px 0 4px;">${btn(ctaLabel || 'OPEN MY TICKETS →', ctaUrl)}${calendarUrl ? `<span style="display:inline-block;width:8px;">&nbsp;</span>${btn('ADD TO CALENDAR', calendarUrl, 'ghost')}` : ''}</div>` : ''}
     </div>`;
     return shell({
         title: `${eventName || 'Ticket'} — confirmed`,
