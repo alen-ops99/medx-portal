@@ -438,7 +438,22 @@ module.exports = function mountWallet(app, ctx) {
             if (!wallet.isConfigured()) return res.json({ configured: false, provider, message_en: 'Google Wallet is not set up yet. Your team can enable it shortly.' });
             return res.json({ configured: false, provider, message_en: 'Use /api/member/wallet/google for the membership pass.' });
         }
-        return res.json({ configured: false, provider: 'apple', reason: 'apple_pkpass_not_implemented', message_en: 'Apple Wallet is coming soon.' });
+        // APPLE — a real signed .pkpass when the APPLE_WALLET_* env is present (v2/apple-pass.js):
+        // the member identity card, generic style, barcode = the same memberQr() value the
+        // member-qr.png route serves. Portal XHRs (Accept: application/json) get
+        // { configured: true, save_url } pointing at the tokenized no-login download instead,
+        // so js/views/me.js handlePassResponse works unchanged.
+        const applePass = require('./apple-pass.js');
+        if (!applePass.isConfigured()) {
+            return res.json({ configured: false, provider: 'apple', reason: 'apple_wallet_not_configured', message_en: 'Apple Wallet is coming soon.' });
+        }
+        try {
+            const user = me(req);
+            return applePass.respondMemberPass(req, res, { user, meta: memberMeta(user), qr: memberQr(user) });
+        } catch (e) {
+            console.error('[v2 wallet] apple card pass failed:', e.message);
+            return res.status(500).json({ error: 'Could not build the Apple Wallet pass' });
+        }
     });
 
     // ---------------------------------------------------------------- ticket list
@@ -672,7 +687,23 @@ module.exports = function mountWallet(app, ctx) {
             const item = findItem(String(req.params.id || ''), user);
             if (!item) return res.status(404).json({ error: 'We could not find that ticket on your account.' });
             if (provider === 'apple') {
-                return res.json({ configured: false, provider: 'apple', reason: 'apple_pkpass_not_implemented', message_en: 'Apple Wallet is coming soon.' });
+                // APPLE — a real signed .pkpass (v2/apple-pass.js) from the SAME item bag this
+                // route's Google path uses, and the SAME barcode value: registrations rows carry
+                // the crypto checkin_token, every other kind the frozen /qr payload. Portal XHRs
+                // (Accept: application/json) get { configured: true, save_url } (tokenized
+                // download) so js/views/me.js handlePassResponse works unchanged.
+                const applePass = require('./apple-pass.js');
+                if (!applePass.isConfigured()) {
+                    return res.json({ configured: false, provider: 'apple', reason: 'apple_wallet_not_configured', message_en: 'Apple Wallet is coming soon.' });
+                }
+                let appleQrMessage;
+                if (item.table === 'registrations') {
+                    const reg = q.get('SELECT id, checkin_token FROM registrations WHERE id = ?', [item.id]);
+                    appleQrMessage = ensureRegToken(reg);
+                } else {
+                    appleQrMessage = JSON.stringify(qrPayloadFor(item));
+                }
+                return applePass.respondTicketPass(req, res, { item, user, qrMessage: appleQrMessage });
             }
             if (!wallet.isConfigured()) {
                 return res.json({
