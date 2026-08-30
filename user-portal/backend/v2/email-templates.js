@@ -146,7 +146,7 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
 // ---------------------------------------------------------------- 02 · TICKET CONFIRMATION
 function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue, qrPngUrl, passUrl, walletUrl,
                               calendarUrl, ticketLabel, priceLabel, guestLabel, ticketNumber,
-                              dressLabel, tableLabel, headlineHtml, note, ctaLabel, replyLine, walletSaveUrl } = {}) {
+                              dressLabel, tableLabel, headlineHtml, note, ctaLabel, replyLine, walletSaveUrl, appleWalletUrl } = {}) {
     const fieldRow = (label, valueHtml) => `
         <tr><td style="padding:5px 0;vertical-align:baseline;width:76px;${microStyle(T.soft, 9, '.12em')}">${label}</td>
             <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
