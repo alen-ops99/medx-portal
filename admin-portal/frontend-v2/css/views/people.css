@@ -1,0 +1,15 @@
+/* css/views/people.css — People destination (Admin People.dc.html).
+   Behaviour + responsive only; the artboard look stays inline in js/views/people.js.
+   ≤960 rules translated from design/handoff/admin-portal-2026-08-28/admin-responsive.css
+   ("grid-template-columns: 2fr 1.1fr 1.6fr auto" → tighter grid, COUNTRY column hidden);
+   the 1fr/330px two-pane collapse itself is the shared .mx-side rule in css/app.css. */
+
+/* the member-file side column follows the scroll beside the long directory list
+   (the artboard's list is 11 rows; the real one is the whole database) */
+.mx-people-side { position: sticky; top: 20px; }
+
+@media (max-width: 960px) {
+  .mx-people-side { position: static; }
+  .mx-people-row { grid-template-columns: 1.6fr 1fr auto !important; }
+  .mx-people-row > span:nth-child(2) { display: none !important; }
+}

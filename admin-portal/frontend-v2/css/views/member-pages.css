@@ -1,0 +1,12 @@
+/* css/views/member-pages.css — Member Pages / "What members see" (Admin Member Pages.dc.html).
+   Behaviour + responsive only; the artboard look stays inline in js/views/member-pages.js.
+   The 1.55fr/1fr two-pane collapse at ≤960 is the shared .mx-two rule in css/app.css. */
+
+/* the expandable sub-editors (key dates · field editor) lose their 164px label indent on
+   narrow screens so the inputs keep room */
+@media (max-width: 960px) {
+  .mx-mp-sub { padding-left: 0 !important; }
+}
+@media (max-width: 620px) {
+  .mx-mp-row > span:first-child { width: 100% !important; }
+}
