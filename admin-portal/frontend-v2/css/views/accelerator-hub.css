@@ -1,0 +1,15 @@
+/* css/views/accelerator-hub.css — Accelerator Hub (js/views/accelerator.js).
+   Behaviour + responsive only (ARCHITECTURE §4: class hooks never carry look —
+   the artboard's inline styles do). Loaded by the view module on first render. */
+
+/* the stats strip: three cells side-by-side down to tablet, stacked on phones */
+@media (max-width: 960px) {
+  .mx-grid-3 > a[style*="border-right"],
+  .mx-grid-3 > div[style*="border-right"] { border-right: 0 !important; border-bottom: 1px solid rgba(32, 27, 22, .1); }
+}
+
+/* inline row editors: inputs take the full row before the buttons wrap */
+@media (max-width: 620px) {
+  [data-block="inst"] input,
+  [data-block="alumni"] input { min-width: 100% !important; }
+}

@@ -1,0 +1,14 @@
+/* css/views/accelerator-review.css — Review Room (js/views/accelerator-review.js).
+   Behaviour + responsive only (ARCHITECTURE §4: class hooks never carry look —
+   the artboard's inline styles do). Loaded by the view module on first render. */
+
+/* applicant-file drawer: two panes → one column on narrow screens */
+@media (max-width: 620px) {
+  .mxa-drawer { grid-template-columns: 1fr !important; }
+  .mxa-drawer > div[style*="border-right"] { border-right: 0 !important; border-bottom: 1px solid rgba(32, 27, 22, .08); }
+}
+
+/* per-criteria scoring row: let the TOTAL + send button drop under the cells */
+@media (max-width: 960px) {
+  .mxa-scores > div[style*="flex:1"] { flex-basis: 100%; }
+}
