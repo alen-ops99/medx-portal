@@ -20757,7 +20757,7 @@ By applying to this program, I provide the following consents:
                             addons: [],
                             billing: {
                                 name: caGuestName, company: metadata.institution || '',
-                                address: '', city: '', zip: '', country: 'HR', oib: '', vatNumber: '',
+                                address: '', city: '', zip: '', country: metadata.country || 'HR', oib: '', vatNumber: '',
                                 email: caEmail || ''
                             },
                             invoiceType: 'FISKALNI_RAČUN', paymentType: 'KARTICA'

@@ -14,6 +14,18 @@ const FIRA_API_KEY = process.env.FIRA_API_KEY || '';
 
 const VAT_RATE = 0.25; // Historical placeholder — Med&X is outside the PDV system so all invoices go out at 0% with taxExempt:true via createFiscalInvoice's retry fallback.
 
+
+/** Free-text country (registration form) → ISO-2 for FIRA; unknown → 'HR'. */
+const COUNTRY_ISO = { croatia: 'HR', hrvatska: 'HR', hr: 'HR', 'united states': 'US', usa: 'US', us: 'US', 'united states of america': 'US',
+    'united kingdom': 'GB', uk: 'GB', england: 'GB', germany: 'DE', deutschland: 'DE', austria: 'AT', switzerland: 'CH', italy: 'IT', slovenia: 'SI',
+    'bosnia and herzegovina': 'BA', bosnia: 'BA', serbia: 'RS', netherlands: 'NL', belgium: 'BE', france: 'FR', spain: 'ES', sweden: 'SE', norway: 'NO',
+    denmark: 'DK', ireland: 'IE', canada: 'CA', australia: 'AU', hungary: 'HU', czechia: 'CZ', 'czech republic': 'CZ', poland: 'PL', portugal: 'PT' };
+function toIsoCountry(v) {
+    const t = String(v || '').trim();
+    if (/^[A-Za-z]{2}$/.test(t)) return t.toUpperCase();
+    return COUNTRY_ISO[t.toLowerCase()] || 'HR';
+}
+
 /**
  * Check if FIRA integration is configured
  */
@@ -45,7 +57,7 @@ function buildLineItems(ticketName, ticketPrice, addons) {
     if (ticketPrice > 0) {
         const vat = calculateVAT(ticketPrice);
         items.push({
-            name: `Plexus 2026 Conference — ${ticketName}`,
+            name: /plexus/i.test(ticketName) ? ticketName : `Plexus 2026 Conference — ${ticketName}`,
             quantity: 1,
             price: vat.netto,
             taxRate: VAT_RATE * 100, // FIRA expects percentage (25), not decimal (0.25)
@@ -125,11 +137,13 @@ function buildFiraOrder(orderData) {
         taxValue: totals.taxValue,
         brutto: totals.brutto,
         billingAddress: {
-            name: orderData.billing.company || orderData.billing.name,
-            address1: orderData.billing.address || '',
+            // Buyer is the PERSON who paid (hotfix 2026-08-30 — institution used to override the
+            // name, and an empty institution printed "Private"). Institution shows under the name.
+            name: orderData.billing.name || orderData.billing.company || 'Private',
+            address1: orderData.billing.address || orderData.billing.company || '',
             city: orderData.billing.city || '',
             zipCode: orderData.billing.zip || '',
-            country: orderData.billing.country || 'HR',
+            country: toIsoCountry(orderData.billing.country),
             oib: orderData.billing.oib || '',
             vatNumber: orderData.billing.vatNumber || '',
             email: orderData.billing.email || ''
