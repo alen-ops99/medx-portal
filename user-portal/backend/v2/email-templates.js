@@ -62,13 +62,15 @@ function escUrl(v) {
 const microStyle = (color, size, spacing) =>
     `font-family:${T.sans};font-weight:600;font-size:${size || 10}px;letter-spacing:${spacing || '.18em'};color:${color};text-transform:uppercase;`;
 
-function btn(label, href, kind) {
+function btn(label, href, kind, extra) {
     const solid = `display:inline-block;white-space:nowrap;padding:15px 34px;background:${T.crimson};color:${T.cream};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
     const ghost = `display:inline-block;white-space:nowrap;padding:14px 30px;border:1px solid rgba(25,21,18,.3);color:${T.ink};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
     const gold = `display:inline-block;white-space:nowrap;padding:14px 30px;background:${T.gold};color:#191512;font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
     const ink = `display:inline-block;white-space:nowrap;padding:14px 30px;background:#191512;color:#f7f1e6;font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
-    return `<a href="${escUrl(href)}" style="${kind === 'ghost' ? ghost : kind === 'gold' ? gold : kind === 'ink' ? ink : solid}">${label}</a>`;
+    return `<a href="${escUrl(href)}" style="${kind === 'ghost' ? ghost : kind === 'gold' ? gold : kind === 'ink' ? ink : solid}${extra || ''}">${label}</a>`;
 }
+// the wallet stack: three actions, ONE width — appended last so it beats the kind padding
+const BTN_STACK_W = 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;';
 
 // The 600px shell: ink header (logo + right micro-label), accent rule, body, hairline footer.
 // rule: 'crimson' | 'gold' | 'split' (newsletter's 50/50 crimson→gold).
@@ -197,9 +199,9 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
               <div style="font-family:${T.sans};font-size:11px;color:${T.soft};margin-top:4px;">Tap the QR to enlarge it — then save it to your photos.</div>
               ${(walletSaveUrl || appleWalletUrl) ? `
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px auto 0;">
-                ${appleWalletUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO APPLE WALLET →', appleWalletUrl, 'ink')}</td></tr>` : ''}
-                ${walletSaveUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO GOOGLE WALLET →', walletSaveUrl, 'gold')}</td></tr>` : ''}
-                ${calendarUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO CALENDAR →', calendarUrl, 'ghost')}</td></tr>` : ''}
+                ${appleWalletUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO APPLE WALLET →', appleWalletUrl, 'ink', BTN_STACK_W)}</td></tr>` : ''}
+                ${walletSaveUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO GOOGLE WALLET →', walletSaveUrl, 'gold', BTN_STACK_W)}</td></tr>` : ''}
+                ${calendarUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO CALENDAR →', calendarUrl, 'ghost', BTN_STACK_W)}</td></tr>` : ''}
               </table>
               <div style="font-family:${T.sans};font-size:11px;color:${T.soft};">Tap Add to Wallet to add your ticket to Apple or Google Wallet${calendarUrl ? ' — and Add to Calendar to save the dates' : ''}.</div>` : ''}
             </td>

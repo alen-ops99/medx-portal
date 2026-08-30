@@ -743,7 +743,9 @@ module.exports = function mountEventDay(app, ctx) {
     function doorUrl(req, token) {
         const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0];
         const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
-        return `${proto}://${host}/api/v2/door/${token}`;
+        // behind the staging launcher this backend lives under /__admin (header set by launcher.js)
+        const base = String(req.headers['x-medx-staging-prefix'] || '').replace(/\/$/, '');
+        return `${proto}://${host}${base}/api/v2/door/${token}`;
     }
 
     app.get('/api/v2/eventday/door-tokens', auth, adminOnly, (req, res) => {

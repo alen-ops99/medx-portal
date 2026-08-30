@@ -12686,6 +12686,7 @@ async function initializeApp() {
     app.delete('/api/admin/gala/tables/:id', auth, adminOnly, (req, res) => {
         const existing = query.get('SELECT id FROM gala_tables WHERE id = ?', [req.params.id]);
         if (!existing) return res.status(404).json({ error: 'Table not found' });
+        try { db.run('UPDATE gala_registrations SET seat_number = NULL WHERE id IN (SELECT registration_id FROM gala_seat_assignments WHERE table_id = ?)', [req.params.id]); } catch (e) {}
         db.run('DELETE FROM gala_seat_assignments WHERE table_id = ?', [req.params.id]);
         db.run('DELETE FROM gala_tables WHERE id = ?', [req.params.id]);
         saveDb();
@@ -12703,6 +12704,13 @@ async function initializeApp() {
         db.run('DELETE FROM gala_seat_assignments WHERE registration_id = ?', [regId]);
         db.run('INSERT INTO gala_seat_assignments (id, table_id, registration_id, seat_note) VALUES (?,?,?,?)',
             [uuidv4(), req.params.id, regId, (req.body && req.body.seat_note) || null]);
+        // Mirror onto the registration row: member wallet/passes read gala_registrations.seat_number,
+        // not the assignments table — without this the ticket says "TBD" forever (E2E-FINAL S5).
+        try {
+            const tl = query.get('SELECT label FROM gala_tables WHERE id = ?', [req.params.id]);
+            const seatLabel = tl && tl.label ? String(tl.label).replace(/^T(?=\d+$)/i, '') : null;
+            db.run('UPDATE gala_registrations SET seat_number = ? WHERE id = ?', [seatLabel, regId]);
+        } catch (e) { console.error('[gala/assign] seat_number mirror:', e.message); }
         saveDb();
         res.json({ success: true });
     });
@@ -12711,6 +12719,7 @@ async function initializeApp() {
         const regId = String((req.body && req.body.registration_id) || '');
         if (!regId) return res.status(400).json({ error: 'registration_id is required' });
         db.run('DELETE FROM gala_seat_assignments WHERE registration_id = ?', [regId]);
+        try { db.run('UPDATE gala_registrations SET seat_number = NULL WHERE id = ?', [regId]); } catch (e) {}
         saveDb();
         res.json({ success: true });
     });

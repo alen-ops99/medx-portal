@@ -4,13 +4,22 @@ PRODID:-//MedX//Plexus 2026//EN
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 BEGIN:VEVENT
-UID:plexus-conf-2026@medx.hr
+UID:plexus-conf-d1-2026@medx.hr
 DTSTAMP:20260830T120000Z
-DTSTART;VALUE=DATE:20261204
-DTEND;VALUE=DATE:20261206
-SUMMARY:Plexus Conference 2026
+DTSTART:20261204T150000Z
+DTEND:20261204T200000Z
+SUMMARY:Plexus Conference 2026 — Day 1
 LOCATION:Novinarski dom\, Perkovčeva 2\, Zagreb
-DESCRIPTION:Plexus Conference 2026 — times & program to follow. Your entry QR is in your confirmation email.
+DESCRIPTION:16:00–21:00. Times are preliminary — the final program follows. Your entry QR is in your confirmation email.
+END:VEVENT
+BEGIN:VEVENT
+UID:plexus-conf-d2-2026@medx.hr
+DTSTAMP:20260830T120000Z
+DTSTART:20261205T080000Z
+DTEND:20261205T120000Z
+SUMMARY:Plexus Conference 2026 — Day 2
+LOCATION:Novinarski dom\, Perkovčeva 2\, Zagreb
+DESCRIPTION:09:00–13:00. Times are preliminary — the final program follows. Your entry QR is in your confirmation email.
 END:VEVENT
 BEGIN:VEVENT
 UID:plexus-gala-2026@medx.hr
@@ -19,6 +28,6 @@ DTSTART:20261205T180000Z
 DTEND:20261205T223000Z
 SUMMARY:Plexus Gala Evening 2026
 LOCATION:Hotel Esplanade\, Mihanovićeva 1\, Zagreb
-DESCRIPTION:Gala Evening — 19:00\, black tie. Your entry QR is in your confirmation email.
+DESCRIPTION:19:00–23:30\, black tie. Your entry QR is in your confirmation email.
 END:VEVENT
 END:VCALENDAR
