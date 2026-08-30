@@ -145,7 +145,7 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
 // ---------------------------------------------------------------- 02 · TICKET CONFIRMATION
 function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue, qrPngUrl, passUrl, walletUrl,
                               calendarUrl, ticketLabel, priceLabel, guestLabel, ticketNumber,
-                              dressLabel, headlineHtml, note, ctaLabel, replyLine, walletSaveUrl } = {}) {
+                              dressLabel, tableLabel, headlineHtml, note, ctaLabel, replyLine, walletSaveUrl } = {}) {
     const fieldRow = (label, valueHtml) => `
         <tr><td style="padding:5px 0;vertical-align:baseline;width:76px;${microStyle(T.soft, 9, '.12em')}">${label}</td>
             <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
@@ -171,7 +171,8 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
         priceLabel ? fieldRow('PRICE', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(priceLabel)}</span>`) : '',
         dressLabel ? fieldRow('DRESS CODE', Array.isArray(dressLabel)
             ? dressLabel.map(whenLine).join('')
-            : `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dressLabel)}</span>`) : ''
+            : `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dressLabel)}</span>`) : '',
+        tableLabel ? fieldRow('TABLES', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(tableLabel)}</span>`) : ''
     ].join('');
     // QR: its own full-width centred row BELOW the facts (2026-08-30 — the old side cell crushed
     // the text column to ~80px on phones). 120px render so door scanners read it off a screen.
