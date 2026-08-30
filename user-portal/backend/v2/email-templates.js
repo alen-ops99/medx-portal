@@ -144,16 +144,22 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
 // ---------------------------------------------------------------- 02 · TICKET CONFIRMATION
 function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue, qrPngUrl, passUrl, walletUrl,
                               calendarUrl, ticketLabel, priceLabel, guestLabel, ticketNumber,
-                              headlineHtml, note, ctaLabel } = {}) {
+                              dressLabel, headlineHtml, note, ctaLabel, replyLine } = {}) {
     const fieldRow = (label, valueHtml) => `
         <tr><td style="padding:5px 0;vertical-align:baseline;width:58px;${microStyle(T.soft, 9, '.14em')}">${label}</td>
             <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
     const guestLine = guestLabel
         ? esc(guestLabel) + (ticketNumber ? ` · N° ${esc(ticketNumber)}` : '')
         : (ticketNumber ? `N° ${esc(ticketNumber)}` : '');
-    // WHEN: one stacked line per event (mobile 2026-08-30 fix — several events never share a line)
+    // WHEN: one stacked line per event; the event name before the first " — " renders bold
+    // (mobile + readability fixes, 2026-08-30 per Alen's review)
+    const whenLine = (l) => {
+        const s = String(l); const i = s.indexOf(' — ');
+        const head = i > 0 ? s.slice(0, i) : null; const rest = i > 0 ? s.slice(i) : s;
+        return `<span style="display:block;font-family:${T.sans};font-size:13px;line-height:1.6;color:${T.ink};">${head ? `<strong>${esc(head)}</strong>` : ''}${esc(rest)}</span>`;
+    };
     const whenHtml = Array.isArray(whenLines) && whenLines.length
-        ? whenLines.map(l => `<span style="display:block;font-family:${T.sans};font-size:13px;line-height:1.5;color:${T.ink};">${esc(l)}</span>`).join('')
+        ? whenLines.map(whenLine).join('')
         : (dateLabel ? `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dateLabel)}</span>` : '');
     const rows = [
         fieldRow('EVENT', `<span style="font-family:${T.serif};font-size:16px;color:${T.ink};">${esc(eventName || 'Med&X event')}</span>`),
@@ -161,7 +167,8 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
         venue ? fieldRow('WHERE', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(venue)}</span>`) : '',
         guestLine ? fieldRow('GUEST', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${guestLine}</span>`) : '',
         ticketLabel ? fieldRow('TICKET', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(ticketLabel)}</span>`) : '',
-        priceLabel ? fieldRow('PRICE', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(priceLabel)}</span>`) : ''
+        priceLabel ? fieldRow('PRICE', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(priceLabel)}</span>`) : '',
+        dressLabel ? fieldRow('DRESS', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dressLabel)}</span>`) : ''
     ].join('');
     // QR: its own full-width centred row BELOW the facts (2026-08-30 — the old side cell crushed
     // the text column to ~80px on phones). 120px render so door scanners read it off a screen.
@@ -185,7 +192,8 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
           ${qrBlock}
         </td></tr>
       </table>
-      <div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:14px;">${note || 'Present the QR above at the door — it admits you to everything you are registered for. Questions? Just reply to this email.'}</div>
+      <div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:14px;">${note || 'Present the QR above at the door — it admits you to everything you are registered for.'}</div>
+      <div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:10px;">${replyLine || `Questions? Just reply to this email, or write to <a href="mailto:laura.rodman@medx.hr" style="color:${T.soft};">laura.rodman@medx.hr</a>.`}</div>
       ${ctaUrl ? `<div style="text-align:center;margin:22px 0 4px;">${btn(ctaLabel || 'OPEN MY TICKETS →', ctaUrl)}${calendarUrl ? `<span style="display:inline-block;width:8px;">&nbsp;</span>${btn('ADD TO CALENDAR', calendarUrl, 'ghost')}` : ''}</div>` : ''}
     </div>`;
     return shell({
@@ -193,7 +201,7 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
         preheader: `${eventName || 'Your seat'} is confirmed — your QR is inside.`,
         rule: 'gold',
         bodyHtml: body,
-        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Zagreb`, 'Questions? Reply lands in your portal inbox.']
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Zagreb`, 'Questions? Reply to this email or write to laura.rodman@medx.hr']
     });
 }
 
