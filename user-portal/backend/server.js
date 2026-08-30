@@ -1421,11 +1421,12 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                             <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian"></div>
                             <div><label>Allergies (for the Gala)</label><input id="pf_allergies" maxlength="200" placeholder="e.g. nuts, shellfish"></div>
                             <div><label>Additional guests for the Gala <span style="color:#64748b;font-weight:400;">(max 2)</span></label>
-                                <select id="pf_guests" onchange="plexRecompute()">
+                                <select id="pf_guests" onchange="plexGuestFields();plexRecompute()">
                                     <option value="0">No additional guests</option>
                                     <option value="1">+1 guest (+&euro;${galaPrice})</option>
                                     <option value="2">+2 guests (+&euro;${galaPrice * 2})</option>
                                 </select></div>
+                            <div id="pf_guest_fields" style="display:none;"></div>
                             <div><label>Discount code <span style="color:#64748b;font-weight:400;">(optional, applies to the Gala)</span></label>
                                 <div style="display:flex;gap:8px;">
                                     <input id="pf_coupon" maxlength="40" placeholder="Enter code" style="text-transform:uppercase;flex:1;" oninput="plexClearCoupon()">
@@ -1471,6 +1472,30 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 }
             } else { PLEX_AUTH = null; }
         } catch (e) { PLEX_AUTH = null; }
+        function plexGuestFields(){
+            var n = parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0;
+            var box = document.getElementById('pf_guest_fields');
+            if (!box) return;
+            var keep = [];
+            for (var i = 0; i < 2; i++) {
+                keep.push({
+                    name: (document.getElementById('pf_gname' + i) || {}).value || '',
+                    inst: (document.getElementById('pf_ginst' + i) || {}).value || '',
+                    email: (document.getElementById('pf_gemail' + i) || {}).value || ''
+                });
+            }
+            if (n < 1) { box.style.display = 'none'; box.innerHTML = ''; return; }
+            var html = '';
+            for (var g = 0; g < n; g++) {
+                html += '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-top:10px;">'
+                    + '<div style="font-weight:700;font-size:13px;margin-bottom:8px;">Guest ' + (g + 1) + '</div>'
+                    + '<div><label>Full name *</label><input id="pf_gname' + g + '" maxlength="120" value="' + plexEsc(keep[g].name) + '"></div>'
+                    + '<div><label>Institution / Company</label><input id="pf_ginst' + g + '" maxlength="160" value="' + plexEsc(keep[g].inst) + '"></div>'
+                    + '<div><label>Email <span style="color:#64748b;font-weight:400;">(so they receive the entry QR too)</span></label><input id="pf_gemail' + g + '" type="email" maxlength="160" value="' + plexEsc(keep[g].email) + '"></div>'
+                    + '</div>';
+            }
+            box.innerHTML = html; box.style.display = 'block';
+        }
         function plexRecompute(){
             var total = 0, galaUnit = 0, galaSel = false;
             document.querySelectorAll('.event-option.selected').forEach(function(o){
@@ -1526,6 +1551,17 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 dietary: document.getElementById('pf_diet').value.trim(),
                 allergies: (document.getElementById('pf_allergies') || {}).value ? document.getElementById('pf_allergies').value.trim() : '',
                 guest_count: parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0,
+                guests: (function(){
+                    var n = parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0, out = [];
+                    for (var g = 0; g < n; g++) {
+                        out.push({
+                            name: ((document.getElementById('pf_gname' + g) || {}).value || '').trim(),
+                            institution: ((document.getElementById('pf_ginst' + g) || {}).value || '').trim(),
+                            email: ((document.getElementById('pf_gemail' + g) || {}).value || '').trim()
+                        });
+                    }
+                    return out;
+                })(),
                 coupon: ((document.getElementById('pf_coupon') || {}).value || '').trim(),
                 notes: document.getElementById('pf_notes').value.trim(),
                 selected_conference: sel.conference, selected_bridges: sel.bridges, selected_gala: sel.gala
@@ -8824,6 +8860,17 @@ async function initializeApp() {
     // logged in (or claimed retroactively by email) attaches to the member's account.
     // Nullable — the anonymous path is untouched. Declared identically in BOTH portals.
     try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN user_id TEXT'); } catch(e) {}
+
+    // Per-guest details captured on the public /plexus form (name/institution/email) so
+    // Gala guests can receive the party QR themselves (2026-08-30, Alen's request).
+    db.run(`CREATE TABLE IF NOT EXISTS ca_registration_guests (
+        id TEXT PRIMARY KEY,
+        registration_id TEXT NOT NULL,
+        name TEXT,
+        institution TEXT,
+        email TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
 
     // Gala invite links — admin-generated shareable URLs (generic paid + VIP free)
     db.run(`CREATE TABLE IF NOT EXISTS gala_invite_links (
@@ -20835,6 +20882,22 @@ By applying to this program, I provide the following consents:
                             console.error(`[Stripe][EMAIL-FAIL] PAID CA-gala guest ${caEmail} (reg ${galaRegId}, invoice ${invoiceNumber}) did NOT receive their ticket email:`, caSend && caSend.mock ? 'mock mode (no provider configured)' : (caSend && caSend.error) || 'unknown');
                         }
                     } catch(emailErr) { console.error(`[Stripe][EMAIL-FAIL] PAID CA-gala guest ${caEmail} (reg ${galaRegId}) ticket email threw:`, emailErr.message); }
+                    // Guests with an email get the SAME party QR (one QR admits the whole party) — 2026-08-30
+                    try {
+                        const partyGuests = query.all('SELECT name, email FROM ca_registration_guests WHERE registration_id = ? AND COALESCE(email, \'\') <> \'\'', [caRegId]) || [];
+                        for (const pg of partyGuests) {
+                            const gFirst = String(pg.name || 'there').split(' ')[0];
+                            const gHtml = buildEmailTemplate('Your Gala Evening entry', `
+                                <p>Dear ${gFirst},</p>
+                                <p><strong>${caGuestName}</strong> has registered you as their guest for the <strong>Plexus 2026 Gala Evening</strong> — December 5, 2026 · 19:00 · Hotel Esplanade, Mihanovićeva 1, Zagreb.</p>
+                                ${buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' })}
+                                <p>Dress code: black tie. Table reservations will follow closer to the event.</p>
+                                <p style="font-size:13px;color:#64748b;">Questions? Reply to this email or write to laura.rodman@medx.hr.</p>
+                            `);
+                            const gs = await sendEventConfirmation(pg.email, 'Your Gala Evening entry — Plexus 2026', gHtml);
+                            if (!gs || gs.success !== true || gs.mock) console.error(`[Stripe][EMAIL-FAIL] gala GUEST ${pg.email} (reg ${caRegId}) did NOT receive their entry email`);
+                        }
+                    } catch (pgErr) { console.error('[Stripe] guest entry emails failed (non-blocking):', pgErr.message); }
 
                     // Log to Google Sheets — `events` array routes to correct tab(s)
                     try {
@@ -28395,6 +28458,19 @@ By applying to this program, I provide the following consents:
                 const reqText = [notes, galaAllergies ? ('Allergies: ' + galaAllergies) : ''].filter(Boolean).join(' | ') || null;
                 db.run('UPDATE gala_registrations SET guest_count = ?, requests = ? WHERE id = ?', [guests, reqText, galaRegistrationId]);
                 db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [guests, regId]);
+                // Per-guest details (name/institution/email) → ca_registration_guests (2026-08-30)
+                try {
+                    const guestRows = Array.isArray(req.body.guests) ? req.body.guests.slice(0, guests) : [];
+                    for (const g of guestRows) {
+                        const gName = String((g && g.name) || '').slice(0, 120).trim();
+                        const gInst = String((g && g.institution) || '').slice(0, 160).trim();
+                        const gEmailRaw = String((g && g.email) || '').slice(0, 160).trim().toLowerCase();
+                        const gEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(gEmailRaw) ? gEmailRaw : '';
+                        if (!gName && !gEmail) continue;
+                        db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?, ?, ?, ?, ?)',
+                            [uuidv4(), regId, gName, gInst, gEmail]);
+                    }
+                } catch (gErr) { console.error('[CA] guest details save failed (non-blocking):', gErr.message); }
             } catch(e) {}
             // Stripe needs a real charge; a 100%-off / sub-€0.50 result can't be charged.
             if (galaPrice < 0.5) {
