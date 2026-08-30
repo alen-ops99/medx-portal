@@ -65,7 +65,8 @@ const microStyle = (color, size, spacing) =>
 function btn(label, href, kind) {
     const solid = `display:inline-block;padding:15px 34px;background:${T.crimson};color:${T.cream};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
     const ghost = `display:inline-block;padding:14px 30px;border:1px solid rgba(25,21,18,.3);color:${T.ink};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
-    return `<a href="${escUrl(href)}" style="${kind === 'ghost' ? ghost : solid}">${label}</a>`;
+    const gold = `display:inline-block;padding:14px 30px;background:${T.gold};color:#191512;font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
+    return `<a href="${escUrl(href)}" style="${kind === 'ghost' ? ghost : kind === 'gold' ? gold : solid}">${label}</a>`;
 }
 
 // The 600px shell: ink header (logo + right micro-label), accent rule, body, hairline footer.
@@ -144,9 +145,9 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
 // ---------------------------------------------------------------- 02 · TICKET CONFIRMATION
 function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue, qrPngUrl, passUrl, walletUrl,
                               calendarUrl, ticketLabel, priceLabel, guestLabel, ticketNumber,
-                              dressLabel, headlineHtml, note, ctaLabel, replyLine } = {}) {
+                              dressLabel, headlineHtml, note, ctaLabel, replyLine, walletSaveUrl } = {}) {
     const fieldRow = (label, valueHtml) => `
-        <tr><td style="padding:5px 0;vertical-align:baseline;width:58px;${microStyle(T.soft, 9, '.14em')}">${label}</td>
+        <tr><td style="padding:5px 0;vertical-align:baseline;width:76px;${microStyle(T.soft, 9, '.12em')}">${label}</td>
             <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
     const guestLine = guestLabel
         ? esc(guestLabel) + (ticketNumber ? ` · N° ${esc(ticketNumber)}` : '')
@@ -168,19 +169,21 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
         guestLine ? fieldRow('GUEST', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${guestLine}</span>`) : '',
         ticketLabel ? fieldRow('TICKET', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(ticketLabel)}</span>`) : '',
         priceLabel ? fieldRow('PRICE', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(priceLabel)}</span>`) : '',
-        dressLabel ? fieldRow('DRESS', Array.isArray(dressLabel)
+        dressLabel ? fieldRow('DRESS CODE', Array.isArray(dressLabel)
             ? dressLabel.map(whenLine).join('')
             : `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dressLabel)}</span>`) : ''
     ].join('');
     // QR: its own full-width centred row BELOW the facts (2026-08-30 — the old side cell crushed
     // the text column to ~80px on phones). 120px render so door scanners read it off a screen.
+    const qrImg = `<img src="${escUrl(qrPngUrl)}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;">`;
     const qrBlock = qrPngUrl ? `
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-top:1px solid rgba(25,21,18,.12);"><tr>
             <td align="center" style="padding-top:16px;">
               <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid ${T.hairline};padding:8px;">
-                <img src="${escUrl(qrPngUrl)}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;">
+                ${walletSaveUrl ? `<a href="${escUrl(walletSaveUrl)}" style="display:block;text-decoration:none;">${qrImg}</a>` : qrImg}
               </td></tr></table>
               <div style="${microStyle(T.soft, 9, '.14em')};margin-top:8px;">YOUR ENTRY QR · SHOW AT THE DOOR</div>
+              ${walletSaveUrl ? `<div style="margin-top:12px;">${btn('ADD TO GOOGLE WALLET →', walletSaveUrl, 'gold')}</div>` : ''}
             </td>
           </tr></table>` : '';
     const ctaUrl = passUrl || walletUrl;
