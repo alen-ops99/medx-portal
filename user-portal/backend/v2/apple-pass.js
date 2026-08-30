@@ -466,6 +466,9 @@ function ticketModel(item, user, qrMessage) {
         { key: 'ref', label: 'N°', value: refNo(item) }
     ];
     if (Number(item.party) > 1) auxiliary.push({ key: 'party', label: 'PARTY OF', value: String(item.party) });
+    // Gala passes carry the table on the FRONT — TBD until seating is assigned; the same
+    // serial number means a re-issued pass REPLACES the saved one (no duplicate cards).
+    if (item.kind === 'gala') auxiliary.push({ key: 'tbl', label: 'TABLE', value: item.seat_number ? `Table ${item.seat_number}` : 'TBD · assigned closer to the Gala' });
     const included = item.kind === 'gala'
         ? 'Gala Evening — dinner & programme' + (String(item.ticket_name || '').includes('bundle') ? ' (conference bundle)' : '')
         : (item.kind === 'plexus'

@@ -88,3 +88,9 @@
 ## From ADMIN INBOX builder (done, committed)
 - No shared diffs; INBOX badge reads its own /api/v2/inbox/badges.
 - Flag for backend owner: teamchat channel delete is a HARD delete server-side while the design promises archiving — candidate server fix later.
+
+## Wallet pass updates (Alen, 2026-08-30) — build queue
+- Serial numbers are stable per registration (medx-t-<kind>-<id>) → a re-issued Apple pass REPLACES the saved one; no duplicates.
+- GOOGLE: when a gala table is assigned (admin seating board), PATCH the wallet object (ensureEventObject/patch in shared/wallet.js) → passes update silently. Wire into the admin gala seat-assign route at integration.
+- APPLE auto-push: implement the Wallet web service (webServiceURL + authenticationToken in pass.json; register/unregister/latest-pass endpoints in v2/apple-pass.js; APNs push signed with the SAME pass certificate). MUST ship before table assignments go out (November). Until then, re-downloading an updated pass replaces the old one manually.
+- Gala passes now show TABLE on the front: "TBD · assigned closer to the Gala" → "Table N" once seated.
