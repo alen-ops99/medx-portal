@@ -146,7 +146,7 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
 // ---------------------------------------------------------------- 02 · TICKET CONFIRMATION
 function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue, qrPngUrl, passUrl, walletUrl,
                               calendarUrl, ticketLabel, priceLabel, guestLabel, ticketNumber,
-                              dressLabel, tableLabel, headlineHtml, note, ctaLabel, replyLine, walletSaveUrl, appleWalletUrl } = {}) {
+                              dressLabel, tableLabel, headlineHtml, introHtml, note, ctaLabel, replyLine, walletSaveUrl, appleWalletUrl } = {}) {
     const fieldRow = (label, valueHtml) => `
         <tr><td style="padding:5px 0;vertical-align:baseline;width:76px;${microStyle(T.soft, 9, '.12em')}">${label}</td>
             <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
@@ -199,6 +199,7 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
     <div style="padding:32px 28px 26px;">
       <span style="${microStyle(T.gold)}">YOU'RE GOING</span>
       <div style="font-family:${T.serif};font-size:26px;line-height:1.18;color:${T.ink};margin-top:10px;">${headlineHtml || `${esc(eventName || 'Your seat')} — seat <i>confirmed</i>.`}</div>
+      ${introHtml ? `<div style="font-family:${T.sans};font-size:13.5px;color:${T.soft};line-height:1.65;margin-top:12px;">${introHtml}</div>` : ''}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border:1px solid rgba(201,169,98,.65);background:${T.cardCream};">
         <tr><td style="padding:18px 20px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
