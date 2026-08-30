@@ -486,7 +486,7 @@ function ticketModel(item, user, qrMessage) {
             // Event name lives in the SMALL header line (next to the logo) — the huge primary
             // slot stays empty so the strip photo reads clean (Alen review 2026-08-30 v2)
             header: [(item.kind === 'gala'
-                ? { key: 'event', label: 'PLEXUS 2026', value: 'Gala Evening' }
+                ? { key: 'event', label: 'PLEXUS WEEK 2026', value: 'Gala Evening' }
                 : item.kind === 'plexus'
                     ? { key: 'event', label: 'PLEXUS 2026', value: 'Conference' }
                     : { key: 'event', label: 'MED&X', value: item.title })],
