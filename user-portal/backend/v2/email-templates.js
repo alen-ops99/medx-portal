@@ -168,7 +168,9 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
         guestLine ? fieldRow('GUEST', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${guestLine}</span>`) : '',
         ticketLabel ? fieldRow('TICKET', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(ticketLabel)}</span>`) : '',
         priceLabel ? fieldRow('PRICE', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(priceLabel)}</span>`) : '',
-        dressLabel ? fieldRow('DRESS', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dressLabel)}</span>`) : ''
+        dressLabel ? fieldRow('DRESS', Array.isArray(dressLabel)
+            ? dressLabel.map(whenLine).join('')
+            : `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dressLabel)}</span>`) : ''
     ].join('');
     // QR: its own full-width centred row BELOW the facts (2026-08-30 — the old side cell crushed
     // the text column to ~80px on phones). 120px render so door scanners read it off a screen.
