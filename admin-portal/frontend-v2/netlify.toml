@@ -1,0 +1,38 @@
+# Netlify — Med&X ADMIN portal v2 (future review/staging site).
+# Redirect/proxy rules live in netlify/_redirects (kept as a file so `sed` can retarget the backend host);
+# the build copies it to the publish root and stamps the staging runtime config into index.html.
+[build]
+  base    = "admin-portal/frontend-v2"
+  publish = "."
+  command = "cp netlify/_redirects ./_redirects && node scripts/apply-config.js staging"
+
+[build.processing]
+  skip_processing = true      # no asset bundling/minification — plain ES modules, served as-is
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=600, must-revalidate"
+
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=600, must-revalidate"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"

@@ -1,0 +1,112 @@
+/* ============================================================================
+   Med&X ADMIN portal v2 — DESIGN TOKENS
+   Source: README "## Admin Portal (redesign)" + "## Design Tokens" + the 17
+   Admin *.dc.html artboards (2026-08-28). The admin surface is the CALM
+   WORKSPACE variant of the brand: warm paper ground, white cards, hairlines.
+   The artboards use these literal values inline — use the variables for NEW
+   elements only; copied artboard markup keeps its inline literals.
+   ========================================================================== */
+:root {
+  /* surfaces */
+  --paper: #f6f2ea;              /* page ground (admin) — never pure white as a page ground */
+  --white: #ffffff;              /* cards, top bar                                        */
+  --white-hover: #fdfbf6;        /* row hover on white                                    */
+  --cream: #f7f1e6;              /* member-portal cream (shared brand)                    */
+
+  /* ink */
+  --ink: #201b16;                /* admin near-black (the member portal uses #191512)     */
+  --soft: #6d6459;               /* secondary text                                        */
+  --muted: #9a9086;              /* sub-nav inactive, tertiary                            */
+
+  /* accents */
+  --crimson: #9b1b22;            /* primary action, alerts                                */
+  --crimson-hover: #7e151b;
+  --gold: #c9a962;               /* premium moments, highlights                           */
+  --gold-dark: #7a6432;          /* gold tag text                                         */
+  --amber: #b7791f;              /* "to check" / warnings                                 */
+  --green: #2f7d4f;              /* live / ok                                             */
+  --green-dark: #1e6e42;         /* saved state, LIVE FOR MEMBERS badge                   */
+
+  /* tags */
+  --tag-gold-bg: #f8f1e2;  --tag-gold-fg: #7a6432;
+  --tag-bg: #eee9df;       --tag-fg: #4a4239;
+  --tag-gold2-bg: #f1e7d4;
+
+  /* hairlines */
+  --hair: rgba(32,27,22,.14);
+  --hair-12: rgba(32,27,22,.12);
+  --hair-10: rgba(32,27,22,.10);
+  --hair-08: rgba(32,27,22,.08);
+  --hair-06: rgba(32,27,22,.06);
+  --border-input: rgba(32,27,22,.25);
+  --border-btn: rgba(32,27,22,.18);
+  --scrim: rgba(32,27,22,.45);
+
+  /* typography */
+  --font-display: Fraunces, serif;
+  --font-ui: Inter, sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+
+  /* shape & motion */
+  --radius: 0px;                 /* square corners everywhere                             */
+  --page-max: 1180px;            /* content max-width (artboards)                         */
+  --gutter: 28px;                /* page gutter (desktop)                                 */
+  --gutter-m: 16px;              /* page gutter (≤960px)                                  */
+  --shadow-pop: 0 12px 30px rgba(32,27,22,.16);
+}
+
+/* ---- repeated utility vocabulary (only where the design repeats itself) ---- */
+
+/* micro-label: 9–11px Inter 600 uppercase, tracked — eyebrows, nav, buttons, tags */
+.micro     { font: 600 11px var(--font-ui); letter-spacing: .15em; text-transform: uppercase; white-space: nowrap; }
+.micro-10  { font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
+.micro-9   { font: 600 9px var(--font-ui);  letter-spacing: .13em; text-transform: uppercase; white-space: nowrap; }
+
+/* card — white sheet with a 1px hairline; no shadow, no radius */
+.card      { background: var(--white); border: 1px solid var(--hair); box-sizing: border-box; }
+.card-head { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--hair-12); }
+
+/* buttons — crimson filled (primary), hairline ghost, ink filled; uppercase micro text; never wrap */
+.btn-primary, .btn-ghost, .btn-ink {
+  display: inline-block; padding: 8px 14px; font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase;
+  text-decoration: none; cursor: pointer; white-space: nowrap; border-radius: var(--radius); border: 0; line-height: normal; text-align: center; box-sizing: border-box;
+}
+.btn-primary { background: var(--crimson); color: #fff; }
+.btn-primary:hover { background: var(--crimson-hover); color: #fff; }
+.btn-ghost   { border: 1px solid rgba(32,27,22,.2); color: var(--ink); background: transparent; }
+.btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
+.btn-ink     { background: var(--ink); color: var(--paper); }
+.btn-ink:hover { background: var(--crimson); color: var(--paper); }
+.btn-primary[aria-disabled="true"], .btn-ghost[aria-disabled="true"], .btn-ink[aria-disabled="true"] { opacity: .55; cursor: default; }
+
+/* tags — square, small, tracked */
+.tag       { display: inline-block; padding: 3px 7px; font: 600 8.5px var(--font-ui); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; background: var(--tag-bg); color: var(--tag-fg); }
+.tag-gold  { background: var(--tag-gold-bg); color: var(--tag-gold-fg); }
+.tag-live  { background: var(--green-dark); color: #fff; }
+
+/* count badge — crimson square (nav INBOX, NEEDS YOUR ATTENTION) */
+.badge     { min-width: 16px; height: 16px; padding: 0 4px; background: var(--crimson); color: #fff; font: 600 10px var(--font-ui); display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.badge-ink { background: var(--ink); }
+
+/* status dot */
+.dot       { display: inline-block; width: 8px; height: 8px; flex: none; }
+.dot-round { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; }
+
+/* inputs — paper fill, hairline, crimson focus outline (Admin Home / Settings vocabulary) */
+.input     { border: 1px solid var(--border-input); background: var(--paper); padding: 8px 10px; font: 400 13px var(--font-ui); color: var(--ink); width: 100%; box-sizing: border-box; border-radius: 0; }
+.input:focus { outline: 1px solid var(--crimson); outline-offset: -1px; }
+.label     { font: 600 8.5px var(--font-ui); letter-spacing: .14em; color: var(--soft); text-transform: uppercase; }
+
+/* open stat rows (numbers between hairlines, no boxes) — note 0c */
+.stat-row  { display: grid; }
+.stat-cell { padding: 18px 22px; border-right: 1px solid var(--hair-12); color: var(--ink); display: block; }
+.stat-cell:last-child { border-right: 0; }
+
+/* empty-state voice (README note 21): italic Fraunces line + one sentence + one CTA */
+.empty     { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 26px 20px; }
+.empty-line{ font-family: var(--font-display); font-style: italic; font-size: 17px; }
+.empty-why { font-size: 12.5px; color: var(--soft); max-width: 420px; line-height: 1.55; }
+
+/* striped placeholder (spots awaiting real content) */
+.placeholder { border: 1px dashed rgba(32,27,22,.3); background: repeating-linear-gradient(45deg, rgba(32,27,22,.05) 0 8px, transparent 8px 16px);
+               display: flex; align-items: center; justify-content: center; font: 600 8.5px var(--font-mono); color: var(--soft); }
