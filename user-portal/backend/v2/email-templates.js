@@ -105,6 +105,15 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:al
   <tr><td>${bodyHtml}</td></tr>
   <tr><td style="border-top:1px solid ${T.hairline};padding:18px 40px;">
     <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.5;">${footer}</td></tr></table>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:9px;"><tr>
+      <td style="${microStyle(T.goldDark, 9, '.16em')}"><a href="https://medx.hr" style="color:${T.goldDark};text-decoration:none;">MEDX.HR</a></td>
+      <td style="font-family:${T.sans};font-size:10px;color:${T.gold};padding:0 8px;">·</td>
+      <td style="${microStyle(T.soft, 9, '.16em')}"><a href="https://www.facebook.com/profile.php?id=61554188818525" style="color:${T.soft};text-decoration:none;">FACEBOOK</a></td>
+      <td style="font-family:${T.sans};font-size:10px;color:${T.gold};padding:0 8px;">·</td>
+      <td style="${microStyle(T.soft, 9, '.16em')}"><a href="https://www.instagram.com/medx_association/" style="color:${T.soft};text-decoration:none;">INSTAGRAM</a></td>
+      <td style="font-family:${T.sans};font-size:10px;color:${T.gold};padding:0 8px;">·</td>
+      <td style="${microStyle(T.soft, 9, '.16em')}"><a href="https://www.linkedin.com/company/med-x-association/" style="color:${T.soft};text-decoration:none;">LINKEDIN</a></td>
+    </tr></table>
   </td></tr>
 </table>
 </td></tr></table>
