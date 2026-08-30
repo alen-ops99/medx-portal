@@ -84,3 +84,7 @@
 ## From ADMIN FORUM+BRIDGES builder (done, committed)
 - No shared diffs. Fix-pass items (member server, also PROD): POST /api/bridges/events/:id/register 500s (NOT NULL defect); plus earlier: /api/public/registrations/:email gala ORDER BY registered_at.
 - v2_stats_overrides claimed by this builder (hub-scoped, reusable).
+
+## From ADMIN INBOX builder (done, committed)
+- No shared diffs; INBOX badge reads its own /api/v2/inbox/badges.
+- Flag for backend owner: teamchat channel delete is a HARD delete server-side while the design promises archiving — candidate server fix later.
