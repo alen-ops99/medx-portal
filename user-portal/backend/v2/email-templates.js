@@ -181,9 +181,10 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-top:1px solid rgba(25,21,18,.12);"><tr>
             <td align="center" style="padding-top:16px;">
               <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid ${T.hairline};padding:8px;">
-                ${walletSaveUrl ? `<a href="${escUrl(walletSaveUrl)}" style="display:block;text-decoration:none;">${qrImg}</a>` : qrImg}
+                <a href="${escUrl(qrPngUrl)}" style="display:block;text-decoration:none;">${qrImg}</a>
               </td></tr></table>
               <div style="${microStyle(T.soft, 9, '.14em')};margin-top:8px;">YOUR ENTRY QR · SHOW AT THE DOOR</div>
+              <div style="font-family:${T.sans};font-size:11px;color:${T.soft};margin-top:4px;">Tap the QR to enlarge it — then save it to your photos.</div>
               ${walletSaveUrl ? `<div style="margin-top:12px;">${btn('ADD TO GOOGLE WALLET →', walletSaveUrl, 'gold')}</div>` : ''}
             </td>
           </tr></table>` : '';
