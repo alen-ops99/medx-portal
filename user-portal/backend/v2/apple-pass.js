@@ -175,6 +175,7 @@ function buildPkpass(model) {
         barcode: { format: 'PKBarcodeFormatQR', message: model.qrMessage, messageEncoding: 'iso-8859-1', altText: model.altText || undefined },
         barcodes: [{ format: 'PKBarcodeFormatQR', message: model.qrMessage, messageEncoding: 'iso-8859-1', altText: model.altText || undefined }],
         [model.style]: {
+            headerFields: model.fields.header || undefined,
             primaryFields: model.fields.primary,
             secondaryFields: model.fields.secondary,
             auxiliaryFields: model.fields.auxiliary,
@@ -482,12 +483,14 @@ function ticketModel(item, user, qrMessage) {
         description: item.kind === 'plexus' || item.kind === 'gala' ? 'Med&X — Plexus 2026 entry' : `Med&X — ${item.title}`,
         relevantDate: relevantDateFor(item),
         fields: {
-            // Smaller, designed title: eyebrow label + short value (Alen review 2026-08-30)
-            primary: [(item.kind === 'gala'
+            // Event name lives in the SMALL header line (next to the logo) — the huge primary
+            // slot stays empty so the strip photo reads clean (Alen review 2026-08-30 v2)
+            header: [(item.kind === 'gala'
                 ? { key: 'event', label: 'PLEXUS 2026', value: 'Gala Evening' }
                 : item.kind === 'plexus'
                     ? { key: 'event', label: 'PLEXUS 2026', value: 'Conference' }
                     : { key: 'event', label: 'MED&X', value: item.title })],
+            primary: [],
             secondary: [
                 { key: 'when', label: 'WHEN', value: when },
                 { key: 'where', label: 'WHERE', value: item.venue || 'To be announced' }
