@@ -1,0 +1,14 @@
+{
+ "batch_id": "forum-invite-1cd5709b-mtg7mqon",
+ "source_engine": "forum-invite",
+ "template": "forum_invite_code",
+ "count": 1,
+ "status": "pending_approval",
+ "approved_by": null,
+ "earliest_scheduled_for": null,
+ "created_at": "2026-08-30 19:36:14",
+ "sample": {
+  "to": "qa.hub.1788118567@example.org",
+  "subject": "Your invitation to the Biomedical Forum"
+ }
+}

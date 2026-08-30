@@ -94,3 +94,17 @@
 - GOOGLE: when a gala table is assigned (admin seating board), PATCH the wallet object (ensureEventObject/patch in shared/wallet.js) → passes update silently. Wire into the admin gala seat-assign route at integration.
 - APPLE auto-push: implement the Wallet web service (webServiceURL + authenticationToken in pass.json; register/unregister/latest-pass endpoints in v2/apple-pass.js; APNs push signed with the SAME pass certificate). MUST ship before table assignments go out (November). Until then, re-downloading an updated pass replaces the old one manually.
 - Gala passes now show TABLE on the front: "TBD · assigned closer to the Gala" → "Table N" once seated.
+
+## E2E-FINAL follow-ups (2026-08-30, report: E2E-FINAL-REPORT-2026-08-30.md)
+- [ ] **SEAT → PASS PLUMBING (needed before table assignments, Nov):** admin seating board writes
+      `gala_seat_assignments`, but member wallet/apple/google passes read `gala_registrations.seat_number`
+      → assigned tables never reach tickets ("TBD" forever). Bridge: on assignment, also UPDATE
+      gala_registrations.seat_number (or teach wallet.js to read the assignments table). Pairs with the
+      Apple webServiceURL/Google-PATCH silent-update work already queued.
+- [ ] **Registration-link attribution (prod bug):** member server.js:28357 stores invite_link_id (null)
+      instead of link_token — public-form rows never credit the link that brought them.
+- [ ] Door-staff tokenized URL lacks the /__admin prefix on staging (launcher artifact; prod unaffected).
+      doorUrl() should honor a base-path env when behind the launcher.
+- [x] Rehearsal TEST codes said NOT FOUND in new ID-check mode — fixed (identify() routes TEST-* to /scan).
+- staging-only reds (expected): BREVO_API_KEY absent → sentinel pill crimson; board-pack print engine unset
+  → 503; accelerator doc on ephemeral disk → 500 (fix already on branch for prod).

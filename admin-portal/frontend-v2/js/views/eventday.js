@@ -187,6 +187,9 @@ function showResult(out) {
 // every door, paid state, party progress — and admits nobody. Each door row carries its own ADMIT
 // button (→ the normal /scan write). INSTANT ADMIT restores the old one-tap flow for the rush.
 async function identify(code, opts = {}) {
+  // rehearsal TEST-1…6 are built-in practice guests known only to /scan — ID-check would say
+  // NOT FOUND (E2E S13), so practice codes keep the classic admit flow
+  if (st.rehearsal && /^TEST-\d+$/i.test(String(code).trim())) return scan(code, opts);
   try {
     const out = await api.post('/api/v2/eventday/lookup', { code, rehearsal: st.rehearsal });
     if (!out.ok) { showResult(Object.assign({ ticket: {} }, out, { _code: code })); return out; }
