@@ -728,11 +728,16 @@ module.exports = function mountWallet(app, ctx) {
                 startISO: item.date ? String(item.date).slice(0, 10) + 'T00:00:00Z' : null,
                 logoUri: origin + '/assets/images/medx-logo.png', hexBackgroundColor: '#14100d', homepageUri: origin
             });
+            // Parity with the Apple pass (2026-08-30): events line, TABLE (TBD until seated), dress code
+            const whenLine = [item.title, [item.date ? String(item.date).slice(0, 10) : '', item.time ? String(item.time).slice(0, 5) : ''].filter(Boolean).join(' · ')].filter(Boolean).join(' — ');
             const object = wallet.buildEventTicketObject({
                 objectId: wallet.objectIdFor(item.id), classId, token: barcode,
                 name: item.guest_name || fullName(user),
                 registrationNumber: item.invoice_number || String(item.id).slice(0, 8).toUpperCase(),
                 category: item.ticket_name, statusLabel: item.status,
+                events: [whenLine],
+                galaTable: item.kind === 'gala' ? (item.seat_number ? `Table ${item.seat_number}` : 'TBD — assigned closer to the Gala') : undefined,
+                dressCode: item.kind === 'gala' ? 'Black tie' : (item.kind === 'plexus' ? 'Business casual' : undefined),
                 logoUri: origin + '/assets/images/medx-logo.png', hexBackgroundColor: '#14100d'
             });
             const { saveUrl } = wallet.buildSaveUrl({ classes: [classBody], objects: [object], origins: [origin] });
