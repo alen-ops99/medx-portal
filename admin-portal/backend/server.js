@@ -981,7 +981,7 @@ app.use((req, res, next) => {
 
 // Create uploads directory
 const uploadsDir = path.join(__dirname, 'uploads');
-['abstracts', 'posters', 'documents', 'badges', 'photos', 'tickets', 'accelerator', 'chat', 'content-studio', 'spatial'].forEach(dir => {
+['abstracts', 'posters', 'documents', 'badges', 'photos', 'tickets', 'accelerator', 'chat', 'content-studio', 'spatial', 'speakers'].forEach(dir => {
     const dirPath = path.join(uploadsDir, dir);
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
 });

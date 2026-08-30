@@ -1,0 +1,31 @@
+/* css/views/plexus-hub.css — screen CSS for js/views/plexus.js (Admin Plexus Hub.dc.html).
+   Injected by the view. Class hooks are prefixed mxp- and carry NO look — only responsive
+   overrides and behaviour (ARCHITECTURE §4 naming rules). The shared hooks (mx-gutter,
+   mx-subnav, mx-kpi, mx-two, mx-row, mx-display-34/30) come from css/app.css. */
+
+/* key-dates strip: 4 date cells + CALENDAR link (artboard grid-template-columns:repeat(4,1fr) auto) */
+@media (max-width: 960px) {
+  .mxp-dates { grid-template-columns: 1fr 1fr !important; }
+  .mxp-dates > a { border-left: 0 !important; border-top: 1px solid rgba(32, 27, 22, .08); padding: 10px 20px !important; grid-column: 1 / -1; }
+  .mxp-title-actions { width: 100%; }
+}
+@media (max-width: 620px) {
+  .mxp-dates { grid-template-columns: 1fr !important; }
+  .mxp-dates > div { border-right: 0 !important; border-bottom: 1px solid rgba(32, 27, 22, .08); }
+  /* manage-panel forms stack */
+  .mxp-form { flex-direction: column !important; align-items: stretch !important; }
+  .mxp-form > input, .mxp-form > select { width: 100% !important; min-width: 0 !important; }
+}
+
+/* the two asymmetric columns AND the cards inside them must be shrinkable — grid items default to
+   min-width:auto, and the stats widget's nowrap copy line would otherwise inflate the tracks'
+   min-content and push the right column past the viewport */
+.mxp-col, .mxp-col > * { min-width: 0; }
+
+/* inline manage panels (speakers · schedule · Q&A) */
+.mxp-panel { background: #fdfbf6; border-top: 1px solid rgba(32, 27, 22, .08); }
+.mxp-panel input, .mxp-panel select { font: 400 12.5px Inter, sans-serif; color: #201b16; background: #fff; border: 1px solid rgba(32, 27, 22, .25); padding: 8px 10px; box-sizing: border-box; }
+.mxp-panel input:focus, .mxp-panel select:focus { outline: 2px solid #9b1b22; outline-offset: -1px; }
+
+/* stats widget: figure value flashes never wrap awkwardly */
+.mxp-fig-input { width: 90px; font: 400 13px Inter, sans-serif; color: #201b16; background: #fff; border: 1px solid rgba(32, 27, 22, .25); padding: 5px 8px; box-sizing: border-box; }
