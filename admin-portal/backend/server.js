@@ -43175,6 +43175,16 @@ ${extraCss || ''}
         });
     });
 
+    // frontend-v2 backend additions (admin-portal/backend/v2/*.js) — mounted before the 404
+    // catch-all; each module owns /api/v2/<feature>/… (2026-08-30, admin portal redesign).
+    try {
+        require('./v2')(app, {
+            db: () => db, auth, adminOnly, sendEmail, saveDb, JWT_SECRET,
+            ROOT: path.join(__dirname, '..', '..'),
+            log: (...a) => console.log('[admin-v2]', ...a),
+        });
+    } catch (e) { console.error('[admin-v2] mount failed:', e.message); }
+
     // API 404 handler — prevent unmatched API routes from returning HTML
     app.use('/api', (req, res) => {
         res.status(404).json({ error: 'API endpoint not found' });
