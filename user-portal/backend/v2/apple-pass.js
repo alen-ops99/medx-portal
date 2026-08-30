@@ -482,7 +482,12 @@ function ticketModel(item, user, qrMessage) {
         description: item.kind === 'plexus' || item.kind === 'gala' ? 'Med&X — Plexus 2026 entry' : `Med&X — ${item.title}`,
         relevantDate: relevantDateFor(item),
         fields: {
-            primary: [{ key: 'event', value: item.title }],
+            // Smaller, designed title: eyebrow label + short value (Alen review 2026-08-30)
+            primary: [(item.kind === 'gala'
+                ? { key: 'event', label: 'PLEXUS 2026', value: 'Gala Evening' }
+                : item.kind === 'plexus'
+                    ? { key: 'event', label: 'PLEXUS 2026', value: 'Conference' }
+                    : { key: 'event', label: 'MED&X', value: item.title })],
             secondary: [
                 { key: 'when', label: 'WHEN', value: when },
                 { key: 'where', label: 'WHERE', value: item.venue || 'To be announced' }
@@ -605,5 +610,6 @@ module.exports = function mountApplePass(app, ctx) {
     log(`apple-pass: tokenized .pkpass routes ready (${isConfigured() ? 'signing env present' : 'env absent — configured:false'})`);
 };
 module.exports.isConfigured = isConfigured;
+module.exports.buildPkpass = buildPkpass;
 module.exports.respondMemberPass = respondMemberPass;
 module.exports.respondTicketPass = respondTicketPass;
