@@ -39,7 +39,7 @@ export const FACTS = Object.freeze({
     ]),
     guests: '150+'
   }),
-  org: Object.freeze({ name: 'Med&X', site: 'https://medx.hr', city: 'Zagreb', est: 2018, copyright: '© Med&X 2026 · Zagreb' }),
+  org: Object.freeze({ name: 'Med&X', site: 'https://medx.hr', city: 'Split', est: 2018, copyright: '© Med&X 2026 · Split, Croatia' }),
   // project keys in hub order — matches GET /api/public/status ordering and notify_topics keys
   projectOrder: Object.freeze(['plexus', 'gala', 'accelerator', 'forum', 'bridges'])
 });

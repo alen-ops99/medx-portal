@@ -33,7 +33,7 @@ export const FACTS = Object.freeze({
     editions: Object.freeze([{ n: '01', city: 'Washington', host: 'NIH' }, { n: '02', city: 'London', host: 'Embassy' }, { n: '03', city: 'New York', host: 'Consulate' }, { n: '04', city: 'Zürich', host: 'ETH' }]),
     guests: '150+'
   }),
-  org: Object.freeze({ name: 'Med&X', site: 'https://medx.hr', city: 'Zagreb', copyright: '© Med&X 2026 · Zagreb' }),
+  org: Object.freeze({ name: 'Med&X', site: 'https://medx.hr', city: 'Split', copyright: '© Med&X 2026 · Split, Croatia' }),
   projectOrder: Object.freeze(['plexus', 'accelerator', 'forum', 'bridges'])
 });
 

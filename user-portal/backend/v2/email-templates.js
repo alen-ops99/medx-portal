@@ -76,7 +76,7 @@ function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, body
     const ruleBg = rule === 'gold' ? `background:${T.gold};`
         : rule === 'split' ? `background:${T.crimson};background:linear-gradient(90deg,${T.crimson} 0 50%,${T.gold} 50% 100%);`
         : `background:${T.crimson};`;
-    const footer = (footerItems && footerItems.length ? footerItems : [`© Med&amp;X ${new Date().getFullYear()} · Zagreb`])
+    const footer = (footerItems && footerItems.length ? footerItems : [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`])
         .join(`</td><td style="font-family:${T.sans};font-size:11px;color:${T.gold};padding:0 6px;">·</td><td style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.5;">`);
     return `<!DOCTYPE html>
 <html lang="${lang === 'hr' ? 'hr' : 'en'}">
@@ -138,7 +138,7 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
         rule: 'crimson',
         bodyHtml: body,
         lang: hr ? 'hr' : 'en',
-        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Zagreb`,
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`,
             hr ? 'Ovu ste poruku primili jer je s ovom adresom otvoren račun.' : 'You received this because an account was created with this address.']
     });
 }
@@ -216,7 +216,7 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
         preheader: `${eventName || 'Your seat'} is confirmed — your QR is inside.`,
         rule: 'gold',
         bodyHtml: body,
-        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Zagreb`, 'Questions? Reply to this email or write to laura.rodman@medx.hr']
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Questions? Reply to this email or write to laura.rodman@medx.hr']
     });
 }
 
@@ -246,7 +246,7 @@ function newsletter({ monthLabel, headline, items, bodyHtml, manageUrl, unsubscr
         rule: 'split',
         bodyHtml: body,
         footerItems: [
-            `© Med&amp;X ${new Date().getFullYear()} · Zagreb`,
+            `© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`,
             `<a href="${escUrl(manageUrl)}" style="color:${T.soft};text-decoration:underline;">Manage topics</a>`,
             `<a href="${escUrl(unsubscribeUrl)}" style="color:${T.soft};text-decoration:underline;">Unsubscribe</a>`
         ]
@@ -304,7 +304,7 @@ function attendanceCard({ firstName, eventName, dateLabel, venue, cardImageUrl, 
         preheader: `Your ${eventName || 'Med&X'} attendance card is inside.`,
         rule: 'gold',
         bodyHtml: body,
-        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Zagreb`, 'Sent automatically when your registration was confirmed.']
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Sent automatically when your registration was confirmed.']
     });
 }
 
@@ -347,7 +347,7 @@ function yearInReview({ firstName, year, stats, cardImageUrl, cardDownloadUrl, w
         preheader: `Your ${y} at Med&X, in one card.`,
         rule: 'split',
         bodyHtml: body,
-        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Zagreb`, 'Sent once a year — your year-in-review.']
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Sent once a year — your year-in-review.']
     });
 }
 
@@ -381,7 +381,7 @@ function newsletterWelcome({ firstName, topics, manageUrl, unsubscribeUrl } = {}
         rule: 'split',
         bodyHtml: body,
         footerItems: [
-            `© Med&amp;X ${new Date().getFullYear()} · Zagreb`,
+            `© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`,
             `<a href="${escUrl(manageUrl)}" style="color:${T.soft};text-decoration:underline;">Manage topics</a>`,
             `<a href="${escUrl(unsubscribeUrl)}" style="color:${T.soft};text-decoration:underline;">Unsubscribe</a>`
         ]
@@ -404,7 +404,7 @@ function newsletterConfirm({ firstName, email, confirmUrl } = {}) {
         preheader: 'One click and the Med&X newsletter starts arriving.',
         rule: 'crimson',
         bodyHtml: body,
-        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Zagreb`, 'You received this because this address was entered in the Med&amp;X member portal.']
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'You received this because this address was entered in the Med&amp;X member portal.']
     });
 }
 
@@ -452,7 +452,7 @@ function brandedPage({ title, eyebrow, headlineHtml, bodyHtml } = {}) {
     ${headlineHtml ? `<h1>${headlineHtml}</h1>` : ''}
     ${bodyHtml || ''}
   </div>
-  <div class="ft"><span>© Med&amp;X ${new Date().getFullYear()} · Zagreb</span><b>·</b><span><a href="https://medx.hr" style="color:${T.soft};text-decoration:underline;">medx.hr</a></span></div>
+  <div class="ft"><span>© Med&amp;X ${new Date().getFullYear()} · Split, Croatia</span><b>·</b><span><a href="https://medx.hr" style="color:${T.soft};text-decoration:underline;">medx.hr</a></span></div>
 </div>
 </body>
 </html>`;
