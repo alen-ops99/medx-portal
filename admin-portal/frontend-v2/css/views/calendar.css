@@ -1,0 +1,39 @@
+/* ============================================================================
+   Med&X ADMIN portal v2 — CALENDAR view hooks (js/views/calendar.js)
+   Rule (ARCHITECTURE §4): class hooks never carry look — inline styles do.
+   Two jobs live here:
+     1. responsive: the 12-month grid scrolls sideways instead of crushing
+     2. print: EXPORT PDF = the print-ready ONE-PAGE year board (README note 23)
+        — body.mxc-printing is set by the view around window.print(); only the
+        hidden .mxc-print board renders, on A4 landscape, in the Med&X look.
+   Loaded/unloaded by the view itself (link[data-view-css="calendar"]).
+   ========================================================================== */
+
+/* ---- 1 · the year board scrolls sideways on narrow screens ---------------- */
+.mxc-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 960px) {
+  .mxc-grid { min-width: 720px; }
+}
+@media (max-width: 620px) {
+  .mxc-form input, .mxc-form select { flex: 1 1 auto; min-width: 0 !important; }
+  .mxc-form input[data-role="evName"] { flex: 1 1 100% !important; }
+}
+
+/* ---- 2 · EXPORT PDF: one-page year board --------------------------------- */
+.mxc-print { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 9mm; }
+  body.mxc-printing { background: #fff !important; }
+  /* only the board prints: hide the chrome, the screen layout, overlays, toasts */
+  body.mxc-printing #chrome,
+  body.mxc-printing #chrome-overlays,
+  body.mxc-printing .mx-toast,
+  body.mxc-printing .mx-modal,
+  body.mxc-printing .mxc-screen { display: none !important; }
+  body.mxc-printing .mxc-print {
+    display: block !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

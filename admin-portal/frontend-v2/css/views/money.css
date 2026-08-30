@@ -1,0 +1,25 @@
+/* ============================================================================
+   Med&X ADMIN portal v2 — MONEY view hooks (js/views/money.js)
+   Rule (ARCHITECTURE §4): class hooks are `mx-`/`mxm-` prefixed and never carry
+   look — the artboard's inline styles do. This file adds only responsive
+   overrides and small behaviours the inline styles cannot express.
+   Loaded/unloaded by the view itself (link[data-view-css="money"]).
+   ========================================================================== */
+
+/* add/pledge/expense form rows: inputs take the full row before wrapping controls */
+@media (max-width: 620px) {
+  .mxm-form input { flex: 1 1 100% !important; min-width: 0 !important; }
+  .mxm-form select { flex: 1 1 auto; }
+  .mxm-sums { row-gap: 6px; }
+}
+
+/* board-pack mini grid: one column on the narrowest screens */
+@media (max-width: 400px) {
+  .mxm-bp-grid { grid-template-columns: 1fr !important; }
+}
+
+/* tool-panel rows inherit .mx-row wrapping from app.css (≤620); keep the
+   amount + tag on their own line aligned left once wrapped */
+@media (max-width: 620px) {
+  [data-block="tool"] .mx-row > span[style*="Fraunces"] { margin-left: 22px; }
+}
