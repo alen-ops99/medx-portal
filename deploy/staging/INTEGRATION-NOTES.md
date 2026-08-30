@@ -76,3 +76,7 @@
 ## From ADMIN GALA builder (done, committed)
 - No shared diffs. Found pre-existing member bug: GET /api/public/registrations/:email gala branch ORDER BY nonexistent registered_at (user server.js:29311) → silently returns [] — fix in the next server pass (also on PROD main).
 - Seed: gala_tables empty (view seeds T1–T10×8 via existing route once); event_components has two active gala rows.
+
+## From ADMIN REGS+LINKS builder (done, committed)
+- No shared diffs. PARTIALs by design: SPONSOR table-booking (no backend) → explanatory toast; per-link visit counts don't exist (uses only).
+- Seed: all 35 registration_links rows have token=NULL → seeded rows produce /plexus/null dead links (new links fine) — worth a data fix; conferences.max_capacity 200 vs canonical 100 (data task).
