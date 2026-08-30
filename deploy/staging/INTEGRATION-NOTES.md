@@ -72,3 +72,7 @@
 - Every CA-gala payment creates a FIRA fiscal invoice in the Stripe webhook (logs: 59/1/1 Aug 25 … 63/1/1 Aug 30 13:50, all "created (no VAT)", zero failures in the visible window). The portal itself never emails the invoice PDF (pdfUrl comes back null) and does NOT persist the FIRA id/number on gala/CA rows (only one legacy payment_transactions row carries fira_invoice_number 39/1/1).
 - Whether customers RECEIVED invoices depends solely on FIRA's own "email invoice to customer" behaviour (order carries billing.email) — verifiable only in the FIRA dashboard (no read API with our key; GET order needs the numeric FIRA id we never stored).
 - BUILD: (1) webhook stores firaId + invoiceNumber (+ pdfUrl when present) on gala_registrations / croatians_abroad_registrations / payment_transactions.metadata; (2) ticket email shows "Fiscal invoice (FIRA) 63/1/1" + link when FIRA returns a PDF URL; (3) wallet receipts reference it (already coded to read fira_invoice_number); (4) nightly sentinel: count paid registrations without a FIRA number ⇒ alert. FIRA rule stays: invoices ONLY from FIRA.
+
+## From ADMIN GALA builder (done, committed)
+- No shared diffs. Found pre-existing member bug: GET /api/public/registrations/:email gala branch ORDER BY nonexistent registered_at (user server.js:29311) → silently returns [] — fix in the next server pass (also on PROD main).
+- Seed: gala_tables empty (view seeds T1–T10×8 via existing route once); event_components has two active gala rows.
