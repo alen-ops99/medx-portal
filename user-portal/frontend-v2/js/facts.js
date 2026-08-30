@@ -16,7 +16,7 @@ export const FACTS = Object.freeze({
   gala: Object.freeze({
     name: 'Gala Evening', date: '2026-12-05', weekday: 'Sat', dateLabel: 'Sat, December 5', time: '19:00',
     venue: 'Hotel Esplanade', city: 'Zagreb',
-    priceEarly: 150, priceRegular: 175, priceFlip: '2026-09-01', priceFlipLabel: '1 Sep',
+    priceEarly: 150, priceRegular: 175, priceFlip: '2026-09-15', priceFlipLabel: '15 Sep',
     dress: 'Black tie', refundable: false, seating: 'limited seating'
   }),
   accelerator: Object.freeze({
