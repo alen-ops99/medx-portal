@@ -50,22 +50,23 @@ function calculateVAT(bruttoAmount) {
  * Build line items for the FIRA order from registration data.
  * FIRA API fields: name, price (netto unit price), quantity, taxRate, unit
  */
-function buildLineItems(ticketName, ticketPrice, addons) {
+function buildLineItems(ticketName, ticketPrice, addons, quantity) {
     const items = [];
+    const qty = Math.max(1, parseInt(quantity, 10) || 1); // seats bought (1 + guests) — hotfix 2026-08-30
 
     // Main ticket
     if (ticketPrice > 0) {
         const vat = calculateVAT(ticketPrice);
         items.push({
             name: /plexus/i.test(ticketName) ? ticketName : `Plexus 2026 Conference — ${ticketName}`,
-            quantity: 1,
+            quantity: qty,
             price: vat.netto,
             taxRate: VAT_RATE * 100, // FIRA expects percentage (25), not decimal (0.25)
             unit: 'kom',
-            // Internal tracking (not sent to FIRA)
-            _netto: vat.netto,
-            _taxValue: vat.taxValue,
-            _brutto: vat.brutto
+            // Internal tracking (not sent to FIRA) — totals for ALL seats
+            _netto: Math.round(vat.netto * qty * 100) / 100,
+            _taxValue: Math.round(vat.taxValue * qty * 100) / 100,
+            _brutto: Math.round(vat.brutto * qty * 100) / 100
         });
     }
 
@@ -104,7 +105,7 @@ function buildLineItems(ticketName, ticketPrice, addons) {
  * @param {string} orderData.paymentType - 'TRANSAKCIJSKI' (bank transfer) or 'KARTICA' (card). Default: 'TRANSAKCIJSKI'
  */
 function buildFiraOrder(orderData) {
-    const lineItems = buildLineItems(orderData.ticketName, orderData.ticketPrice, orderData.addons);
+    const lineItems = buildLineItems(orderData.ticketName, orderData.ticketPrice, orderData.addons, orderData.quantity);
 
     // Sum up totals from all line items
     const totals = lineItems.reduce((acc, item) => ({

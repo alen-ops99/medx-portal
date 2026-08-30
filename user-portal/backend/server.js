@@ -20427,7 +20427,8 @@ By applying to this program, I provide the following consents:
                         const firaResult = await firaService.createFiscalInvoice({
                             invoiceNumber: galaInvoice,
                             ticketName: ticketLabel,
-                            ticketPrice: amount,
+                            ticketPrice: Math.round((amount / (1 + Math.max(0, parseInt(galaReg.guest_count, 10) || 0))) * 100) / 100,
+                            quantity: 1 + Math.max(0, parseInt(galaReg.guest_count, 10) || 0),
                             addons: [],
                             billing: {
                                 name: `${galaReg.first_name} ${galaReg.last_name}`,
@@ -20755,10 +20756,13 @@ By applying to this program, I provide the following consents:
                     // standalone-gala branch has both; this one was missing them).
                     const caGuestName = `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim();
                     try {
+                        // Seats bought = 1 + guests → FIRA gets quantity N at the unit price (hotfix 2026-08-30)
+                        const caSeats = 1 + Math.max(0, parseInt((query.get('SELECT guest_count FROM croatians_abroad_registrations WHERE id = ?', [caRegId]) || {}).guest_count, 10) || 0);
                         const firaResult = await firaService.createFiscalInvoice({
                             invoiceNumber,
-                            ticketName: 'Plexus 2026 — Gala Evening (Croatians Abroad)',
-                            ticketPrice: amount,
+                            ticketName: 'Plexus 2026 — Gala Evening seat',
+                            ticketPrice: Math.round((amount / caSeats) * 100) / 100,
+                            quantity: caSeats,
                             addons: [],
                             billing: {
                                 name: caGuestName, company: metadata.institution || '',
