@@ -1,0 +1,15 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//MedX//Plexus 2026//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:plexus-conf-2026@medx.hr
+DTSTAMP:20260830T120000Z
+DTSTART;VALUE=DATE:20261204
+DTEND;VALUE=DATE:20261206
+SUMMARY:Plexus Conference 2026
+LOCATION:Novinarski dom\, Perkovčeva 2\, Zagreb
+DESCRIPTION:Plexus Conference 2026 — times & program to follow. Your entry QR is in your confirmation email.
+END:VEVENT
+END:VCALENDAR

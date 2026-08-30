@@ -190,8 +190,9 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px auto 0;">
                 ${appleWalletUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO APPLE WALLET →', appleWalletUrl, 'ink')}</td></tr>` : ''}
                 ${walletSaveUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO GOOGLE WALLET →', walletSaveUrl, 'gold')}</td></tr>` : ''}
+                ${calendarUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO CALENDAR →', calendarUrl, 'ghost')}</td></tr>` : ''}
               </table>
-              <div style="font-family:${T.sans};font-size:11px;color:${T.soft};">Tap Add to Wallet to add your ticket to Apple or Google Wallet.</div>` : ''}
+              <div style="font-family:${T.sans};font-size:11px;color:${T.soft};">Tap Add to Wallet to add your ticket to Apple or Google Wallet${calendarUrl ? ' — and Add to Calendar to save the dates' : ''}.</div>` : ''}
             </td>
           </tr></table>` : '';
     const ctaUrl = passUrl || walletUrl;

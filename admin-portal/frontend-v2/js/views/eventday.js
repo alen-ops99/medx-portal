@@ -39,12 +39,15 @@ export const COPY = {
   },
   scanner: {
     title: 'SCANNER',
-    hint: 'Point at the guest’s QR — green means in. Works offline; syncs when the Wi-Fi comes back.',
+    hint: 'Point at the guest’s QR — you see who they are and everything they booked, then admit with one tap. Flip INSTANT ADMIT for the fast lane at a busy door (works offline; syncs by itself).',
     camIdle: 'camera opens here on a phone or laptop',
     camBusy: 'camera unavailable here — type the code below',
     start: 'START CAMERA', stop: 'STOP CAMERA', simulate: 'SIMULATE A SCAN',
     manual: 'Code under the QR, or the guest’s email',
     admit: 'ADMIT', admitMore: 'ADMIT ONE MORE', admitTwo: 'ADMIT 2 NOW',
+    check: 'CHECK', instant: 'INSTANT ADMIT', idClear: 'CLEAR',
+    idTitle: 'ID CHECK', idNone: 'Registered — but for nothing at these doors.',
+    admitAt: label => `ADMIT 1 · ${label}`,
     overrideWhy: 'Why let more in? (logged)', overrideBtn: 'ADMIT ANYWAY — LOGGED',
     queued: n => `${n} PENDING — SYNCS WHEN BACK ONLINE`, sync: 'SYNC NOW',
     offlineToast: 'NO CONNECTION — SAVED, SYNCS BY ITSELF', syncedToast: n => `${n} QUEUED SCAN${n === 1 ? '' : 'S'} SYNCED`
@@ -175,7 +178,63 @@ async function scan(code, opts = {}) {
 }
 function showResult(out) {
   st.last = out;
+  st.idcard = null;
   paint('[data-role="scanResult"]', resultHtml());
+}
+
+// ---------------------------------------------------------------- ID check (identify first, admit on tap)
+// Default scan mode (Alen 2026-08-30): a scan RESOLVES the person — full name, what they booked at
+// every door, paid state, party progress — and admits nobody. Each door row carries its own ADMIT
+// button (→ the normal /scan write). INSTANT ADMIT restores the old one-tap flow for the rush.
+async function identify(code, opts = {}) {
+  try {
+    const out = await api.post('/api/v2/eventday/lookup', { code, rehearsal: st.rehearsal });
+    if (!out.ok) { showResult(Object.assign({ ticket: {} }, out, { _code: code })); return out; }
+    st.last = null;
+    st.idcard = Object.assign({ _code: code }, out);
+    paint('[data-role="scanResult"]', resultHtml());
+    return out;
+  } catch (e) {
+    // offline or server unreachable — fall back to the queueing admit flow so the door keeps moving
+    if (e instanceof api.ApiError && (e.status === 0 || e.status === 502 || e.status === 503 || e.status === 504)) {
+      return scan(code, opts);
+    }
+    showResult({ ok: false, result: 'error', message: e.message, ticket: {} });
+    return null;
+  }
+}
+function idCardHtml() {
+  const c = st.idcard;
+  const p = c.person || {};
+  const doorRow = d => {
+    const full = d.ok && d.remaining === 0 && d.admitted > 0;
+    const state = !d.ok
+      ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${esc((COPY.results[d.block] || d.block || '').toUpperCase())}</span>`
+      : full
+        ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#2f7d4f">ALL IN · ${COPY.door.of(d.admitted, d.party_size)}</span>`
+        : d.admitted > 0
+          ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#7a6432">${COPY.door.of(d.admitted, d.party_size)} IN</span>`
+          : `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#2f7d4f">REGISTERED ✓${d.party_size > 1 ? ' · PARTY OF ' + d.party_size : ''}</span>`;
+    const btn = d.ok && d.remaining > 0
+      ? `<span data-act="idAdmit" data-key="${esc(d.event)}" data-code="${esc(c._code)}" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${COPY.scanner.admitAt(COPY.doors.names[d.event] || d.event.toUpperCase())}</span>`
+      : '';
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid rgba(32,27,22,.1);width:100%">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;min-width:96px;text-align:left">${esc(COPY.doors.names[d.event] || d.event.toUpperCase())}</span>
+        <span style="flex:1;text-align:left">${state}${!d.ok && d.message ? `<div style="font-size:10.5px;color:#9b1b22;margin-top:2px">${esc(d.message)}</div>` : ''}</span>
+        ${btn}
+      </div>`;
+  };
+  return `
+    <span data-role="scanResult" data-state="idcard" style="display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;border:1px solid rgba(32,27,22,.14);padding:12px 14px;box-sizing:border-box">
+      <span style="display:flex;width:100%;align-items:center"><span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${COPY.scanner.idTitle}</span><span style="flex:1"></span><span data-act="idClear" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;text-decoration:underline">${COPY.scanner.idClear}</span></span>
+      <span style="font-family:Fraunces,serif;font-size:21px;line-height:1.15;text-align:center">${esc(p.name || '')}</span>
+      ${p.institution ? `<span style="font-size:11.5px;color:#6d6459">${esc(p.institution)}${p.country ? ' · ' + esc(p.country) : ''}</span>` : (p.country ? `<span style="font-size:11.5px;color:#6d6459">${esc(p.country)}</span>` : '')}
+      ${p.email ? `<span style="font-size:11px;color:#6d6459">${esc(p.email)}</span>` : ''}
+      <div style="width:100%;margin-top:8px">
+        ${(c.doors && c.doors.length) ? c.doors.map(doorRow).join('') : `<div style="font-size:12px;color:#6d6459;padding:8px 0;border-top:1px solid rgba(32,27,22,.1)">${COPY.scanner.idNone}</div>`}
+      </div>
+    </span>`;
 }
 
 // ---------------------------------------------------------------- camera (jsQR — vendored lib)
@@ -231,7 +290,7 @@ async function startCam() {
       const hit = window.jsQR && window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
       if (hit && hit.data) {
         const now = Date.now();
-        if (hit.data !== lastCode || now - lastAt > 4000) { lastCode = hit.data; lastAt = now; scan(hit.data, { method: 'qr' }); }
+        if (hit.data !== lastCode || now - lastAt > 4000) { lastCode = hit.data; lastAt = now; (st.instant ? scan : identify)(hit.data, { method: 'qr' }); }
       }
     } catch (e) { /* keep scanning */ }
   };
@@ -286,12 +345,13 @@ function blockBanner() {
 }
 function gateChips() {
   return `
-    <div data-v2="door picker — one scanner, four doors" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div data-block="gateChips" data-v2="door picker — one scanner, four doors" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${COPY.doors.label}</span>
       ${GATE_ORDER.map(k => {
         const g = gateInfo(k); const on = st.gate === k;
         return `<span data-act="gate" data-key="${k}" role="tab" aria-selected="${on}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;border:1px solid ${on ? '#201b16' : 'rgba(32,27,22,.25)'};background:${on ? '#201b16' : 'transparent'};color:${on ? '#f6f2ea' : '#6d6459'};white-space:nowrap">${COPY.doors.names[k] || k.toUpperCase()}${g.starts_at ? ' · ' + esc(fmt.dayLabel(g.starts_at)) : ''}</span>`;
       }).join('')}
+      <span data-act="instant" role="switch" aria-checked="${!!st.instant}" title="ON: every scan admits straight at the selected door. OFF: a scan identifies the guest first — admit with a tap." style="display:flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid ${st.instant ? '#9b1b22' : 'rgba(32,27,22,.25)'};background:${st.instant ? '#9b1b22' : 'transparent'};color:${st.instant ? '#fff' : '#6d6459'};font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">⚡ ${COPY.scanner.instant}${st.instant ? ' · ON' : ''}</span>
       <div style="flex:1"></div>
       <span data-role="queueBadge" style="display:none;background:#c9a962;color:#201b16;padding:4px 9px;font:600 9px Inter,sans-serif;letter-spacing:.12em;align-items:center"></span>
       <span data-act="syncNow" style="display:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer">${COPY.scanner.sync}</span>
@@ -320,6 +380,7 @@ function blockCounters() {
     <!-- /dc -->`;
 }
 function resultHtml() {
+  if (st.idcard) return idCardHtml();
   const r = st.last;
   if (!r) return `<span data-role="scanResult"></span>`;
   const label = COPY.results[r.result] || String(r.result || '').replace(/_/g, ' ').toUpperCase();
@@ -363,7 +424,7 @@ function blockScanner() {
       </div>
       <form data-role="manualForm" data-v2="manual code entry — part of the scanner" style="display:flex;gap:8px;width:100%;max-width:280px">
         <input data-role="scanCode" class="input" placeholder="${esc(COPY.scanner.manual)}" autocomplete="off" style="flex:1;min-width:0">
-        <button data-act="scanSubmit" type="submit" class="btn-primary" style="border:0">${COPY.scanner.admit}</button>
+        <button data-act="scanSubmit" type="submit" class="btn-primary" style="border:0">${st.instant ? COPY.scanner.admit : COPY.scanner.check}</button>
       </form>
       ${resultHtml()}
     </div>
@@ -534,9 +595,27 @@ const handlers = {
     const i = rootEl.querySelector('[data-role="scanCode"]');
     const v = i ? i.value.trim() : '';
     if (!v) { ui.toast('SCAN OR TYPE A CODE FIRST'); return; }
-    scan(v, { method: 'manual' }).then(out => { if (out) out._code = v; showResult(out || st.last); });
+    if (st.instant) scan(v, { method: 'manual' }).then(out => { if (out) { out._code = v; showResult(out); } });
+    else identify(v, { method: 'manual' });
     if (i) i.value = '';
   },
+  instant: () => {
+    st.instant = !st.instant;
+    try { localStorage.setItem('medx_v2_instant', st.instant ? '1' : ''); } catch (e) {}
+    paint('[data-block="gateChips"]', gateChips());
+    const btn = rootEl.querySelector('[data-act="scanSubmit"]');
+    if (btn) btn.textContent = st.instant ? COPY.scanner.admit : COPY.scanner.check;
+  },
+  idAdmit: (el) => {
+    const code = el.dataset.code, key = el.dataset.key;
+    if (!code || !key) return;
+    scan(code, { method: 'manual', event: key }).then(out => {
+      if (out && out.message) ui.toast(out.message.toUpperCase().slice(0, 80));
+      // stay on the ID card — refresh its counts so the operator sees "2 of 3" live
+      identify(code, { method: 'manual' });
+    });
+  },
+  idClear: () => { st.idcard = null; st.last = null; paint('[data-role="scanResult"]', resultHtml()); },
   admitMore: (el) => {
     const code = el.dataset.code; const n = parseInt(el.dataset.n, 10) || 1;
     if (!code) return;
@@ -598,7 +677,8 @@ export default {
       const l = document.createElement('link'); l.id = 'mx-css-event-day'; l.rel = 'stylesheet'; l.href = '/css/views/event-day.css'; document.head.appendChild(l);
     }
     let reh = false; try { reh = localStorage.getItem(REH_KEY) === '1'; } catch (e) {}
-    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, doorQ: '', door: [], last: null, camOn: false, qrUrl: null, copiedDoor: false, flushing: false };
+    let inst = false; try { inst = localStorage.getItem('medx_v2_instant') === '1'; } catch (e) {}
+    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, doorQ: '', door: [], last: null, idcard: null, instant: inst, camOn: false, qrUrl: null, copiedDoor: false, flushing: false };
     D = await load();
     if (rootEl !== root) return;
     st.gate = GATE_ORDER.includes(ctx.query.door) ? ctx.query.door : (D.over.default_event || 'conference');

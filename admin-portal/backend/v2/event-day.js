@@ -650,6 +650,47 @@ module.exports = function mountEventDay(app, ctx) {
         } catch (e) { console.error('[v2/event-day] scan:', e); res.status(500).json({ ok: false, result: 'error', message: e.message }); }
     });
 
+    // ID-check scan (Alen's rule: identify FIRST, admit on an explicit tap). Resolves a code
+    // against every door read-only — who this is, what they booked, paid state, party progress —
+    // and never writes. The frontend then admits through the normal /scan with an event key.
+    app.post('/api/v2/eventday/lookup', auth, staffOrAdmin, (req, res) => {
+        try {
+            const b = req.body || {};
+            const code = String(b.code || '').trim();
+            if (!code) return res.status(400).json({ ok: false, result: 'bad_code', message: 'Scan or type a code first.' });
+            if (!schemaReady) ensureSchema();
+            const T = admitTableFor(!!b.rehearsal);
+            let person = null;
+            const doors = [];
+            for (const k of GATE_KEYS) {
+                let hit = null;
+                try { hit = resolveCode(code, k); } catch (e) {}
+                if (!hit) continue;
+                const fitted = fitForGate(hit, k, false);
+                const use = (fitted.ok && (fitted.hit || hit)) || null;
+                const row = (use || hit).row;
+                if (!person) person = {
+                    name: fullName(row), email: row.email || '',
+                    institution: row.institution || row.organization || '',
+                    country: row.country || ''
+                };
+                if (use) {
+                    const ps = party(use.row);
+                    let adm = null;
+                    try { adm = q.get(`SELECT admitted_count, party_size FROM ${T} WHERE registration_ref = ? AND event_key = ?`, [String(use.row.id), k]); } catch (e) {}
+                    const admitted = adm ? Number(adm.admitted_count) || 0 : 0;
+                    doors.push({ event: k, label: (gateFor(k) || {}).label || k, registered: true, ok: true,
+                        meta: metaFor(use.table, use.row, k), party_size: ps, admitted, remaining: Math.max(0, ps - admitted) });
+                } else if (!['wrong_event', 'not_registered_for_event'].includes(fitted.block)) {
+                    doors.push({ event: k, label: (gateFor(k) || {}).label || k, registered: true, ok: false,
+                        block: fitted.block, message: fitted.message });
+                }
+            }
+            if (!person) return res.json({ ok: false, result: 'not_found', message: 'No registration found for this code.' });
+            res.json({ ok: true, person, doors });
+        } catch (e) { console.error('[v2/event-day] lookup:', e); res.status(500).json({ ok: false, result: 'error', message: e.message }); }
+    });
+
     app.post('/api/v2/eventday/rehearsal/reset', auth, staffOrAdmin, (req, res) => {
         try {
             q.run('DELETE FROM v2_checkin_rehearsal');

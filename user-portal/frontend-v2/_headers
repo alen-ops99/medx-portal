@@ -1,3 +1,10 @@
 /passes-preview/*
   Content-Type: application/vnd.apple.pkpass
   Content-Disposition: inline
+
+/calendar/*
+  Content-Type: text/calendar; charset=utf-8
+
+/passes-live/*
+  Content-Type: application/vnd.apple.pkpass
+  Content-Disposition: inline
