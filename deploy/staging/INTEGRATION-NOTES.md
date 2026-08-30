@@ -80,3 +80,7 @@
 ## From ADMIN REGS+LINKS builder (done, committed)
 - No shared diffs. PARTIALs by design: SPONSOR table-booking (no backend) → explanatory toast; per-link visit counts don't exist (uses only).
 - Seed: all 35 registration_links rows have token=NULL → seeded rows produce /plexus/null dead links (new links fine) — worth a data fix; conferences.max_capacity 200 vs canonical 100 (data task).
+
+## From ADMIN FORUM+BRIDGES builder (done, committed)
+- No shared diffs. Fix-pass items (member server, also PROD): POST /api/bridges/events/:id/register 500s (NOT NULL defect); plus earlier: /api/public/registrations/:email gala ORDER BY registered_at.
+- v2_stats_overrides claimed by this builder (hub-scoped, reusable).
