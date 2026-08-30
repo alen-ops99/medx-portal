@@ -240,18 +240,6 @@
   "nrows": 1
  },
  {
-  "email": "jinanelsayed01@gmail.com",
-  "first": "Jinan",
-  "last": "El Sayed",
-  "combo": "CB",
-  "paid": false,
-  "guests": 0,
-  "invoice": "",
-  "qr_id": "8f06e04e-f225-45ff-b639-c0ed2724558f",
-  "gala_reg": "",
-  "nrows": 1
- },
- {
   "email": "pegi.pavletic@uniri.hr",
   "first": "Pegi",
   "last": "Pavletić",
@@ -408,30 +396,6 @@
   "nrows": 1
  },
  {
-  "email": "vannyonyx@gmail.com",
-  "first": "FESTUS",
-  "last": "ASIAMAH",
-  "combo": "CB",
-  "paid": false,
-  "guests": 0,
-  "invoice": "",
-  "qr_id": "e80ef776-9c5b-4d66-b2f5-54f73532c729",
-  "gala_reg": "",
-  "nrows": 2
- },
- {
-  "email": "richmondantwi267@gmail.com",
-  "first": "FRANICIS",
-  "last": "ADDO DJANGMAH",
-  "combo": "CB",
-  "paid": false,
-  "guests": 0,
-  "invoice": "",
-  "qr_id": "3ddfe0ea-7726-4806-b37b-01d77b6e360f",
-  "gala_reg": "",
-  "nrows": 1
- },
- {
   "email": "rlbrnadic@gmail.com",
   "first": "Renata",
   "last": "Brnadić",
@@ -442,18 +406,6 @@
   "qr_id": "69904355-3285-42c1-930e-2e470f07896d",
   "gala_reg": "69904355-3285-42c1-930e-2e470f07896d",
   "nrows": 2
- },
- {
-  "email": "fdjangmah@outlook.com",
-  "first": "FRANCIS",
-  "last": "ADDO DJANGMAH",
-  "combo": "CB",
-  "paid": false,
-  "guests": 0,
-  "invoice": "",
-  "qr_id": "aeab0063-4f14-4adf-b77c-4636b815ddea",
-  "gala_reg": "",
-  "nrows": 1
  },
  {
   "email": "nbonini@sas.upenn.edu",
