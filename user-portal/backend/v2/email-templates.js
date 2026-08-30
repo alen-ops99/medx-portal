@@ -66,7 +66,8 @@ function btn(label, href, kind) {
     const solid = `display:inline-block;padding:15px 34px;background:${T.crimson};color:${T.cream};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
     const ghost = `display:inline-block;padding:14px 30px;border:1px solid rgba(25,21,18,.3);color:${T.ink};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
     const gold = `display:inline-block;padding:14px 30px;background:${T.gold};color:#191512;font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
-    return `<a href="${escUrl(href)}" style="${kind === 'ghost' ? ghost : kind === 'gold' ? gold : solid}">${label}</a>`;
+    const ink = `display:inline-block;padding:14px 30px;background:#191512;color:#f7f1e6;font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
+    return `<a href="${escUrl(href)}" style="${kind === 'ghost' ? ghost : kind === 'gold' ? gold : kind === 'ink' ? ink : solid}">${label}</a>`;
 }
 
 // The 600px shell: ink header (logo + right micro-label), accent rule, body, hairline footer.
@@ -185,7 +186,12 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
               </td></tr></table>
               <div style="${microStyle(T.soft, 9, '.14em')};margin-top:8px;">YOUR ENTRY QR · SHOW AT THE DOOR</div>
               <div style="font-family:${T.sans};font-size:11px;color:${T.soft};margin-top:4px;">Tap the QR to enlarge it — then save it to your photos.</div>
-              ${walletSaveUrl ? `<div style="margin-top:12px;">${btn('ADD TO GOOGLE WALLET →', walletSaveUrl, 'gold')}</div>` : ''}
+              ${(walletSaveUrl || appleWalletUrl) ? `
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px auto 0;"><tr>
+                ${walletSaveUrl ? `<td style="padding:0 6px 10px;">${btn('ADD TO GOOGLE WALLET →', walletSaveUrl, 'gold')}</td>` : ''}
+                ${appleWalletUrl ? `<td style="padding:0 6px 10px;">${btn('ADD TO APPLE WALLET →', appleWalletUrl, 'ink')}</td>` : ''}
+              </tr></table>
+              <div style="font-family:${T.sans};font-size:11px;color:${T.soft};">Tap Add to Wallet to add your ticket to Apple or Google Wallet.</div>` : ''}
             </td>
           </tr></table>` : '';
     const ctaUrl = passUrl || walletUrl;

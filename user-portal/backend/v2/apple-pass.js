@@ -128,7 +128,7 @@ function signManifest(manifestBuf) {
         fs.writeFileSync(inFile, manifestBuf, { mode: 0o600 });
         const r = spawnSync('openssl', [
             'smime', '-binary', '-sign', '-signer', cert, '-inkey', key, '-certfile', wwdr,
-            '-in', inFile, '-out', outFile, '-outform', 'DER', '-noattr'
+            '-in', inFile, '-out', outFile, '-outform', 'DER'
         ], { timeout: 15000 });
         if (r.error) throw r.error;
         if (r.status !== 0) throw new Error('openssl smime exited ' + r.status + ': ' + String(r.stderr || '').slice(0, 300));
@@ -195,7 +195,7 @@ function buildPkpass(model) {
 }
 function sendPkpass(res, buf) {
     res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
-    res.setHeader('Content-Disposition', 'attachment; filename="medx-plexus.pkpass"');
+    res.setHeader('Content-Disposition', 'inline; filename="medx-plexus.pkpass"');
     res.setHeader('Content-Length', buf.length);
     res.setHeader('Cache-Control', 'private, no-store');
     res.send(buf);
