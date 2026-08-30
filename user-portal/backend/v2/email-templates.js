@@ -105,16 +105,13 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:al
   </td></tr>
   <tr><td style="height:2px;font-size:0;line-height:0;${ruleBg}">&nbsp;</td></tr>
   <tr><td>${bodyHtml}</td></tr>
-  <tr><td style="border-top:1px solid ${T.hairline};padding:18px 40px;">
-    <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.5;">${footer}</td></tr></table>
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:9px;"><tr>
-      <td style="${microStyle(T.goldDark, 9, '.16em')}"><a href="https://medx.hr" style="color:${T.goldDark};text-decoration:none;">MEDX.HR</a></td>
-      <td style="font-family:${T.sans};font-size:10px;color:${T.gold};padding:0 8px;">·</td>
-      <td style="${microStyle(T.soft, 9, '.16em')}"><a href="https://www.facebook.com/profile.php?id=61554188818525" style="color:${T.soft};text-decoration:none;">FACEBOOK</a></td>
-      <td style="font-family:${T.sans};font-size:10px;color:${T.gold};padding:0 8px;">·</td>
-      <td style="${microStyle(T.soft, 9, '.16em')}"><a href="https://www.instagram.com/medx_association/" style="color:${T.soft};text-decoration:none;">INSTAGRAM</a></td>
-      <td style="font-family:${T.sans};font-size:10px;color:${T.gold};padding:0 8px;">·</td>
-      <td style="${microStyle(T.soft, 9, '.16em')}"><a href="https://www.linkedin.com/company/med-x-association/" style="color:${T.soft};text-decoration:none;">LINKEDIN</a></td>
+  <tr><td align="center" style="border-top:1px solid ${T.hairline};padding:18px 40px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr><td align="center" style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.5;">${footer}</td></tr></table>
+    <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin-top:12px;"><tr>
+      <td style="${microStyle(T.goldDark, 9, '.16em')};vertical-align:middle;"><a href="https://medx.hr" style="color:${T.goldDark};text-decoration:none;">MEDX.HR</a></td>
+      <td style="padding:0 0 0 16px;vertical-align:middle;"><a href="https://www.facebook.com/profile.php?id=61554188818525"><img src="https://medx-member-portal-v2.netlify.app/assets/social/facebook.png" width="16" height="16" style="display:block;border:0;" alt="Facebook"></a></td>
+      <td style="padding:0 0 0 14px;vertical-align:middle;"><a href="https://www.instagram.com/medx_association/"><img src="https://medx-member-portal-v2.netlify.app/assets/social/instagram.png" width="16" height="16" style="display:block;border:0;" alt="Instagram"></a></td>
+      <td style="padding:0 0 0 14px;vertical-align:middle;"><a href="https://www.linkedin.com/company/med-x-association/"><img src="https://medx-member-portal-v2.netlify.app/assets/social/linkedin.png" width="16" height="16" style="display:block;border:0;" alt="LinkedIn"></a></td>
     </tr></table>
   </td></tr>
 </table>
