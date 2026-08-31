@@ -466,6 +466,484 @@ function brandedPage({ title, eyebrow, headlineHtml, bodyHtml } = {}) {
 </html>`;
 }
 
+// ================================================================ TRANSACTIONAL SET (2026-08-30)
+// Eleven additional builders completing the portal's transactional surface — payments, transfers,
+// cancellations, event reminders, Accelerator letters, Forum invitations, certificates, and the
+// morning-after survey. Same contract as everything above: PURE functions, plain params in, one
+// full HTML document out, rendered through the same shell()/btn() house style.
+//
+//   paymentReceived({ firstName, amountLabel, invoiceNumber, itemsLabel, qrPngUrl?, locale? })
+//   paymentReminder({ firstName, amountLabel, payUrl, deadlineLabel?, locale? })
+//   registrationCancelled({ firstName, eventName, locale? })
+//   seatTransferred({ firstName, toName, eventName, locale? })
+//   transferReceived({ firstName, fromName, eventName, qrPngUrl, walletSaveUrl?, appleWalletUrl?,
+//                      calendarUrl?, locale? })
+//   eventReminder({ firstName, eventName, whenLines, venueLines?, daysOut, qrPngUrl, locale? })
+//   acceleratorReceived({ firstName, locale? })
+//   acceleratorDecision({ firstName, accepted, locale? })
+//   forumInvitation({ firstName, inviterLine?, code, enterUrl, locale? })
+//   certificateOfAttendance({ firstName, eventName, downloadUrl, locale? })
+//   surveyMorningAfter({ firstName, eventName, surveyUrl, locale? })
+//
+// locale: 'hr' renders first-class Croatian (written, not machine-translated); anything else
+// renders English. Brand rules hold throughout: € never EUR · diacritics kept · no mailto links
+// (contact addresses appear as plain footer text) · FIRA invoice NUMBERS are referenced only —
+// invoices themselves are issued exclusively through FIRA, never generated here.
+
+// ---- small shared pieces (used by the transactional set only — nothing above touches these) ----
+const txCopyright = () => `© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`;
+const txReplyLine = (hr) => hr
+    ? 'Pitanja? Odgovorite na ovu poruku ili pišite na laura.rodman@medx.hr'
+    : 'Questions? Reply to this email or write to laura.rodman@medx.hr';
+const txEyebrow = (label) => `<span style="${microStyle(T.gold)}">${label}</span>`;
+const txHeadline = (html) => `<div style="font-family:${T.serif};font-size:28px;line-height:1.15;color:${T.ink};margin-top:10px;">${html}</div>`;
+const txPara = (html, mt) => `<div style="font-family:${T.sans};font-size:14px;color:${T.soft};line-height:1.65;margin-top:${mt == null ? 14 : mt}px;">${html}</div>`;
+const txSmall = (html, mt) => `<div style="font-family:${T.sans};font-size:12px;color:${T.soft};line-height:1.6;margin-top:${mt == null ? 16 : mt}px;">${html}</div>`;
+// ", <i>Ana</i>" headline suffix — English falls back to "there" (confirmEmail's convention),
+// Croatian simply drops the clause when the name is unknown.
+const txNameSuffix = (firstName, hr) => firstName ? `, <i>${esc(firstName)}</i>` : (hr ? '' : ', <i>there</i>');
+const txFactRow = (label, valueHtml) => `
+        <tr><td style="padding:5px 0;vertical-align:baseline;width:86px;${microStyle(T.soft, 9, '.12em')}">${label}</td>
+            <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
+const txFactValue = (v) => `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(v)}</span>`;
+const txFactsCard = (rowsHtml, extraHtml) => `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border:1px solid rgba(201,169,98,.65);background:${T.cardCream};">
+        <tr><td style="padding:18px 20px;">
+          ${rowsHtml ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rowsHtml}</table>` : ''}
+          ${extraHtml || ''}
+        </td></tr>
+      </table>`;
+// One stacked WHEN line; the part before the first " — " renders bold (ticketConfirmation's rule).
+const txWhenLine = (l) => {
+    const s = String(l); const i = s.indexOf(' — ');
+    const head = i > 0 ? s.slice(0, i) : null; const rest = i > 0 ? s.slice(i) : s;
+    return `<span style="display:block;font-family:${T.sans};font-size:13px;line-height:1.6;color:${T.ink};">${head ? `<strong>${esc(head)}</strong>` : ''}${esc(rest)}</span>`;
+};
+const txPasteLine = (url, hr) => `<div style="font-family:${T.sans};font-size:12px;color:${T.soft};line-height:1.6;margin-top:14px;">${hr ? 'Ako gumb ne radi, zalijepite ovo u svoj preglednik:' : `If the button doesn't work, paste this into your browser:`}<br>
+        <a href="${escUrl(url)}" style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:${T.crimson};text-decoration:none;word-break:break-all;">${esc(url || '')}</a></div>`;
+// Centred white-tile QR (120px — door scanners read it off a screen) with the optional
+// Apple / Google / calendar stack underneath, all three actions one width (BTN_STACK_W).
+function txQrPanel({ qrPngUrl, hr, walletSaveUrl, appleWalletUrl, calendarUrl } = {}) {
+    if (!qrPngUrl) return '';
+    const img = `<img src="${escUrl(qrPngUrl)}" alt="${hr ? 'Vaš QR kod za ulaz' : 'Your entry QR code'}" width="120" height="120" style="display:block;width:120px;height:120px;border:0;">`;
+    const stack = (walletSaveUrl || appleWalletUrl || calendarUrl) ? `
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px auto 0;">
+                ${appleWalletUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn(hr ? 'DODAJTE U APPLE WALLET →' : 'ADD TO APPLE WALLET →', appleWalletUrl, 'ink', BTN_STACK_W)}</td></tr>` : ''}
+                ${walletSaveUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn(hr ? 'DODAJTE U GOOGLE WALLET →' : 'ADD TO GOOGLE WALLET →', walletSaveUrl, 'gold', BTN_STACK_W)}</td></tr>` : ''}
+                ${calendarUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn(hr ? 'DODAJTE U KALENDAR →' : 'ADD TO CALENDAR →', calendarUrl, 'ghost', BTN_STACK_W)}</td></tr>` : ''}
+              </table>` : '';
+    return `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td align="center" style="padding-top:16px;">
+              <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid ${T.hairline};padding:8px;">
+                <a href="${escUrl(qrPngUrl)}" style="display:block;text-decoration:none;">${img}</a>
+              </td></tr></table>
+              <div style="${microStyle(T.soft, 9, '.14em')};margin-top:8px;">${hr ? 'VAŠ QR ZA ULAZ · POKAŽITE NA VRATIMA' : 'YOUR ENTRY QR · SHOW AT THE DOOR'}</div>
+              <div style="font-family:${T.sans};font-size:11px;color:${T.soft};margin-top:4px;">${hr ? 'Dodirnite QR da ga povećate — pa ga spremite u svoje fotografije.' : 'Tap the QR to enlarge it — then save it to your photos.'}</div>${stack}
+            </td>
+          </tr></table>`;
+}
+
+// ---------------------------------------------------------------- 09 · PAYMENT RECEIVED
+// Confirms a processed payment and references its FIRA fiscal invoice NUMBER. The fiscal invoice
+// itself is issued through FIRA (fiskalizacija) and arrives separately — this email never
+// generates or replaces an invoice.
+function paymentReceived({ firstName, amountLabel, invoiceNumber, itemsLabel, qrPngUrl, locale } = {}) {
+    const hr = locale === 'hr';
+    const rows = [
+        amountLabel ? txFactRow(hr ? 'IZNOS' : 'AMOUNT', `<span style="font-family:${T.serif};font-size:16px;color:${T.ink};">${esc(amountLabel)}</span>`) : '',
+        itemsLabel ? txFactRow(hr ? 'STAVKE' : 'ITEMS', txFactValue(itemsLabel)) : '',
+        invoiceNumber ? txFactRow(hr ? 'RAČUN' : 'INVOICE', `<span style="font-family:ui-monospace,Menlo,monospace;font-size:13px;letter-spacing:.04em;color:${T.ink};">${esc(invoiceNumber)}</span>`) : ''
+    ].join('');
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'UPLATA PRIMLJENA' : 'PAYMENT RECEIVED')}
+      ${txHeadline((hr ? 'Uplata je primljena' : 'Payment received') + txNameSuffix(firstName, hr) + '.')}
+      ${txPara(hr
+        ? 'Hvala vam — uplata je uspješno obrađena i sve je potvrđeno. Pojedinosti su u nastavku.'
+        : 'Thank you — your payment went through and everything is confirmed. The details are below.')}
+      ${txFactsCard(rows, qrPngUrl ? txQrPanel({ qrPngUrl, hr }) : '')}
+      ${invoiceNumber ? txSmall(hr
+        ? `Fiskalni račun izdan je kroz servis FIRA pod gornjim brojem i stiže vam zasebnom porukom — ovu potvrdu čuvajte za svoju evidenciju.`
+        : `Your fiscal invoice was issued through FIRA under the number above and reaches you separately — keep this confirmation for your records.`) : ''}
+    </div>`;
+    return shell({
+        title: hr ? 'Uplata primljena — Med&X' : 'Payment received — Med&X',
+        preheader: hr
+            ? `Uplata je primljena${invoiceNumber ? ' — račun ' + invoiceNumber : ''}.`
+            : `Your payment is in${invoiceNumber ? ' — invoice ' + invoiceNumber : ''}.`,
+        rule: 'gold',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Ovu ste poruku primili jer je vaša uplata uspješno obrađena.' : 'You received this because your payment was processed.',
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 10 · PAYMENT REMINDER
+// Polite, unhurried, one clear action. Never sent to someone who has already paid — the copy
+// still covers the crossing-in-the-mail case.
+function paymentReminder({ firstName, amountLabel, payUrl, deadlineLabel, locale } = {}) {
+    const hr = locale === 'hr';
+    const amount = amountLabel ? `<strong style="color:${T.ink};">${esc(amountLabel)}</strong>` : (hr ? 'preostali iznos' : 'the remaining amount');
+    const deadline = deadlineLabel ? `<strong style="color:${T.ink};">${esc(deadlineLabel)}</strong>` : '';
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'MALI PODSJETNIK' : 'A GENTLE REMINDER')}
+      ${txHeadline((hr ? 'Vaše mjesto još čeka' : 'Your seat is still waiting') + txNameSuffix(firstName, hr) + '.')}
+      ${txPara(hr
+        ? `Samo kratki podsjetnik — vaša je prijava zaprimljena, a do potvrđenog mjesta dijeli vas još samo uplata od ${amount}. Čim uplata stigne, ulaznica i QR kod kreću prema vama automatski.`
+        : `Just a small nudge — your registration is in, and only the payment of ${amount} stands between you and a confirmed seat. The moment it arrives, your ticket and QR code follow automatically.`)}
+      ${deadline ? txPara(hr
+        ? `Kako bi mjesto ostalo vaše, molimo vas da uplatu dovršite do ${deadline}.`
+        : `To keep the seat yours, please complete it by ${deadline}.`, 10) : ''}
+      <div style="text-align:center;margin:26px 0;">${btn(hr ? 'DOVRŠITE UPLATU →' : 'COMPLETE MY PAYMENT →', payUrl)}</div>
+      ${txSmall(hr
+        ? 'Ako ste uplatu upravo izvršili, ova se poruka mimoišla s njom — slobodno je zanemarite.'
+        : 'If you have just paid, this note simply crossed paths with your payment — please ignore it.', 0)}
+      ${txPasteLine(payUrl, hr)}
+    </div>`;
+    return shell({
+        title: hr ? 'Podsjetnik na uplatu — Med&X' : 'Payment reminder — Med&X',
+        preheader: hr ? 'Vaše mjesto čeka još samo uplatu.' : 'Your seat is one payment away.',
+        rule: 'crimson',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Ovu ste poruku primili jer vaša prijava čeka uplatu.' : 'You received this because your registration is awaiting payment.',
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 11 · REGISTRATION CANCELLED
+function registrationCancelled({ firstName, eventName, locale } = {}) {
+    const hr = locale === 'hr';
+    const ev = `<strong style="color:${T.ink};">${esc(eventName || 'Med&X')}</strong>`;
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'PRIJAVA OTKAZANA' : 'REGISTRATION CANCELLED')}
+      ${txHeadline((hr ? 'Vaša je prijava otkazana' : 'Your registration is cancelled') + txNameSuffix(firstName, hr) + '.')}
+      ${txPara(hr
+        ? `Vaša prijava za ${ev} upravo je otkazana i dosadašnji QR kod više ne vrijedi za ulaz. Ako je uplata bila izvršena, povrat ide natrag na karticu s koje je stigla — na izvodu se obično vidi u roku od 5 do 10 radnih dana.`
+        : `Your registration for ${ev} has been cancelled, and its QR code no longer admits entry. If a payment was made, the refund travels back to the card it came from — it usually shows on a statement within 5 to 10 business days.`)}
+      ${txPara(hr
+        ? 'Žao nam je što se ovaj put mimoilazimo. Vrata ostaju otvorena — dobro nam došli na svako sljedeće Med&amp;X okupljanje.'
+        : 'We are sorry to miss you this time. The door stays open — you are welcome at any Med&amp;X gathering to come.')}
+    </div>`;
+    return shell({
+        title: hr ? 'Prijava otkazana — Med&X' : 'Registration cancelled — Med&X',
+        preheader: hr
+            ? `Vaša prijava za ${eventName || 'Med&X'} je otkazana.`
+            : `Your ${eventName || 'Med&X'} registration has been cancelled.`,
+        rule: 'crimson',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Ovu ste poruku primili jer je prijava povezana s ovom adresom otkazana.' : 'You received this because a registration tied to this address was cancelled.',
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 12 · SEAT TRANSFERRED (to the original holder)
+function seatTransferred({ firstName, toName, eventName, locale } = {}) {
+    const hr = locale === 'hr';
+    const ev = `<strong style="color:${T.ink};">${esc(eventName || 'Med&X')}</strong>`;
+    const to = `<strong style="color:${T.ink};">${esc(toName || (hr ? 'vašeg kolegu' : 'your colleague'))}</strong>`;
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'ULAZNICA PRENESENA' : 'TICKET TRANSFERRED')}
+      ${txHeadline(hr
+        ? `Vaša ulaznica sada glasi na <i>${esc(toName || 'novog gosta')}</i>.`
+        : `Your seat now belongs to <i>${esc(toName || 'your colleague')}</i>.`)}
+      ${txPara(hr
+        ? `Prijenos je dovršen — vaša ulaznica za ${ev} sada glasi na ${to}, a novi QR kod upravo je krenuo na tu adresu. Vaš dosadašnji kod više ne vrijedi za ulaz.`
+        : `The transfer is complete — your ticket for ${ev} has been reissued to ${to}, whose own QR code is already on its way. Yours no longer admits entry.`)}
+      ${txPara(hr
+        ? 'Hvala vam što ste mjesto proslijedili dalje umjesto da ostane prazno — puno nam znači kad je dvorana puna pravih ljudi.'
+        : 'Thank you for passing the seat on rather than letting it sit empty — a room full of the right people is what these evenings are made of.')}
+    </div>`;
+    return shell({
+        title: hr ? 'Ulaznica prenesena — Med&X' : 'Ticket transferred — Med&X',
+        preheader: hr
+            ? `Vaša ulaznica za ${eventName || 'Med&X'} prenesena je na ${toName || 'novog gosta'}.`
+            : `Your ${eventName || 'Med&X'} ticket now belongs to ${toName || 'your colleague'}.`,
+        rule: 'crimson',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Ovu ste poruku primili jer je ulaznica s ove adrese prenesena na drugu osobu.' : 'You received this because a ticket on this address was transferred to someone else.',
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 13 · TRANSFER RECEIVED (the warm welcome)
+function transferReceived({ firstName, fromName, eventName, qrPngUrl, walletSaveUrl, appleWalletUrl, calendarUrl, locale } = {}) {
+    const hr = locale === 'hr';
+    const ev = `<strong style="color:${T.ink};">${esc(eventName || 'Med&X')}</strong>`;
+    const from = `<strong style="color:${T.ink};">${esc(fromName || (hr ? 'Vaš kolega' : 'A colleague'))}</strong>`;
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'MJESTO S VAŠIM IMENOM' : 'A SEAT WITH YOUR NAME ON IT')}
+      ${txHeadline((hr ? 'Mjesto je vaše' : 'The seat is yours') + txNameSuffix(firstName, hr) + '.')}
+      ${txPara(hr
+        ? `${from} ovaj put ne može doći na ${ev} — pa svoje mjesto prepušta vama. I gotovo je: ulaznica sada glasi na vaše ime, a QR kod u nastavku samo je vaš.`
+        : `${from} cannot make it to ${ev} this time — and asked us to give their seat to you. It is done: the ticket now carries your name, and the QR code below is yours alone.`)}
+      ${txPara(hr
+        ? 'Dobro nam došli. Sve što je išlo uz mjesto ide sada s vama — večer, program i društvo. Radujemo se što ćemo vas upoznati.'
+        : 'Welcome. Everything that came with the seat now travels with you — the evening, the program, the company. We look forward to meeting you.')}
+      ${txFactsCard('', txQrPanel({ qrPngUrl, hr, walletSaveUrl, appleWalletUrl, calendarUrl }))}
+      ${txSmall(hr
+        ? 'Na vratima samo pokažite QR — ništa drugo ne trebate ponijeti.'
+        : 'At the door, just show the QR — there is nothing else you need to bring.')}
+    </div>`;
+    return shell({
+        title: hr ? `Vaše mjesto — ${eventName || 'Med&X'}` : `Your seat — ${eventName || 'Med&X'}`,
+        preheader: hr
+            ? `${fromName || 'Kolega'} vam prepušta svoje mjesto — vaš QR je unutra.`
+            : `${fromName || 'A colleague'} passed you their seat — your QR is inside.`,
+        rule: 'gold',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Ovu ste poruku primili jer je Med&amp;X ulaznica prenesena na ovu adresu.' : 'You received this because a Med&amp;X ticket was transferred to this address.',
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 14 · EVENT REMINDER (T-7 / T-2)
+// daysOut 7 opens with the plan and closes with the QR; daysOut 2 leads with the QR — two days
+// out, the code IS the message.
+function eventReminder({ firstName, eventName, whenLines, venueLines, daysOut, qrPngUrl, locale } = {}) {
+    const hr = locale === 'hr';
+    const two = Number(daysOut) === 2;
+    const whenHtml = (Array.isArray(whenLines) ? whenLines : (whenLines ? [whenLines] : [])).map(txWhenLine).join('');
+    const venueHtml = (Array.isArray(venueLines) ? venueLines : (venueLines ? [venueLines] : [])).map(txWhenLine).join('');
+    const rows = [
+        txFactRow(hr ? 'DOGAĐANJE' : 'EVENT', `<span style="font-family:${T.serif};font-size:16px;color:${T.ink};">${esc(eventName || 'Med&X')}</span>`),
+        whenHtml ? txFactRow(hr ? 'KADA' : 'WHEN', whenHtml) : '',
+        venueHtml ? txFactRow(hr ? 'GDJE' : 'WHERE', venueHtml) : ''
+    ].join('');
+    const qr = txQrPanel({ qrPngUrl, hr });
+    const eyebrow = two
+        ? (hr ? 'JOŠ DVA DANA' : 'TWO DAYS TO GO')
+        : (hr ? 'JOŠ TJEDAN DANA' : 'ONE WEEK TO GO');
+    const headline = two
+        ? ((hr ? 'Vidimo se za dva dana' : 'See you in two days') + txNameSuffix(firstName, hr) + '.')
+        : (hr ? `Tjedan dana do događanja <i>${esc(eventName || 'Med&X')}</i>.` : `One week until <i>${esc(eventName || 'Med&X')}</i>.`);
+    const body = two ? `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(eyebrow)}
+      ${txHeadline(headline)}
+      ${txPara(hr
+        ? 'Najvažnije odmah na vrh: vaš QR kod za ulaz. Pokažite ga na vratima — i to je sve.'
+        : 'First things first: your entry QR. Show it at the door — that is all it takes.', 12)}
+      ${txFactsCard('', qr)}
+      ${txPara(hr ? 'A za svaki slučaj, još jednom gdje i kada:' : 'And once more, the where and when:', 18)}
+      ${txFactsCard(rows)}
+      ${txSmall(hr ? 'Radujemo se — vidimo se!' : 'We are looking forward to it — see you there.')}
+    </div>` : `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(eyebrow)}
+      ${txHeadline(headline)}
+      ${txPara(hr
+        ? `Za tjedan dana vidimo se uživo. Ovdje je sve na jednom mjestu — plan, mjesto i vaš QR za ulaz, spreman kad i vi budete.`
+        : `A week from now we meet in person. Here is everything in one place — the plan, the venue, and your entry QR, ready when you are.`)}
+      ${txFactsCard(rows, qr)}
+      ${txSmall(hr
+        ? 'Ne trebate ništa potvrđivati — vaše mjesto stoji. Ako ipak ne možete doći, javite nam se da mjesto ne ostane prazno.'
+        : 'There is nothing to confirm — your seat stands. If your plans change, do let us know so the seat does not go empty.')}
+    </div>`;
+    return shell({
+        title: hr
+            ? `${two ? 'Za dva dana' : 'Za tjedan dana'}: ${eventName || 'Med&X'}`
+            : `${two ? 'In two days' : 'One week out'}: ${eventName || 'Med&X'}`,
+        preheader: hr
+            ? `${eventName || 'Med&X'} ${two ? 'je za dva dana' : 'je za tjedan dana'} — vaš QR je unutra.`
+            : `${eventName || 'Med&X'} is ${two ? 'two days' : 'one week'} away — your QR is inside.`,
+        rule: two ? 'gold' : 'crimson',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? `Poslano jer ste prijavljeni na ${esc(eventName || 'Med&X')}.` : `Sent because you are registered for ${esc(eventName || 'Med&X')}.`,
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 15 · ACCELERATOR — APPLICATION RECEIVED
+function acceleratorReceived({ firstName, locale } = {}) {
+    const hr = locale === 'hr';
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'PRIJAVA ZAPRIMLJENA' : 'APPLICATION RECEIVED')}
+      ${txHeadline((hr ? 'Vaša je prijava kod nas' : 'Your application is in') + txNameSuffix(firstName, hr) + '.')}
+      ${txPara(hr
+        ? 'Hvala vam što ste svoj projekt povjerili Med&amp;X Acceleratoru. Prijava je sada pred recenzentskim panelom — svaku čitamo u cijelosti, i to ljudi koji se ovim poslom i sami bave.'
+        : 'Thank you for putting your project forward for the Med&amp;X Accelerator. It now sits with the review panel — every application is read in full, by people who do this work themselves.')}
+      ${txPara(hr
+        ? 'Javit ćemo vam se čim recenzija završi, kakav god ishod bio. Do tada ne trebate učiniti ništa — svaki pomak vidjet ćete na kartici svoje prijave u portalu.'
+        : 'You will hear from us the moment the review closes, whichever way it goes. Until then there is nothing you need to do — any movement shows on your application card in the portal.')}
+    </div>`;
+    return shell({
+        title: hr ? 'Prijava zaprimljena — Med&X Accelerator' : 'Application received — Med&X Accelerator',
+        preheader: hr ? 'Vaša prijava u Accelerator je zaprimljena i ide na recenziju.' : 'Your Accelerator application is in and headed to review.',
+        rule: 'crimson',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Poslano na adresu iz vaše prijave u Med&amp;X Accelerator.' : 'Sent to the address on your Med&amp;X Accelerator application.',
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 16 · ACCELERATOR — DECISION
+// The rejection letter is the one that matters: it is most of what most applicants will ever
+// receive from us, so it is generous, specific about the numbers game, and leaves two doors
+// open — reapply, and stay in the network. No corporate filler.
+function acceleratorDecision({ firstName, accepted, locale } = {}) {
+    const hr = locale === 'hr';
+    if (accepted) {
+        const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'DOBRO DOŠLI U GENERACIJU' : 'WELCOME TO THE COHORT')}
+      ${txHeadline((hr ? 'Primljeni ste' : 'You are in') + txNameSuffix(firstName, hr) + '.')}
+      ${txPara(hr
+        ? 'Recenzija je gotova i odluka je jednoglasna: vaše je mjesto u ovogodišnjoj generaciji Med&amp;X Acceleratora potvrđeno. Čestitamo — među mnogo dobrih prijava, vaša se izdvojila.'
+        : 'The review is in, and the answer is yes: your place in this year\’s Med&amp;X Accelerator cohort is confirmed. Congratulations — in a strong field, yours stood out.')}
+      ${txPara(hr
+        ? 'Sve praktično — termini, mentori i prvi koraci — stiže vam u zasebnoj poruci ovih dana, a kartica vaše prijave u portalu već pokazuje novi status. Zasad samo jedno: bravo.'
+        : 'Everything practical — dates, mentors, first steps — follows in a separate note over the coming days, and your application card in the portal already shows the new status. For now, just this: well done.')}
+    </div>`;
+        return shell({
+            title: hr ? 'Primljeni ste — Med&X Accelerator' : 'You are in — Med&X Accelerator',
+            preheader: hr ? 'Vaše mjesto u generaciji Acceleratora je potvrđeno.' : 'Your place in the Accelerator cohort is confirmed.',
+            rule: 'gold',
+            bodyHtml: body,
+            lang: hr ? 'hr' : 'en',
+            footerItems: [txCopyright(),
+                hr ? 'Poslano na adresu iz vaše prijave u Med&amp;X Accelerator.' : 'Sent to the address on your Med&amp;X Accelerator application.',
+                txReplyLine(hr)]
+        });
+    }
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'VAŠA PRIJAVA' : 'YOUR APPLICATION')}
+      ${txHeadline((hr ? 'Ovaj put — ne' : 'Not this year') + txNameSuffix(firstName, hr) + '.')}
+      ${txPara(hr
+        ? 'Vašu smo prijavu pročitali u cijelosti, i to više puta. Ovo je poruka koju najmanje volimo pisati: ove vam godine ne možemo ponuditi mjesto u generaciji.'
+        : 'We read your application in full, more than once. This is the email we least like writing: we cannot offer you a place in this year\’s cohort.')}
+      ${txPara(hr
+        ? 'Da bude jasno što to znači, a što ne: generacija ima svega nekoliko mjesta, a ovaj je ciklus donio višestruko više prijava koje bismo rado primili nego mjesta koja imamo. Granica između posljednjeg \„da\“ i prvog \„ne\“ bila je neugodno tanka — ovo je odluka o kapacitetu, ne presuda o vašem radu.'
+        : 'To be clear about what that means and what it does not: the cohort holds only a handful of places, and this cycle brought several times more applications we would gladly have taken than places we had. The line between the final yes and the first no was uncomfortably thin — this is a decision about capacity, not a verdict on your work.')}
+      ${txPara(hr
+        ? 'Prijavite se ponovno. Prozor za sljedeći ciklus otvorit će se u portalu, vaša prijava ostaje kod nas, a ponovljena prijava koja pokaže godinu dana pomaka čita se snažnije od prve — recenzenti to primijete.'
+        : 'Apply again. The next cycle\’s window opens in the portal, your application stays on file with us, and a returning application that shows a year of movement reads stronger than a first one — reviewers notice.')}
+      ${txPara(hr
+        ? 'I ništa se od danas ne mijenja u vašem mjestu među nama: mreža članova, događanja i ljudi ostaju vam otvoreni. Ako bi vam prije sljedećeg prozora dobro došao još jedan par očiju na projektu, odgovorite na ovu poruku — čitamo svaku.'
+        : 'And nothing about today changes your place among us: the member network, the events, and the people all stay open to you. If another pair of eyes on your project would help before the next window, reply to this email — we read every one.')}
+      <div style="font-family:${T.serif};font-style:italic;font-size:16px;color:${T.ink};margin-top:22px;">${hr ? 'Gradite dalje. Nadamo se da ćemo vas ponovno čitati.' : 'Keep building. We hope to read you again.'}</div>
+    </div>`;
+    return shell({
+        title: hr ? 'Odluka o vašoj prijavi — Med&X Accelerator' : 'About your application — Med&X Accelerator',
+        preheader: hr ? 'Odluka o vašoj prijavi u Accelerator — i što dalje.' : 'The decision on your Accelerator application — and what comes next.',
+        rule: 'crimson',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Poslano na adresu iz vaše prijave u Med&amp;X Accelerator.' : 'Sent to the address on your Med&amp;X Accelerator application.',
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 17 · FORUM INVITATION
+// Invitation-only register: quiet, personal, the code displayed large. inviterLine is an
+// optional, already-composed sentence (e.g. "At the recommendation of Prof. Marija Horvat.").
+function forumInvitation({ firstName, inviterLine, code, enterUrl, locale } = {}) {
+    const hr = locale === 'hr';
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'BIOMEDICINSKI FORUM · ISKLJUČIVO UZ POZIVNICU' : 'THE BIOMEDICAL FORUM · BY INVITATION')}
+      ${txHeadline(hr
+        ? `Pozivnica u <i>Forum</i>${firstName ? ', ' + esc(firstName) : ''}.`
+        : `An invitation to the <i>Forum</i>${firstName ? ', ' + esc(firstName) : ''}.`)}
+      ${inviterLine ? `<div style="font-family:${T.serif};font-style:italic;font-size:15px;color:${T.ink};margin-top:12px;">${esc(inviterLine)}</div>` : ''}
+      ${txPara(hr
+        ? 'U ime Med&amp;X-a, zadovoljstvo nam je pozvati vas u Biomedicinski forum — stalnu mrežu ljudi koji vode medicinu, znanost i industriju, u koju se ulazi isključivo uz pozivnicu i koja se jednom godišnje okuplja uživo.'
+        : 'On behalf of Med&amp;X, it is our pleasure to invite you to join the Biomedical Forum — a standing network of the people who lead medicine, science, and industry, entered by invitation only, gathering in person once a year.')}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border:1px solid rgba(201,169,98,.65);background:${T.cardCream};">
+        <tr><td align="center" style="padding:20px 22px;">
+          <span style="${microStyle(T.goldDark, 9, '.16em')}">${hr ? 'VAŠ POZIVNI KOD' : 'YOUR INVITATION CODE'}</span>
+          <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600;font-size:26px;letter-spacing:.14em;color:${T.ink};margin-top:8px;">${esc(code || '')}</div>
+        </td></tr>
+      </table>
+      ${txSmall(hr ? 'Jedan kod vrijedi za jednu osobu i unosi se u članskom portalu.' : 'One code admits one person, entered in the member portal.', 12)}
+      <div style="text-align:center;margin:24px 0;">${btn(hr ? 'UNESITE SVOJ KOD →' : 'ENTER MY CODE →', enterUrl)}</div>
+      ${txPasteLine(enterUrl, hr)}
+    </div>`;
+    return shell({
+        title: hr ? 'Pozivnica u Biomedicinski forum — Med&X' : 'Your invitation to the Biomedical Forum — Med&X',
+        preheader: hr ? 'Osobna pozivnica u Biomedicinski forum — vaš kod je unutra.' : 'A personal invitation to the Biomedical Forum — your code is inside.',
+        rule: 'gold',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Ova je pozivnica osobna i neprenosiva.' : 'This invitation is personal and non-transferable.',
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 18 · CERTIFICATE OF ATTENDANCE
+function certificateOfAttendance({ firstName, eventName, downloadUrl, locale } = {}) {
+    const hr = locale === 'hr';
+    const ev = `<strong style="color:${T.ink};">${esc(eventName || 'Med&X')}</strong>`;
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'POTVRDA O SUDJELOVANJU' : 'CERTIFICATE OF ATTENDANCE')}
+      ${txHeadline((hr ? 'Vaša je potvrda spremna' : 'Your certificate is ready') + txNameSuffix(firstName, hr) + '.')}
+      ${txPara(hr
+        ? `Hvala vam što ste bili s nama na ${ev}. Vaša potvrda o sudjelovanju potpisana je i spremna za preuzimanje — a trajno ostaje i u vašem novčaniku u portalu, kad god vam zatreba.`
+        : `Thank you for being with us at ${ev}. Your certificate of attendance is signed and ready to download — and it stays in your portal wallet for good, whenever you need it.`)}
+      <div style="text-align:center;margin:26px 0;">${btn(hr ? 'PREUZMITE POTVRDU →' : 'DOWNLOAD MY CERTIFICATE →', downloadUrl)}</div>
+      ${txPasteLine(downloadUrl, hr)}
+    </div>`;
+    return shell({
+        title: hr ? `Potvrda o sudjelovanju — ${eventName || 'Med&X'}` : `Certificate of attendance — ${eventName || 'Med&X'}`,
+        preheader: hr ? 'Vaša potvrda o sudjelovanju spremna je za preuzimanje.' : 'Your certificate of attendance is ready to download.',
+        rule: 'gold',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Poslano jer ste sudjelovali na Med&amp;X događanju.' : 'Sent because you attended a Med&amp;X event.',
+            txReplyLine(hr)]
+    });
+}
+
+// ---------------------------------------------------------------- 19 · MORNING-AFTER SURVEY
+// Deliberately tiny — three sentences, one button, gone.
+function surveyMorningAfter({ firstName, eventName, surveyUrl, locale } = {}) {
+    const hr = locale === 'hr';
+    const ev = `<strong style="color:${T.ink};">${esc(eventName || 'Med&X')}</strong>`;
+    const body = `
+    <div style="padding:36px 40px 30px;">
+      ${txEyebrow(hr ? 'JUTRO POSLIJE' : 'THE MORNING AFTER')}
+      ${txHeadline((hr ? 'Kako je bilo' : 'How was it') + txNameSuffix(firstName, hr) + '?')}
+      ${txPara(hr
+        ? `Hvala vam što ste sinoć bili s nama na ${ev}. Recite nam jednim dodirom kako je bilo — trideset sekundi, ne više. Upravo to oblikuje što gradimo sljedeće godine.`
+        : `Thank you for being with us at ${ev} last night. Tell us in one tap how it was — thirty seconds, no more. It shapes what we build next year.`)}
+      <div style="text-align:center;margin:26px 0 4px;">${btn(hr ? 'RECITE NAM U 30 SEKUNDI →' : 'TELL US IN 30 SECONDS →', surveyUrl)}</div>
+    </div>`;
+    return shell({
+        title: hr ? `Kako je bilo? — ${eventName || 'Med&X'}` : `How was it? — ${eventName || 'Med&X'}`,
+        preheader: hr ? 'Trideset sekundi — recite nam kako je bilo.' : 'Thirty seconds — tell us how it was.',
+        rule: 'crimson',
+        bodyHtml: body,
+        lang: hr ? 'hr' : 'en',
+        footerItems: [txCopyright(),
+            hr ? 'Poslano jutro nakon događanja na kojem ste bili.' : 'Sent the morning after an event you attended.',
+            txReplyLine(hr)]
+    });
+}
+
 // v2/index.js auto-mounts every .js file in this folder by calling it as (app, ctx) — this is
 // a pure template library, so the export is a no-op mount function with the builders attached
 // as properties: require('./v2/email-templates').ticketConfirmation({...}) works everywhere.
@@ -474,5 +952,10 @@ Object.assign(mount, {
     confirmEmail, ticketConfirmation, newsletter, attendanceCard, yearInReview,
     newsletterWelcome, newsletterConfirm, brandedPage,
     TOPIC_LABELS, topicLabels, esc, escUrl, T
+});
+Object.assign(mount, {
+    paymentReceived, paymentReminder, registrationCancelled, seatTransferred, transferReceived,
+    eventReminder, acceleratorReceived, acceleratorDecision, forumInvitation,
+    certificateOfAttendance, surveyMorningAfter
 });
 module.exports = mount;

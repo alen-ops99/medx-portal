@@ -22,6 +22,11 @@
  *                                          at queue time, PUBLISHED into `feed_items` (the member
  *                                          home feed, existing routes/tables) only after the batch
  *                                          passes the outbox approval gate — same one approval.
+ *   direct_messages.sender_name /          staff identity on replies + ONE attachment per message
+ *     attachment_path / attachment_name    (team review Aug 2026; user-portal/backend/v2/messages.js
+ *                                          adds the same columns and shares the same uploads dir)
+ *   v2_canned_replies                      the SAVED REPLIES picker next to the reply box — CRUD at
+ *                                          /api/v2/inbox/canned; 6 drafts seeded when the table is empty
  *
  * Routes (all admin-JWT + adminOnly, under /api/v2/inbox/…):
  *   GET  /audiences                        the EMAIL REGISTRANTS dropdown + per-person tick lists
@@ -34,18 +39,43 @@
  *   GET  /threads                          member message threads (topic, unread, archived, names)
  *   POST /threads/:key/read {read}         mark a member's inbound messages read / unread
  *   POST /threads/:key/archive {archived}  hide (never delete); auto-reopens on a new message
+ *   POST /threads/:key/reply               reply AS the signed-in admin — sender_name lands on the
+ *                                          row so the member sees "Laura · Med&X" (+ optional attachment)
+ *   GET/POST /canned · PUT/DELETE /canned/:id   saved replies (v2_canned_replies)
+ *   POST /api/v2/messages/attach           multipart `file` — ONE image/PDF ≤ 5 MB into the SHARED
+ *                                          uploads/messages dir (the member portal serves the same
+ *                                          '/uploads/messages/<file>' path; mirrored here for this origin)
  *   GET  /newsletter                       per-topic subscriber counts + drafts & history
  *   POST /newsletter/queue                 stage a newsletter into the outbox (email and/or portal)
  *   GET  /badges                           {outbox_batches, outbox_emails, unread_messages}
  */
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const { randomUUID } = require('crypto');
 
 const NL_TOPICS = ['all', 'plexus', 'gala', 'accelerator', 'bridges', 'forum'];
 const NL_LABELS = { all: 'All Med&X', plexus: 'Plexus', gala: 'Gala Evening', accelerator: 'Accelerator', bridges: 'Building Bridges', forum: 'Biomedical Forum' };
 const MAX_BODY = 8000;
 const MAX_SUBJECT = 200;
+const MAX_REPLY = 4000;                                    // member-message replies (matches the member portal's MAX_BODY)
+const MAX_CANNED_TITLE = 120;
+// attachments (team review Aug 2026): ONE image or PDF per message, ≤ 5 MB — same gates as the member side
+const MAX_ATTACH_BYTES = 5 * 1024 * 1024;
+const ATTACH_MIME_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'application/pdf': 'pdf' };
+const MAX_ATTACH_NAME = 200;
+// SAVED REPLIES seeds — inserted ONLY when v2_canned_replies is empty (first run); admins edit freely after.
+// {first_name} is replaced with the member's first name when a draft is dropped into the reply box.
+const CANNED_SEEDS = [
+    { title: 'Mentor / recommendation letter', body: 'Dear {first_name},\n\nHappy to help with a mentor letter. Send us the name and email of the mentor (or the programme it is for), the deadline, and one or two lines about what you would like emphasised. We usually prepare it within a week and send it directly, with you in copy.\n\nWarm regards' },
+    { title: 'Invoice for my clinic (FIRA)', body: 'Dear {first_name},\n\nThe official invoice (ra\u010dun) is issued automatically through FIRA once your payment is completed — it arrives by email within a few minutes of paying. We cannot issue an invoice by hand before payment. If the invoice should be addressed to your clinic, reply with the clinic\u2019s full name, address and OIB before paying, and FIRA will put those details on it.\n\nWarm regards' },
+    { title: 'Dietary requirements', body: 'Dear {first_name},\n\nThank you for letting us know — we have noted your dietary requirements and passed them to the venue\u2019s kitchen, so there will be a clearly marked option for you. If anything changes before the event, just reply here.\n\nWarm regards' },
+    { title: 'Bringing a partner', body: 'Dear {first_name},\n\nYou are very welcome to bring a partner. Partners come with their own ticket so we can plan seating and catering — the quickest way is the registration page, or reply with their full name and email and we will send them a personal link.\n\nWarm regards' },
+    { title: 'Is the conference free?', body: 'Dear {first_name},\n\nAttendance is covered by the conference ticket for your category — Med&X members and students have reduced rates, and the current prices with what each ticket includes are on the registration page in your portal. If cost is the only thing standing in the way, tell us — we will see what is possible.\n\nWarm regards' },
+    { title: 'Travel costs', body: 'Dear {first_name},\n\nTravel and accommodation are organised and covered by attendees themselves — the ticket covers the programme and catering. We share hotel suggestions and any group discounts closer to the event, and an invitation letter (for a visa or employer approval) is available from us on request.\n\nWarm regards' }
+];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 // "Test rows are excluded automatically" (artboard). The staging pseudonym scrub names everyone
 // "Member NNN Test" @staging.medx.hr — those ARE the stand-ins for real members, so the rule
@@ -71,6 +101,9 @@ module.exports = function mountInbox(app, ctx) {
 
     // ---- schema (additive, guarded) ----
     try { run('ALTER TABLE direct_messages ADD COLUMN topic TEXT'); } catch (e) { /* exists */ }
+    try { run("ALTER TABLE direct_messages ADD COLUMN sender_name TEXT"); } catch (e) { /* exists */ }
+    try { run("ALTER TABLE direct_messages ADD COLUMN attachment_path TEXT"); } catch (e) { /* exists */ }
+    try { run("ALTER TABLE direct_messages ADD COLUMN attachment_name TEXT"); } catch (e) { /* exists */ }
     try {
         run(`CREATE TABLE IF NOT EXISTS v2_message_thread_state (
             user_id TEXT NOT NULL,
@@ -124,6 +157,26 @@ module.exports = function mountInbox(app, ctx) {
             posted_at TEXT
         )`);
     } catch (e) { log('v2_inbox_portal_posts create skipped:', e.message); }
+    try {
+        run(`CREATE TABLE IF NOT EXISTS v2_canned_replies (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            updated_at TEXT,
+            updated_by TEXT
+        )`);
+    } catch (e) { log('v2_canned_replies create skipped:', e.message); }
+    // seed the 6 drafts ONLY on an empty table (first run) — never re-seed over admin edits/deletes
+    try {
+        const cnt = one('SELECT COUNT(*) AS c FROM v2_canned_replies');
+        if (!Number((cnt && cnt.c) || 0)) {
+            CANNED_SEEDS.forEach(sd => run(
+                `INSERT INTO v2_canned_replies (id, title, body, updated_at, updated_by) VALUES (?, ?, ?, datetime('now'), 'seed')`,
+                [randomUUID(), sd.title, sd.body]));
+            save();
+            log('canned replies: seeded ' + CANNED_SEEDS.length + ' drafts');
+        }
+    } catch (e) { log('canned seed skipped:', e.message); }
 
     // ---- branded email (email-client-safe: 600px table, inline CSS, no webfonts) ----
     const escHtml = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -355,7 +408,7 @@ ${paragraphs(body)}
     app.get('/api/v2/inbox/threads', auth, adminOnly, (req, res) => {
         try {
             const adminId = String((req.user && req.user.id) || 'admin');
-            const rows = all(`SELECT id, sender_id, receiver_id, sender_type, receiver_type, title, topic, content, is_read, created_at
+            const rows = all(`SELECT id, sender_id, receiver_id, sender_type, receiver_type, title, topic, content, attachment_name, is_read, created_at
                                 FROM direct_messages
                                WHERE COALESCE(sender_type,'user') = 'admin' OR COALESCE(receiver_type,'user') = 'admin'
                                ORDER BY created_at ASC, rowid ASC`);
@@ -394,7 +447,7 @@ ${paragraphs(body)}
                     unread,
                     archived,
                     count: t.rows.length,
-                    last: { content: last.content || '', at: last.created_at, mine: !last.inbound }
+                    last: { content: last.content || '', at: last.created_at, mine: !last.inbound, attachment_name: last.attachment_name || null }
                 };
             }).sort((a, b) => String(b.last.at).localeCompare(String(a.last.at)));
             res.json({ threads, unread: threads.filter(t => !t.archived).reduce((n, t) => n + t.unread, 0) });
@@ -427,6 +480,172 @@ ${paragraphs(body)}
             save();
             res.json({ ok: true, key, archived: !!archived });
         } catch (err) { fail(res, err, 'Could not update that thread.'); }
+    });
+
+    // ---- reply AS the signed-in admin — sender_name lands on the row (team review ask 1) ----
+    // "Laura · Med&X" needs a name: the admin's real name from users, else the email's local part.
+    const adminDisplayName = (u) => {
+        const name = [u && u.first_name, u && u.last_name].filter(Boolean).join(' ').trim();
+        if (name) return name;
+        const local = String((u && u.email) || '').split('@')[0].replace(/[._-]+/g, ' ').trim();
+        return local ? local.replace(/\b\w/g, c => c.toUpperCase()) : 'Med&X Team';
+    };
+    const cleanAttachName = (v) => String(v || '').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_ATTACH_NAME) || null;
+    // a stored attachment reference must be one WE issued: the shared uploads path or a Cloudinary URL
+    const validAttachPath = (v) => typeof v === 'string' && v.length <= 500 &&
+        (/^\/uploads\/messages\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v) || /^https:\/\/res\.cloudinary\.com\//.test(v));
+    app.post('/api/v2/inbox/threads/:key/reply', auth, adminOnly, (req, res) => {
+        try {
+            const key = String(req.params.key || '').trim();
+            if (!key || key.length > 120) return res.status(400).json({ error: 'Unknown thread.' });
+            const member = one('SELECT id, email FROM users WHERE id = ?', [key]) || one('SELECT id, email FROM users WHERE LOWER(email) = LOWER(?)', [key]);
+            if (!member) return res.status(404).json({ error: `No portal member found for "${key}".` });
+            const body = String((req.body && (req.body.body != null ? req.body.body : req.body.content)) || '').trim();
+            const attachPath = req.body && validAttachPath(req.body.attachment_path) ? req.body.attachment_path : null;
+            const attachName = attachPath ? (cleanAttachName(req.body.attachment_name) || 'Attachment') : null;
+            if (!body && !attachPath) return res.status(400).json({ error: 'Write a reply first.' });
+            if (body.length > MAX_REPLY) return res.status(400).json({ error: `Keep the reply under ${MAX_REPLY} characters.` });
+            const adminId = String((req.user && req.user.id) || '');
+            const meRow = one('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [adminId]);
+            const senderName = adminDisplayName(meRow || req.user);
+            const id = randomUUID();
+            run(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, sender_name, attachment_path, attachment_name, is_read, created_at)
+                 VALUES (?, ?, ?, 'admin', 'user', NULL, ?, ?, ?, ?, 0, datetime('now'))`,
+                [id, adminId, member.id, body, senderName, attachPath, attachName]);
+            // targeted push, exactly like the legacy POST /api/admin/messages (best-effort)
+            try {
+                run('INSERT INTO push_outbox (id, title, body, url, target_email, created_by) VALUES (?,?,?,?,?,?)',
+                    [randomUUID(), 'New message from Med&X', (body || ('Sent you a file: ' + (attachName || 'attachment'))).slice(0, 140), '/?app=1&view=inbox', member.email, adminId || null]);
+            } catch (e) { /* push table optional */ }
+            save();
+            res.json({ ok: true, id, sender_name: senderName });
+        } catch (err) { fail(res, err, 'Could not send the reply.'); }
+    });
+
+    // ---- SAVED REPLIES (canned) — the picker next to the reply box; CRUD ----
+    const cannedInput = (req) => {
+        const title = String((req.body && req.body.title) || '').trim();
+        const body = String((req.body && req.body.body) || '').trim();
+        if (!title) return { error: 'Give the reply a short title.' };
+        if (title.length > MAX_CANNED_TITLE) return { error: `Keep the title under ${MAX_CANNED_TITLE} characters.` };
+        if (!body) return { error: 'Write the reply text.' };
+        if (body.length > MAX_REPLY) return { error: `Keep the reply under ${MAX_REPLY} characters.` };
+        return { title, body };
+    };
+    app.get('/api/v2/inbox/canned', auth, adminOnly, (req, res) => {
+        try {
+            res.json({ replies: all('SELECT id, title, body, updated_at, updated_by FROM v2_canned_replies ORDER BY title COLLATE NOCASE ASC') });
+        } catch (err) { fail(res, err, 'Could not load the saved replies.'); }
+    });
+    app.post('/api/v2/inbox/canned', auth, adminOnly, (req, res) => {
+        try {
+            const v = cannedInput(req);
+            if (v.error) return res.status(400).json({ error: v.error });
+            const id = randomUUID();
+            run(`INSERT INTO v2_canned_replies (id, title, body, updated_at, updated_by) VALUES (?, ?, ?, datetime('now'), ?)`,
+                [id, v.title, v.body, (req.user && req.user.email) || 'admin']);
+            save();
+            res.json({ ok: true, id });
+        } catch (err) { fail(res, err, 'Could not save that reply.'); }
+    });
+    app.put('/api/v2/inbox/canned/:id', auth, adminOnly, (req, res) => {
+        try {
+            const id = String(req.params.id || '');
+            if (!one('SELECT id FROM v2_canned_replies WHERE id = ?', [id])) return res.status(404).json({ error: 'No such saved reply.' });
+            const v = cannedInput(req);
+            if (v.error) return res.status(400).json({ error: v.error });
+            run(`UPDATE v2_canned_replies SET title = ?, body = ?, updated_at = datetime('now'), updated_by = ? WHERE id = ?`,
+                [v.title, v.body, (req.user && req.user.email) || 'admin', id]);
+            save();
+            res.json({ ok: true, id });
+        } catch (err) { fail(res, err, 'Could not save that reply.'); }
+    });
+    app.delete('/api/v2/inbox/canned/:id', auth, adminOnly, (req, res) => {
+        try {
+            const id = String(req.params.id || '');
+            if (!one('SELECT id FROM v2_canned_replies WHERE id = ?', [id])) return res.status(404).json({ error: 'No such saved reply.' });
+            run('DELETE FROM v2_canned_replies WHERE id = ?', [id]);
+            save();
+            res.json({ ok: true, id });
+        } catch (err) { fail(res, err, 'Could not delete that reply.'); }
+    });
+
+    // ---- attachments — mirrored from user-portal/backend/v2/messages.js (keep the two in step) ----
+    // SAME shared dir under ctx.ROOT as the member side, so '/uploads/messages/<file>' resolves on
+    // both origins: the member portal serves it via its existing /uploads static route; this portal
+    // serves it via the GET route below (staging runs both backends from one tree; production
+    // stores on Cloudinary and the URL is absolute anyway).
+    const ATTACH_DIR = path.join(String(ctx.ROOT || path.join(__dirname, '..', '..', '..')), 'user-portal', 'backend', 'uploads', 'messages');
+    try { fs.mkdirSync(ATTACH_DIR, { recursive: true }); } catch (e) { log('inbox: cannot create ' + ATTACH_DIR + ': ' + e.message); }
+    const attachStorage = multer.diskStorage({
+        destination: (req, file, cb) => cb(null, ATTACH_DIR),
+        filename: (req, file, cb) => cb(null, `${randomUUID()}.${ATTACH_MIME_EXT[file.mimetype]}`)
+    });
+    const attachUpload = multer({
+        storage: attachStorage,
+        limits: { fileSize: MAX_ATTACH_BYTES, files: 1 },
+        fileFilter: (req, file, cb) => (ATTACH_MIME_EXT[file.mimetype] ? cb(null, true) : cb(Object.assign(new Error('Attach a JPG, PNG, WebP or GIF image, or a PDF.'), { code: 'BAD_TYPE' })))
+    });
+    // multer trusts the client MIME — check the magic bytes of what was actually written
+    function sniffAttach(filePath) {
+        try {
+            const fd = fs.openSync(filePath, 'r'); const b = Buffer.alloc(12); fs.readSync(fd, b, 0, 12, 0); fs.closeSync(fd);
+            if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+            if (b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) return 'png';
+            if (b.slice(0, 4).toString('ascii') === 'RIFF' && b.slice(8, 12).toString('ascii') === 'WEBP') return 'webp';
+            if (b.slice(0, 4).toString('ascii') === 'GIF8') return 'gif';
+            if (b.slice(0, 4).toString('ascii') === '%PDF') return 'pdf';
+        } catch (e) {}
+        return null;
+    }
+    async function attachToCloud(filePath, base) {
+        if (!process.env.CLOUDINARY_URL) return null;
+        try {
+            const cloudinary = require('cloudinary').v2;
+            const r = await cloudinary.uploader.upload(filePath, { folder: 'medx/messages', public_id: base, resource_type: 'auto' });
+            return r && r.secure_url ? r.secure_url : null;
+        } catch (e) { log('inbox: Cloudinary upload failed, keeping local file: ' + e.message); return null; }
+    }
+    // same route name as the member portal so the flow reads identically from either frontend
+    app.post('/api/v2/messages/attach', auth, adminOnly, (req, res, next) => {
+        attachUpload.fields([{ name: 'file', maxCount: 1 }, { name: 'attachment', maxCount: 1 }])(req, res, err => {
+            if (!err && req.files) req.file = (req.files.file && req.files.file[0]) || (req.files.attachment && req.files.attachment[0]) || null;
+            next(err);
+        });
+    }, (err, req, res, next) => {
+        if (!err) return next();
+        if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'That file is larger than 5 MB — pick a smaller one.' });
+        if (err.code === 'BAD_TYPE') return res.status(400).json({ error: err.message });
+        return res.status(400).json({ error: err.message || 'Upload failed.' });
+    }, async (req, res) => {
+        try {
+            if (!req.file) return res.status(400).json({ error: 'Choose a file first.' });
+            const ext = ATTACH_MIME_EXT[req.file.mimetype];
+            const kind = sniffAttach(req.file.path);
+            if (!kind || kind !== ext) { try { fs.unlinkSync(req.file.path); } catch (e) {} return res.status(400).json({ error: 'That file is not an image or a PDF.' }); }
+            const base = path.basename(req.file.path, path.extname(req.file.path));
+            let url = await attachToCloud(req.file.path, base);
+            if (url) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
+            else url = `/uploads/messages/${path.basename(req.file.path)}`;
+            res.json({ success: true, attachment_path: url, attachment_name: cleanAttachName(req.file.originalname) || `attachment.${ext}`,
+                       kind: ext === 'pdf' ? 'pdf' : 'image', bytes: req.file.size });
+        } catch (e) { fail(res, e, 'Could not upload that file.'); }
+    });
+    // serve the SHARED dir on THIS origin at the same URL path the member portal uses, so a stored
+    // '/uploads/messages/<file>' renders in the admin UI too. Same hardening headers as the member
+    // portal's /uploads route (attachment + nosniff + sandbox CSP: a stored .svg/.pdf can't run as
+    // same-origin script); CORP relaxed so the Netlify-hosted admin frontend can embed thumbnails.
+    // (The static /uploads middleware in server.js misses these files and falls through to here.)
+    app.get('/uploads/messages/:name', (req, res) => {
+        const name = String(req.params.name || '');
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) return res.status(400).json({ error: 'Bad file name.' });
+        const file = path.join(ATTACH_DIR, name);
+        if (!fs.existsSync(file)) return res.status(404).json({ error: 'No such file.' });
+        res.setHeader('Content-Disposition', 'attachment');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.sendFile(file);
     });
 
     // ---- newsletter: counts, history, queue-into-outbox ----
@@ -566,5 +785,5 @@ ${paragraphs(body)}
         } catch (err) { fail(res, err, 'Could not count the inbox.'); }
     });
 
-    log('inbox: /api/v2/inbox/{audiences,compose,outbox/:batch(+edit,unschedule),threads(+read,archive),newsletter(+queue),badges}');
+    log('inbox: /api/v2/inbox/{audiences,compose,outbox/:batch(+edit,unschedule),threads(+read,archive,reply),canned(+:id),newsletter(+queue),badges} + /api/v2/messages/attach; attachments → ' + ATTACH_DIR);
 };

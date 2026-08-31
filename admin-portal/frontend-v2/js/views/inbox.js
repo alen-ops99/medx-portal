@@ -10,6 +10,11 @@
 // POST /api/admin/outbox/:batch/approve — the existing drainer delivers. Announcements write
 // user_notifications via the existing admin route (the member bell). Team chat is the existing
 // /api/teamchat surface (channels · reply-to · attachments · meeting polls → outbox invites).
+// MEMBER MESSAGES (team review Aug 2026): replies go through POST /api/v2/inbox/threads/:key/reply
+// so the row carries sender_name — members see "LAURA · MED&X" ("MED&X TEAM" on older rows); the
+// SAVED REPLIES picker manages v2_canned_replies via /api/v2/inbox/canned; ONE image/PDF ≤ 5 MB
+// per message uploads through POST /api/v2/messages/attach (thread reading stays the existing
+// GET /api/admin/messages/:key, which marks inbound read).
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -60,9 +65,26 @@ export const COPY = {
     empty: { line: 'No member messages yet.', why: 'When a member writes from their portal, the thread lands here with its topic — and your reply lands back in their portal inbox.' },
     none: 'Nothing needs a reply — switch to ALL to browse every thread.',
     markRead: 'MARK READ', markUnread: 'MARK UNREAD', archive: 'ARCHIVE', unarchive: 'UNARCHIVE',
-    viewPerson: 'VIEW PERSON →', replyPh: 'Reply as Med&X…', send: 'SEND',
+    viewPerson: 'VIEW PERSON →', replyPh: 'Reply — Enter sends, Shift+Enter for a new line…', send: 'SEND',
     sentToast: 'REPLY SENT — LANDS IN THEIR PORTAL INBOX',
-    archivedToast: 'THREAD ARCHIVED — HIDDEN, NEVER DELETED', unarchivedToast: 'THREAD IS BACK IN THE LIST'
+    archivedToast: 'THREAD ARCHIVED — HIDDEN, NEVER DELETED', unarchivedToast: 'THREAD IS BACK IN THE LIST',
+    // staff identity on replies (team review ask 1) — members see the same attribution
+    teamFallback: 'MED&X TEAM',                                       // rows from before sender_name existed
+    staffTag: name => `${String(name).toUpperCase()} · MED&X`,
+    identityNote: name => `Replying as ${name} · Med&X — members see your name on this reply.`,
+    // SAVED REPLIES picker (team review ask 2)
+    saved: 'SAVED REPLIES', savedTitle: 'Saved replies', savedEyebrow: 'MEMBER MESSAGES · SAVED REPLIES',
+    savedSub: 'Click one to drop it into the reply box — {first_name} becomes the member’s first name.',
+    savedUse: 'USE', savedEdit: 'EDIT', savedDel: 'DELETE', savedSureDel: 'SURE?',
+    savedNew: '+ NEW SAVED REPLY', savedSave: 'SAVE', savedCancel: 'CANCEL',
+    savedTitlePh: 'e.g. Dietary requirements',
+    savedBodyPh: 'The reply text — {first_name} becomes the member’s first name.',
+    savedEmpty: 'No saved replies yet — add the first one.',
+    savedSaved: 'SAVED REPLY STORED', savedDeleted: 'SAVED REPLY DELETED',
+    // ONE attachment per message (team review ask 4)
+    attachTitle: 'Attach one image or PDF — up to 5 MB',
+    attachTooBig: 'THAT FILE IS OVER 5 MB', attachBadType: 'IMAGES (JPG, PNG, WEBP, GIF) OR PDF ONLY',
+    file: 'FILE'
   },
   announce: {
     title: 'POST TO MEMBERS’ NOTIFICATION BELL', who: 'WHO SHOULD SEE THIS?',
@@ -377,7 +399,7 @@ function blockThreadList() {
         ${rows.map(t => `
         <div data-act="openThread" data-key="${esc(t.key)}" style="padding:13px 16px;border-bottom:1px solid rgba(32,27,22,.08);cursor:pointer;background:${t.key === st.openKey ? '#f6f2ea' : '#fff'};${t.archived ? 'opacity:.6' : ''}">
           <div style="display:flex;gap:8px;align-items:center">${t.unread ? `<span style="width:7px;height:7px;border-radius:50%;background:#9b1b22;flex:none"></span>` : ''}<span style="font-size:13px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.name)}</span>${t.archived ? `<span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:2px 6px;white-space:nowrap">${m.archived}</span>` : t.topic ? `<span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:2px 6px;white-space:nowrap">${esc(String(t.topic).toUpperCase())}</span>` : ''}<span style="font:600 9px Inter,sans-serif;color:#6d6459;white-space:nowrap">${whenShort(t.last.at)}</span></div>
-          <div style="font-size:11.5px;color:#6d6459;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.last.content)}</div>
+          <div style="font-size:11.5px;color:#6d6459;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.last.content || (t.last.attachment_name ? '\u2295 ' + t.last.attachment_name : ''))}</div>
         </div>`).join('')}
         ${!rows.length ? `<div style="padding:20px 16px;font-size:12px;color:#6d6459">${D.threads.length ? m.none : m.empty.why}</div>` : ''}
         </div>
@@ -405,14 +427,38 @@ function blockConversation() {
         <div class="mx-inbox-log" style="flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:12px" data-role="msgLog">
           ${msgs.map(x => {
             const mine = String(x.sender_type || 'user') === 'admin';
-            return `<div style="max-width:70%;align-self:${mine ? 'flex-end' : 'flex-start'};background:${mine ? '#191512' : '#f6f2ea'};color:${mine ? '#f6f2ea' : '#201b16'};padding:10px 14px;font-size:13px;line-height:1.5">${esc(x.content)}<span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.1em;margin-top:5px;opacity:.6">${whenShort(x.created_at)} ${esc(String(x.created_at || '').slice(11, 16))}</span></div>`;
+            const who = mine ? (x.sender_name ? m.staffTag(x.sender_name) : m.teamFallback) : '';
+            return `<div style="max-width:70%;align-self:${mine ? 'flex-end' : 'flex-start'};background:${mine ? '#191512' : '#f6f2ea'};color:${mine ? '#f6f2ea' : '#201b16'};padding:10px 14px;font-size:13px;line-height:1.5">${who ? `<span data-v2="staff identity (direct_messages.sender_name)" style="display:block;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;margin-bottom:4px;opacity:.65">${esc(who)}</span>` : ''}<span style="white-space:pre-wrap;word-break:break-word">${esc(x.content || '')}</span>${msgAttachment(x, mine)}<span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.1em;margin-top:5px;opacity:.6">${whenShort(x.created_at)} ${esc(String(x.created_at || '').slice(11, 16))}</span></div>`;
           }).join('')}
         </div>
-        <div style="padding:14px 20px;border-top:1px solid rgba(32,27,22,.12);display:flex;gap:10px">
-          <input data-role="reply" placeholder="${esc(m.replyPh)}" aria-label="Reply" style="flex:1;${INPUT};padding:10px 12px">
-          <span data-act="sendReply" style="padding:10px 16px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;display:flex;align-items:center" data-hover="background:#7e151b">${m.send}</span>
+        ${st.msgAttach ? `
+        <div data-v2="pending attachment — uploads on SEND via POST /api/v2/messages/attach" style="display:flex;align-items:center;gap:10px;padding:8px 20px;border-top:1px solid rgba(32,27,22,.12);background:#fdfbf6">
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#7a6432;background:#f8f1e2;padding:5px 10px;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\u2295 ${esc(st.msgAttach.name)}</span>
+          <span data-act="attachClear" role="button" aria-label="Remove attachment" style="font:600 11px Inter,sans-serif;color:#6d6459;cursor:pointer" data-hover="color:#9b1b22">\u2715</span>
+        </div>` : ''}
+        <div style="padding:14px 20px;border-top:1px solid rgba(32,27,22,.12);display:flex;flex-direction:column;gap:7px">
+          <div style="display:flex;gap:10px;align-items:flex-end">
+            <span data-act="cannedOpen" data-v2="SAVED REPLIES picker (v2_canned_replies)" title="${esc(m.savedTitle)}" style="padding:10px 12px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16;color:#201b16">${m.saved}</span>
+            <label data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault" title="${esc(m.attachTitle)}" style="padding:10px 12px;border:1px solid rgba(32,27,22,.2);font:600 12px Inter,sans-serif;color:#6d6459;cursor:pointer;display:flex;align-items:center" data-hover="border-color:#201b16;color:#201b16">\u2295<input type="file" data-role="msgFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>
+            <textarea data-role="reply" rows="2" placeholder="${esc(m.replyPh)}" aria-label="Reply" style="flex:1;${INPUT};padding:10px 12px;resize:none">${esc(st.replyDraft || '')}</textarea>
+            <span data-act="sendReply" ${st.replySending ? 'aria-disabled="true"' : ''} style="padding:10px 16px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;display:flex;align-items:center" data-hover="background:#7e151b">${m.send}</span>
+          </div>
+          <span data-v2="staff identity note" style="font-size:10.5px;color:#9a9086">${esc(m.identityNote(session.firstName()))}</span>
         </div>
       </div>`;
+}
+// ONE attachment per message — thumbnail for images, a labelled chip otherwise. Paths are relative
+// ('/uploads/messages/…' — this backend mirrors the member portal's route) or absolute (Cloudinary).
+function attUrl(p) { return p ? (String(p).startsWith('/') ? api.url(p) : p) : ''; }
+function attIsImage(x) { return /\.(jpe?g|png|webp|gif)(\s|\?|$)/i.test(String(x.attachment_name || '') + ' ' + String(x.attachment_path || x.attachment_url || '')); }
+function msgAttachment(x, mine) {
+  const p = x.attachment_path || x.attachment_url;
+  if (!p) return '';
+  const name = x.attachment_name || COPY.messages.file;
+  const url = attUrl(p);
+  const bd = mine ? 'rgba(246,242,234,.4)' : 'rgba(32,27,22,.2)';
+  const img = attIsImage(x) ? `<a href="${esc(url)}" target="_blank" rel="noopener" style="display:block;margin-top:8px"><img src="${esc(url)}" alt="${esc(name)}" loading="lazy" style="max-width:220px;max-height:160px;border:1px solid ${bd};display:block"></a>` : '';
+  return `${img}<a href="${esc(url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:6px 10px;border:1px solid ${bd};font:600 9px Inter,sans-serif;letter-spacing:.1em;color:inherit;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\u2295 ${esc(name)}</a>`;
 }
 function tabMessages() {
   return `
@@ -691,8 +737,11 @@ function wire() {
   on('nlSubject', 'input', e => { st.nlSubject = e.target.value; });
   on('nlBody', 'input', e => { st.nlBody = e.target.value; });
   on('nlTopic', 'change', e => { st.nlTopic = e.target.value; });
-  // enter-to-send inputs
-  on('reply', 'keydown', e => { if (e.key === 'Enter') { e.preventDefault(); handlers.sendReply(); } });
+  // enter-to-send inputs (reply is a textarea now — Enter sends, Shift+Enter = newline, so a
+  // multi-paragraph SAVED REPLY fits; the draft survives re-renders via st.replyDraft)
+  on('reply', 'input', e => { st.replyDraft = e.target.value; });
+  on('reply', 'keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlers.sendReply(rootEl.querySelector('[data-act="sendReply"]')); } });
+  on('msgFile', 'change', e => handlers.msgFilePicked(e.target));
   on('chDraft', 'input', e => { st.chDraft = e.target.value; });
   on('chDraft', 'keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlers.chSend(); } });
   on('chNew', 'input', e => { st.chNew = e.target.value; });
@@ -760,6 +809,93 @@ async function reloadChatOverview(openId) {
     D.chatUnread = [...(o.channels || []), ...(o.dms || [])].reduce((n, c) => n + Number(c.unread || 0), 0);
     await loadChat(openId || st.chOpen);
   } catch (e) { /* overview refresh is best-effort */ }
+}
+
+// ---------------------------------------------------------------- SAVED REPLIES modal (member messages)
+// v2_canned_replies via /api/v2/inbox/canned — pick one into the reply box, or manage them in place.
+function cannedForm(r) {
+  const m = COPY.messages;
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;padding:10px 2px;border-bottom:1px solid rgba(32,27,22,.08)">
+      <input data-role="cnTitle" value="${esc(r ? r.title : '')}" placeholder="${esc(m.savedTitlePh)}" aria-label="Title" style="${INPUT}">
+      <textarea data-role="cnBody" rows="6" placeholder="${esc(m.savedBodyPh)}" aria-label="Reply text" style="${INPUT};resize:vertical">${esc(r ? r.body : '')}</textarea>
+      <div style="display:flex;gap:10px">
+        <span data-act="cannedSave" data-id="${esc(r ? r.id : '')}" style="padding:8px 14px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${m.savedSave}</span>
+        <span data-act="cannedCancel" style="padding:8px 14px;border:1px solid rgba(32,27,22,.2);font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;cursor:pointer">${m.savedCancel}</span>
+      </div>
+    </div>`;
+}
+function cannedModalBody(mst) {
+  const m = COPY.messages;
+  const list = st.canned || [];
+  const rows = list.map(r => mst.editing === r.id ? cannedForm(r) : `
+    <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 2px;border-bottom:1px solid rgba(32,27,22,.08)">
+      <span data-act="cannedUse" data-id="${esc(r.id)}" role="button" tabindex="0" style="flex:1;min-width:0;cursor:pointer">
+        <span style="display:block;font-size:13px;font-weight:600;color:#201b16">${esc(r.title)}</span>
+        <span style="display:block;font-size:11.5px;color:#6d6459;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(String(r.body).replace(/\s+/g, ' ').slice(0, 90))}</span>
+      </span>
+      <span data-act="cannedUse" data-id="${esc(r.id)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap">${m.savedUse}</span>
+      <span data-act="cannedEdit" data-id="${esc(r.id)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${m.savedEdit}</span>
+      <span data-act="cannedDel" data-id="${esc(r.id)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${mst.confirmDel === r.id ? '#9b1b22' : '#6d6459'};cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${mst.confirmDel === r.id ? m.savedSureDel : m.savedDel}</span>
+    </div>`).join('');
+  return `
+    <div style="display:flex;flex-direction:column">
+      <span style="font-size:12px;color:#6d6459;padding-bottom:6px">${m.savedSub}</span>
+      ${rows}
+      ${!list.length && mst.editing !== 'new' ? `<div style="padding:12px 2px;font-size:12.5px;color:#6d6459">${m.savedEmpty}</div>` : ''}
+      ${mst.editing === 'new' ? cannedForm(null) : `<div style="padding:12px 2px 2px"><span data-act="cannedNew" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer">${m.savedNew}</span></div>`}
+    </div>`;
+}
+function openCannedModal() {
+  const m = COPY.messages;
+  const mst = { editing: null, confirmDel: null };
+  const wrap = ui.modal({ eyebrow: m.savedEyebrow, title: m.savedTitle, body: cannedModalBody(mst) });
+  const repaint = () => {
+    const b = wrap.el.querySelector('.mx-modal-body');
+    if (b) b.innerHTML = `<div class="mx-modal-title">${m.savedTitle}</div>` + cannedModalBody(mst);
+  };
+  ui.bind(wrap.el, {
+    cannedUse: (el) => {
+      const r = (st.canned || []).find(x => x.id === el.dataset.id); if (!r) return;
+      const t = openThreadObj();
+      const first = t ? String(t.name || '').trim().split(/\s+/)[0] : '';
+      const text = String(r.body).replace(/\{first_name\}/g, first || 'there');
+      const ta = rootEl && rootEl.querySelector('[data-role="reply"]');
+      const cur = (ta ? ta.value : (st.replyDraft || '')).replace(/\s+$/, '');
+      st.replyDraft = cur ? cur + '\n\n' + text : text;
+      if (ta) { ta.value = st.replyDraft; }
+      wrap.close();
+      if (ta) ta.focus();
+    },
+    cannedNew: () => { mst.editing = 'new'; mst.confirmDel = null; repaint(); },
+    cannedEdit: (el) => { mst.editing = el.dataset.id; mst.confirmDel = null; repaint(); },
+    cannedCancel: () => { mst.editing = null; repaint(); },
+    cannedSave: async (el) => {
+      const id = el.dataset.id;
+      const title = ((wrap.el.querySelector('[data-role="cnTitle"]') || {}).value || '').trim();
+      const body = ((wrap.el.querySelector('[data-role="cnBody"]') || {}).value || '').trim();
+      try {
+        if (id) await api.put('/api/v2/inbox/canned/' + encodeURIComponent(id), { title, body });
+        else await api.post('/api/v2/inbox/canned', { title, body });
+        const r = await api.get('/api/v2/inbox/canned');
+        st.canned = (r && r.replies) || [];
+        mst.editing = null;
+        ui.toast(m.savedSaved);
+        repaint();
+      } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+    },
+    cannedDel: async (el) => {
+      const id = el.dataset.id;
+      if (mst.confirmDel !== id) { mst.confirmDel = id; repaint(); return; }
+      try {
+        await api.del('/api/v2/inbox/canned/' + encodeURIComponent(id));
+        st.canned = (st.canned || []).filter(x => x.id !== id);
+        mst.confirmDel = null;
+        ui.toast(m.savedDeleted);
+        repaint();
+      } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+    }
+  });
 }
 
 // ---------------------------------------------------------------- handlers
@@ -903,16 +1039,51 @@ const handlers = {
       else ui.toast(COPY.messages.unarchivedToast);
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
-  sendReply: async () => {
-    const t = openThreadObj(); if (!t) return;
+  // reply goes through the v2 route so the row carries sender_name ("Laura · Med&X" on the
+  // member's side) and an optional attachment; upload first, then post (teamchat pattern)
+  sendReply: async (el) => {
+    const t = openThreadObj(); if (!t || st.replySending) return;
     const text = readRole('reply').trim();
-    if (!text) return;
+    if (!text && !st.msgAttach) return;
+    st.replySending = true;
+    if (el && el.setAttribute) el.setAttribute('aria-disabled', 'true');
     try {
-      await api.post('/api/admin/messages', { receiver_id: t.key, content: text });
-      const input = rootEl.querySelector('[data-role="reply"]'); if (input) input.value = '';
+      let att = null;
+      if (st.msgAttach) {
+        const fd = new FormData(); fd.append('file', st.msgAttach);
+        att = await api.post('/api/v2/messages/attach', fd);
+      }
+      await api.post('/api/v2/inbox/threads/' + encodeURIComponent(t.key) + '/reply', {
+        body: text,
+        attachment_path: att ? att.attachment_path : undefined,
+        attachment_name: att ? att.attachment_name : undefined
+      });
+      st.replyDraft = ''; st.msgAttach = null; st.replySending = false;
       await openThreadByKey(t.key);
       ui.toast(COPY.messages.sentToast);
-    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+    } catch (e) {
+      st.replySending = false;
+      if (el && el.removeAttribute) el.removeAttribute('aria-disabled');
+      ui.toast(e.message, { kind: 'error' });
+    }
+  },
+  msgFilePicked: (input) => {                       // validate client-side; the backend re-checks
+    const f = input && input.files && input.files[0];
+    if (input) input.value = '';
+    if (!f) return;
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'].includes(f.type)) return ui.toast(COPY.messages.attachBadType, { kind: 'error' });
+    if (f.size > 5 * 1024 * 1024) return ui.toast(COPY.messages.attachTooBig, { kind: 'error' });
+    st.replyDraft = readRole('reply');
+    st.msgAttach = f;
+    rerender('[data-block="conv"]', blockConversation());
+  },
+  attachClear: () => { st.replyDraft = readRole('reply'); st.msgAttach = null; rerender('[data-block="conv"]', blockConversation()); },
+  cannedOpen: async () => {
+    if (!st.canned) {
+      try { const r = await api.get('/api/v2/inbox/canned'); st.canned = (r && r.replies) || []; }
+      catch (e) { return ui.toast(e.message, { kind: 'error' }); }
+    }
+    openCannedModal();
   },
   // ----- announcements -----
   annPublish: async (el) => {
@@ -1085,7 +1256,7 @@ export default {
     st = {
       tab, focusCompose: String((ctx.params && ctx.params.tab) || '') === 'email',
       audience: 'everyone', filter: '', manual: false, picked: new Set(), subject: '', body: '',
-      msgFilter: 'needs', openKey: null, thread: [],
+      msgFilter: 'needs', openKey: null, thread: [], replyDraft: '', msgAttach: null, replySending: false, canned: null,
       annWho: 'all', annTitle: '', annBody: '', annLink: '', annUntil: '', annPush: false, annConfirm: null,
       nlCompose: false, nlSubject: '', nlBody: '', nlTopic: 'all', nlEmail: true, nlPortal: true, nlReplace: null,
       chOpen: null, chAdding: false, chNew: '', chDraft: '', chMsgs: [], replyTo: null, chDelConfirm: null,

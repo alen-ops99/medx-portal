@@ -1,21 +1,29 @@
 /* ============================================================================
    Med&X ADMIN portal v2 — MONEY view hooks (js/views/money.js)
-   Rule (ARCHITECTURE §4): class hooks are `mx-`/`mxm-` prefixed and never carry
-   look — the artboard's inline styles do. This file adds only responsive
-   overrides and small behaviours the inline styles cannot express.
+   Rebuilt with the Miro-spec Money screen (knjige, nalozi, radne jedinice,
+   izvještaji). Rule (ARCHITECTURE §4): class hooks are `mx-`/`mxm-` prefixed
+   and never carry look — the view's inline styles do. This file adds only
+   responsive overrides and small behaviours the inline styles cannot express.
    Loaded/unloaded by the view itself (link[data-view-css="money"]).
    ========================================================================== */
 
-/* add/pledge/expense form rows: inputs take the full row before wrapping controls */
+/* Accounting tables (both books, nalozi, jedinice, izvještaji) scroll inside
+   their own wrapper — the page body never scrolls sideways. */
+.mxm-scroll { -webkit-overflow-scrolling: touch; }
+.mxm-scroll table { border-spacing: 0; }
+
+/* add/filter form rows: inputs take the full row before wrapping controls */
 @media (max-width: 620px) {
-  .mxm-form input { flex: 1 1 100% !important; min-width: 0 !important; }
-  .mxm-form select { flex: 1 1 auto; }
+  .mxm-form input, .mxm-form select { flex: 1 1 100% !important; min-width: 0 !important; width: auto !important; }
+  .mxm-form label { flex: 1 1 100%; display: flex; align-items: center; gap: 6px; }
+  .mxm-form label input { flex: 1 1 auto !important; }
   .mxm-sums { row-gap: 6px; }
+  .mxm-cardhead > [data-act] { flex: 1 1 auto; text-align: center; }
 }
 
-/* board-pack mini grid: one column on the narrowest screens */
-@media (max-width: 400px) {
-  .mxm-bp-grid { grid-template-columns: 1fr !important; }
+/* edit modal: two-column field grid collapses on the narrowest screens */
+@media (max-width: 620px) {
+  .mxm-editgrid { grid-template-columns: 1fr !important; }
 }
 
 /* tool-panel rows inherit .mx-row wrapping from app.css (≤620); keep the

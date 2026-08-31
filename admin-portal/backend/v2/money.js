@@ -35,8 +35,22 @@
  *   scheduled_emails (pending_approval, scheduled_for = next-day 08:00) + token rows in
  *   v2_survey_responses. Nothing sends without the human approve click in the Outbox.
  *
+ * MONEY REBUILD (Miro's team-review spec, Aug 2026) — the screen itself now runs on:
+ *     GET/POST      /api/v2/money/book?direction=out|in     knjiga izlaznih/ulaznih računa (+ legacy finance_invoices listed read-only)
+ *     PUT/DELETE    /api/v2/money/book/:id
+ *     GET/POST/PUT/DELETE /api/v2/money/travel-orders(/:id)  putni nalozi — SEPARATED from payment orders, no e-signing anywhere
+ *     GET/POST/PUT/DELETE /api/v2/money/payment-orders(/:id) nalozi za plaćanje (own list)
+ *     GET/POST/PUT/DELETE /api/v2/money/work-units(/:id)     radne jedinice registry (šifra/naziv/opis/preneseno + computed prihod/rashod/konačno)
+ *     GET/POST/PUT/DELETE /api/v2/money/expected(/:id)       manually entered receivables (e.g. awarded MZO grant), POST /:id/receive
+ *     GET           /api/v2/money/summary?year=              all-projects COLLECTED / OWED / SPENT tiles + RECENT MONEY IN (legacy tables read-only)
+ *     GET           /api/v2/money/report?group=project|work_unit|person(&from&to&…)
+ *     GET           /api/v2/money/export.csv?set=book_out|book_in|travel|payment|units|expected|report (+ the same filters — always the filtered set)
+ *   The ledger/chase/survey endpoints above STAY (their cards moved off the Money screen
+ *   to live with their projects, and queued survey links must keep resolving).
+ *
  * Tables (v2_ prefix, DDL guarded — both portals share ONE database):
- *   v2_sponsor_ledger, v2_survey_responses.
+ *   v2_sponsor_ledger, v2_survey_responses, v2_money_book_entries, v2_money_travel_orders,
+ *   v2_money_payment_orders, v2_money_work_units, v2_money_expected_income.
  */
 'use strict';
 
@@ -507,5 +521,873 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
     const boot = setTimeout(() => { try { runSurveySweep(); } catch (e) { log('sweep boot:', e.message); } }, 20000);
     if (boot.unref) boot.unref();
 
-    log('money module ready: ledger + chase + morning-after survey (sweep every ' + (SWEEP_EVERY_MS / 60000) + ' min)');
+
+    // ╔══════════════════════════════════════════════════════════════════════╗
+    // ║ MONEY REBUILD — Miro's spec (team review, August 2026, MONEY section) ║
+    // ╚══════════════════════════════════════════════════════════════════════╝
+    // Books (knjiga izlaznih/ulaznih računa), putni nalozi SEPARATED from nalozi
+    // za plaćanje, radne jedinice registry, expected income (e.g. an awarded MZO
+    // grant not yet paid out), all-projects summary tiles, reports + CSV.
+    //
+    // ⚠ FIRA RULE here too: the outgoing book LISTS invoices — fiscal invoices are
+    // issued ONLY in FIRA and their number is TYPED into the row. Nothing in these
+    // routes generates an invoice number or an invoice document. Non-fiscalized
+    // rows are manual entries.
+    //
+    // Aggregation rules (one consistent composition everywhere):
+    //   COLLECTED = legacy finance_transactions income (non-draft)
+    //             + paid gala seats NOT already booked as a transaction (reference dedup)
+    //             + collected outgoing-book rows NOT matching a transaction reference
+    //             + expected income marked received + sponsor-ledger paid/thanked.
+    //   SPENT     = legacy finance_transactions expense + incoming book + travel orders.
+    //               (Payment orders are NOT added — they usually EXECUTE an incoming
+    //                invoice; their own total is reported separately.)
+    //   OWED      = open expected income + unpaid gala seats × price-by-the-clock
+    //             + legacy outgoing invoices still open + outgoing-book rows without
+    //               datum naplate + sponsor-ledger rows sitting at 'invoiced'.
+
+    // ------------------------------------------------------------------ schema (guarded)
+    try {
+        db().run(`CREATE TABLE IF NOT EXISTS v2_money_book_entries (
+            id TEXT PRIMARY KEY,
+            direction TEXT NOT NULL,             -- 'out' (izlazni) | 'in' (ulazni)
+            invoice_number TEXT NOT NULL,        -- FIRA number for fiscalized outgoing rows (typed, never generated)
+            party_name TEXT NOT NULL,            -- kupac (out) / dobavljač (in)
+            party_oib TEXT,
+            invoice_date TEXT NOT NULL,          -- datum računa
+            amount REAL NOT NULL,
+            booking_date TEXT NOT NULL,          -- datum knjiženja (≠ datum računa)
+            vrsta TEXT,                          -- out only: 'fiskalizirani' | 'nefiskalizirani'
+            settled_date TEXT,                   -- out: datum naplate · in: datum plaćanja
+            work_unit_id TEXT,
+            project TEXT DEFAULT 'general',
+            notes TEXT,
+            created_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT
+        )`);
+        db().run(`CREATE TABLE IF NOT EXISTS v2_money_travel_orders (
+            id TEXT PRIMARY KEY,
+            order_number TEXT NOT NULL,          -- broj putnog naloga
+            traveler_name TEXT NOT NULL,         -- ime i prezime
+            travel_date TEXT NOT NULL,           -- datum putovanja
+            destination TEXT NOT NULL,           -- odredište
+            purpose TEXT,                        -- svrha
+            total_cost REAL DEFAULT 0,           -- ukupan trošak
+            opened_date TEXT,                    -- datum otvaranja
+            work_unit_id TEXT,
+            project TEXT DEFAULT 'general',
+            notes TEXT,
+            created_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT
+        )`);
+        db().run(`CREATE TABLE IF NOT EXISTS v2_money_payment_orders (
+            id TEXT PRIMARY KEY,
+            order_number TEXT NOT NULL,
+            recipient_name TEXT NOT NULL,
+            description TEXT,
+            amount REAL NOT NULL,
+            order_date TEXT NOT NULL,
+            work_unit_id TEXT,
+            project TEXT DEFAULT 'general',
+            notes TEXT,
+            created_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT
+        )`);
+        db().run(`CREATE TABLE IF NOT EXISTS v2_money_work_units (
+            id TEXT PRIMARY KEY,
+            code TEXT NOT NULL,                  -- šifra radne jedinice
+            name TEXT NOT NULL,                  -- naziv
+            description TEXT,                    -- (pod)opis
+            carryover_prev REAL DEFAULT 0,       -- preneseno stanje iz prethodne godine
+            active INTEGER DEFAULT 1,
+            created_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT
+        )`);
+        db().run(`CREATE TABLE IF NOT EXISTS v2_money_expected_income (
+            id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,                -- tko nam duguje (e.g. MZO — natječaj)
+            description TEXT,
+            amount REAL NOT NULL,
+            expected_date TEXT,
+            project TEXT DEFAULT 'general',
+            work_unit_id TEXT,
+            status TEXT DEFAULT 'open',          -- open | received | cancelled
+            received_date TEXT,
+            notes TEXT,
+            created_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT
+        )`);
+    } catch (e) { log('money-rebuild schema failed:', e.message); }
+
+    // ------------------------------------------------------------------ small helpers
+    const num2 = v => Math.round((Number(v) || 0) * 100) / 100;
+    const isYmd = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+    const yearOfDate = s => isYmd(s) ? parseInt(s.slice(0, 4), 10) : null;
+    const todayYmd = () => new Date().toISOString().slice(0, 10);
+    const by = req => (req.user && req.user.email) || 'admin';
+    const oibOk = v => !v || /^\d{11}$/.test(String(v).trim());
+    const VRSTE = ['fiskalizirani', 'nefiskalizirani'];
+
+    function yearClosed(y) {
+        if (!y) return null;
+        try {
+            const r = getRow('SELECT status FROM finance_fiscal_years WHERE year = ?', [y]);
+            if (r && ['closed', 'archived'].includes(String(r.status))) {
+                return `Fiscal year ${y} is closed — reopen it under FINANCE TOOLS before changing its records.`;
+            }
+        } catch (e) { /* no fiscal-years table → nothing to guard */ }
+        return null;
+    }
+    function unitExists(id) {
+        if (!id) return true;
+        return !!getRow('SELECT id FROM v2_money_work_units WHERE id = ?', [id]);
+    }
+    // Next human-friendly order number within a year for a v2 table. The admin can
+    // always overtype it — this is a convenience, not an authority (and NEVER used
+    // for invoices: those numbers come from FIRA or the supplier's own document).
+    function nextOrderNumber(table, dateCol, prefix, year) {
+        const r = getRow(`SELECT COUNT(*) AS n FROM ${table} WHERE substr(${dateCol},1,4) = ?`, [String(year)]);
+        let n = ((r && r.n) || 0) + 1;
+        for (let i = 0; i < 200; i++) {
+            const cand = `${prefix}-${year}-${String(n).padStart(3, '0')}`;
+            if (!getRow(`SELECT id FROM ${table} WHERE order_number = ?`, [cand])) return cand;
+            n++;
+        }
+        return `${prefix}-${year}-${uuid().slice(0, 6)}`;
+    }
+    // CSV with UTF-8 BOM (Croatian diacritics survive Excel) + formula-injection guard.
+    const csvCell = v => {
+        let s = String(v == null ? '' : v);
+        if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+        return '"' + s.replace(/"/g, '""') + '"';
+    };
+    function sendCsv(res, filename, headers, rows) {
+        const body = '\uFEFF' + [headers.map(csvCell).join(',')]
+            .concat(rows.map(r => r.map(csvCell).join(','))).join('\r\n');
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(body);
+    }
+    const qYear = req => parseInt(req.query.year, 10) || new Date().getFullYear();
+
+    // Shared WHERE-builder for book/order lists: year on the governing date column,
+    // then optional project / work unit / person / from / to.
+    function listFilters(req, dateCol, personCol) {
+        const wh = []; const params = [];
+        const y = req.query.year ? parseInt(req.query.year, 10) : null;
+        if (y) { wh.push(`substr(${dateCol},1,4) = ?`); params.push(String(y)); }
+        if (req.query.from && isYmd(req.query.from)) { wh.push(`${dateCol} >= ?`); params.push(req.query.from); }
+        if (req.query.to && isYmd(req.query.to)) { wh.push(`${dateCol} <= ?`); params.push(req.query.to); }
+        if (req.query.project) { wh.push('project = ?'); params.push(clean(req.query.project, 60)); }
+        if (req.query.work_unit) { wh.push('work_unit_id = ?'); params.push(clean(req.query.work_unit, 60)); }
+        if (personCol && req.query.person) { wh.push(`LOWER(${personCol}) LIKE ?`); params.push('%' + clean(req.query.person, 120).toLowerCase() + '%'); }
+        return { where: wh.length ? 'WHERE ' + wh.join(' AND ') : '', params };
+    }
+    const unitJoin = t => `LEFT JOIN v2_money_work_units wu ON wu.id = ${t}.work_unit_id`;
+
+    // ================================================================== INVOICE BOOKS
+    function bookRows(req, direction) {
+        const f = listFilters(req, 'b.booking_date', 'b.party_name');
+        f.where = (f.where ? f.where + ' AND ' : 'WHERE ') + 'b.direction = ?';
+        f.params.push(direction);
+        return getAll(`SELECT b.*, wu.code AS work_unit_code, wu.name AS work_unit_name
+                       FROM v2_money_book_entries b ${unitJoin('b')}
+                       ${f.where.replace(/\bproject = \?/, 'b.project = ?').replace(/\bwork_unit_id = \?/, 'b.work_unit_id = ?')}
+                       ORDER BY b.booking_date DESC, datetime(b.created_at) DESC`, f.params);
+    }
+    // Legacy finance_invoices shown read-only inside the books so "all invoices"
+    // really is all of them (they keep living in their legacy table).
+    function legacyBookRows(direction, year) {
+        try {
+            return getAll(`SELECT i.id, i.invoice_number, i.party_name, i.party_oib, i.issue_date AS invoice_date,
+                                  i.total AS amount, NULL AS booking_date,
+                                  CASE WHEN i.fiscalized = 1 THEN 'fiskalizirani' ELSE 'nefiskalizirani' END AS vrsta,
+                                  i.paid_date AS settled_date, i.status, i.project, wu.code AS work_unit_code, wu.name AS work_unit_name
+                           FROM finance_invoices i LEFT JOIN finance_work_units wu ON wu.id = i.work_unit_id
+                           WHERE i.direction = ? AND CAST(COALESCE(i.fiscal_year, substr(COALESCE(i.issue_date, i.created_at),1,4)) AS TEXT) = ?
+                           ORDER BY COALESCE(i.issue_date, i.created_at) DESC`,
+                [direction === 'out' ? 'outgoing' : 'incoming', String(year)]);
+        } catch (e) { return []; }
+    }
+    function bookSums(rows) {
+        const s = { count: rows.length, total: 0, settled_total: 0, open_total: 0, fisk_total: 0, nefisk_total: 0, by_project: {}, by_work_unit: {} };
+        rows.forEach(r => {
+            const a = Number(r.amount) || 0;
+            s.total = num2(s.total + a);
+            if (r.settled_date) s.settled_total = num2(s.settled_total + a); else s.open_total = num2(s.open_total + a);
+            if (r.vrsta === 'fiskalizirani') s.fisk_total = num2(s.fisk_total + a);
+            if (r.vrsta === 'nefiskalizirani') s.nefisk_total = num2(s.nefisk_total + a);
+            const p = r.project || 'general'; s.by_project[p] = num2((s.by_project[p] || 0) + a);
+            const w = r.work_unit_code || '—'; s.by_work_unit[w] = num2((s.by_work_unit[w] || 0) + a);
+        });
+        return s;
+    }
+
+    app.get('/api/v2/money/book', auth, adminOnly, (req, res) => {
+        try {
+            const direction = req.query.direction === 'in' ? 'in' : 'out';
+            const rows = bookRows(req, direction);
+            const legacy = legacyBookRows(direction, qYear(req));
+            res.json({ direction, rows, sums: bookSums(rows),
+                legacy_rows: legacy, legacy_total: num2(legacy.reduce((n, r) => n + (Number(r.amount) || 0), 0)) });
+        } catch (e) { log('book list:', e.message); res.status(500).json({ error: 'The invoice book is unavailable right now.' }); }
+    });
+
+    function validateBookBody(b, direction, existing) {
+        const out = {};
+        out.invoice_number = b.invoice_number !== undefined ? clean(b.invoice_number, 60) : (existing ? existing.invoice_number : '');
+        out.party_name = b.party_name !== undefined ? clean(b.party_name, 200) : (existing ? existing.party_name : '');
+        out.party_oib = b.party_oib !== undefined ? (clean(b.party_oib, 11) || null) : (existing ? existing.party_oib : null);
+        out.invoice_date = b.invoice_date !== undefined ? String(b.invoice_date || '').slice(0, 10) : (existing ? existing.invoice_date : '');
+        out.booking_date = b.booking_date !== undefined ? String(b.booking_date || '').slice(0, 10) : (existing ? existing.booking_date : '');
+        out.amount = b.amount !== undefined ? num2(b.amount) : (existing ? existing.amount : 0);
+        out.settled_date = b.settled_date !== undefined ? (isYmd(b.settled_date) ? String(b.settled_date).slice(0, 10) : null) : (existing ? existing.settled_date : null);
+        out.work_unit_id = b.work_unit_id !== undefined ? (clean(b.work_unit_id, 60) || null) : (existing ? existing.work_unit_id : null);
+        out.project = b.project !== undefined ? (clean(b.project, 60) || 'general') : (existing ? existing.project : 'general');
+        out.notes = b.notes !== undefined ? (clean(b.notes, 500) || null) : (existing ? existing.notes : null);
+        if (direction === 'out') out.vrsta = b.vrsta !== undefined ? String(b.vrsta || '') : (existing ? existing.vrsta : '');
+        else out.vrsta = null;
+
+        if (!out.party_name) return { error: direction === 'out' ? 'Naziv kupca is required.' : 'Naziv dobavljača is required.' };
+        if (!oibOk(out.party_oib)) return { error: 'OIB must be exactly 11 digits (or left empty).' };
+        if (!isYmd(out.invoice_date)) return { error: 'Datum računa must be a date (YYYY-MM-DD).' };
+        if (!isYmd(out.booking_date)) return { error: 'Datum knjiženja must be a date (YYYY-MM-DD) — it may differ from datum računa.' };
+        if (!(out.amount > 0)) return { error: 'Iznos must be a positive amount.' };
+        if (direction === 'out' && !VRSTE.includes(out.vrsta)) return { error: "Vrsta must be 'fiskalizirani' or 'nefiskalizirani'." };
+        if (!out.invoice_number) {
+            return { error: direction === 'out' && out.vrsta === 'fiskalizirani'
+                ? 'Type the FIRA invoice number — fiscal invoices are issued only in FIRA, the portal never creates one.'
+                : 'Broj računa is required.' };
+        }
+        if (!unitExists(out.work_unit_id)) return { error: 'That radna jedinica does not exist — add it in the registry first.' };
+        return { value: out };
+    }
+
+    app.post('/api/v2/money/book', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const direction = b.direction === 'in' ? 'in' : b.direction === 'out' ? 'out' : null;
+            if (!direction) return res.status(400).json({ error: "direction must be 'out' (izlazni) or 'in' (ulazni)." });
+            const v = validateBookBody(b, direction, null);
+            if (v.error) return res.status(400).json({ error: v.error });
+            const closed = yearClosed(yearOfDate(v.value.booking_date));
+            if (closed) return res.status(409).json({ error: closed });
+            const dup = getRow('SELECT id FROM v2_money_book_entries WHERE direction = ? AND invoice_number = ?', [direction, v.value.invoice_number]);
+            if (dup) return res.status(409).json({ error: `Invoice ${v.value.invoice_number} is already in this book.` });
+            const id = uuid();
+            db().run(`INSERT INTO v2_money_book_entries (id, direction, invoice_number, party_name, party_oib, invoice_date, amount,
+                        booking_date, vrsta, settled_date, work_unit_id, project, notes, created_by, created_at, updated_at)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'), ?)`,
+                [id, direction, v.value.invoice_number, v.value.party_name, v.value.party_oib, v.value.invoice_date, v.value.amount,
+                 v.value.booking_date, v.value.vrsta, v.value.settled_date, v.value.work_unit_id, v.value.project, v.value.notes, by(req), nowIso()]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_book_entries WHERE id = ?', [id]) });
+        } catch (e) { log('book add:', e.message); res.status(500).json({ error: 'Could not save the book entry.' }); }
+    });
+
+    app.put('/api/v2/money/book/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_book_entries WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Book entry not found.' });
+            const v = validateBookBody(req.body || {}, row.direction, row);
+            if (v.error) return res.status(400).json({ error: v.error });
+            const closed = yearClosed(yearOfDate(row.booking_date)) || yearClosed(yearOfDate(v.value.booking_date));
+            if (closed) return res.status(409).json({ error: closed });
+            db().run(`UPDATE v2_money_book_entries SET invoice_number=?, party_name=?, party_oib=?, invoice_date=?, amount=?,
+                        booking_date=?, vrsta=?, settled_date=?, work_unit_id=?, project=?, notes=?, updated_at=? WHERE id=?`,
+                [v.value.invoice_number, v.value.party_name, v.value.party_oib, v.value.invoice_date, v.value.amount,
+                 v.value.booking_date, v.value.vrsta, v.value.settled_date, v.value.work_unit_id, v.value.project, v.value.notes, nowIso(), row.id]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_book_entries WHERE id = ?', [row.id]) });
+        } catch (e) { log('book edit:', e.message); res.status(500).json({ error: 'Could not save the book entry.' }); }
+    });
+
+    app.delete('/api/v2/money/book/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_book_entries WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Book entry not found.' });
+            const closed = yearClosed(yearOfDate(row.booking_date));
+            if (closed) return res.status(409).json({ error: closed });
+            db().run('DELETE FROM v2_money_book_entries WHERE id = ?', [row.id]);
+            persist();
+            res.json({ success: true, removed: row });
+        } catch (e) { log('book delete:', e.message); res.status(500).json({ error: 'Could not remove the book entry.' }); }
+    });
+
+    // ================================================================== TRAVEL ORDERS (putni nalozi)
+    app.get('/api/v2/money/travel-orders', auth, adminOnly, (req, res) => {
+        try {
+            const f = listFilters(req, 't.travel_date', 't.traveler_name');
+            const rows = getAll(`SELECT t.*, wu.code AS work_unit_code, wu.name AS work_unit_name
+                                 FROM v2_money_travel_orders t ${unitJoin('t')}
+                                 ${f.where.replace(/\bproject = \?/, 't.project = ?').replace(/\bwork_unit_id = \?/, 't.work_unit_id = ?')}
+                                 ORDER BY t.travel_date DESC, datetime(t.created_at) DESC`, f.params);
+            res.json({ rows, sums: { count: rows.length, total: num2(rows.reduce((n, r) => n + (Number(r.total_cost) || 0), 0)) } });
+        } catch (e) { log('travel list:', e.message); res.status(500).json({ error: 'Travel orders are unavailable right now.' }); }
+    });
+
+    function validateTravelBody(b, existing) {
+        const out = {};
+        out.order_number = b.order_number !== undefined ? clean(b.order_number, 60) : (existing ? existing.order_number : '');
+        out.traveler_name = b.traveler_name !== undefined ? clean(b.traveler_name, 160) : (existing ? existing.traveler_name : '');
+        out.travel_date = b.travel_date !== undefined ? String(b.travel_date || '').slice(0, 10) : (existing ? existing.travel_date : '');
+        out.destination = b.destination !== undefined ? clean(b.destination, 200) : (existing ? existing.destination : '');
+        out.purpose = b.purpose !== undefined ? (clean(b.purpose, 300) || null) : (existing ? existing.purpose : null);
+        out.total_cost = b.total_cost !== undefined ? num2(b.total_cost) : (existing ? existing.total_cost : 0);
+        out.opened_date = b.opened_date !== undefined ? (isYmd(b.opened_date) ? String(b.opened_date).slice(0, 10) : todayYmd()) : (existing ? existing.opened_date : todayYmd());
+        out.work_unit_id = b.work_unit_id !== undefined ? (clean(b.work_unit_id, 60) || null) : (existing ? existing.work_unit_id : null);
+        out.project = b.project !== undefined ? (clean(b.project, 60) || 'general') : (existing ? existing.project : 'general');
+        out.notes = b.notes !== undefined ? (clean(b.notes, 500) || null) : (existing ? existing.notes : null);
+        if (!out.traveler_name) return { error: 'Ime i prezime is required.' };
+        if (!isYmd(out.travel_date)) return { error: 'Datum putovanja must be a date (YYYY-MM-DD).' };
+        if (!out.destination) return { error: 'Odredište is required.' };
+        if (!(out.total_cost >= 0)) return { error: 'Ukupan trošak cannot be negative.' };
+        if (!unitExists(out.work_unit_id)) return { error: 'That radna jedinica does not exist — add it in the registry first.' };
+        return { value: out };
+    }
+
+    app.post('/api/v2/money/travel-orders', auth, adminOnly, (req, res) => {
+        try {
+            const v = validateTravelBody(req.body || {}, null);
+            if (v.error) return res.status(400).json({ error: v.error });
+            const closed = yearClosed(yearOfDate(v.value.travel_date));
+            if (closed) return res.status(409).json({ error: closed });
+            if (!v.value.order_number) v.value.order_number = nextOrderNumber('v2_money_travel_orders', 'travel_date', 'PUT', yearOfDate(v.value.travel_date));
+            const id = uuid();
+            db().run(`INSERT INTO v2_money_travel_orders (id, order_number, traveler_name, travel_date, destination, purpose,
+                        total_cost, opened_date, work_unit_id, project, notes, created_by, created_at, updated_at)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'), ?)`,
+                [id, v.value.order_number, v.value.traveler_name, v.value.travel_date, v.value.destination, v.value.purpose,
+                 v.value.total_cost, v.value.opened_date, v.value.work_unit_id, v.value.project, v.value.notes, by(req), nowIso()]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_travel_orders WHERE id = ?', [id]) });
+        } catch (e) { log('travel add:', e.message); res.status(500).json({ error: 'Could not save the travel order.' }); }
+    });
+
+    app.put('/api/v2/money/travel-orders/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_travel_orders WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Travel order not found.' });
+            const v = validateTravelBody(req.body || {}, row);
+            if (v.error) return res.status(400).json({ error: v.error });
+            const closed = yearClosed(yearOfDate(row.travel_date)) || yearClosed(yearOfDate(v.value.travel_date));
+            if (closed) return res.status(409).json({ error: closed });
+            if (!v.value.order_number) v.value.order_number = row.order_number;
+            db().run(`UPDATE v2_money_travel_orders SET order_number=?, traveler_name=?, travel_date=?, destination=?, purpose=?,
+                        total_cost=?, opened_date=?, work_unit_id=?, project=?, notes=?, updated_at=? WHERE id=?`,
+                [v.value.order_number, v.value.traveler_name, v.value.travel_date, v.value.destination, v.value.purpose,
+                 v.value.total_cost, v.value.opened_date, v.value.work_unit_id, v.value.project, v.value.notes, nowIso(), row.id]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_travel_orders WHERE id = ?', [row.id]) });
+        } catch (e) { log('travel edit:', e.message); res.status(500).json({ error: 'Could not save the travel order.' }); }
+    });
+
+    app.delete('/api/v2/money/travel-orders/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_travel_orders WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Travel order not found.' });
+            const closed = yearClosed(yearOfDate(row.travel_date));
+            if (closed) return res.status(409).json({ error: closed });
+            db().run('DELETE FROM v2_money_travel_orders WHERE id = ?', [row.id]);
+            persist();
+            res.json({ success: true, removed: row });
+        } catch (e) { log('travel delete:', e.message); res.status(500).json({ error: 'Could not remove the travel order.' }); }
+    });
+
+    // ================================================================== PAYMENT ORDERS (nalozi za plaćanje)
+    app.get('/api/v2/money/payment-orders', auth, adminOnly, (req, res) => {
+        try {
+            const f = listFilters(req, 'p.order_date', 'p.recipient_name');
+            const rows = getAll(`SELECT p.*, wu.code AS work_unit_code, wu.name AS work_unit_name
+                                 FROM v2_money_payment_orders p ${unitJoin('p')}
+                                 ${f.where.replace(/\bproject = \?/, 'p.project = ?').replace(/\bwork_unit_id = \?/, 'p.work_unit_id = ?')}
+                                 ORDER BY p.order_date DESC, datetime(p.created_at) DESC`, f.params);
+            res.json({ rows, sums: { count: rows.length, total: num2(rows.reduce((n, r) => n + (Number(r.amount) || 0), 0)) } });
+        } catch (e) { log('payment list:', e.message); res.status(500).json({ error: 'Payment orders are unavailable right now.' }); }
+    });
+
+    function validatePaymentBody(b, existing) {
+        const out = {};
+        out.order_number = b.order_number !== undefined ? clean(b.order_number, 60) : (existing ? existing.order_number : '');
+        out.recipient_name = b.recipient_name !== undefined ? clean(b.recipient_name, 200) : (existing ? existing.recipient_name : '');
+        out.description = b.description !== undefined ? (clean(b.description, 300) || null) : (existing ? existing.description : null);
+        out.amount = b.amount !== undefined ? num2(b.amount) : (existing ? existing.amount : 0);
+        out.order_date = b.order_date !== undefined ? String(b.order_date || '').slice(0, 10) : (existing ? existing.order_date : todayYmd());
+        out.work_unit_id = b.work_unit_id !== undefined ? (clean(b.work_unit_id, 60) || null) : (existing ? existing.work_unit_id : null);
+        out.project = b.project !== undefined ? (clean(b.project, 60) || 'general') : (existing ? existing.project : 'general');
+        out.notes = b.notes !== undefined ? (clean(b.notes, 500) || null) : (existing ? existing.notes : null);
+        if (!out.recipient_name) return { error: 'The recipient name is required.' };
+        if (!(out.amount > 0)) return { error: 'Iznos must be a positive amount.' };
+        if (!isYmd(out.order_date)) return { error: 'Datum naloga must be a date (YYYY-MM-DD).' };
+        if (!unitExists(out.work_unit_id)) return { error: 'That radna jedinica does not exist — add it in the registry first.' };
+        return { value: out };
+    }
+
+    app.post('/api/v2/money/payment-orders', auth, adminOnly, (req, res) => {
+        try {
+            const v = validatePaymentBody(req.body || {}, null);
+            if (v.error) return res.status(400).json({ error: v.error });
+            const closed = yearClosed(yearOfDate(v.value.order_date));
+            if (closed) return res.status(409).json({ error: closed });
+            if (!v.value.order_number) v.value.order_number = nextOrderNumber('v2_money_payment_orders', 'order_date', 'PN', yearOfDate(v.value.order_date));
+            const id = uuid();
+            db().run(`INSERT INTO v2_money_payment_orders (id, order_number, recipient_name, description, amount, order_date,
+                        work_unit_id, project, notes, created_by, created_at, updated_at)
+                      VALUES (?,?,?,?,?,?,?,?,?,?, datetime('now'), ?)`,
+                [id, v.value.order_number, v.value.recipient_name, v.value.description, v.value.amount, v.value.order_date,
+                 v.value.work_unit_id, v.value.project, v.value.notes, by(req), nowIso()]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_payment_orders WHERE id = ?', [id]) });
+        } catch (e) { log('payment add:', e.message); res.status(500).json({ error: 'Could not save the payment order.' }); }
+    });
+
+    app.put('/api/v2/money/payment-orders/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_payment_orders WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Payment order not found.' });
+            const v = validatePaymentBody(req.body || {}, row);
+            if (v.error) return res.status(400).json({ error: v.error });
+            const closed = yearClosed(yearOfDate(row.order_date)) || yearClosed(yearOfDate(v.value.order_date));
+            if (closed) return res.status(409).json({ error: closed });
+            if (!v.value.order_number) v.value.order_number = row.order_number;
+            db().run(`UPDATE v2_money_payment_orders SET order_number=?, recipient_name=?, description=?, amount=?, order_date=?,
+                        work_unit_id=?, project=?, notes=?, updated_at=? WHERE id=?`,
+                [v.value.order_number, v.value.recipient_name, v.value.description, v.value.amount, v.value.order_date,
+                 v.value.work_unit_id, v.value.project, v.value.notes, nowIso(), row.id]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_payment_orders WHERE id = ?', [row.id]) });
+        } catch (e) { log('payment edit:', e.message); res.status(500).json({ error: 'Could not save the payment order.' }); }
+    });
+
+    app.delete('/api/v2/money/payment-orders/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_payment_orders WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Payment order not found.' });
+            const closed = yearClosed(yearOfDate(row.order_date));
+            if (closed) return res.status(409).json({ error: closed });
+            db().run('DELETE FROM v2_money_payment_orders WHERE id = ?', [row.id]);
+            persist();
+            res.json({ success: true, removed: row });
+        } catch (e) { log('payment delete:', e.message); res.status(500).json({ error: 'Could not remove the payment order.' }); }
+    });
+
+    // ================================================================== WORK UNITS (radne jedinice)
+    function unitYearNumbers(unitId, year) {
+        const y = String(year);
+        const prihod = (getRow(`SELECT COALESCE(SUM(amount),0) AS n FROM v2_money_book_entries WHERE direction='out' AND work_unit_id = ? AND substr(booking_date,1,4) = ?`, [unitId, y]) || {}).n || 0;
+        const rashodIn = (getRow(`SELECT COALESCE(SUM(amount),0) AS n FROM v2_money_book_entries WHERE direction='in' AND work_unit_id = ? AND substr(booking_date,1,4) = ?`, [unitId, y]) || {}).n || 0;
+        const rashodTravel = (getRow(`SELECT COALESCE(SUM(total_cost),0) AS n FROM v2_money_travel_orders WHERE work_unit_id = ? AND substr(travel_date,1,4) = ?`, [unitId, y]) || {}).n || 0;
+        return { prihod: num2(prihod), rashod: num2(rashodIn + rashodTravel) };
+    }
+
+    app.get('/api/v2/money/work-units', auth, adminOnly, (req, res) => {
+        try {
+            const year = qYear(req);
+            const rows = getAll('SELECT * FROM v2_money_work_units ORDER BY active DESC, code').map(u => {
+                const n = unitYearNumbers(u.id, year);
+                return { ...u, year, prihod: n.prihod, rashod: n.rashod,
+                    konacno: num2((Number(u.carryover_prev) || 0) + n.prihod - n.rashod) };
+            });
+            res.json({ rows, year });
+        } catch (e) { log('units list:', e.message); res.status(500).json({ error: 'The work-unit registry is unavailable right now.' }); }
+    });
+
+    app.post('/api/v2/money/work-units', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const code = clean(b.code, 40), name = clean(b.name, 160);
+            if (!code) return res.status(400).json({ error: 'Šifra radne jedinice is required.' });
+            if (!name) return res.status(400).json({ error: 'Naziv radne jedinice is required.' });
+            if (getRow('SELECT id FROM v2_money_work_units WHERE LOWER(code) = ?', [code.toLowerCase()]))
+                return res.status(409).json({ error: `A work unit with šifra ${code} already exists.` });
+            const id = uuid();
+            db().run(`INSERT INTO v2_money_work_units (id, code, name, description, carryover_prev, active, created_by, created_at, updated_at)
+                      VALUES (?,?,?,?,?,1,?, datetime('now'), ?)`,
+                [id, code, name, clean(b.description, 400) || null, num2(b.carryover_prev), by(req), nowIso()]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_work_units WHERE id = ?', [id]) });
+        } catch (e) { log('unit add:', e.message); res.status(500).json({ error: 'Could not save the work unit.' }); }
+    });
+
+    app.put('/api/v2/money/work-units/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_work_units WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Work unit not found.' });
+            const b = req.body || {};
+            const code = b.code !== undefined ? clean(b.code, 40) : row.code;
+            const name = b.name !== undefined ? clean(b.name, 160) : row.name;
+            if (!code || !name) return res.status(400).json({ error: 'A work unit needs both šifra and naziv.' });
+            const dup = getRow('SELECT id FROM v2_money_work_units WHERE LOWER(code) = ? AND id != ?', [code.toLowerCase(), row.id]);
+            if (dup) return res.status(409).json({ error: `A work unit with šifra ${code} already exists.` });
+            db().run(`UPDATE v2_money_work_units SET code=?, name=?, description=?, carryover_prev=?, active=?, updated_at=? WHERE id=?`,
+                [code, name,
+                 b.description !== undefined ? (clean(b.description, 400) || null) : row.description,
+                 b.carryover_prev !== undefined ? num2(b.carryover_prev) : row.carryover_prev,
+                 b.active !== undefined ? (b.active ? 1 : 0) : row.active,
+                 nowIso(), row.id]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_work_units WHERE id = ?', [row.id]) });
+        } catch (e) { log('unit edit:', e.message); res.status(500).json({ error: 'Could not save the work unit.' }); }
+    });
+
+    app.delete('/api/v2/money/work-units/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_work_units WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Work unit not found.' });
+            const used = ['v2_money_book_entries', 'v2_money_travel_orders', 'v2_money_payment_orders', 'v2_money_expected_income']
+                .some(t => getRow(`SELECT id FROM ${t} WHERE work_unit_id = ? LIMIT 1`, [row.id]));
+            if (used) return res.status(409).json({ error: 'Rows are booked on this work unit — reassign them first (or leave the unit and mark it inactive).' });
+            db().run('DELETE FROM v2_money_work_units WHERE id = ?', [row.id]);
+            persist();
+            res.json({ success: true, removed: row });
+        } catch (e) { log('unit delete:', e.message); res.status(500).json({ error: 'Could not remove the work unit.' }); }
+    });
+
+    // ================================================================== EXPECTED INCOME (owed to us, entered by hand)
+    app.get('/api/v2/money/expected', auth, adminOnly, (req, res) => {
+        try {
+            const rows = getAll(`SELECT x.*, wu.code AS work_unit_code, wu.name AS work_unit_name
+                                 FROM v2_money_expected_income x ${unitJoin('x')}
+                                 ORDER BY (x.status != 'open'), COALESCE(x.expected_date, x.created_at) ASC`);
+            const open = rows.filter(r => r.status === 'open');
+            res.json({ rows, sums: { open_count: open.length, open_total: num2(open.reduce((n, r) => n + (Number(r.amount) || 0), 0)) } });
+        } catch (e) { log('expected list:', e.message); res.status(500).json({ error: 'Expected income is unavailable right now.' }); }
+    });
+
+    app.post('/api/v2/money/expected', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const source = clean(b.source, 200);
+            const amount = num2(b.amount);
+            if (!source) return res.status(400).json({ error: 'Who owes us? Name the source (e.g. MZO — natječaj).' });
+            if (!(amount > 0)) return res.status(400).json({ error: 'The expected amount must be positive.' });
+            if (b.work_unit_id && !unitExists(clean(b.work_unit_id, 60))) return res.status(400).json({ error: 'That radna jedinica does not exist.' });
+            const id = uuid();
+            db().run(`INSERT INTO v2_money_expected_income (id, source, description, amount, expected_date, project, work_unit_id, status, notes, created_by, created_at, updated_at)
+                      VALUES (?,?,?,?,?,?,?, 'open', ?, ?, datetime('now'), ?)`,
+                [id, source, clean(b.description, 400) || null, amount,
+                 isYmd(b.expected_date) ? String(b.expected_date).slice(0, 10) : null,
+                 clean(b.project, 60) || 'general', clean(b.work_unit_id, 60) || null,
+                 clean(b.notes, 500) || null, by(req), nowIso()]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_expected_income WHERE id = ?', [id]) });
+        } catch (e) { log('expected add:', e.message); res.status(500).json({ error: 'Could not record the expected income.' }); }
+    });
+
+    app.put('/api/v2/money/expected/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_expected_income WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Expected-income row not found.' });
+            const b = req.body || {};
+            const source = b.source !== undefined ? clean(b.source, 200) : row.source;
+            const amount = b.amount !== undefined ? num2(b.amount) : row.amount;
+            if (!source) return res.status(400).json({ error: 'The source needs a name.' });
+            if (!(amount > 0)) return res.status(400).json({ error: 'The amount must stay positive.' });
+            let status = row.status, received = row.received_date;
+            if (b.status !== undefined) {
+                if (!['open', 'received', 'cancelled'].includes(b.status)) return res.status(400).json({ error: 'Unknown status.' });
+                status = b.status;
+                if (status !== 'received') received = null;
+            }
+            if (b.work_unit_id !== undefined && b.work_unit_id && !unitExists(clean(b.work_unit_id, 60))) return res.status(400).json({ error: 'That radna jedinica does not exist.' });
+            db().run(`UPDATE v2_money_expected_income SET source=?, description=?, amount=?, expected_date=?, project=?, work_unit_id=?, status=?, received_date=?, notes=?, updated_at=? WHERE id=?`,
+                [source,
+                 b.description !== undefined ? (clean(b.description, 400) || null) : row.description,
+                 amount,
+                 b.expected_date !== undefined ? (isYmd(b.expected_date) ? String(b.expected_date).slice(0, 10) : null) : row.expected_date,
+                 b.project !== undefined ? (clean(b.project, 60) || 'general') : row.project,
+                 b.work_unit_id !== undefined ? (clean(b.work_unit_id, 60) || null) : row.work_unit_id,
+                 status, received,
+                 b.notes !== undefined ? (clean(b.notes, 500) || null) : row.notes,
+                 nowIso(), row.id]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_expected_income WHERE id = ?', [row.id]) });
+        } catch (e) { log('expected edit:', e.message); res.status(500).json({ error: 'Could not save the row.' }); }
+    });
+
+    app.post('/api/v2/money/expected/:id/receive', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_expected_income WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Expected-income row not found.' });
+            if (row.status === 'received') return res.status(409).json({ error: 'Already marked received.' });
+            const when = isYmd((req.body || {}).received_date) ? String(req.body.received_date).slice(0, 10) : todayYmd();
+            db().run(`UPDATE v2_money_expected_income SET status='received', received_date=?, updated_at=? WHERE id=?`, [when, nowIso(), row.id]);
+            persist();
+            res.json({ success: true, row: getRow('SELECT * FROM v2_money_expected_income WHERE id = ?', [row.id]) });
+        } catch (e) { log('expected receive:', e.message); res.status(500).json({ error: 'Could not mark the row received.' }); }
+    });
+
+    app.delete('/api/v2/money/expected/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow('SELECT * FROM v2_money_expected_income WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Expected-income row not found.' });
+            db().run('DELETE FROM v2_money_expected_income WHERE id = ?', [row.id]);
+            persist();
+            res.json({ success: true, removed: row });
+        } catch (e) { log('expected delete:', e.message); res.status(500).json({ error: 'Could not remove the row.' }); }
+    });
+
+    // ================================================================== SUMMARY (the header tiles + recent money in)
+    function galaPriceByClock() {
+        let gs = {};
+        try { gs = getRow("SELECT price_gala_early_bird, price_gala_regular, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {}; } catch (e) {}
+        const early = Number(gs.price_gala_early_bird) || 150;
+        const regular = Number(gs.price_gala_regular) || 175;
+        const deadline = String(gs.early_bird_deadline || '2026-12-04').slice(0, 10);
+        return todayYmd() <= deadline ? early : regular;
+    }
+    const sumRow = (sql, params) => { try { return (getRow(sql, params) || {}); } catch (e) { return {}; } };
+
+    function moneySummary(year) {
+        const y = String(year);
+
+        // -- legacy ledger (the canonical "money moved" table every payment flow books into)
+        const legIn = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM finance_transactions
+                              WHERE transaction_type='income' AND fiscal_year = ? AND COALESCE(status,'completed') != 'draft'`, [year]);
+        const legEx = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM finance_transactions
+                              WHERE transaction_type='expense' AND fiscal_year = ? AND COALESCE(status,'completed') != 'draft'`, [year]);
+
+        // -- paid gala seats that never reached the ledger (webhook books by reference = invoice number)
+        const galaUnbooked = sumRow(`SELECT COALESCE(SUM(amount_paid),0) AS t, COUNT(*) AS c FROM gala_registrations g
+                                     WHERE g.payment_status = 'paid' AND COALESCE(g.amount_paid,0) > 0
+                                       AND (g.invoice_number IS NULL OR g.invoice_number NOT IN
+                                            (SELECT reference FROM finance_transactions WHERE reference IS NOT NULL))`, []);
+
+        // -- v2 books (booking year); collected outgoing rows deduped against ledger references
+        const bookOutCollected = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM v2_money_book_entries b
+                                         WHERE b.direction='out' AND substr(b.booking_date,1,4) = ? AND b.settled_date IS NOT NULL
+                                           AND b.invoice_number NOT IN (SELECT reference FROM finance_transactions WHERE reference IS NOT NULL)`, [y]);
+        const bookOutOpen = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM v2_money_book_entries
+                                    WHERE direction='out' AND substr(booking_date,1,4) = ? AND settled_date IS NULL`, [y]);
+        const bookIn = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM v2_money_book_entries
+                               WHERE direction='in' AND substr(booking_date,1,4) = ?`, [y]);
+
+        // -- v2 travel + payment orders
+        const travel = sumRow(`SELECT COALESCE(SUM(total_cost),0) AS t, COUNT(*) AS c FROM v2_money_travel_orders WHERE substr(travel_date,1,4) = ?`, [y]);
+        const payOrders = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM v2_money_payment_orders WHERE substr(order_date,1,4) = ?`, [y]);
+
+        // -- expected income (manual receivables — e.g. an awarded MZO grant not yet paid out)
+        const expOpen = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM v2_money_expected_income WHERE status='open'`, []);
+        const expReceived = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM v2_money_expected_income
+                                    WHERE status='received' AND substr(COALESCE(received_date,''),1,4) = ?`, [y]);
+
+        // -- sponsor & donor ledger (card lives with its project now; the money still counts here)
+        const ledgerPaid = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM v2_sponsor_ledger
+                                   WHERE status IN ('paid','thanked') AND substr(COALESCE(paid_at,''),1,4) = ?`, [y]);
+        const ledgerInvoiced = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM v2_sponsor_ledger WHERE status='invoiced'`, []);
+
+        // -- unpaid gala seats at today's price + legacy invoices still open
+        const galaUnpaid = sumRow(`SELECT COUNT(*) AS c FROM gala_registrations
+                                   WHERE payment_status != 'paid' AND COALESCE(status,'') NOT IN ('rejected','cancelled')`, []);
+        const price = galaPriceByClock();
+        const legacyInvOpen = sumRow(`SELECT COALESCE(SUM(total),0) AS t, COUNT(*) AS c FROM finance_invoices
+                                      WHERE direction='outgoing' AND status IN ('issued','sent') AND fiscal_year = ?`, [year]);
+
+        const src = (key, label, amount, count) => ({ key, label, amount: num2(amount || 0), count: count || 0 });
+        const collectedSources = [
+            src('legacy_tx', 'Booked income (ledger — Stripe, bank, mark-paid)', legIn.t, legIn.c),
+            src('gala_unbooked', 'Gala seats paid, not yet in the ledger', galaUnbooked.t, galaUnbooked.c),
+            src('book_out', 'Izlazni računi — naplaćeni (book rows)', bookOutCollected.t, bookOutCollected.c),
+            src('expected', 'Expected income received (MZO & friends)', expReceived.t, expReceived.c),
+            src('sponsor_ledger', 'Sponsors & donors paid', ledgerPaid.t, ledgerPaid.c)
+        ].filter(s => s.amount > 0 || s.key === 'legacy_tx');
+        const spentSources = [
+            src('legacy_tx', 'Booked expenses (ledger)', legEx.t, legEx.c),
+            src('book_in', 'Ulazni računi (book rows)', bookIn.t, bookIn.c),
+            src('travel', 'Putni nalozi', travel.t, travel.c)
+        ].filter(s => s.amount > 0 || s.key === 'legacy_tx');
+        const owedSources = [
+            src('expected', 'Expected income — entered by hand', expOpen.t, expOpen.c),
+            src('gala_unpaid', `Reserved Gala seats × ${price} €`, (galaUnpaid.c || 0) * price, galaUnpaid.c),
+            src('book_out_open', 'Izlazni računi — nenaplaćeni', bookOutOpen.t, bookOutOpen.c),
+            src('legacy_invoices', 'Legacy invoices still open', legacyInvOpen.t, legacyInvOpen.c),
+            src('sponsor_ledger', 'Sponsor pledges at invoiced', ledgerInvoiced.t, ledgerInvoiced.c)
+        ].filter(s => s.amount > 0);
+
+        const total = list => num2(list.reduce((n, s) => n + s.amount, 0));
+
+        // -- RECENT MONEY IN: every source, one stream (same dedup as the tile)
+        const recent = [];
+        try {
+            getAll(`SELECT date, description, amount, category, payment_method FROM finance_transactions
+                    WHERE transaction_type='income' AND fiscal_year = ? AND COALESCE(status,'completed') != 'draft'
+                    ORDER BY date DESC, datetime(created_at) DESC LIMIT 40`, [year])
+                .forEach(r => recent.push({ date: r.date, label: r.description || 'Income', amount: num2(r.amount),
+                    source: /card|stripe/i.test(r.payment_method || '') ? 'CARD' : /gala/.test(r.category || '') ? 'GALA' : /conference/.test(r.category || '') ? 'PLEXUS' : 'BANK' }));
+        } catch (e) {}
+        getAll(`SELECT b.settled_date AS date, b.party_name, b.invoice_number, b.amount FROM v2_money_book_entries b
+                WHERE b.direction='out' AND b.settled_date IS NOT NULL AND substr(b.booking_date,1,4) = ?
+                  AND b.invoice_number NOT IN (SELECT reference FROM finance_transactions WHERE reference IS NOT NULL)
+                ORDER BY b.settled_date DESC LIMIT 20`, [y])
+            .forEach(r => recent.push({ date: r.date, label: `${r.party_name} — račun ${r.invoice_number}`, amount: num2(r.amount), source: 'RAČUN' }));
+        try {
+            getAll(`SELECT substr(g.created_at,1,10) AS date, g.first_name, g.last_name, g.amount_paid FROM gala_registrations g
+                    WHERE g.payment_status = 'paid' AND COALESCE(g.amount_paid,0) > 0
+                      AND (g.invoice_number IS NULL OR g.invoice_number NOT IN
+                           (SELECT reference FROM finance_transactions WHERE reference IS NOT NULL))
+                    ORDER BY g.created_at DESC LIMIT 20`, [])
+                .forEach(r => recent.push({ date: r.date, label: `Gala Evening — ${[r.first_name, r.last_name].filter(Boolean).join(' ')}`, amount: num2(r.amount_paid), source: 'GALA' }));
+        } catch (e) {}
+        getAll(`SELECT received_date AS date, source, description, amount FROM v2_money_expected_income
+                WHERE status='received' AND substr(COALESCE(received_date,''),1,4) = ? ORDER BY received_date DESC LIMIT 20`, [y])
+            .forEach(r => recent.push({ date: r.date, label: r.source + (r.description ? ' — ' + r.description : ''), amount: num2(r.amount), source: 'GRANT' }));
+        try {
+            getAll(`SELECT substr(COALESCE(paid_at,''),1,10) AS date, party, amount FROM v2_sponsor_ledger
+                    WHERE status IN ('paid','thanked') AND substr(COALESCE(paid_at,''),1,4) = ? ORDER BY paid_at DESC LIMIT 20`, [y])
+                .forEach(r => recent.push({ date: r.date, label: r.party + ' — sponsorship/donation', amount: num2(r.amount), source: 'SPONSOR' }));
+        } catch (e) {}
+        recent.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+
+        return {
+            year,
+            collected: { total: total(collectedSources), sources: collectedSources },
+            spent: { total: total(spentSources), sources: spentSources },
+            owed: { total: total(owedSources), sources: owedSources },
+            payment_orders: { total: num2(payOrders.t), count: payOrders.c || 0 },
+            gala: { unpaid_count: galaUnpaid.c || 0, price },
+            recent_in: recent.slice(0, 25)
+        };
+    }
+
+    app.get('/api/v2/money/summary', auth, adminOnly, (req, res) => {
+        try { res.json(moneySummary(qYear(req))); }
+        catch (e) { log('summary:', e.message); res.status(500).json({ error: 'The money summary is unavailable right now.' }); }
+    });
+
+    // ================================================================== REPORTS (by project · work unit · person · date range)
+    // One consistent composition: prihod = izlazni računi (booked) + expected received;
+    // rashod = ulazni računi + putni nalozi. Payment orders stay out of the sums (they
+    // usually execute an incoming invoice) — export them from their own list instead.
+    function reportDetailRows(req) {
+        const rows = [];
+        const push = (set, r, kind, amount, person, date) => rows.push({
+            set, kind, amount: num2(amount), person: person || '',
+            date: date || '', number: r.invoice_number || r.order_number || '',
+            name: r.party_name || r.traveler_name || r.recipient_name || r.source || '',
+            description: r.description || r.purpose || r.notes || '',
+            project: r.project || 'general',
+            work_unit: r.work_unit_code ? `${r.work_unit_code} ${r.work_unit_name || ''}`.trim() : ''
+        });
+        bookRows(req, 'out').forEach(r => push('izlazni-racun', r, 'income', r.amount, r.party_name, r.booking_date));
+        bookRows(req, 'in').forEach(r => push('ulazni-racun', r, 'expense', r.amount, r.party_name, r.booking_date));
+        {
+            const f = listFilters(req, 't.travel_date', 't.traveler_name');
+            getAll(`SELECT t.*, wu.code AS work_unit_code, wu.name AS work_unit_name FROM v2_money_travel_orders t ${unitJoin('t')} ${f.where}`, f.params)
+                .forEach(r => push('putni-nalog', r, 'expense', r.total_cost, r.traveler_name, r.travel_date));
+        }
+        {
+            const f = listFilters(req, "COALESCE(x.received_date, x.expected_date, substr(x.created_at,1,10))", 'x.source');
+            getAll(`SELECT x.*, wu.code AS work_unit_code, wu.name AS work_unit_name FROM v2_money_expected_income x ${unitJoin('x')}
+                    ${f.where ? f.where + ' AND ' : 'WHERE '} x.status = 'received'`, f.params)
+                .forEach(r => push('ocekivana-uplata', r, 'income', r.amount, r.source, r.received_date));
+        }
+        return rows;
+    }
+    function reportGroups(req, group) {
+        const rows = reportDetailRows(req);
+        const groups = {};
+        const keyOf = r => group === 'work_unit' ? (r.work_unit || '— bez radne jedinice —')
+                        : group === 'person' ? (r.person || '— bez osobe —')
+                        : (r.project || 'general');
+        rows.forEach(r => {
+            const k = keyOf(r);
+            const g = groups[k] || (groups[k] = { key: k, label: k, income: 0, expense: 0, items: 0 });
+            if (r.kind === 'income') g.income = num2(g.income + r.amount); else g.expense = num2(g.expense + r.amount);
+            g.items++;
+        });
+        // by-project reports also fold in the legacy ledger so they reconcile with the tiles
+        if (group === 'project' && !req.query.from && !req.query.to && !req.query.work_unit && !req.query.person) {
+            try {
+                getAll(`SELECT project, transaction_type, COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM finance_transactions
+                        WHERE fiscal_year = ? AND COALESCE(status,'completed') != 'draft' GROUP BY project, transaction_type`, [qYear(req)])
+                    .forEach(r => {
+                        const k = r.project || 'general';
+                        const g = groups[k] || (groups[k] = { key: k, label: k, income: 0, expense: 0, items: 0 });
+                        if (r.transaction_type === 'income') g.income = num2(g.income + r.t); else g.expense = num2(g.expense + r.t);
+                        g.items += r.c; g.includes_legacy = true;
+                    });
+            } catch (e) {}
+        }
+        const list = Object.values(groups).map(g => ({ ...g, net: num2(g.income - g.expense) }))
+            .sort((a, b) => (b.income + b.expense) - (a.income + a.expense));
+        return { group, rows: list,
+            totals: { income: num2(list.reduce((n, g) => n + g.income, 0)), expense: num2(list.reduce((n, g) => n + g.expense, 0)),
+                      net: num2(list.reduce((n, g) => n + g.net, 0)), items: list.reduce((n, g) => n + g.items, 0) } };
+    }
+
+    app.get('/api/v2/money/report', auth, adminOnly, (req, res) => {
+        try {
+            const group = ['project', 'work_unit', 'person'].includes(req.query.group) ? req.query.group : 'project';
+            res.json(reportGroups(req, group));
+        } catch (e) { log('report:', e.message); res.status(500).json({ error: 'The report is unavailable right now.' }); }
+    });
+
+    // ================================================================== CSV EXPORTS (always the FILTERED set)
+    const unitLabel = r => r.work_unit_code ? `${r.work_unit_code} ${r.work_unit_name || ''}`.trim() : '';
+    app.get('/api/v2/money/export.csv', auth, adminOnly, (req, res) => {
+        try {
+            const set = String(req.query.set || '');
+            const year = qYear(req);
+            if (set === 'book_out' || set === 'book_in') {
+                const dir = set === 'book_out' ? 'out' : 'in';
+                const rows = bookRows(req, dir);
+                const legacy = String(req.query.include_legacy || '') === '1' ? legacyBookRows(dir, year) : [];
+                const partyH = dir === 'out' ? 'Naziv kupca' : 'Naziv dobavljača';
+                const oibH = dir === 'out' ? 'OIB kupca' : 'OIB dobavljača';
+                const settledH = dir === 'out' ? 'Datum naplate' : 'Datum plaćanja';
+                const headers = ['Broj računa', partyH, oibH, 'Datum računa', 'Iznos (EUR)', 'Datum knjiženja']
+                    .concat(dir === 'out' ? ['Vrsta'] : []).concat([settledH, 'Radna jedinica', 'Projekt', 'Napomena', 'Izvor']);
+                const data = rows.map(r => [r.invoice_number, r.party_name, r.party_oib || '', r.invoice_date, r.amount, r.booking_date]
+                        .concat(dir === 'out' ? [r.vrsta || ''] : []).concat([r.settled_date || '', unitLabel(r), r.project || '', r.notes || '', 'knjiga']))
+                    .concat(legacy.map(r => [r.invoice_number || '', r.party_name || '', r.party_oib || '', r.invoice_date || '', r.amount, '']
+                        .concat(dir === 'out' ? [r.vrsta || ''] : []).concat([r.settled_date || '', unitLabel(r), r.project || '', r.status || '', 'legacy'])));
+                return sendCsv(res, `medx-${dir === 'out' ? 'izlazni' : 'ulazni'}-racuni-${year}.csv`, headers, data);
+            }
+            if (set === 'travel') {
+                const f = listFilters(req, 't.travel_date', 't.traveler_name');
+                const rows = getAll(`SELECT t.*, wu.code AS work_unit_code, wu.name AS work_unit_name FROM v2_money_travel_orders t ${unitJoin('t')} ${f.where} ORDER BY t.travel_date DESC`, f.params);
+                return sendCsv(res, `medx-putni-nalozi-${year}.csv`,
+                    ['Broj naloga', 'Ime i prezime', 'Datum putovanja', 'Odredište', 'Svrha', 'Ukupan trošak (EUR)', 'Datum otvaranja', 'Radna jedinica', 'Projekt', 'Napomena'],
+                    rows.map(r => [r.order_number, r.traveler_name, r.travel_date, r.destination, r.purpose || '', r.total_cost, r.opened_date || '', unitLabel(r), r.project || '', r.notes || '']));
+            }
+            if (set === 'payment') {
+                const f = listFilters(req, 'p.order_date', 'p.recipient_name');
+                const rows = getAll(`SELECT p.*, wu.code AS work_unit_code, wu.name AS work_unit_name FROM v2_money_payment_orders p ${unitJoin('p')} ${f.where} ORDER BY p.order_date DESC`, f.params);
+                return sendCsv(res, `medx-nalozi-za-placanje-${year}.csv`,
+                    ['Broj naloga', 'Primatelj', 'Opis', 'Iznos (EUR)', 'Datum naloga', 'Radna jedinica', 'Projekt', 'Napomena'],
+                    rows.map(r => [r.order_number, r.recipient_name, r.description || '', r.amount, r.order_date, unitLabel(r), r.project || '', r.notes || '']));
+            }
+            if (set === 'units') {
+                const rows = getAll('SELECT * FROM v2_money_work_units ORDER BY active DESC, code');
+                return sendCsv(res, `medx-radne-jedinice-${year}.csv`,
+                    ['Šifra', 'Naziv', 'Opis', `Prihod ${year} (EUR)`, `Rashod ${year} (EUR)`, 'Preneseno stanje (EUR)', 'Konačno stanje (EUR)', 'Aktivna'],
+                    rows.map(u => { const n = unitYearNumbers(u.id, year);
+                        return [u.code, u.name, u.description || '', n.prihod, n.rashod, num2(u.carryover_prev),
+                                num2((Number(u.carryover_prev) || 0) + n.prihod - n.rashod), u.active ? 'da' : 'ne']; }));
+            }
+            if (set === 'expected') {
+                const rows = getAll(`SELECT x.*, wu.code AS work_unit_code, wu.name AS work_unit_name FROM v2_money_expected_income x ${unitJoin('x')} ORDER BY (x.status != 'open'), COALESCE(x.expected_date, x.created_at)`);
+                return sendCsv(res, `medx-ocekivane-uplate.csv`,
+                    ['Izvor', 'Opis', 'Iznos (EUR)', 'Očekivani datum', 'Status', 'Datum primitka', 'Projekt', 'Radna jedinica'],
+                    rows.map(r => [r.source, r.description || '', r.amount, r.expected_date || '', r.status, r.received_date || '', r.project || '', unitLabel(r)]));
+            }
+            if (set === 'report') {
+                const group = ['project', 'work_unit', 'person'].includes(req.query.group) ? req.query.group : 'project';
+                const rep = reportGroups(req, group);
+                const label = { project: 'Projekt', work_unit: 'Radna jedinica', person: 'Osoba' }[group];
+                return sendCsv(res, `medx-izvjestaj-${group.replace('_', '-')}-${year}.csv`,
+                    [label, 'Prihod (EUR)', 'Rashod (EUR)', 'Neto (EUR)', 'Stavki'],
+                    rep.rows.map(g => [g.label, g.income, g.expense, g.net, g.items])
+                        .concat([['UKUPNO', rep.totals.income, rep.totals.expense, rep.totals.net, rep.totals.items]]));
+            }
+            res.status(400).json({ error: "set must be one of: book_out, book_in, travel, payment, units, expected, report." });
+        } catch (e) { log('csv export:', e.message); res.status(500).json({ error: 'The CSV export failed.' }); }
+    });
+
+    log('money module ready: books + orders + units + expected + summary + reports/CSV (Miro rebuild) · ledger + chase + survey retained for project screens (sweep every ' + (SWEEP_EVERY_MS / 60000) + ' min)');
 };

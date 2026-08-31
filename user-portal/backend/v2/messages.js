@@ -11,14 +11,21 @@
  * (`IN (id, email)`) so nothing already written disappears, and new rows use users.id (the
  * key the admin backend's own inserts, thread route and 48h nag scan expect).
  *
- * Additive schema (guarded): direct_messages.topic TEXT (topic tag — README note 24) and the
- * per-member thread state table v2_message_thread_state (archive = hide, never delete).
+ * Additive schema (guarded): direct_messages.topic TEXT (topic tag — README note 24),
+ * direct_messages.sender_name / attachment_path / attachment_name TEXT (staff identity on
+ * replies + one attachment per message — team review Aug 2026; admin-portal/backend/v2/inbox.js
+ * adds the same columns), and the per-member thread state table v2_message_thread_state
+ * (archive = hide, never delete).
  *
  * Routes (all member-JWT, a member only ever sees their own threads):
  *   GET  /api/v2/messages/threads                 thread list: official team thread first, then
  *                                                 member threads; unread counts; archived flags
  *   GET  /api/v2/messages/team?mark=1             the team thread (mark=1 marks admin replies read)
- *   POST /api/v2/messages/team {topic, body}      write to the team (lands in the admin inbox)
+ *   POST /api/v2/messages/team {topic, body [, attachment_path, attachment_name]}
+ *                                                 write to the team (lands in the admin inbox)
+ *   POST /api/v2/messages/attach                  multipart `file` — ONE image or PDF ≤ 5 MB →
+ *                                                 { attachment_path, attachment_name } to put on
+ *                                                 the next message (mirrors v2/profile.js photo)
  *   POST /api/v2/messages/threads/:key/archive    {archived:true|false}  key = 'team' | users.id
  *   GET  /api/v2/messages/peer/:userId            partner card for ?to=<userId> (+ connection state)
  *   GET  /api/v2/messages/unread-count            {unread, team, direct} for the chrome ALERTS dot
@@ -26,13 +33,20 @@
  * POST /api/messages enforces the accepted-connection rule and pushes).
  */
 'use strict';
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const { randomUUID } = require('crypto');
 
 const TEAM_KEY = 'team';
 const TOPICS = { general: 'General', plexus: 'Plexus', gala: 'Gala', accelerator: 'Accelerator', bridges: 'Building Bridges', forum: 'Forum', membership: 'Membership' };
 const MAX_BODY = 4000;
 const TEAM_FALLBACK_EMAIL = 'info@medx.hr';
-const MSG_COLS = 'id, sender_id, receiver_id, sender_type, receiver_type, title, topic, content, attachment_url, is_read, read_at, created_at';
+const MSG_COLS = 'id, sender_id, receiver_id, sender_type, receiver_type, title, topic, content, sender_name, attachment_url, attachment_path, attachment_name, is_read, read_at, created_at';
+// attachments (team review Aug 2026): ONE image or PDF per message, ≤ 5 MB — same gates as v2/profile.js
+const MAX_ATTACH_BYTES = 5 * 1024 * 1024;
+const ATTACH_MIME_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'application/pdf': 'pdf' };
+const MAX_ATTACH_NAME = 200;
 
 module.exports = function mountMessages(app, ctx) {
     const { auth } = ctx;
@@ -52,6 +66,9 @@ module.exports = function mountMessages(app, ctx) {
 
     // ---- schema (additive, guarded; shared DB — never rename/drop) ----
     try { run("ALTER TABLE direct_messages ADD COLUMN topic TEXT"); } catch (e) { /* exists */ }
+    try { run("ALTER TABLE direct_messages ADD COLUMN sender_name TEXT"); } catch (e) { /* exists */ }
+    try { run("ALTER TABLE direct_messages ADD COLUMN attachment_path TEXT"); } catch (e) { /* exists */ }
+    try { run("ALTER TABLE direct_messages ADD COLUMN attachment_name TEXT"); } catch (e) { /* exists */ }
     try {
         run(`CREATE TABLE IF NOT EXISTS v2_message_thread_state (
             user_id TEXT NOT NULL,
@@ -62,6 +79,47 @@ module.exports = function mountMessages(app, ctx) {
             PRIMARY KEY (user_id, thread_key)
         )`);
     } catch (e) { log('v2_message_thread_state create skipped:', e.message); }
+
+    // ---- attachments — mirrored from v2/profile.js photo upload (multer → disk → optional Cloudinary) ----
+    // The dir lives under ctx.ROOT so BOTH portals resolve the SAME folder: this portal already
+    // serves it through the existing /uploads static route, and admin-portal/backend/v2/inbox.js
+    // serves the identical '/uploads/messages/<file>' path on the admin origin (staging runs both
+    // backends from one tree; production stores on Cloudinary, so the URL is absolute anyway).
+    const ATTACH_DIR = path.join(String(ctx.ROOT || path.join(__dirname, '..', '..', '..')), 'user-portal', 'backend', 'uploads', 'messages');
+    try { fs.mkdirSync(ATTACH_DIR, { recursive: true }); } catch (e) { log('messages: cannot create ' + ATTACH_DIR + ': ' + e.message); }
+    const attachStorage = multer.diskStorage({
+        destination: (req, file, cb) => cb(null, ATTACH_DIR),
+        filename: (req, file, cb) => cb(null, `${randomUUID()}.${ATTACH_MIME_EXT[file.mimetype]}`)
+    });
+    const attachUpload = multer({
+        storage: attachStorage,
+        limits: { fileSize: MAX_ATTACH_BYTES, files: 1 },
+        fileFilter: (req, file, cb) => (ATTACH_MIME_EXT[file.mimetype] ? cb(null, true) : cb(Object.assign(new Error('Attach a JPG, PNG, WebP or GIF image, or a PDF.'), { code: 'BAD_TYPE' })))
+    });
+    // multer trusts the client MIME — check the magic bytes of what was actually written
+    function sniffAttach(filePath) {
+        try {
+            const fd = fs.openSync(filePath, 'r'); const b = Buffer.alloc(12); fs.readSync(fd, b, 0, 12, 0); fs.closeSync(fd);
+            if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+            if (b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) return 'png';
+            if (b.slice(0, 4).toString('ascii') === 'RIFF' && b.slice(8, 12).toString('ascii') === 'WEBP') return 'webp';
+            if (b.slice(0, 4).toString('ascii') === 'GIF8') return 'gif';
+            if (b.slice(0, 4).toString('ascii') === '%PDF') return 'pdf';
+        } catch (e) {}
+        return null;
+    }
+    async function attachToCloud(filePath, base) {
+        if (!process.env.CLOUDINARY_URL) return null;
+        try {
+            const cloudinary = require('cloudinary').v2;
+            const r = await cloudinary.uploader.upload(filePath, { folder: 'medx/messages', public_id: base, resource_type: 'auto' });
+            return r && r.secure_url ? r.secure_url : null;
+        } catch (e) { log('messages: Cloudinary upload failed, keeping local file: ' + e.message); return null; }
+    }
+    const cleanAttachName = (v) => String(v || '').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_ATTACH_NAME) || null;
+    // a stored attachment reference must be one WE issued: the shared uploads path or a Cloudinary URL
+    const validAttachPath = (v) => typeof v === 'string' && v.length <= 500 &&
+        (/^\/uploads\/messages\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v) || /^https:\/\/res\.cloudinary\.com\//.test(v));
 
     // ---- helpers ----
     const keysOf = (u) => [String((u && u.id) || ''), String((u && u.email) || '')];       // users.id + email (legacy rows)
@@ -81,7 +139,10 @@ module.exports = function mountMessages(app, ctx) {
     const normTeam = (r) => {
         const mine = !isAdminType(r.sender_type);
         return { id: r.id, mine, content: r.content || '', title: r.title || null, topic: r.topic || null,
-                 attachment_url: r.attachment_url || null, created_at: r.created_at, read: !!Number(r.is_read || 0) };
+                 sender_name: (!mine && r.sender_name) ? r.sender_name : null,   // staff identity; the client shows "Med&X Team" when absent
+                 attachment_url: r.attachment_url || null,
+                 attachment_path: r.attachment_path || null, attachment_name: r.attachment_name || null,
+                 created_at: r.created_at, read: !!Number(r.is_read || 0) };
     };
     const threadState = (userId) => {
         const out = {};
@@ -186,17 +247,49 @@ module.exports = function mountMessages(app, ctx) {
             const topic = String((req.body && req.body.topic) || 'general').toLowerCase().trim();
             if (!TOPICS[topic]) return res.status(400).json({ error: 'Pick a topic for your message.' });
             const body = String((req.body && (req.body.body != null ? req.body.body : req.body.content)) || '').trim();
-            if (!body) return res.status(400).json({ error: 'Write a message first.' });
+            // ONE optional attachment per message — a reference issued by POST /api/v2/messages/attach
+            const attachPath = req.body && validAttachPath(req.body.attachment_path) ? req.body.attachment_path : null;
+            const attachName = attachPath ? (cleanAttachName(req.body.attachment_name) || 'Attachment') : null;
+            if (!body && !attachPath) return res.status(400).json({ error: 'Write a message first.' });
             if (body.length > MAX_BODY) return res.status(400).json({ error: `Keep it under ${MAX_BODY} characters.` });
             const sender = one('SELECT id, email FROM users WHERE id = ?', [String(me.id || '')]);
             if (!sender) return res.status(403).json({ error: 'Your account could not be resolved — sign in again.' });
             const id = randomUUID();
-            run(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, topic, content, is_read, created_at)
-                 VALUES (?, ?, ?, 'user', 'admin', ?, ?, ?, 0, datetime('now'))`,
-                [id, sender.id, teamAddress(), TOPICS[topic], topic, body]);
+            run(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, topic, content, attachment_path, attachment_name, is_read, created_at)
+                 VALUES (?, ?, ?, 'user', 'admin', ?, ?, ?, ?, ?, 0, datetime('now'))`,
+                [id, sender.id, teamAddress(), TOPICS[topic], topic, body, attachPath, attachName]);
             const row = one(`SELECT ${MSG_COLS} FROM direct_messages WHERE id = ?`, [id]);
             res.json({ success: true, message: normTeam(row) });
         } catch (err) { fail(res, err, 'Could not send your message. Please try again.'); }
+    });
+
+    // ---- POST /api/v2/messages/attach — multipart `file` (or `attachment`): ONE image/PDF ≤ 5 MB ----
+    // Returns { attachment_path, attachment_name } for the caller to put on its next message.
+    // (In production without CLOUDINARY_URL the server-wide multipart gate in server.js answers 503
+    //  before this route runs — same failure mode as the profile photo.)
+    app.post('/api/v2/messages/attach', auth, (req, res, next) => {
+        attachUpload.fields([{ name: 'file', maxCount: 1 }, { name: 'attachment', maxCount: 1 }])(req, res, err => {
+            if (!err && req.files) req.file = (req.files.file && req.files.file[0]) || (req.files.attachment && req.files.attachment[0]) || null;
+            next(err);
+        });
+    }, (err, req, res, next) => {
+        if (!err) return next();
+        if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'That file is larger than 5 MB — pick a smaller one.' });
+        if (err.code === 'BAD_TYPE') return res.status(400).json({ error: err.message });
+        return res.status(400).json({ error: err.message || 'Upload failed.' });
+    }, async (req, res) => {
+        try {
+            if (!req.file) return res.status(400).json({ error: 'Choose a file first.' });
+            const ext = ATTACH_MIME_EXT[req.file.mimetype];
+            const kind = sniffAttach(req.file.path);
+            if (!kind || kind !== ext) { try { fs.unlinkSync(req.file.path); } catch (e) {} return res.status(400).json({ error: 'That file is not an image or a PDF.' }); }
+            const base = path.basename(req.file.path, path.extname(req.file.path));
+            let url = await attachToCloud(req.file.path, base);
+            if (url) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
+            else url = `/uploads/messages/${path.basename(req.file.path)}`;
+            res.json({ success: true, attachment_path: url, attachment_name: cleanAttachName(req.file.originalname) || `attachment.${ext}`,
+                       kind: ext === 'pdf' ? 'pdf' : 'image', bytes: req.file.size });
+        } catch (e) { fail(res, e, 'Could not upload that file.'); }
     });
 
     // ---- POST /api/v2/messages/threads/:key/archive {archived} — hide, never delete ----
@@ -247,5 +340,5 @@ module.exports = function mountMessages(app, ctx) {
         } catch (err) { fail(res, err, 'Could not count unread messages.'); }
     });
 
-    log('messages: /api/v2/messages/{threads,team,threads/:key/archive,peer/:userId,unread-count}');
+    log('messages: /api/v2/messages/{threads,team,attach,threads/:key/archive,peer/:userId,unread-count}; attachments → ' + ATTACH_DIR);
 };

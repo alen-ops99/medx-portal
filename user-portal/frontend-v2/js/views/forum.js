@@ -418,7 +418,7 @@ function blockContact() {
     <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.contact.line}</span>
     <span style="font-size:12px;color:#4a4239">${COPY.contact.sub}</span>
     <div style="flex:1"></div>
-    <a href="/app/messages" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.contact.cta}</a>
+    <a href="/app/messages?about=forum" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.contact.cta}</a>
   </div>
   <!-- /dc -->`;
 }

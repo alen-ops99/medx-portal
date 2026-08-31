@@ -159,8 +159,8 @@ export const COPY = {
     knowN: '02', knowTitle: 'GOOD TO KNOW',
     know: [
       { tag: 'EARLY BIRD', title: 'Seats are capped', note: (p, l, p2) => `Book your Gala seat by ${l} for ${p} — the room is kept intentionally small, and Gala seats go first. After that the seat is ${p2}.` },
-      { tag: 'CAN’T MAKE IT?', title: 'Transfer to a colleague', note: () => 'Pass your registration or Gala seat to a colleague any time before the event, from this page.', act: 'transfer', actLabel: 'TRANSFER →' },
-      { tag: 'QUESTIONS?', title: 'We’re one message away', note: () => 'Anything about your registration or Gala seat — message us and replies land in your portal inbox.', href: '/app/messages', actLabel: 'OPEN MESSAGES →' }
+      { tag: 'CAN’T MAKE IT?', title: 'Transfer to a colleague', note: () => 'Seats are non-refundable — but you can transfer your seat to a colleague up to the day of the event, right from this page.', act: 'transfer', actLabel: 'TRANSFER →', actLabelSeat: 'TRANSFER YOUR SEAT →' },
+      { tag: 'QUESTIONS?', title: 'We’re one message away', note: () => 'Anything about your registration or Gala seat — message us and replies land in your portal inbox.', href: '/app/messages?about=plexus', actLabel: 'OPEN MESSAGES →' }
     ],
     passN: '03', passTitle: 'MY PASS',
     passEmptyLine: 'Your QR pass appears here once you register.',
@@ -176,7 +176,22 @@ export const COPY = {
       name: 'COLLEAGUE’S FULL NAME', email: 'COLLEAGUE’S EMAIL', reason: 'REASON (OPTIONAL)',
       ok: 'REQUEST TRANSFER', cancel: 'KEEP MY TICKET',
       sent: 'Transfer requested — the team confirms it by email.', need: 'A full name and a valid email are needed.',
-      noReg: 'Register first — a transfer needs a ticket to pass on.', gala: 'Gala seats are transferred by the team — message us and it is done in a day.'
+      noReg: 'Register first — a transfer needs a ticket to pass on.',
+      // Gala seat — self-serve, immediate (POST /api/v2/transfer/gala, backend/v2/transfer.js)
+      policy: 'Seats are non-refundable — but you can transfer your seat to a colleague up to the day of the event.',
+      galaEyebrow: 'GALA · SEAT TRANSFER', galaTitle: 'Transfer your seat',
+      galaBody: 'Your Gala seat — same registration, same QR — moves to your colleague the moment you confirm.',
+      galaOk: 'TRANSFER MY SEAT →', galaCancel: 'KEEP MY SEAT',
+      galaConfirmEyebrow: 'GALA · FINAL CHECK', galaConfirmTitle: 'Transfer your seat?',
+      galaConfirmBody: (name, email) => `<p style="margin:0 0 10px">You are transferring your Gala seat to <strong>${name}</strong> (${email}).</p>
+        <ul style="margin:0 0 12px;padding-left:18px;line-height:1.7">
+          <li>The QR code moves to ${name} — same seat, now under their name.</li>
+          <li>Your ticket stops working the moment you confirm.</li>
+          <li>This cannot be undone by you — only the Med&amp;X team can step in.</li>
+        </ul>`,
+      galaSure: 'YES — TRANSFER IT', galaKeep: 'KEEP MY SEAT',
+      galaDone: name => `Your seat now belongs to ${name} — confirmation emails go to you both.`,
+      confInstead: 'TRANSFER MY CONFERENCE REGISTRATION INSTEAD →'
     },
     payPending: 'Your seat request is with the team — you get a payment link the moment it is approved.',
     payStripeGone: 'Card payment is not available right now — message us and we send a secure payment link.'
@@ -381,7 +396,7 @@ function blockHelp(line, sub, border) {
     <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${line}</span>
     <span style="font-size:12px;color:#4a4239">${sub}</span>
     <div style="flex:1"></div>
-    <a href="/app/messages" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.help.cta}</a>
+    <a href="/app/messages?about=plexus" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.help.cta}</a>
   </div>
   <!-- /dc -->`;
 }
@@ -914,7 +929,7 @@ function mineKnow() {
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${k.tag}</span>
         <span style="font-family:Fraunces,serif;font-size:16px">${k.title}</span>
         <span style="font-size:12.5px;color:#4a4239;line-height:1.5">${esc(k.note(fmt.eur(D.gala.price), fmt.longRange(D.gala.ebDeadline, D.gala.ebDeadline).replace(/, \d{4}$/, ''), fmt.eur(D.gala.priceRegular)))}</span>
-        ${k.act === 'transfer' && registered ? `<span data-act="transfer" data-v2="transfer request (POST /api/plexus/registration/:id/transfer)" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:pointer;margin-top:4px;white-space:nowrap">${k.actLabel}</span>` : ''}
+        ${k.act === 'transfer' && (registered || D.galaReg) ? `<span data-act="transfer" data-v2="${D.galaReg ? 'gala seat transfer (POST /api/v2/transfer/gala)' : 'transfer request (POST /api/plexus/registration/:id/transfer)'}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:pointer;margin-top:4px;white-space:nowrap">${D.galaReg ? k.actLabelSeat : k.actLabel}</span>` : ''}
         ${k.href ? `<a href="${k.href}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:4px;white-space:nowrap">${k.actLabel}</a>` : ''}
       </div>`).join('')}
     </div>
@@ -1081,33 +1096,79 @@ const handlers = {
   },
   galaPendingInfo: () => ui.toast(COPY.mine.payPending, { ms: 5000 }),
   transfer: () => {
+    if (D.galaReg) return openSeatTransfer();          // gala seat → self-serve, immediate
     if (!D.myReg) return ui.toast(COPY.mine.transfer.noReg, { kind: 'error' });
-    const T = COPY.mine.transfer;
-    let m = null;
-    m = ui.modal({
-      eyebrow: T.eyebrow, title: T.title,
-      body: `<p style="margin:0 0 14px">${esc(T.body)}</p>
-        <label class="label" style="display:block;margin-bottom:4px">${T.name}</label>
-        <input class="input" data-role="tfName" maxlength="120" style="margin-bottom:10px">
-        <label class="label" style="display:block;margin-bottom:4px">${T.email}</label>
-        <input class="input" data-role="tfEmail" type="email" maxlength="160" style="margin-bottom:10px">
-        <label class="label" style="display:block;margin-bottom:4px">${T.reason}</label>
-        <input class="input" data-role="tfWhy" maxlength="200">`,
-      actions: [
-        { label: T.cancel },
-        { label: T.ok, kind: 'primary', onClick: () => {
-          const name = (m.el.querySelector('[data-role="tfName"]') || {}).value || '';
-          const email = (m.el.querySelector('[data-role="tfEmail"]') || {}).value || '';
-          const why = (m.el.querySelector('[data-role="tfWhy"]') || {}).value || '';
-          if (name.trim().length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { ui.toast(T.need, { kind: 'error' }); return false; }
-          api.post(`/api/plexus/registration/${encodeURIComponent(D.myReg.id)}/transfer`, { new_user_name: name.trim(), new_user_email: email.trim(), reason: why.trim() })
-            .then(() => ui.toast(T.sent, { ms: 5000 }))
-            .catch(e => ui.toast(e.message, { kind: 'error', ms: 6000 }));
-        } }
-      ]
-    });
+    openConfTransfer();                                // conference ticket → team-approved request
   }
 };
+// ---- My Plexus › "Transfer to a colleague" flows (the know-card action above) ----
+// Conference ticket: the legacy team-approved REQUEST (unchanged behaviour).
+function openConfTransfer() {
+  const T = COPY.mine.transfer;
+  let m = null;
+  m = ui.modal({
+    eyebrow: T.eyebrow, title: T.title,
+    body: `<p style="margin:0 0 14px">${esc(T.body)}</p>
+      <label class="label" style="display:block;margin-bottom:4px">${T.name}</label>
+      <input class="input" data-role="tfName" maxlength="120" style="margin-bottom:10px">
+      <label class="label" style="display:block;margin-bottom:4px">${T.email}</label>
+      <input class="input" data-role="tfEmail" type="email" maxlength="160" style="margin-bottom:10px">
+      <label class="label" style="display:block;margin-bottom:4px">${T.reason}</label>
+      <input class="input" data-role="tfWhy" maxlength="200">`,
+    actions: [
+      { label: T.cancel },
+      { label: T.ok, kind: 'primary', onClick: () => {
+        const name = (m.el.querySelector('[data-role="tfName"]') || {}).value || '';
+        const email = (m.el.querySelector('[data-role="tfEmail"]') || {}).value || '';
+        const why = (m.el.querySelector('[data-role="tfWhy"]') || {}).value || '';
+        if (name.trim().length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { ui.toast(T.need, { kind: 'error' }); return false; }
+        api.post(`/api/plexus/registration/${encodeURIComponent(D.myReg.id)}/transfer`, { new_user_name: name.trim(), new_user_email: email.trim(), reason: why.trim() })
+          .then(() => ui.toast(T.sent, { ms: 5000 }))
+          .catch(e => ui.toast(e.message, { kind: 'error', ms: 6000 }));
+      } }
+    ]
+  });
+}
+// Gala seat: TRANSFER YOUR SEAT — immediate, in place (same registration id, same QR),
+// confirmed in a dialog that spells the consequences out. POST /api/v2/transfer/gala.
+function openSeatTransfer() {
+  const T = COPY.mine.transfer;
+  let m = null;
+  m = ui.modal({
+    eyebrow: T.galaEyebrow, title: T.galaTitle,
+    body: `<p style="margin:0 0 8px">${esc(T.galaBody)}</p>
+      <p style="margin:0 0 14px;font-size:12.5px;color:#4a4239">${esc(T.policy)}</p>
+      <label class="label" style="display:block;margin-bottom:4px">${T.name}</label>
+      <input class="input" data-role="tfName" maxlength="120" style="margin-bottom:10px">
+      <label class="label" style="display:block;margin-bottom:4px">${T.email}</label>
+      <input class="input" data-role="tfEmail" type="email" maxlength="160">
+      ${D.myReg ? `<span data-act="confTransferInstead" style="display:inline-block;font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;margin-top:12px">${T.confInstead}</span>` : ''}`,
+    actions: [
+      { label: T.galaCancel },
+      { label: T.galaOk, kind: 'gold', onClick: () => {
+        const name = ((m.el.querySelector('[data-role="tfName"]') || {}).value || '').trim().replace(/\s+/g, ' ');
+        const email = ((m.el.querySelector('[data-role="tfEmail"]') || {}).value || '').trim().toLowerCase();
+        if (name.length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { ui.toast(T.need, { kind: 'error' }); return false; }
+        confirmSeatTransfer(name, email);              // closes this modal, opens the final check
+      } }
+    ]
+  });
+  ui.bind(m.el, { confTransferInstead: () => { m.close(); openConfTransfer(); } });
+}
+async function confirmSeatTransfer(name, email) {
+  const T = COPY.mine.transfer;
+  const sure = await ui.confirm({
+    eyebrow: T.galaConfirmEyebrow, title: T.galaConfirmTitle,
+    body: T.galaConfirmBody(esc(name), esc(email)), ok: T.galaSure, cancel: T.galaKeep, danger: true
+  });
+  if (!sure) return;
+  try {
+    await api.post('/api/v2/transfer/gala', { to_name: name, to_email: email });
+    ui.toast(T.galaDone(name), { ms: 7000 });
+    D = await load('mine');                            // the seat is gone from this account — reload live
+    if (rootEl && tab === 'mine') rootEl.innerHTML = mineTpl();
+  } catch (e) { ui.toast(e.message, { kind: 'error', ms: 7000 }); }
+}
 function rerenderSpeakersHead() {
   // filters live in the head row; grid below — refresh both, keep the input's focus/value
   const q = rootEl.querySelector('[data-role="speakerQ"]');

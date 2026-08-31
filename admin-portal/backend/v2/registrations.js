@@ -393,4 +393,51 @@ module.exports = function mountRegistrations(app, ctx) {
         try { setStatus(req, res, String((req.body || {}).status || 'pending')); }
         catch (e) { log('restore failed:', e.message); res.status(500).json({ error: 'Could not restore the registration.' }); }
     });
+
+    // ---------------------------------------------------------------- seat transfers (additive, 2026-08-31)
+    // GET /api/v2/transfer/log — feeds the RECENT TRANSFERS strip on the admin Registrations view.
+    // v2_seat_transfers is WRITTEN by the member portal (user-portal/backend/v2/transfer.js —
+    // POST /api/v2/transfer/gala moves a Gala seat to a colleague in place, same registration id +
+    // QR). Both portals share ONE database, so the table is declared identically here (the same
+    // pattern as croatians_abroad_registrations.user_id) in case the admin server boots first —
+    // the one exception to this file's "no new tables" header note, which predates this strip.
+    try {
+        db().run(`CREATE TABLE IF NOT EXISTS v2_seat_transfers (
+            id TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            registration_ref TEXT NOT NULL,
+            from_email TEXT,
+            to_name TEXT,
+            to_email TEXT,
+            status TEXT DEFAULT 'done',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`);
+    } catch (e) { log('v2_seat_transfers schema failed:', e.message); }
+
+    app.get('/api/v2/transfer/log', auth, adminOnly, (req, res) => {
+        try {
+            const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+            const rows = all(`SELECT id, kind, registration_ref, from_email, to_name, to_email, status, created_at
+                                FROM v2_seat_transfers ORDER BY created_at DESC LIMIT ?`, [limit]);
+            const transfers = rows.map(t => {
+                // "which registration" — the row the seat lives on today (holder already = the new person)
+                let event = 'Gala Evening', reg = null;
+                if (t.kind === 'gala') {
+                    reg = one('SELECT email, status, payment_status, checked_in FROM gala_registrations WHERE id = ?', [t.registration_ref]);
+                } else {
+                    reg = one('SELECT email, gala_status AS status, gala_payment_status AS payment_status, selected_conference FROM croatians_abroad_registrations WHERE id = ?', [t.registration_ref]);
+                    event = reg && Number(reg.selected_conference) === 1 ? 'Gala Evening + Conference (public form)' : 'Gala Evening (public form)';
+                }
+                return {
+                    id: t.id, kind: t.kind, registration_ref: t.registration_ref, event,
+                    from_email: t.from_email, to_name: t.to_name, to_email: t.to_email,
+                    status: t.status, created_at: t.created_at,
+                    registration_status: reg ? (reg.payment_status === 'paid' || reg.payment_status === 'vip-comp' ? 'PAID' : String(reg.status || 'pending').toUpperCase()) : 'MISSING',
+                    checked_in: !!(reg && Number(reg.checked_in) === 1)
+                };
+            });
+            const totalRow = one('SELECT COUNT(*) AS c FROM v2_seat_transfers');
+            res.json({ transfers, total: (totalRow && totalRow.c) || 0 });
+        } catch (e) { log('transfer log failed:', e.message); res.status(500).json({ error: 'Could not read the transfer log.' }); }
+    });
 };

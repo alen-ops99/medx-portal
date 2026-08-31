@@ -84,6 +84,11 @@ export const COPY = {
     note: 'Panels with our speakers on high-performance leadership and the challenges and opportunities of international biomedical collaboration. The Awards honor those who did the most to internationalize Croatian medicine and science this year. Detailed program follows soon.',
     photoCaption: 'GALA 2025 · HOTEL ESPLANADE'
   },
+  policy: {
+    tag: 'SEAT POLICY',
+    line: 'Seats are non-refundable — but you can transfer your seat to a colleague up to the day of the event.',
+    cta: 'TRANSFER YOUR SEAT →'
+  },
   ics: { file: `medx-gala-${FACTS.year}.ics`, added: 'Calendar file downloaded — open it to add the Gala.' },
   followed: 'You follow the Gala — updates reach your inbox and alerts.',
   unfollowed: 'Gala updates are off.',
@@ -383,6 +388,19 @@ function blockGlance() {
     <!-- /dc -->`;
 }
 
+// v2 addition 2026-08-31 — seat-transfer + cancellation policy, one line, no refund flow.
+// The transfer itself lives in My Plexus (js/views/plexus.js › "Transfer to a colleague").
+function blockPolicy() {
+  return `
+    <!-- dc: Gala Evening.dc.html › "Seat policy" -->
+    <div style="border-top:1px solid rgba(25,21,18,.16);padding:16px 0 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962;white-space:nowrap">${COPY.policy.tag}</span>
+      <span style="font-family:Fraunces,serif;font-style:italic;font-size:14.5px;color:#4a4239;line-height:1.55">${esc(COPY.policy.line)}</span>
+      <a href="/app/plexus/mine" data-v2="opens My Plexus › Transfer to a colleague" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;white-space:nowrap;text-decoration:none">${COPY.policy.cta}</a>
+    </div>
+    <!-- /dc -->`;
+}
+
 function blockFooter() {
   return `
   <!-- dc: Gala Evening.dc.html › "Questions" -->
@@ -390,7 +408,7 @@ function blockFooter() {
     <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.footer.line}</span>
     <span style="font-size:12px;color:#4a4239">${COPY.footer.sub}</span>
     <div style="flex:1"></div>
-    <a href="/app/messages?topic=gala" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.footer.cta}</a>
+    <a href="/app/messages?about=gala" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.footer.cta}</a>
   </div>
   <!-- /dc -->`;
 }
@@ -407,6 +425,7 @@ function template() {
     ${blockWhy()}
     ${blockMoments()}
     ${blockGlance()}
+    ${blockPolicy()}
   </div>
   ${blockFooter()}
 </div>`;

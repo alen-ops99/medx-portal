@@ -334,7 +334,7 @@ function blockFooter() {
     <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.footer.line}</span>
     <span style="font-size:12px;color:#4a4239">${COPY.footer.sub}</span>
     <div style="flex:1"></div>
-    <a href="/app/messages?topic=bridges" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.footer.cta}</a>
+    <a href="/app/messages?about=bridges" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.footer.cta}</a>
   </div>
   <!-- /dc -->`;
 }

@@ -48,6 +48,12 @@ export const COPY = {
     galaRowMissing: 'THE LINKED GALA ROW IS NOT IN THIS LIST — CLEARING FILTERS'
   },
   compose: { eyebrow: 'QUEUES IN THE OUTBOX', title: n => `Email ${n} ${n === 1 ? 'person' : 'people'}`, subject: 'SUBJECT', message: 'MESSAGE', note: 'Nothing sends now — this stages the emails in Inbox → Outbox for an explicit Approve & send.', queue: 'QUEUE FOR YOUR OK', cancel: 'CANCEL', needBoth: 'SUBJECT AND MESSAGE FIRST' },
+  transfers: {                                     // additive strip, 2026-08-31 — seat transfers
+    title: 'RECENT TRANSFERS', of: n => `${n} TOTAL`,
+    sub: 'Gala seats members passed to a colleague — same registration id and QR, new holder. Written by the member portal (POST /api/v2/transfer/gala).',
+    empty: 'No seat transfers yet — they appear here the moment a member passes a seat on.',
+    reg: ref => `REG ${String(ref).slice(0, 8)}`, checkedIn: '✓ CHECKED IN'
+  },
   csvName: 'medx-registrations.csv'
 };
 
@@ -189,6 +195,42 @@ function blockPanel() {
       </div>
       <!-- /dc -->`;
 }
+// ---- RECENT TRANSFERS strip (additive, 2026-08-31) — GET /api/v2/transfer/log ----
+// T === null → endpoint unavailable (older backend): the strip stays out of the page entirely.
+let T = null;
+async function loadTransfers() {
+  try { const r = await api.get('/api/v2/transfer/log?limit=8'); T = { rows: (r && r.transfers) || [], total: (r && r.total) || 0 }; }
+  catch (e) { T = null; }
+}
+function blockTransfers() {
+  if (!T) return '';
+  const C = COPY.transfers;
+  const rows = T.rows;
+  return `
+    <!-- dc: Admin Registrations.dc.html › "Recent transfers" (v2 addition) -->
+    <div data-block="transfers" style="background:#fff;border:1px solid rgba(32,27,22,.14)">
+      <div style="display:flex;align-items:baseline;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(32,27,22,.14);flex-wrap:wrap">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#201b16">${C.title}</span>
+        ${T.total ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${esc(C.of(T.total))}</span>` : ''}
+        <span style="flex:1"></span>
+        <span style="font-size:11px;color:#6d6459">${C.sub}</span>
+      </div>
+      ${rows.length ? rows.map((t, i) => `
+      <div style="display:grid;grid-template-columns:2.2fr 1.4fr auto auto;gap:10px;padding:9px 16px;${i < rows.length - 1 ? 'border-bottom:1px solid rgba(32,27,22,.07);' : ''}align-items:center">
+        <span style="min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          <span style="color:#6d6459">${esc(t.from_email || '—')}</span>
+          <span style="color:#9b1b22;font-weight:600"> → </span>
+          <strong>${esc(t.to_name || t.to_email)}</strong>
+          <span style="color:#6d6459">${t.to_name ? ` (${esc(t.to_email)})` : ''}</span>
+        </span>
+        <span style="min-width:0;font-size:11px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.event || 'Gala Evening')}</span>
+        <span title="Registration id — unchanged by the transfer" style="font:600 8px ui-monospace,Menlo,monospace;letter-spacing:.08em;padding:2px 6px;background:#f6f2ea;color:#4a4239;white-space:nowrap">${esc(C.reg(t.registration_ref))}${t.checked_in ? ` · ${C.checkedIn}` : ''}</span>
+        <span class="mx-reg-when" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;white-space:nowrap">${esc(fmt.when(t.created_at))}</span>
+      </div>`).join('') : `<div style="padding:14px 16px;font-size:12px;color:#6d6459">${C.empty}</div>`}
+    </div>
+    <!-- /dc -->`;
+}
+
 function template() {
   return `
 <div data-screen-label="Admin Registrations" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
@@ -202,6 +244,7 @@ function template() {
       ${blockPanel()}
     </div>
     <!-- /dc -->
+    ${blockTransfers()}
   </div>
 </div>`;
 }
@@ -347,6 +390,7 @@ export default {
       limit: 400, sel: null, ticked: new Set(), cancelConfirm: null };
     D = null;
     await load();
+    await loadTransfers();                                // RECENT TRANSFERS strip (additive)
     if (rootEl !== root) return;                          // navigated away while loading
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);

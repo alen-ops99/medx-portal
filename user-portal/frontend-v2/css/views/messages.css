@@ -33,3 +33,8 @@
   .mx-msg-grid div, .mx-msg-grid span, .mx-msg-grid input, .mx-msg-grid textarea { min-width: 0; }
   .mx-msg-grid { overflow-x: clip; }
 }
+
+/* Attachments (team review Aug 2026): a thumbnail or file chip never widens its bubble —
+   the look itself (borders, spacing) stays inline in the view templates per ARCHITECTURE.md §4. */
+.mx-msg-conv img { max-width: 100%; height: auto; }
+.mx-msg-conv a { min-width: 0; }

@@ -726,7 +726,7 @@ function blockFooter() {
     <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.footer.line}</span>
     <span style="font-size:12px;color:#4a4239">${COPY.footer.sub}</span>
     <div style="flex:1"></div>
-    <a href="/app/messages?topic=accelerator" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.footer.cta}</a>
+    <a href="/app/messages?about=accelerator" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.footer.cta}</a>
   </div>
   <!-- /dc -->`;
 }
@@ -1059,7 +1059,7 @@ function blockRail() {
       <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px 22px;display:flex;flex-direction:column;gap:9px;align-items:flex-start">
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:14.5px;color:#4a4239">${COPY.wiz.stuck.line}</span>
         <span style="font-size:11.5px;color:#4a4239;line-height:1.5">${COPY.wiz.stuck.body}</span>
-        <a href="/app/messages?topic=accelerator" style="padding:9px 14px;background:#9b1b22;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.wiz.stuck.cta}</a>
+        <a href="/app/messages?about=accelerator" style="padding:9px 14px;background:#9b1b22;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.wiz.stuck.cta}</a>
       </div>
       <!-- /dc -->
     </div>`;

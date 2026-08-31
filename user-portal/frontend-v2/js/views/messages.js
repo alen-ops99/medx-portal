@@ -8,7 +8,11 @@
 // POST /api/v2/messages/threads/:key/archive · GET /api/v2/messages/peer/:userId (all in
 // user-portal/backend/v2/messages.js) + the EXISTING member DM pair GET /api/messages/:userId
 // (marks read server-side) and POST /api/messages (accepted-connection rule enforced there).
-// ?to=<userId> opens/creates the 1:1 thread · ?topic=<tag> preselects the team topic.
+// ?to=<userId> opens/creates the 1:1 thread · ?topic=<tag> / ?about=<tag> (the MESSAGE US
+// context tag: gala, plexus, bridges, accelerator, forum) preselect the team topic; the send
+// stamps it on the thread. Team messages take ONE attachment (image/PDF ≤ 5 MB) via
+// POST /api/v2/messages/attach; admin replies carry sender_name → "LAURA · MED&X" attribution
+// ("MED&X TEAM" for rows from before staff identity existed). Team review Aug 2026.
 // Live updates: 15 s poll while the screen is open (skipped while the tab is hidden).
 import { api } from '../api.js';
 import { session } from '../state.js';
@@ -24,8 +28,11 @@ export const COPY = {
   newMessage: 'NEW MESSAGE →',
   searchPh: 'Search conversations…',
   footer: name => `You're signed in as <strong style="color:#191512">${name}</strong> · replies also arrive by email if you're away.`,
-  team: { name: 'Med&X Coordinators', sub: 'Official team inbox', init: 'MX', tag: 'OFFICIAL · MED&amp;X TEAM', meta: 'MED&X COORDINATORS', nudge: 'Write to the team — replies land here, not in your email.' },
-  composer: { ph: 'Write a message…', attach: 'ATTACH', send: 'SEND →', topicLabel: 'TOPIC' },
+  team: { name: 'Med&X Coordinators', sub: 'Official team inbox', init: 'MX', tag: 'OFFICIAL · MED&amp;X TEAM',
+          meta: 'MED&X TEAM',                                        // rows from before sender_name existed (ask 1 backfill)
+          staff: name => `${String(name).toUpperCase()} · MED&X`,     // staff identity on replies — "LAURA · MED&X"
+          nudge: 'Write to the team — replies land here, not in your email.' },
+  composer: { ph: 'Write a message…', attach: 'ATTACH', attachTitle: 'Attach one image or PDF — up to 5 MB', send: 'SEND →', topicLabel: 'TOPIC' },
   // topic keys must match user-portal/backend/v2/messages.js › TOPICS
   topics: [['general', 'GENERAL'], ['plexus', 'PLEXUS'], ['gala', 'GALA'], ['accelerator', 'ACCELERATOR'], ['bridges', 'BUILDING BRIDGES'], ['forum', 'FORUM'], ['membership', 'MEMBERSHIP']],
   empty: {
@@ -41,7 +48,9 @@ export const COPY = {
   unarchivedToast: 'Conversation restored.',
   archivedTag: 'ARCHIVED',
   showArchived: n => `SHOW ARCHIVED (${n})`, hideArchived: 'HIDE ARCHIVED',
-  attachSoon: 'Attachments are on their way — for now, paste a link in your message.',
+  attachTooBig: 'That file is over 5 MB — pick a smaller one.',
+  attachBadType: 'Images (JPG, PNG, WebP, GIF) or PDF only.',
+  fileFallback: 'FILE',
   sent: 'Message sent.',
   teamSent: 'Sent to the Med&X team — the reply lands right here.',
   pickTopic: 'Pick a topic for your message.',
@@ -64,7 +73,7 @@ const AV_MEMBER = [{ bg: '#191512', fg: '#f7f1e6' }, { bg: '#c9a962', fg: '#1915
 
 // ---- view state ----
 let D = null;          // { me, threads, conns }
-let st = null;         // { cur, msgs, msgsKey, drafts, topic, filter, showArchived, mobileOpen, peer, sending }
+let st = null;         // { cur, msgs, msgsKey, drafts, topic, filter, showArchived, mobileOpen, peer, sending, attach }
 let timers = [];
 let unbind = null, unbindDoc = [];
 let rootEl = null;
@@ -127,7 +136,8 @@ function visibleThreads() {
 }
 function previewOf(t) {
   if (!t.last) return t.kind === 'team' ? COPY.team.nudge : '';
-  return String(t.last.content || '').replace(/\s+/g, ' ').trim();
+  const text = String(t.last.content || '').replace(/\s+/g, ' ').trim();
+  return text || (t.last.attachment_name ? '\u2295 ' + t.last.attachment_name : '');
 }
 
 // ---------------------------------------------------------------- templates
@@ -200,6 +210,18 @@ function dayDivider(label) { return `
           <span style="flex:1;height:1px;background:rgba(25,21,18,.1)"></span>
         </div>`; }
 
+// ONE attachment per message (team review Aug 2026) — thumbnail for images, a labelled chip for PDFs.
+// Paths are relative ('/uploads/messages/…', both backends serve them) or absolute (Cloudinary).
+function attachHref(m) { const p = m.attachment_path || m.attachment_url; return p ? (String(p).startsWith('/') ? api.url(p) : p) : null; }
+function attachIsImage(m) { return /\.(jpe?g|png|webp|gif)(\s|\?|$)/i.test(String(m.attachment_name || '') + ' ' + String(m.attachment_path || m.attachment_url || '')); }
+function bubbleAttachment(m, mine) {
+  const url = attachHref(m);
+  if (!url) return '';
+  const name = m.attachment_name || COPY.fileFallback;
+  const bd = mine ? 'rgba(247,241,230,.4)' : 'rgba(25,21,18,.25)';
+  const img = attachIsImage(m) ? `<a href="${esc(url)}" target="_blank" rel="noopener" style="display:block;margin-top:9px"><img src="${esc(url)}" alt="${esc(name)}" loading="lazy" style="max-width:100%;max-height:180px;border:1px solid ${bd};display:block"></a>` : '';
+  return `${img}<a href="${esc(url)}" target="_blank" rel="noopener" data-v2="attachment download (served with Content-Disposition: attachment)" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 10px;border:1px solid ${bd};font:600 9px Inter,sans-serif;letter-spacing:.12em;color:inherit;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\u2295 ${esc(name)}</a>`;
+}
 function bubble(m, meta, thread) {
   const mine = !!m.mine;
   const side = mine ? 'flex-end' : 'flex-start';
@@ -210,7 +232,7 @@ function bubble(m, meta, thread) {
   return `
         <div style="display:flex;flex-direction:column;gap:4px;align-self:${side};max-width:62%;align-items:${side}">
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(meta)}</span>
-          <span style="padding:12px 15px;font-size:13px;line-height:1.55;background:${bg};color:${fg};border:1px solid ${bd};white-space:pre-wrap;word-break:break-word">${title}${esc(m.content)}</span>
+          <span style="padding:12px 15px;font-size:13px;line-height:1.55;background:${bg};color:${fg};border:1px solid ${bd};white-space:pre-wrap;word-break:break-word">${title}${esc(m.content)}${bubbleAttachment(m, mine)}</span>
         </div>`;
 }
 
@@ -246,7 +268,8 @@ function convMessages(thread) {
     const d = sqlDate(m.created_at);
     const dk = d ? d.toDateString() : '';
     if (dk !== lastDay) { out.push(dayDivider(dayLabel(d))); lastDay = dk; }
-    const who = m.mine ? COPY.you : (thread.kind === 'team' ? COPY.team.meta : memberName(thread).toUpperCase());
+    const who = m.mine ? COPY.you
+      : (thread.kind === 'team' ? (m.sender_name ? COPY.team.staff(m.sender_name) : COPY.team.meta) : memberName(thread).toUpperCase());
     let meta = who + ' · ' + timeLabel(m.created_at);
     if (m.mine && m.topic) { const t = COPY.topics.find(x => x[0] === m.topic); if (t) meta += ' · ' + t[1]; }
     if (lastReadMine && m.id === lastReadMine.id) meta += ' · ' + COPY.read;
@@ -269,6 +292,11 @@ function blockConv() {
   const av = avatarOf(t);
   const isTeam = t.kind === 'team';
   const canWrite = isTeam || !t.virtual || (st.peer && st.peer.connected);
+  const attachChip = (isTeam && st.attach) ? `
+    <div data-v2="pending attachment — uploads on SEND via POST /api/v2/messages/attach" style="display:flex;align-items:center;gap:10px;padding:10px 26px 0">
+      <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6e5626;background:rgba(201,169,98,.18);padding:5px 10px;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\u2295 ${esc(st.attach.name)}</span>
+      <span data-act="attachClear" role="button" aria-label="Remove attachment" style="font:600 11px Inter,sans-serif;color:#4a4239;cursor:pointer" data-hover="color:#9b1b22">\u2715</span>
+    </div>` : '';
   return `
   <!-- dc: Messages.dc.html › "Conversation" -->
   <div class="mx-msg-conv" style="display:flex;flex-direction:column;background:#fdfaf3;min-height:0">
@@ -284,10 +312,10 @@ function blockConv() {
       ${t.virtual ? '' : `<span data-act="archive" data-v2="archive = hide, never delete" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;white-space:nowrap" data-hover="color:#191512">${t.archived ? COPY.unarchive : COPY.archive}</span>`}
     </div>
     <div data-role="msgs" aria-live="polite" style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
-    ${canWrite ? `${isTeam ? topicChips() : ''}
+    ${canWrite ? `${isTeam ? topicChips() : ''}${attachChip}
     <div style="display:flex;gap:12px;align-items:flex-end;padding:16px 26px 20px;${isTeam ? '' : 'border-top:1px solid rgba(25,21,18,.16)'}">
       <textarea data-role="draft" placeholder="${COPY.composer.ph}" rows="2" aria-label="${COPY.composer.ph}" style="flex:1;border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:11px 13px;font-size:13px;color:#191512;resize:none">${esc(st.drafts[t.key] || '')}</textarea>
-      <span data-act="attach" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;padding-bottom:12px" data-hover="color:#191512">${COPY.composer.attach}</span>
+      ${isTeam ? `<label data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault (the profile-photo trap)" title="${COPY.composer.attachTitle}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;padding-bottom:12px" data-hover="color:#191512">${COPY.composer.attach}<input type="file" data-role="attachFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>` : ''}
       <span data-act="send" role="button" aria-label="Send message" ${st.sending ? 'aria-disabled="true"' : ''} style="padding:12px 18px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.composer.send}</span>
     </div>` : ''}
   </div>
@@ -381,6 +409,16 @@ function wireConv() {
   ta.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlers.send(); }   // Enter sends · Shift+Enter = newline
   });
+  const af = rootEl.querySelector('[data-role="attachFile"]');
+  if (af) af.addEventListener('change', () => {                                       // validate client-side; the backend re-checks
+    const f = af.files && af.files[0];
+    af.value = '';
+    if (!f) return;
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'].includes(f.type)) return ui.toast(COPY.attachBadType, { kind: 'error' });
+    if (f.size > 5 * 1024 * 1024) return ui.toast(COPY.attachTooBig, { kind: 'error' });
+    st.attach = f;
+    renderConv();
+  });
 }
 
 // ---------------------------------------------------------------- actions
@@ -440,7 +478,7 @@ const handlers = {
   retry: () => module.render(rootEl, { params: {}, query: {}, path: '/app/messages' }),
   toggleArchived: () => { st.showArchived = !st.showArchived; renderList(); },
   startMsg: () => { const ta = rootEl.querySelector('[data-role="draft"]'); if (ta) ta.focus(); },
-  attach: () => ui.toast(COPY.attachSoon),
+  attachClear: () => { st.attach = null; renderConv(); },
   topic: (el) => { st.topic = el.dataset.topic; const box = rootEl.querySelector('[data-role="topics"]'); if (box) { box.outerHTML = topicChips(); } },
   archive: async () => {
     const t = currentThread(); if (!t || t.virtual) return;
@@ -467,14 +505,21 @@ const handlers = {
     const t = currentThread(); if (!t || st.sending) return;
     const ta = rootEl.querySelector('[data-role="draft"]');
     const text = ((ta && ta.value) || '').trim();
-    if (!text) return ui.toast(COPY.emptyDraft, { kind: 'error' });
+    const file = t.kind === 'team' ? st.attach : null;                    // attachments ride the team thread only
+    if (!text && !file) return ui.toast(COPY.emptyDraft, { kind: 'error' });
     if (t.kind === 'team' && !st.topic) return ui.toast(COPY.pickTopic, { kind: 'error' });
     st.sending = true;
     const sendBtn = rootEl.querySelector('[data-act="send"]'); if (sendBtn) sendBtn.setAttribute('aria-disabled', 'true');
     try {
-      if (t.kind === 'team') await api.post('/api/v2/messages/team', { topic: st.topic, body: text });
-      else await api.post('/api/messages', { receiver_id: t.key, content: text });
+      if (t.kind === 'team') {
+        let att = null;
+        if (file) { const fd = new FormData(); fd.append('file', file); att = await api.post('/api/v2/messages/attach', fd); }
+        await api.post('/api/v2/messages/team', { topic: st.topic, body: text,
+          attachment_path: att ? att.attachment_path : undefined,
+          attachment_name: att ? att.attachment_name : undefined });
+      } else await api.post('/api/messages', { receiver_id: t.key, content: text });
       st.drafts[t.key] = '';
+      st.attach = null;
       st.sending = false;
       st.msgs = await fetchThreadMessages(t, { mark: true });
       st.msgsKey = t.key;
@@ -529,10 +574,12 @@ const module = {
     D = await load();
     if (rootEl !== root) return;
     const q = ctx.query || {};
-    const topicQ = String(q.topic || '').toLowerCase();
+    // ?topic=<key> (existing) and ?about=<tag> (the MESSAGE US context tag from other pages —
+    // gala, plexus, bridges, accelerator, forum) both preselect the team topic
+    const topicQ = String(q.topic || q.about || '').toLowerCase();
     st = { cur: TEAM, msgs: [], msgsKey: null, drafts: {}, filter: '',
            topic: COPY.topics.some(t => t[0] === topicQ) ? topicQ : 'general',
-           showArchived: false, mobileOpen: false, peer: null, sending: false };
+           showArchived: false, mobileOpen: false, peer: null, sending: false, attach: null };
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     if (!D.threads) return;                                   // backend route unavailable — retry UI only
