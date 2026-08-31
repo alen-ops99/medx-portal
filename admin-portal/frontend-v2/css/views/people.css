@@ -13,3 +13,11 @@
   .mx-people-row { grid-template-columns: 1.6fr 1fr auto !important; }
   .mx-people-row > span:nth-child(2) { display: none !important; }
 }
+
+/* ≤480: phone — name + action only; email/status wrap instead of pushing the page wide
+   (team review Aug 2026: page measured 423px inside a 390px viewport) */
+@media (max-width: 480px) {
+  .mx-people-row { grid-template-columns: minmax(0,1fr) auto !important; }
+  .mx-people-row > span:nth-child(3) { display: none !important; }
+  .mx-people-row > * { min-width: 0; overflow-wrap: anywhere; }
+}

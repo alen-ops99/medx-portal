@@ -109,3 +109,11 @@ body[data-layout="signin"] #chrome { display: none; }
 
 /* Netlify HUD badge iframe overlaps bottom-right controls on review deploys — hide it */
 #nl-badge-frame, iframe[id^="nl-badge"] { display: none !important; pointer-events: none !important; }
+
+/* ≤480: the collapsed two-pane grid must never size its track from content min-width —
+   minmax(0,1fr) pins it to the viewport and long rows ellipsize instead of widening the
+   page (team review Aug 2026: People measured 423px inside a 390px viewport). */
+@media (max-width: 480px) {
+  .mx-side { grid-template-columns: minmax(0, 1fr) !important; }
+  .mx-side > * { min-width: 0; }
+}

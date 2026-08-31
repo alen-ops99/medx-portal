@@ -8,3 +8,10 @@
   /* the audit filter input takes the full header row on phones */
   [data-role="auditFilter"] { width: 100% !important; }
 }
+
+/* ≤480: health-report lines carry long env-var names and file paths — wrap them rather
+   than widen the page (team review Aug 2026: 421px inside a 390px viewport) */
+@media (max-width: 480px) {
+  [data-block="health"] span, [data-block="health"] code { overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
+  [data-block="health"] > div { min-width: 0; }
+}

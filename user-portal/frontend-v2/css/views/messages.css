@@ -25,3 +25,11 @@
   .mx-msg-back { display: inline-flex !important; }
   .mx-msg-list { border-right: 0 !important; }
 }
+
+/* ≤480: nothing inside the messages grid may demand more than the viewport
+   (team review Aug 2026: thread list measured 409px inside a 390px viewport) */
+@media (max-width: 480px) {
+  .mx-msg-grid, .mx-msg-list, .mx-msg-conv { max-width: 100%; }
+  .mx-msg-grid div, .mx-msg-grid span, .mx-msg-grid input, .mx-msg-grid textarea { min-width: 0; }
+  .mx-msg-grid { overflow-x: clip; }
+}
