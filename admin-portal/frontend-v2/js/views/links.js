@@ -289,6 +289,11 @@ export default {
     if (rootEl !== root) return;
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
+    // Studio's "NEW FORM LINK →" arrives as /links?new=1 — land the cursor in the create form
+    if (ctx.query && ctx.query.new === '1') {
+      const form = root.querySelector('[data-act="create"]');
+      if (form) { form.scrollIntoView({ block: 'center' }); const inp = root.querySelector('select, input'); if (inp) inp.focus(); }
+    }
   },
   destroy() { reqId++; if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null; }
 };

@@ -20,6 +20,10 @@
  *   POST /api/v2/gala-ops/registrations/:id/restore      auth+adminOnly  the UNDO for cancel.
  *   GET/POST/DELETE /api/v2/gala-ops/waitlist[…]         auth+adminOnly  add / force-offer / remove / sweep
  *   GET  /api/v2/gala-ops/waitlist/accept/:token         PUBLIC          the 24 h offer's accept page (HTML)
+ *   GET  /api/v2/gala-ops/categories                     auth+adminOnly  the editable guest-category set
+ *   POST /api/v2/gala-ops/categories                     auth+adminOnly  { label, color? } → key is slugged once, then stable
+ *   PUT  /api/v2/gala-ops/categories/:id                 auth+adminOnly  { label?, color?, sort?, archived? } rename/recolor/archive
+ *   PUT  /api/v2/gala-ops/registrations/:id/category    auth+adminOnly  { key } re-tags ONE guest (writes gala_registrations.pricing)
  *   GET/PUT /api/v2/gala-ops/meta                        auth+adminOnly  performers TBA flip — SAME
  *        v2_gala_meta table the member side defines (user-portal/backend/v2/gala.js); the DDL below
  *        is copied VERBATIM from there and the value shape ({announced, list}, key 'performers')
@@ -37,6 +41,17 @@
  *   POST /waitlist/sweep runs it on demand (QA simulates the 24 h by rewinding offer_expires_at).
  *   Accepting creates a gala_registrations row (status 'approved', payment pending, pay_token)
  *   so the guest lands in the guest list to chase and can pay via the member /pay/gala rail.
+ *
+ * GUEST CATEGORIES (build 2026-08-31): the ADD-GUEST picker's fixed INVOICE / VIP — FREE /
+ * SPONSOR SEAT trio becomes data. v2_gala_categories(id, key, label, color, sort, archived) is
+ * seeded with exactly those three ONLY when the table is empty; the seeded keys ('invoice',
+ * 'vip', 'sponsor') are the very values gala_registrations.pricing already stores, and every
+ * write path keeps using that column — so v1 screens, the seating export and old chips read on
+ * unchanged. Renames touch the label, never the key; archive hides a category from pickers while
+ * guests already tagged with it keep resolving. Behaviour stays keyed on 'invoice' alone: that
+ * category takes the payment-request path, every other category counts as paid (like VIP/sponsor
+ * always did). Legacy pricing values outside the set ('bundle', 'waitlist', …) still render — the
+ * view falls back to its plain PAID chip for them.
  */
 'use strict';
 const crypto = require('crypto');
@@ -99,6 +114,32 @@ module.exports = function mountGalaOps(app, ctx) {
             restored_at TEXT
         )`);
     } catch (e) { log('v2_gala_cancellations schema failed:', e.message); }
+    try {
+        db().run(`CREATE TABLE IF NOT EXISTS v2_gala_categories (
+            id TEXT PRIMARY KEY,
+            key TEXT NOT NULL UNIQUE,
+            label TEXT NOT NULL,
+            color TEXT,
+            sort INTEGER DEFAULT 0,
+            archived INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT
+        )`);
+        // Seed the picker's historical three ONLY on an empty table. The keys are exactly what
+        // gala_registrations.pricing already stores — nothing existing re-labels or breaks.
+        const seeded = getRow('SELECT COUNT(*) AS c FROM v2_gala_categories');
+        if (!seeded || !Number(seeded.c)) {
+            for (const [key, label, color, sort] of [
+                ['invoice', 'Invoice', '#9b1b22', 10],
+                ['vip', 'VIP — free', '#7a6432', 20],
+                ['sponsor', 'Sponsor seat', '#1e6e42', 30]
+            ]) {
+                db().run('INSERT INTO v2_gala_categories (id, key, label, color, sort, archived) VALUES (?,?,?,?,?,0)',
+                    [crypto.randomUUID(), key, label, color, sort]);
+            }
+            persist();
+        }
+    } catch (e) { log('v2_gala_categories schema failed:', e.message); }
 
     // ---------------------------------------------------------------- tiny query helpers
     function getRow(sql, params) {
@@ -122,6 +163,13 @@ module.exports = function mountGalaOps(app, ctx) {
     const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const cleanStr = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
     const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
+    const slugKey = (label) => cleanStr(label, 60).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    const okColor = (v) => (/^#[0-9a-fA-F]{6}$/.test(String(v || '').trim()) ? String(v).trim().toLowerCase() : null);
+    function readCategories() {
+        try { return getAll('SELECT id, key, label, color, sort, archived FROM v2_gala_categories ORDER BY sort, label'); }
+        catch (e) { return []; }
+    }
+    function liveCategories() { return readCategories().filter(c => !Number(c.archived)); }
 
     // Same env fallbacks server.js uses for its own absolute links / the member portal.
     function adminBase() {
@@ -281,7 +329,7 @@ module.exports = function mountGalaOps(app, ctx) {
             const meals = {};
             for (const m of mealsRows) meals[m.registration_id] = m.option_id;
             const room = roomState();
-            res.json({ tables: room.tables, assignments, meals, waitlist: wl, cancellations: cancels, meta: metaJson(), room, price: priceBlock(), now: nowIso() });
+            res.json({ tables: room.tables, assignments, meals, waitlist: wl, cancellations: cancels, categories: readCategories(), meta: metaJson(), room, price: priceBlock(), now: nowIso() });
         } catch (e) { log('overview failed:', e.message); res.status(500).json({ error: 'The Gala overview is unavailable right now.' }); }
     });
 
@@ -313,7 +361,11 @@ module.exports = function mountGalaOps(app, ctx) {
             const name = cleanStr(b.name, 160);
             const email = cleanStr(b.email, 200).toLowerCase();
             const institution = cleanStr(b.institution, 200);
-            const kind = ['invoice', 'vip', 'sponsor'].includes(b.kind) ? b.kind : 'invoice';
+            // The picker offers the LIVE category set; 'invoice' stays the one billed path and
+            // every other category counts as paid — exactly how vip/sponsor always behaved.
+            const wantKind = cleanStr(b.kind, 40).toLowerCase() || 'invoice';
+            const kind = liveCategories().some(c => c.key === wantKind) ? wantKind : null;
+            if (!kind) return res.status(400).json({ error: 'Pick one of the live guest categories' });
             if (!name) return res.status(400).json({ error: 'Type the guest’s name first' });
             if (kind === 'invoice' && !validEmail(email)) return res.status(400).json({ error: 'An invoice guest needs an email for the payment request' });
             if (email && !validEmail(email)) return res.status(400).json({ error: 'That email does not look right' });
@@ -396,6 +448,89 @@ module.exports = function mountGalaOps(app, ctx) {
             const swept = await sweep(req); // the seat is taken again — nothing new gets offered
             res.json({ success: true, status: prevStatus, sweep: swept });
         } catch (e) { log('restore failed:', e.message); res.status(500).json({ error: 'Could not restore the seat.' }); }
+    });
+
+    // ---- guest categories (the ADD-GUEST picker set as data; keys live in gala_registrations.pricing) ----
+    app.get('/api/v2/gala-ops/categories', auth, adminOnly, (req, res) => {
+        try { res.json({ categories: readCategories() }); }
+        catch (e) { res.status(500).json({ error: 'Categories are unavailable right now.' }); }
+    });
+    app.post('/api/v2/gala-ops/categories', auth, adminOnly, (req, res) => {
+        try {
+            const label = cleanStr(req.body && req.body.label, 60);
+            if (!label) return res.status(400).json({ error: 'Type the category label first' });
+            const key = slugKey(label);
+            if (!key) return res.status(400).json({ error: 'The label needs at least one letter or digit' });
+            if (getRow('SELECT id FROM v2_gala_categories WHERE key = ?', [key]))
+                return res.status(400).json({ error: `'${key}' already exists — it may be archived; restore it instead of adding a twin` });
+            const top = getRow('SELECT MAX(sort) AS m FROM v2_gala_categories');
+            const id = crypto.randomUUID();
+            db().run('INSERT INTO v2_gala_categories (id, key, label, color, sort, archived, updated_at) VALUES (?,?,?,?,?,0,?)',
+                [id, key, label, okColor(req.body && req.body.color) || '#6d6459', (Number(top && top.m) || 0) + 10, nowIso()]);
+            persist();
+            audit(req, 'gala.category_add', `${label} (${key})`);
+            res.json({ success: true, category: getRow('SELECT id, key, label, color, sort, archived FROM v2_gala_categories WHERE id = ?', [id]) });
+        } catch (e) { log('category add failed:', e.message); res.status(500).json({ error: 'Could not add the category.' }); }
+    });
+    app.put('/api/v2/gala-ops/categories/:id', auth, adminOnly, (req, res) => {
+        try {
+            const cat = getRow('SELECT * FROM v2_gala_categories WHERE id = ?', [req.params.id]);
+            if (!cat) return res.status(404).json({ error: 'Category not found' });
+            const b = req.body || {};
+            const next = { label: cat.label, color: cat.color, sort: Number(cat.sort) || 0, archived: Number(cat.archived) ? 1 : 0 };
+            const did = [];
+            if (b.label !== undefined) {
+                const l = cleanStr(b.label, 60);
+                if (!l) return res.status(400).json({ error: 'The label cannot be empty' });
+                if (l !== cat.label) did.push(`renamed '${cat.label}' → '${l}'`);
+                next.label = l;                                    // the KEY never changes — storage stays put
+            }
+            if (b.color !== undefined) {
+                const c = okColor(b.color);
+                if (!c) return res.status(400).json({ error: 'Colors are #rrggbb' });
+                if (c !== cat.color) did.push('recolored');
+                next.color = c;
+            }
+            if (b.sort !== undefined) {
+                if (!Number.isFinite(Number(b.sort))) return res.status(400).json({ error: 'sort must be a number' });
+                next.sort = Math.round(Number(b.sort));
+                if (next.sort !== (Number(cat.sort) || 0)) did.push('reordered');
+            }
+            if (b.archived !== undefined) {
+                const a = (b.archived === true || b.archived === 1 || b.archived === '1' || b.archived === 'true') ? 1 : 0;
+                if (a && !next.archived) {
+                    if (!liveCategories().filter(c => c.id !== cat.id).length)
+                        return res.status(400).json({ error: 'At least one live category must remain — add another before archiving this one' });
+                    did.push('archived');
+                }
+                if (!a && next.archived) did.push('restored');
+                next.archived = a;
+            }
+            if (!did.length) return res.json({ success: true, category: { id: cat.id, key: cat.key, label: cat.label, color: cat.color, sort: cat.sort, archived: cat.archived } });
+            db().run('UPDATE v2_gala_categories SET label=?, color=?, sort=?, archived=?, updated_at=? WHERE id=?',
+                [next.label, next.color, next.sort, next.archived, nowIso(), cat.id]);
+            persist();
+            audit(req, 'gala.category_edit', `${cat.key}: ${did.join(', ')}`);
+            res.json({ success: true, category: getRow('SELECT id, key, label, color, sort, archived FROM v2_gala_categories WHERE id = ?', [cat.id]) });
+        } catch (e) { log('category edit failed:', e.message); res.status(500).json({ error: 'Could not save the category.' }); }
+    });
+    // Re-tag ONE guest — writes the category key into gala_registrations.pricing (the column the
+    // legacy portal, the seating payload and the chips already read). A label move only: status,
+    // payment_status and amounts are deliberately untouched.
+    app.put('/api/v2/gala-ops/registrations/:id/category', auth, adminOnly, (req, res) => {
+        try {
+            const reg = getRow('SELECT id, first_name, last_name, email, pricing FROM gala_registrations WHERE id = ?', [req.params.id]);
+            if (!reg) return res.status(404).json({ error: 'Guest not found' });
+            const key = cleanStr(req.body && req.body.key, 40).toLowerCase();
+            if (!liveCategories().some(c => c.key === key)) return res.status(400).json({ error: 'Pick one of the live categories' });
+            if (key !== String(reg.pricing || '')) {
+                db().run('UPDATE gala_registrations SET pricing = ? WHERE id = ?', [key, reg.id]);
+                persist();
+                const name = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || reg.email || reg.id;
+                audit(req, 'gala.category_set', `${name}: '${reg.pricing || '—'}' → '${key}'`);
+            }
+            res.json({ success: true, pricing: key });
+        } catch (e) { log('category set failed:', e.message); res.status(500).json({ error: 'Could not change the guest category.' }); }
     });
 
     // ---- waitlist ----
@@ -519,5 +654,5 @@ module.exports = function mountGalaOps(app, ctx) {
         } catch (e) { log('meta write failed:', e.message); res.status(500).json({ error: 'Could not save the Gala details.' }); }
     });
 
-    log('gala-ops mounted (overview, add-guest, meal, soft-cancel/restore, waitlist + 24 h offers, performers meta)');
+    log('gala-ops mounted (overview, add-guest, meal, soft-cancel/restore, waitlist + 24 h offers, performers meta, guest categories)');
 };

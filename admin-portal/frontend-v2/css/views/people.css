@@ -21,3 +21,21 @@
   .mx-people-row > span:nth-child(3) { display: none !important; }
   .mx-people-row > * { min-width: 0; overflow-wrap: anywhere; }
 }
+
+/* ---- v2 people-hygiene additions (team review Aug 2026 — Laura + Miro) ----
+   Same discipline as the list rows: nothing below may widen the page — grids drop
+   columns, chips wrap, long emails break. Inline artboard styles stay in the view;
+   these rules only override them at narrow widths (hence the !important). */
+
+/* possible-duplicates strip: name/email · tags · KEEP button */
+@media (max-width: 640px) {
+  .mx-dup-row { grid-template-columns: minmax(0,1fr) auto !important; }
+  .mx-dup-row > span:nth-child(2) { display: none !important; }   /* tag chips go — name + button stay */
+}
+@media (max-width: 480px) {
+  .mx-dup-row { grid-template-columns: minmax(0,1fr) !important; }
+  .mx-dup-row > * { min-width: 0; overflow-wrap: anywhere; }
+  .mx-dup-row [data-act="mergeKeep"] { justify-self: start !important; white-space: normal !important; }
+  /* hygiene chips in the member file: let the long UNSUBSCRIBED label wrap on a phone */
+  .mx-hyg-chip { white-space: normal !important; }
+}

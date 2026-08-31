@@ -18,8 +18,17 @@
  *   POST /api/v2/forum/invites/:id/send         — (re)queue the personal invitation
  *   DELETE /api/v2/forum/invites/:id            — revoke an open code (kept as expired — audit trail)
  *   POST /api/v2/forum/candidates               — add one pipeline row (forum_candidates, source 'forum-hub')
+ *   POST /api/v2/forum/nominations/:id/shortlist — a member's nomination becomes a pipeline candidate
+ *                                                  (same forum_candidates shape, source 'nomination');
+ *                                                  the nominating member is emailed that it moved forward
+ *   POST /api/v2/forum/nominations/:id/decline  — status 'declined' (row kept for the audit trail)
  *   PUT  /api/v2/forum/members/:id/renew        — extend an annual membership by one year
  *   GET/PUT /api/v2/forum/consideration-questions — the public request-consideration form questions
+ *
+ * NOMINATIONS: the member portal's POST /api/v2/forum/nominate writes v2_forum_nominations
+ * (a signed-in member puts a colleague forward — medx.hr's "put forward by a member who can
+ * speak to a colleague's standing and character"). The hub read returns the status='new' rows
+ * and the frontend renders them INSIDE the recruitment pipeline as NOMINATED stage rows.
  *
  * SEND CODE queues through the approval outbox (scheduled_emails, status 'pending_approval') —
  * the same spine the Inbox approves and the ~60s drainer sends (README note 2: nothing emails a
@@ -41,7 +50,7 @@ const QUESTIONS_KEY = 'v2_forum_consideration_questions';
 const DEFAULT_QUESTIONS = ['Name and titles', 'Email', 'Institution', 'A few lines — why the Forum'];
 
 module.exports = function mountForumOps(app, ctx) {
-    const { auth, adminOnly, saveDb } = ctx;
+    const { auth, adminOnly, saveDb, sendEmail } = ctx;
     const log = ctx.log || ((...a) => console.log('[v2/forum-ops]', ...a));
     const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'));
     const nowIso = () => new Date().toISOString();
@@ -71,6 +80,10 @@ module.exports = function mountForumOps(app, ctx) {
             id TEXT PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'news', tag TEXT, name TEXT, role TEXT, init TEXT, title TEXT, body TEXT,
             published INTEGER DEFAULT 1, published_at TEXT DEFAULT CURRENT_TIMESTAMP, created_by TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT)`);
+        q.run(`CREATE TABLE IF NOT EXISTS v2_forum_nominations (
+            id TEXT PRIMARY KEY, nominee_name TEXT NOT NULL, nominee_email TEXT, institution TEXT,
+            statement TEXT NOT NULL, nominated_by_user_id TEXT, nominated_by_email TEXT,
+            status TEXT NOT NULL DEFAULT 'new', created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
         q.run(`CREATE INDEX IF NOT EXISTS idx_v2_forum_invites_code ON v2_forum_invites(code)`);
     } catch (e) { console.error('[v2/forum-ops] schema:', e.message); }
     for (const sql of [
@@ -143,6 +156,25 @@ module.exports = function mountForumOps(app, ctx) {
         try { const row = q.get(`SELECT value FROM app_state WHERE key = ?`, [QUESTIONS_KEY]); const v = row && JSON.parse(row.value); if (Array.isArray(v) && v.length) return v.map(x => String(x)); } catch (e) { /* fall through */ }
         return DEFAULT_QUESTIONS.slice();
     }
+    // Member nominations still before the Office (status 'new') — rendered by the hub INSIDE the
+    // recruitment pipeline as NOMINATED rows. The nominator's display name comes from users when
+    // the account still exists, else the email stored on the nomination.
+    function shapeNomination(n) {
+        const by = [n.by_first, n.by_last].filter(Boolean).join(' ').trim();
+        return {
+            id: n.id, nominee_name: n.nominee_name, nominee_email: n.nominee_email || null,
+            institution: n.institution || '', statement: n.statement || '', status: n.status,
+            created_at: n.created_at, nominated_by: by || n.nominated_by_email || n.by_uemail || 'a Forum member',
+            nominated_by_email: n.nominated_by_email || n.by_uemail || null
+        };
+    }
+    function nominationsList() {
+        try {
+            return q.all(`SELECT n.*, u.first_name AS by_first, u.last_name AS by_last, u.email AS by_uemail
+                          FROM v2_forum_nominations n LEFT JOIN users u ON u.id = n.nominated_by_user_id
+                          WHERE n.status = 'new' ORDER BY datetime(n.created_at) DESC LIMIT 200`).map(shapeNomination);
+        } catch (e) { console.error('[v2/forum-ops] nominations list:', e.message); return []; }
+    }
 
     // ---- the personal invitation email (Emails.dc.html voice — ink header · 2px rule · cream body) ----
     function memberPortalBase() {
@@ -185,6 +217,31 @@ module.exports = function mountForumOps(app, ctx) {
             [uuid(), batchId, JSON.stringify({ to: invite.email, subject, html }), invite.email, subject, createdBy || 'forum-hub']);
         return batchId;
     }
+    // One short branded note to the MEMBER who put a colleague forward, sent the moment their
+    // nomination moves to the shortlist (ctx.sendEmail — dumped to EMAIL_DUMP_DIR on staging).
+    // It thanks them and says the Office moved it forward; the colleague's own invitation still
+    // runs through the invitation-code machinery above, nothing is promised here.
+    // TODO: swap to email-templates.forumInvitation family
+    function nominationForwardHtml({ firstName, nomineeName }) {
+        return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#e9e2d2;font-family:Inter,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#191512">
+<div style="max-width:600px;margin:0 auto;padding:28px 12px">
+  <div style="background:#f7f1e6">
+    <div style="background:#191512;padding:22px 40px;color:#f7f1e6"><span style="font-family:Fraunces,Georgia,serif;font-size:22px;letter-spacing:.02em">med<span style="color:#c9a962">&amp;</span>X</span><span style="float:right;font:600 9px Inter,Arial,sans-serif;letter-spacing:.2em;color:#c9a962;margin-top:8px">BIOMEDICAL FORUM</span></div>
+    <div style="height:2px;background:#c9a962"></div>
+    <div style="padding:36px 40px 30px">
+      <span style="font:600 10px Inter,Arial,sans-serif;letter-spacing:.18em;color:#c9a962">YOUR NOMINATION · OFFICE OF THE FORUM</span>
+      <div style="font-family:Fraunces,Georgia,serif;font-size:28px;line-height:1.15;margin-top:10px">Your nomination is moving <i>forward</i>.</div>
+      <div style="font-size:14px;color:#4a4239;line-height:1.65;margin-top:14px">
+        <p style="margin:0 0 12px">${firstName ? 'Dear ' + esc(firstName) + ',' : 'Dear colleague,'}</p>
+        <p style="margin:0 0 12px">Thank you for putting <strong style="color:#191512">${esc(nomineeName)}</strong> forward for the Biomedical Forum. The Office of the Forum has read your words on their standing and character and moved the nomination to the shortlist.</p>
+        <p style="margin:0">Every seat in the Forum is personal, so we weigh each name with care — if an invitation goes out, it goes out from here, and we will let you know either way. It means a great deal that you spoke for a colleague.</p>
+      </div>
+    </div>
+    <div style="border-top:1px solid rgba(25,21,18,.16);padding:18px 40px;font-size:11px;color:#4a4239">© Med&amp;X 2026 · Zagreb <span style="color:#c9a962">·</span> The Biomedical Forum is an initiative of Med&amp;X.</div>
+  </div>
+</div></body></html>`;
+    }
 
     // ================================================================ routes (all admin-only)
 
@@ -202,7 +259,8 @@ module.exports = function mountForumOps(app, ctx) {
                 ok: true, cap: CAP,
                 members: active, members_count: active.length, expired_members: members.filter(m => m.expired),
                 countries, invites, codes_out: invites.filter(i => i.status === 'open' && (i.sent_at || i.email)).length,
-                vote: voteState(), feed: feedItems(), gathering: gatheringRow(), considerations_pending: considerations
+                vote: voteState(), feed: feedItems(), gathering: gatheringRow(), considerations_pending: considerations,
+                nominations: nominationsList()
             });
         } catch (e) { fail(res, e, 'hub'); }
     });
@@ -320,6 +378,55 @@ module.exports = function mountForumOps(app, ctx) {
         } catch (e) { fail(res, e, 'candidate create'); }
     });
 
+    // POST /api/v2/forum/nominations/:id/shortlist — a member's nomination becomes a pipeline
+    // candidate: the SAME forum_candidates row shape POST /candidates writes (status 'imported',
+    // which the hub renders as SHORTLIST), source 'nomination'. If a candidate with that email is
+    // already in the pipeline the existing row is reused, never duplicated. The nominating member
+    // is emailed that it moved forward (ctx.sendEmail — dumped on staging, Brevo in production).
+    app.post('/api/v2/forum/nominations/:id/shortlist', auth, adminOnly, async (req, res) => {
+        try {
+            const n = q.get(`SELECT * FROM v2_forum_nominations WHERE id = ?`, [req.params.id]);
+            if (!n) return res.status(404).json({ error: 'Nomination not found.', code: 'unknown' });
+            if (n.status !== 'new') return res.status(409).json({ error: `That nomination was already ${n.status}.`, code: n.status });
+            const email = clean(n.nominee_email, 160).toLowerCase();
+            let candidate = email ? q.get(`SELECT * FROM forum_candidates WHERE LOWER(COALESCE(email, '')) = ?`, [email]) : null;
+            const reused = !!candidate;
+            if (!candidate) {
+                const cid = uuid();
+                q.run(`INSERT INTO forum_candidates (id, name, email, institution, country, field, source, status, created_by, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, 'nomination', 'imported', ?, datetime('now'), datetime('now'))`,
+                    [cid, clean(n.nominee_name, 200), email || null, clean(n.institution, 300) || null, null, null, req.user.email || 'admin']);
+                candidate = q.get(`SELECT * FROM forum_candidates WHERE id = ?`, [cid]);
+            }
+            q.run(`UPDATE v2_forum_nominations SET status = 'shortlisted' WHERE id = ?`, [n.id]);
+            persist();
+            let emailed = false;
+            if (n.nominated_by_email && typeof sendEmail === 'function') {
+                try {
+                    const by = n.nominated_by_user_id ? q.get(`SELECT first_name FROM users WHERE id = ?`, [n.nominated_by_user_id]) : null;
+                    const r = await sendEmail(n.nominated_by_email, 'Your Forum nomination is moving forward',
+                        nominationForwardHtml({ firstName: (by && by.first_name) || '', nomineeName: n.nominee_name }));
+                    emailed = !!(r && r.success);
+                } catch (e) { console.error('[v2/forum-ops] nomination email:', e && e.message); }
+            }
+            res.json({ ok: true, candidate, reused_existing_candidate: reused, emailed_nominator: emailed,
+                message: `${n.nominee_name} is on the shortlist${n.nominated_by_email ? ' — the nominating member has been told' : ''}.` });
+        } catch (e) { fail(res, e, 'nomination shortlist'); }
+    });
+
+    // POST /api/v2/forum/nominations/:id/decline — status 'declined'; the row stays for the audit
+    // trail (no automatic email — the Office replies to the member in its own words, either way).
+    app.post('/api/v2/forum/nominations/:id/decline', auth, adminOnly, (req, res) => {
+        try {
+            const n = q.get(`SELECT * FROM v2_forum_nominations WHERE id = ?`, [req.params.id]);
+            if (!n) return res.status(404).json({ error: 'Nomination not found.', code: 'unknown' });
+            if (n.status !== 'new') return res.status(409).json({ error: `That nomination was already ${n.status}.`, code: n.status });
+            q.run(`UPDATE v2_forum_nominations SET status = 'declined' WHERE id = ?`, [n.id]);
+            persist();
+            res.json({ ok: true, message: 'Nomination declined — the row stays for the audit trail.' });
+        } catch (e) { fail(res, e, 'nomination decline'); }
+    });
+
     // PUT /api/v2/forum/members/:id/renew — annual membership: extend by one year from today
     app.put('/api/v2/forum/members/:id/renew', auth, adminOnly, (req, res) => {
         try {
@@ -353,5 +460,5 @@ module.exports = function mountForumOps(app, ctx) {
         } catch (e) { fail(res, e, 'questions write'); }
     });
 
-    log('forum-ops: /api/v2/forum/{hub,feed,invites,candidates,members/:id/renew,consideration-questions}');
+    log('forum-ops: /api/v2/forum/{hub,feed,invites,candidates,nominations/:id/shortlist,nominations/:id/decline,members/:id/renew,consideration-questions}');
 };

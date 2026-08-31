@@ -6,7 +6,11 @@
 // + GET /api/v2/forum/feed (the "From the Forum" store: v2 composer table ∪ legacy forum_news).
 // Actions: POST /api/v2/forum/redeem-code (UNLOCK REGISTRATION — distinct empty/unknown/expired/used/
 // member errors) · POST /api/v2/forum/register (COMPLETE REGISTRATION — annual terms required) ·
-// POST /api/v2/forum/vote (Split-or-Zagreb, one changeable vote per member). MESSAGE US → /app/messages.
+// POST /api/v2/forum/vote (Split-or-Zagreb, one changeable vote per member) ·
+// POST /api/v2/forum/nominate ("PUT A COLLEAGUE FORWARD" — v2-added block between "04 · YOUR
+// MEMBERSHIP" and "Message us": medx.hr's "put forward by a member who can speak to a colleague's
+// standing and character" route; /app/forum is auth-gated by the router, so every viewer is signed in).
+// MESSAGE US → /app/messages.
 // The Auth "Invitation code" screen stores a guest-checked code in sessionStorage.medx_forum_code;
 // this view redeems it on arrival (see "Requested shared changes" in the build report).
 import { api } from '../api.js';
@@ -18,6 +22,7 @@ import router from '../router.js';
 
 export const SOURCE = 'Biomedical Forum.dc.html';
 const PENDING_CODE_KEY = 'medx_forum_code';   // written by js/views/auth.js after a guest check-code
+const NOMINATION_MIN = 120;                   // statement floor — mirrors the backend's NOMINATION_STATEMENT_MIN
 
 export const COPY = {
   crumb: { projects: 'PROJECTS', here: 'BIOMEDICAL FORUM' },
@@ -103,10 +108,34 @@ export const COPY = {
     labels: { split: 'SPLIT', zagreb: 'ZAGREB' },
     counted: 'Vote counted.', updated: 'Vote updated.'
   },
+  nominate: {
+    eyebrow: 'MEMBERS PUT MEMBERS FORWARD',
+    title: 'Put a colleague <i style="color:#9b1b22">forward</i>.',
+    intro: 'Members join the Forum invited by the Office of the Forum — or put forward by a member who can speak to a colleague\'s standing and character. If someone belongs in this room, tell us who they are and speak for them.',
+    name: 'COLLEAGUE\'S NAME', email: 'COLLEAGUE\'S EMAIL', institution: 'INSTITUTION',
+    statement: 'THEIR STANDING AND CHARACTER — IN YOUR WORDS',
+    statementPh: 'What they have built, how they carry themselves, why the Forum is better with them in it…',
+    statementWhy: min => `At least ${min} characters — this statement is the part the Office of the Forum reads first, so give it two or three real sentences.`,
+    counter: (n, min) => n >= min ? `${n} characters — thank you for the detail` : `${n} / ${min} characters minimum`,
+    submit: 'PUT THEM FORWARD →', busy: 'SENDING…',
+    needName: 'Tell us your colleague\'s name.',
+    needEmail: 'Add your colleague\'s email address so the Office of the Forum can reach them.',
+    needInstitution: 'Add their institution — it helps the Office place them.',
+    shortStatement: min => `The statement is the part the Office of the Forum reads first — give it at least ${min} characters on their standing and character, in your own words.`,
+    sentTag: 'NOMINATION RECEIVED',
+    sentHead: 'Your nomination is with the <i>Office of the Forum</i>.',
+    sentBody: 'We treat these seriously and reply to you either way.',
+    another: 'PUT ANOTHER COLLEAGUE FORWARD →'
+  },
   contact: {
     line: 'Questions about your invitation, the program, or sponsorship?',
     sub: 'Message us · replies land right here in your portal inbox.',
-    cta: 'MESSAGE US →'
+    cta: 'MESSAGE US →',
+    // medx.hr has no #sponsorship anchor (checked 2026-08-30: the support band's heading id is
+    // home-support-h), so this deliberately links the homepage rather than a dead fragment.
+    sponsorLead: 'Sponsoring the Forum or the gathering starts on our site.',
+    sponsorCta: 'SPONSORSHIP — MEDX.HR ↗',
+    sponsorUrl: 'https://medx.hr'
   }
 };
 
@@ -411,6 +440,44 @@ function blockMembership() {
   <!-- /dc -->`;
 }
 
+function blockNominate() {
+  const c = COPY.nominate;
+  const IN = 'border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box';
+  const LB = 'font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239';
+  const inner = st.nomSent ? `
+    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #c9a962;background:#fdfaf3;padding:28px 24px;max-width:960px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
+      <span style="padding:4px 10px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.16em">${c.sentTag}</span>
+      <span style="font-family:Fraunces,serif;font-size:21px">${c.sentHead}</span>
+      <span style="font-size:12.5px;color:#4a4239;max-width:480px;line-height:1.6">${c.sentBody}</span>
+      <span data-act="nomAgain" style="margin-top:6px;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer" data-hover="color:#191512">${c.another}</span>
+    </div>` : `
+    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #9b1b22;background:#fdfaf3;padding:22px 24px;max-width:960px">
+      <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${c.eyebrow}</span>
+      <div style="font-family:Fraunces,serif;font-size:22px;margin-top:8px">${c.title}</div>
+      <div style="font-size:13px;color:#4a4239;line-height:1.6;margin-top:8px;max-width:720px;text-wrap:pretty">${c.intro}</div>
+      <form data-form="nominate" style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+        <div class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <span style="display:flex;flex-direction:column;gap:6px"><span style="${LB}">${c.name}</span><input data-role="nomName" aria-label="Colleague's name" autocomplete="off" style="${IN}"></span>
+          <span style="display:flex;flex-direction:column;gap:6px"><span style="${LB}">${c.email}</span><input data-role="nomEmail" type="email" aria-label="Colleague's email" autocomplete="off" style="${IN}"></span>
+          <span style="display:flex;flex-direction:column;gap:6px"><span style="${LB}">${c.institution}</span><input data-role="nomInst" aria-label="Colleague's institution" autocomplete="off" style="${IN}"></span>
+        </div>
+        <span style="display:flex;flex-direction:column;gap:6px">
+          <span style="${LB}">${c.statement}</span>
+          <textarea data-role="nomStatement" aria-label="Their standing and character, in your words" placeholder="${esc(c.statementPh)}" style="${IN};min-height:96px;resize:vertical;font-family:Inter,sans-serif;line-height:1.55"></textarea>
+          <span style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span style="font-size:11.5px;color:#4a4239;line-height:1.5;max-width:560px">${esc(c.statementWhy(NOMINATION_MIN))}</span><span style="flex:1"></span><span data-role="nomCount" style="font:600 10px Inter,sans-serif;letter-spacing:.06em;color:#6d6459;white-space:nowrap">${esc(c.counter(0, NOMINATION_MIN))}</span></span>
+        </span>
+        <div data-role="nomError" role="alert" style="display:none;font-size:12.5px;color:#9b1b22;line-height:1.5"></div>
+        <span data-act="nominate" style="align-self:flex-start;padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.submit}</span>
+      </form>
+    </div>`;
+  return `
+  <!-- dc: Biomedical Forum.dc.html › "PUT A COLLEAGUE FORWARD" -->
+  <div data-block="nominate" class="mx-gutter" style="padding:26px 36px 4px">
+    ${inner}
+  </div>
+  <!-- /dc -->`;
+}
+
 function blockContact() {
   return `
   <!-- dc: Biomedical Forum.dc.html › "Message us" -->
@@ -420,7 +487,12 @@ function blockContact() {
     <div style="flex:1"></div>
     <a href="/app/messages?about=forum" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.contact.cta}</a>
   </div>
-  <!-- /dc -->`;
+  <!-- /dc -->
+  <!-- v2: sponsorship pointer (Laura) — the line above invites sponsorship questions; this links the medx.hr support band (no #sponsorship anchor exists there, so it goes to the homepage) -->
+  <div class="mx-gutter" style="display:flex;align-items:baseline;gap:12px;padding:0 36px 30px;margin-top:-16px;flex-wrap:wrap">
+    <span style="font-size:12px;color:#4a4239">${COPY.contact.sponsorLead}</span>
+    <a href="${COPY.contact.sponsorUrl}" target="_blank" rel="noopener" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap" data-hover="color:#191512">${COPY.contact.sponsorCta}</a>
+  </div>`;
 }
 
 function template() {
@@ -436,6 +508,7 @@ function template() {
     ${blockSpeakers()}
   </div>
   ${blockMembership()}
+  ${blockNominate()}
   ${blockContact()}
 </div>`;
 }
@@ -461,6 +534,17 @@ async function refresh({ scrollToMembership = false } = {}) {
 function wireForms() {
   const f = rootEl && rootEl.querySelector('form[data-form="code"]');
   if (f && !f.dataset.wired) { f.dataset.wired = '1'; f.addEventListener('submit', e => { e.preventDefault(); handlers.unlock(rootEl.querySelector('[data-act="unlock"]')); }); }
+  const nf = rootEl && rootEl.querySelector('form[data-form="nominate"]');
+  if (nf && !nf.dataset.wired) { nf.dataset.wired = '1'; nf.addEventListener('submit', e => { e.preventDefault(); handlers.nominate(rootEl.querySelector('[data-act="nominate"]')); }); }
+  const ta = rootEl && rootEl.querySelector('[data-role="nomStatement"]');
+  if (ta && !ta.dataset.wired) {
+    ta.dataset.wired = '1';
+    ta.addEventListener('input', () => {
+      const n = ta.value.trim().length; // trimmed, to match what the backend measures
+      const el = rootEl && rootEl.querySelector('[data-role="nomCount"]');
+      if (el) { el.textContent = COPY.nominate.counter(n, NOMINATION_MIN); el.style.color = n >= NOMINATION_MIN ? '#6e5626' : '#6d6459'; }
+    });
+  }
 }
 async function redeem(code, el) {
   showCodeError('');
@@ -545,6 +629,34 @@ const handlers = {
     redeem(input ? input.value.toUpperCase().replace(/\s+/g, '') : '', el);
   },
   register: () => openRegistration(),
+  nominate: async (el) => {
+    const val = r => { const x = rootEl && rootEl.querySelector(`[data-role="${r}"]`); return x ? x.value.trim() : ''; };
+    const err = rootEl && rootEl.querySelector('[data-role="nomError"]');
+    const show = t => { if (err) { err.textContent = t || ''; err.style.display = t ? 'block' : 'none'; } };
+    show('');
+    const name = val('nomName'), email = val('nomEmail'), institution = val('nomInst'), statement = val('nomStatement');
+    if (!name) return show(COPY.nominate.needName);
+    if (!email) return show(COPY.nominate.needEmail);
+    if (!institution) return show(COPY.nominate.needInstitution);
+    if (statement.length < NOMINATION_MIN) return show(COPY.nominate.shortStatement(NOMINATION_MIN));
+    if (el) { el.setAttribute('aria-disabled', 'true'); el.textContent = COPY.nominate.busy; }
+    try {
+      const r = await api.post('/api/v2/forum/nominate', { name, email, institution, statement });
+      st.nomSent = true;
+      const block = rootEl && rootEl.querySelector('[data-block="nominate"]');
+      if (block) block.outerHTML = blockNominate();
+      ui.toast((r && r.message) || 'Your nomination is with the Office of the Forum — we treat these seriously and reply to you either way.', { ms: 5000 });
+    } catch (e) {
+      if (el) { el.removeAttribute('aria-disabled'); el.textContent = COPY.nominate.submit; }
+      show(e.message);
+      ui.toast(e.message, { kind: 'error', ms: 4500 });
+    }
+  },
+  nomAgain: () => {
+    st.nomSent = false;
+    const block = rootEl && rootEl.querySelector('[data-block="nominate"]');
+    if (block) { block.outerHTML = blockNominate(); wireForms(); }
+  },
   vote: async (el) => {
     const choice = el.dataset.choice;
     el.setAttribute('aria-disabled', 'true');
@@ -571,7 +683,7 @@ export default {
     ensureCss();
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
-    st = { prefill: '' };
+    st = { prefill: '', nomSent: false };
     // A code can arrive from the Auth "Invitation code" screen (guest flow) or an emailed ?code= link.
     let pending = '';
     try { pending = sessionStorage.getItem(PENDING_CODE_KEY) || ''; } catch (e) {}

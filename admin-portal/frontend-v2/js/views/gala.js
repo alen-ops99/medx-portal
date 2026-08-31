@@ -7,14 +7,23 @@
 //   GET /api/admin/gala/menu-options           the venue's dinner menu (meal buckets)
 //   GET /api/admin/nag/items                   gala_unpaid rows → CHASE goes through the nag act
 //   GET /api/v2/gala-ops/overview              tables + assignments + meal overrides + waitlist +
-//                                              performers meta + room state + effective price
+//                                              performers meta + room state + effective price +
+//                                              the editable guest-category set (v2_gala_categories)
+//   GET /api/admin/gala/table-assignments      the 3D console's email-keyed import ("Stol N")
 // Mutations: seat assign/unassign via the EXISTING /api/admin/gala/tables/:id/assign +
-// /api/admin/gala/unassign; MARK PAID via the EXISTING /api/admin/registrant/gala/:id/mark-paid
-// (FIRA on payment stays that route's business); CHASE via /api/admin/nag/items/:id/act with the
-// guest-message outbox queue as the fallback — both approval-gated, nothing emails directly.
-// Add guest / meal / soft-cancel + undo / waitlist + 24 h offers / performers flip live in
-// admin-portal/backend/v2/gala-ops.js (/api/v2/gala-ops/…). Seats are NON-REFUNDABLE: cancel is a
-// status door (+ undo), never a refund, and money documents stay FIRA's business.
+// /api/admin/gala/unassign (assign mirrors seat_number onto the registration — wallet passes
+// update from it); table create/edit/delete via the EXISTING POST/PUT/DELETE
+// /api/admin/gala/tables[/:id] (build 2026-08-31 — the old portal's table tools, on the board);
+// console CSV import via the EXISTING POST /api/admin/gala/table-assignments/import (columns
+// table,name,email; upsert by lower(email)); MARK PAID via the EXISTING
+// /api/admin/registrant/gala/:id/mark-paid (FIRA on payment stays that route's business); CHASE
+// via /api/admin/nag/items/:id/act with the guest-message outbox queue as the fallback — both
+// approval-gated, nothing emails directly. Add guest / meal / soft-cancel + undo / waitlist +
+// 24 h offers / performers flip / guest categories live in admin-portal/backend/v2/gala-ops.js
+// (/api/v2/gala-ops/…). The ADD-GUEST picker set is DATA now: category keys are the
+// gala_registrations.pricing values ('invoice' stays the one billed path; every other category
+// counts as paid). Seats are NON-REFUNDABLE: cancel is a status door (+ undo), never a refund,
+// and money documents stay FIRA's business.
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow } from '../facts.js';
@@ -41,9 +50,10 @@ export const COPY = {
     title: 'GUEST LIST', search: 'Find a guest…', add: '+ ADD GUEST',
     cols: { guest: 'GUEST', table: 'TABLE', meal: 'MEAL', status: 'STATUS' },
     addName: 'Guest name', addEmail: 'Email (needed for the invoice path)',
-    kinds: price => [`INVOICE — ${fmt.eur(price)}`, 'VIP — FREE', 'SPONSOR SEAT'],
+    kindLabel: (cat, price) => cat.key === 'invoice' ? `${String(cat.label).toUpperCase()} — ${fmt.eur(price)}` : String(cat.label).toUpperCase(),
     addBtn: 'ADD',
-    addNote: 'Invoice guests get a payment email queued in the Outbox · VIP and sponsor seats count as paid.',
+    addNote: 'Invoice guests get a payment email queued in the Outbox · every other category counts as paid.',
+    manage: 'EDIT CATEGORIES',
     nameFirst: 'TYPE THE GUEST’S NAME FIRST',
     addedInvoice: 'ADDED — PAYMENT EMAIL QUEUED IN THE OUTBOX', addedPaid: 'ADDED — COUNTS AS PAID',
     groupNote: 'Group bookings (the table of four, the group of five) hold their seats under one payer — split them from the row when names arrive.',
@@ -57,7 +67,7 @@ export const COPY = {
     cancelled: n => `${n} cancelled seat${n === 1 ? '' : 's'}`, showCancelled: 'SHOW', hideCancelled: 'HIDE',
     reinstate: 'REINSTATE', cancelledChip: 'CANCELLED'
   },
-  chips: { paid: 'PAID', vip: 'VIP · PAID', sponsor: 'SPONSOR · PAID', pending: 'PENDING', requested: 'REQUESTED' },
+  chips: { paid: 'PAID', pending: 'PENDING', requested: 'REQUESTED' },   // category chips come from the live set
   chase: {
     label: 'CHASE', queued: 'QUEUED ✓', toast: 'REMINDER QUEUED IN THE OUTBOX',
     subject: 'Your Gala Evening seat — payment pending',
@@ -73,7 +83,48 @@ export const COPY = {
   board: {
     title: 'SEATING BOARD', hint: 'assign tables in the list — this fills in live',
     foot: 'Hover a table to see who sits there · the head table is T1. The walk-the-room 3D view builds on this same plan in production.',
-    empty: 'empty'
+    empty: 'empty',
+    addTable: '+ TABLE', addTitle: 'Add a table', create: 'CREATE TABLE',
+    editTitle: 'Edit this table', editOne: l => `Table <i>${l}</i>`, save: 'SAVE', del: 'DELETE TABLE',
+    labelPh: 'Table label (T11)', capPh: 'Seats', notesPh: 'Notes (e.g. Head table)',
+    addWhy: 'The room capacity, the waitlist math and the KPI strip all follow the sum of table seats.',
+    needLabel: 'TYPE A TABLE LABEL FIRST',
+    created: 'TABLE ADDED', saved: 'TABLE SAVED',
+    deleted: 'TABLE REMOVED — ITS GUESTS ARE UNSEATED',
+    delSure: l => `Delete ${l}?`,
+    delWhy: 'Its guests move to UNSEATED and their wallet passes show the table as pending again. The waitlist math shrinks with the room. This cannot be undone.',
+    seatedAt: 'SEATED HERE', unassignTitle: 'Unseat this guest (frees the chair, wallet pass shows pending)',
+    unseatedOne: 'GUEST UNSEATED',
+    unseated: n => `UNSEATED — ${n}`,
+    unseatedNone: 'Everyone active is placed.',
+    unseatedMore: n => `+ ${n} more — assign from the list`,
+    seatTitle: name => `Seat ${name}`, full: 'FULL',
+    seated: (name, t) => `${name.toUpperCase()} → ${t} — WALLET PASS UPDATES TOO`
+  },
+  cat: {
+    title: 'Guest categories',
+    editTitle: 'Change this guest’s category',
+    addPh: 'New category label', addBtn: 'ADD', needLabel: 'TYPE A CATEGORY LABEL FIRST',
+    colorTitle: 'Chip color',
+    keyTitle: 'Stored key — stays stable across renames',
+    archive: 'ARCHIVE', restore: 'RESTORE', archivedTag: 'ARCHIVED',
+    added: 'CATEGORY ADDED', saved: 'CATEGORY SAVED', set: 'CATEGORY UPDATED',
+    archivedToast: 'CATEGORY ARCHIVED — TAGGED GUESTS KEEP IT', restored: 'CATEGORY RESTORED',
+    note: 'Renames keep the stored key, so already-tagged guests simply follow the new name. Archiving hides a category from the pickers — guests already tagged keep their label. INVOICE stays the one billed path; every other category counts as paid.'
+  },
+  planner: {
+    title: '3D BALLROOM PLANNER',
+    open: 'OPEN THE 3D PLANNER ↗',
+    import: 'IMPORT CONSOLE CSV', importing: 'IMPORTING…',
+    importTitle: 'The console’s guest CSV (columns table, name, email) — re-imports update, never duplicate',
+    tooBig: 'THAT FILE IS TOO BIG FOR A GUEST CSV',
+    result: r => `IMPORTED — ${r.inserted} NEW · ${r.updated} UPDATED${r.skipped ? ` · ${r.skipped} SKIPPED` : ''}`,
+    listTitle: 'CONSOLE ASSIGNMENTS',
+    stol: n => (/^\d+$/.test(n) ? `Stol ${n}` : (n || '—')),
+    empty: 'No console import yet — export the guest CSV from the planner and drop it here.',
+    removeTitle: 'Remove this console row (the member page falls back to the seating board)',
+    removed: 'CONSOLE ROW REMOVED',
+    note: 'Wallet passes print the table assigned on THIS board (assigning stamps seat_number onto the registration). The console list fills “Stol N” on the member Gala page by email match — where both exist, the console import wins there.'
   },
   meals: {
     title: 'MEALS — KITCHEN COUNT',
@@ -122,6 +173,7 @@ async function load() {
     settings: api.get('/api/admin/gala/settings'),
     menu: api.get('/api/admin/gala/menu-options'),
     ops: fetchOps(),
+    ta: api.get('/api/admin/gala/table-assignments'),
     nag: api.get('/api/admin/nag/items')
   });
   const gs = (r.settings && r.settings.settings) || r.settings || {};
@@ -132,15 +184,18 @@ async function load() {
   const D0 = {
     regs: Array.isArray(r.regs) ? r.regs : [], gs, schedule,
     menu: (r.menu && r.menu.options) || [],
-    ops: r.ops || { tables: [], assignments: [], meals: {}, waitlist: [], cancellations: [], meta: { performers_announced: false, performers: [] }, room: {}, price: null },
+    ops: r.ops || { tables: [], assignments: [], meals: {}, waitlist: [], cancellations: [], categories: [], meta: { performers_announced: false, performers: [] }, room: {}, price: null },
+    ta: Array.isArray(r.ta) ? r.ta : [],
     nagByReg, errors: r.$errors || {}
   };
   D0.price = (D0.ops.price && D0.ops.price.current) || galaPriceNow(gs);
   return D0;
 }
-// The board is 10 × 8 by design — create the missing gala_tables rows ONCE through the
-// existing admin route so seating uses the same tables the v1 tools and the member wallet see.
+// The default room is 10 × 8 — create the gala_tables rows ONCE, through the existing admin
+// route, but ONLY when the board is completely empty: the board is editable now (add/edit/
+// delete), so a deliberately smaller room must never be re-inflated behind the admin's back.
 async function ensureTables() {
+  if ((D.ops.tables || []).length) return;
   const have = new Set((D.ops.tables || []).map(t => String(t.label || '').toUpperCase()));
   const want = Array.from({ length: 10 }, (_, i) => 'T' + (i + 1)).filter(l => !have.has(l));
   if (!want.length) return;
@@ -160,6 +215,32 @@ const tnum = t => { const m = String(t.label || '').match(/\d+/); return m ? +m[
 function tablesSorted() { return (D.ops.tables || []).slice().sort((a, b) => tnum(a) - tnum(b)); }
 function assignMap() { const m = {}; for (const a of (D.ops.assignments || [])) m[a.registration_id] = a.table_id; return m; }
 function tableById(id) { return (D.ops.tables || []).find(t => t.id === id) || null; }
+
+// ---- guest categories (live set from v2_gala_categories via the overview; graceful fallback) ----
+const FALLBACK_CATS = [
+  { id: 'invoice', key: 'invoice', label: 'Invoice', color: '#9b1b22', sort: 10, archived: 0 },
+  { id: 'vip', key: 'vip', label: 'VIP — free', color: '#7a6432', sort: 20, archived: 0 },
+  { id: 'sponsor', key: 'sponsor', label: 'Sponsor seat', color: '#1e6e42', sort: 30, archived: 0 }
+];
+const okHex = v => (/^#[0-9a-fA-F]{6}$/.test(String(v || '').trim()) ? String(v).trim().toLowerCase() : null);
+function allCats() { const c = (D.ops && D.ops.categories) || []; return c.length ? c : FALLBACK_CATS; }
+function liveCats() { return allCats().filter(c => !Number(c.archived)); }
+function catByKey(k) { const key = String(k || '').toLowerCase(); return allCats().find(c => c.key === key) || null; }
+// 'VIP — free' → 'VIP' · 'Sponsor seat' → 'SPONSOR SEAT' (the chip keeps the short form)
+const catShort = c => String((c && (c.label || c.key)) || '').split(' — ')[0].trim().toUpperCase();
+function catOptions(r) {
+  const cur = String(r.pricing || '').toLowerCase();
+  const live = liveCats();
+  const opts = live.map(c => `<option value="${esc(c.key)}"${c.key === cur ? ' selected' : ''}>${esc(catShort(c))}</option>`);
+  if (cur && !live.some(c => c.key === cur)) {
+    opts.unshift(`<option value="" selected disabled>${esc(cur.toUpperCase())} — ${allCats().some(c => c.key === cur) ? 'ARCHIVED' : 'LEGACY'}</option>`);
+  } else if (!cur) opts.unshift('<option value="" selected disabled>—</option>');
+  return opts.join('');
+}
+function unseatedRows() {
+  const am = assignMap();
+  return D.regs.filter(isActive).filter(r => !am[r.id]).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+}
 
 function menuSorted() { return (D.menu || []).slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)); }
 function defaultOption() { const m = menuSorted(); return m.find(o => o.is_default) || m[0] || null; }
@@ -186,7 +267,14 @@ function bucketOf(r) {
 }
 function chipOf(r) {
   const p = String(r.pricing || '').toLowerCase();
-  if (isPaid(r)) return { label: p === 'vip' ? COPY.chips.vip : p === 'sponsor' ? COPY.chips.sponsor : COPY.chips.paid, bg: '#e4efe7', fg: '#22563a', bucket: 'paid' };
+  if (isPaid(r)) {
+    const cat = catByKey(p);
+    if (cat && cat.key !== 'invoice') {                    // named category chip in its own color
+      const c = okHex(cat.color) || '#22563a';
+      return { label: `${esc(catShort(cat))} · PAID`, bg: `color-mix(in srgb, ${c} 12%, #fff)`, fg: c, bucket: 'paid' };
+    }
+    return { label: COPY.chips.paid, bg: '#e4efe7', fg: '#22563a', bucket: 'paid' };   // invoice + legacy keys ('bundle', …)
+  }
   if (bucketOf(r) === 'requested') return { label: COPY.chips.requested, bg: '#f1e7d4', fg: '#7a6432', bucket: 'requested' };
   return { label: COPY.chips.pending, bg: '#f7e3e4', fg: '#7e151b', bucket: 'unpaid' };
 }
@@ -272,9 +360,9 @@ function addPanel() {
     <div data-block="addpanel" style="display:flex;gap:8px;align-items:center;padding:11px 18px;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6;flex-wrap:wrap">
       <input data-role="ngName" placeholder="${COPY.list.addName}" style="flex:1;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16">
       <input data-role="ngEmail" placeholder="${COPY.list.addEmail}" style="flex:1;min-width:170px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16">
-      <select data-role="ngKind" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px;font:400 12px Inter,sans-serif;color:#201b16">${COPY.list.kinds(D.price).map((o, i) => `<option value="${['invoice', 'vip', 'sponsor'][i]}">${esc(o)}</option>`).join('')}</select>
+      <select data-role="ngKind" aria-label="Guest category" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px;font:400 12px Inter,sans-serif;color:#201b16">${liveCats().map(c => `<option value="${esc(c.key)}">${esc(COPY.list.kindLabel(c, D.price))}</option>`).join('')}</select>
       <span data-act="addGuest" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" data-hover="background:#7e151b">${COPY.list.addBtn}</span>
-      <span style="font-size:11px;color:#6d6459;flex-basis:100%">${COPY.list.addNote}</span>
+      <span style="font-size:11px;color:#6d6459;flex-basis:100%">${COPY.list.addNote} · <span data-act="catManage" data-v2="category-manager" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#7a6432;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.list.manage}</span></span>
     </div>`;
 }
 
@@ -302,7 +390,9 @@ function guestRow(r) {
         ${menuSorted().map(o => `<option value="${esc(o.id)}"${meal && meal.id === o.id ? ' selected' : ''}>${esc(String(o.label).toUpperCase())}</option>`).join('')}
       </select>
       <span style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
-        <span data-act="chipFilter" data-bucket="${chip.bucket}" title="Filter the list by this status" style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:${chip.bg};color:${chip.fg};white-space:nowrap;cursor:pointer">${chip.label}</span>
+        ${st.catEdit === r.id
+          ? `<select data-role="catSel" data-id="${esc(r.id)}" data-v2="category-edit" aria-label="Category for ${esc(nameOf(r))}" style="border:1px solid rgba(32,27,22,.2);background:#f6f2ea;padding:4px;font:600 10px Inter,sans-serif;color:#201b16;max-width:150px">${catOptions(r)}</select>`
+          : `<span data-act="chipFilter" data-bucket="${chip.bucket}" title="Filter the list by this status" style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:${chip.bg};color:${chip.fg};white-space:nowrap;cursor:pointer">${chip.label}</span><span data-act="catEdit" data-id="${esc(r.id)}" data-v2="category-edit" title="${COPY.cat.editTitle}" style="font:400 10px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#201b16">✎</span>`}
         ${!isPaid(r) ? (chased
           ? `<span title="Approve it on the Inbox → Outbox tab" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;white-space:nowrap">${COPY.chase.queued}</span>`
           : `<span data-act="chase" data-id="${esc(r.id)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.chase.label}</span>`) : ''}
@@ -368,21 +458,65 @@ function boardCells() {
     const bg = n ? (n >= cap ? '#f1e7d4' : '#fdfbf6') : 'transparent';
     const bd = n ? '#c9a962' : 'rgba(32,27,22,.18)';
     const fg = n >= cap ? '#7a6432' : '#201b16';
-    return `<span data-act="tableFilter" data-label="${esc(t.label)}" title="${esc(who)}" style="border:1px solid ${bd};background:${bg};padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">
+    return `<span data-act="tableFilter" data-label="${esc(t.label)}" title="${esc(who)}" style="position:relative;border:1px solid ${bd};background:${bg};padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">
+        <span data-act="tblEdit" data-id="${esc(t.id)}" data-v2="table-tools" title="${COPY.board.editTitle}" style="position:absolute;top:1px;right:4px;font:400 10px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#201b16">✎</span>
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.1em;color:#201b16">${esc(t.label)}</span>
         <span style="font-family:Fraunces,serif;font-size:16px;color:${fg}">${n}/${cap}</span>
       </span>`;
   }).join('');
 }
+function unseatedStrip() {
+  const un = unseatedRows();
+  const MAXCHIPS = 30;
+  const shown = un.slice(0, MAXCHIPS);
+  return `<div data-v2="unseated-strip" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:0 18px 12px">
+      <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;white-space:nowrap">${esc(COPY.board.unseated(un.length))}</span>
+      ${un.length
+        ? shown.map(r => `<span data-act="seatGuest" data-id="${esc(r.id)}" title="${esc(COPY.board.seatTitle(nameOf(r)))}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.08em;padding:3px 7px;background:#fdfbf6;border:1px solid rgba(32,27,22,.18);cursor:pointer;white-space:nowrap">${esc(nameOf(r))}${seatsOf(r) > 1 ? ` +${seatsOf(r) - 1}` : ''}</span>`).join('')
+          + (un.length > MAXCHIPS ? `<span style="font-size:11px;color:#6d6459;font-style:italic">${esc(COPY.board.unseatedMore(un.length - MAXCHIPS))}</span>` : '')
+        : `<span style="font-size:11px;color:#6d6459;font-style:italic">${COPY.board.unseatedNone}</span>`}
+    </div>`;
+}
 function blockBoard() {
   return `
   <!-- dc: Admin Gala.dc.html › "SEATING BOARD" -->
-  <div id="mx-gala-board" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff">
-    <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.board.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${COPY.board.hint}</span></div>
+  <div id="mx-gala-board" data-block="boardcard" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff">
+    <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.board.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${COPY.board.hint}</span><span data-act="tblAdd" data-v2="table-tools" style="padding:6px 10px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.board.addTable}</span></div>
     <div data-block="board" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px 18px">${boardCells()}</div>
+    ${unseatedStrip()}
     <div style="padding:0 18px 14px;font-size:11px;color:#6d6459">${COPY.board.foot}</div>
   </div>
   <!-- /dc -->`;
+}
+
+// ---- 3D ballroom planner (v2 addition, build 2026-08-31 — no artboard block; the old portal's
+// console CSV loop, brought beside the board: link out · import · the email-keyed "Stol N" list) ----
+const PLANNER_URL = 'https://plexus-tables.netlify.app';
+function plannerRow(t) {
+  return `<div style="display:flex;align-items:center;gap:8px;padding:7px 18px;border-bottom:1px solid rgba(32,27,22,.06)">
+      <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;background:#f1e7d4;color:#7a6432;padding:3px 7px;white-space:nowrap">${esc(COPY.planner.stol(String(t.table_no == null ? '' : t.table_no).trim()))}</span>
+      <span style="flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.email || '')}">${esc(t.guest_name || t.email || '')}</span>
+      <span style="font-size:10px;color:#9a9086;white-space:nowrap">${esc(fmt.when(t.updated_at))}</span>
+      <span data-act="taRemove" data-id="${esc(t.id)}" title="${COPY.planner.removeTitle}" style="font:400 12px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#9b1b22">✕</span>
+    </div>`;
+}
+function blockPlanner() {
+  const rows = D.ta || [];
+  return `
+  <div data-block="planner" data-v2="planner-card" style="border:1px solid rgba(32,27,22,.14);background:#fff">
+    <div style="display:flex;align-items:center;gap:8px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
+      <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.planner.title}</span>
+      <div style="flex:1"></div>
+      <a href="${PLANNER_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.planner.open}</a>
+      <label title="${COPY.planner.importTitle}" style="padding:6px 10px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap;display:flex;align-items:center${st.taBusy ? ';opacity:.5;pointer-events:none' : ''}" data-hover="border-color:#201b16">${st.taBusy ? COPY.planner.importing : COPY.planner.import}<input type="file" data-role="taFile" accept=".csv,text/csv,text/plain" style="display:none"></label>
+    </div>
+    ${st.taReport ? `<div style="padding:8px 18px;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#22563a">${esc(st.taReport)}</div>` : ''}
+    <div style="display:flex;align-items:center;gap:8px;padding:9px 18px 0"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${COPY.planner.listTitle}</span><span style="min-width:18px;height:18px;padding:0 5px;background:#f1e7d4;color:#7a6432;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">${rows.length}</span></div>
+    <div class="mx-ta-list" style="max-height:216px;overflow:auto;margin-top:6px">
+      ${rows.length ? rows.map(plannerRow).join('') : `<div style="padding:4px 18px 10px;font-size:12px;color:#6d6459;font-style:italic">${COPY.planner.empty}</div>`}
+    </div>
+    <div style="padding:10px 18px 12px;font-size:11px;color:#6d6459;border-top:1px solid rgba(32,27,22,.08)">${COPY.planner.note}</div>
+  </div>`;
 }
 
 function mealBars() {
@@ -480,6 +614,7 @@ function template() {
       <span data-block="list">${blockList()}</span>
       <div style="display:flex;flex-direction:column;gap:22px">
         ${blockBoard()}
+        ${blockPlanner()}
         ${blockMeals()}
         <span data-block="waitlist">${blockWaitlist()}</span>
         ${blockNight()}
@@ -494,20 +629,23 @@ function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); i
 function redrawLive() {
   rerender('[data-block="kpis"]', blockKpis());
   rerender('[data-block="rows"]', `<div data-block="rows">${rowsHtml()}</div>`);
-  rerender('[data-block="board"]', `<div data-block="board" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px 18px">${boardCells()}</div>`);
+  rerender('[data-block="boardcard"]', blockBoard());
+  rerender('[data-block="planner"]', blockPlanner());
   rerender('[data-block="meals"]', `<div data-block="meals" style="padding:12px 18px 14px;display:flex;flex-direction:column;gap:7px">${mealBars()}<span style="font-size:11px;color:#6d6459;margin-top:3px">${esc(COPY.meals.foot(COPY.meals.deadline))}</span></div>`);
   rerender('[data-block="waitlist"]', `<span data-block="waitlist">${blockWaitlist()}</span>`);
   rerender('[data-block="night"]', blockNight());
 }
-async function refresh({ regs = true, ops = true, nag = false } = {}) {
+async function refresh({ regs = true, ops = true, nag = false, ta = false } = {}) {
   try {
     const jobs = {};
     if (regs) jobs.regs = api.get('/api/admin/gala/registrations');
     if (ops) jobs.ops = fetchOps();
     if (nag) jobs.nag = api.get('/api/admin/nag/items');
+    if (ta) jobs.ta = api.get('/api/admin/gala/table-assignments');
     const r = await api.settle(jobs);
     if (!rootEl) return;
     if (r.regs) D.regs = Array.isArray(r.regs) ? r.regs : D.regs;
+    if (r.ta) D.ta = Array.isArray(r.ta) ? r.ta : D.ta;
     if (r.ops) { D.ops = r.ops; D.price = (r.ops.price && r.ops.price.current) || D.price; }
     if (r.nag) { D.nagByReg = {}; for (const it of (r.nag.items || [])) if (it.kind === 'gala_unpaid') D.nagByReg[it.subject_id] = it; }
   } catch (e) { /* keep the current data on a failed refresh */ }
@@ -515,6 +653,45 @@ async function refresh({ regs = true, ops = true, nag = false } = {}) {
 }
 function busy(el, on) { if (el) el.setAttribute('aria-disabled', on ? 'true' : 'false'); }
 function regById(id) { return D.regs.find(r => r.id === id); }
+
+// ---- table create/edit fields (shared by the + TABLE and ✎ modals) ----
+function nextTableLabel() {
+  const used = new Set(tablesSorted().map(t => String(t.label || '').toUpperCase()));
+  for (let i = 1; i < 100; i++) { const l = 'T' + i; if (!used.has(l)) return l; }
+  return 'T' + (tablesSorted().length + 1);
+}
+function tblFieldsHtml(t) {
+  const inp = 'border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16';
+  return `<div class="mx-tbl-fields" style="display:grid;grid-template-columns:1fr 90px;gap:8px">
+    <input data-role="tfLabel" value="${esc(t ? t.label : nextTableLabel())}" placeholder="${COPY.board.labelPh}" aria-label="Table label" style="${inp};min-width:0">
+    <input data-role="tfCap" type="number" min="1" max="24" value="${esc(t ? (Number(t.capacity) || 8) : 8)}" aria-label="${COPY.board.capPh}" title="${COPY.board.capPh}" style="${inp}">
+    <input data-role="tfNotes" value="${esc((t && t.notes) || '')}" placeholder="${COPY.board.notesPh}" aria-label="Table notes" style="${inp};grid-column:1/-1;min-width:0">
+  </div>`;
+}
+function readTblFields(el) {
+  const v = sel => ((el.querySelector(`[data-role="${sel}"]`) || {}).value || '').trim();
+  const cap = parseInt(v('tfCap'), 10);
+  return { label: v('tfLabel'), capacity: cap > 0 ? Math.min(cap, 24) : 8, notes: v('tfNotes') };
+}
+
+// ---- console CSV import (EXISTING /api/admin/gala/table-assignments/import — table,name,email;
+// upsert by lower(email): re-imports update rows, never duplicate) ----
+async function importCsvFile(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f || st.taBusy) return;
+  if (f.size > 2 * 1024 * 1024) { ui.toast(COPY.planner.tooBig, { kind: 'error' }); return; }
+  st.taBusy = true;
+  rerender('[data-block="planner"]', blockPlanner());
+  try {
+    const csv = await f.text();
+    const r = await api.post('/api/admin/gala/table-assignments/import', { csv });
+    st.taReport = COPY.planner.result(r || {});
+    ui.toast(st.taReport);
+  } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  st.taBusy = false;
+  if (rootEl) await refresh({ regs: false, ops: false, ta: true });
+}
 
 const handlers = {
   // KPI + filter doors — every status navigates to where you act on it
@@ -528,6 +705,157 @@ const handlers = {
   clearTable: () => { st.filterTable = null; redrawLive(); },
   tableFilter: (el) => { const l = el.dataset.label; st.filterTable = st.filterTable === l ? null : l; redrawLive(); },
   toggleCancelled: () => { st.showCancelled = !st.showCancelled; redrawLive(); },
+
+  // ---- TABLE TOOLS (build 2026-08-31 — the old portal's table CRUD, on the board itself;
+  // all three go through the EXISTING /api/admin/gala/tables routes, never a v2 duplicate) ----
+  tblAdd: () => {
+    const m = ui.modal({
+      eyebrow: 'SEATING BOARD', title: COPY.board.addTitle,
+      body: tblFieldsHtml(null) + `<div style="font-size:11px;color:#6d6459;margin-top:10px">${COPY.board.addWhy}</div>`,
+      actions: [
+        { label: 'CANCEL' },
+        { label: COPY.board.create, kind: 'primary', onClick: () => {
+          const v = readTblFields(m.el);
+          if (!v.label) { ui.toast(COPY.board.needLabel); return false; }
+          api.post('/api/admin/gala/tables', v)
+            .then(() => { ui.toast(COPY.board.created); if (rootEl) refresh({ regs: false }); })
+            .catch(e => ui.toast(e.message, { kind: 'error' }));
+        } }
+      ]
+    });
+    const f = m.el.querySelector('[data-role="tfLabel"]'); if (f) f.focus();
+  },
+  tblEdit: (el) => {
+    const t = tableById(el.dataset.id); if (!t) return;
+    const guestsHtml = () => {
+      const am = assignMap();
+      const at = D.regs.filter(isActive).filter(r => am[r.id] === t.id);
+      return at.length
+        ? at.map(r => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(32,27,22,.07)">
+            <span style="flex:1;min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nameOf(r))}${seatsOf(r) > 1 ? ` <span style="color:#6d6459;font-size:10.5px">${esc(COPY.list.seats(seatsOf(r)))}</span>` : ''}</span>
+            <span data-act="tblUnassign" data-id="${esc(r.id)}" title="${COPY.board.unassignTitle}" style="font:400 12px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#9b1b22">✕</span>
+          </div>`).join('')
+        : `<div style="padding:6px 0;font-size:12px;color:#6d6459;font-style:italic">${COPY.board.empty}</div>`;
+    };
+    const m = ui.modal({
+      eyebrow: 'SEATING BOARD', title: COPY.board.editOne(esc(t.label)),
+      body: tblFieldsHtml(t)
+        + `<div style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;margin:14px 0 2px">${COPY.board.seatedAt}</div><div data-block="tblGuests">${guestsHtml()}</div>`,
+      actions: [
+        { label: COPY.board.del, onClick: () => {
+          ui.confirm({ title: COPY.board.delSure(esc(t.label)), body: COPY.board.delWhy, ok: COPY.board.del, cancel: 'KEEP IT' }).then(okd => {
+            if (!okd) return;
+            api.del('/api/admin/gala/tables/' + encodeURIComponent(t.id))
+              .then(() => { m.close(); ui.toast(COPY.board.deleted); if (rootEl) refresh({ regs: false }); })
+              .catch(e => ui.toast(e.message, { kind: 'error' }));
+          });
+          return false;                                       // the modal waits for the confirm
+        } },
+        { label: COPY.board.save, kind: 'primary', onClick: () => {
+          const v = readTblFields(m.el);
+          if (!v.label) { ui.toast(COPY.board.needLabel); return false; }
+          api.put('/api/admin/gala/tables/' + encodeURIComponent(t.id), v)
+            .then(() => { ui.toast(COPY.board.saved); if (rootEl) refresh({ regs: false }); })
+            .catch(e => ui.toast(e.message, { kind: 'error' }));
+        } }
+      ]
+    });
+    ui.bind(m.el, {
+      tblUnassign: async (btn) => {
+        busy(btn, true);
+        try {
+          await api.post('/api/admin/gala/unassign', { registration_id: btn.dataset.id });
+          ui.toast(COPY.board.unseatedOne);
+          if (rootEl) await refresh({ regs: false });
+          const g = m.el.querySelector('[data-block="tblGuests"]'); if (g) g.innerHTML = guestsHtml();
+        } catch (e) { busy(btn, false); ui.toast(e.message, { kind: 'error' }); }
+      }
+    });
+  },
+  // UNSEATED chip → pick a table (assign mirrors seat_number, so the wallet pass updates too)
+  seatGuest: (el) => {
+    const r = regById(el.dataset.id); if (!r) return;
+    const am = assignMap();
+    const act = D.regs.filter(isActive);
+    const body = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">` + tablesSorted().map(t => {
+      const n = act.filter(x => am[x.id] === t.id).reduce((sum, x) => sum + seatsOf(x), 0);
+      const cap = Number(t.capacity) || 8;
+      const full = n >= cap;
+      return `<span data-act="seatAt" data-table="${esc(t.id)}"${full ? ' aria-disabled="true"' : ' data-hover="border-color:#201b16"'} style="border:1px solid ${full ? 'rgba(32,27,22,.12)' : 'rgba(32,27,22,.25)'};padding:9px 10px;display:flex;align-items:center;gap:8px;${full ? 'cursor:default;opacity:.45' : 'cursor:pointer'}"><span style="font:600 10px Inter,sans-serif;letter-spacing:.1em">${esc(t.label)}</span><span style="flex:1"></span><span style="font-family:Fraunces,serif;font-size:14px">${n}/${cap}</span>${full ? `<span style="font:600 7.5px Inter,sans-serif;letter-spacing:.12em;color:#9a9086">${COPY.board.full}</span>` : ''}</span>`;
+    }).join('') + '</div>';
+    const m = ui.modal({ eyebrow: 'SEATING BOARD', title: esc(COPY.board.seatTitle(nameOf(r))), body, actions: [{ label: 'CANCEL' }] });
+    ui.bind(m.el, {
+      seatAt: async (btn) => {
+        busy(btn, true);
+        try {
+          await api.post('/api/admin/gala/tables/' + encodeURIComponent(btn.dataset.table) + '/assign', { registration_id: r.id });
+          m.close();
+          ui.toast(COPY.board.seated(nameOf(r), (tableById(btn.dataset.table) || {}).label || ''));
+          if (rootEl) refresh({ regs: false });
+        } catch (e) { busy(btn, false); ui.toast(e.message, { kind: 'error' }); }
+      }
+    });
+  },
+
+  // ---- GUEST CATEGORIES — the ✎ beside the chip and the small manager (add / rename / archive) ----
+  catEdit: (el) => { st.catEdit = st.catEdit === el.dataset.id ? null : el.dataset.id; redrawLive(); },
+  catManage: () => {
+    const rowsHtml = () => allCats().map(c => `
+      <div class="mx-cat-row" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(32,27,22,.07)${Number(c.archived) ? ';opacity:.55' : ''}">
+        <input type="color" data-role="cmColor" data-id="${esc(c.id)}" value="${esc(okHex(c.color) || '#6d6459')}" title="${COPY.cat.colorTitle}" aria-label="${COPY.cat.colorTitle}" style="width:26px;height:26px;border:1px solid rgba(32,27,22,.2);background:#fff;padding:1px;cursor:pointer;flex:none">
+        <input data-role="cmLabel" data-id="${esc(c.id)}" value="${esc(c.label)}"${Number(c.archived) ? ' disabled' : ''} aria-label="Category label" style="flex:1;min-width:0;border:1px solid rgba(32,27,22,.2);background:#f6f2ea;padding:7px 9px;font:400 12.5px Inter,sans-serif;color:#201b16">
+        <span title="${COPY.cat.keyTitle}" style="font:600 8px Inter,sans-serif;letter-spacing:.08em;color:#9a9086;white-space:nowrap">${esc(c.key)}</span>
+        ${Number(c.archived)
+          ? `<span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;background:#eee7dc;color:#6d6459;padding:3px 6px;white-space:nowrap">${COPY.cat.archivedTag}</span><span data-act="cmFlip" data-id="${esc(c.id)}" data-to="0" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#1e6e42;cursor:pointer;white-space:nowrap">${COPY.cat.restore}</span>`
+          : `<span data-act="cmFlip" data-id="${esc(c.id)}" data-to="1" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#9a9086;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${COPY.cat.archive}</span>`}
+      </div>`).join('');
+    const m = ui.modal({
+      eyebrow: 'GALA EVENING', title: COPY.cat.title,
+      body: `<div data-block="catrows">${rowsHtml()}</div>
+        <div class="mx-cat-add" style="display:flex;gap:8px;margin-top:12px">
+          <input type="color" data-role="cmNewColor" value="#6d6459" title="${COPY.cat.colorTitle}" aria-label="${COPY.cat.colorTitle}" style="width:26px;height:32px;border:1px solid rgba(32,27,22,.2);background:#fff;padding:1px;cursor:pointer;flex:none">
+          <input data-role="cmNewLabel" placeholder="${COPY.cat.addPh}" aria-label="${COPY.cat.addPh}" style="flex:1;min-width:0;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16">
+          <span data-act="cmAdd" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;display:flex;align-items:center" data-hover="background:#7e151b">${COPY.cat.addBtn}</span>
+        </div>
+        <div style="font-size:11px;color:#6d6459;margin-top:10px">${COPY.cat.note}</div>`,
+      actions: [{ label: 'DONE', kind: 'primary' }]
+    });
+    const redrawMgr = () => { const b = m.el.querySelector('[data-block="catrows"]'); if (b) b.innerHTML = rowsHtml(); };
+    const pull = async () => { try { D.ops = await fetchOps(); } catch (e) {} redrawMgr(); if (rootEl) redrawLive(); };
+    ui.bind(m.el, {
+      cmAdd: async () => {
+        const label = ((m.el.querySelector('[data-role="cmNewLabel"]') || {}).value || '').trim();
+        const color = (m.el.querySelector('[data-role="cmNewColor"]') || {}).value || '';
+        if (!label) { ui.toast(COPY.cat.needLabel); return; }
+        try {
+          await api.post('/api/v2/gala-ops/categories', { label, color });
+          const i = m.el.querySelector('[data-role="cmNewLabel"]'); if (i) i.value = '';
+          ui.toast(COPY.cat.added); await pull();
+        } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+      },
+      cmFlip: async (btn) => {
+        try {
+          await api.put('/api/v2/gala-ops/categories/' + encodeURIComponent(btn.dataset.id), { archived: btn.dataset.to === '1' });
+          ui.toast(btn.dataset.to === '1' ? COPY.cat.archivedToast : COPY.cat.restored); await pull();
+        } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+      }
+    });
+    m.el.addEventListener('change', async (e) => {
+      const t = e.target;
+      if (!t || !t.dataset || !t.dataset.id || !t.matches('[data-role="cmLabel"], [data-role="cmColor"]')) return;
+      const body = t.matches('[data-role="cmLabel"]') ? { label: t.value.trim() } : { color: t.value };
+      if (body.label !== undefined && !body.label) { ui.toast(COPY.cat.needLabel); redrawMgr(); return; }
+      try { await api.put('/api/v2/gala-ops/categories/' + encodeURIComponent(t.dataset.id), body); ui.toast(COPY.cat.saved); await pull(); }
+      catch (err) { ui.toast(err.message, { kind: 'error' }); redrawMgr(); }
+    });
+  },
+
+  // ---- console list (3D planner import) ----
+  taRemove: async (el) => {
+    busy(el, true);
+    try { await api.del('/api/admin/gala/table-assignments/' + encodeURIComponent(el.dataset.id)); ui.toast(COPY.planner.removed); await refresh({ regs: false, ops: false, ta: true }); }
+    catch (e) { busy(el, false); ui.toast(e.message, { kind: 'error' }); }
+  },
 
   // Kitchen sheet CSV — exactly the numbers on the MEALS card (counts weighted by seats)
   kitchenCsv: () => {
@@ -693,7 +1021,15 @@ async function handleChange(e) {
     el.disabled = true;
     try { await api.put('/api/v2/gala-ops/registrations/' + encodeURIComponent(id) + '/meal', { option_id: el.value }); await refresh({ regs: false }); }
     catch (err) { el.disabled = false; ui.toast(err.message, { kind: 'error' }); await refresh({ regs: false }); }
+    return;
   }
+  if (el.matches('[data-role="catSel"]') && id) {
+    el.disabled = true;
+    try { await api.put('/api/v2/gala-ops/registrations/' + encodeURIComponent(id) + '/category', { key: el.value }); st.catEdit = null; ui.toast(COPY.cat.set); await refresh(); }
+    catch (err) { el.disabled = false; st.catEdit = null; ui.toast(err.message, { kind: 'error' }); await refresh(); }
+    return;
+  }
+  if (el.matches('[data-role="taFile"]')) { importCsvFile(el); }
 }
 function handleInput(e) {
   if (e.target && e.target.matches && e.target.matches('[data-role="q"]')) {
@@ -712,11 +1048,11 @@ export default {
   title: 'Gala Evening',
   async render(root, ctx) {
     rootEl = root;
-    st = { q: '', addOpen: false, filter: 'all', filterTable: null, cancelConfirm: null, showCancelled: false, chasedLocal: {} };
+    st = { q: '', addOpen: false, filter: 'all', filterTable: null, cancelConfirm: null, showCancelled: false, chasedLocal: {}, catEdit: null, taReport: null, taBusy: false };
     injectCss();
     D = await load();
     if (rootEl !== root) return;                    // navigated away while loading
-    if (!D.errors.ops && (D.ops.tables || []).length < 10) { await ensureTables(); if (rootEl !== root) return; }
+    if (!D.errors.ops && !(D.ops.tables || []).length) { await ensureTables(); if (rootEl !== root) return; }   // seed the default room only when EMPTY — the board is editable now
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     onChange = handleChange;

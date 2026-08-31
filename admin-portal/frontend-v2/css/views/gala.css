@@ -26,3 +26,24 @@
   .mx-gala-row > span:last-child { grid-column: 2 / 3; justify-self: end; }
   [data-block="board"] { grid-template-columns: repeat(3, 1fr) !important; }
 }
+
+/* ---- build 2026-08-31 (table tools · categories · 3D-planner card) — responsive + focus only ---- */
+
+/* modal field grids (table editor · category manager) get the same focus affordance the screen has */
+.mx-modal .mx-tbl-fields input:focus,
+.mx-modal .mx-cat-row input:focus,
+.mx-modal .mx-cat-add input:focus {
+  outline: 1px solid #9b1b22;
+  outline-offset: -1px;
+}
+
+/* console-assignments list: keep the row's ✕ reachable on touch — no hover-only affordances */
+.mx-ta-list { -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 620px) {
+  /* table editor: label + seats stack */
+  .mx-modal .mx-tbl-fields { grid-template-columns: 1fr !important; }
+  /* category manager rows: the key tag drops under the label instead of squeezing it */
+  .mx-modal .mx-cat-row { flex-wrap: wrap; }
+  .mx-modal .mx-cat-row input[data-role="cmLabel"] { flex-basis: 100%; order: 5; }
+}

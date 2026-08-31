@@ -10,6 +10,9 @@
  *   v2_forum_invites  — invitation codes (code UNIQUE, email, name, created_by, created_at, expires_at, used_at, used_by)
  *   v2_forum_votes    — venue vote, one row per member per poll, changeable
  *   v2_forum_feed     — the "From the Forum" composer target (kind, tag, name/role/init or title, body, published, published_at)
+ *   v2_forum_nominations — a member puts a colleague forward (medx.hr: "…or put forward by a member
+ *                       who can speak to a colleague's standing and character"); status new →
+ *                       shortlisted/declined by the admin Forum hub's recruitment pipeline
  * Existing tables it reads/writes with the admin portal's semantics (never renamed, columns only ADDED):
  *   forum_members (the admission table both portals read; + membership_year, valid_until, joined_via)
  *   forum_event_registrations (the gathering registration table the admin lists/checks in; + terms_accepted_at)
@@ -25,6 +28,9 @@ const POLL = 'venue-2027';
 const CHOICES = ['split', 'zagreb'];
 const CAP = 200;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+const NOMINATION_STATEMENT_MIN = 120;   // the "standing and character" statement must carry real words
+const NOMINATIONS_PER_WINDOW = 3;       // a member may put forward at most 3 colleagues…
+const NOMINATION_WINDOW_DAYS = 30;      // …per rolling 30 days (429 with a warm message beyond that)
 const GATHERING = {
     slug: 'forum-2027-gathering', title: 'Annual Biomedical Forum 2027',
     description: 'The annual gathering of the Biomedical Forum — three days each May, closing with the Gala & Awards evening. Split or Zagreb; the venue is announced with your invitation.',
@@ -65,6 +71,10 @@ module.exports = function mountForum(app, ctx) {
             id TEXT PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'news', tag TEXT, name TEXT, role TEXT, init TEXT, title TEXT, body TEXT,
             published INTEGER DEFAULT 1, published_at TEXT DEFAULT CURRENT_TIMESTAMP, created_by TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT)`);
+        q.run(`CREATE TABLE IF NOT EXISTS v2_forum_nominations (
+            id TEXT PRIMARY KEY, nominee_name TEXT NOT NULL, nominee_email TEXT, institution TEXT,
+            statement TEXT NOT NULL, nominated_by_user_id TEXT, nominated_by_email TEXT,
+            status TEXT NOT NULL DEFAULT 'new', created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
         q.run(`CREATE INDEX IF NOT EXISTS idx_v2_forum_invites_code ON v2_forum_invites(code)`);
     } catch (e) { console.error('[v2/forum] schema:', e.message); }
     for (const sql of [
@@ -360,6 +370,40 @@ module.exports = function mountForum(app, ctx) {
         } catch (e) { fail(res, e, 'vote'); }
     });
 
+    // POST /api/v2/forum/nominate {name, email, institution, statement} — a member puts a colleague
+    // forward (medx.hr: members join "invited by the Office of the Forum, or put forward by a member
+    // who can speak to a colleague's standing and character" — this is the second route). Requires a
+    // signed-in member; writes v2_forum_nominations (status 'new'), which the admin Forum hub surfaces
+    // inside the recruitment pipeline as a NOMINATED row (shortlist / decline happens there).
+    // Distinct errors: name · email · institution · statement (< 120 chars) · duplicate (same colleague
+    // already before the Office) · rate_limited (429 — at most 3 per member per rolling 30 days).
+    app.post('/api/v2/forum/nominate', auth, (req, res) => {
+        try {
+            const b = req.body || {};
+            const user = userRow(req.user.id) || { id: req.user.id, email: req.user.email || '' };
+            const name = clean(b.name, 160);
+            const email = clean(b.email, 160).toLowerCase();
+            const institution = clean(b.institution, 200);
+            const statement = String(b.statement == null ? '' : b.statement).trim().slice(0, 2000);
+            if (!name) return res.status(400).json({ error: 'Tell us your colleague\'s name.', code: 'name' });
+            if (!validEmail(email)) return res.status(400).json({ error: 'Add your colleague\'s email address so the Office of the Forum can reach them.', code: 'email' });
+            if (!institution) return res.status(400).json({ error: 'Add their institution — it helps the Office place them.', code: 'institution' });
+            if (statement.length < NOMINATION_STATEMENT_MIN) return res.status(400).json({ error: `The statement is the part the Office of the Forum reads first — give it at least ${NOMINATION_STATEMENT_MIN} characters on their standing and character, in your own words.`, code: 'statement' });
+            const since = new Date(Date.now() - NOMINATION_WINDOW_DAYS * 24 * 3600 * 1000).toISOString();
+            const recent = (q.get(`SELECT COUNT(*) AS c FROM v2_forum_nominations WHERE nominated_by_user_id = ? AND created_at >= ?`, [user.id, since]) || {}).c || 0;
+            if (recent >= NOMINATIONS_PER_WINDOW) return res.status(429).json({ error: `Three nominations in thirty days is the most we take from one member — it keeps each one weighty. Yours are with the Office of the Forum, and the next window opens soon.`, code: 'rate_limited' });
+            const dup = q.get(`SELECT id FROM v2_forum_nominations WHERE LOWER(COALESCE(nominee_email, '')) = ? AND status = 'new'`, [email]);
+            if (dup) return res.status(409).json({ error: 'That colleague has already been put forward — their nomination is with the Office of the Forum.', code: 'duplicate' });
+            const id = uuid(); const now = nowIso();
+            q.run(`INSERT INTO v2_forum_nominations (id, nominee_name, nominee_email, institution, statement, nominated_by_user_id, nominated_by_email, status, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?)`,
+                [id, name, email, institution, statement, user.id, String(user.email || '').toLowerCase() || null, now]);
+            persist();
+            res.json({ ok: true, nomination: { id, nominee_name: name, nominee_email: email, institution, status: 'new', created_at: now },
+                message: 'Your nomination is with the Office of the Forum — we treat these seriously and reply to you either way.' });
+        } catch (e) { fail(res, e, 'nominate'); }
+    });
+
     // GET /api/v2/forum/feed?limit=12 — "From the Forum": the v2 composer table ∪ legacy forum_news (published only; newest first).
     // Unpublish hides, never deletes (README note 22). Home and Network teasers can read the same endpoint with ?limit=1.
     function feedItems({ all = false, limit = 12 } = {}) {
@@ -489,5 +533,5 @@ module.exports = function mountForum(app, ctx) {
         } catch (e) { fail(res, e, 'invite revoke'); }
     });
 
-    log('forum: /api/v2/forum/{state,check-code,redeem-code,register,vote,feed,members-public,invites}');
+    log('forum: /api/v2/forum/{state,check-code,redeem-code,register,vote,nominate,feed,members-public,invites}');
 };

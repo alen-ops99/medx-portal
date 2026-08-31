@@ -3,9 +3,12 @@
 // WHERE THE NETWORK IS · gathering/codes strip) › "FORUM FEED" (composer + LIVE IN THE FEED) ›
 // "RECRUITMENT PIPELINE" + "MEMBERS" (left) › "INVITATION CODES" + "REQUEST-CONSIDERATION FORM" +
 // "THE GATHERING · MAY 2027" (right). The header is js/chrome.js; toasts are ui.toast.
-// Data: /api/v2/forum/hub (admin v2 — shared v2_forum_* tables with the member portal) +
+// Data: /api/v2/forum/hub (admin v2 — shared v2_forum_* tables with the member portal; carries
+// `nominations`: members' put-a-colleague-forward rows, rendered INSIDE the recruitment pipeline
+// as NOMINATED stage rows with SHORTLIST / DECLINE + the statement expandable) +
 // /api/admin/forum/candidates (legacy pipeline) + /api/admin/forum/events/:id (gathering edit).
 // SEND CODE queues the personal invitation in the approval Outbox — nothing emails without the OK there.
+// SHORTLIST on a nomination writes the same forum_candidates row ADD does, and emails the nominating member.
 import cfg from '../config.js';
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -48,7 +51,15 @@ export const COPY = {
     roleFallback: 'Add details on their profile', typeFirst: 'TYPE A NAME AND EMAIL FIRST',
     queued: 'CODE QUEUED — APPROVE IT IN THE OUTBOX', added: 'CANDIDATE ADDED TO THE PIPELINE',
     needEmail: 'ADD AN EMAIL FOR THIS CANDIDATE FIRST — EDIT THE ROW IN PEOPLE',
-    showAll: n => `SHOW ALL ${n} →`, showFewer: 'SHOW FEWER', empty: 'The pipeline is clear.', emptyWhy: 'Add a candidate below or wait for the public form — requests land here.'
+    showAll: n => `SHOW ALL ${n} →`, showFewer: 'SHOW FEWER', empty: 'The pipeline is clear.', emptyWhy: 'Add a candidate below or wait for the public form — requests land here.',
+    nomWaiting: n => `${n} member nomination${n === 1 ? '' : 's'} waiting`,
+    nomBy: who => `put forward by ${who}`,
+    nomStage: 'NOMINATED',
+    nomRead: 'THE STATEMENT ▾', nomHide: 'THE STATEMENT ▴',
+    nomStatementTag: who => `THEIR STANDING AND CHARACTER — IN ${who ? who.toUpperCase() + '\'S' : 'THE MEMBER\'S'} WORDS`,
+    nomShortlist: 'SHORTLIST', nomDecline: 'DECLINE', nomSureDecline: 'SURE? DECLINE',
+    nomShortlisted: 'MOVED TO SHORTLIST — THE NOMINATING MEMBER HAS BEEN EMAILED',
+    nomDeclined: 'NOMINATION DECLINED — THE ROW STAYS FOR THE AUDIT TRAIL'
   },
   members: {
     title: 'MEMBERS', sub: (n, cap) => `the approved network · ${n} of ${cap}`,
@@ -113,6 +124,7 @@ function rel(ts) {
 }
 const chip = on => on ? { bg: '#201b16', fg: '#fff', bd: '#201b16' } : { bg: '#f6f2ea', fg: '#6d6459', bd: 'rgba(32,27,22,.25)' };
 const STAGE_STYLE = {
+  NOMINATED: { bg: '#201b16', fg: '#c9a962' }, // member-nominated — the ink chip marks the fresh arrivals
   SHORTLIST: { bg: '#eee9df', fg: '#4a4239' }, CONTACTED: { bg: '#f8f1e2', fg: '#7a6432' }, REPLIED: { bg: '#f8f1e2', fg: '#7a6432' },
   'CODE SENT': { bg: '#e4efe7', fg: '#22563a' }, ACCEPTED: { bg: '#e4efe7', fg: '#22563a' }, JOINED: { bg: '#e4efe7', fg: '#22563a' },
   ESCALATED: { bg: '#f7e3e4', fg: '#9b1b22' }, DECLINED: { bg: '#eee9df', fg: '#9a9086' }
@@ -138,7 +150,7 @@ async function load() {
   });
   return {
     errors: r.$errors,
-    hub: r.hub || { cap: FACTS.forum.cap, members: [], expired_members: [], countries: [], invites: [], codes_out: 0, vote: { counts: { split: 0, zagreb: 0 }, total: 0 }, feed: [], gathering: null, considerations_pending: 0, members_count: 0 },
+    hub: r.hub || { cap: FACTS.forum.cap, members: [], expired_members: [], countries: [], invites: [], codes_out: 0, vote: { counts: { split: 0, zagreb: 0 }, total: 0 }, feed: [], gathering: null, considerations_pending: 0, members_count: 0, nominations: [] },
     cands: (r.cands && Array.isArray(r.cands.candidates)) ? r.cands.candidates : [],
     questions: (r.questions && r.questions.questions) || []
   };
@@ -264,7 +276,25 @@ function blockFeed() {
 function blockPipeline() {
   const c = COPY.pipeline;
   const rows = st.candsAll ? D.cands : D.cands.slice(0, TOP_ROWS);
+  const noms = D.hub.nominations || [];
   const pending = D.hub.considerations_pending || 0;
+  // v2: member nominations (v2_forum_nominations, status 'new') open the SAME pipeline list as
+  // NOMINATED rows — nominee · "put forward by <member>" · the statement expandable · SHORTLIST/DECLINE.
+  const nomRow = nm => {
+    const s = STAGE_STYLE.NOMINATED;
+    const open = st.nomOpen === nm.id;
+    return `
+          <div data-row="${esc(nm.id)}" style="border-bottom:1px solid rgba(32,27,22,.07)">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 20px">
+              <span style="flex:1;min-width:0"><span style="display:block;font-size:13.5px;font-weight:600">${esc(nm.nominee_name)}</span><span style="display:block;font-size:11px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc([nm.institution, c.nomBy(nm.nominated_by)].filter(Boolean).join(' · '))}</span></span>
+              <span data-act="nomStatement" data-id="${esc(nm.id)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:${open ? '#201b16' : '#7a6432'};cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${open ? c.nomHide : c.nomRead}</span>
+              <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 8px;background:${s.bg};color:${s.fg};white-space:nowrap">${c.nomStage}</span>
+              <span data-act="nomShortlist" data-id="${esc(nm.id)}" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.nomShortlist}</span>
+              <span data-act="nomDecline" data-id="${esc(nm.id)}" style="font:600 9px Inter,sans-serif;letter-spacing:.06em;color:${st.nomDeclineConfirm === nm.id ? '#9b1b22' : '#9a9086'};cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${st.nomDeclineConfirm === nm.id ? c.nomSureDecline : c.nomDecline}</span>
+            </div>
+            ${open ? `<div style="margin:0 20px 12px;border:1px solid rgba(201,169,98,.5);background:#fdfbf6;padding:10px 12px"><span style="display:block;font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#7a6432;margin-bottom:5px">${esc(c.nomStatementTag(nm.nominated_by))}</span><span style="font-size:12.5px;line-height:1.6;color:#4a4239;white-space:pre-wrap">${esc(nm.statement)}</span></div>` : ''}
+          </div>`;
+  };
   return `
         <!-- dc: Admin Forum Hub.dc.html › "RECRUITMENT PIPELINE" -->
         <div data-block="pipeline" id="forum-pipeline" style="border:1px solid rgba(32,27,22,.14);background:#fff">
@@ -272,15 +302,17 @@ function blockPipeline() {
             <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
             <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
             <div style="flex:1"></div>
+            ${noms.length ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#201b16;color:#c9a962;padding:3px 8px;white-space:nowrap">${esc(c.nomWaiting(noms.length))}</span>` : ''}
             ${pending ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f8f1e2;color:#7a6432;padding:3px 8px;white-space:nowrap">${esc(c.waiting(pending))}</span>` : ''}
           </div>
+          ${noms.map(nomRow).join('')}
           ${rows.map(cd => { const stage = candStage(cd); const s = STAGE_STYLE[stage] || STAGE_STYLE.SHORTLIST; const canInvite = !!cd.email && !['CODE SENT', 'JOINED', 'DECLINED'].includes(stage); return `
           <div data-row="${esc(cd.id)}" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
             <span style="flex:1;min-width:0"><span style="display:block;font-size:13.5px;font-weight:600">${esc(cd.name || cd.email || 'Candidate')}</span><span style="display:block;font-size:11px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc([cd.institution, cd.field].filter(Boolean).join(' · ') || c.roleFallback)}</span></span>
             <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 8px;background:${s.bg};color:${s.fg};white-space:nowrap">${stage}</span>
             ${canInvite ? `<span data-act="sendCode" data-id="${esc(cd.id)}" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.sendCode}</span>` : ''}
           </div>`; }).join('')}
-          ${!D.cands.length ? `<div class="empty" style="padding:22px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:15px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
+          ${!D.cands.length && !noms.length ? `<div class="empty" style="padding:22px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:15px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
           ${D.cands.length > TOP_ROWS ? `<div style="padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.07)"><span data-act="candsAll" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${st.candsAll ? c.showFewer : c.showAll(D.cands.length)}</span></div>` : ''}
           <div style="display:flex;gap:10px;padding:14px 20px 6px">
             <input data-role="candDraft" value="${esc(st.candDraft)}" placeholder="${esc(c.addPh)}" aria-label="Add a candidate" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-width:0">
@@ -501,6 +533,30 @@ const handlers = {
       ui.toast(COPY.pipeline.added);
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
+  nomStatement: (el) => { st.nomOpen = st.nomOpen === el.dataset.id ? null : el.dataset.id; st.candDraft = val('candDraft'); rerender('[data-block="pipeline"]', blockPipeline()); },
+  nomShortlist: async (el) => {
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      const r = await api.post('/api/v2/forum/nominations/' + encodeURIComponent(el.dataset.id) + '/shortlist', {});
+      if (st.nomOpen === el.dataset.id) st.nomOpen = null;
+      st.nomDeclineConfirm = null;
+      await refreshHub(); await refreshCands();
+      rerender('[data-block="pipeline"]', blockPipeline()); rerender('[data-block="band"]', blockBand());
+      ui.toast((r && r.message) ? String(r.message).toUpperCase() : COPY.pipeline.nomShortlisted);
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
+  nomDecline: async (el) => {
+    const id = el.dataset.id;
+    if (st.nomDeclineConfirm !== id) { st.nomDeclineConfirm = id; st.candDraft = val('candDraft'); rerender('[data-block="pipeline"]', blockPipeline()); return; }
+    st.nomDeclineConfirm = null;
+    try {
+      await api.post('/api/v2/forum/nominations/' + encodeURIComponent(id) + '/decline', {});
+      if (st.nomOpen === id) st.nomOpen = null;
+      await refreshHub();
+      rerender('[data-block="pipeline"]', blockPipeline());
+      ui.toast(COPY.pipeline.nomDeclined);
+    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
   membersAll: () => { st.membersAll = !st.membersAll; rerender('[data-block="members"]', blockMembers()); },
   renew: async (el) => {
     el.setAttribute('aria-disabled', 'true');
@@ -562,7 +618,7 @@ export default {
   async render(root) {
     ensureCss();
     rootEl = root;
-    st = { kind: 'spotlight', fName: '', fRole: '', fTitle: '', fBody: '', unpubConfirm: null, candDraft: '', candsAll: false, membersAll: false, copiedCode: null, formEditing: false, formDraft: '', linkCopied: false, gatherEdit: false };
+    st = { kind: 'spotlight', fName: '', fRole: '', fTitle: '', fBody: '', unpubConfirm: null, candDraft: '', candsAll: false, membersAll: false, copiedCode: null, formEditing: false, formDraft: '', linkCopied: false, gatherEdit: false, nomOpen: null, nomDeclineConfirm: null };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();
