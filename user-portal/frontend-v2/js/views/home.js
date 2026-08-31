@@ -29,7 +29,7 @@ export const COPY = {
     profile: pct => `Complete your profile — <strong style="color:#191512">${pct}%</strong> done · `, edit: 'EDIT PROFILE →',
     resent: 'Link sent — check your inbox (and spam).'
   },
-  next: { eyebrow: 'NEXT EVENT', free: 'Free entry', schedule: 'VIEW SCHEDULE', register: 'REGISTER NOW →', mine: 'MY TICKET →', units: ['DAYS', 'HOURS', 'MINUTES'] },
+  next: { eyebrow: 'NEXT EVENT', free: 'Free entry', schedule: 'VIEW SCHEDULE', register: 'PRE-REGISTER NOW →', mine: 'MY TICKET →', units: ['DAYS', 'HOURS', 'MINUTES'] },
   projects: {
     n: '01', title: 'OUR PROJECTS', sub: 'Apply, register, and follow every Med&amp;X project from here.',
     cards: {
@@ -43,7 +43,7 @@ export const COPY = {
     fallback: {
       plexus: { status_label: 'Pre-registration open', detail_line: `${FACTS.plexus.dateRange} · ${FACTS.plexus.city} · Free entry`, cta_label: 'Register', cta_target: 'plexus' },
       gala: { status_label: 'Reserve your seat', detail_line: `${FACTS.gala.dateLabel} · ${FACTS.gala.venue} · €${FACTS.gala.priceEarly} through ${FACTS.gala.priceFlipLabel}`, cta_label: 'Reserve seat', cta_target: 'gala' },
-      accelerator: { status_label: 'Opens December 8', detail_line: `Partner labs and clinics · ${FACTS.accelerator.opensLabel}`, cta_label: 'Learn more', cta_target: 'accelerator' },
+      accelerator: { status_label: 'Opens November 15', detail_line: `Partner labs and clinics · ${FACTS.accelerator.opensLabel}`, cta_label: 'Learn more', cta_target: 'accelerator' },
       forum: { status_label: 'By invitation', detail_line: `Forum gathering · ${FACTS.forum.gathering.label}`, cta_label: 'Enter code', cta_target: 'forum' },
       bridges: { status_label: `${FACTS.bridges.next.city} · ${FACTS.bridges.next.short}`, detail_line: `${FACTS.bridges.next.city} · ${FACTS.bridges.next.label}`, cta_label: 'View program', cta_target: 'bridges' }
     }
@@ -59,7 +59,7 @@ export const COPY = {
     added: 'Calendar file downloaded — open it to add the dates.', none: 'No dates could be exported yet.',
     // shown only when GET /api/plexus/settings carries no key_dates
     fallback: [
-      { label: `Gala early bird — €${FACTS.gala.priceEarly}`, date: `Until September 15, ${FACTS.year}` },
+      { label: `Gala seats — €${FACTS.gala.priceEarly}`, date: FACTS.gala.dateLabel },
       { label: 'Building Bridges — Boston', date: FACTS.bridges.next.label },
       { label: 'Donor Night — during Plexus Week', date: 'December 2026' },
       { label: 'Accelerator applications open', date: FACTS.accelerator.opensLabel },

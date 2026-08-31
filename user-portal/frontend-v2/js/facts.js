@@ -16,11 +16,11 @@ export const FACTS = Object.freeze({
   gala: Object.freeze({
     name: 'Gala Evening', date: '2026-12-05', weekday: 'Sat', dateLabel: 'Sat, December 5', time: '19:00',
     venue: 'Hotel Esplanade', city: 'Zagreb',
-    priceEarly: 150, priceRegular: 175, priceFlip: '2026-09-15', priceFlipLabel: '15 Sep',
+    priceEarly: 150, priceRegular: 175, priceFlip: '2026-12-04', priceFlipLabel: '4 Dec',
     dress: 'Black tie', refundable: false, seating: 'limited seating'
   }),
   accelerator: Object.freeze({
-    name: 'The Accelerator', opens: '2026-12-08', opensLabel: 'December 8, 2026', opensShort: 'Dec 8',
+    name: 'The Accelerator', opens: '2026-11-15', opensLabel: 'November 15, 2026', opensShort: 'Nov 15',
     hosts: Object.freeze(['Cleveland Clinic', 'Mayo Clinic', 'Columbia', 'University of Zurich']),
     fellows: 18, codeFormat: /^AX26-[A-Z0-9]{4}$/
   }),

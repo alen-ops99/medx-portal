@@ -7,7 +7,7 @@ import { FACTS, routeFor } from '../facts.js';
 
 export const SOURCE = 'Mobile Portal.dc.html';
 export const COPY = {
-  headline: 'Five projects, <i style="color:#9b1b22">one membership</i>.',
+  headline: 'One membership, <i style="color:#9b1b22">every project</i>.',
   sub: 'Apply, register, and follow everything from here.',
   cards: {
     plexus: { name: 'Plexus Conference 2026', accent: '#9b1b22', img: 'photo-hall.jpg' },

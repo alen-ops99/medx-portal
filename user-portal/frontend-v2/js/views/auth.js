@@ -23,7 +23,7 @@ export const COPY = {
     create: 'CREATE ACCOUNT →', signin: 'SIGN IN',
     projects: ['PLEXUS CONFERENCE', 'GALA EVENING', 'THE ACCELERATOR', 'BIOMEDICAL FORUM', 'BUILDING BRIDGES']
   },
-  panel: { quote: '"The room where Croatian medicine meets the world."', tagline: 'ONE ACCOUNT · FIVE PROJECTS · ONE WORLDWIDE NETWORK' },
+  panel: { quote: '"The room where Croatian medicine meets the world."', tagline: 'ONE ACCOUNT · EVERY MED&X PROJECT · ONE WORLDWIDE NETWORK' },
   steps: { details: 'DETAILS', confirm: 'CONFIRM EMAIL', done: "YOU'RE IN" },
   create: {
     headline: 'Join the Med&amp;X <i>community</i>.',

@@ -78,9 +78,8 @@ export const COPY = {
     n: '03', title: 'THE EVENING AT A GLANCE',
     // fallback only — shown when gala_settings carries no schedule rows
     fallback: [
-      { time: '19:00', title: 'Welcome reception and champagne' },
-      { time: '20:00', title: 'Gala dinner, keynotes and panels', right: 'UNTIL 23:30' },
-      { time: '21:45', title: 'Med&amp;X Annual Awards <i style="color:#9b1b22">ceremony</i>', gold: true }
+      { time: '19:00', title: 'Doors open — welcome reception &amp; networking' },
+      { time: '', title: 'Dinner, keynotes and the Med&amp;X Annual Awards follow through the evening', right: 'UNTIL 23:30', gold: true }
     ],
     note: 'Panels with our speakers on high-performance leadership and the challenges and opportunities of international biomedical collaboration. The Awards honor those who did the most to internationalize Croatian medicine and science this year. Detailed program follows soon.',
     photoCaption: 'GALA 2025 · HOTEL ESPLANADE'

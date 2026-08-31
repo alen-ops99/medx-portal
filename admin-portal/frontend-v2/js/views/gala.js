@@ -94,7 +94,7 @@ export const COPY = {
   },
   night: {
     title: 'THE NIGHT',
-    fallbackLine: '19:00 doors · 19:30 dinner · 21:00 Annual Awards · 22:00 performers · 23:30 carriages',
+    fallbackLine: '19:00 — doors open, welcome & networking · dinner, keynotes and the Med&X Annual Awards follow · until 23:30',
     tba: 'Performers — announced this autumn.',
     named: names => `Performers — ${names}.`,
     line2: 'Charity auction and the 3D room walk-through open from here as the night takes shape.',

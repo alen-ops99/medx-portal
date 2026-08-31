@@ -31,7 +31,7 @@ export const COPY = {
   hero: {
     eyebrow: (status, cap) => `${status || 'PRE-REGISTRATION OPEN'} · FREE · ${FACTS.plexus.edition}TH YEAR${cap ? ` · CAPPED AT ${cap} SEATS` : ''}`,
     title: 'Plexus Conference', line: (range, venue) => `${range} · ${venue} — keynotes, research, and the Gala Evening.`,
-    register: 'REGISTER NOW →', mine: 'MY PLEXUS →', schedule: 'VIEW SCHEDULE',
+    register: 'PRE-REGISTER NOW →', mine: 'MY PLEXUS →', schedule: 'VIEW SCHEDULE',
     interested: "I'M INTERESTED", noted: '✓ NOTED — UPDATES ON',
     follow: on => `GET UPDATES FROM PLEXUS · ${on ? 'ON' : 'OFF'}`,
     followSub: 'Email + portal alerts · manage topics in Profile &amp; settings'
@@ -133,7 +133,7 @@ export const COPY = {
     guideDone: 'The welcome guide opened in a new tab — save it for December.'
   },
   mine: {
-    eyebrow: { open: 'MY PLEXUS · REGISTRATION OPEN', closed: 'MY PLEXUS · REGISTRATION OPENS SOON', registered: 'MY PLEXUS · YOU ARE REGISTERED', galaPending: 'MY PLEXUS · GALA SEAT REQUESTED', galaApproved: 'MY PLEXUS · GALA SEAT APPROVED — PAYMENT OPEN', galaPaid: 'MY PLEXUS · REGISTERED · GALA SEAT PAID' },
+    eyebrow: { open: 'MY PLEXUS · PRE-REGISTRATION OPEN', closed: 'MY PLEXUS · PRE-REGISTRATION OPENS SOON', registered: 'MY PLEXUS · YOU ARE REGISTERED', galaPending: 'MY PLEXUS · GALA SEAT REQUESTED', galaApproved: 'MY PLEXUS · GALA SEAT APPROVED — PAYMENT OPEN', galaPaid: 'MY PLEXUS · REGISTERED · GALA SEAT PAID' },
     title: 'Your Plexus <i>2026</i>.',
     lead: {
       none: 'The conference is <strong style="color:#191512">free</strong> — two full days, keynotes, workshops, and the welcome reception. The Gala Evening seat is the only thing with a price. One form covers both.',
@@ -142,7 +142,7 @@ export const COPY = {
       galaApproved: 'Your Gala seat is approved — settle the payment and the seat is yours. Everything else about your Plexus stays free.',
       galaPaid: 'Everything is set: conference registered, Gala seat paid. Your QR pass below opens every door you registered for.'
     },
-    register: 'REGISTER NOW →', addGala: 'ADD THE GALA →', pay: 'PAY FOR YOUR SEAT →', tickets: 'MY TICKETS →',
+    register: 'PRE-REGISTER NOW →', addGala: 'ADD THE GALA →', pay: 'PAY FOR YOUR SEAT →', tickets: 'MY TICKETS →',
     ctaSub: { none: 'OPENS THE REGISTRATION FORM · PICK EITHER OR BOTH', gala: 'OPENS THE SAME FORM · GALA PRESELECTED', pay: 'SECURE CARD PAYMENT · STRIPE', done: 'TICKETS, RECEIPTS &amp; WALLET PASSES LIVE IN MY MED&amp;X' },
     facts: { conference: 'Conference', gala: 'Gala Evening', eb: 'Gala early bird', until: l => `UNTIL ${l}` },
     includedN: '01', includedTitle: "WHAT'S INCLUDED",
@@ -153,7 +153,7 @@ export const COPY = {
     },
     galaCard: {
       title: 'Gala Evening <i style="color:#c9a962">&amp;</i> Awards', price: p => `${p} PER GUEST`, tagPaid: '✓ SEAT PAID', tagPending: 'SEAT REQUESTED', tagApproved: 'APPROVED · PAY NOW',
-      items: ['Five-course gala dinner with wine pairing', 'Biomedical Forum Annual Awards ceremony', 'Live music and entertainment', 'Keynote speaker meet &amp; greet', 'Black tie / formal evening attire'],
+      items: ['Five-course gala dinner with wine pairing', 'Med&amp;X Annual Awards ceremony', 'Live music and entertainment', 'Keynote speaker meet &amp; greet', 'Black tie / formal evening attire'],
       cta: 'RESERVE A SEAT →', ctaPay: 'PAY FOR YOUR SEAT →', ctaPaid: 'VIEW TICKET →'
     },
     knowN: '02', knowTitle: 'GOOD TO KNOW',
@@ -336,8 +336,9 @@ function speakerTag(sp) {
   if (meta.event_tag) return meta.event_tag === 'both' ? 'PLEXUS · GALA' : meta.event_tag.toUpperCase();
   const atGala = D.gala.speakers.includes(norm(sp.name));
   const atPlexus = !!sp.talk_title || speakerSessions(sp).length > 0;
-  if (atGala && atPlexus) return 'PLEXUS · GALA';
-  return atGala ? 'GALA' : 'PLEXUS';
+  // Alen 2026-08-31: the four headliners speak at BOTH the conference and the Gala
+  if (atGala) return 'PLEXUS · GALA';
+  return 'PLEXUS';
 }
 function icsEvents() {
   const evs = [];

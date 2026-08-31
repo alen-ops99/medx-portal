@@ -25,7 +25,7 @@ export const COPY = {
     badge: 'AN INVITATION-ONLY NETWORK · GATHERS ONCE A YEAR',
     headline: 'The Biomedical <i style="color:#c9a962">Forum</i>',
     line: (label, where) => `Annual gathering · ${label} · ${where} — venue announced with your invitation`,
-    blurb: 'A standing network of leaders in medicine, science, and industry. Members stay connected in the portal all year — and meet in person once a year, over three days closing with the Gala &amp; Awards evening.',
+    blurb: 'A standing network of leaders in medicine, science, and industry. Members stay connected in the portal all year — and meet in person once a year, over two days closing with a gala evening.',
     join: 'JOIN WITH YOUR CODE →', member: 'YOUR MEMBERSHIP →'
   },
   band: ['SPLIT OR ZAGREB · MEMBERS VOTE ON THE VENUE', '150–200 SENIOR GUESTS', 'ANNUAL MEMBERSHIP · RENEWED EACH YEAR', 'GALA DINNER &amp; ANNUAL AWARDS'],
@@ -35,7 +35,7 @@ export const COPY = {
     directory: 'Forum members appear alongside your connections in <a href="/app/network">the member network</a> — message and connect year-round.',
     cards: cap => [
       { tag: 'THE CIRCLE', title: `${cap} members, by invitation`, body: 'The leadership of Croatian and international biomedicine — heads of clinics, labs, and companies, reachable in the portal year-round.' },
-      { tag: 'THE GATHERING', title: 'Three days, once a year', body: 'Every May the Forum meets in person, closing with the Gala &amp; Awards evening. Members register first.' },
+      { tag: 'THE GATHERING', title: 'Two days, once a year', body: 'Every May the Forum meets in person, closing with a gala evening. Members register first.' },
       { tag: 'THE MEMBERSHIP', title: 'Annual, renewable', body: `Membership runs for one year and renews annually — the full terms arrive with your registration. The cap stays at ${cap} so every relationship stays personal.` }
     ]
   },
@@ -48,7 +48,7 @@ export const COPY = {
   },
   gathering: {
     n: '02', title: 'THE ANNUAL GATHERING',
-    sub: 'Three days each May · the closing Gala &amp; Awards evening runs like this — the full program follows with your invitation.',
+    sub: 'Two days each May · the closing gala evening runs like this — the full program follows with your invitation.',
     // Shown only when GET /api/v2/forum/state carries no schedule rows (the artboard's default evening run-of-show)
     fallback: [
       { time: '18:00', title: 'Welcome Reception', note: 'Champagne reception and networking' },

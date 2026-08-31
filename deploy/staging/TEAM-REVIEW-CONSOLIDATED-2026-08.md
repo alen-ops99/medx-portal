@@ -89,3 +89,12 @@ each claim still gets re-verified against v2 before being marked done.
   wording; Gala add-tables control; editable guest categories; Studio social-card background
   options; Messages attachments.
 - Bucket D (10 decisions) — waiting on Alen.
+
+## Decisions — ANSWERED by Alen 2026-08-31 (all applied same day)
+1 Gala: starts 19:00 with networking; no dinner/awards times shown. 2 Awards = "Med&X Annual
+Awards". 3 Forum gathering = two days (its May closing evening is "a gala evening", not the Awards).
+4 Project count sidestepped: "ONE ACCOUNT · EVERY MED&X PROJECT". 5 "Pre-registration" everywhere.
+6 All four headliners tagged PLEXUS · GALA. 7 Keep "Register for Boston". 8 Price stays €150 —
+early-bird deadline pushed to 2026-12-04 in prod+staging gala_settings (€175 flip parked, his call
+later). 9 Seat transfer: Claude recommends BUILD (promised member-facing; pairs with non-refundable
+policy) — awaiting his go in the feature ranking. 10 Accelerator opens November 15, 2026 (Marija).
