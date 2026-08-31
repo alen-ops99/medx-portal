@@ -76,3 +76,16 @@ each claim still gets re-verified against v2 before being marked done.
   team-shared; everyone sees replies. (Both now also in the new ID-check scanner copy.)
 - Miro: outbox sends from president@medx.hr (authenticated domain since 08-30 — not spam-prone);
   system-health tiles in v2 are wired to real checks (plus the new nightly sentinel emails you+Laura on failure).
+
+---
+## STATUS 2026-08-31 (after verification + fix pass)
+- **Bucket A verified** (REVIEW-VERIFY-A-2026-08-31.md): 117 claims → 93 already worked in v2,
+  14 work differently, 7 dead, 3 missing. Fixed same day: file-picker preventDefault bug (UPLOAD
+  PHOTO, both portals), 5 bare /member-pages deep links, 3 hub phone overflows (all 20+ screens
+  now ≤396px @390). Deliberate stub: Messages ATTACH (queued C).
+- **Bucket B: all shipped** (colors, Sep 15, Boston+Donor dates, check-in gating, cathedral,
+  Bridges mission, reply-channel truth, titles+Lucija, sender identity, registered address).
+- **Added to bucket C** from verification: People combinable filters + filter-scoped export
+  wording; Gala add-tables control; editable guest categories; Studio social-card background
+  options; Messages attachments.
+- Bucket D (10 decisions) — waiting on Alen.
