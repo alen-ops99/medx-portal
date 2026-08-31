@@ -21,3 +21,12 @@
   .mx-links-url, [data-role="linkUrl"], code, .mx-link-row span { overflow-wrap: anywhere; word-break: break-all; min-width: 0; }
   .mx-link-row, [data-row] { flex-wrap: wrap; }
 }
+
+/* ≤480 hammer: inline min-widths (200px URL pill) may not shrink inside the wrapped rows —
+   override them and clip any residual child overflow so the page never scrolls sideways */
+@media (max-width: 480px) {
+  [data-row] { max-width: 100%; overflow-x: clip; }
+  [data-row] > div { min-width: 0; max-width: 100%; }
+  [data-row] span { min-width: 0 !important; }
+  .mx-links-grid, .mx-links-grid > * { overflow-x: clip; max-width: 100%; }
+}
