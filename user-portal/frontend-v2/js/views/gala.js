@@ -90,7 +90,7 @@ export const COPY = {
   unfollowed: 'Gala updates are off.',
   footer: {
     line: 'Questions about the Gala · seats, tables, dietary needs?',
-    sub: 'Message us · replies land right here in your portal inbox.',
+    sub: 'Message us · we reply by email to your account address.',
     cta: 'MESSAGE US →'
   }
 };

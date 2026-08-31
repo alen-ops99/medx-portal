@@ -109,7 +109,7 @@ export const COPY = {
     stops: [
       { n: '01', name: 'Ban Jelačić Square', note: 'The city’s beating heart — cafés on every side, advent stalls in December. 5 minutes from the venue.', ph: 'PHOTO · BAN JELAČIĆ SQUARE', wide: true },
       { n: '02', name: 'St. Mark’s Church', note: 'The famous tiled roof, coats of arms and all.', ph: 'PHOTO · ST. MARK’S CHURCH' },
-      { n: '03', name: 'Zagreb Cathedral', note: 'Croatia’s tallest building — twin spires over Kaptol.', ph: 'PHOTO · ZAGREB CATHEDRAL' },
+      { n: '03', name: 'Zagreb Cathedral', note: 'Zagreb’s grand dame over Kaptol — rising again, stone by stone, after the 2020 earthquake.', ph: 'PHOTO · ZAGREB CATHEDRAL' },
       { n: '04', name: 'Dolac Market', note: 'The “Belly of Zagreb” — red umbrellas, morning buzz.', ph: 'PHOTO · DOLAC MARKET' },
       { n: '05', name: 'Upper Town at dusk', note: 'Cobblestones, the Stone Gate, gas lamps lit by hand.', ph: 'PHOTO · UPPER TOWN LANTERNS' },
       { n: '06', name: 'Tkalčićeva Street', note: 'Café-lined and lively till late — end the night here.', ph: 'PHOTO · TKALČIĆEVA STREET' }

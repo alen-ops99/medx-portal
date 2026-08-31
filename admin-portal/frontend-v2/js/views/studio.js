@@ -63,7 +63,7 @@ export const COPY = {
 };
 
 const PLANNER_URL = 'https://plexus-tables.netlify.app/planner.html';
-const COLOURS = [['#9B1B22', 'Med&X red'], ['#C9A962', 'gold'], ['#191512', 'ink'], ['#F7F1E6', 'cream']];
+const COLOURS = [['#9B1B22', 'Med&X red'], ['#C9A962', 'gold'], ['#15110f', 'ink'], ['#fbf9f6', 'paper'], ['#f3efe9', 'paper-2']]; // values from medx.hr/styles.css (team review Aug 2026 — the kit had drifted)
 
 let D = null, st = null, rootEl = null, unbind = null;
 

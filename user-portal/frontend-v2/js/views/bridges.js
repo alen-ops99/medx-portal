@@ -32,7 +32,7 @@ export const COPY = {
   band: { cities: 'CITIES WORLDWIDE', guests: 'GUESTS HOSTED', events: 'EVENTS COMPLETED', per: 'GUESTS PER EVENING', perEvening: '40–50' },
   mission: {
     n: '01', title: 'THE MISSION',
-    body: 'Building Bridges connects Croatian biomedical professionals across the globe with leading institutions in their local cities. Through intimate evenings of 40–50 guests, we create connections that advance careers and foster international collaboration.',
+    body: 'Building Bridges connects Croatian biomedical professionals across the globe and their respective affiliated institutions with the biomedical community in Croatia through diplomatic events and institutional initiatives. Each evening gathers 40–50 guests.',
     whoLabel: "WHO IT'S FOR", whoSub: 'Registration is open to everyone — the evenings are made for:',
     chips: ['RESEARCHERS', 'PHYSICIANS', 'LEADERS IN BIOMEDICINE'],
     bringsLabel: 'EVERY EVENING BRINGS',
@@ -84,7 +84,7 @@ export const COPY = {
   unfollowed: 'Building Bridges updates are off.',
   footer: {
     line: 'Want Building Bridges in your city, or a seat at the next evening?',
-    sub: 'Message us · replies land right here in your portal inbox.',
+    sub: 'Message us · we reply by email to your account address.',
     cta: 'MESSAGE US →'
   }
 };

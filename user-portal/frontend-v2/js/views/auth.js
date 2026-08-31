@@ -63,7 +63,7 @@ export const COPY = {
     errors: { empty: 'Enter the code from your invitation email.', invalid: "That code isn't valid — check the invitation email or write to the Forum team.", offline: 'Code validation is not connected yet — the Forum team confirms invitations by email for now.' },
     ok: 'Code accepted — welcome to the Forum network.'
   },
-  footer: { copyright: FACTS.org.copyright, privacy: 'Privacy', terms: 'Terms' }
+  footer: { copyright: '© Med&X ' + FACTS.year + ' · Mosećka 128, 21000 Split', privacy: 'Privacy', terms: 'Terms' }
 };
 
 const st = { terms: false, sent: false, pendingEmail: null, devVerifyUrl: null };

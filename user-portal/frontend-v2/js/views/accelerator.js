@@ -108,9 +108,10 @@ export const COPY = {
     n: '05', title: 'THE TEAM',
     people: [
       { init: 'MP', bg: '#9b1b22', fg: '#f7f1e6', name: 'Marija Pranjić', role: 'Program Director · coordinates partner institutions and mentors across Europe and the US' },
-      { init: 'MV', bg: '#191512', fg: '#f7f1e6', name: 'Dr. Miro Vuković', role: 'Vice President · strategic lead for Med&amp;X partnerships' },
+      { init: 'MV', bg: '#191512', fg: '#f7f1e6', name: 'Miro Vuković, MD', role: 'Vice President · strategic lead for Med&amp;X partnerships' },
       { init: 'MG', bg: '#9b1b22', fg: '#f7f1e6', name: 'Marina Grubić, MD', role: 'Vice President, Human Resources · fellow onboarding and mentor relations' },
-      { init: 'AJ', bg: '#c9a962', fg: '#191512', name: 'Dr. Alen Juginović', role: 'Founder &amp; President, Med&amp;X · sleep neuroscientist at Harvard Medical School' }
+      { init: 'AJ', bg: '#c9a962', fg: '#191512', name: 'Alen Juginović, MD', role: 'Founder &amp; President, Med&amp;X · sleep neuroscientist at Harvard Medical School' },
+      { init: 'LS', bg: '#191512', fg: '#f7f1e6', name: 'Lucija Skejić', role: 'Program team · design &amp; member experience' }
     ]
   },
   cohorts: {

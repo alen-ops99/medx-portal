@@ -21,7 +21,7 @@ export const COPY = {
     greetings: ['Good morning', 'Good afternoon', 'Good evening'],   // time-of-day; text easter eggs removed by decision
     open: (name, city) => `${name} is open for registration — two days in ${city}, this December. Discover what's next.`,
     soon: (name, city) => `${name} opens for registration soon — two days in ${city}, this December. Discover what's next.`,
-    tickets: 'EVENT TICKETS →', checkIn: 'CHECK IN', my: 'MY MED&amp;X'
+    tickets: 'EVENT TICKETS →', checkIn: new Date() >= new Date(FACTS.plexus.start + 'T00:00:00') ? 'CHECK IN' : 'CHECK-IN OPENS DEC 4', my: 'MY MED&amp;X'
   },
   start: {
     title: 'GETTING STARTED', left: n => (n === 1 ? '1 STEP LEFT' : n + ' STEPS LEFT'),
@@ -59,7 +59,9 @@ export const COPY = {
     added: 'Calendar file downloaded — open it to add the dates.', none: 'No dates could be exported yet.',
     // shown only when GET /api/plexus/settings carries no key_dates
     fallback: [
-      { label: `Gala early bird — €${FACTS.gala.priceEarly}`, date: `Until September 1, ${FACTS.year}` },
+      { label: `Gala early bird — €${FACTS.gala.priceEarly}`, date: `Until September 15, ${FACTS.year}` },
+      { label: 'Building Bridges — Boston', date: FACTS.bridges.next.label },
+      { label: 'Donor Night — during Plexus Week', date: 'December 2026' },
       { label: 'Accelerator applications open', date: FACTS.accelerator.opensLabel },
       { label: 'Plexus Conference & Gala', date: FACTS.plexus.dateRange }
     ]

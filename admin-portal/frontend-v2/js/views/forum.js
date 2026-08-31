@@ -44,7 +44,7 @@ export const COPY = {
     title: 'RECRUITMENT PIPELINE', sub: 'from shortlist to member, one row each',
     waiting: n => `${n} form request${n === 1 ? '' : 's'} waiting`,
     sendCode: 'SEND CODE', addPh: 'Add a candidate — e.g. Prof. Ivica Grković, igrkovic@mefst.hr', add: 'ADD',
-    foot: 'SEND CODE mints a personal invitation code and queues the email in the Outbox — one OK there sends it from info@medx.hr, no copy-pasting into Gmail.',
+    foot: 'SEND CODE mints a personal invitation code and queues the email in the Outbox — one OK there sends it from president@medx.hr, no copy-pasting into Gmail.',
     roleFallback: 'Add details on their profile', typeFirst: 'TYPE A NAME AND EMAIL FIRST',
     queued: 'CODE QUEUED — APPROVE IT IN THE OUTBOX', added: 'CANDIDATE ADDED TO THE PIPELINE',
     needEmail: 'ADD AN EMAIL FOR THIS CANDIDATE FIRST — EDIT THE ROW IN PEOPLE',

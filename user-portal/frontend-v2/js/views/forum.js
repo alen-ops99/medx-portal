@@ -52,7 +52,7 @@ export const COPY = {
     // Shown only when GET /api/v2/forum/state carries no schedule rows (the artboard's default evening run-of-show)
     fallback: [
       { time: '18:00', title: 'Welcome Reception', note: 'Champagne reception and networking' },
-      { time: '19:00', title: 'Opening Remarks', note: 'Dr. Alen Juginović, President of Med&X' },
+      { time: '19:00', title: 'Opening Remarks', note: 'Alen Juginović, MD — President of Med&X' },
       { time: '19:30', title: 'Keynote Address', note: 'The Future of Biomedicine · Vision 2030' },
       { time: '20:30', title: 'Gala Dinner', note: 'Four-course dinner with wine pairing' },
       { time: '22:00', title: 'Awards Ceremony', note: 'Recognition of outstanding achievements' },

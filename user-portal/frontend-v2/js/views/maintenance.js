@@ -5,7 +5,7 @@ export const COPY = {
   kicker: 'BACK SHORTLY',
   headline: "We're setting the room for the <i style=\"color:#c9a962\">next act</i>.",
   why: 'Scheduled maintenance — the portal returns within the hour. Your tickets and registrations are safe.',
-  urgent: 'Urgent? Write to us — replies land in your portal inbox once we\'re back.'
+  urgent: 'Urgent? Write to us — we reply by email as soon as we\'re back.'
 };
 export const layout = 'bare';
 
