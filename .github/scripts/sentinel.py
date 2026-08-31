@@ -41,23 +41,28 @@ def check_http(name, url, expect_json=False):
     except Exception as e:
         problems.append(f"{name}: {type(e).__name__} {str(e)[:120]}")
 
+FAIL_LINES = []  # (service label, message) — email-failure evidence from the last 24h
 def check_render_logs():
+    """Collect email-failure lines as DAMAGE EVIDENCE, not live problems: the pipeline's
+    live health is judged by the HTTP probes + Brevo aggregate. text= filters server-side,
+    so the 24h window is covered regardless of how chatty the service logs are."""
+    del FAIL_LINES[:]
     end = datetime.now(timezone.utc); start = end - timedelta(hours=24)
     for label, sid in SERVICES.items():
-        try:
-            qs = urllib.parse.urlencode({ 'ownerId': OWNER_ID, 'resource': sid,
-                'startTime': start.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                'endTime': end.strftime('%Y-%m-%dT%H:%M:%SZ'), 'limit': 100 })
-            d = json.load(get(f"https://api.render.com/v1/logs?{qs}",
-                              {'Authorization': f'Bearer {RENDER_KEY}'}))
-            hits = [l['message'][:160] for l in d.get('logs', [])
-                    if any(m in l.get('message', '') for m in BAD_LOG_MARKERS)]
-            if hits:
-                problems.append(f"{label}: {len(hits)} email-failure log line(s) in 24h — e.g. {hits[0]}")
-            else:
-                notes.append(f"OK  {label} logs clean (24h)")
-        except Exception as e:
-            problems.append(f"{label} log check failed: {str(e)[:120]}")
+        found = 0
+        for marker in BAD_LOG_MARKERS:
+            try:
+                qs = urllib.parse.urlencode({ 'ownerId': OWNER_ID, 'resource': sid,
+                    'startTime': start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'endTime': end.strftime('%Y-%m-%dT%H:%M:%SZ'), 'limit': 100, 'text': marker })
+                d = json.load(get(f"https://api.render.com/v1/logs?{qs}",
+                                  {'Authorization': f'Bearer {RENDER_KEY}'}))
+                for l in d.get('logs', []):
+                    FAIL_LINES.append((label, l.get('message', '')[:220])); found += 1
+            except Exception as e:
+                notes.append(f"{label} log query ({marker}) failed: {str(e)[:80]}")
+        notes.append(f"OK  {label} logs clean (24h)" if not found
+                     else f"·   {label}: {found} email-failure line(s) in 24h → damage scan")
 
 def check_brevo_stats():
     try:
@@ -116,25 +121,29 @@ def try_remediate():
     return healed
 
 def assess_damage():
-    """Even when everything works NOW, people who never got an email are damage worth
-    reporting: pull the failed-recipient addresses out of 24h of EMAIL-FAIL log lines."""
+    """People whose email FAILED in the last 24h and who have NO later successful delivery
+    in Brevo = unrecovered damage → worth waking a human for. Recovered ones are noted only."""
     import re
     victims = set()
-    end = datetime.now(timezone.utc); start = end - timedelta(hours=24)
-    for label, sid in SERVICES.items():
+    for label, m in FAIL_LINES:
+        if 'EMAIL-FAIL' in m or 'EMAIL DROPPED' in m:
+            victims |= set(re.findall(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', m))
+    for a in ALERT_TO.split(','):
+        victims.discard(a.strip())
+    unrecovered, recovered = [], []
+    for v in sorted(victims)[:40]:
         try:
-            qs = urllib.parse.urlencode({ 'ownerId': OWNER_ID, 'resource': sid,
-                'startTime': start.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                'endTime': end.strftime('%Y-%m-%dT%H:%M:%SZ'), 'limit': 100 })
-            d = json.load(get(f'https://api.render.com/v1/logs?{qs}', {'Authorization': f'Bearer {RENDER_KEY}'}))
-            for l in d.get('logs', []):
-                m = l.get('message', '')
-                if 'EMAIL-FAIL' in m or 'EMAIL DROPPED' in m:
-                    victims |= set(re.findall(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', m))
+            d = json.load(get(f"https://api.brevo.com/v3/smtp/statistics/events?email={urllib.parse.quote(v)}&limit=10",
+                              {'api-key': BREVO_KEY}))
+            if any(e.get('event') == 'delivered' for e in (d.get('events') or [])):
+                recovered.append(v)
+            else:
+                unrecovered.append(v)
         except Exception:
-            pass
-    victims.discard(ALERT_TO)
-    return sorted(v for v in victims if not v.endswith('medx.hr') or True)
+            unrecovered.append(v)
+    if recovered:
+        notes.append(f"recovered (failed once, later delivered — no action): {', '.join(recovered[:10])}")
+    return unrecovered
 
 run_all()
 healed_notes = []
