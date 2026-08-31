@@ -14,3 +14,10 @@
 @media (max-width: 620px) {
   .mx-links-grid [data-row] span[style*="ui-monospace"] { flex: 1 1 100% !important; min-width: 0 !important; }
 }
+
+/* ≤480: an invite URL is one unbroken token — wrap it anywhere rather than widening the
+   page to 1664px (final audit 2026-08-31, the last phone offender) */
+@media (max-width: 480px) {
+  .mx-links-url, [data-role="linkUrl"], code, .mx-link-row span { overflow-wrap: anywhere; word-break: break-all; min-width: 0; }
+  .mx-link-row, [data-row] { flex-wrap: wrap; }
+}

@@ -537,3 +537,12 @@ Behaviour when a critical variable is missing: `JWT_SECRET` → process exits in
 **Redesign implication:** the member bundle ships a full staff dashboard (`App` P9:24986–34018, `AcceleratorApp`, `FinanceApp`, `CheckinApp`, `PRApp` P9:34019–39683). The redesigned member build should drop it; the admin portal already owns every twin except the two cross-origin families (payments refund, Live Q&A), which must either stay on the member service or move to the admin origin before the member staff code is removed.
 
 *Generated 2026-08-28 from HEAD `8b7ba23`; the companion build contract is `design/verify-2026-08-28/REDESIGN-GAP-MATRIX.md`.*
+
+## §6b — go-live wiring gaps found by FINAL-AUDIT-2026-08-31 (add to the §6 checklist)
+1. CLOUDINARY_URL on the ADMIN prod service — now functional (studio photo library, message attachments), not just a flag.
+2. CHROME_PATH on admin prod for the print engine (badges/certs/board-pack PDFs).
+3. Wire the 11 email templates at the points in user-portal/backend/v2/email-wiring-notes.md (8 still-unwired points + 2 new inline-sender TODOs: transfer.js, forum-ops nomination shortlist).
+4. Decide direct member-emails vs the Outbox-OK rule for v2 senders (transfer + nomination currently send direct via sendEmail).
+5. Admin v2 SPA cutover steps are absent from §6 — add: point admin prod service at frontend-v2 (or new Netlify site + proxy), routes.js paths, perms sections.
+6. USER_PORTAL_URL env on the admin service (cross-portal links in new features).
+7. Seed-data prerequisites on prod first boot: v2_gala_categories seeds from empty, v2_canned_replies seeds 6, studio settings defaults — verify one boot does it all.
