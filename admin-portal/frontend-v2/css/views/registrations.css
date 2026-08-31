@@ -16,3 +16,15 @@
   [data-block="table"] > div:first-child { grid-template-columns: auto 1.9fr 1fr !important; }
   .mx-reg-event, .mx-reg-when { display: none !important; }
 }
+
+/* TIMELINE drawer (v2 addition, 2026-08-31) — wrapping safety only; the look stays inline.
+   Long emails / invoice ids / note bodies must break instead of widening the 330px panel
+   (or the single phone column), and the composer must never overflow at ≤396px. */
+[data-block="tl"] { min-width: 0; }
+[data-block="tl"] .mx-tl-item { min-width: 0; }
+[data-block="tl"] .mx-tl-detail,
+[data-block="tl"] .mx-tl-meta { overflow-wrap: anywhere; }
+[data-block="tl"] textarea { max-width: 100%; }
+@media (max-width: 396px) {
+  [data-block="tl"] .mx-tl-scroll { max-height: 260px !important; }
+}

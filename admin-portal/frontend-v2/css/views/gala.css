@@ -29,10 +29,14 @@
 
 /* ---- build 2026-08-31 (table tools · categories · 3D-planner card) — responsive + focus only ---- */
 
-/* modal field grids (table editor · category manager) get the same focus affordance the screen has */
+/* modal field grids (table editor · category manager · menu editor · invite queue) get the same
+   focus affordance the screen has */
 .mx-modal .mx-tbl-fields input:focus,
 .mx-modal .mx-cat-row input:focus,
-.mx-modal .mx-cat-add input:focus {
+.mx-modal .mx-cat-add input:focus,
+.mx-modal .mx-menu-fields input:focus,
+.mx-modal .mx-menu-fields select:focus,
+.mx-modal textarea[data-role="invPaste"]:focus {
   outline: 1px solid #9b1b22;
   outline-offset: -1px;
 }
@@ -46,4 +50,20 @@
   /* category manager rows: the key tag drops under the label instead of squeezing it */
   .mx-modal .mx-cat-row { flex-wrap: wrap; }
   .mx-modal .mx-cat-row input[data-role="cmLabel"] { flex-basis: 100%; order: 5; }
+}
+
+/* ---- build 2026-08-31 (invitations · menu options) — responsive + touch only ---- */
+
+/* the two new scrolling lists behave like the console list on touch */
+.mx-inv-list,
+.mx-menu-list,
+.mx-modal .mx-inv-ticks { -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 620px) {
+  /* menu editor: name + bucket stack */
+  .mx-modal .mx-menu-fields { grid-template-columns: 1fr !important; }
+  /* invitation rows: the summary line wraps under the title instead of squeezing the button */
+  [data-block="invites"] > div:first-child { row-gap: 6px; }
+  .mx-inv-list > div,
+  .mx-menu-row { flex-wrap: wrap; }
 }

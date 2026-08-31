@@ -10,6 +10,12 @@
 //                                              performers meta + room state + effective price +
 //                                              the editable guest-category set (v2_gala_categories)
 //   GET /api/admin/gala/table-assignments      the 3D console's email-keyed import ("Stol N")
+//   GET /api/v2/gala-ops/invites               the INVITATIONS card (v2_gala_invites joined by
+//                                              email against gala_registrations — invited/opened/
+//                                              registered are derived live, never stored)
+//   GET /api/v2/gala-ops/menu-options          the MENU card's FULL option list (archived included;
+//                                              the v1 menu-options read above stays the active-only
+//                                              source for the meal dropdowns + kitchen count)
 // Mutations: seat assign/unassign via the EXISTING /api/admin/gala/tables/:id/assign +
 // /api/admin/gala/unassign (assign mirrors seat_number onto the registration — wallet passes
 // update from it); table create/edit/delete via the EXISTING POST/PUT/DELETE
@@ -24,6 +30,10 @@
 // gala_registrations.pricing values ('invoice' stays the one billed path; every other category
 // counts as paid). Seats are NON-REFUNDABLE: cancel is a status door (+ undo), never a refund,
 // and money documents stay FIRA's business.
+// Build 2026-08-31 — two old-portal features, reshaped: INVITATIONS (queue EN/HR invite emails →
+// the approval outbox; APPROVE & SEND on the Inbox → Outbox tab is the ONLY path to sending —
+// nothing here ever emails directly) and MENU (add/edit/archive gala_menu_options in place —
+// same table the kitchen count, the meal dropdowns and the old portal read).
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow } from '../facts.js';
@@ -126,6 +136,44 @@ export const COPY = {
     removed: 'CONSOLE ROW REMOVED',
     note: 'Wallet passes print the table assigned on THIS board (assigning stamps seat_number onto the registration). The console list fills “Stol N” on the member Gala page by email match — where both exist, the console import wins there.'
   },
+  inv: {
+    title: 'INVITATIONS',
+    summary: s => `${s.invited} invited · ${s.registered} registered · ${s.never} never answered`,
+    queueBtn: 'QUEUE INVITES',
+    chip: { invited: 'INVITED', opened: 'OPENED', registered: 'REGISTERED' },
+    subInvited: d => `invited ${d}`,
+    subOpened: d => `opened ${d}`,
+    subRegistered: paid => paid ? 'registered · paid' : 'registered',
+    requeue: 'QUEUE AGAIN',
+    empty: 'No invitations yet — queue the first round; the Outbox sends it after approval.',
+    unavailable: 'Invitations are unavailable right now — reload in a moment.',
+    foot: 'Every queue lands on the Inbox → Outbox tab as PENDING — nothing reaches a guest before APPROVE &amp; SEND. Opens are tracked through the invite link; REGISTERED means a live Gala registration with the same email.',
+    modalTitle: 'Queue Gala invitations',
+    modalBody: 'Invitation emails are <b>queued for approval</b>, never sent from here — release them with APPROVE &amp; SEND on the Outbox.',
+    langLabel: 'TEMPLATE', langEn: 'ENGLISH', langHr: 'HRVATSKI',
+    paste: 'One guest per line — “Ana Anić <ana@kbc.hr>”, “ana@kbc.hr, Ana Anić” or just the email',
+    resendTitle: 'INVITED BEFORE, NEVER REGISTERED — TICK TO INCLUDE AGAIN',
+    submit: 'QUEUE FOR APPROVAL',
+    none: 'ADD AT LEAST ONE GUEST FIRST — AN EMAIL EACH',
+    badLines: lines => `COULD NOT READ AN EMAIL FROM: ${lines.join(' · ')}`,
+    queued: r => `${r.queued} INVITE${r.queued === 1 ? '' : 'S'} QUEUED IN THE OUTBOX — APPROVE & SEND RELEASES THEM${(r.skipped_registered || []).length ? ` · ${r.skipped_registered.length} ALREADY REGISTERED, SKIPPED` : ''}`
+  },
+  menu: {
+    title: 'MENU OPTIONS', add: '+ OPTION',
+    defaultTag: 'DEFAULT', archivedTag: 'ARCHIVED',
+    seats: n => `${n}`, seatsTitle: n => `${n} seat${n === 1 ? '' : 's'} counted on the kitchen sheet`,
+    editTitle: 'Edit this menu option', addTitle: 'Add a menu option',
+    labelPh: 'Option name (e.g. Fish)', descPh: 'Short description — what the kitchen serves',
+    bucketLabel: 'Bucket', buckets: ['meat', 'fish', 'vegetarian', 'vegan', 'kids', 'other'],
+    kwPh: 'Keywords that map a guest’s dietary text here (comma-separated)',
+    kwWhy: 'Members type dietary wishes in their own words — these keywords decide which option such a guest counts under.',
+    save: 'SAVE', create: 'ADD OPTION',
+    archive: 'ARCHIVE', restore: 'RESTORE',
+    needLabel: 'TYPE THE OPTION NAME FIRST',
+    added: 'MENU OPTION ADDED', saved: 'MENU OPTION SAVED',
+    archivedToast: 'OPTION ARCHIVED — RECORDED CHOICES STAY UNTOUCHED', restored: 'OPTION RESTORED',
+    foot: 'Same table the kitchen count and the meal dropdowns read. Archiving hides an option from pickers without touching any guest’s recorded choice; the counts here are the kitchen-sheet numbers.'
+  },
   meals: {
     title: 'MEALS — KITCHEN COUNT',
     foot: d => `Final counts go to the Esplanade on ${d} — the kitchen sheet export uses exactly these numbers.`,
@@ -172,9 +220,11 @@ async function load() {
     regs: api.get('/api/admin/gala/registrations'),
     settings: api.get('/api/admin/gala/settings'),
     menu: api.get('/api/admin/gala/menu-options'),
+    menuAll: api.get('/api/v2/gala-ops/menu-options'),
     ops: fetchOps(),
     ta: api.get('/api/admin/gala/table-assignments'),
-    nag: api.get('/api/admin/nag/items')
+    nag: api.get('/api/admin/nag/items'),
+    inv: api.get('/api/v2/gala-ops/invites')
   });
   const gs = (r.settings && r.settings.settings) || r.settings || {};
   let schedule = Array.isArray(gs.schedule) ? gs.schedule : [];
@@ -184,8 +234,10 @@ async function load() {
   const D0 = {
     regs: Array.isArray(r.regs) ? r.regs : [], gs, schedule,
     menu: (r.menu && r.menu.options) || [],
+    menuAll: (r.menuAll && r.menuAll.options) || [],
     ops: r.ops || { tables: [], assignments: [], meals: {}, waitlist: [], cancellations: [], categories: [], meta: { performers_announced: false, performers: [] }, room: {}, price: null },
     ta: Array.isArray(r.ta) ? r.ta : [],
+    inv: r.inv || { invites: [], summary: null },
     nagByReg, errors: r.$errors || {}
   };
   D0.price = (D0.ops.price && D0.ops.price.current) || galaPriceNow(gs);
@@ -447,6 +499,62 @@ function blockList() {
   <!-- /dc -->`;
 }
 
+// ---- INVITATIONS (v2 addition, build 2026-08-31 — the old portal's invite machinery, reshaped:
+// per-person state in v2_gala_invites; every email is QUEUED into the approval outbox, and the
+// Inbox → Outbox tab's APPROVE & SEND stays the only way anything reaches a guest) ----
+const INV_CHIP = {
+  invited: { bg: '#f1e7d4', fg: '#7a6432' },
+  opened: { bg: '#eee7dc', fg: '#201b16' },
+  registered: { bg: '#e4efe7', fg: '#22563a' }
+};
+// "Ana Anić <ana@kbc.hr>" · "ana@kbc.hr, Ana Anić" · "ana@kbc.hr" — one guest per line
+function parseInvitePaste(text) {
+  const people = [], bad = [];
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = line.match(/<?([^\s<>,;"']+@[^\s<>,;"']+\.[^\s<>,;"']+)>?/);
+    if (!m) { bad.push(line.slice(0, 40)); continue; }
+    const name = line.replace(m[0], ' ').replace(/[<>]/g, ' ').replace(/[,;]+/g, ' ').replace(/\s+/g, ' ').trim();
+    people.push({ email: m[1].toLowerCase(), name });
+  }
+  return { people, bad };
+}
+function invRow(i) {
+  const chip = INV_CHIP[i.state] || INV_CHIP.invited;
+  const sub = i.state === 'registered'
+    ? esc(COPY.inv.subRegistered(i.reg && i.reg.payment_status === 'paid'))
+    : i.state === 'opened'
+      ? `${esc(COPY.inv.subInvited(fmt.when(i.invited_at || i.created_at)))} · ${esc(COPY.inv.subOpened(fmt.when(i.opened_at)))}`
+      : esc(COPY.inv.subInvited(fmt.when(i.invited_at || i.created_at)));
+  return `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid rgba(32,27,22,.07)">
+        <span style="flex:1;min-width:0" title="${esc(i.email)}"><span style="display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.name || i.email)}</span><span style="display:block;font-size:10.5px;color:#6d6459">${sub}</span></span>
+        <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:${chip.bg};color:${chip.fg};white-space:nowrap">${COPY.inv.chip[i.state] || esc(String(i.state).toUpperCase())}</span>
+        ${i.state !== 'registered' ? `<span data-act="invRequeue" data-id="${esc(i.id)}" title="Queue this invitation again — it lands in the Outbox pending approval" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.inv.requeue}</span>` : ''}
+      </div>`;
+}
+function blockInvites() {
+  const inv = (D.inv && D.inv.invites) || [];
+  const s = (D.inv && D.inv.summary) || { invited: inv.length, registered: 0, opened: 0, never: inv.length };
+  return `
+  <div data-block="invites" data-v2="invitations-card" style="border:1px solid rgba(32,27,22,.14);background:#fff">
+    <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
+      <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.inv.title}</span>
+      <span style="min-width:18px;height:18px;padding:0 5px;background:#f1e7d4;color:#7a6432;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">${inv.length}</span>
+      <div style="flex:1"></div>
+      <span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(COPY.inv.summary(s))}</span>
+      <span data-act="invQueue" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.inv.queueBtn}</span>
+    </div>
+    <div class="mx-inv-list" style="max-height:262px;overflow:auto">
+      ${D.errors.inv
+        ? `<div style="padding:12px 18px;font-size:12px;color:#6d6459;font-style:italic">${COPY.inv.unavailable}</div>`
+        : inv.length ? inv.map(invRow).join('') : `<div style="padding:12px 18px;font-size:12px;color:#6d6459;font-style:italic">${COPY.inv.empty}</div>`}
+    </div>
+    <div style="padding:10px 18px 12px;font-size:11px;color:#6d6459;border-top:1px solid rgba(32,27,22,.08)">${COPY.inv.foot}</div>
+  </div>`;
+}
+
 function boardCells() {
   const am = assignMap();
   const act = D.regs.filter(isActive);
@@ -538,6 +646,64 @@ function blockMeals() {
   <!-- /dc -->`;
 }
 
+// ---- MENU OPTIONS (v2 addition, build 2026-08-31 — add/edit/archive on gala_menu_options, the
+// SAME table the meal dropdowns, the kitchen count and the old portal's Meals tab read) ----
+function menuAllRows() { return (D.menuAll && D.menuAll.length) ? D.menuAll : (D.menu || []); }
+function menuCountsById() {
+  const m = {};
+  for (const c of mealCounts()) m[c.option.id] = c.n;
+  return m;
+}
+function menuRow(o, counts) {
+  const archived = !Number(o.active);
+  const n = counts[o.id] || 0;
+  return `
+      <div class="mx-menu-row" style="display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid rgba(32,27,22,.07)${archived ? ';opacity:.55' : ''}">
+        <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.label)}${Number(o.is_default) ? ` <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.12em;background:#f1e7d4;color:#7a6432;padding:2px 5px;vertical-align:1px">${COPY.menu.defaultTag}</span>` : ''}</span>${o.description ? `<span style="display:block;font-size:10.5px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.description)}</span>` : ''}</span>
+        ${o.bucket ? `<span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:#eee7dc;color:#6d6459;white-space:nowrap">${esc(String(o.bucket).toUpperCase())}</span>` : ''}
+        ${archived
+          ? `<span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;background:#eee7dc;color:#6d6459;padding:3px 6px;white-space:nowrap">${COPY.menu.archivedTag}</span>`
+          : `<span title="${esc(COPY.menu.seatsTitle(n))}" style="font:600 11px Inter,sans-serif;min-width:22px;text-align:right">${COPY.menu.seats(n)}</span>`}
+        <span data-act="menuEdit" data-id="${esc(o.id)}" title="${COPY.menu.editTitle}" style="font:400 10px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#201b16">✎</span>
+        ${archived
+          ? `<span data-act="menuFlip" data-id="${esc(o.id)}" data-to="1" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#1e6e42;cursor:pointer;white-space:nowrap">${COPY.menu.restore}</span>`
+          : `<span data-act="menuFlip" data-id="${esc(o.id)}" data-to="0" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#9a9086;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${COPY.menu.archive}</span>`}
+      </div>`;
+}
+function blockMenu() {
+  const opts = menuAllRows();
+  const counts = menuCountsById();
+  return `
+  <div data-block="menucard" data-v2="menu-card" style="border:1px solid rgba(32,27,22,.14);background:#fff">
+    <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)">
+      <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.menu.title}</span><div style="flex:1"></div>
+      <span data-act="menuAdd" style="padding:6px 10px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.menu.add}</span>
+    </div>
+    <div class="mx-menu-list" style="max-height:262px;overflow:auto">
+      ${opts.length ? opts.map(o => menuRow(o, counts)).join('') : `<div style="padding:12px 18px;font-size:12px;color:#6d6459;font-style:italic">${COPY.loadFail}</div>`}
+    </div>
+    <div style="padding:10px 18px 12px;font-size:11px;color:#6d6459;border-top:1px solid rgba(32,27,22,.08)">${COPY.menu.foot}</div>
+  </div>`;
+}
+function menuFieldsHtml(o) {
+  const inp = 'border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16';
+  const cur = (o && o.bucket) ? String(o.bucket) : '';
+  const set = (!cur || COPY.menu.buckets.includes(cur)) ? COPY.menu.buckets : [cur].concat(COPY.menu.buckets);
+  return `<div class="mx-menu-fields" style="display:grid;grid-template-columns:1fr 130px;gap:8px">
+    <input data-role="mfLabel" value="${esc(o ? o.label : '')}" placeholder="${COPY.menu.labelPh}" aria-label="Option name" style="${inp};min-width:0">
+    <select data-role="mfBucket" aria-label="${COPY.menu.bucketLabel}" title="${COPY.menu.bucketLabel}" style="${inp}">
+      <option value="">—</option>${set.map(b => `<option value="${esc(b)}"${b === cur ? ' selected' : ''}>${esc(b.toUpperCase())}</option>`).join('')}
+    </select>
+    <input data-role="mfDesc" value="${esc((o && o.description) || '')}" placeholder="${COPY.menu.descPh}" aria-label="Description" style="${inp};grid-column:1/-1;min-width:0">
+    <input data-role="mfKw" value="${esc((o && o.keywords) || '')}" placeholder="${COPY.menu.kwPh}" aria-label="Keywords" style="${inp};grid-column:1/-1;min-width:0">
+  </div>
+  <div style="font-size:11px;color:#6d6459;margin-top:10px">${COPY.menu.kwWhy}</div>`;
+}
+function readMenuFields(el) {
+  const v = sel => ((el.querySelector(`[data-role="${sel}"]`) || {}).value || '').trim();
+  return { label: v('mfLabel'), description: v('mfDesc'), bucket: v('mfBucket'), keywords: v('mfKw') };
+}
+
 function wlRow(w) {
   const status = String(w.status || 'waiting');
   let right = '';
@@ -611,11 +777,15 @@ function template() {
     ${blockTitle()}
     ${blockKpis()}
     <div class="mx-two" style="display:grid;grid-template-columns:1.55fr 1fr;gap:22px;align-items:start">
-      <span data-block="list">${blockList()}</span>
+      <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
+        <span data-block="list">${blockList()}</span>
+        ${blockInvites()}
+      </div>
       <div style="display:flex;flex-direction:column;gap:22px">
         ${blockBoard()}
         ${blockPlanner()}
         ${blockMeals()}
+        ${blockMenu()}
         <span data-block="waitlist">${blockWaitlist()}</span>
         ${blockNight()}
       </div>
@@ -629,24 +799,31 @@ function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); i
 function redrawLive() {
   rerender('[data-block="kpis"]', blockKpis());
   rerender('[data-block="rows"]', `<div data-block="rows">${rowsHtml()}</div>`);
+  rerender('[data-block="invites"]', blockInvites());
   rerender('[data-block="boardcard"]', blockBoard());
   rerender('[data-block="planner"]', blockPlanner());
   rerender('[data-block="meals"]', `<div data-block="meals" style="padding:12px 18px 14px;display:flex;flex-direction:column;gap:7px">${mealBars()}<span style="font-size:11px;color:#6d6459;margin-top:3px">${esc(COPY.meals.foot(COPY.meals.deadline))}</span></div>`);
+  rerender('[data-block="menucard"]', blockMenu());
   rerender('[data-block="waitlist"]', `<span data-block="waitlist">${blockWaitlist()}</span>`);
   rerender('[data-block="night"]', blockNight());
 }
-async function refresh({ regs = true, ops = true, nag = false, ta = false } = {}) {
+async function refresh({ regs = true, ops = true, nag = false, ta = false, inv = true, menu = false } = {}) {
   try {
     const jobs = {};
     if (regs) jobs.regs = api.get('/api/admin/gala/registrations');
     if (ops) jobs.ops = fetchOps();
     if (nag) jobs.nag = api.get('/api/admin/nag/items');
     if (ta) jobs.ta = api.get('/api/admin/gala/table-assignments');
+    if (inv) jobs.inv = api.get('/api/v2/gala-ops/invites');           // cheap; registrations move the join
+    if (menu) { jobs.menu = api.get('/api/admin/gala/menu-options'); jobs.menuAll = api.get('/api/v2/gala-ops/menu-options'); }
     const r = await api.settle(jobs);
     if (!rootEl) return;
     if (r.regs) D.regs = Array.isArray(r.regs) ? r.regs : D.regs;
     if (r.ta) D.ta = Array.isArray(r.ta) ? r.ta : D.ta;
     if (r.ops) { D.ops = r.ops; D.price = (r.ops.price && r.ops.price.current) || D.price; }
+    if (r.inv) D.inv = r.inv;
+    if (r.menu) D.menu = (r.menu && r.menu.options) || D.menu;
+    if (r.menuAll) D.menuAll = (r.menuAll && r.menuAll.options) || D.menuAll;
     if (r.nag) { D.nagByReg = {}; for (const it of (r.nag.items || [])) if (it.kind === 'gala_unpaid') D.nagByReg[it.subject_id] = it; }
   } catch (e) { /* keep the current data on a failed refresh */ }
   redrawLive();
@@ -855,6 +1032,107 @@ const handlers = {
     busy(el, true);
     try { await api.del('/api/admin/gala/table-assignments/' + encodeURIComponent(el.dataset.id)); ui.toast(COPY.planner.removed); await refresh({ regs: false, ops: false, ta: true }); }
     catch (e) { busy(el, false); ui.toast(e.message, { kind: 'error' }); }
+  },
+
+  // ---- INVITATIONS — everything mail-like is QUEUED into the approval outbox; the Inbox →
+  // Outbox tab's APPROVE & SEND stays the one path to sending (never a direct email from here) ----
+  invQueue: () => {
+    const never = ((D.inv && D.inv.invites) || []).filter(i => i.state !== 'registered');
+    let lang = 'en';
+    const langBtn = (k, label) => `<span data-act="invLang" data-lang="${k}" style="padding:6px 10px;border:1px solid rgba(32,27,22,.25);font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;${k === lang ? 'background:#201b16;color:#f6f2ea' : 'background:#fff;color:#201b16'}">${label}</span>`;
+    const m = ui.modal({
+      eyebrow: 'GALA EVENING', title: COPY.inv.modalTitle,
+      body: `<div style="margin-bottom:10px;font-size:12.5px;color:#4a4239">${COPY.inv.modalBody}</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${COPY.inv.langLabel}</span>${langBtn('en', COPY.inv.langEn)}${langBtn('hr', COPY.inv.langHr)}</div>
+        <textarea data-role="invPaste" rows="5" placeholder="${esc(COPY.inv.paste)}" aria-label="Guests to invite" style="width:100%;box-sizing:border-box;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;resize:vertical"></textarea>
+        ${never.length ? `<div style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;margin:12px 0 4px">${COPY.inv.resendTitle}</div>
+        <div class="mx-inv-ticks" style="max-height:150px;overflow:auto;border:1px solid rgba(32,27,22,.12)">${never.map(i => `
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(32,27,22,.06);cursor:pointer;font-size:12px"><input type="checkbox" data-role="invTick" data-email="${esc(i.email)}" data-name="${esc(i.name || '')}" style="accent-color:#9b1b22"><span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.name || i.email)}</span>${i.name ? `<span style="color:#9a9086;font-size:10.5px;white-space:nowrap">${esc(i.email)}</span>` : ''}</label>`).join('')}</div>` : ''}`,
+      actions: [
+        { label: 'CANCEL' },
+        { label: COPY.inv.submit, kind: 'primary', onClick: () => {
+          const parsed = parseInvitePaste((m.el.querySelector('[data-role="invPaste"]') || {}).value || '');
+          if (parsed.bad.length) { ui.toast(COPY.inv.badLines(parsed.bad.slice(0, 3)), { kind: 'error' }); return false; }
+          const people = parsed.people.slice();
+          m.el.querySelectorAll('[data-role="invTick"]:checked').forEach(t => people.push({ email: t.dataset.email, name: t.dataset.name || '' }));
+          const seen = new Set();
+          const unique = people.filter(p => { const k = p.email.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+          if (!unique.length) { ui.toast(COPY.inv.none); return false; }
+          api.post('/api/v2/gala-ops/invites/queue', { people: unique, lang })
+            .then(r => { m.close(); ui.toast(COPY.inv.queued(r || { queued: unique.length })); if (rootEl) refresh({ regs: false, ops: false }); })
+            .catch(e => ui.toast(e.message, { kind: 'error' }));
+          return false;                                     // the modal waits for the queue to land
+        } }
+      ]
+    });
+    ui.bind(m.el, {
+      invLang: (el) => {
+        lang = el.dataset.lang === 'hr' ? 'hr' : 'en';
+        m.el.querySelectorAll('[data-act="invLang"]').forEach(b => {
+          const on = b.dataset.lang === lang;
+          b.style.background = on ? '#201b16' : '#fff';
+          b.style.color = on ? '#f6f2ea' : '#201b16';
+        });
+      }
+    });
+    const f = m.el.querySelector('[data-role="invPaste"]'); if (f) f.focus();
+  },
+  invRequeue: async (el) => {
+    const i = ((D.inv && D.inv.invites) || []).find(x => x.id === el.dataset.id); if (!i) return;
+    busy(el, true);
+    try {
+      const r = await api.post('/api/v2/gala-ops/invites/queue', { people: [{ email: i.email, name: i.name || '' }], lang: i.lang === 'hr' ? 'hr' : 'en' });
+      ui.toast(COPY.inv.queued(r || { queued: 1 }));
+      await refresh({ regs: false, ops: false });
+    } catch (e) { busy(el, false); ui.toast(e.message, { kind: 'error' }); }
+  },
+
+  // ---- MENU OPTIONS — add / edit / archive on gala_menu_options (the kitchen count, the meal
+  // dropdowns and the old portal's Meals tab keep reading the same rows) ----
+  menuAdd: () => {
+    const m = ui.modal({
+      eyebrow: 'GALA EVENING', title: COPY.menu.addTitle,
+      body: menuFieldsHtml(null),
+      actions: [
+        { label: 'CANCEL' },
+        { label: COPY.menu.create, kind: 'primary', onClick: () => {
+          const v = readMenuFields(m.el);
+          if (!v.label) { ui.toast(COPY.menu.needLabel); return false; }
+          api.post('/api/v2/gala-ops/menu-options', v)
+            .then(() => { m.close(); ui.toast(COPY.menu.added); if (rootEl) refresh({ regs: false, menu: true }); })
+            .catch(e => ui.toast(e.message, { kind: 'error' }));
+          return false;
+        } }
+      ]
+    });
+    const f = m.el.querySelector('[data-role="mfLabel"]'); if (f) f.focus();
+  },
+  menuEdit: (el) => {
+    const o = menuAllRows().find(x => x.id === el.dataset.id); if (!o) return;
+    const m = ui.modal({
+      eyebrow: 'GALA EVENING', title: COPY.menu.editTitle,
+      body: menuFieldsHtml(o),
+      actions: [
+        { label: 'CANCEL' },
+        { label: COPY.menu.save, kind: 'primary', onClick: () => {
+          const v = readMenuFields(m.el);
+          if (!v.label) { ui.toast(COPY.menu.needLabel); return false; }
+          api.put('/api/v2/gala-ops/menu-options/' + encodeURIComponent(o.id), v)
+            .then(() => { m.close(); ui.toast(COPY.menu.saved); if (rootEl) refresh({ regs: false, menu: true }); })
+            .catch(e => ui.toast(e.message, { kind: 'error' }));
+          return false;
+        } }
+      ]
+    });
+    const f = m.el.querySelector('[data-role="mfLabel"]'); if (f) f.focus();
+  },
+  menuFlip: async (el) => {
+    busy(el, true);
+    try {
+      await api.put('/api/v2/gala-ops/menu-options/' + encodeURIComponent(el.dataset.id), { active: el.dataset.to === '1' });
+      ui.toast(el.dataset.to === '1' ? COPY.menu.restored : COPY.menu.archivedToast);
+      await refresh({ regs: false, menu: true });
+    } catch (e) { busy(el, false); ui.toast(e.message, { kind: 'error' }); }
   },
 
   // Kitchen sheet CSV — exactly the numbers on the MEALS card (counts weighted by seats)

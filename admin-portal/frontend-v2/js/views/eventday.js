@@ -79,6 +79,24 @@ export const COPY = {
     admitted: 'ADMITTED', party_complete: 'ALL IN', over_capacity: 'OVER CAPACITY', over_admitted: 'OVER CAPACITY — LOGGED',
     not_found: 'NOT FOUND', not_paid: 'NOT PAID', wrong_event: 'WRONG DOOR', revoked: 'REVOKED', cancelled: 'CANCELLED',
     not_registered_for_event: 'NOT ON THIS LIST', queued: 'QUEUED OFFLINE', error: 'TRY AGAIN'
+  },
+  // v2 addition (2026-08-31): HOST BRIEF — the old portal's "who is coming tonight" one-pager
+  brief: {
+    title: 'HOST BRIEF',
+    sub: 'who is coming tonight — composed live from the guest list',
+    print: 'PRINT', copy: 'COPY AS TEXT', copied: '✓ COPIED', refresh: 'REFRESH',
+    loading: 'Composing the brief from the guest list…',
+    error: 'The brief could not load — REFRESH to try again.',
+    rehearsalNote: 'Rehearsal is ON — the brief still reads the real guest list; rehearsal never touches it.',
+    room: 'THE ROOM', points: 'TALKING POINTS', notable: 'NOTABLE GUESTS', kitchen: 'KITCHEN',
+    expected: 'EXPECTED', expectedSub: (b, p) => `${b} bookings${p ? ` · ${p} plus-one${p === 1 ? '' : 's'}` : ''}`,
+    paid: 'PAID', pending: 'PENDING', institutions: 'INSTITUTIONS', countries: 'COUNTRIES',
+    alreadyIn: n => `${n} already in`,
+    noDietary: 'No dietary requests on file.',
+    plusOnesDiet: n => `${n} plus-one guest${n === 1 ? ' carries' : 's carry'} no dietary info`,
+    copyToast: 'BRIEF COPIED — PASTE IT INTO A MESSAGE TO ALEN',
+    copyFail: 'COPY FAILED — USE PRINT INSTEAD',
+    notReady: 'THE BRIEF IS STILL COMPOSING — TRY AGAIN IN A SECOND'
   }
 };
 
@@ -150,6 +168,20 @@ async function refreshDoor() {
     st.door = d.rows || [];
     paint('[data-block="doorRows"]', doorRowsHtml());
   } catch (e) { /* keep the last list */ }
+}
+// v2 addition (2026-08-31): HOST BRIEF — reads /api/v2/host-brief for the selected door.
+async function refreshBrief() {
+  if (!rootEl || !st) return;
+  const gate = st.gate;
+  try {
+    const b = await api.get('/api/v2/host-brief?event=' + encodeURIComponent(gate));
+    if (!rootEl || !st || st.gate !== gate) return;   // door changed mid-flight — a fresh call is coming
+    st.brief = b; st.briefErr = null;
+  } catch (e) {
+    if (!rootEl || !st || st.gate !== gate) return;
+    st.brief = null; st.briefErr = e;
+  }
+  paint('[data-block="hostBrief"]', blockHostBrief());
 }
 
 // ---------------------------------------------------------------- scan
@@ -523,6 +555,104 @@ function blockQa() {
     </div>
     <!-- /dc -->`;
 }
+// ---------------------------------------------------------------- HOST BRIEF (v2 addition 2026-08-31)
+// The old portal's "who is coming tonight" one-pager, per selected door. No artboard source —
+// additive block, dc-marked below. Data: GET /api/v2/host-brief (backend/v2/host-brief.js),
+// composed deterministically server-side; `text` is the plain-text twin for COPY AS TEXT.
+function briefMicro(t) { return `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${t}</span>`; }
+function briefBodyHtml() {
+  if (st.briefErr) {
+    if (st.briefErr.isLocked) return ui.lockedBlock(perms.label(st.briefErr.section));
+    return `<span style="font-size:12.5px;color:#9b1b22">${esc(COPY.brief.error)}</span>`;
+  }
+  const b = st.brief;
+  if (!b) return `<span style="font-size:12.5px;color:#6d6459;font-style:italic">${esc(COPY.brief.loading)}</span>`;
+  if (b.empty) return `<span style="font-size:13px;color:#6d6459;line-height:1.6">${esc((b.talking_points && b.talking_points[0]) || 'No registrations yet for this door.')}</span>`;
+  const h = b.headline || {};
+  const cell = (k, v, sub) => `
+        <div style="background:#f6f2ea;padding:10px 14px;min-width:96px">${briefMicro(esc(k))}<div style="font-family:Fraunces,serif;font-size:24px;margin-top:2px">${esc(v)}</div>${sub ? `<div style="font-size:10.5px;color:#6d6459">${esc(sub)}</div>` : ''}</div>`;
+  const notableRow = n => `
+        <div style="display:flex;align-items:baseline;gap:10px;padding:7px 0;border-top:1px solid rgba(32,27,22,.08)">
+          <span style="font-size:13px;font-weight:600;white-space:nowrap">${esc(n.name)}</span>
+          <span style="flex:1;font-size:11px;color:#6d6459;line-height:1.5">${n.tags.map(t => esc(t)).join(' · ')}${n.institution ? (n.tags.length ? ' · ' : '') + esc(n.institution) : ''}</span>
+          ${n.party_size > 1 ? `<span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#7a6432;white-space:nowrap">×${n.party_size}</span>` : ''}
+        </div>`;
+  const diet = b.dietary || { buckets: [], lines: [], unknown_plus_ones: 0 };
+  return `
+      ${st.rehearsal ? `<span style="font-size:11px;color:#7a6432;background:#f8f1e2;border:1px solid #c9a962;padding:6px 10px">${esc(COPY.brief.rehearsalNote)}</span>` : ''}
+      <div style="display:flex;gap:2px;flex-wrap:wrap">
+        ${cell(COPY.brief.expected, h.people || 0, COPY.brief.expectedSub(h.bookings || 0, h.plus_ones || 0))}
+        ${cell(COPY.brief.paid, h.paid_people || 0, '')}
+        ${cell(COPY.brief.pending, h.pending_people || 0, h.pending_bookings ? h.pending_bookings + ' booking' + (h.pending_bookings === 1 ? '' : 's') : '')}
+        ${h.institutions ? cell(COPY.brief.institutions, h.institutions, '') : ''}
+        ${h.countries ? cell(COPY.brief.countries, h.countries, '') : ''}
+        ${b.arrivals ? cell('IN', b.arrivals.admitted_people, 'of ' + (b.arrivals.expected_people || h.people)) : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${briefMicro(COPY.brief.points)}
+        ${(b.talking_points || []).map(p => `<span style="font-size:13px;line-height:1.55">· ${esc(p)}</span>`).join('')}
+      </div>
+      ${(b.notable && b.notable.length) ? `
+      <div style="display:flex;flex-direction:column;gap:2px">
+        ${briefMicro(COPY.brief.notable + ' (' + b.notable.length + ')')}
+        ${b.notable.map(notableRow).join('')}
+      </div>` : ''}
+      <div style="display:flex;flex-direction:column;gap:3px">
+        ${briefMicro(COPY.brief.kitchen)}
+        ${diet.buckets.length
+          ? `<span style="font-size:12.5px">${diet.buckets.map(x => esc(x.count + ' ' + x.label)).join(' · ')}</span>
+             ${diet.lines.map(x => `<span style="font-size:11.5px;color:#6d6459">· ${esc(x.name)} — ${esc(x.text)}</span>`).join('')}`
+          : `<span style="font-size:12px;color:#6d6459;font-style:italic">${esc(COPY.brief.noDietary)}</span>`}
+        ${diet.unknown_plus_ones ? `<span style="font-size:11px;color:#6d6459">${esc(COPY.brief.plusOnesDiet(diet.unknown_plus_ones))}</span>` : ''}
+      </div>`;
+}
+function blockHostBrief() {
+  const ready = !!(st.brief && st.brief.ok);
+  const btn = (act, label, primary) => `<span data-act="${act}" ${ready ? '' : 'aria-disabled="true"'} style="padding:8px 13px;${primary ? 'background:#201b16;color:#f6f2ea;' : 'border:1px solid rgba(32,27,22,.25);color:#201b16;'}font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap;${ready ? '' : 'opacity:.45;'}" ${primary ? 'data-hover="background:#000"' : 'data-hover="border-color:#201b16"'}>${label}</span>`;
+  return `
+    <!-- dc: v2 addition › "HOST BRIEF" (no artboard source — additive 2026-08-31) -->
+    <div data-block="hostBrief" data-v2="host brief — who is coming tonight one-pager (additive 2026-08-31)" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.brief.title}</span>
+        <span style="font-size:11.5px;color:#6d6459">${esc((st.brief && st.brief.event_label) || COPY.doors.names[st.gate] || st.gate)}${st.brief && st.brief.date_label ? ' · ' + esc(st.brief.date_label) : ''}</span>
+        <div style="flex:1"></div>
+        <span data-act="hbRefresh" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;text-decoration:underline">${COPY.brief.refresh}</span>
+        ${btn('hbCopy', st.briefCopied ? COPY.brief.copied : COPY.brief.copy, false)}
+        ${btn('hbPrint', COPY.brief.print, true)}
+      </div>
+      <span style="font-size:11.5px;color:#6d6459;margin-top:-6px">${COPY.brief.sub}</span>
+      ${briefBodyHtml()}
+    </div>
+    <!-- /dc -->`;
+}
+// Print twin — clean black-on-white sheet, pt-sized for paper. Injected into .mx-hb-printbox;
+// the print-only stylesheet (id mx-css-hostbrief-print, added in render) shows ONLY this box.
+function briefPrintHtml(b) {
+  const h = b.headline || {};
+  const diet = b.dietary || { buckets: [], lines: [], unknown_plus_ones: 0 };
+  const sec = t => `<div style="font:700 9pt Inter,Arial,sans-serif;letter-spacing:.16em;margin:14pt 0 4pt;border-bottom:1pt solid #000;padding-bottom:2pt">${esc(t)}</div>`;
+  const li = t => `<div style="font-size:11pt;line-height:1.5;margin:2pt 0">· ${t}</div>`;
+  return `
+    <div style="max-width:180mm;margin:0 auto;padding:10mm 0;color:#000">
+      <div style="font:700 9pt Inter,Arial,sans-serif;letter-spacing:.22em">MED&amp;X — HOST BRIEF</div>
+      <div style="font-family:Georgia,'Times New Roman',serif;font-size:20pt;margin-top:4pt">${esc(b.event_label || '')}</div>
+      <div style="font-size:10pt;color:#333;margin-top:2pt">${esc(b.date_label || '')}${b.date_label ? ' · ' : ''}composed ${esc(fmt.todayLabel())}</div>
+      ${b.empty ? li(esc((b.talking_points && b.talking_points[0]) || 'No registrations yet for this door.')) : `
+      ${sec(COPY.brief.room)}
+      ${li(`<b>${h.people || 0}</b> people expected across ${h.bookings || 0} bookings${h.plus_ones ? ` (${h.plus_ones} plus-one${h.plus_ones === 1 ? '' : 's'})` : ''}`)}
+      ${li(`${h.paid_people || 0} paid · ${h.pending_people || 0} pending${h.free_people ? ` · ${h.free_people} free / no payment needed` : ''}`)}
+      ${(h.institutions || h.countries) ? li([h.institutions ? h.institutions + ' institution' + (h.institutions === 1 ? '' : 's') : '', h.countries ? h.countries + ' countr' + (h.countries === 1 ? 'y' : 'ies') : ''].filter(Boolean).join(' · ')) : ''}
+      ${b.arrivals ? li(`<b>${b.arrivals.admitted_people}</b> already in`) : ''}
+      ${sec(COPY.brief.points)}
+      ${(b.talking_points || []).map(p => li(esc(p))).join('')}
+      ${(b.notable && b.notable.length) ? sec(COPY.brief.notable) + b.notable.map(n => li(`<b>${esc(n.name)}</b> — ${n.tags.map(t => esc(t)).join(' · ')}${n.institution ? ' · ' + esc(n.institution) : ''}${n.party_size > 1 ? ' · party of ' + n.party_size : ''}`)).join('') : ''}
+      ${sec(COPY.brief.kitchen)}
+      ${diet.buckets.length
+        ? li(diet.buckets.map(x => esc(x.count + ' ' + x.label)).join(' · ')) + diet.lines.map(x => li(`${esc(x.name)} — ${esc(x.text)}`)).join('')
+        : li(esc(COPY.brief.noDietary))}
+      ${diet.unknown_plus_ones ? li(esc(COPY.brief.plusOnesDiet(diet.unknown_plus_ones))) : ''}`}
+    </div>`;
+}
 function template() {
   const live = isLive();
   return `
@@ -541,7 +671,8 @@ function template() {
       ${blockStaff()}
       ${blockMap()}
       ${blockQa()}
-    </div>`}
+    </div>
+    ${blockHostBrief()}`}
   </div>
 </div>`;
 }
@@ -571,6 +702,7 @@ const handlers = {
     st.last = null;
     rerenderAll();
     refreshDoor();
+    if (isLive() && !st.brief) refreshBrief();   // v2: first flip into rehearsal wakes the brief too
     if (!st.rehearsal) refreshCounts();
   },
   rehReset: async () => {
@@ -581,8 +713,10 @@ const handlers = {
   },
   gate: async (el) => {
     st.gate = el.dataset.key; st.last = null; st.qrUrl = null; st.copiedDoor = false;
+    st.brief = null; st.briefErr = null; st.briefCopied = false;   // v2 host brief follows the door
     rerenderAll();
     refreshDoor();
+    refreshBrief();
     try { D.notes = await api.get('/api/v2/eventday/notes?event=' + encodeURIComponent(st.gate)); const n = rootEl.querySelector('[data-role="notes"]'); if (n) n.value = D.notes.notes || ''; } catch (e) {}
   },
   cam: () => { if (st.camOn) stopCam(); else startCam(); },
@@ -669,6 +803,54 @@ const handlers = {
     const v = (rootEl.querySelector('[data-role="notes"]') || {}).value || '';
     try { await api.put('/api/v2/eventday/notes', { event: st.gate, notes: v }); ui.toast(COPY.map.saved); }
     catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  // ---- v2 addition (2026-08-31): HOST BRIEF actions
+  hbRefresh: () => {
+    st.brief = null; st.briefErr = null; st.briefCopied = false;
+    paint('[data-block="hostBrief"]', blockHostBrief());
+    refreshBrief();
+  },
+  hbCopy: async () => {
+    const b = st.brief;
+    if (!b || !b.ok || !b.text) { ui.toast(COPY.brief.notReady); return; }
+    let ok = false;
+    try { await navigator.clipboard.writeText(b.text); ok = true; } catch (e) {
+      // clipboard API blocked (http / permissions) — the hidden-textarea fallback
+      try {
+        const t = document.createElement('textarea');
+        t.value = b.text; t.setAttribute('readonly', '');
+        t.style.position = 'fixed'; t.style.opacity = '0';
+        document.body.appendChild(t); t.select();
+        ok = document.execCommand('copy');
+        t.remove();
+      } catch (e2) { ok = false; }
+    }
+    st.briefCopied = ok;
+    paint('[data-block="hostBrief"]', blockHostBrief());
+    ui.toast(ok ? COPY.brief.copyToast : COPY.brief.copyFail, ok ? {} : { kind: 'error' });
+    if (ok) setTimeout(() => { if (st && st.briefCopied) { st.briefCopied = false; if (rootEl) paint('[data-block="hostBrief"]', blockHostBrief()); } }, 2600);
+  },
+  hbPrint: () => {
+    const b = st.brief;
+    if (!b || !b.ok) { ui.toast(COPY.brief.notReady); return; }
+    // Print ONLY the brief: a print twin is appended to <body>, the print-only stylesheet
+    // (mx-css-hostbrief-print, injected in render) hides everything else while body carries
+    // .mx-hb-print — normal ⌘P without the class prints the page exactly as before.
+    const box = document.createElement('div');
+    box.className = 'mx-hb-printbox';
+    box.innerHTML = briefPrintHtml(b);
+    document.body.appendChild(box);
+    document.body.classList.add('mx-hb-print');
+    let done = false;
+    const cleanup = () => {
+      if (done) return; done = true;
+      try { box.remove(); } catch (e) {}
+      document.body.classList.remove('mx-hb-print');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    try { window.print(); } catch (e) {}
+    setTimeout(cleanup, 1500);   // Safari fires afterprint unreliably — belt and braces
   }
 };
 
@@ -679,9 +861,25 @@ export default {
     if (!document.getElementById('mx-css-event-day')) {
       const l = document.createElement('link'); l.id = 'mx-css-event-day'; l.rel = 'stylesheet'; l.href = '/css/views/event-day.css'; document.head.appendChild(l);
     }
+    // v2 addition (2026-08-31): print-only stylesheet for the HOST BRIEF — same id-guarded head
+    // injection as the css link above, inline because css/views/ is outside this build's owned set.
+    // Scoped to body.mx-hb-print (set only by the PRINT button) so a normal ⌘P is untouched.
+    if (!document.getElementById('mx-css-hostbrief-print')) {
+      const s = document.createElement('style'); s.id = 'mx-css-hostbrief-print';
+      s.textContent = [
+        '.mx-hb-printbox{display:none}',
+        '@media print{',
+        '  body.mx-hb-print > *:not(.mx-hb-printbox){display:none !important}',
+        '  body.mx-hb-print .mx-hb-printbox{display:block !important;background:#fff;color:#000;margin:0;padding:0}',
+        '  body.mx-hb-print{background:#fff !important}',
+        '}'
+      ].join('\n');
+      document.head.appendChild(s);
+    }
     let reh = false; try { reh = localStorage.getItem(REH_KEY) === '1'; } catch (e) {}
     let inst = false; try { inst = localStorage.getItem('medx_v2_instant') === '1'; } catch (e) {}
-    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, doorQ: '', door: [], last: null, idcard: null, instant: inst, camOn: false, qrUrl: null, copiedDoor: false, flushing: false };
+    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, doorQ: '', door: [], last: null, idcard: null, instant: inst, camOn: false, qrUrl: null, copiedDoor: false, flushing: false,
+           brief: null, briefErr: null, briefCopied: false /* v2 host brief (2026-08-31) */ };
     D = await load();
     if (rootEl !== root) return;
     st.gate = GATE_ORDER.includes(ctx.query.door) ? ctx.query.door : (D.over.default_event || 'conference');
@@ -690,6 +888,7 @@ export default {
     wireInputs();
     paintQueue();
     if (isLive()) refreshDoor();
+    if (isLive()) refreshBrief();   // v2 host brief (2026-08-31)
     flushQueue();
     const onOnline = () => flushQueue();
     window.addEventListener('online', onOnline);

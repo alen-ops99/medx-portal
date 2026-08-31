@@ -54,6 +54,17 @@ export const COPY = {
     empty: 'No seat transfers yet — they appear here the moment a member passes a seat on.',
     reg: ref => `REG ${String(ref).slice(0, 8)}`, checkedIn: '✓ CHECKED IN'
   },
+  timeline: {                                      // additive drawer, 2026-08-31 — per-registrant history + staff notes
+    title: 'TIMELINE', of: n => `${n} EVENT${n === 1 ? '' : 'S'}`,
+    loading: 'Assembling the history…',
+    empty: 'Nothing on file yet — events land here as this person registers, pays, transfers or walks in.',
+    error: 'The timeline would not load — reopen the row to retry.',
+    composerPh: 'Add a note for the team — e.g. “called about the invoice, will pay Friday”',
+    appendOnly: 'Append-only — the team sees every note.',
+    add: 'ADD NOTE',
+    noteAdded: 'NOTE ADDED — THE WHOLE TEAM SEES IT',
+    needText: 'WRITE THE NOTE FIRST'
+  },
   csvName: 'medx-registrations.csv'
 };
 
@@ -191,6 +202,7 @@ function blockPanel() {
         <div style="padding:12px 18px;display:flex;gap:8px;flex-wrap:wrap">
           ${panelActions(r).map(a => `<span data-act="${a.act}" data-key="${esc(r.key)}" style="padding:8px 12px;${a.style};font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${a.label}</span>`).join('')}
         </div>
+        ${blockTimeline(r)}
         <div style="padding:0 18px 14px;font-size:11px;color:#6d6459;line-height:1.5">${COPY.panel.people}</div>
       </div>
       <!-- /dc -->`;
@@ -231,6 +243,90 @@ function blockTransfers() {
     <!-- /dc -->`;
 }
 
+// ---- TIMELINE drawer (additive, 2026-08-31) — the old-portal registrant-activity gem, per person ----
+// GET /api/v2/registrations/timeline?email= (merged history across every source) + POST
+// /api/v2/registrations/notes (append-only staff notes, author = the signed-in admin).
+// TL === null → nothing loaded; TL.email tracks WHICH person the drawer holds, so switching rows
+// refetches while unrelated redraws keep the loaded history AND any half-typed note draft.
+let TL = null, tlReq = 0;
+const TL_DOT = { registered: '#c9a962', paid: '#22563a', checkin: '#2c4a73', transfer: '#9b1b22', note: '#4a4239', nomination: '#7a6432', admin: '#9a9086' };
+function authorName(a) {
+  const s = String(a || '').trim(); if (!s) return 'Admin';
+  const local = s.includes('@') ? s.split('@')[0] : s;
+  return local.split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Admin';
+}
+function tlWhen(at) {
+  if (!at) return '—';
+  const t = String(at).match(/[T ](\d{2}:\d{2})/);
+  return (fmt.dayLabel(at) || String(at).slice(0, 10)) + (t ? ' · ' + t[1] : '');
+}
+async function loadTimeline(email) {
+  const my = ++tlReq;
+  TL = { email, loading: true, events: [] };
+  try {
+    const r = await api.get('/api/v2/registrations/timeline?email=' + encodeURIComponent(email));
+    if (my !== tlReq) return;
+    TL = { email, loading: false, events: (r && r.events) || [] };
+  } catch (e) { if (my === tlReq) TL = { email, loading: false, error: true, events: [] }; }
+}
+function redrawTimeline() {
+  const r = selRow();
+  if (rootEl && r && r.email && TL && TL.email === r.email) rerender('[data-block="tl"]', blockTimeline(r));
+}
+function ensureTimeline() {
+  if (!rootEl || !st) return;
+  const r = selRow();
+  if (!r || !r.email) { TL = null; return; }
+  if (TL && TL.email === r.email) return;            // loaded or in flight — keep it (and the draft)
+  loadTimeline(r.email).then(redrawTimeline);
+}
+function tlItem(ev, last) {
+  const isNote = ev.kind === 'note';
+  const meta = isNote
+    ? `<span class="mx-tl-meta" style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">${esc(authorName(ev.author))} · ${esc(tlWhen(ev.at))}</span>`
+    : `<span class="mx-tl-meta" style="display:block;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#9a9086">${esc(tlWhen(ev.at))}</span>`;
+  return `
+        <div class="mx-tl-item" style="display:flex;gap:10px">
+          <span style="display:flex;flex-direction:column;align-items:center;flex:none;width:9px">
+            <span style="width:7px;height:7px;border-radius:50%;background:${TL_DOT[ev.kind] || '#4a4239'};margin-top:4px;flex:none"></span>
+            ${last ? '' : '<span style="width:1px;flex:1;background:rgba(32,27,22,.14);margin-top:3px"></span>'}
+          </span>
+          <span style="min-width:0;flex:1;padding-bottom:${last ? 2 : 12}px">
+            ${meta}
+            <span class="mx-tl-detail" style="display:block;font-size:12px;font-weight:600;margin-top:1px;line-height:1.45">${esc(ev.label)}</span>
+            ${ev.detail ? `<span class="mx-tl-detail" style="display:block;font-size:11.5px;color:#6d6459;line-height:1.5;margin-top:1px">${esc(ev.detail)}</span>` : ''}
+          </span>
+        </div>`;
+}
+function blockTimeline(r) {
+  if (!r || !r.email) return '';
+  const C = COPY.timeline;
+  const mine = TL && TL.email === r.email ? TL : null;
+  const draft = rootEl ? (el => el ? el.value : '')(rootEl.querySelector('[data-role="tlNote"]')) : '';
+  let body;
+  if (!mine || mine.loading) body = `<div style="padding:2px 0 4px;font-size:11.5px;color:#9a9086">${C.loading}</div>`;
+  else if (mine.error) body = `<div style="padding:2px 0 4px;font-size:11.5px;color:#7e151b">${C.error}</div>`;
+  else if (!mine.events.length) body = `<div style="padding:2px 0 4px;font-size:11.5px;color:#6d6459;line-height:1.5">${C.empty}</div>`;
+  else body = mine.events.map((ev, i) => tlItem(ev, i === mine.events.length - 1)).join('');
+  return `
+        <!-- dc: Admin Registrations.dc.html › "Registration file › Timeline" (v2 addition) -->
+        <div data-block="tl" style="border-top:1px solid rgba(32,27,22,.08)">
+          <div style="padding:12px 18px 10px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#201b16">${C.title}</span>
+            ${mine && !mine.loading && !mine.error ? `<span style="font:600 8px Inter,sans-serif;letter-spacing:.12em;color:#9a9086">${esc(C.of(mine.events.length))}</span>` : ''}
+          </div>
+          <div class="mx-tl-scroll" style="padding:0 18px 6px;max-height:340px;overflow:auto">${body}</div>
+          <div style="border-top:1px solid rgba(32,27,22,.08);padding:12px 18px;display:flex;flex-direction:column;gap:8px">
+            <textarea data-role="tlNote" rows="2" maxlength="4000" placeholder="${esc(C.composerPh)}" aria-label="Add a staff note" style="border:1px solid rgba(32,27,22,.25);background:#fff;font:400 12.5px Inter,sans-serif;color:#201b16;padding:8px 10px;resize:vertical;outline:none;width:100%;box-sizing:border-box;min-height:42px">${esc(draft)}</textarea>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:10.5px;color:#6d6459;flex:1;min-width:140px;line-height:1.45">${C.appendOnly}</span>
+              <span data-act="tlAdd" role="button" style="padding:8px 12px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap" data-hover="background:#3a322b">${C.add}</span>
+            </div>
+          </div>
+        </div>
+        <!-- /dc -->`;
+}
+
 function template() {
   return `
 <div data-screen-label="Admin Registrations" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
@@ -256,6 +352,7 @@ function redrawData() {
   rerender('[data-block="table"]', blockTable());
   rerender('[data-block="panel"]', blockPanel());
   syncButtons();
+  ensureTimeline();                                       // the selected row may have changed under us (v2 timeline)
 }
 function syncButtons() {
   const e1 = rootEl && rootEl.querySelector('[data-role="emailSel"]'); if (e1) e1.textContent = COPY.emailSel(st.ticked.size);
@@ -318,7 +415,7 @@ function composeModal(recipients) {
 }
 
 const handlers = {
-  open: (el, ev) => { if (ev.target.closest('[data-act]') !== el) return; st.sel = el.dataset.key; st.cancelConfirm = null; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); },
+  open: (el, ev) => { if (ev.target.closest('[data-act]') !== el) return; st.sel = el.dataset.key; st.cancelConfirm = null; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); ensureTimeline(); },
   tick: (el) => { const k = el.dataset.key; st.ticked.has(k) ? st.ticked.delete(k) : st.ticked.add(k); rerender('[data-block="table"]', blockTable()); syncButtons(); },
   selAll: () => { const list = rows(); const all = list.length && list.every(r => st.ticked.has(r.key)); list.forEach(r => all ? st.ticked.delete(r.key) : st.ticked.add(r.key)); rerender('[data-block="table"]', blockTable()); syncButtons(); },
   chip: (el) => setFilter({ status: el.dataset.chip }),
@@ -354,8 +451,22 @@ const handlers = {
   openGala: () => {
     const r = selRow(); if (!r || !r.gala_id) return;
     const target = 'gala:' + r.gala_id;
-    if (rows().some(x => x.key === target)) { st.sel = target; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); }
+    if (rows().some(x => x.key === target)) { st.sel = target; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); ensureTimeline(); }
     else { ui.toast(COPY.toast.galaRowMissing); st.q = ''; st.event = 'gala'; st.status = 'ALL'; st.link = null; st.sel = target; refetch(true); }
+  },
+  tlAdd: async (el) => {                                  // append-only staff note (v2 timeline)
+    const r = selRow(); if (!r || !r.email) return;
+    const ta = rootEl && rootEl.querySelector('[data-role="tlNote"]');
+    const text = ta ? ta.value.trim() : '';
+    if (!text) { ui.toast(COPY.timeline.needText); return; }
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      await api.post('/api/v2/registrations/notes', { email: r.email, text });
+      if (ta) ta.value = '';
+      ui.toast(COPY.timeline.noteAdded);
+      await loadTimeline(r.email);                        // the fresh history now carries the note
+      redrawTimeline();
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
   cancel: async (el) => {
     const r = selRow(); if (!r) return;
@@ -388,13 +499,15 @@ export default {
     st = { q: String(ctx.query.q || ''), event: String(ctx.query.event || 'all'), status: 'ALL',
       link: ctx.query.link ? String(ctx.query.link) : null, linkLabel: ctx.query.label ? String(ctx.query.label) : null,
       limit: 400, sel: null, ticked: new Set(), cancelConfirm: null };
-    D = null;
+    D = null; TL = null;
     await load();
     await loadTransfers();                                // RECENT TRANSFERS strip (additive)
+    const r0 = selRow();
+    if (r0 && r0.email) await loadTimeline(r0.email);     // TIMELINE drawer arrives with the first paint (additive)
     if (rootEl !== root) return;                          // navigated away while loading
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     bindInputs();
   },
-  destroy() { clearTimeout(qTimer); qTimer = null; reqId++; if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null; }
+  destroy() { clearTimeout(qTimer); qTimer = null; reqId++; tlReq++; if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null; TL = null; }
 };

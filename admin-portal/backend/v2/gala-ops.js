@@ -28,6 +28,39 @@
  *        v2_gala_meta table the member side defines (user-portal/backend/v2/gala.js); the DDL below
  *        is copied VERBATIM from there and the value shape ({announced, list}, key 'performers')
  *        is kept identical so GET /api/v2/gala/meta on the member portal reflects the flip.
+ *   GET  /api/v2/gala-ops/invites                        auth+adminOnly  the INVITATIONS card read:
+ *        every v2_gala_invites row with its live state (invited / opened / registered — registered
+ *        is DERIVED by email join against gala_registrations, never stored) + the summary counts.
+ *   POST /api/v2/gala-ops/invites/queue                  auth+adminOnly  { people:[{email,name?}], lang:'en'|'hr' }
+ *        upserts v2_gala_invites and stages ONE branded invitation email per person into the
+ *        approval outbox (scheduled_emails 'pending_approval', batch gala-invite-…) — the EMAIL &
+ *        OUTBOX tab's APPROVE & SEND is the only path to sending; sendEmail() is NEVER called here.
+ *        People whose email already has a live gala registration are skipped (reported back).
+ *   GET  /api/v2/gala-ops/invites/open/:token            PUBLIC          the invite email's CTA:
+ *        stamps opened_at once, then 302s to the member portal's Gala page — open tracking only,
+ *        never a dead end (an unknown token still redirects).
+ *   GET/POST /api/v2/gala-ops/menu-options               auth+adminOnly  the MENU card: full list
+ *        (archived included) / add with the v2-only fields (description, bucket).
+ *   PUT  /api/v2/gala-ops/menu-options/:id               auth+adminOnly  edit label/description/
+ *        bucket/keywords/sort_order + archive/restore via { active } (≥1 must stay active).
+ *
+ * INVITATIONS (build 2026-08-31 — the port of the old portal's invite machinery, reshaped):
+ *   the legacy tables could not carry this feature — gala_picker_invites is the Firestore
+ *   table-picker LEDGER (rows exist only for already-paid guests; token = the Firestore doc id;
+ *   the picker-sync engine's known-emails / revoke logic reads it, so foreign writes would corrupt
+ *   the sync), and gala_invite_links are anonymous multi-use registration URLs with no per-person
+ *   email, so an invited/opened/registered join is impossible there. v2_gala_invites is the
+ *   per-person shape both lacked: email (unique), name, lang, its own open-tracking token,
+ *   invited_at / opened_at, queued_count. 'registered' is always computed live from
+ *   gala_registrations (INACTIVE statuses excluded) — the registrations table stays the truth.
+ *
+ * MENU OPTIONS (build 2026-08-31): SAME gala_menu_options table server.js owns — the v1 routes
+ *   (/api/admin/gala/menu-options…) keep working untouched (the old portal's Meals tab, this
+ *   view's meal dropdowns and the keyword bucketing all read them). v2 adds what v1 cannot say:
+ *   guarded ADD COLUMN description / bucket, a full list that includes archived rows, and
+ *   archive/restore via `active` (v1 only hard-deletes). Members never read this table — the
+ *   member form stores free-text `dietary` on gala_registrations and the keywords map that text
+ *   to an option — so additive writes here cannot break the member-facing flow.
  *
  * WAITLIST DESIGN (README note 10: opens when seats sell out; a freed seat is offered to the
  * first in line with 24 h to accept, then passes on):
@@ -140,6 +173,29 @@ module.exports = function mountGalaOps(app, ctx) {
             persist();
         }
     } catch (e) { log('v2_gala_categories schema failed:', e.message); }
+    try {
+        // Per-person Gala invitations (see the header for why neither legacy table could be reused).
+        // email is UNIQUE: one invite identity per person; re-queues bump invited_at/queued_count
+        // and keep the token, so an old link in an old email still tracks its open.
+        db().run(`CREATE TABLE IF NOT EXISTS v2_gala_invites (
+            id TEXT PRIMARY KEY,
+            email TEXT NOT NULL UNIQUE,
+            name TEXT,
+            lang TEXT NOT NULL DEFAULT 'en',
+            token TEXT NOT NULL UNIQUE,
+            batch_id TEXT,
+            invited_at TEXT,
+            opened_at TEXT,
+            queued_count INTEGER NOT NULL DEFAULT 0,
+            created_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT
+        )`);
+    } catch (e) { log('v2_gala_invites schema failed:', e.message); }
+    // Additive columns on the SHARED gala_menu_options table (v1 SELECT * simply carries them;
+    // nothing existing is renamed or dropped, so every v1 reader keeps working unchanged).
+    try { db().run('ALTER TABLE gala_menu_options ADD COLUMN description TEXT'); } catch (e) { /* exists */ }
+    try { db().run('ALTER TABLE gala_menu_options ADD COLUMN bucket TEXT'); } catch (e) { /* exists */ }
 
     // ---------------------------------------------------------------- tiny query helpers
     function getRow(sql, params) {
@@ -629,6 +685,224 @@ module.exports = function mountGalaOps(app, ctx) {
         }
     });
 
+    // ---- INVITATIONS (v2_gala_invites · states derived live · emails ONLY via the approval outbox) ----
+    const INVITE_MAX_BATCH = 200;
+    // Live registrations by lowercased email — the 'registered' truth for the join. A paid row
+    // wins over an unpaid one so the card can say "registered · paid" when both exist.
+    function liveRegByEmail() {
+        const m = new Map();
+        try {
+            for (const r of getAll('SELECT email, status, payment_status FROM gala_registrations')) {
+                const e = String(r.email || '').trim().toLowerCase();
+                if (!e || INACTIVE.includes(String(r.status || '').toLowerCase())) continue;
+                const prev = m.get(e);
+                if (!prev || (r.payment_status === 'paid' && prev.payment_status !== 'paid'))
+                    m.set(e, { status: r.status || null, payment_status: r.payment_status || null });
+            }
+        } catch (e) { /* no registrations table yet — everyone reads as not registered */ }
+        return m;
+    }
+    function invitesPayload() {
+        const regMap = liveRegByEmail();
+        let rows = [];
+        try { rows = getAll('SELECT * FROM v2_gala_invites ORDER BY datetime(invited_at) DESC, datetime(created_at) DESC'); } catch (e) {}
+        const invites = rows.map(r => {
+            const reg = regMap.get(String(r.email).toLowerCase()) || null;
+            const state = reg ? 'registered' : (r.opened_at ? 'opened' : 'invited');
+            return { id: r.id, email: r.email, name: r.name, lang: r.lang, invited_at: r.invited_at, opened_at: r.opened_at, queued_count: r.queued_count, created_at: r.created_at, state, reg };
+        });
+        const registered = invites.filter(i => i.state === 'registered').length;
+        const opened = invites.filter(i => i.state === 'opened').length;
+        return { invites, summary: { invited: invites.length, registered, opened, never: invites.length - registered - opened } };
+    }
+    // TODO: swap to email-templates — inline for now, branded exactly like this module's other
+    // emails (ink band + gold rule + cream card + crimson CTA), in the guest's language.
+    function inviteEmailHtml(lang, name, price, openUrl) {
+        const T = lang === 'hr' ? {
+            strip: 'GALA VEČER · 5. PROSINCA · HOTEL ESPLANADE',
+            dear: name ? `Poštovani ${esc(name)},` : 'Poštovani,',
+            p1: 'Sa zadovoljstvom Vas pozivamo na <strong>Gala večer Med&amp;X-a</strong> — svečanu večer u srcu Zagreba: večera, program i dodjela godišnjih nagrada Med&amp;X-a, uz vodeće ljude hrvatske biomedicine i naše dijaspore.',
+            p2: `Broj mjesta je ograničen. Kotizacija iznosi <strong>&euro;${esc(price)}</strong> po osobi — svoje mjesto potvrđujete registracijom putem poveznice u nastavku.`,
+            cta: 'REZERVIRAJTE SVOJE MJESTO',
+            fallback: 'Ako se gumb ne otvori, zalijepite ovu poveznicu u preglednik:',
+            bye: 'Srdačan pozdrav,<br><strong>Vaš Med&amp;X tim</strong>'
+        } : {
+            strip: 'GALA EVENING · DECEMBER 5 · HOTEL ESPLANADE',
+            dear: name ? `Dear ${esc(name)},` : 'Dear guest,',
+            p1: 'It is our pleasure to invite you to the <strong>Med&amp;X Gala Evening</strong> — a formal evening in the heart of Zagreb: dinner, the programme and the annual Med&amp;X Awards, together with the leading people of Croatian biomedicine and its diaspora.',
+            p2: `Seats are limited. The seat is <strong>&euro;${esc(price)}</strong> per person — registering through the link below confirms yours.`,
+            cta: 'RESERVE YOUR SEAT',
+            fallback: 'If the button does not open, paste this link into your browser:',
+            bye: 'Warm regards,<br><strong>The Med&amp;X Team</strong>'
+        };
+        return `<!doctype html><body style="margin:0;background:#f7f1e6;font-family:Arial,Helvetica,sans-serif;color:#191512">
+<div style="max-width:600px;margin:0 auto;padding:28px 20px">
+  <div style="background:#191512;color:#f7f1e6;padding:18px 24px;border-bottom:2px solid #c9a962">
+    <div style="font-family:Georgia,serif;font-size:20px">Med&amp;X</div>
+    <div style="font:600 9px Arial,sans-serif;letter-spacing:.3em;color:#c9a962">${T.strip}</div>
+  </div>
+  <div style="background:#fdfaf3;border:1px solid rgba(25,21,18,.16);border-top:0;padding:26px 24px;font-size:14px;line-height:1.7;color:#4a4239">
+    <p style="margin:0 0 14px">${T.dear}</p>
+    <p style="margin:0 0 14px">${T.p1}</p>
+    <p style="margin:0 0 18px">${T.p2}</p>
+    <div style="text-align:center;margin:22px 0">
+      <a href="${esc(openUrl)}" style="display:inline-block;background:#9b1b22;color:#ffffff;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:.08em;padding:13px 30px">${T.cta}</a>
+    </div>
+    <p style="margin:0;font-size:12px;color:#6d6459">${T.fallback}<br>${esc(openUrl)}</p>
+    <p style="margin:18px 0 0">${T.bye}</p>
+  </div>
+</div></body>`;
+    }
+    function inviteEmail(inv, lang, price) {
+        const openUrl = adminBase() + '/api/v2/gala-ops/invites/open/' + inv.token;
+        const subject = lang === 'hr'
+            ? 'Pozivnica na Gala večer Med&X-a — 5. prosinca'
+            : 'An invitation to the Med&X Gala Evening — December 5';
+        return { subject, html: inviteEmailHtml(lang, inv.name, price, openUrl) };
+    }
+
+    app.get('/api/v2/gala-ops/invites', auth, adminOnly, (req, res) => {
+        try { res.json(invitesPayload()); }
+        catch (e) { log('invites read failed:', e.message); res.status(500).json({ error: 'Invitations are unavailable right now.' }); }
+    });
+
+    // QUEUE INVITES — every email lands in the approval outbox as 'pending_approval'; the EMAIL &
+    // OUTBOX tab's APPROVE & SEND (POST /api/admin/outbox/:batch/approve) is the ONLY way it sends.
+    app.post('/api/v2/gala-ops/invites/queue', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const lang = String(b.lang || 'en').toLowerCase() === 'hr' ? 'hr' : 'en';
+            const seen = new Set();
+            const people = [];
+            const bad = [];
+            for (const p of (Array.isArray(b.people) ? b.people.slice(0, INVITE_MAX_BATCH) : [])) {
+                const email = cleanStr(p && p.email, 200).toLowerCase();
+                const name = cleanStr(p && p.name, 160);
+                if (!validEmail(email)) { if (email || name) bad.push(email || name); continue; }
+                if (seen.has(email)) continue;
+                seen.add(email);
+                people.push({ email, name });
+            }
+            if (!people.length) return res.status(400).json({ error: bad.length ? `No usable email in: ${bad.slice(0, 3).join(', ')}${bad.length > 3 ? '…' : ''}` : 'Add at least one guest — an email each' });
+            const regMap = liveRegByEmail();
+            const skipped = people.filter(p => regMap.has(p.email)).map(p => p.email);
+            const toInvite = people.filter(p => !regMap.has(p.email));
+            if (!toInvite.length) return res.status(400).json({ error: 'Everyone on that list already has a live Gala registration — nothing to invite.' });
+            const batchId = 'gala-invite-' + Date.now().toString(36) + '-' + crypto.randomUUID().slice(0, 5);
+            const price = priceBlock().current;
+            const by = (req.user && req.user.email) || 'admin';
+            let queued = 0;
+            for (const p of toInvite) {
+                let inv = getRow('SELECT * FROM v2_gala_invites WHERE email = ?', [p.email]);
+                if (inv) {
+                    db().run(`UPDATE v2_gala_invites SET name = COALESCE(NULLIF(?, ''), name), lang = ?, batch_id = ?, invited_at = ?, queued_count = COALESCE(queued_count, 0) + 1, updated_at = ? WHERE id = ?`,
+                        [p.name, lang, batchId, nowIso(), nowIso(), inv.id]);
+                    inv = getRow('SELECT * FROM v2_gala_invites WHERE id = ?', [inv.id]);
+                } else {
+                    const id = crypto.randomUUID();
+                    db().run(`INSERT INTO v2_gala_invites (id, email, name, lang, token, batch_id, invited_at, opened_at, queued_count, created_by, created_at, updated_at)
+                              VALUES (?,?,?,?,?,?,?,NULL,1,?,datetime('now'),?)`,
+                        [id, p.email, p.name || null, lang, crypto.randomBytes(18).toString('hex'), batchId, nowIso(), by, nowIso()]);
+                    inv = getRow('SELECT * FROM v2_gala_invites WHERE id = ?', [id]);
+                }
+                const mail = inviteEmail(inv, lang, price);
+                db().run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+                          VALUES (?, 'pending_approval', ?, 'v2-gala-ops', ?, ?, ?, ?, ?, datetime('now'))`,
+                    [crypto.randomUUID(), batchId, 'gala_invitation_' + lang,
+                     JSON.stringify({ to: inv.email, subject: mail.subject, html: mail.html, lang, project: 'gala', invite_id: inv.id, guest_name: inv.name || null, reply_to: by !== 'admin' ? by : null }),
+                     inv.email, mail.subject, by]);
+                queued++;
+            }
+            persist();
+            audit(req, 'gala.invites_queue', `${queued} ${lang.toUpperCase()} invitation(s) staged for approval — batch ${batchId}${skipped.length ? `, ${skipped.length} already registered skipped` : ''}`);
+            res.json({ success: true, batch_id: batchId, queued, skipped_registered: skipped, approval_required: true });
+        } catch (e) { log('invite queue failed:', e.message); res.status(500).json({ error: 'Could not queue the invitations.' }); }
+    });
+
+    // PUBLIC open-tracking hop (linked from the invite email; no auth by design). Stamps the first
+    // open, then always redirects to the member portal's Gala page — never a dead end for a guest.
+    app.get('/api/v2/gala-ops/invites/open/:token', (req, res) => {
+        try {
+            const token = cleanStr(req.params.token, 80);
+            const inv = token ? getRow('SELECT id, email, opened_at FROM v2_gala_invites WHERE token = ?', [token]) : null;
+            if (inv && !inv.opened_at) {
+                db().run('UPDATE v2_gala_invites SET opened_at = ?, updated_at = ? WHERE id = ?', [nowIso(), nowIso(), inv.id]);
+                persist();
+                audit(null, 'gala.invite_opened', inv.email);
+            }
+        } catch (e) { log('invite open failed (redirecting anyway):', e.message); }
+        res.redirect(302, memberBase() + '/app/gala');
+    });
+
+    // ---- MENU OPTIONS (same gala_menu_options table as v1 — v2 adds the full list, description/
+    // bucket and archive/restore; the v1 routes and every v1 reader keep working untouched) ----
+    const MENU_FIELDS = 'id, label, description, bucket, keywords, sort_order, is_default, active, created_at';
+    function readMenuAll() {
+        try { return getAll(`SELECT ${MENU_FIELDS} FROM gala_menu_options ORDER BY sort_order, created_at`); }
+        catch (e) { return []; }
+    }
+    const okBucket = (v) => {
+        const s = cleanStr(v, 24).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        return s || null;
+    };
+    app.get('/api/v2/gala-ops/menu-options', auth, adminOnly, (req, res) => {
+        try { res.json({ options: readMenuAll() }); }
+        catch (e) { res.status(500).json({ error: 'The menu is unavailable right now.' }); }
+    });
+    app.post('/api/v2/gala-ops/menu-options', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const label = cleanStr(b.label, 80);
+            if (!label) return res.status(400).json({ error: 'Type the option name first' });
+            // Same defaults as the v1 POST: keywords fall back to the lowercased label, sort goes last.
+            const keywords = (cleanStr(b.keywords, 300) || label.toLowerCase());
+            const top = getRow('SELECT COALESCE(MAX(sort_order), -1) AS m FROM gala_menu_options');
+            const id = crypto.randomUUID();
+            db().run('INSERT INTO gala_menu_options (id, label, description, bucket, keywords, sort_order, is_default, active) VALUES (?,?,?,?,?,?,0,1)',
+                [id, label, cleanStr(b.description, 300) || null, okBucket(b.bucket), keywords, (Number(top && top.m) >= 0 ? Number(top.m) : -1) + 1]);
+            persist();
+            audit(req, 'gala.menu_option_add', label);
+            res.json({ success: true, option: getRow(`SELECT ${MENU_FIELDS} FROM gala_menu_options WHERE id = ?`, [id]) });
+        } catch (e) { log('menu add failed:', e.message); res.status(500).json({ error: 'Could not add the menu option.' }); }
+    });
+    app.put('/api/v2/gala-ops/menu-options/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = getRow(`SELECT ${MENU_FIELDS} FROM gala_menu_options WHERE id = ?`, [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Menu option not found' });
+            const b = req.body || {};
+            const fields = [], values = [], did = [];
+            if (b.label !== undefined) {
+                const l = cleanStr(b.label, 80);
+                if (!l) return res.status(400).json({ error: 'The option name cannot be empty' });
+                fields.push('label = ?'); values.push(l);
+                if (l !== row.label) did.push(`renamed '${row.label}' → '${l}'`);
+            }
+            if (b.description !== undefined) { fields.push('description = ?'); values.push(cleanStr(b.description, 300) || null); did.push('description'); }
+            if (b.bucket !== undefined) { fields.push('bucket = ?'); values.push(okBucket(b.bucket)); did.push('bucket'); }
+            if (b.keywords !== undefined) { fields.push('keywords = ?'); values.push(cleanStr(b.keywords, 300)); did.push('keywords'); }
+            if (b.sort_order !== undefined) {
+                if (!Number.isFinite(Number(b.sort_order))) return res.status(400).json({ error: 'sort_order must be a number' });
+                fields.push('sort_order = ?'); values.push(Math.round(Number(b.sort_order))); did.push('reordered');
+            }
+            if (b.active !== undefined) {
+                const a = (b.active === true || b.active === 1 || b.active === '1' || b.active === 'true') ? 1 : 0;
+                if (!a && Number(row.active)) {
+                    const others = getRow('SELECT COUNT(*) AS c FROM gala_menu_options WHERE active = 1 AND id != ?', [row.id]);
+                    if (!Number(others && others.c)) return res.status(400).json({ error: 'Keep at least one live menu option — the kitchen needs somewhere to count.' });
+                    did.push('archived');
+                }
+                if (a && !Number(row.active)) did.push('restored');
+                fields.push('active = ?'); values.push(a);
+            }
+            if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
+            values.push(row.id);
+            db().run(`UPDATE gala_menu_options SET ${fields.join(', ')} WHERE id = ?`, values);
+            persist();
+            audit(req, 'gala.menu_option_edit', `${row.label}: ${did.join(', ') || 'touched'}`);
+            res.json({ success: true, option: getRow(`SELECT ${MENU_FIELDS} FROM gala_menu_options WHERE id = ?`, [row.id]) });
+        } catch (e) { log('menu edit failed:', e.message); res.status(500).json({ error: 'Could not save the menu option.' }); }
+    });
+
     // ---- performers meta (admin-side twin of the member GET/PUT — same table, same shape) ----
     app.get('/api/v2/gala-ops/meta', auth, adminOnly, (req, res) => {
         try { res.json(metaJson()); }
@@ -654,5 +928,5 @@ module.exports = function mountGalaOps(app, ctx) {
         } catch (e) { log('meta write failed:', e.message); res.status(500).json({ error: 'Could not save the Gala details.' }); }
     });
 
-    log('gala-ops mounted (overview, add-guest, meal, soft-cancel/restore, waitlist + 24 h offers, performers meta, guest categories)');
+    log('gala-ops mounted (overview, add-guest, meal, soft-cancel/restore, waitlist + 24 h offers, performers meta, guest categories, invitations → outbox, menu options)');
 };

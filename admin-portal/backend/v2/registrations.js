@@ -440,4 +440,209 @@ module.exports = function mountRegistrations(app, ctx) {
             res.json({ transfers, total: (totalRow && totalRow.c) || 0 });
         } catch (e) { log('transfer log failed:', e.message); res.status(500).json({ error: 'Could not read the transfer log.' }); }
     });
+
+    // ---------------------------------------------------------------- registrant timeline + staff notes (additive, 2026-08-31)
+    // The old-portal gem (server.js › /api/admin/registrant/:type/:id/activity, item 17) rebuilt
+    // PER PERSON: one email in → every event across every source, merged and time-ordered.
+    //
+    //   GET  /api/v2/registrations/timeline?email=   auth+adminOnly → { email, name, events, count }
+    //        events = [{ at, kind, label, detail, author? }] ASCENDING (oldest first). Sources:
+    //        registrations ⋈ users/ticket_types · gala_registrations · bridges_registrations ⋈
+    //        bridges_events · croatians_abroad_registrations · forum_event_registrations ⋈
+    //        forum_members · signup_form_responses (registered / paid / checked-in facts, invoice
+    //        paid_at when an invoices row carries one) + v2_checkin_admits (door + party progress,
+    //        suppressing the duplicate legacy checked_in flag the scanner also flips) +
+    //        v2_seat_transfers (both directions) + v2_forum_nominations (either side) +
+    //        registrant_notes. Rows without their own timestamp fall back to the row's
+    //        created_at/registered_at. Unknown email → 200 with events: [] (never a 500).
+    //   POST /api/v2/registrations/notes ← { email, text }   auth+adminOnly — APPEND-ONLY.
+    //        Reuses the legacy registrant_notes table (exists in prod, byte-identical in both
+    //        portals — see server.js "item 17"): registrant_id is a plain TEXT key with no FK, so
+    //        v2 keys it by lower(email) with section='v2-email'; legacy rows keyed by row-uuid can
+    //        never collide (uuids have no '@') and BOTH generations surface in the timeline.
+    //        No new table, no ALTER. author = req.user.email. No edit/delete route on purpose.
+    const EMAIL_RX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    const TL_RANK = { registered: 0, nomination: 1, paid: 2, admin: 3, transfer: 4, checkin: 5, note: 6 };
+    const tlKey = e => String(e.at || '').replace(' ', 'T');
+    const DOOR = { conference: 'Conference door', gala: 'Gala door', donor: 'Donor Night door', bridges: 'Bridges door' };
+    const joinBits = bits => bits.filter(Boolean).join(' · ') || null;
+    const hhmm = at => { const m = String(at || '').match(/[T ](\d{2}:\d{2})/); return m ? m[1] : null; };
+
+    function timelineFor(email) {
+        const events = [];
+        const push = (at, kind, label, detail, author) => {
+            const e = { at: at || null, kind, label, detail: detail || null };
+            if (author) e.author = author;
+            events.push(e);
+        };
+        const regIds = [];          // every registration row id this person owns (feeds admits + legacy notes)
+        const invoiceNos = [];
+        let name = '';
+        const seenName = r => { if (!name) name = [trim(r.first_name), trim(r.last_name)].filter(Boolean).join(' '); };
+        const regLink = token => { const l = token && one('SELECT label, event_name, link_type FROM registration_links WHERE token = ?', [token]); return l ? (l.label || l.event_name || 'Invitation link') : null; };
+        const guests = n => Number(n) ? `+${Number(n)} guest${Number(n) === 1 ? '' : 's'}` : null;
+
+        // --- Plexus conference (registrations) ---
+        all(`SELECT r.*, t.name AS ticket_name FROM registrations r
+             LEFT JOIN users u ON r.user_id = u.id LEFT JOIN ticket_types t ON r.ticket_type_id = t.id
+             WHERE lower(COALESCE(NULLIF(r.email,''), u.email)) = ?`, [email]).forEach(r => {
+            seenName(r); regIds.push({ id: r.id, keys: ['conference'], row: r, table: 'registrations' });
+            if (r.invoice_number) invoiceNos.push(r.invoice_number);
+            const src = regLink(r.reg_link_token) || (r.user_id ? 'Member portal' : 'Public registration form');
+            push(r.created_at, 'registered', 'Registered — Plexus Conference',
+                joinBits([r.ticket_name && 'Ticket: ' + r.ticket_name, Number(r.includes_gala) ? 'Gala add-on' : null, guests(r.guest_count), src]));
+            if (r.payment_status === 'paid') push(r.created_at, 'paid', `Paid ${eur(r.amount_paid || 0)} — Plexus Conference`,
+                joinBits([r.invoice_number && 'Invoice ' + r.invoice_number]), null);
+            if (Number(r.revoked) === 1) push(r.revoked_at || r.created_at, 'admin', 'Ticket revoked', 'Door reject — the QR is inactive');
+        });
+
+        // --- Gala Evening (gala_registrations) ---
+        all('SELECT * FROM gala_registrations WHERE lower(email) = ?', [email]).forEach(r => {
+            seenName(r); regIds.push({ id: r.id, keys: ['gala'], row: r, table: 'gala_registrations' });
+            if (r.invoice_number) invoiceNos.push(r.invoice_number);
+            const src = regLink(r.reg_link_token)
+                || (r.invite_link_id && (l => l && (l.label || 'Gala invite link'))(one('SELECT label FROM gala_invite_links WHERE id = ?', [r.invite_link_id])))
+                || (r.user_id ? 'Member portal' : 'Public registration form');
+            push(r.created_at, 'registered', 'Registered — Gala Evening',
+                joinBits([trim(r.pricing) || null, guests(r.guest_count), r.seat_number && 'Seat ' + r.seat_number, src]));
+            if (r.payment_status === 'paid') push(r.reviewed_at || r.created_at, 'paid', `Paid ${eur(r.amount_paid || 150)} — Gala Evening`,
+                joinBits([r.invoice_number && 'Invoice ' + r.invoice_number, r.stripe_session_id ? 'Stripe checkout' : (trim(r.reviewed_by) && 'marked by ' + trim(r.reviewed_by))]));
+            else if (r.payment_status === 'vip-comp') push(r.reviewed_at || r.created_at, 'paid', 'VIP seat — complimentary', 'Gala Evening · named guest');
+        });
+
+        // --- Building Bridges / Donor Night / Boston (bridges_registrations) ---
+        all(`SELECT br.*, be.name AS ev_name, be.city AS ev_city FROM bridges_registrations br
+             LEFT JOIN bridges_events be ON br.event_id = be.id WHERE lower(br.email) = ?`, [email]).forEach(r => {
+            seenName(r); regIds.push({ id: r.id, keys: ['bridges', 'donor'], row: r, table: 'bridges_registrations' });
+            const evName = r.ev_name || 'Building Bridges';
+            const src = regLink(r.reg_link_token) || (r.user_id ? 'Member portal' : 'Public registration form');
+            push(r.registered_at, 'registered', 'Registered — ' + evName, joinBits([trim(r.ev_city) || null, guests(r.guest_count), src]));
+            if (r.payment_status === 'paid') push(r.registered_at, 'paid', `Paid ${eur(r.amount_paid || 0)} — ${evName}`, null);
+        });
+
+        // --- Plexus Experience public form + Croatians Abroad (one row, an event combo) ---
+        all('SELECT * FROM croatians_abroad_registrations WHERE lower(email) = ?', [email]).forEach(r => {
+            seenName(r); regIds.push({ id: r.id, keys: ['conference', 'bridges'], row: r, table: 'croatians_abroad_registrations', ca: true });
+            if (r.invoice_number) invoiceNos.push(r.invoice_number);
+            const combo = [Number(r.selected_conference) === 1 && 'Conference', Number(r.selected_gala) === 1 && 'Gala', Number(r.selected_bridges) === 1 && 'Building Bridges'].filter(Boolean).join(' + ') || 'no events selected';
+            const src = regLink(r.reg_link_token)
+                || (r.invite_link_id && (l => l && (l.label || 'Diaspora invite link'))(one('SELECT label FROM croatians_abroad_invite_links WHERE id = ?', [r.invite_link_id])))
+                || null;
+            push(r.created_at, 'registered', 'Registered — ' + (r.source === 'plexus' ? 'Plexus Experience form' : 'Croatians Abroad form'),
+                joinBits([combo, trim(r.country) || null, src]));
+            if (r.gala_payment_status === 'paid' && !trim(r.gala_registration_id))   // a linked gala row already carries its own paid event
+                push(r.created_at, 'paid', `Paid ${eur(r.amount_paid || 150)} — Gala Evening`,
+                    joinBits([r.invoice_number && 'Invoice ' + r.invoice_number, r.stripe_session_id && 'Stripe checkout']));
+        });
+
+        // --- Forum gatherings + sign-up forms (the union view opens the drawer from these rows too) ---
+        all(`SELECT fr.*, fe.title AS ev_title FROM forum_event_registrations fr
+             LEFT JOIN forum_events fe ON fr.event_id = fe.id LEFT JOIN forum_members fm ON fr.member_id = fm.id
+             WHERE lower(COALESCE(NULLIF(fr.email,''), fm.email)) = ?`, [email]).forEach(r => {
+            seenName(r); regIds.push({ id: r.id, keys: [], row: r, table: 'forum_event_registrations' });
+            push(r.registered_at, 'registered', 'Registered — ' + (r.ev_title || 'Forum gathering'), joinBits([guests(r.guest_count)]));
+            if (r.payment_status === 'paid' || Number(r.amount_paid) > 0)
+                push(r.payment_date || r.registered_at, 'paid', `Paid ${eur(r.amount_paid || r.payment_amount || 0)} — ${r.ev_title || 'Forum gathering'}`, null);
+        });
+        all(`SELECT sr.*, sf.title AS form_title FROM signup_form_responses sr
+             LEFT JOIN signup_forms sf ON sr.form_id = sf.id WHERE lower(sr.email) = ?`, [email]).forEach(r => {
+            regIds.push({ id: r.id, keys: [], row: r, table: 'signup_form_responses' });
+            push(r.created_at, 'registered', 'Signed up — ' + (r.form_title || 'Sign-up form'), Number(r.is_waitlisted) === 1 ? 'Waitlisted' : null);
+        });
+
+        // --- invoice paid_at upgrades the paid events' created_at fallback where a real date exists ---
+        const ids = regIds.map(x => x.id);
+        if (ids.length) {
+            const marks = ids.map(() => '?').join(',');
+            const paidAt = {};
+            all(`SELECT registration_id, invoice_number, paid_at FROM invoices WHERE paid_at IS NOT NULL AND (registration_id IN (${marks})${invoiceNos.length ? ` OR invoice_number IN (${invoiceNos.map(() => '?').join(',')})` : ''})`,
+                ids.concat(invoiceNos)).forEach(v => { if (v.registration_id) paidAt['id:' + v.registration_id] = v.paid_at; if (v.invoice_number) paidAt['no:' + v.invoice_number] = v.paid_at; });
+            events.forEach(e => {
+                if (e.kind !== 'paid') return;
+                const m = /Invoice (\S+)/.exec(e.detail || '');
+                const better = (m && paidAt['no:' + m[1]]) || null;
+                if (better) e.at = better;
+            });
+            regIds.forEach(x => { const b = paidAt['id:' + x.id]; if (b) events.forEach(e => { if (e.kind === 'paid' && !/Invoice /.test(e.detail || '') && e.at === (x.row.created_at || x.row.registered_at)) e.at = b; }); });
+        }
+
+        // --- door admissions (v2_checkin_admits: which door + party progress) ---
+        const admitted = new Set();          // `${ref}:${event_key}` — suppresses the duplicate legacy flag
+        if (ids.length) {
+            const marks = ids.map(() => '?').join(',');
+            all(`SELECT * FROM v2_checkin_admits WHERE registration_ref IN (${marks}) OR lower(COALESCE(guest_email,'')) = ?`, ids.concat([email])).forEach(a => {
+                admitted.add(a.registration_ref + ':' + a.event_key);
+                const last = a.last_scan_at && a.last_scan_at !== a.first_admit_at ? hhmm(a.last_scan_at) : null;
+                push(a.first_admit_at || a.last_scan_at, 'checkin', 'Checked in — ' + (DOOR[a.event_key] || a.event_key),
+                    joinBits([`${Number(a.admitted_count) || 0} of ${Number(a.party_size) || 1} admitted`, last && 'last scan ' + last]));
+            });
+        }
+        // legacy checked_in flags, only where the scanner ledger has no row for that reg+door
+        regIds.forEach(x => {
+            const r = x.row;
+            const legacy = (flag, at, key, label) => {
+                if (Number(flag) !== 1) return;
+                const doors = key ? [key] : x.keys;           // CA flags name their door; plain rows use the row's door keys
+                if (doors.some(k => admitted.has(x.id + ':' + k))) return;
+                push(at || r.created_at || r.registered_at, 'checkin', label, null);
+            };
+            if (x.ca) {
+                legacy(r.conference_checked_in, r.conference_checked_in_at, 'conference', 'Checked in — Conference door');
+                legacy(r.bridges_checked_in, r.bridges_checked_in_at, 'bridges', 'Checked in — Bridges door');
+            } else if (x.table === 'registrations') legacy(r.checked_in, r.checked_in_at, null, 'Checked in — Conference door');
+            else if (x.table === 'gala_registrations') legacy(r.checked_in, r.checked_in_at, null, 'Checked in — Gala door');
+            else if (x.table === 'bridges_registrations') legacy(r.checked_in, r.checked_in_at, null, 'Checked in — Bridges door');
+        });
+
+        // --- seat transfers, both directions ---
+        all('SELECT * FROM v2_seat_transfers WHERE lower(COALESCE(from_email,\'\')) = ? OR lower(COALESCE(to_email,\'\')) = ?', [email, email]).forEach(t => {
+            const out = String(t.from_email || '').toLowerCase() === email;
+            push(t.created_at, 'transfer',
+                out ? 'Seat passed to ' + (trim(t.to_name) || trim(t.to_email) || 'a colleague') : 'Seat received from ' + (trim(t.from_email) || 'a member'),
+                joinBits(['Gala Evening — same registration & QR', out && trim(t.to_name) ? trim(t.to_email) : null]));
+        });
+
+        // --- forum nominations, either side ---
+        all('SELECT * FROM v2_forum_nominations WHERE lower(COALESCE(nominee_email,\'\')) = ? OR lower(COALESCE(nominated_by_email,\'\')) = ?', [email, email]).forEach(n => {
+            const isNominee = String(n.nominee_email || '').toLowerCase() === email;
+            push(n.created_at, 'nomination',
+                isNominee ? 'Nominated for the Biomedical Forum' : 'Nominated ' + (trim(n.nominee_name) || 'a colleague') + ' for the Forum',
+                joinBits([isNominee && trim(n.nominated_by_email) ? 'by ' + trim(n.nominated_by_email) : null, trim(n.status) || null]));
+        });
+
+        // --- staff notes: v2 email-keyed + legacy per-row, one stream ---
+        const noteSql = ids.length
+            ? `SELECT author, body, created_at FROM registrant_notes WHERE lower(registrant_id) = ? OR registrant_id IN (${ids.map(() => '?').join(',')})`
+            : 'SELECT author, body, created_at FROM registrant_notes WHERE lower(registrant_id) = ?';
+        all(noteSql, [email].concat(ids)).forEach(n => push(n.created_at, 'note', 'Staff note', n.body, n.author || 'admin'));
+
+        events.sort((a, b) => tlKey(a).localeCompare(tlKey(b)) || (TL_RANK[a.kind] || 9) - (TL_RANK[b.kind] || 9));
+        return { email, name, events, count: events.length };
+    }
+
+    app.get('/api/v2/registrations/timeline', auth, adminOnly, (req, res) => {
+        try {
+            const email = trim(req.query.email).toLowerCase();
+            if (!EMAIL_RX.test(email)) return res.status(400).json({ error: 'A valid email address is required.' });
+            res.json(timelineFor(email));
+        } catch (e) { log('timeline failed:', e.message); res.status(500).json({ error: 'Could not build the timeline.' }); }
+    });
+
+    app.post('/api/v2/registrations/notes', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const email = trim(b.email).toLowerCase();
+            const text = trim(b.text);
+            if (!EMAIL_RX.test(email)) return res.status(400).json({ error: 'A valid email address is required.' });
+            if (!text) return res.status(400).json({ error: 'Write the note first.' });
+            const id = uuid();
+            const author = (req.user && req.user.email) || 'admin';
+            db().run('INSERT INTO registrant_notes (id, registrant_id, section, author, body) VALUES (?,?,?,?,?)',
+                [id, email, 'v2-email', author, text.slice(0, 4000)]);
+            saveDb();
+            audit(req, 'registrations.note_appended', `${email}: "${text.slice(0, 120)}"`);
+            const row = one('SELECT author, body, created_at FROM registrant_notes WHERE id = ?', [id]) || {};
+            res.json({ success: true, id, note: { at: row.created_at || null, kind: 'note', label: 'Staff note', detail: row.body || text, author: row.author || author } });
+        } catch (e) { log('note append failed:', e.message); res.status(500).json({ error: 'Could not append the note.' }); }
+    });
 };
