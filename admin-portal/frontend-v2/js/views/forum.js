@@ -171,7 +171,7 @@ function blockTitle() {
         <div style="font-size:12.5px;color:#6d6459;margin-top:4px">${esc(COPY.sub(fmt.longRange(D.hub.gathering && D.hub.gathering.start_date || FACTS.forum.gathering.start, D.hub.gathering && D.hub.gathering.end_date || FACTS.forum.gathering.end)))}</div>
       </div>
       <div style="flex:1"></div>
-      <a href="/member-pages" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
+      <a href="/member-pages/forum" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
     </div>
     <!-- /dc -->`;
 }

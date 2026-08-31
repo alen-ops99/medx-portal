@@ -274,7 +274,7 @@ function blockTitle() {
         </div>
       </div>
       <div class="mxp-title-actions" style="display:flex;gap:10px;flex-wrap:wrap">
-        <a href="/member-pages" style="border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:10px 16px;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${h.manage}</a>
+        <a href="/member-pages/plexus" style="border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:10px 16px;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${h.manage}</a>
         <a href="/event-day" style="background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 16px;white-space:nowrap" data-hover="background:#9b1b22">${h.eventday}</a>
       </div>
     </div>
@@ -545,7 +545,7 @@ function blockMembers() {
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;margin-top:12px">${c.detail}</div>
           <input data-role="msDetail" value="${esc(p.detail_line || '')}" aria-label="${esc(c.detail)}" style="width:100%;box-sizing:border-box;margin-top:6px;background:#f6f2ea;border:1px solid rgba(32,27,22,.25);padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16">
           <button data-act="msSave" data-role="msSaveBtn" style="margin-top:14px;background:${saved ? '#1e6e42' : '#9b1b22'};color:#fff;border:none;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 18px;cursor:pointer;white-space:nowrap">${saved ? c.saved : c.save}</button>
-          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(32,27,22,.1)"><a href="/member-pages" style="font:600 9px Inter,sans-serif;letter-spacing:.14em">${c.manage}</a></div>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(32,27,22,.1)"><a href="/member-pages/plexus" style="font:600 9px Inter,sans-serif;letter-spacing:.14em">${c.manage}</a></div>
           </div>
         </div>
         <!-- /dc -->`;

@@ -141,7 +141,8 @@ function bind(root, handlers) {
     if (!el || !root.contains(el) || el.getAttribute('aria-disabled') === 'true') return;
     const h = handlers[el.dataset.act];
     if (!h) return;
-    e.preventDefault();
+    // never cancel a file input's default — preventDefault here closed the OS file picker
+    if (!(e.target && e.target.type === 'file')) e.preventDefault();
     h(el, e);
   };
   root.addEventListener('click', onClick);

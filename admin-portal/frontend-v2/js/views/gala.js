@@ -463,7 +463,7 @@ function blockNight() {
     <span style="font-size:12px;color:#4a4239;line-height:1.7">${schedLine}<br>${perfLine} ${COPY.night.line2}</span>
     <span style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
       <a href="/money" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">${COPY.night.money}</a>
-      <a href="/member-pages" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">${COPY.night.memberPage}</a>
+      <a href="/member-pages/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">${COPY.night.memberPage}</a>
       <span data-act="perfFlip" data-v2="performers-flip" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${meta.performers_announced ? '#6d6459' : '#7a6432'};cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${meta.performers_announced ? COPY.night.tbaBtn : COPY.night.announceBtn}</span>
     </span>
   </div>

@@ -117,3 +117,10 @@ body[data-layout="signin"] #chrome { display: none; }
   .mx-side { grid-template-columns: minmax(0, 1fr) !important; }
   .mx-side > * { min-width: 0; }
 }
+
+/* ≤480: card rows (flex) may wrap instead of widening the page — fixes the Forum/Bridges/
+   Accelerator hub overflows found in the Aug-2026 review verification (445/464/441px @390). */
+@media (max-width: 480px) {
+  [data-block] > div, [data-block] [data-row], .empty { flex-wrap: wrap; }
+  .empty-why { white-space: normal; overflow-wrap: anywhere; }
+}
