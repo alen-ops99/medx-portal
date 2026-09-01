@@ -384,15 +384,15 @@ async function t(name, fn) {
         // New title + subtitle
         assert.ok(html.includes('Building Bridges in Biomedicine: Croatia and the US'), 'new headline missing');
         assert.ok(html.includes('<span class="city">Boston</span>'), 'Boston beneath the title missing');
-        // The one when&where line (fuller form) — in the hero, and ONLY there
+        // The when&where lives in "The evening" card, and ONLY there (Alen 2026-09-01: hero = title + Boston)
         const mainStart = html.indexOf('<main');
         const headerPart = html.slice(0, mainStart), mainPart = html.slice(mainStart);
-        assert.ok(headerPart.includes('Monday, 21 September 2026'), 'date missing from hero');
-        assert.ok(headerPart.includes('6:00–9:00 PM') && headerPart.includes('doors from 5:30 PM'), 'new time wording missing');
-        assert.ok(headerPart.includes('Waterhouse Room, Gordon Hall (25 Shattuck St), Harvard Medical School'), 'venue in the when-line missing');
-        assert.ok(!mainPart.includes('Monday, 21 September 2026'), 'date must appear once (hero only)');
-        assert.ok(!html.includes('<span>Date</span>') && !html.includes('<span>Time</span>') && !html.includes('<span>Venue</span>'),
-            'facts card must no longer duplicate date/time/venue');
+        assert.ok(!headerPart.includes('Monday, 21 September 2026'), 'date must not sit in the hero');
+        assert.ok(mainPart.includes('<span>When</span><span>Monday, 21 September 2026 &middot; 6:00&ndash;9:00 PM</span>'), 'When row missing from the card');
+        assert.ok(mainPart.includes('<span>Doors</span><span>From 5:30 PM</span>'), 'Doors row missing');
+        assert.ok(mainPart.includes('Waterhouse Room, Gordon Hall &middot; 25 Shattuck Street'), 'Where row missing');
+        assert.strictEqual(mainPart.split('Monday, 21 September 2026').length - 1, 1, 'date must appear exactly once');
+        assert.ok(html.includes('Med&amp;X and the Harvard Medical Postdoc Association invite physicians'), 'blurb must name both organizers');
         // Removals
         assert.ok(!html.includes('Plexus Series'), 'kicker label must be gone (logos only at top)');
         assert.ok(!html.includes('after London'), 'fifth-edition cities line must be gone');
