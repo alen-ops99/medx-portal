@@ -798,7 +798,13 @@ module.exports = function mountBoston(app, deps) {
             const lines = [['Registered at', 'First name', 'Last name', 'Email', 'Institution', 'Position',
                 '5-min presentation', 'Status', 'Checked in'].map(q).join(',')];
             for (const r of rows) {
-                lines.push([r.registered_at, r.first_name, r.last_name, r.email, r.institution, r.position,
+                // human timestamp in Boston time, text-safe so Google Sheets shows it as written
+                // (a bare ISO string gets auto-parsed into a date serial like 46266.23)
+                const when = (() => { try {
+                    const d = new Date(String(r.registered_at).replace(' ', 'T') + (String(r.registered_at).includes('Z') ? '' : 'Z'));
+                    return d.toLocaleString('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' ET';
+                } catch (e) { return String(r.registered_at || ''); } })();
+                lines.push([when, r.first_name, r.last_name, r.email, r.institution, r.position,
                     /5-minute presentation/.test(String(r.notes || '')) ? 'Yes' : 'No',
                     r.status, Number(r.checked_in) ? 'Yes' : 'No'].map(q).join(','));
             }
