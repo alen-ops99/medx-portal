@@ -5635,6 +5635,13 @@ const query = {
     }
 };
 
+// ===== BUILDING BRIDGES — BOSTON (public wing; additive, self-contained module) =====
+// Registered here (top-level, before initializeApp's SPA catch-all) so /boston and its API beat
+// the SPA; the module touches the DB lazily at request time, after initializeApp has opened it.
+try {
+    require('./boston')(app, { query, saveDb, sendEmail: sendEventConfirmation, flushDb, JWT_SECRET });
+} catch (e) { console.error('[Boston] wing failed to mount:', e.message); }
+
 // Once the production demo purge has run (app_state marker), the demo seed blocks must never
 // re-arm — an emptied table would otherwise re-seed on the next boot, and the admin/user seed
 // variants have drifted apart (the admin pr_posts INSERT crashes against the user-created

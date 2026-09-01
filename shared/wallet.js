@@ -120,7 +120,8 @@ function buildEventTicketObject(f) {
     const text = [];
     if (f.category) text.push({ id: 'category', header: 'Access', body: String(f.category) });
     if (f.events && f.events.length) text.push({ id: 'events', header: 'Included events', body: f.events.join(' · ') });
-    if (f.galaTable) text.push({ id: 'gala_table', header: 'Gala table', body: String(f.galaTable) });
+    if (f.galaTable) text.push({ id: 'gala_table', header: 'Table', body: String(f.galaTable) });
+    if (f.dressCode) text.push({ id: 'dress', header: 'Dress code', body: String(f.dressCode) });
     if (f.statusLabel) text.push({ id: 'status', header: 'Status', body: String(f.statusLabel) });
     if (f.registrationNumber) text.push({ id: 'reg_no', header: 'Registration', body: String(f.registrationNumber) });
     const obj = {
