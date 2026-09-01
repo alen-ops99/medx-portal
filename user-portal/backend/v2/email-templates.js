@@ -79,7 +79,7 @@ function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, body
         : rule === 'split' ? `background:${T.crimson};background:linear-gradient(90deg,${T.crimson} 0 50%,${T.gold} 50% 100%);`
         : `background:${T.crimson};`;
     const footer = (footerItems && footerItems.length ? footerItems : [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`])
-        .join(`</td><td style="font-family:${T.sans};font-size:11px;color:${T.gold};padding:0 6px;">·</td><td style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.5;">`);
+        .map(it => `<div style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.7;">${it}</div>`).join('');
     return `<!DOCTYPE html>
 <html lang="${lang === 'hr' ? 'hr' : 'en'}">
 <head>
@@ -106,7 +106,7 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:al
   <tr><td style="height:2px;font-size:0;line-height:0;${ruleBg}">&nbsp;</td></tr>
   <tr><td>${bodyHtml}</td></tr>
   <tr><td align="center" style="border-top:1px solid ${T.hairline};padding:18px 40px;">
-    <table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr><td align="center" style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.5;">${footer}</td></tr></table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">${footer}</td></tr></table>
     <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin-top:12px;"><tr>
       <td style="${microStyle(T.goldDark, 9, '.16em')};vertical-align:middle;"><a href="https://medx.hr" style="color:${T.goldDark};text-decoration:none;">MEDX.HR</a></td>
       <td style="padding:0 0 0 16px;vertical-align:middle;"><a href="https://www.facebook.com/profile.php?id=61554188818525"><img src="https://medx-member-portal-v2.netlify.app/assets/social/facebook.png?v=2" width="16" height="16" style="display:block;border:0;" alt="Facebook"></a></td>

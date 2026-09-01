@@ -5574,11 +5574,15 @@ if (STORAGE_IS_EPHEMERAL) {
 }
 // Endpoints whose multipart body is parsed then discarded (never persisted) — always allowed.
 const UPLOAD_EXEMPT_SUFFIXES = ['/import', '/prospects/preview'];
+// Boston presentation uploads never touch local disk (multer memoryStorage → S3 in boston.js),
+// so the ephemeral-disk guard does not apply to them — exempt the route by prefix.
+const UPLOAD_EXEMPT_PREFIXES = ['/api/boston/upload/'];
 app.use((req, res, next) => {
     if (!STORAGE_IS_EPHEMERAL) return next();
     if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') return next();
     if (!(req.headers['content-type'] || '').includes('multipart/form-data')) return next();
     if (UPLOAD_EXEMPT_SUFFIXES.some(s => req.path.endsWith(s))) return next();
+    if (UPLOAD_EXEMPT_PREFIXES.some(s => req.path.startsWith(s))) return next();
     return res.status(503).json({ error: 'File uploads are temporarily unavailable. Persistent storage is not configured, so an uploaded file would be lost on the next restart. Please contact the administrator.' });
 });
 

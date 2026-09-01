@@ -102,6 +102,110 @@ Also smoke-tested outside the suite: full `.pkpass` assembly with a throwaway se
 cert — the zip carries `pass.json` + signature, `stripFiles` puts the Boston strips in the
 Boston pass while a default model still gets the default strips, byte-compared both ways.
 
+---
+
+# 2026-09-01 — presentation uploads + live-test edits
+
+Second wave on the same wing (all inside `boston.js` + `tests/boston.test.js`, plus one 3-line
+server.js gate exemption and two dependency additions). Everything below is additive and
+degrades gracefully when its env is absent.
+
+## New routes
+
+| Route | What |
+|---|---|
+| `GET /boston/upload/:token` | Personal upload page — "Hi <first> — upload your 5-minute presentation", name + institution shown (attribution proof), drag-and-drop or picker, `accept=".pdf,.ppt,.pptx,.key"`, 25 MB note, XHR progress bar, on-file card + replace control after a first upload, exact success copy "Got it — <filename> is safely with us. You can replace it any time from this same link." Invalid token → friendly branded 404. `BB_S3_*` absent → the page renders an "Uploads open soon" note instead of the uploader. noindex (meta + `X-Robots-Tag`). |
+| `POST /api/boston/upload/:token` | Multipart (field `file`) via **multer memoryStorage** (the parser server.js already uses; the stream aborts past 25 MB via `limits.fileSize`, plus a handler belt). Validates token → registration → extension whitelist (`pdf/ppt/pptx/key`) → **magic bytes** (`%PDF` in the first 1 KB; `PK\x03\x04` for pptx/key; OLE2 CFB *or* zip for legacy .ppt) → PUT to S3 → inserts a `bridges_presentations` history row. Errors are friendly JSON (404 bad link, 400 type/magic, 413 size, 502 S3 failure, 503 unconfigured). |
+| `GET /boston/presentations?key=…` | Branded TEAM page (noindex, `private, no-store`): every registrant who requested a presentation **or** has an upload — name, institution, email, chips, upload status (newest file name, size, time, version count \| "not yet"), per-guest personal upload link with click-to-copy, DOWNLOAD button. Footer prints the JSON + CSV URLs. Renders (with a notice) even without `BB_S3_*`. |
+| `GET /api/boston/presentations?key=…` | The same data as JSON for the v2 admin portal: `{event, generated_at, s3_configured, requested, uploaded, rows:[{registration_id, name, institution, email, requested, upload_url, upload:{id, filename, size, mime, uploaded_at, versions, download_url}\|null}]}`. |
+| `GET /api/boston/presentations/:id/download?key=…` | 302 → **15-minute presigned S3 GET** with `response-content-disposition` carrying the original filename. Wrong key/id → 404. |
+| `GET /api/boston/registrations.csv?key=…` | ALL bb-boston registrants for the separate Boston Google Sheet: UTF-8 **BOM**, every cell quoted, CRLF, oldest first. Columns: Registered at, First name, Last name, Email, Institution, Position, 5-min presentation (Yes/No from the notes marker), Status, Checked in (Yes/No). Wrong/missing key → **403**. |
+| `GET /api/boston/qr/:id.png` | The confirmation email's entry QR with the **Med&X × HMPA plate** (`user-portal/backend/qr-plate.png`, 253×58) alpha-composited in the middle of a 300 px QR at error-correction **H** (prod's plain route uses L/560). Payload replicates the prod `/qr/:id.png` bridges branch **exactly**: `{"type":"MEDX_MEMBER","regId":"<id>","evt":"bridges"}` — the door scanner reads both interchangeably. jsQR-verified decodable in tests. qrcode/pngjs missing or compositing failure → 302 to the plain `/qr/:id.png`. |
+
+## Token & key schemes (all HMAC-SHA256 over `JWT_SECRET`, hex)
+
+- **Apple pass** (unchanged): `HMAC('boston:'+id).slice(0,32) + '.' + id`.
+- **Upload token**: `uploadSig(id) = HMAC('bostonup:'+id).slice(0,32)`; token = `sig + '.' + id`.
+  Distinct context string → pass and upload tokens can never be swapped. Timing-safe verify.
+- **Admin key**: `HMAC('boston-admin').slice(0,40)` — derived, nothing to provision; gates the
+  team page, JSON, download and CSV routes (timing-safe compare).
+
+## S3 (private bucket, no SDK)
+
+- Env: `BB_S3_BUCKET=medx-bb-presentations`, `BB_S3_REGION=us-east-1`, `BB_S3_KEY`, `BB_S3_SECRET`
+  (scoped IAM) — read lazily per request; the wing mounts and answers fine without them
+  (boot-smoked in production mode).
+- **Plain-node SigV4 signer** (~90 lines, `crypto`+`https`) instead of `@aws-sdk/client-s3` —
+  avoids ~40 MB of dependencies on every Render build for exactly two operations: header-signed
+  single-chunk PUT and query-signed presigned GET. The presign core **reproduces AWS's published
+  SigV4 documentation test vector bit-for-bit** in the test suite; the PUT request assembly is
+  structurally verified hermetically (host/path/headers/payload-hash/Authorization shape).
+- Key layout: `boston-2026/<registrationId>/<presentationId>.<ext>` — every upload is a NEW key
+  and a NEW `bridges_presentations` row (history kept); the newest row per registrant is
+  authoritative everywhere (page, admin, download).
+- `bridges_presentations` (created lazily, `CREATE TABLE IF NOT EXISTS`): `id` uuid PK,
+  `registration_id`, `original_name`, `stored_key`, `mime`, `size`, `uploaded_at` (ISO, ms).
+
+## No automatic emails
+
+Per the send-control rule nothing emails presenters: the team copies personal links from the
+team page. The intended invite email lives as a **commented `sendUploadInvite(reg)` helper**
+in boston.js for later deliberate wiring.
+
+## Live-test edits (Alen's review of the deployed page)
+
+- **/boston page**: kicker label removed (logos only above the title); title now
+  "Building Bridges in Biomedicine: Croatia and the US" with *Boston* beneath; the
+  "Organized by …" hero flavor line and the "Fifth edition — after London…" line removed;
+  the date now appears **exactly once** (hero): "Monday, 21 September 2026 · 6:00–9:00 PM
+  (doors from 5:30 PM) · Waterhouse Room, Gordon Hall (25 Shattuck St), Harvard Medical School"
+  (facts card reduced to Admission + Dress); the "Co-organized with…" line removed; footer is
+  now Laura → "Organized by Med&X and the Harvard Medical Postdoc Association" → **www.medx.hr**.
+- **Apple pass**: header field label is now `BUILDING BRIDGES` (year dropped — it truncated),
+  value `Boston`.
+- **Email QR**: `qrPngUrl` now points at `/api/boston/qr/<id>.png` (logo plate, above). The
+  Apple-pass barcode is Apple-rendered and cannot carry a logo.
+- **Google pass**: objects mint against `BB_GOOGLE_CLASS_ID`
+  (prod: `3388000000023175280.medx-bb-boston-2026`; falls back to
+  `GOOGLE_WALLET_EVENT_CLASS_ID`). The class body carries name/venue/date at class level, so the
+  duplicated per-object `category`/`events` text modules were dropped — objects keep holder
+  name, registration №, status, dress code (JWT-decoded and asserted in tests).
+- `v2/email-templates.js` footer alignment was fixed separately by Alen — not touched here.
+
+## Dependencies
+
+`user-portal/backend/package.json`: **pngjs** ^7.0.0 (dependency — QR compositing; multer and
+qrcode were already there and are reused), **jsqr** ^1.4.0 (devDependency — decode assertion in
+tests). New committed asset: `user-portal/backend/qr-plate.png`.
+
+## server.js — one more small block (exact diff at the bottom)
+
+The production ephemeral-disk guard 503s ALL multipart POSTs when `CLOUDINARY_URL` is unset.
+Boston uploads never touch local disk (memory → S3), so the guard now exempts
+`/api/boston/upload/` by prefix (+3 lines beside the existing suffix exemptions). Boot-smoked in
+`NODE_ENV=production`: other multipart posts still get the guard's 503; the Boston route answers
+for itself.
+
+## Tests — `node tests/boston.test.js` → **37 passed, 0 failed**
+
+All previous coverage kept (updated for the page edits + branded-QR email URL), plus: SigV4
+presign vs the AWS doc vector; upload-token roundtrip + forged/pass-token/ghost 404s (page and
+API); personal page content/attribution/noindex; `BB_S3_*`-absent graceful trio (page "open
+soon", API 503, admin still lists); upload happy path (captured stub PUT, key layout, history
+row, ISO timestamp); 25 MB reject (no PUT, no row); wrong-magic rejects; extension/no-file 400s;
+replace flow (history kept, newest wins); admin gates (exact 40-char key; CSV 403); admin page
+states + copyable links + download link; admin JSON shape/versions/counts; download 302 with
+presigned URL anatomy + 15-min expiry + filename; CSV BOM/CRLF/all-quoted/order; Google object
+class + trimmed text modules (JWT decoded); branded QR decodes via **jsQR** to the exact bridges
+payload at 300 px (self-skips loudly if backend node_modules absent). Still hermetic: stubbed
+express/sqlite/sendEmail, fetch disabled, S3 putObject captured — no network is reachable.
+
+Also verified outside the suite: 16/16 boot-smoke checks against the REAL server.js (test mode
+without `BB_S3_*`, and production mode proving the gate exemption + that everything mounts and
+answers), sibling suites at exact pass-parity with pristine HEAD (my diff regresses nothing),
+and Playwright screenshots of /boston (390/1280), the upload page, the team page and the 404
+page — plus the composited QR image itself.
+
 ## Exact server.js diff
 
 ```diff
@@ -123,6 +227,22 @@ Boston pass while a default model still gets the default strips, byte-compared b
 then, `saveDb`/`flushDb`/`sendEventConfirmation` are hoisted declarations, and every top-level
 route beats the SPA catch-all that `initializeApp()` registers later. The try/catch means a
 broken wing can never take the portal down.)
+
+And the 2026-09-01 gate exemption (the ephemeral-storage guard, ~line 5575):
+
+```diff
+ // Endpoints whose multipart body is parsed then discarded (never persisted) — always allowed.
+ const UPLOAD_EXEMPT_SUFFIXES = ['/import', '/prospects/preview'];
++// Boston presentation uploads never touch local disk (multer memoryStorage → S3 in boston.js),
++// so the ephemeral-disk guard does not apply to them — exempt the route by prefix.
++const UPLOAD_EXEMPT_PREFIXES = ['/api/boston/upload/'];
+ app.use((req, res, next) => {
+     if (!STORAGE_IS_EPHEMERAL) return next();
+     if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') return next();
+     if (!(req.headers['content-type'] || '').includes('multipart/form-data')) return next();
+     if (UPLOAD_EXEMPT_SUFFIXES.some(s => req.path.endsWith(s))) return next();
++    if (UPLOAD_EXEMPT_PREFIXES.some(s => req.path.startsWith(s))) return next();
+```
 
 ## Not done / notes for review
 
