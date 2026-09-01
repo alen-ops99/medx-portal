@@ -516,7 +516,10 @@ module.exports = function mountEventDay(app, ctx) {
         const donorId = donorEventId();
         try {
             const rows = q.all("SELECT id, name, city, event_date, event_time FROM bridges_events WHERE lower(COALESCE(status,'upcoming')) != 'cancelled' ORDER BY CASE WHEN COALESCE(event_date,'') = '' THEN 1 ELSE 0 END, event_date");
-            return rows.filter(r => String(r.id) !== String(donorId || ''));
+            // doors exist only for editions still ahead (or undated, e.g. the home edition) —
+            // past cities are recap material, not doors
+            const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString().slice(0, 10);
+            return rows.filter(r => String(r.id) !== String(donorId || '') && (!r.event_date || r.event_date >= cutoff));
         } catch (e) { return []; }
     }
     function bridgesExpected(eventId) {
