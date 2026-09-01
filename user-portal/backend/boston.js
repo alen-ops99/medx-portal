@@ -572,6 +572,11 @@ module.exports = function mountBoston(app, deps) {
                     '2x': path.join(__dirname, 'v2/apple-assets/boston-strip@2x.png'),
                     '3x': path.join(__dirname, 'v2/apple-assets/boston-strip@3x.png')
                 },
+                // Med&X × HMPA combined wordmark top-left (Alen 2026-09-01)
+                logoFiles: {
+                    '1x': path.join(__dirname, 'v2/apple-assets/boston-logo.png'),
+                    '2x': path.join(__dirname, 'v2/apple-assets/boston-logo@2x.png')
+                },
                 fields: {
                     // Label without the year — 'BUILDING BRIDGES 2026' truncated on the pass header.
                     header: [{ key: 'event', label: 'BUILDING BRIDGES', value: 'Boston' }],
@@ -927,7 +932,6 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
     </div>
     <h1>Building Bridges in Biomedicine: Croatia and the US<span class="city">Boston</span></h1>
     <p class="flavor">Fifth Edition &middot; By invitation only</p>
-    <div class="whenline">${WHEN_WHERE_HTML}</div>
   </div>
 </header>
 
@@ -935,10 +939,13 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
   <section class="sheet" aria-label="The evening">
     <p class="slabel">The evening</p><div class="rule"></div>
     <div class="facts">
+      <div class="frow"><span>When</span><span>${esc(DATE_LONG)} &middot; 6:00&ndash;9:00 PM</span></div>
+      <div class="frow"><span>Doors</span><span>From 5:30 PM</span></div>
+      <div class="frow"><span>Where</span><span>Waterhouse Room, Gordon Hall &middot; 25 Shattuck Street<br>Harvard Medical School, Boston, MA</span></div>
       <div class="frow"><span>Admission</span><span>Free &middot; by registration</span></div>
       <div class="frow"><span>Dress</span><span>${esc(DRESS)}</span></div>
     </div>
-    <p class="prose" style="margin-top:20px;">Med&amp;X invites physicians, scientists, and biomedical professionals from across Greater Boston — together with Croatian professionals working in the United States — for an evening of panels on Croatia&ndash;US biomedical collaboration, five-minute presentations by participants, and a networking reception.</p>
+    <p class="prose" style="margin-top:20px;">Med&amp;X and the Harvard Medical Postdoc Association invite physicians, scientists, and biomedical professionals from across Greater Boston — together with Croatian professionals working in the United States — for an evening of panels on Croatia&ndash;US biomedical collaboration, five-minute presentations by participants, and a networking reception.</p>
     <p class="program"><b>The program.</b> Welcome remarks &middot; panel discussion &middot; 5-minute participant presentations &middot; networking reception. ~40&ndash;60 invited guests.</p>
   </section>
 

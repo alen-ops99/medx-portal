@@ -194,7 +194,16 @@ function buildPkpass(model) {
     };
     if (model.relevantDate) pass.relevantDate = model.relevantDate;
     const files = [{ name: 'pass.json', data: Buffer.from(JSON.stringify(pass, null, 2), 'utf8') }];
-    for (const name of IMAGE_SETS.base) files.push({ name, data: img[name] });
+    // Per-model logo override (additive, 2026-09 Boston): model.logoFiles = { '1x': path, '2x': path }
+    // swaps the top-left wordmark for an event-specific one (e.g. Med&X × HMPA); missing/unreadable
+    // files fall back to the default asset, so passes without logoFiles are byte-identical.
+    const logoOverride = model.logoFiles || {};
+    for (const name of IMAGE_SETS.base) {
+        let data = null;
+        if (name === 'logo.png' && logoOverride['1x']) data = stripOverrideBytes(logoOverride['1x']);
+        if (name === 'logo@2x.png' && logoOverride['2x']) data = stripOverrideBytes(logoOverride['2x']);
+        files.push({ name, data: data || img[name] });
+    }
     if (model.style === 'eventTicket' && model.strip !== false) {
         // Per-model strip override (additive, 2026-09 Boston): model.stripFiles = { '1x': path,
         // '2x': path, '3x': path } swaps in an event-specific strip photo (read + cached here);
