@@ -163,7 +163,7 @@ async function refreshCounts() {
 async function refreshDoor() {
   if (!rootEl) return;
   try {
-    const p = st.rehearsal ? 'rehearsal=1' : 'event=' + encodeURIComponent(st.gate) + (st.doorQ ? '&q=' + encodeURIComponent(st.doorQ) : '');
+    const p = st.rehearsal ? 'rehearsal=1' : 'event=' + encodeURIComponent(st.gate) + (st.doorQ ? '&q=' + encodeURIComponent(st.doorQ) : '') + (st.gate === 'bridges' && st.bridgesEvent ? '&bridges_event=' + encodeURIComponent(st.bridgesEvent) : '');
     const d = await api.get('/api/v2/eventday/door?' + p);
     st.door = d.rows || [];
     paint('[data-block="doorRows"]', doorRowsHtml());
@@ -188,6 +188,7 @@ async function refreshBrief() {
 async function scan(code, opts = {}) {
   const body = {
     code, event: opts.event || st.gate, rehearsal: st.rehearsal,
+    bridges_event: (opts.event || st.gate) === 'bridges' ? (st.bridgesEvent || undefined) : undefined,
     admit: opts.admit || 1, method: opts.method || 'manual',
     override: !!opts.override, override_reason: opts.override_reason || undefined,
     device: 'admin-v2 ' + (navigator.platform || '')
@@ -386,6 +387,14 @@ function gateChips() {
         const g = gateInfo(k); const on = st.gate === k;
         return `<span data-act="gate" data-key="${k}" role="tab" aria-selected="${on}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;border:1px solid ${on ? '#201b16' : 'rgba(32,27,22,.25)'};background:${on ? '#201b16' : 'transparent'};color:${on ? '#f6f2ea' : '#6d6459'};white-space:nowrap">${COPY.doors.names[k] || k.toUpperCase()}${g.starts_at ? ' · ' + esc(fmt.dayLabel(g.starts_at)) : ''}</span>`;
       }).join('')}
+      ${st.gate === 'bridges' && D && (D.over.bridges_events || []).length > 1 ? `
+      <span style="flex-basis:100%;height:0"></span>
+      <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">EDITION</span>
+      ${(D.over.bridges_events || []).map(ev => {
+        const on = String(st.bridgesEvent) === String(ev.id);
+        const dl = ev.date ? ' · ' + esc(fmt.dayLabel ? fmt.dayLabel(ev.date) : ev.date) : '';
+        return `<span data-act="bridgesEv" data-id="${esc(ev.id)}" role="tab" aria-selected="${on}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;border:1px solid ${on ? '#7a6432' : 'rgba(32,27,22,.25)'};background:${on ? '#f8f1e2' : 'transparent'};color:${on ? '#7a6432' : '#6d6459'};white-space:nowrap">${esc(String(ev.label || '').toUpperCase())}${dl}</span>`;
+      }).join('')}` : ''}
       <span data-act="instant" role="switch" aria-checked="${!!st.instant}" title="ON: every scan admits straight at the selected door. OFF: a scan identifies the guest first — admit with a tap." style="display:flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid ${st.instant ? '#9b1b22' : 'rgba(32,27,22,.25)'};background:${st.instant ? '#9b1b22' : 'transparent'};color:${st.instant ? '#fff' : '#6d6459'};font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">⚡ ${COPY.scanner.instant}${st.instant ? ' · ON' : ''}</span>
       <div style="flex:1"></div>
       <span data-role="queueBadge" style="display:none;background:#c9a962;color:#201b16;padding:4px 9px;font:600 9px Inter,sans-serif;letter-spacing:.12em;align-items:center"></span>
@@ -399,7 +408,11 @@ function rehearsalTotals() {
   return { expected, admitted };
 }
 function blockCounters() {
-  const g = st.rehearsal ? rehearsalTotals() : gateInfo(st.gate);
+  let g = st.rehearsal ? rehearsalTotals() : gateInfo(st.gate);
+  if (!st.rehearsal && st.gate === 'bridges' && st.bridgesEvent && D) {
+    const ev = (D.over.bridges_events || []).find(e => String(e.id) === String(st.bridgesEvent));
+    if (ev) g = { expected: ev.expected, admitted: ev.admitted };
+  }
   const checked = Number(g.admitted) || 0;
   const expected = Number(g.expected) || 0;
   const still = Math.max(0, expected - checked);
@@ -711,6 +724,12 @@ const handlers = {
     try { await api.post('/api/v2/eventday/rehearsal/reset'); ui.toast('REHEARSAL CLEARED — FRESH PRACTICE RUN'); st.last = null; await refreshDoor(); paint('[data-block="counters"]', blockCounters()); }
     catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
+  bridgesEv: (el) => {
+    st.bridgesEvent = el.dataset.id; st.last = null; st.idcard = null;
+    paint('[data-block="gateChips"]', gateChips());
+    paint('[data-block="counters"]', blockCounters());
+    refreshDoor();
+  },
   gate: async (el) => {
     st.gate = el.dataset.key; st.last = null; st.qrUrl = null; st.copiedDoor = false;
     st.brief = null; st.briefErr = null; st.briefCopied = false;   // v2 host brief follows the door
@@ -878,11 +897,17 @@ export default {
     }
     let reh = false; try { reh = localStorage.getItem(REH_KEY) === '1'; } catch (e) {}
     let inst = false; try { inst = localStorage.getItem('medx_v2_instant') === '1'; } catch (e) {}
-    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, doorQ: '', door: [], last: null, idcard: null, instant: inst, camOn: false, qrUrl: null, copiedDoor: false, flushing: false,
+    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, bridgesEvent: null, doorQ: '', door: [], last: null, idcard: null, instant: inst, camOn: false, qrUrl: null, copiedDoor: false, flushing: false,
            brief: null, briefErr: null, briefCopied: false /* v2 host brief (2026-08-31) */ };
     D = await load();
     if (rootEl !== root) return;
     st.gate = GATE_ORDER.includes(ctx.query.door) ? ctx.query.door : (D.over.default_event || 'conference');
+    const bevs = (D.over.bridges_events || []);
+    if (bevs.length) {
+      const today = new Date().toISOString().slice(0, 10);
+      const up = bevs.filter(e => e.date && e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+      st.bridgesEvent = (up[0] || bevs[0]).id;
+    }
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     wireInputs();

@@ -437,6 +437,19 @@ module.exports = function mountEventDay(app, ctx) {
                 return fail(fitted.block, fitted.message, { ticket: { name: fullName(hit.row), email: hit.row.email || '', meta: metaFor(hit.table, hit.row, eventKey) } });
             }
             const use = fitted.hit || hit;
+            // Per-edition Bridges doors: a Boston ticket must not admit at the Zagreb door and vice
+            // versa (Alen 2026-09-01). CA plexus-form bridges sign-ups belong to the home edition.
+            const bev = eventKey === 'bridges' ? String(b.bridges_event || '').trim() : '';
+            if (bev && !override) {
+                if (use.table === 'bridges_registrations' && String(use.row.event_id) !== bev) {
+                    let evName = 'another Bridges edition';
+                    try { evName = (q.get('SELECT name FROM bridges_events WHERE id = ?', [use.row.event_id]) || {}).name || evName; } catch (e) {}
+                    return fail('wrong_event', `This ticket is for ${evName} — switch the Bridges door.`, { ticket: { name: fullName(use.row), email: use.row.email || '', meta: metaFor(use.table, use.row, eventKey) } });
+                }
+                if (use.table === 'croatians_abroad_registrations' && String(bev) !== String(homeBridgesId() || '')) {
+                    return fail('wrong_event', 'A Plexus-week Bridges ticket (Zagreb) — not valid at this door.', { ticket: { name: fullName(use.row), email: use.row.email || '', meta: metaFor(use.table, use.row, eventKey) } });
+                }
+            }
             ref = String(use.row.id); regTable = use.table; partySize = party(use.row);
             ticket = { name: fullName(use.row), email: use.row.email || '', meta: metaFor(use.table, use.row, eventKey), kind: use.table };
             ticket.row = use.row; // internal — stripped before respond
@@ -495,6 +508,36 @@ module.exports = function mountEventDay(app, ctx) {
     }
 
     // ---------------------------------------------------------------- counters + door list
+    // ---- per-event Bridges doors (Alen 2026-09-01: Boston vs Zagreb must not share one door) ----
+    function homeBridgesId() {
+        try { return (q.get("SELECT id FROM bridges_events WHERE slug = 'building-bridges'") || {}).id || null; } catch (e) { return null; }
+    }
+    function bridgesEventList() {
+        const donorId = donorEventId();
+        try {
+            const rows = q.all("SELECT id, name, city, event_date, event_time FROM bridges_events WHERE lower(COALESCE(status,'upcoming')) != 'cancelled' ORDER BY CASE WHEN COALESCE(event_date,'') = '' THEN 1 ELSE 0 END, event_date");
+            return rows.filter(r => String(r.id) !== String(donorId || ''));
+        } catch (e) { return []; }
+    }
+    function bridgesExpected(eventId) {
+        const notTest = "AND (notes IS NULL OR (notes NOT LIKE '%SCANNER TEST%' AND notes NOT LIKE '%BUNDLE TEST%'))";
+        let n = 0;
+        try { n += (q.get(`SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)),0) c FROM bridges_registrations WHERE event_id = ? AND lower(COALESCE(status,'')) != 'cancelled'`, [eventId]) || {}).c || 0; } catch (e) {}
+        if (String(eventId) === String(homeBridgesId() || '')) {
+            try { n += (q.get(`SELECT COALESCE(SUM(1 + COALESCE(guest_count,0)),0) c FROM croatians_abroad_registrations WHERE selected_bridges = 1 ${notTest}`) || {}).c || 0; } catch (e) {}
+        }
+        return n;
+    }
+    function bridgesAdmitted(eventId) {
+        let n = 0;
+        try { n += (q.get(`SELECT COALESCE(SUM(a.admitted_count),0) c FROM v2_checkin_admits a JOIN bridges_registrations b ON b.id = a.registration_ref WHERE a.event_key = 'bridges' AND b.event_id = ?`, [eventId]) || {}).c || 0; } catch (e) {}
+        try { n += (q.get(`SELECT COUNT(*) c FROM bridges_registrations WHERE COALESCE(checked_in,0) = 1 AND event_id = ? AND id NOT IN (SELECT registration_ref FROM v2_checkin_admits WHERE event_key = 'bridges')`, [eventId]) || {}).c || 0; } catch (e) {}
+        if (String(eventId) === String(homeBridgesId() || '')) {
+            try { n += (q.get(`SELECT COUNT(*) c FROM croatians_abroad_registrations WHERE bridges_checked_in = 1 AND id NOT IN (SELECT registration_ref FROM v2_checkin_admits WHERE event_key = 'bridges')`) || {}).c || 0; } catch (e) {}
+        }
+        return n;
+    }
+
     function expectedPeople(eventKey) {
         const donorId = donorEventId();
         const notTest = "AND (notes IS NULL OR (notes NOT LIKE '%SCANNER TEST%' AND notes NOT LIKE '%BUNDLE TEST%'))";
@@ -544,7 +587,7 @@ module.exports = function mountEventDay(app, ctx) {
         return v2 + legacy;
     }
 
-    function doorRows(eventKey, qText, limit) {
+    function doorRows(eventKey, qText, limit, bridgesEventId) {
         const donorId = donorEventId();
         const like = qText ? '%' + qText.toLowerCase() + '%' : null;
         const rows = [];
@@ -563,9 +606,13 @@ module.exports = function mountEventDay(app, ctx) {
             } else if (eventKey === 'donor') {
                 if (donorId) q.all(`SELECT * FROM bridges_registrations WHERE event_id = ? AND lower(COALESCE(status,'')) != 'cancelled' ORDER BY registered_at DESC LIMIT 800`, [donorId]).forEach(r => push('bridges_registrations', r, metaFor('bridges_registrations', r, eventKey)));
             } else {
-                const w = donorId ? 'AND event_id != ?' : '', args = donorId ? [donorId] : [];
+                let w = donorId ? 'AND event_id != ?' : '', args = donorId ? [donorId] : [];
+                if (bridgesEventId) { w += ' AND event_id = ?'; args = args.concat([bridgesEventId]); }
                 q.all(`SELECT * FROM bridges_registrations WHERE lower(COALESCE(status,'')) != 'cancelled' ${w} ORDER BY registered_at DESC LIMIT 800`, args).forEach(r => push('bridges_registrations', r, metaFor('bridges_registrations', r, eventKey)));
-                q.all(`SELECT * FROM croatians_abroad_registrations WHERE selected_bridges = 1 AND (notes IS NULL OR (notes NOT LIKE '%SCANNER TEST%' AND notes NOT LIKE '%BUNDLE TEST%')) ORDER BY created_at DESC LIMIT 400`).forEach(r => push('croatians_abroad_registrations', r, metaFor('croatians_abroad_registrations', r, eventKey)));
+                // the Plexus-week /plexus form's bridges sign-ups belong to the home (Zagreb) edition only
+                if (!bridgesEventId || String(bridgesEventId) === String(homeBridgesId() || '')) {
+                    q.all(`SELECT * FROM croatians_abroad_registrations WHERE selected_bridges = 1 AND (notes IS NULL OR (notes NOT LIKE '%SCANNER TEST%' AND notes NOT LIKE '%BUNDLE TEST%')) ORDER BY created_at DESC LIMIT 400`).forEach(r => push('croatians_abroad_registrations', r, metaFor('croatians_abroad_registrations', r, eventKey)));
+                }
             }
         } catch (e) { console.error('[v2/event-day] door list:', e.message); }
         // legacy checked-in state per table (so a row the old scanner admitted reads IN here too)
@@ -629,6 +676,11 @@ module.exports = function mountEventDay(app, ctx) {
                 gates: gs.map(g => ({
                     event_key: g.event_key, label: g.label, starts_at: g.starts_at, ends_at: g.ends_at,
                     expected: expectedPeople(g.event_key), admitted: admittedPeople(g.event_key)
+                })),
+                bridges_events: bridgesEventList().map(ev => ({
+                    id: ev.id, label: (ev.city || ev.name || 'Bridges'), date: ev.event_date || '', time: ev.event_time || '',
+                    expected: bridgesExpected(ev.id), admitted: bridgesAdmitted(ev.id),
+                    home: String(ev.id) === String(homeBridgesId() || '')
                 }))
             });
         } catch (e) { res.status(500).json({ error: e.message }); }
@@ -639,7 +691,8 @@ module.exports = function mountEventDay(app, ctx) {
             const rehearsal = String(req.query.rehearsal || '') === '1';
             if (rehearsal) return res.json({ rehearsal: true, rows: rehearsalDoor() });
             const eventKey = GATE_KEYS.includes(String(req.query.event)) ? String(req.query.event) : defaultGateKey(gates());
-            res.json({ rehearsal: false, event: eventKey, rows: doorRows(eventKey, String(req.query.q || '').trim(), 400) });
+            const bev = eventKey === 'bridges' ? String(req.query.bridges_event || '').trim() || null : null;
+            res.json({ rehearsal: false, event: eventKey, bridges_event: bev, rows: doorRows(eventKey, String(req.query.q || '').trim(), 400, bev) });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
