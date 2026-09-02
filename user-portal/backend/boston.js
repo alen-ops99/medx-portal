@@ -313,6 +313,43 @@ module.exports = function mountBoston(app, deps) {
         return got.length === want.length && crypto.timingSafeEqual(got, want);
     }
 
+    // ------------------------------------------------------------ live Boston sheet push
+    // IMPORTDATA refreshed only hourly (Alen: "not good enough") — so every new registration is
+    // APPENDED to the sheet directly via the Sheets API with an OAuth refresh grant. Silent no-op
+    // without the env; never blocks or fails a registration.
+    let _gTok = null, _gTokAt = 0;
+    async function sheetsToken() {
+        if (_gTok && Date.now() - _gTokAt < 45 * 60 * 1000) return _gTok;
+        const body = new URLSearchParams({
+            client_id: process.env.GOOGLE_OAUTH_CLIENT_ID, client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+            refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN, grant_type: 'refresh_token'
+        });
+        const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+        const j = await r.json();
+        if (!j.access_token) throw new Error('sheets token: ' + (j.error || r.status));
+        _gTok = j.access_token; _gTokAt = Date.now();
+        return _gTok;
+    }
+    function bostonSheetRow(reg, presentation) {
+        let when = String(reg.registered_at || '');
+        try {
+            const d = new Date(when.replace(' ', 'T') + (when.includes('Z') ? '' : 'Z'));
+            when = d.toLocaleString('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' ET';
+        } catch (e) {}
+        return [when, reg.first_name || '', reg.last_name || '', reg.email, reg.institution || '', reg.position || '',
+                presentation ? 'Yes' : 'No', reg.status || 'registered', Number(reg.checked_in) ? 'Yes' : 'No'];
+    }
+    function pushToBostonSheet(reg, presentation) {
+        const sheetId = process.env.BB_SHEET_ID;
+        if (!sheetId || !process.env.GOOGLE_OAUTH_REFRESH_TOKEN) return;
+        sheetsToken().then(tok => fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:I1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+            { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ values: [bostonSheetRow(reg, presentation)] }) }
+        )).then(r => { if (r && !r.ok) console.warn('[Boston] sheet append HTTP', r.status); })
+          .catch(e => console.warn('[Boston] sheet append failed (non-blocking):', e.message));
+    }
+
     // ------------------------------------------------------------ wallet links (email + on-page)
     // Google Wallet — minted with the shared/wallet builders. The dedicated Boston class
     // (BB_GOOGLE_CLASS_ID) carries the event name/venue/date at CLASS level, so the object keeps
@@ -521,7 +558,9 @@ module.exports = function mountBoston(app, deps) {
                 }
             } catch (e) { /* sheets must never affect the registration */ }
 
-            res.json({ success: true, wallet: walletLinks(query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || { id }) });
+            const freshRow = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || { id };
+            pushToBostonSheet(freshRow, presentation);
+            res.json({ success: true, wallet: walletLinks(freshRow) });
         } catch (e) {
             console.error('[Boston] registration error:', e.message);
             res.status(500).json({ error: 'Registration failed. Please try again.' });
