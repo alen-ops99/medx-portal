@@ -185,3 +185,5 @@ existing export renders byte-identically.
 
 ## Tone rule (Alen 2026-09-02)
 Every participant-facing confirmation opens WARM: a 'Dear …, we are happy to have you at …' / 'thank you for joining us' sentence before the logistics. Plain language over mechanics — never 'the door counts your party in as you arrive'; say 'the QR below is the entry for both of you'. Applies when wiring the template set.
+- Never call Building Bridges an "evening" (its format/time may change) — say "Building Bridges" alone.
+- Never say "all three evenings" for the Plexus Week combo — say "all three events".

@@ -176,7 +176,7 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
         ? whenLines.map(whenLine).join('')
         : (dateLabel ? `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(dateLabel)}</span>` : '');
     const rows = [
-        fieldRow('EVENT', `<span style="font-family:${T.serif};font-size:16px;color:${T.ink};">${esc(eventName || 'Med&X event')}</span>`),
+        fieldRow('EVENT', `<span style="font-family:${T.sans};font-size:13px;font-weight:600;color:${T.ink};">${esc(eventName || 'Med&X event')}</span>`),
         whenHtml ? fieldRow('WHEN', whenHtml) : '',
         venue ? fieldRow('WHERE', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(venue)}</span>`) : '',
         guestLine ? fieldRow('GUEST', `<span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${guestLine}</span>`) : '',
