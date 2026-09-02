@@ -356,7 +356,7 @@ async function t(name, fn) {
         assert.ok(body.includes('DTEND:20260922T010000Z'), 'DTEND wrong');
         assert.ok(body.includes('SUMMARY:Building Bridges in Biomedicine — Boston'), 'SUMMARY wrong');
         assert.ok(/LOCATION:Waterhouse Room\\,/.test(body), 'LOCATION missing/unescaped');
-        assert.ok(body.includes('17:30'), 'doors note missing');
+        assert.ok(body.includes('5:30 PM'), 'doors note missing');
     });
 
     // -------- Apple pass route
@@ -388,8 +388,8 @@ async function t(name, fn) {
         const mainStart = html.indexOf('<main');
         const headerPart = html.slice(0, mainStart), mainPart = html.slice(mainStart);
         assert.ok(!headerPart.includes('Monday, 21 September 2026'), 'date must not sit in the hero');
-        assert.ok(mainPart.includes('<span>When</span><span>Monday, 21 September 2026 &middot; 6:00&ndash;9:00 PM</span>'), 'When row missing from the card');
-        assert.ok(mainPart.includes('<span>Doors</span><span>From 5:30 PM</span>'), 'Doors row missing');
+        assert.ok(mainPart.includes('<span>When</span><span>Monday, 21 September 2026</span>'), 'When row missing from the card');
+        assert.ok(mainPart.includes('<span>Time</span><span>6:00&ndash;9:00 PM &middot; doors from 5:30 PM</span>'), 'Time row missing');
         assert.ok(mainPart.includes('Waterhouse Room, Gordon Hall &middot; 25 Shattuck Street'), 'Where row missing');
         assert.strictEqual(mainPart.split('Monday, 21 September 2026').length - 1, 1, 'date must appear exactly once');
         assert.ok(html.includes('Med&amp;X and the Harvard Medical Postdoc Association invite physicians'), 'blurb must name both organizers');

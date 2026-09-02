@@ -360,7 +360,7 @@ module.exports = function mountBoston(app, deps) {
             headlineHtml: 'Building Bridges Boston — you are <i>in</i>.',
             introHtml: `Dear ${esc(first)} — your registration is confirmed. Med&X and the Harvard Medical Postdoc Association look forward to welcoming you at Harvard Medical School for an evening of panels, participant presentations and a networking reception.`
                 + (presentation ? ` You asked to give a 5-minute presentation — we will confirm presentation slots by email based on the total number of requests.` : ''),
-            whenLines: [`Building Bridges in Biomedicine — ${DATE_LONG} · 18:00 · doors from 17:30`],
+            whenLines: [`Building Bridges in Biomedicine — ${DATE_LONG} · 6:00 PM · doors from 5:30 PM`],
             venue: VENUE_FULL,
             guestLabel: fullName,
             ticketNumber: ticketNo(id),
@@ -543,7 +543,7 @@ module.exports = function mountBoston(app, deps) {
             'DTEND:' + DTEND_UTC,
             fold('SUMMARY:' + escIcs('Building Bridges in Biomedicine — Boston')),
             fold('LOCATION:' + escIcs('Waterhouse Room, Gordon Hall, 25 Shattuck Street, Harvard Medical School, Boston, MA')),
-            fold('DESCRIPTION:' + escIcs('Doors open 17:30; the program runs 18:00–21:00. Present the entry QR from your confirmation email at the door. Dress code: business attire. Questions? Laura Rodman (laura.rodman@medx.hr).')),
+            fold('DESCRIPTION:' + escIcs('Doors open 5:30 PM; the program runs 6:00–9:00 PM. Present the entry QR from your confirmation email at the door. Dress code: business attire. Questions? Laura Rodman (laura.rodman@medx.hr).')),
             'STATUS:CONFIRMED', 'END:VEVENT', 'END:VCALENDAR'
         ].join('\r\n') + '\r\n';
         res.set('Content-Type', 'text/calendar; charset=utf-8');
@@ -577,7 +577,7 @@ module.exports = function mountBoston(app, deps) {
                     header: [{ key: 'event', label: 'BUILDING BRIDGES', value: 'Boston' }],
                     primary: [],
                     secondary: [
-                        { key: 'when', label: 'WHEN', value: 'Sep 21 · 18:00 (doors 17:30)' },
+                        { key: 'when', label: 'WHEN', value: 'Sep 21 · 6:00 PM (doors 5:30 PM)' },
                         { key: 'where', label: 'WHERE', value: 'Gordon Hall · Harvard Medical School' }
                     ],
                     auxiliary: [
@@ -934,8 +934,8 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
   <section class="sheet" aria-label="The evening">
     <p class="slabel">The evening</p><div class="rule"></div>
     <div class="facts">
-      <div class="frow"><span>When</span><span>${esc(DATE_LONG)} &middot; 6:00&ndash;9:00 PM</span></div>
-      <div class="frow"><span>Doors</span><span>From 5:30 PM</span></div>
+      <div class="frow"><span>When</span><span>${esc(DATE_LONG)}</span></div>
+      <div class="frow"><span>Time</span><span>6:00&ndash;9:00 PM &middot; doors from 5:30 PM</span></div>
       <div class="frow"><span>Where</span><span>Waterhouse Room, Gordon Hall &middot; 25 Shattuck Street<br>Harvard Medical School, Boston, MA</span></div>
       <div class="frow"><span>Admission</span><span>Free &middot; by registration</span></div>
       <div class="frow"><span>Dress</span><span>${esc(DRESS)}</span></div>
