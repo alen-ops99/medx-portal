@@ -10273,7 +10273,7 @@ async function initializeApp() {
             ]);
             if (!query.get("SELECT id FROM forum_news LIMIT 1")) {
                 const news = [
-                    { title:'The circle welcomes its autumn convening', body:'The Autumn Symposium returns to the Novinarski dom in Zagreb, with three addresses from members and a discussion held under a rule of discretion.', date:'2026-09-15', sort:1 },
+                    { title:'The circle welcomes its autumn convening', body:'The Autumn Symposium returns to the Novinarski dom in Zagreb, with three addresses from members and a discussion held under a rule of discretion.', date:'2026-09-01', sort:1 },
                     { title:'A note on the close of the year', body:'The Gala Evening at the Hotel Esplanade will again close the Med&X year, and welcome those newly invited to the Forum.', date:'2026-10-15', sort:2 }
                 ];
                 news.forEach(n => db.run(`INSERT INTO forum_news (id, title, body, date, sort, status) VALUES (?,?,?,?,?, 'published')`, [uuidv4(), n.title, n.body, n.date, n.sort]));

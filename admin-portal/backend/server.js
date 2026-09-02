@@ -8647,7 +8647,7 @@ async function initializeApp() {
         const _yc = query.get('SELECT COUNT(*) AS n FROM year_calendar_entries');
         if (!_yc || _yc.n === 0) {
             const seed = [
-                ['Building Bridges — Boston',       'bridges', '2026-09-15', null,         'potential', '#2563eb', 'Boston edition — date to be confirmed'],
+                ['Building Bridges — Boston',       'bridges', '2026-09-21', null,         'confirmed', '#2563eb', 'Monday, 21 September — Gordon Hall, Harvard Medical School'],
                 ['Plexus early-bird deadline',      'plexus',  '2026-09-15', null,         'confirmed', '#b45309', 'Early-bird registration closes'],
                 ['Plexus Donor Night',              'plexus',  '2026-12-04', null,         'confirmed', '#9b1b22', 'Esplanade salon, Zagreb'],
                 ['Plexus Week — Conference',        'plexus',  '2026-12-04', '2026-12-05', 'confirmed', '#9b1b22', 'Novinarski dom, Zagreb'],
