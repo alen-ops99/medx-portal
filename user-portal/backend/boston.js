@@ -572,11 +572,6 @@ module.exports = function mountBoston(app, deps) {
                     '2x': path.join(__dirname, 'v2/apple-assets/boston-strip@2x.png'),
                     '3x': path.join(__dirname, 'v2/apple-assets/boston-strip@3x.png')
                 },
-                // Med&X × HMPA combined wordmark top-left (Alen 2026-09-01)
-                logoFiles: {
-                    '1x': path.join(__dirname, 'v2/apple-assets/boston-logo.png'),
-                    '2x': path.join(__dirname, 'v2/apple-assets/boston-logo@2x.png')
-                },
                 fields: {
                     // Label without the year — 'BUILDING BRIDGES 2026' truncated on the pass header.
                     header: [{ key: 'event', label: 'BUILDING BRIDGES', value: 'Boston' }],
