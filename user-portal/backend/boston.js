@@ -356,23 +356,22 @@ module.exports = function mountBoston(app, deps) {
 
         return emailTemplates.ticketConfirmation({
             firstName: first,
-            eventName: 'Building Bridges — Boston',
+            eventName: 'Building Bridges in Biomedicine — Boston',
             headlineHtml: 'Building Bridges Boston — you are <i>in</i>.',
             introHtml: `Dear ${esc(first)} — your registration is confirmed. Med&X and the Harvard Medical Postdoc Association look forward to welcoming you at Harvard Medical School for an evening of panels, participant presentations and a networking reception.`
                 + (presentation ? ` You asked to give a 5-minute presentation — we will confirm presentation slots by email based on the total number of requests.` : ''),
-            whenLines: [`Building Bridges in Biomedicine — ${DATE_LONG} · 6:00 PM · doors from 5:30 PM`],
+            whenLines: [`${DATE_LONG} · 6:00 PM · doors from 5:30 PM`],
             venue: VENUE_FULL,
             guestLabel: fullName,
             ticketNumber: ticketNo(id),
-            ticketLabel: 'Building Bridges Boston — evening registration' + (presentation ? ' + 5-minute presentation request' : ''),
-            priceLabel: 'Free',
+            ticketLabel: 'Evening registration — free' + (presentation ? ' · 5-minute presentation requested' : ''),
             dressLabel: DRESS,
             qrPngUrl: `${base}/api/boston/qr/${id}.png`,   // branded QR (Med&X × HMPA plate in the middle)
             walletSaveUrl,
             appleWalletUrl,
             calendarUrl: `${base}/boston.ics`,
             note: 'Present the QR above at the door — it is your entry to the evening. The same ticket lives in the wallet passes.',
-            replyLine: `Questions? Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}" style="color:#6b6259;">${SUPPORT_EMAIL}</a>).`
+            replyLine: `Questions? Laura Rodman — ${SUPPORT_EMAIL}.`
         });
     }
 

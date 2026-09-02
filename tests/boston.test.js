@@ -269,7 +269,7 @@ async function t(name, fn) {
         assert.ok(html.includes('Business attire'), 'dress code missing');
         assert.ok(html.includes('21 September 2026'), 'date missing');
         assert.ok(html.includes('Monday'), 'weekday missing');
-        assert.ok(html.includes('Free'), 'price missing');
+        assert.ok(html.includes('Evening registration — free'), 'free ticket line missing');
         assert.ok(html.includes('25 Shattuck Street'), 'venue address missing');
         assert.ok(html.includes('BB-BOS-' + String(anaId).slice(0, 8).toUpperCase()), 'ticket number missing');
         assert.ok(html.includes(`${BASE}/boston.ics`), 'calendar url missing');
