@@ -182,3 +182,6 @@ No reminder engine exists yet for unpaid registrations; three places to hang it:
 cancellation/transfer · 2 event-reminder · 2 accelerator · 2 forum-invitation · 2 certificate
 · 2 survey). Nothing has been wired — `v2/email-templates.js` only gained the builders, and every
 existing export renders byte-identically.
+
+## Tone rule (Alen 2026-09-02)
+Every participant-facing confirmation opens WARM: a 'Dear …, we are happy to have you at …' / 'thank you for joining us' sentence before the logistics. Plain language over mechanics — never 'the door counts your party in as you arrive'; say 'the QR below is the entry for both of you'. Applies when wiring the template set.
