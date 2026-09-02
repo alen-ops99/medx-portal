@@ -9,7 +9,7 @@
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import { FACTS, galaPriceNow } from '../facts.js';
+import { FACTS, galaPriceNow, CTA } from '../facts.js';
 import { chrome } from '../chrome.js';
 
 export const SOURCE = 'Gala Evening.dc.html';
@@ -21,8 +21,10 @@ export const COPY = {
     eyebrow: 'MED&amp;X ANNUAL AWARDS · BLACK TIE · SEATS LIMITED',
     title: 'Med&amp;X Gala <i style="color:#c9a962">Evening</i>',
     tagline: 'Where Croatian medicine and science meet the world',
-    reserve: 'RESERVE YOUR SEAT →', calendar: 'ADD TO CALENDAR',
-    note: 'One form covers the conference and the Gala — RESERVE YOUR SEAT opens My Plexus &amp; Register.',
+    // one verb for this action, priced (UX audit 2026-09-02 › item 6) — "RESERVE YOUR SEAT" and
+    // "RSVP · €150" were the same button in two coats, on the two blocks of one page
+    reserve: price => `${CTA.reserve(price)} →`, calendar: 'ADD TO CALENDAR',
+    note: 'One form covers the conference and the Gala — pick either, or both.',
     closedNote: 'Seat reservations are paused right now — message us and we will help.',
     follow: on => `GET UPDATES FROM THE GALA · ${on ? 'ON' : 'OFF'}`,
     followSub: 'Email + portal alerts · manage topics in Profile &amp; settings'
@@ -52,19 +54,17 @@ export const COPY = {
   },
   performers: {
     label: 'FEATURED PERFORMERS',
-    badgeTba: 'TWO PERFORMERS CONFIRMED · NAMES ANNOUNCED CLOSER TO DECEMBER',
     badgeNamed: 'ICONIC CROATIAN MUSICIANS',
-    tba: [
-      { init: '♪', name: 'Headline performer — announced this autumn', role: 'Iconic Croatian vocalist · confirmed' },
-      { init: '♪', name: 'Second performer — announced this autumn', role: 'Acclaimed Croatian instrumentalist · confirmed' }
-    ]
+    // UX audit 2026-09-02 › item 11: a chip plus two placeholder cards said "we won't tell you"
+    // three times. Until the names are entered in the admin portal, one italic line under the
+    // evening's schedule says it once — nothing in this house style stands in for content.
+    tbaLine: 'Two performers confirmed — names announced this autumn.'
   },
   why: {
     eyebrow: '02 · WHY WE GATHER',
     line: 'Accelerating Croatian medicine and science through <i style="color:#c9a962">international collaboration</i>.',
     body: 'This is the night Croatian medicine and science meet the world. Over dinner and a shared table, the evening turns to the challenges and opportunities of international biomedical collaboration, with panels on high-performance leadership. Every seat is placed to build a bridge.',
-    chips: ['SEATING LIMITED BY DESIGN', 'HIGH-PERFORMANCE LEADERSHIP PANELS'],
-    rsvp: price => `RSVP · ${price} →`
+    chips: ['SEATING LIMITED BY DESIGN', 'HIGH-PERFORMANCE LEADERSHIP PANELS']
   },
   moments: {
     label: 'MOMENTS FROM PREVIOUS GALAS',
@@ -229,7 +229,7 @@ function blockHero() {
       <div class="mx-gala-hero-date" style="font-family:Fraunces,serif;font-style:italic;font-size:21px;color:#c9a962;margin-top:14px">${esc(D.heroDate)}</div>
       <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:8px">${COPY.hero.tagline} · ${esc(D.venueLong)}</div>
       <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
-        ${goldCta(COPY.hero.reserve)}
+        ${goldCta(COPY.hero.reserve(fmt.eur(D.price.current)))}
         <span data-act="dlIcs" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#f7f1e6">${COPY.hero.calendar}</span>
       </div>
       <div data-role="statusNote" style="font-size:11px;color:rgba(247,241,230,.55);margin-top:10px">${statusNote()}</div>
@@ -299,16 +299,15 @@ function performerInit(p) {
   return fmt.initials(parts[0] || '', parts[parts.length - 1] || '') || '♪';
 }
 
+// Named performers get the cards; unnamed ones get one line under the schedule (blockPerformersLine).
 function blockPerformers() {
-  const announced = D.performers.announced;
-  const list = announced
-    ? D.performers.list.map(p => ({ init: performerInit(p), name: p.name, role: p.role || '' }))
-    : COPY.performers.tba;
+  if (!D.performers.announced) return `<!-- dc: Gala Evening.dc.html › "FEATURED PERFORMERS" --><!-- names not entered yet — the single line under the schedule carries this --><!-- /dc -->`;
+  const list = D.performers.list.map(p => ({ init: performerInit(p), name: p.name, role: p.role || '' }));
   return `
     <!-- dc: Gala Evening.dc.html › "FEATURED PERFORMERS" -->
     <div class="mx-wrap-row" style="display:flex;align-items:baseline;justify-content:center;gap:14px;padding:16px 0 10px">
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.performers.label}</span>
-      <span style="padding:2px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${announced ? COPY.performers.badgeNamed : COPY.performers.badgeTba}</span>
+      <span style="padding:2px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.performers.badgeNamed}</span>
     </div>
     <div class="mx-gala-perf" style="display:flex;gap:16px;justify-content:center;padding-bottom:26px">
       ${list.map(p => `
@@ -318,6 +317,11 @@ function blockPerformers() {
         </div>`).join('')}
     </div>
     <!-- /dc -->`;
+}
+function blockPerformersLine() {
+  if (D.performers.announced) return '';
+  return `
+    <div style="font-family:Fraunces,serif;font-style:italic;font-size:13.5px;color:#4a4239;padding:0 0 18px">${esc(COPY.performers.tbaLine)}</div>`;
 }
 
 function blockWhy() {
@@ -330,7 +334,7 @@ function blockWhy() {
       <span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:2px">
         ${COPY.why.chips.map(c => `<span style="padding:4px 9px;border:1px solid rgba(201,169,98,.5);color:#c9a962;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${c}</span>`).join('\n        ')}
       </span>
-      <span style="margin-top:6px">${goldCta(COPY.why.rsvp(fmt.eur(D.price.current)), { pad: '12px 20px', size: '10px' })}</span>
+      <span style="margin-top:6px">${goldCta(COPY.hero.reserve(fmt.eur(D.price.current)), { pad: '12px 20px', size: '10px' })}</span>
     </div>
   <!-- /dc -->`;
 }
@@ -390,13 +394,18 @@ function blockGlance() {
 
 // v2 addition 2026-08-31 — seat-transfer + cancellation policy, one line, no refund flow.
 // The transfer itself lives in My Plexus (js/views/plexus.js › "Transfer to a colleague").
+// UX audit 2026-09-02 › item 15: the link is offered only to a member who HOLDS a seat. With zero
+// registrations it used to land on a card promising a transfer "right from this page" where no
+// control exists — a dead end costs more trust than a missing feature. The policy line stays: it is
+// what a member reads before buying.
 function blockPolicy() {
+  const holdsSeat = D.state.key === 'paid';
   return `
     <!-- dc: Gala Evening.dc.html › "Seat policy" -->
     <div style="border-top:1px solid rgba(25,21,18,.16);padding:16px 0 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
       <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962;white-space:nowrap">${COPY.policy.tag}</span>
       <span style="font-family:Fraunces,serif;font-style:italic;font-size:14.5px;color:#4a4239;line-height:1.55">${esc(COPY.policy.line)}</span>
-      <a href="/app/plexus/mine" data-v2="opens My Plexus › Transfer to a colleague" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;white-space:nowrap;text-decoration:none">${COPY.policy.cta}</a>
+      ${holdsSeat ? `<a href="/app/plexus/mine" data-v2="opens My Plexus › Transfer to a colleague" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;white-space:nowrap;text-decoration:none">${COPY.policy.cta}</a>` : ''}
     </div>
     <!-- /dc -->`;
 }
@@ -425,6 +434,7 @@ function template() {
     ${blockWhy()}
     ${blockMoments()}
     ${blockGlance()}
+    ${blockPerformersLine()}
     ${blockPolicy()}
   </div>
   ${blockFooter()}

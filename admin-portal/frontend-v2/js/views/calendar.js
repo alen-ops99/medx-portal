@@ -1,9 +1,16 @@
 // Source: Admin Calendar.dc.html
 // Blocks (artboard order): "Calendar header row" (title · EXPORT PDF · EXPORT CSV · + ADD ENTRY) ›
-// "NEXT UP" › "New entry panel" › "Year board" (per-year 12-month grids, TODAY line, ✎ EDIT ENTRIES) ›
-// "TEAM TASKS" + "KEY DATES" › v2: hidden print board (EXPORT PDF = print-ready one-page year board,
-// README note 23 — client print stylesheet in css/views/calendar.css + window.print()).
-// Data: the board IS /api/admin/year-calendar (add = POST, ✕ = DELETE with UNDO re-create);
+// "NEXT UP" › "New entry panel" › "TEAM TASKS" + "KEY DATES" › v2: hidden print board
+// (EXPORT PDF = print-ready one-page year board, README note 23 — client print stylesheet in
+// css/views/calendar.css + window.print()).
+// UX AUDIT 2026-09-02 #7 — the on-screen "Year board" is DELETED. The Gantt grid, NEXT UP and
+// KEY DATES all rendered the same eight entries (the page's own footer conceded as much) and a
+// one-day event became an unreadable 8px bar in a ~1100×400 grid. KEY DATES is now the main
+// column (it already carries the colour keys and both years) and NEXT UP keeps the top. The
+// entry CRUD the board carried survives intact: + ADD ENTRY still posts, and ✎ EDIT ENTRIES now
+// sits on KEY DATES, where ✕ deletes the same rows with the same UNDO. The 12-month grid still
+// exists where it earns its space — the printed A4 landscape board behind EXPORT PDF.
+// Data: entries ARE /api/admin/year-calendar (add = POST, ✕ = DELETE with UNDO re-create);
 // NEXT UP + KEY DATES compose the /api/v2/calendar/key-dates union (entries · conferences ·
 // bridges · live gala early-bird prices); TEAM TASKS is the SAME /api/admin/tasks list Today shows
 // (note 17 — ticking here completes for everyone). Header comes from js/chrome.js.
@@ -27,11 +34,9 @@ export const COPY = {
     projects: [['Plexus', 'plexus'], ['Gala', 'gala'], ['Bridges', 'bridges'], ['Forum', 'forum'], ['Other', 'other']]
   },
   board: {
-    legendNote: 'solid = confirmed · outlined = potential · the red line is today',
-    edit: '✎ EDIT ENTRIES', doneEditing: '✓ DONE EDITING', today: 'TODAY',
+    edit: '✎ EDIT ENTRIES', doneEditing: '✓ DONE EDITING',
     removed: 'ENTRY REMOVED', restored: 'ENTRY PUT BACK', deleteTitle: 'Delete this entry',
-    legend: [['PLEXUS', '#9b1b22'], ['GALA', '#c9a962'], ['BRIDGES', '#3f5f8a'], ['FORUM', '#6a4a8c']],
-    empty: 'The board is empty — + ADD ENTRY puts the first thing on it.'
+    empty: 'Nothing dated yet — + ADD ENTRY puts the first thing on the calendar.'
   },
   tasks: {
     title: 'TEAM TASKS', note: 'tick it and it disappears for everyone', ph: 'Add a task — e.g. “Book the Esplanade tasting menu call”',
@@ -42,8 +47,17 @@ export const COPY = {
   },
   keyDates: {
     title: 'KEY DATES', thisYear: y => `THIS YEAR — ${y}`, nextYear: y => `NEXT YEAR — ${y}`,
-    earlyBird: (e, r) => `Gala early-bird ends — ${fmt.eur(e)} → ${fmt.eur(r)}`,
-    foot: 'The board, NEXT UP and this list read the same live entries.'
+    // ONE early-bird sentence, one date — the price switch is a single fact (audit #9)
+    earlyBirdTitle: 'Gala early-bird ends',
+    earlyBird: (e, r) => `Gala early-bird ends — ${fmt.eur(e)} → ${fmt.eur(r)} (automatic)`,
+    foot: 'NEXT UP and this list read the same live entries — EXPORT PDF prints them as a year board.',
+    // stray cleanup: old board entries that put the same price switch on a different date
+    stray: n => `${n === 1 ? 'One older calendar entry puts' : n + ' older calendar entries put'} the same early-bird switch on a different date.`,
+    strayFix: n => n === 1 ? 'REMOVE IT' : 'REMOVE THEM',
+    strayTitle: 'Remove the older early-bird entries?',
+    strayBody: (n, when) => `${n === 1 ? 'One entry says' : n + ' entries say'} the early-bird price changes on another day. The live deadline is ${when} — that is the one this list and NEXT UP show. Removing ${n === 1 ? 'it' : 'them'} changes no price and sends nothing.`,
+    strayOk: 'REMOVE', strayCancel: 'KEEP THEM',
+    strayDone: n => `${n} OLD EARLY-BIRD ENTR${n === 1 ? 'Y' : 'IES'} REMOVED`
   },
   print: {
     title: y => `The year at Med&X — ${y}`, subtitle: 'Plexus Week · Gala Evening · Building Bridges · Biomedical Forum · Accelerator',
@@ -91,11 +105,20 @@ function entryCells(e, year) { // month indices the entry spans inside `year`
   }
   return out;
 }
-function dateLine(e) {
-  const bits = [fmt.rangeLabel(e.starts_on, e.ends_on)];
-  if (e.notes) bits.push(e.notes);
-  else if (e.project) bits.push(String(e.project)[0].toUpperCase() + String(e.project).slice(1));
-  return bits.join(' · ');
+// ---- ONE early-bird truth (audit #9) ------------------------------------------------------
+// The price switch is a single fact with a single date: the live gala setting, falling back to
+// FACTS (Sep 15). Older board entries that describe the same switch on another day are strays —
+// they are kept out of NEXT UP and KEY DATES, and the panel offers to delete them for good.
+const EARLY_BIRD_RE = /early[- ]?bird/i;
+const isEarlyBird = e => EARLY_BIRD_RE.test(String(e.title || '') + ' ' + String(e.notes || ''));
+function earlyBirdDeadline() { return String((D.kd.gala && D.kd.gala.deadline) || FACTS.gala.priceFlip).slice(0, 10); }
+function earlyBirdPrices() {
+  const g = D.kd.gala || {};
+  return { early: g.early || FACTS.gala.priceEarly, regular: g.regular || FACTS.gala.priceRegular };
+}
+function earlyBirdStrays() {
+  const day = earlyBirdDeadline();
+  return D.cal.filter(e => isEarlyBird(e) && String(e.starts_on).slice(0, 10) !== day);
 }
 
 // One merged, deduped feed for NEXT UP + KEY DATES + the print board's key-dates column.
@@ -105,10 +128,23 @@ function kdClash(items, d, title) { // same month + a shared significant word = 
   return items.some(i => i.d.slice(0, 7) === String(d).slice(0, 7) && kdWords(i.title).some(x => w.includes(x)));
 }
 function keyDateItems() {
-  const items = D.cal.map(e => ({ d: String(e.starts_on).slice(0, 10), end: e.ends_on ? String(e.ends_on).slice(0, 10) : null, t: e.title + (e.notes ? ' · ' + e.notes : ''), title: e.title, project: String(e.project || 'other').toLowerCase(), c: entryColor(e), src: 'entry' }));
-  const g = D.kd.gala;
-  if (g && g.deadline && !items.some(i => i.d === g.deadline && /early[- ]?bird/i.test(i.title))) {
-    items.push({ d: g.deadline, end: null, t: COPY.keyDates.earlyBird(g.early || FACTS.gala.priceEarly, g.regular || FACTS.gala.priceRegular), title: 'Gala early-bird', project: 'gala', c: PROJ_COLOR.gala, src: 'gala' });
+  const day = earlyBirdDeadline();
+  const p = earlyBirdPrices();
+  const strays = new Set(earlyBirdStrays().map(e => e.id));
+  const items = D.cal.filter(e => !strays.has(e.id)).map(e => {
+    // an entry sitting ON the live deadline IS the early-bird row — it keeps its id so ✕ still
+    // deletes it, but it speaks the canonical sentence instead of its own older wording
+    const canon = isEarlyBird(e);
+    return {
+      id: e.id,
+      d: String(e.starts_on).slice(0, 10), end: e.ends_on ? String(e.ends_on).slice(0, 10) : null,
+      t: canon ? COPY.keyDates.earlyBird(p.early, p.regular) : e.title + (e.notes ? ' · ' + e.notes : ''),
+      title: canon ? COPY.keyDates.earlyBirdTitle : e.title,
+      project: String(e.project || 'other').toLowerCase(), c: entryColor(e), src: 'entry'
+    };
+  });
+  if (!items.some(i => EARLY_BIRD_RE.test(i.title))) {
+    items.push({ id: null, d: day, end: null, t: COPY.keyDates.earlyBird(p.early, p.regular), title: COPY.keyDates.earlyBirdTitle, project: 'gala', c: PROJ_COLOR.gala, src: 'gala' });
   }
   (D.kd.bridges || []).forEach(b => {
     if (!kdClash(items, b.event_date, b.name)) {
@@ -194,57 +230,9 @@ function blockAdd() {
   <!-- /dc -->`;
 }
 
-function monthHeader() {
-  return `<div style="display:grid;grid-template-columns:170px repeat(12,1fr);border-bottom:1px solid ${HAIR}">
-        <span></span>
-        ${MONTHS.map(m => `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;padding:4px 0;text-align:center;border-left:${CELL_L}">${m}</span>`).join('')}
-      </div>`;
-}
-function boardRow(e, year) {
-  const cells = entryCells(e, year);
-  const color = entryColor(e);
-  const dashed = e.status === 'potential';
-  return `
-      <div data-row="${esc(e.id)}" style="display:grid;grid-template-columns:170px repeat(12,1fr);align-items:center;border-bottom:1px solid ${HAIR06}">
-        <span style="padding:9px 0;min-width:0;display:flex;align-items:center;gap:7px">${st.editMode ? `<span data-act="removeEntry" data-id="${esc(e.id)}" title="${esc(COPY.board.deleteTitle)}" style="font:600 11px Inter,sans-serif;color:#9b1b22;cursor:pointer;flex:none">✕</span>` : ''}<span style="min-width:0"><span style="display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title)}</span><span style="display:block;font-size:10px;color:#6d6459">${esc(dateLine(e))}</span></span></span>
-        ${Array.from({ length: 12 }, (_, m) => `<span style="height:34px;border-left:${CELL_L};display:flex;align-items:center;padding:0 3px;box-sizing:border-box"><span style="width:100%;height:12px;background:${cells.includes(m) ? (dashed ? 'transparent' : color) : 'transparent'};border:${cells.includes(m) && dashed ? '1.5px dashed ' + color : 'none'};box-sizing:border-box"></span></span>`).join('')}
-      </div>`;
-}
-function blockBoard() {
-  const years = boardYears();
-  const now = new Date();
-  const sections = years.map((y, yi) => {
-    const rows = D.cal.filter(e => yearOf(e.starts_on) === y);
-    if (!rows.length && yi > 1) return '';
-    const isCurrent = y === now.getFullYear();
-    const pct = ((now - new Date(y, 0, 1)) / (365 * 86400000)).toFixed(3);
-    return `
-      <div style="display:flex;align-items:baseline;gap:12px;margin:${yi === 0 ? '0' : '18px'} 0 12px;flex-wrap:wrap">
-        <span style="font-family:Fraunces,serif;font-size:20px">${y}</span>
-        ${yi === 0 ? `
-        <span style="font-size:11.5px;color:#6d6459">${COPY.board.legendNote}</span>
-        <span data-act="toggleEdit" style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:${st.editMode ? '#1e6e42' : '#6d6459'};cursor:pointer;border:1px solid rgba(32,27,22,.18);padding:4px 8px" data-hover="color:#201b16">${st.editMode ? COPY.board.doneEditing : COPY.board.edit}</span>
-        <div style="flex:1"></div>
-        <span style="display:flex;gap:12px;flex-wrap:wrap">
-          ${COPY.board.legend.map(([l, c]) => `<span style="display:flex;align-items:center;gap:5px;font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459"><span style="width:9px;height:9px;background:${c}"></span>${l}</span>`).join('')}
-        </span>` : ''}
-      </div>
-      <div class="mxc-scroll"><div class="mxc-grid" style="position:relative">
-        ${monthHeader()}
-        ${rows.map(e => boardRow(e, y)).join('')}
-        ${!rows.length ? `<div style="padding:12px 0;font-size:12px;color:#6d6459;font-style:italic">${COPY.board.empty}</div>` : ''}
-        ${isCurrent && rows.length ? `
-        <div style="position:absolute;top:0;bottom:0;left:calc(170px + (100% - 170px) * ${pct});width:0;border-left:2px solid #9b1b22;pointer-events:none"></div>
-        <span style="position:absolute;top:-4px;left:calc(170px + (100% - 170px) * ${pct} - 22px);font:600 8px Inter,sans-serif;letter-spacing:.1em;color:#9b1b22;background:#fff;padding:0 4px">${COPY.board.today}</span>` : ''}
-      </div></div>`;
-  }).join('');
-  return `
-    <!-- dc: Admin Calendar.dc.html › "Year board" -->
-    <div data-block="board" style="border:1px solid ${HAIR};background:#fff;padding:18px 20px">
-      ${sections}
-    </div>
-    <!-- /dc -->`;
-}
+// AUDIT #7 — the on-screen year board is gone (it repeated NEXT UP and KEY DATES entry for entry,
+// in 8px bars). Its two real jobs moved: the 12-month grid lives on in blockPrint (EXPORT PDF),
+// and entry deletion moved to KEY DATES below, where the rows actually read.
 
 function taskMeta(t) {
   const who = t.assignee_name ? String(t.assignee_name).split(/\s+/)[0].toUpperCase() : COPY.tasks.team;
@@ -259,9 +247,34 @@ function blockTasksKeyDates() {
   const kd = upcomingKeyDates();
   const thisY = new Date().getFullYear();
   const groups = [[COPY.keyDates.thisYear(thisY), kd.filter(k => yearOf(k.d) === thisY)], [COPY.keyDates.nextYear(thisY + 1), kd.filter(k => yearOf(k.d) === thisY + 1)]];
+  const strays = earlyBirdStrays();
+  // KEY DATES is the main column now (audit #7) — first and wider, with the board's edit mode
   return `
     <!-- dc: Admin Calendar.dc.html › "TEAM TASKS" + "KEY DATES" -->
-    <div id="tasks" class="mx-two" style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:start">
+    <div id="tasks" class="mx-two" style="display:grid;grid-template-columns:1.35fr 1fr;gap:22px;align-items:start">
+      <div data-block="keydates" style="border:1px solid ${HAIR};background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.keyDates.title}</span>
+          <div style="flex:1"></div>
+          <span data-act="toggleEdit" style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:${st.editMode ? '#1e6e42' : '#6d6459'};cursor:pointer;border:1px solid rgba(32,27,22,.18);padding:4px 8px;white-space:nowrap" data-hover="color:#201b16">${st.editMode ? COPY.board.doneEditing : COPY.board.edit}</span>
+        </div>
+        ${groups.map(([label, rows]) => !rows.length ? '' : `
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9a9086;padding:10px 0 4px">${esc(label)}</div>
+          ${rows.map(k => `
+          <div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid ${HAIR06}">
+            ${st.editMode ? `<span ${k.src === 'entry' && k.id ? `data-act="removeEntry" data-id="${esc(k.id)}" title="${esc(COPY.board.deleteTitle)}" style="font:600 11px Inter,sans-serif;color:#9b1b22;cursor:pointer;flex:none;width:12px"` : `style="flex:none;width:12px"`}>${k.src === 'entry' && k.id ? '✕' : ''}</span>` : ''}
+            <span style="width:8px;height:8px;background:${k.c};flex:none"></span>
+            <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.11em;color:#201b16;width:66px;flex:none">${esc(fmt.rangeLabel(k.d, k.end))}</span>
+            <span style="font-size:12.5px;flex:1;min-width:0">${esc(k.t)}</span>
+          </div>`).join('')}`).join('')}
+        ${!kd.length ? `<div style="padding:12px 0;font-size:12.5px;color:#6d6459;font-style:italic">${COPY.board.empty}</div>` : ''}
+        ${strays.length ? `
+        <div data-v2="one early-bird truth (audit #9) — older entries on another date, removable here" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding:9px 12px;background:#f8f1e2;border-left:2px solid #c9a962">
+          <span style="font-size:11.5px;color:#7a6432;flex:1;min-width:0">${esc(COPY.keyDates.stray(strays.length))}</span>
+          <span data-act="dropStrays" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#7e151b">${COPY.keyDates.strayFix(strays.length)}</span>
+        </div>` : ''}
+        <span style="font-size:11px;color:#6d6459;margin-top:10px">${COPY.keyDates.foot}</span>
+      </div>
       <div data-block="tasks" style="border:1px solid ${HAIR};background:#fff">
         <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid ${HAIR12}">
           <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
@@ -281,18 +294,6 @@ function blockTasksKeyDates() {
           <span data-act="taskAdd" style="padding:9px 14px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;display:flex;align-items:center" data-hover="background:#000">${c.add}</span>
         </div>
       </div>
-      <div data-block="keydates" style="border:1px solid ${HAIR};background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:2px">
-        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;margin-bottom:8px">${COPY.keyDates.title}</span>
-        ${groups.map(([label, rows]) => !rows.length ? '' : `
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9a9086;padding:10px 0 4px">${esc(label)}</div>
-          ${rows.map(k => `
-          <div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid ${HAIR06}">
-            <span style="width:8px;height:8px;background:${k.c};flex:none"></span>
-            <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.11em;color:#201b16;width:66px;flex:none">${esc(fmt.rangeLabel(k.d, k.end))}</span>
-            <span style="font-size:12.5px;flex:1;min-width:0">${esc(k.t)}</span>
-          </div>`).join('')}`).join('')}
-        <span style="font-size:11px;color:#6d6459;margin-top:10px">${COPY.keyDates.foot}</span>
-      </div>
     </div>
     <!-- /dc -->`;
 }
@@ -302,8 +303,11 @@ function blockTasksKeyDates() {
 function blockPrint() {
   const years = boardYears().slice(0, 2);
   const kd = upcomingKeyDates();
+  // the printed board is a surface like any other: the older early-bird entries stay off it too,
+  // so the paper agrees with the screen on the one deadline (audit #9)
+  const strays = new Set(earlyBirdStrays().map(e => e.id));
   const yearGrid = y => {
-    const rows = D.cal.filter(e => yearOf(e.starts_on) === y);
+    const rows = D.cal.filter(e => yearOf(e.starts_on) === y && !strays.has(e.id));
     return `
     <div style="margin-top:${y === years[0] ? 18 : 26}px">
       <div style="font-family:Fraunces,serif;font-size:17px;margin-bottom:6px">${y}</div>
@@ -351,7 +355,6 @@ function template() {
     ${blockHead()}
     ${blockNextUp()}
     ${blockAdd()}
-    ${blockBoard()}
     ${blockTasksKeyDates()}
   </div>
   ${blockPrint()}
@@ -360,11 +363,12 @@ function template() {
 
 // ---------------------------------------------------------------- behaviour
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
+// everything that reads the entry feed: NEXT UP, KEY DATES (+ TEAM TASKS beside it) and the
+// hidden print board — the on-screen year board is gone (audit #7)
 function rerenderBoardBits() {
-  rerender('[data-block="board"]', blockBoard());
   rerender('[data-block="nextup"]', blockNextUp());
-  const kd = rootEl.querySelector('[data-block="keydates"]'); if (kd) { const wrap = rootEl.querySelector('#tasks'); if (wrap) wrap.outerHTML = blockTasksKeyDates(); }
-  const pr = rootEl.querySelector('.mxc-print'); if (pr) pr.outerHTML = blockPrint();
+  const wrap = rootEl && rootEl.querySelector('#tasks'); if (wrap) wrap.outerHTML = blockTasksKeyDates();
+  const pr = rootEl && rootEl.querySelector('.mxc-print'); if (pr) pr.outerHTML = blockPrint();
 }
 async function reloadCal() {
   try { const r = await api.settle({ cal: api.get('/api/admin/year-calendar'), kd: api.get('/api/v2/calendar/key-dates') });
@@ -396,7 +400,35 @@ const handlers = {
       ui.toast(COPY.add.added(y));
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
-  toggleEdit: () => { st.editMode = !st.editMode; rerender('[data-block="board"]', blockBoard()); },
+  toggleEdit: () => {
+    st.editMode = !st.editMode;
+    const wrap = rootEl.querySelector('#tasks'); if (wrap) wrap.outerHTML = blockTasksKeyDates();
+  },
+  // audit #9: delete the older entries that put the early-bird switch on a different day, so the
+  // live deadline is the only one anything shows. Confirm first, UNDO after — nothing is sent.
+  dropStrays: async el => {
+    const strays = earlyBirdStrays();
+    if (!strays.length) return;
+    const ok = await ui.confirm({
+      eyebrow: COPY.keyDates.title,
+      title: COPY.keyDates.strayTitle,
+      body: COPY.keyDates.strayBody(strays.length, fmt.dayShort(earlyBirdDeadline())),
+      ok: COPY.keyDates.strayOk, cancel: COPY.keyDates.strayCancel
+    });
+    if (!ok) return;
+    el.setAttribute('aria-disabled', 'true');
+    const copies = strays.map(e => ({ title: e.title, project: e.project, starts_on: e.starts_on, ends_on: e.ends_on, status: e.status, color: e.color, notes: e.notes }));
+    let done = 0;
+    for (const e of strays) {
+      try { await api.del('/api/admin/year-calendar/' + encodeURIComponent(e.id)); done++; }
+      catch (err) { ui.toast(err.message, { kind: 'error' }); }
+    }
+    await reloadCal();
+    if (done) ui.toast(COPY.keyDates.strayDone(done), { undo: async () => {
+      try { for (const c of copies) await api.post('/api/admin/year-calendar', c); await reloadCal(); ui.toast(COPY.board.restored); }
+      catch (err) { ui.toast(err.message, { kind: 'error' }); }
+    } });
+  },
   removeEntry: async el => {
     const e = D.cal.find(x => x.id === el.dataset.id); if (!e) return;
     const copy = { title: e.title, project: e.project, starts_on: e.starts_on, ends_on: e.ends_on, status: e.status, color: e.color, notes: e.notes };

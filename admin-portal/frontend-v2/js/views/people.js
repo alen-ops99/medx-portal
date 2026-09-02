@@ -13,6 +13,9 @@
 // (unsubscribe truth stays in the newsletter tables — the flag is an admin overlay);
 // the duplicates strip folds rows via POST /api/v2/people/merge, UNDO deletes the merge row.
 // Privacy: no password/secret field is ever fetched or rendered.
+// Audit 2026-09-02 #11: directory rows are single-line (name · dimmed email inline, ~40px),
+// the render windows at 60 with SHOW ALL N, and the COUNTRY column normalizes at render
+// (HR → Croatia, US/USA → United States — countryName(); stored values and CSV exports untouched).
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
@@ -40,6 +43,7 @@ export const COPY = {
   cols: { name: 'NAME', country: 'COUNTRY', status: 'STATUS' },
   open: 'OPEN →', emptyList: 'No one matches — try fewer words.',
   rowsNote: (n, total) => `Showing ${n} of ${total} people · everyone in the database, live`,
+  showAll: n => `SHOW ALL ${n}`,
   panelNote: 'Actions match the person — unpaid guests get payment tools, team members get access tools.',
   actions: { message: 'MESSAGE', markPaid: 'MARK PAID', chase: 'CHASE PAYMENT', resend: 'RESEND TICKET', copyPass: 'COPY PASS LINK', perms: 'PERMISSIONS →', regs: 'REGISTRATIONS →' },
   toasts: {
@@ -86,6 +90,29 @@ export const COPY = {
     dismissed: 'OK — LEFT AS SEPARATE PEOPLE', teamKeep: 'Team rows always survive — pick the team member as the keeper.'
   }
 };
+
+// ---- country display normalization (audit #11: the column mixed "Croatia", "HR", "USA", "US") ----
+// Render-time only — the stored value stays exactly as it arrived (ISO or free text); exports keep
+// the stored form. Codes and the common variants fold to one full English name.
+const COUNTRY_NAMES = {
+  hr: 'Croatia', croatia: 'Croatia', hrvatska: 'Croatia',
+  us: 'United States', usa: 'United States', 'united states': 'United States', 'united states of america': 'United States', 'u.s.': 'United States', 'u.s.a.': 'United States', america: 'United States',
+  uk: 'United Kingdom', gb: 'United Kingdom', 'great britain': 'United Kingdom', 'united kingdom': 'United Kingdom', england: 'United Kingdom',
+  de: 'Germany', deutschland: 'Germany', njemačka: 'Germany',
+  at: 'Austria', ch: 'Switzerland', ie: 'Ireland', fr: 'France', it: 'Italy', es: 'Spain', pt: 'Portugal',
+  si: 'Slovenia', slovenija: 'Slovenia', ba: 'Bosnia and Herzegovina', bih: 'Bosnia and Herzegovina', 'bosnia': 'Bosnia and Herzegovina', 'bosnia and herzegovina': 'Bosnia and Herzegovina',
+  rs: 'Serbia', srbija: 'Serbia', me: 'Montenegro', mk: 'North Macedonia',
+  nl: 'Netherlands', 'the netherlands': 'Netherlands', holland: 'Netherlands', be: 'Belgium', lu: 'Luxembourg',
+  se: 'Sweden', no: 'Norway', dk: 'Denmark', fi: 'Finland', is: 'Iceland',
+  pl: 'Poland', cz: 'Czechia', 'czech republic': 'Czechia', sk: 'Slovakia', hu: 'Hungary', gr: 'Greece', tr: 'Turkey', ro: 'Romania', bg: 'Bulgaria',
+  ca: 'Canada', au: 'Australia', nz: 'New Zealand', jp: 'Japan', cn: 'China', kr: 'South Korea', il: 'Israel', ae: 'United Arab Emirates', qa: 'Qatar', sa: 'Saudi Arabia',
+  br: 'Brazil', ar: 'Argentina', mx: 'Mexico', in: 'India', za: 'South Africa'
+};
+export function countryName(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  return COUNTRY_NAMES[s.toLowerCase()] || s;
+}
 
 const SEG_ORDER = ['ALL', 'MEMBERS', 'FORUM', 'REGISTRANTS', 'GALA', 'BOSTON', 'TEAM'];
 const QUICK_LINKS = [['PLEXUS', '/registrations?event=plexus'], ['GALA', '/registrations?event=gala'], ['BRIDGES', '/registrations?event=bridges'], ['ALL', '/registrations']];
@@ -137,8 +164,9 @@ function segOn(k) { return k === 'ALL' ? !st.segs.length : st.segs.includes(k); 
 function isFiltered() { return !!(st.query.trim() || st.segs.length); }
 function filtered() {
   const q = st.query.trim().toLowerCase();
+  // the haystack carries BOTH country forms — typing "Croatia" finds rows stored as "HR" and vice versa
   return D.people.filter(p => (!st.segs.length || p.segs.some(s => st.segs.includes(s))) &&
-    (!q || (p.name + ' ' + p.email + ' ' + p.country + ' ' + p.tags.join(' ')).toLowerCase().includes(q)));
+    (!q || (p.name + ' ' + p.email + ' ' + p.country + ' ' + countryName(p.country) + ' ' + p.tags.join(' ')).toLowerCase().includes(q)));
 }
 function selected() {
   const list = filtered();
@@ -378,20 +406,23 @@ function hygieneRows(p) {
         </div>${merged}
       </div>`;
 }
+const PEOPLE_WINDOW = 60;                                  // audit #11: window the render, don't dump the database
 function listCard() {
   const list = filtered(); const sel = selected();
+  const shown = st.showAll ? list : list.slice(0, PEOPLE_WINDOW);
+  // audit #11: single-line rows — name with the email inline and dimmed, ~40px tall
   return `
     <div data-block="list" style="border:1px solid rgba(32,27,22,.14);background:#fff">
       <div class="mx-people-row" style="display:grid;grid-template-columns:2fr 1.1fr 1.6fr auto;gap:12px;padding:10px 18px;border-bottom:1px solid rgba(32,27,22,.14);font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459"><span>${COPY.cols.name}</span><span>${COPY.cols.country}</span><span>${COPY.cols.status}</span><span></span></div>
-      ${list.map(p => `
-      <div data-act="openRow" data-key="${esc(p.key)}" class="mx-people-row" style="display:grid;grid-template-columns:2fr 1.1fr 1.6fr auto;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(32,27,22,.07);cursor:pointer;align-items:center;background:${sel && p.key === sel.key ? '#f6f2ea' : '#fff'}">
-        <span style="min-width:0"><span style="display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span><span style="display:block;font-size:11px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.email || '—')}</span></span>
-        <span style="font-size:12.5px;color:#4a4239">${esc(p.country || '—')}</span>
-        <span style="display:flex;gap:6px;flex-wrap:wrap">${p.tags.map(t => { const s = tagStyle(t); return `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 7px;background:${s.bg};color:${s.fg};white-space:nowrap">${esc(t)}</span>`; }).join('')}</span>
+      ${shown.map(p => `
+      <div data-act="openRow" data-key="${esc(p.key)}" class="mx-people-row" style="display:grid;grid-template-columns:2fr 1.1fr 1.6fr auto;gap:12px;padding:9px 18px;border-bottom:1px solid rgba(32,27,22,.07);cursor:pointer;align-items:center;background:${sel && p.key === sel.key ? '#f6f2ea' : '#fff'}">
+        <span style="min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:600">${esc(p.name)}</span>${p.email ? ` <span style="font-size:11px;color:#6d6459">· ${esc(p.email)}</span>` : ''}</span>
+        <span style="font-size:12.5px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(countryName(p.country) || '—')}</span>
+        <span style="display:flex;gap:6px;flex-wrap:wrap;min-width:0">${p.tags.map(t => { const s = tagStyle(t); return `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 7px;background:${s.bg};color:${s.fg};white-space:nowrap">${esc(t)}</span>`; }).join('')}</span>
         <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap">${COPY.open}</span>
       </div>`).join('')}
       ${!list.length ? `<div style="padding:26px 18px;text-align:center;font-size:13px;color:#6d6459">${COPY.emptyList}</div>` : ''}
-      <div style="padding:11px 18px;font-size:11.5px;color:#6d6459">${COPY.rowsNote(list.length, D.people.length)}</div>
+      <div style="padding:11px 18px;font-size:11.5px;color:#6d6459;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap">${COPY.rowsNote(shown.length, D.people.length)}<div style="flex:1"></div>${list.length > shown.length ? `<span data-act="showAllRows" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.showAll(list.length)}</span>` : ''}</div>
     </div>`;
 }
 function panelCard() {
@@ -404,7 +435,7 @@ function panelCard() {
     <div data-block="panel" style="border:1px solid rgba(32,27,22,.14);background:#fff">
       <div style="padding:16px 18px;border-bottom:1px solid rgba(32,27,22,.12);display:flex;gap:12px;align-items:center">
         <span style="width:40px;height:40px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 14px Fraunces,serif;flex:none">${esc(ini)}</span>
-        <span style="min-width:0"><span style="display:block;font-size:15px;font-weight:600">${esc(p.name)}</span><span style="display:block;font-size:11.5px;color:#6d6459">${esc([p.country, p.email].filter(Boolean).join(' · ') || '—')}</span></span>
+        <span style="min-width:0"><span style="display:block;font-size:15px;font-weight:600">${esc(p.name)}</span><span style="display:block;font-size:11.5px;color:#6d6459">${esc([countryName(p.country), p.email].filter(Boolean).join(' · ') || '—')}</span></span>
       </div>
       <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
         ${rows.map(([k, v]) => `
@@ -502,6 +533,7 @@ async function undoMerges(ids) {
 }
 
 const handlers = {
+  showAllRows: () => { st.showAll = true; redraw('list'); },
   seg: (el) => {
     const k = el.dataset.seg;
     if (k === 'ALL') st.segs = [];
@@ -690,7 +722,7 @@ export default {
   async render(root, ctx) {
     ensureCss();
     rootEl = root;
-    st = { query: '', segs: [], selKey: null, addOpen: false, passDraft: '', passEvent: '', copiedPass: null, profileLoading: null, noteDraft: null, dupDismissed: [], sessionMerges: [] };
+    st = { query: '', segs: [], selKey: null, addOpen: false, passDraft: '', passEvent: '', copiedPass: null, profileLoading: null, noteDraft: null, dupDismissed: [], sessionMerges: [], showAll: false };
     D = await load();
     if (rootEl !== root) return;                        // navigated away while loading
     st.passEvent = (D.passEvents[0] && D.passEvents[0].key) || 'gala';

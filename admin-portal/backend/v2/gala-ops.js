@@ -7,7 +7,11 @@
  * outbox all stay on their existing v1 routes — this module never duplicates them):
  *
  *   GET  /api/v2/gala-ops/overview                       auth+adminOnly  one read for the screen:
- *        { tables, assignments, meals, waitlist, cancellations, meta, room, price, now }
+ *        { tables, assignments, meals, waitlist, cancellations, meta, room, price, summary, now }
+ *   GET  /api/v2/gala-ops/summary                        auth+adminOnly  ONE TRUTH for the gala
+ *        tallies (audit 2026-09-02 #1): { basis:'seats', price, seats:{reserved,paid,chase,seated,
+ *        capacity}, bookings, eur:{collected,outstanding}, cancelled }. Also embedded in the
+ *        overview and exported as module.exports.computeSummary for backend/v2/money.js.
  *   PUT  /api/v2/gala-ops/registrations/:id/meal         auth+adminOnly  { option_id } ('' clears the override)
  *   POST /api/v2/gala-ops/registrations                  auth+adminOnly  ADD GUEST { name, email?, institution?, kind: invoice|vip|sponsor }
  *        invoice → status 'approved' + pay_token + a payment-request email staged into the
@@ -89,13 +93,88 @@
 'use strict';
 const crypto = require('crypto');
 
+// ---------------------------------------------------------------- ONE TRUTH for the gala tallies
+// (UX audit 2026-09-02 finding #1: five screens carried five different gala numbers.)
+// computeGalaSummary(db) is THE canonical computation — seats (1 + guest_count, plus-ones
+// included), € collected, € outstanding at the price-by-the-clock. It is served at
+// GET /api/v2/gala-ops/summary, embedded in the overview payload, and exported on this
+// module (module.exports.computeSummary) so backend/v2/money.js reads the SAME numbers
+// instead of re-deriving its own. Standalone on purpose: it takes the db getter as its
+// argument and never touches the mount closure, so any module can call it.
+const GALA_INACTIVE = ['cancelled', 'rejected', 'declined', 'expired'];
+const GALA_DEFAULT_DEADLINE = '2026-09-15';
+const GALA_DEFAULT_ROOM = 10 * 8;
+function sqlOne(db, sql, params) {
+    let st = null;
+    try { st = db().prepare(sql); st.bind(params || []); return st.step() ? st.getAsObject() : null; }
+    finally { if (st) st.free(); }
+}
+function sqlAll(db, sql, params) {
+    let st = null;
+    try { st = db().prepare(sql); st.bind(params || []); const out = []; while (st.step()) out.push(st.getAsObject()); return out; }
+    finally { if (st) st.free(); }
+}
+// Same arithmetic as effectiveGalaPrice() in server.js / the member v2 priceBlock — kept in step.
+function computeGalaPrice(db) {
+    let s = {};
+    try { s = sqlOne(db, "SELECT price_gala_only, price_gala_early_bird, price_gala_regular, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {}; } catch (e) {}
+    let comp = null;
+    try { comp = sqlOne(db, "SELECT price FROM event_components WHERE event_type = 'plexus' AND component_key = 'gala' AND is_active = 1"); } catch (e) {}
+    const compPrice = comp && comp.price != null ? Number(comp.price) : NaN;
+    const eb = Number.isFinite(compPrice) ? compPrice : Number(s.price_gala_early_bird);
+    const early = Number.isFinite(eb) ? eb : (Number(s.price_gala_only) || 150);
+    const regular = Number.isFinite(Number(s.price_gala_regular)) ? Number(s.price_gala_regular) : early;
+    const flip = s.early_bird_deadline || GALA_DEFAULT_DEADLINE;
+    const today = new Date().toISOString().slice(0, 10);
+    const isEarly = today <= flip;
+    return { current: isEarly ? early : regular, next: isEarly ? regular : null, early, regular, flip_date: flip, phase: isEarly ? 'early_bird' : 'regular', currency: 'EUR' };
+}
+function computeGalaSummary(db) {
+    const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    const seatsOf = (r) => 1 + (Number(r.guest_count) || 0);
+    let regs = [];
+    try { regs = sqlAll(db, 'SELECT id, status, payment_status, amount_paid, guest_count FROM gala_registrations'); } catch (e) {}
+    const act = regs.filter(r => !GALA_INACTIVE.includes(String(r.status || '').toLowerCase()));
+    const paidRows = act.filter(r => r.payment_status === 'paid');
+    const chaseRows = act.filter(r => r.payment_status !== 'paid');
+    const assigned = new Set();
+    try { sqlAll(db, 'SELECT registration_id FROM gala_seat_assignments').forEach(a => assigned.add(a.registration_id)); } catch (e) {}
+    let capacity = 0, tableCount = 0;
+    try {
+        const tables = sqlAll(db, 'SELECT capacity FROM gala_tables');
+        tableCount = tables.length;
+        capacity = tables.reduce((n, t) => n + (Number(t.capacity) || 8), 0);
+    } catch (e) {}
+    const price = computeGalaPrice(db);
+    const sum = (rows) => rows.reduce((n, r) => n + seatsOf(r), 0);
+    const reserved = sum(act);
+    const paidSeats = sum(paidRows);
+    const chaseSeats = sum(chaseRows);
+    return {
+        basis: 'seats',                                     // every seat count includes plus-ones (1 + guest_count)
+        price,
+        seats: {
+            reserved, paid: paidSeats, chase: chaseSeats,
+            seated: sum(act.filter(r => assigned.has(r.id))),
+            capacity: tableCount ? capacity : GALA_DEFAULT_ROOM
+        },
+        bookings: { total: act.length, paid: paidRows.length, chase: chaseRows.length },   // registration rows = payments
+        eur: {
+            collected: round2(paidRows.reduce((n, r) => n + (Number(r.amount_paid) || 0), 0)),
+            outstanding: round2(chaseSeats * (Number(price.current) || 0))
+        },
+        cancelled: regs.length - act.length,
+        now: new Date().toISOString()
+    };
+}
+
 module.exports = function mountGalaOps(app, ctx) {
     const { db, auth, adminOnly, sendEmail, saveDb } = ctx;
     const log = ctx.log || ((...a) => console.log('[v2/gala-ops]', ...a));
 
     const META_KEY = 'performers';
     const MAX_PERFORMERS = 6;
-    const DEFAULT_DEADLINE = '2026-09-01';
+    // (the early-bird deadline default lives at module scope now — GALA_DEFAULT_DEADLINE, one truth)
     const DEFAULT_TABLES = 10, DEFAULT_SEATS = 8;              // the artboard's 10 × 8 room
     const OFFER_HOURS = 24;
     const INACTIVE = ['cancelled', 'rejected', 'declined', 'expired'];
@@ -237,21 +316,10 @@ module.exports = function mountGalaOps(app, ctx) {
         return 'http://localhost:3010';
     }
 
-    // Same arithmetic as effectiveGalaPrice() in server.js / the member v2 priceBlock — kept in step.
-    function priceBlock() {
-        let s = {};
-        try { s = getRow("SELECT price_gala_only, price_gala_early_bird, price_gala_regular, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {}; } catch (e) {}
-        let comp = null;
-        try { comp = getRow("SELECT price FROM event_components WHERE event_type = 'plexus' AND component_key = 'gala' AND is_active = 1"); } catch (e) {}
-        const compPrice = comp && comp.price != null ? Number(comp.price) : NaN;
-        const eb = Number.isFinite(compPrice) ? compPrice : Number(s.price_gala_early_bird);
-        const early = Number.isFinite(eb) ? eb : (Number(s.price_gala_only) || 150);
-        const regular = Number.isFinite(Number(s.price_gala_regular)) ? Number(s.price_gala_regular) : early;
-        const flip = s.early_bird_deadline || DEFAULT_DEADLINE;
-        const today = new Date().toISOString().slice(0, 10);
-        const isEarly = today <= flip;
-        return { current: isEarly ? early : regular, next: isEarly ? regular : null, early, regular, flip_date: flip, phase: isEarly ? 'early_bird' : 'regular', currency: 'EUR' };
-    }
+    // Same arithmetic as effectiveGalaPrice() in server.js / the member v2 priceBlock — since the
+    // 2026-09-02 audit (#1: one truth for the numbers) it delegates to the module-scope
+    // computeGalaPrice, the same rule computeGalaSummary and backend/v2/money.js read.
+    function priceBlock() { return computeGalaPrice(db); }
 
     // ---------------------------------------------------------------- room + seats
     function seatsOf(r) { return 1 + (Number(r.guest_count) || 0); }
@@ -385,8 +453,17 @@ module.exports = function mountGalaOps(app, ctx) {
             const meals = {};
             for (const m of mealsRows) meals[m.registration_id] = m.option_id;
             const room = roomState();
-            res.json({ tables: room.tables, assignments, meals, waitlist: wl, cancellations: cancels, categories: readCategories(), meta: metaJson(), room, price: priceBlock(), now: nowIso() });
+            // `summary` = the canonical tallies (audit #1) — the KPI strip reads THIS, never local math.
+            res.json({ tables: room.tables, assignments, meals, waitlist: wl, cancellations: cancels, categories: readCategories(), meta: metaJson(), room, price: priceBlock(), summary: computeGalaSummary(db), now: nowIso() });
         } catch (e) { log('overview failed:', e.message); res.status(500).json({ error: 'The Gala overview is unavailable right now.' }); }
+    });
+
+    // ONE truth for the gala tallies (audit #1) — the same computation the overview embeds and
+    // backend/v2/money.js imports. Every screen that states a gala number reads this shape:
+    // { basis:'seats', price, seats:{reserved,paid,chase,seated,capacity}, bookings, eur:{collected,outstanding}, cancelled }.
+    app.get('/api/v2/gala-ops/summary', auth, adminOnly, (req, res) => {
+        try { res.json(computeGalaSummary(db)); }
+        catch (e) { log('summary failed:', e.message); res.status(500).json({ error: 'The Gala summary is unavailable right now.' }); }
     });
 
     // Meal override for one guest ('' clears it → back to the dietary-text mapping).
@@ -928,5 +1005,10 @@ module.exports = function mountGalaOps(app, ctx) {
         } catch (e) { log('meta write failed:', e.message); res.status(500).json({ error: 'Could not save the Gala details.' }); }
     });
 
-    log('gala-ops mounted (overview, add-guest, meal, soft-cancel/restore, waitlist + 24 h offers, performers meta, guest categories, invitations → outbox, menu options)');
+    log('gala-ops mounted (overview + one-truth summary, add-guest, meal, soft-cancel/restore, waitlist + 24 h offers, performers meta, guest categories, invitations → outbox, menu options)');
 };
+
+// The canonical gala tallies, importable by any backend module (money.js reads it so the Money
+// screen's gala line can never diverge from the Gala screen again — audit #1).
+module.exports.computeSummary = computeGalaSummary;
+module.exports.computePrice = computeGalaPrice;

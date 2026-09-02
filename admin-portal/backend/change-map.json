@@ -189,7 +189,7 @@
   },
   {
     "field_group": "4. Gala settings (date, price, tagline, dress code)",
-    "admin_location": "Admin portal › Gala › Settings tab (index.html:12955-13005: #galaSettingTitle, #galaSettingTagline, #galaSettingDate, #galaSettingTime, #galaSettingVenue, #galaSettingDressCode, #galaSettingCapacity, #galaSettingRegOpen, #galaSettingDescription). Table `gala_settings` (+ price_gala_only 95, price_bundle 174, price_gala_early_bird 150, price_gala_regular 175, early_bird_deadline 2026-09-01, speakers_json, schedule_json). PUT admin-portal/backend/server.js:29045.",
+    "admin_location": "Admin portal › Gala › Settings tab (index.html:12955-13005: #galaSettingTitle, #galaSettingTagline, #galaSettingDate, #galaSettingTime, #galaSettingVenue, #galaSettingDressCode, #galaSettingCapacity, #galaSettingRegOpen, #galaSettingDescription). Table `gala_settings` (+ price_gala_only 95, price_bundle 174, price_gala_early_bird 150, price_gala_regular 175, early_bird_deadline 2026-09-15, speakers_json, schedule_json). PUT admin-portal/backend/server.js:29045.",
     "surfaces": [
       {
         "type": "website",
@@ -205,7 +205,7 @@
         "selector_or_desc": ".gx-countdown .cd-clock[data-medx-countdown='deadline.early_bird']",
         "live_or_hardcoded": "live",
         "screenshot": "/Users/alen/.claude/jobs/ad4f417d/tmp/change_map/annotated/04_gala_settings.png",
-        "note": "TRAP: counts to conferences.early_bird_deadline (2026-09-01) — reads '38 days' today, not ~133 days to the gala."
+        "note": "TRAP: counts to conferences.early_bird_deadline (2026-09-15) — reads '38 days' today, not ~133 days to the gala."
       },
       {
         "type": "countdown",

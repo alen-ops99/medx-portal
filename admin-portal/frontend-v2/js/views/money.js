@@ -5,12 +5,19 @@
 // "RECENT MONEY IN" (every source) + "STILL OWED TO US" (breakdown + očekivane uplate add/edit) ›
 // "KNJIGA IZLAZNIH RAČUNA" › "KNJIGA ULAZNIH RAČUNA" › "PUTNI NALOZI" (separated) › "NALOZI ZA
 // PLAĆANJE" › "RADNE JEDINICE" › "IZVJEŠTAJI" (project · work unit · person · date range, CSV of the
-// filtered set) › "FINANCE TOOLS" (all transactions · Stripe · close year) › v2 "MORNING-AFTER SURVEY".
+// filtered set) › "FINANCE TOOLS" (all transactions · Stripe · close year).
 //
 // REMOVED from this screen per Miro: PAYMENTS TO CHASE, SPONSORS & DONORS, BOARD PACK (they live
 // with their projects), RECONCILE BANK TRANSFERS, the free-form EXPENSES quick-add (costs now follow
 // the knjiga ulaznih računa entry), and the orders' "send to sign" button (no e-signing exists).
 // Their /api/v2/money endpoints stay alive for the project screens.
+// REMOVED per the 2026-09-02 UX audit (#15): the v2 MORNING-AFTER SURVEY card — email machinery,
+// not bookkeeping; it belongs beside the outbox it feeds. The /api/v2/money/survey* endpoints stay
+// alive untouched (queued survey links must keep resolving) — only the card left this screen.
+// Audit #13: every heading keeps the one-directional bilingual rule the book headers set —
+// Croatian term first, English gloss after — and every date on this screen renders dd.mm.yyyy.
+// Audit #1: the gala line inside STILL-OWED arrives from /api/v2/money/summary, which now reads
+// the ONE canonical gala computation (backend/v2/gala-ops.js computeSummary) — same numbers as /gala.
 //
 // ⚠ FIRA RULE (hard): invoices are issued ONLY through the FIRA fiscal system. The outgoing book
 // LISTS FIRA-issued invoices — the number is TYPED from FIRA; non-fiscalized rows are manual
@@ -23,26 +30,28 @@ import { chrome } from '../chrome.js';
 export const SOURCE = 'Admin Money.dc.html';
 
 export const COPY = {
-  title: 'Money', sub: 'sve knjige na jednom mjestu — what came in, what’s owed, what was spent',
+  // Audit #13: one-directional bilingualism — Croatian term first, small English gloss after
+  // (the rule the book headers already used); never EN/HR mixed mid-sentence.
+  title: 'Money', sub: 'sve knjige na jednom mjestu — income, receivables and spending in one place',
   fiscalYear: 'FISCAL YEAR',
   stats: {
-    collected: y => `COLLECTED IN ${y}`, collectedSub: 'sav prihod · every project, every source',
-    owed: 'STILL OWED TO US', owedSub: n => `${fmt.plural(n, 'stavka', 'stavki')} — uključuje ručno unesena potraživanja (npr. MZO)`,
+    collected: y => `NAPLAĆENO U ${y}.`, collectedSub: 'collected — svi projekti, svi izvori prihoda',
+    owed: 'OTVORENA POTRAŽIVANJA', owedSub: n => `still owed to us — ${fmt.plural(n, 'stavka', 'stavki')}, uključuje ručni unos (npr. MZO)`,
     owedTitle: 'Sva potraživanja — rezervirana Gala mjesta, nenaplaćeni računi i ručno uneseno (npr. dobiven natječaj čija uplata još nije sjela)',
-    spent: 'SPENT', spentSub: 'ulazni računi + putni nalozi + naslijeđeni troškovi',
-    net: 'NET THIS YEAR', netSub: 'collected minus spent'
+    spent: 'POTROŠENO', spentSub: 'spent — ulazni računi + putni nalozi + naslijeđeni troškovi',
+    net: y => `NETO ${y}.`, netSub: 'net this year — naplaćeno minus potrošeno'
   },
   jump: [
     ['bookout', 'Izlazni računi'], ['bookin', 'Ulazni računi'], ['travel', 'Putni nalozi'],
     ['payment', 'Nalozi za plaćanje'], ['units', 'Radne jedinice'], ['reports', 'Izvještaji'], ['tools', 'Alati']
   ],
   moneyIn: {
-    title: 'RECENT MONEY IN', sub: 'sav prihod, neovisno o izvoru i projektu',
-    all: 'ALL TRANSACTIONS →', empty: 'Nothing received yet this year.',
+    title: 'NEDAVNE UPLATE', sub: 'recent money in — sav prihod, neovisno o izvoru i projektu',
+    all: 'SVE TRANSAKCIJE →', empty: 'Još ništa nije sjelo u ovoj godini.',
     foot: 'Stripe uplate, bankovne uplate, naplaćeni računi, primljene očekivane uplate i sponzorstva — jedan tok.'
   },
   owed: {
-    title: 'STILL OWED TO US', sub: 'potraživanja — sve što nam još nije sjelo',
+    title: 'OTVORENA POTRAŽIVANJA', sub: 'still owed to us — sve što nam još nije sjelo',
     add: '+ OČEKIVANA UPLATA', addTitle: 'Upiši potraživanje koje nije račun — npr. dobiven MZO natječaj čija uplata još nije stigla',
     expTitle: 'OČEKIVANE UPLATE — RUČNI UNOS', expEmpty: 'Ništa ručno uneseno — dodaj npr. dobiveni natječaj čija uplata još nije sjela.',
     srcPh: 'Tko nam duguje — npr. MZO — natječaj za udruge', descPh: 'Opis (neobavezno)', amtPh: '€ iznos', datePh: 'Očekivani datum',
@@ -69,7 +78,7 @@ export const COPY = {
     firaPh: 'Broj računa iz FIRA-e — npr. 26-100-0042', brojPh: 'Broj računa', partyOutPh: 'Naziv kupca', partyInPh: 'Naziv dobavljača',
     oibPh: 'OIB (11 znamenki)', amtPh: '€ iznos', notesPh: 'Napomena (neobavezno)',
     lblDatum: 'Datum računa', lblKnjizenje: 'Datum knjiženja', lblNaplata: 'Datum naplate (ako je naplaćen)', lblPlacanje: 'Datum plaćanja (ako je plaćen)',
-    settleAct: 'NAPLAĆENO?', settleActIn: 'PLAĆENO?', settled: d => `✓ ${fmt.dayLabel(d)}`,
+    settleAct: 'NAPLAĆENO?', settleActIn: 'PLAĆENO?', settled: d => `✓ ${dmy(d)}`,
     added: 'RAČUN UPISAN U KNJIGU', saved: 'REDAK SPREMLJEN', deleted: 'REDAK OBRISAN IZ KNJIGE',
     settledToast: 'OZNAČENO NAPLAĆENO — ZBROJEVI OSVJEŽENI', settledToastIn: 'OZNAČENO PLAĆENO', settleUndone: 'VRAĆENO U NENAPLAĆENE',
     confirmDelete: n => ({ title: `Obrisati račun ${n} iz knjige?`, body: 'Briše se samo evidencija u knjizi — račun u FIRA-i (ili kod dobavljača) time ne nestaje.', ok: 'OBRIŠI', cancel: 'OSTAVI' }),
@@ -112,7 +121,7 @@ export const COPY = {
     foot: 'Prihod = izlazni računi knjiženi na jedinicu · rashod = ulazni računi + putni nalozi · konačno stanje = preneseno + prihod − rashod.'
   },
   reports: {
-    title: 'IZVJEŠTAJI', sub: 'by project · by work unit · by person · by date range',
+    title: 'IZVJEŠTAJI', sub: 'reports — po projektu, po radnoj jedinici, po osobi, po razdoblju',
     groups: [['project', 'Po projektu'], ['work_unit', 'Po radnoj jedinici'], ['person', 'Po osobi']],
     run: 'PRIKAŽI', th: { grupa: { project: 'PROJEKT', work_unit: 'RADNA JEDINICA', person: 'OSOBA' }, prihod: 'PRIHOD', rashod: 'RASHOD', neto: 'NETO', stavki: 'STAVKI' },
     total: 'UKUPNO', legacyChip: 'uklj. naslijeđeno',
@@ -145,25 +154,13 @@ export const COPY = {
     confirm2: y => ({ title: 'Asking twice, as promised.', body: `This locks ${y} for good — reopening later is possible but audited.`, ok: `CLOSE ${y}`, cancel: 'CANCEL' }),
     closed: 'YEAR CLOSED — EVERY NUMBER IS NOW READ-ONLY', reopened: 'YEAR REOPENED'
   },
-  survey: {
-    title: 'MORNING-AFTER SURVEY', sub: 'queues at 08:00 the day after each event — 3 questions, approved like any email',
-    sweep: 'RUN SWEEP NOW', sweepTitle: 'Checks now instead of waiting for the 10-minute timer',
-    state: {
-      scheduled: e => `queues ${fmt.dayLabel(e.queue_at)} · 08:00`,
-      due: 'due — the sweep queues it within 10 minutes',
-      queued: e => `${fmt.plural(e.awaiting_approval || e.sent, 'email')} awaiting your OK — Outbox →`,
-      sent: e => `${e.answered} of ${e.sent} answered`, missed: 'window passed — not queued'
-    },
-    results: r => `${r.n_answered}/${r.n_sent} answered${r.avg_q1 != null ? ` · avg ${r.avg_q1}/10` : ''}${r.yes_pct != null ? ` · ${r.yes_pct}% would return` : ''}`,
-    swept: n => n ? `SWEPT — ${fmt.plural(n, 'BATCH', 'BATCHES')} QUEUED FOR YOUR OK` : 'NOTHING DUE — IT QUEUES AT 08:00 AFTER EACH EVENT',
-    empty: 'No dated events found — surveys attach themselves to conference and Bridges dates.'
-  },
   editEyebrow: 'UREDI REDAK', editSave: 'SPREMI', editCancel: 'ODUSTANI'
 };
+// (the MORNING-AFTER SURVEY card left this screen per audit #15 — it lives with the email
+// machinery it feeds; the /api/v2/money/survey* endpoints stay alive untouched)
 
 const HAIR = 'rgba(32,27,22,.14)', HAIR12 = 'rgba(32,27,22,.12)', HAIR08 = 'rgba(32,27,22,.08)', HAIR07 = 'rgba(32,27,22,.07)';
 const SRC_TAG = { CARD: ['#e4efe7', '#22563a'], BANK: ['#e4efe7', '#22563a'], GALA: ['#fdf3df', '#8a6116'], PLEXUS: ['#eee9df', '#4a4239'], 'RAČUN': ['#e8e4f0', '#4a3a6b'], GRANT: ['#e2ecf3', '#2b567a'], SPONSOR: ['#f3e6d8', '#7a5222'] };
-const SURVEY_DOT = { scheduled: '#6d6459', due: '#b7791f', queued: '#c9a962', sent: '#2f7d4f', missed: '#9a9086' };
 const INPUT = 'border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16';
 const INPUT2 = 'border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16';
 const BTN_RED = 'padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap';
@@ -187,8 +184,7 @@ async function load(year) {
     pay: api.get('/api/v2/money/payment-orders?year=' + year),
     units: api.get('/api/v2/money/work-units?year=' + year),
     expected: api.get('/api/v2/money/expected'),
-    years: api.get('/api/finance/years'),
-    survey: api.get('/api/v2/money/survey')
+    years: api.get('/api/finance/years')
   });
   const list = (x, k) => (x && Array.isArray(x[k])) ? x[k] : [];
   return {
@@ -200,8 +196,7 @@ async function load(year) {
     pay: r.pay || { rows: [], sums: { count: 0, total: 0 } },
     units: list(r.units, 'rows'),
     expected: list(r.expected, 'rows'),
-    years: Array.isArray(r.years) ? r.years : [],
-    survey: list(r.survey, 'events'), surveyResults: null
+    years: Array.isArray(r.years) ? r.years : []
   };
 }
 
@@ -209,6 +204,12 @@ const projLabel = p => (COPY.projects.find(x => x[0] === p) || [null, p || 'Gene
 const unitLabel = r => r.work_unit_code ? `${r.work_unit_code}` : COPY.noUnitShort;
 const unitTitle = r => r.work_unit_code ? `${r.work_unit_code} — ${r.work_unit_name || ''}` : '';
 const money = v => fmt.eur(v || 0);
+// Audit #13: Croatian bookkeeping reads dd.mm.yyyy — "09/01/2026" means two different days
+// depending on who reads it, so every rendered date on this screen uses this form.
+const dmy = v => { const d = fmt.toDate(v); return d ? `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}` : '—'; };
+// the locale + format hint every date input on this screen carries (browsers render the native
+// picker in the OS locale — the title is the part we control)
+const DATE_HINT = ' lang="hr" title="dd.mm.yyyy"';
 
 async function fetchBlob(path) {
   const res = await fetch(api.url(path), { headers: { Authorization: 'Bearer ' + session.token } });
@@ -264,8 +265,8 @@ function filterRow(cardKey, f, withPerson) {
     ${withPerson ? `<input data-change="filter" data-card="${cardKey}" data-field="person" value="${esc(f.person || '')}" placeholder="${esc(withPerson)}" aria-label="Filter po osobi" style="${INPUT};min-width:150px">` : ''}
     <select data-change="filter" data-card="${cardKey}" data-field="project" aria-label="Filter po projektu" style="${INPUT}">${[['', COPY.filters.project]].concat(COPY.projects).map(([v, l]) => `<option value="${v}"${v === (f.project || '') ? ' selected' : ''}>${l}</option>`).join('')}</select>
     <select data-change="filter" data-card="${cardKey}" data-field="work_unit" aria-label="Filter po radnoj jedinici" style="${INPUT}">${[['', COPY.filters.unit]].concat(D.units.map(u => [u.id, u.code])).map(([v, l]) => `<option value="${esc(v)}"${v === (f.work_unit || '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
-    <label style="${MICRO}">${COPY.filters.from} <input type="date" data-change="filter" data-card="${cardKey}" data-field="from" value="${esc(f.from || '')}" aria-label="Od datuma" style="${INPUT}"></label>
-    <label style="${MICRO}">${COPY.filters.to} <input type="date" data-change="filter" data-card="${cardKey}" data-field="to" value="${esc(f.to || '')}" aria-label="Do datuma" style="${INPUT}"></label>
+    <label style="${MICRO}">${COPY.filters.from} <input type="date" lang="hr" title="dd.mm.yyyy" data-change="filter" data-card="${cardKey}" data-field="from" value="${esc(f.from || '')}" aria-label="Od datuma" style="${INPUT}"></label>
+    <label style="${MICRO}">${COPY.filters.to} <input type="date" lang="hr" title="dd.mm.yyyy" data-change="filter" data-card="${cardKey}" data-field="to" value="${esc(f.to || '')}" aria-label="Do datuma" style="${INPUT}"></label>
     ${(f.project || f.work_unit || f.from || f.to || f.person) ? `<span data-act="clearFilter" data-id="${cardKey}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer">${COPY.filters.clear}</span>` : ''}
   </div>`;
 }
@@ -302,7 +303,7 @@ function blockStats() {
     ${cell(`border-right:1px solid ${HAIR12};`, 'goMoneyIn', c.collected(st.year), money(s.collected.total), esc(c.collectedSub))}
     ${cell(`border-right:1px solid ${HAIR12};`, 'goOwed', c.owed, money(s.owed.total), esc(c.owedSub(owedCount)), '#9b1b22', c.owedTitle)}
     ${cell(`border-right:1px solid ${HAIR12};`, 'goBookIn', c.spent, money(s.spent.total), esc(c.spentSub))}
-    ${cell('', 'goReports', c.net, money(net), c.netSub, net >= 0 ? '#2f7d4f' : '#9b1b22')}
+    ${cell('', 'goReports', c.net(st.year), money(net), c.netSub, net >= 0 ? '#2f7d4f' : '#9b1b22')}
   </div>
   <!-- /dc -->`;
 }
@@ -329,7 +330,7 @@ function blockMoneyIn() {
       </div>
       ${rows.map(t => { const tg = SRC_TAG[t.source] || ['#eee9df', '#4a4239']; return `
       <div style="display:flex;align-items:center;gap:14px;padding:11px 20px;border-bottom:1px solid ${HAIR07}">
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;width:46px;flex:none">${esc(fmt.dayLabel(t.date))}</span>
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;width:70px;flex:none">${esc(dmy(t.date))}</span>
         <span class="mx-row-text" style="flex:1;font-size:13px;min-width:0">${esc(t.label || '—')}</span>
         <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;padding:3px 7px;background:${tg[0]};color:${tg[1]};white-space:nowrap">${esc(t.source)}</span>
         <span style="font-family:Fraunces,serif;font-size:15px;white-space:nowrap">${money(t.amount)}</span>
@@ -370,7 +371,7 @@ function blockOwed() {
         <input data-role="exSrc" placeholder="${esc(c.srcPh)}" aria-label="Izvor potraživanja" style="flex:2;min-width:200px;${INPUT}">
         <input data-role="exDesc" placeholder="${esc(c.descPh)}" aria-label="Opis" style="flex:1;min-width:140px;${INPUT}">
         <input data-role="exAmt" placeholder="${esc(c.amtPh)}" aria-label="Iznos" style="width:90px;${INPUT}">
-        <label style="${MICRO}">${esc(c.datePh)} <input type="date" data-role="exDate" aria-label="Očekivani datum" style="${INPUT}"></label>
+        <label style="${MICRO}">${esc(c.datePh)} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="exDate" aria-label="Očekivani datum" style="${INPUT}"></label>
         ${selProject('exProj', 'general', false)}
         ${selUnit('exUnit', '', false)}
         <span data-act="exAdd" style="${BTN_RED}" data-hover="background:#7e151b">${c.save}</span>
@@ -380,7 +381,7 @@ function blockOwed() {
       <div data-row="${esc(x.id)}" class="mx-row" style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid ${HAIR07}">
         <span class="mx-row-text" style="flex:1;min-width:0">
           <span style="display:block;font-size:13px;font-weight:600">${esc(x.source)}</span>
-          <span style="display:block;font-size:11.5px;color:#6d6459;margin-top:1px">${esc([x.description, x.expected_date ? 'očekivano ' + fmt.dayLabel(x.expected_date) : '', x.received_date ? 'primljeno ' + fmt.dayLabel(x.received_date) : '', projLabel(x.project), x.work_unit_code || ''].filter(Boolean).join(' · '))}</span>
+          <span style="display:block;font-size:11.5px;color:#6d6459;margin-top:1px">${esc([x.description, x.expected_date ? 'očekivano ' + dmy(x.expected_date) : '', x.received_date ? 'primljeno ' + dmy(x.received_date) : '', projLabel(x.project), x.work_unit_code || ''].filter(Boolean).join(' · '))}</span>
         </span>
         <span style="font-family:Fraunces,serif;font-size:15px;white-space:nowrap${x.status === 'received' ? ';color:#2f7d4f' : ''}">${money(x.amount)}</span>
         ${stChip(x)}
@@ -407,9 +408,9 @@ function bookTable(dir) {
       ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(r.invoice_number)}</span>`)}
       ${td(esc(r.party_name) + (r.notes ? `<span style="display:block;font-size:11px;color:#6d6459">${esc(r.notes)}</span>` : ''))}
       ${td(`<span style="font:400 11.5px ui-monospace,monospace">${esc(r.party_oib || '—')}</span>`)}
-      ${td(esc(fmt.dayLabel(r.invoice_date)))}
+      ${td(esc(dmy(r.invoice_date)))}
       ${tdNum(money(r.amount))}
-      ${td(esc(fmt.dayLabel(r.booking_date)))}
+      ${td(esc(dmy(r.booking_date)))}
       ${dir === 'out' ? td(vrstaTag(r.vrsta)) : ''}
       ${td(r.settled_date
         ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.1em;color:#2f7d4f;white-space:nowrap">${esc(c.settled(r.settled_date))}</span>`
@@ -422,7 +423,7 @@ function bookTable(dir) {
       ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(r.invoice_number || '—')}</span>`)}
       ${td(esc(r.party_name || '—') + ` <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:#eee9df;color:#6d6459">LEGACY</span>`)}
       ${td(`<span style="font:400 11.5px ui-monospace,monospace">${esc(r.party_oib || '—')}</span>`)}
-      ${td(esc(r.invoice_date ? fmt.dayLabel(r.invoice_date) : '—'))}
+      ${td(esc(r.invoice_date ? dmy(r.invoice_date) : '—'))}
       ${tdNum(money(r.amount))}
       ${td('—')}
       ${dir === 'out' ? td(vrstaTag(r.vrsta)) : ''}
@@ -450,9 +451,9 @@ function blockBook(dir) {
         <input data-role="${pfx}Party" placeholder="${esc(dir === 'out' ? c.partyOutPh : c.partyInPh)}" aria-label="${dir === 'out' ? 'Naziv kupca' : 'Naziv dobavljača'}" style="flex:1;min-width:160px;${INPUT}">
         <input data-role="${pfx}Oib" placeholder="${esc(c.oibPh)}" aria-label="OIB" maxlength="11" style="width:120px;${INPUT}">
         <input data-role="${pfx}Amt" placeholder="${esc(c.amtPh)}" aria-label="Iznos" style="width:90px;${INPUT}">
-        <label style="${MICRO}">${c.lblDatum} <input type="date" data-role="${pfx}Date" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum računa" style="${INPUT}"></label>
-        <label style="${MICRO}">${c.lblKnjizenje} <input type="date" data-role="${pfx}Book" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum knjiženja" style="${INPUT}"></label>
-        <label style="${MICRO}">${dir === 'out' ? c.lblNaplata : c.lblPlacanje} <input type="date" data-role="${pfx}Settled" aria-label="Datum naplate" style="${INPUT}"></label>
+        <label style="${MICRO}">${c.lblDatum} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="${pfx}Date" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum računa" style="${INPUT}"></label>
+        <label style="${MICRO}">${c.lblKnjizenje} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="${pfx}Book" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum knjiženja" style="${INPUT}"></label>
+        <label style="${MICRO}">${dir === 'out' ? c.lblNaplata : c.lblPlacanje} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="${pfx}Settled" aria-label="Datum naplate" style="${INPUT}"></label>
         ${selUnit(pfx + 'Unit', '', false)}
         ${selProject(pfx + 'Proj', 'general', false)}
         <span data-act="${pfx}Add" style="${BTN_RED}" data-hover="background:#7e151b">${COPY.owed.save}</span>
@@ -480,11 +481,11 @@ function blockTravel() {
   const rows = D.travel.rows.map(r => `<tr data-row="${esc(r.id)}">
       ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(r.order_number)}</span>`)}
       ${td(`<span style="font-weight:600">${esc(r.traveler_name)}</span>`)}
-      ${td(esc(fmt.dayLabel(r.travel_date)))}
+      ${td(esc(dmy(r.travel_date)))}
       ${td(esc(r.destination))}
       ${td(esc(r.purpose || '—'))}
       ${tdNum(money(r.total_cost))}
-      ${td(esc(r.opened_date ? fmt.dayLabel(r.opened_date) : '—'))}
+      ${td(esc(r.opened_date ? dmy(r.opened_date) : '—'))}
       ${td(`<span title="${esc(unitTitle(r))}">${esc(unitLabel(r))}</span>`)}
       ${td(esc(projLabel(r.project)))}
       ${tdActs(actBtn('trEdit', r.id, '✎', 'Uredi nalog') + actBtn('trDelete', r.id, '✕', 'Obriši nalog'))}
@@ -493,11 +494,11 @@ function blockTravel() {
       <div class="mxm-form" style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid ${HAIR08};flex-wrap:wrap;background:#fdfbf6">
         <input data-role="trNum" placeholder="${esc(c.brojPh)}" aria-label="Broj naloga" style="width:190px;${INPUT}">
         <input data-role="trName" placeholder="${esc(c.imePh)}" aria-label="Ime i prezime" style="flex:1;min-width:150px;${INPUT}">
-        <label style="${MICRO}">${c.lblDatum} <input type="date" data-role="trDate" aria-label="Datum putovanja" style="${INPUT}"></label>
+        <label style="${MICRO}">${c.lblDatum} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="trDate" aria-label="Datum putovanja" style="${INPUT}"></label>
         <input data-role="trDest" placeholder="${esc(c.odredistePh)}" aria-label="Odredište" style="flex:1;min-width:130px;${INPUT}">
         <input data-role="trPurpose" placeholder="${esc(c.svrhaPh)}" aria-label="Svrha" style="flex:1;min-width:150px;${INPUT}">
         <input data-role="trAmt" placeholder="${esc(c.amtPh)}" aria-label="Ukupan trošak" style="width:90px;${INPUT}">
-        <label style="${MICRO}">${c.lblOtvaranje} <input type="date" data-role="trOpened" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum otvaranja" style="${INPUT}"></label>
+        <label style="${MICRO}">${c.lblOtvaranje} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="trOpened" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum otvaranja" style="${INPUT}"></label>
         ${selUnit('trUnit', '', false)}
         ${selProject('trProj', 'general', false)}
         <span data-act="trAdd" style="${BTN_RED}" data-hover="background:#7e151b">${COPY.owed.save}</span>
@@ -522,7 +523,7 @@ function blockPayment() {
       ${td(`<span style="font-weight:600">${esc(r.recipient_name)}</span>`)}
       ${td(esc(r.description || '—'))}
       ${tdNum(money(r.amount))}
-      ${td(esc(fmt.dayLabel(r.order_date)))}
+      ${td(esc(dmy(r.order_date)))}
       ${td(`<span title="${esc(unitTitle(r))}">${esc(unitLabel(r))}</span>`)}
       ${td(esc(projLabel(r.project)))}
       ${tdActs(actBtn('poEdit', r.id, '✎', 'Uredi nalog') + actBtn('poDelete', r.id, '✕', 'Obriši nalog'))}
@@ -533,7 +534,7 @@ function blockPayment() {
         <input data-role="poName" placeholder="${esc(c.primateljPh)}" aria-label="Primatelj" style="flex:1;min-width:170px;${INPUT}">
         <input data-role="poDesc" placeholder="${esc(c.opisPh)}" aria-label="Opis" style="flex:1;min-width:170px;${INPUT}">
         <input data-role="poAmt" placeholder="${esc(c.amtPh)}" aria-label="Iznos" style="width:90px;${INPUT}">
-        <label style="${MICRO}">${c.lblDatum} <input type="date" data-role="poDate" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum naloga" style="${INPUT}"></label>
+        <label style="${MICRO}">${c.lblDatum} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="poDate" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum naloga" style="${INPUT}"></label>
         ${selUnit('poUnit', '', false)}
         ${selProject('poProj', 'general', false)}
         <span data-act="poAdd" style="${BTN_RED}" data-hover="background:#7e151b">${COPY.owed.save}</span>
@@ -605,8 +606,8 @@ function blockReports() {
       data ? csvBtn('repCsv', c.csv(r.group, st.year, data.rows.length)) : '',
       `<div class="mxm-form" style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid ${HAIR08};flex-wrap:wrap">
         <select data-role="repGroup" aria-label="Grupiranje izvještaja" style="${INPUT}">${c.groups.map(([v, l]) => `<option value="${v}"${v === r.group ? ' selected' : ''}>${l}</option>`).join('')}</select>
-        <label style="${MICRO}">${COPY.filters.from} <input type="date" data-role="repFrom" value="${esc(r.from || '')}" aria-label="Od datuma" style="${INPUT}"></label>
-        <label style="${MICRO}">${COPY.filters.to} <input type="date" data-role="repTo" value="${esc(r.to || '')}" aria-label="Do datuma" style="${INPUT}"></label>
+        <label style="${MICRO}">${COPY.filters.from} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="repFrom" value="${esc(r.from || '')}" aria-label="Od datuma" style="${INPUT}"></label>
+        <label style="${MICRO}">${COPY.filters.to} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="repTo" value="${esc(r.to || '')}" aria-label="Do datuma" style="${INPUT}"></label>
         <span data-act="repRun" style="${BTN_RED}" data-hover="background:#7e151b">${c.run}</span>
       </div>`
       + (data ? (data.rows.length ? tblWrap(headers, rows, 720) : `<div style="padding:13px 20px;font-size:12.5px;color:#6d6459">${c.empty}</div>`) : '')
@@ -626,7 +627,7 @@ function toolBody() {
   if (t === 'tx') {
     if (!st.tx) return `<div style="padding:16px 20px;font-size:12.5px;color:#6d6459">Reading the legacy books…</div>`;
     const rows = st.tx.map(x => toolRow(`
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;width:46px;flex:none">${esc(fmt.dayLabel(x.date))}</span>
+      <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;width:70px;flex:none">${esc(dmy(x.date))}</span>
       <span class="mx-row-text" style="flex:1;font-size:13px;min-width:0">${esc(x.description || x.transaction_number || '—')}</span>
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;padding:3px 7px;background:${txTag(x).bg};color:${txTag(x).fg};white-space:nowrap">${esc(txTag(x).label)}</span>
       <span style="font-family:Fraunces,serif;font-size:15px;white-space:nowrap;color:${x.transaction_type === 'expense' ? '#9b1b22' : '#201b16'}">${x.transaction_type === 'expense' ? '−' : ''}${money(x.amount)}</span>`)).join('');
@@ -643,7 +644,7 @@ function toolBody() {
         <span class="empty-why">${esc(s.message || '')}</span>
       </div>`;
     const rows = (s.payments || []).map(p => toolRow(`
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;width:46px;flex:none">${esc(fmt.dayLabel(p.date))}</span>
+      <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;width:70px;flex:none">${esc(dmy(p.date))}</span>
       <span class="mx-row-text" style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">${esc(p.name || p.email || '—')}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(p.kind || '')}${p.matchDetail ? ' · ' + esc(p.matchDetail) : ''}</span></span>
       <span style="font-family:Fraunces,serif;font-size:15px;white-space:nowrap">${money(p.amount)}</span>
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${p.matched ? '#2f7d4f' : p.matched === false ? '#9b1b22' : '#6d6459'};white-space:nowrap">${p.matched ? c.stripe.matched : p.matched === false ? c.stripe.unmatched : esc(String(p.status || '').toUpperCase())}</span>`)).join('');
@@ -699,32 +700,10 @@ function blockTools() {
     <!-- /dc -->`;
 }
 
-function blockSurvey() {
-  const c = COPY.survey;
-  const stateLine = e => {
-    if (e.state === 'queued' && e.awaiting_approval > 0) return `<a href="/inbox/outbox" style="font-size:11px;color:#9b1b22">${esc(c.state.queued(e))}</a>`;
-    if (e.state === 'queued') return `<span style="font-size:11px;color:#6d6459">${esc(c.state.sent(e))}</span>`;
-    if (e.state === 'due') return `<span style="font-size:11px;color:#b7791f">${esc(c.state.due)}</span>`;
-    if (e.state === 'missed') return `<span style="font-size:11px;color:#9a9086">${esc(c.state.missed)}</span>`;
-    return `<span style="font-size:11px;color:#6d6459">${esc(c.state.scheduled(e))}</span>`;
-  };
-  const results = st.surveyResults || [];
-  const resFor = key => results.find(r => r.event_key === key);
-  return `
-    <!-- v2: MORNING-AFTER SURVEY (README note 11 — no artboard counterpart) -->
-    <div data-block="survey" data-v2="morning-after-survey" style="border:1px solid ${HAIR};background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;align-items:center;gap:10px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span><div style="flex:1"></div><span data-act="surveySweep" title="${esc(c.sweepTitle)}" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;border:1px solid rgba(32,27,22,.18);padding:4px 8px" data-hover="color:#201b16;border-color:#201b16">${c.sweep}</span></div>
-      <span style="font-size:11.5px;color:#6d6459;line-height:1.55">${c.sub}</span>
-      ${D.survey.map(e => { const r = resFor(e.key); return `
-      <div style="display:flex;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px solid rgba(32,27,22,.06)">
-        <span style="width:8px;height:8px;background:${SURVEY_DOT[e.state] || '#6d6459'};flex:none;transform:translateY(-1px)"></span>
-        <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:600">${esc(e.label)}</span>${r && r.n_answered ? `<span style="display:block;font-size:11px;color:#2f7d4f">${esc(c.results(r))}</span>` : ''}</span>
-        ${stateLine(e)}
-      </div>`; }).join('')}
-      ${!D.survey.length ? `<span style="font-size:12.5px;color:#6d6459;font-style:italic">${c.empty}</span>` : ''}
-    </div>
-    <!-- /v2 -->`;
-}
+// (blockSurvey lived here until the 2026-09-02 audit, #15 — the MORNING-AFTER SURVEY card was
+// email machinery on a bookkeeping screen. The card is gone; its /api/v2/money/survey* endpoints
+// stay alive in backend/v2/money.js so queued survey links keep resolving. Re-homing the card
+// beside the Outbox is the Inbox view's call — noted in deploy/staging/UXFIX-A3-2026-09-02.md.)
 
 function template() {
   return `
@@ -744,10 +723,7 @@ function template() {
     ${blockUnits()}
     ${blockReports()}
     ${blockTool()}
-    <div class="mx-two" style="display:grid;grid-template-columns:1.4fr 1fr;gap:22px;align-items:start">
-      ${blockTools()}
-      ${blockSurvey()}
-    </div>
+    ${blockTools()}
   </div>
 </div>`;
 }
@@ -817,7 +793,7 @@ async function downloadCsv(set, params, filename) {
 function editModal(title, fields, onSave) {
   const input = f => f.options
     ? `<select data-role="${f.role}" aria-label="${esc(f.label)}" style="width:100%;box-sizing:border-box;${INPUT2}">${f.options.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(f.value == null ? '' : f.value) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
-    : `<input data-role="${f.role}" type="${f.type || 'text'}" value="${esc(f.value == null ? '' : f.value)}" aria-label="${esc(f.label)}" style="width:100%;box-sizing:border-box;${INPUT2}">`;
+    : `<input data-role="${f.role}" type="${f.type || 'text'}"${f.type === 'date' ? DATE_HINT : ''} value="${esc(f.value == null ? '' : f.value)}" aria-label="${esc(f.label)}" style="width:100%;box-sizing:border-box;${INPUT2}">`;
   const m = ui.modal({ eyebrow: COPY.editEyebrow, title: esc(title), body: `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" class="mxm-editgrid">
       ${fields.map(f => `<label style="display:flex;flex-direction:column;gap:4px;${MICRO}">${esc(f.label)}${input(f)}</label>`).join('')}
@@ -1054,19 +1030,6 @@ const handlers = {
     if (!ok) return;
     try { await api.put('/api/finance/years/' + st.year, { status: 'open' }); const y = await api.get('/api/finance/years'); D.years = Array.isArray(y) ? y : D.years; rerender('[data-block="tool"]', blockTool()); ui.toast(COPY.close.reopened); }
     catch (e) { ui.toast(e.message, { kind: 'error' }); }
-  },
-
-  // ---- morning-after survey ----------------------------------------------
-  surveySweep: async el => {
-    el.setAttribute('aria-disabled', 'true');
-    try {
-      const r = await api.post('/api/v2/money/survey/sweep');
-      const s = await api.get('/api/v2/money/survey'); D.survey = (s && s.events) || D.survey;
-      try { const rr = await api.get('/api/v2/money/survey/results'); st.surveyResults = (rr && rr.results) || []; } catch (e) {}
-      rerender('[data-block="survey"]', blockSurvey());
-      ui.toast(COPY.survey.swept((r.queued || []).length));
-      chrome.refresh();
-    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   }
 };
 
@@ -1170,12 +1133,10 @@ export default {
       boOpen: false, biOpen: false, trOpen: false, poOpen: false, wuOpen: false, exOpen: false,
       f: { out: { project: '', work_unit: '', from: '', to: '' }, inb: { project: '', work_unit: '', from: '', to: '' },
            travel: { person: '', project: '', work_unit: '', from: '', to: '' }, pay: { person: '', project: '', work_unit: '', from: '', to: '' } },
-      report: { group: 'project', from: '', to: '' }, reportData: null, surveyResults: null
+      report: { group: 'project', from: '', to: '' }, reportData: null
     };
     D = await load(st.year);
     if (rootEl !== root) return; // navigated away while loading
-    try { const rr = await api.get('/api/v2/money/survey/results'); st.surveyResults = (rr && rr.results) || []; } catch (e) {}
-    if (rootEl !== root) return;
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     root.addEventListener('change', onchangeDelegate);

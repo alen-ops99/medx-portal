@@ -55,6 +55,7 @@ export const COPY = {
   door: {
     title: 'DOOR LIST', search: 'Type a name — fastest at a busy door',
     checkIn: 'CHECK IN', plusOne: '+1', in: 'IN', of: (a, b) => `${a} of ${b}`,
+    due: a => `€${a} DUE`,   // UXFIX-A1 #2: loud state for an unpaid gala guest
     empty: 'No one on this door’s list yet.'
   },
   staff: {
@@ -478,6 +479,9 @@ function blockScanner() {
     </div>
     <!-- /dc -->`;
 }
+// UXFIX-A1 #2 (2026-09-02): one-line dense rows (~44px) — name + dimmed meta inline with ellipsis,
+// state/button on the same line (never wrapped below), crimson €DUE chip for unpaid gala guests.
+// The backend already merged multi-registration people into one row per lower(email).
 function doorRowsHtml() {
   const rows = st.door || [];
   const row = d => {
@@ -493,10 +497,16 @@ function doorRowsHtml() {
         : (d.legacy_in
           ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#2f7d4f;white-space:nowrap">${COPY.door.in}</span>`
           : `<span data-act="doorIn" data-ref="${esc(d.ref)}" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.door.checkIn}${partySize > 1 ? ' · ' + partySize : ''}</span>`);
+    const dueChip = d.unpaid && !full
+      ? `<span class="mx-ed-due" style="padding:4px 8px;background:#9b1b22;color:#fff;font:700 9.5px Inter,sans-serif;letter-spacing:.12em;white-space:nowrap">${esc(COPY.door.due(Number(d.amount_due) || 150))}</span>`
+      : '';
     return `
-          <div data-door-ref="${esc(d.ref)}" class="mx-row" style="display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid rgba(32,27,22,.07)">
-            <span class="mx-row-text" style="flex:1;min-width:0"><span style="display:block;font-size:13.5px;font-weight:600">${esc(d.name)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(d.meta)}${partySize > 1 ? ' · party of ' + partySize : ''}</span></span>
-            ${stateHtml}
+          <div data-door-ref="${esc(d.ref)}" class="mx-row mx-ed-row" style="display:flex;align-items:center;gap:10px;padding:6px 18px;min-height:44px;box-sizing:border-box;border-bottom:1px solid rgba(32,27,22,.07)">
+            <span class="mx-row-text" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden">
+              <span style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;max-width:62%">${esc(d.name)}</span>
+              <span style="font-size:11px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(d.meta)}${partySize > 1 ? ' · party of ' + partySize : ''}</span>
+            </span>
+            ${dueChip}${stateHtml}
           </div>`;
   };
   return `<div data-block="doorRows">${rows.map(row).join('') || `<div style="padding:22px 18px;font-size:12.5px;color:#6d6459;font-style:italic">${COPY.door.empty}</div>`}</div>`;
@@ -522,9 +532,12 @@ function staffCardBody() {
         <span data-act="mintDoor" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.staff.make}</span>
         <span style="font-size:11.5px;color:#6d6459">one link per door — this one will open the ${esc((COPY.doors.names[st.gate] || st.gate).toLowerCase())} scanner</span>
       </div>`;
+  // UXFIX-A1 #3 (2026-09-02): the raw token URL sat in a nowrap flex item without min-width:0, so
+  // the whole page stretched to ~756px on a 390px phone. min-width:0 + overflow-wrap:anywhere lets
+  // it wrap inside the card; at ≤480px it takes its own line (css/views/event-day.css).
   return `
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <span data-role="doorUrl" style="font:600 12px ui-monospace,monospace;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.15);padding:9px 12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.url)}</span>
+        <span data-role="doorUrl" style="font:600 12px ui-monospace,monospace;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.15);padding:9px 12px;min-width:0;flex:1 1 auto;overflow-wrap:anywhere;box-sizing:border-box">${esc(t.url)}</span>
         <span data-act="copyDoor" data-url="${esc(t.url)}" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copiedDoor ? COPY.staff.copied : COPY.staff.copy}</span>
         <span data-act="qrDoor" data-id="${esc(t.id)}" style="padding:9px 14px;border:1px solid rgba(32,27,22,.2);color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${st.qrUrl ? COPY.staff.hideQr : COPY.staff.qr}</span>
         <span data-act="revokeDoor" data-id="${esc(t.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${COPY.staff.revoke}</span>

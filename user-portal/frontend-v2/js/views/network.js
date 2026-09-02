@@ -24,6 +24,8 @@ export const COPY = {
     line: 'Your next collaborator is <i style="color:#9b1b22">already here</i>.',
     sub: 'Find them, say hello, trade what you know. A message here has started collaborations, warm intros, and more than one paper.',
     placeholder: 'Try anything — a name, a city, ‘sleep’, ‘oncology, Zagreb’…',
+    // at 390px the long one truncated mid-word ("…a city, ‘sle") — a phone gets a phone-sized prompt
+    placeholderShort: 'Name, city, or specialty…',
     button: 'SEARCH',
     hint: 'One field, every angle — names, institutions, specialties, cities, and programs all match.'
   },
@@ -150,6 +152,12 @@ function blockTabs() { return `
   </div>
   <!-- /dc -->`; }
 
+function searchPlaceholder() {
+  const narrow = typeof window !== 'undefined' && window.matchMedia
+    ? window.matchMedia('(max-width: 430px)').matches
+    : false;
+  return narrow ? COPY.hero.placeholderShort : COPY.hero.placeholder;
+}
 function blockHero() { return `
   <!-- dc: Network.dc.html › "RESEARCHERS & CLINICIANS, WORLDWIDE" -->
   <div class="mx-gutter mx-pad-hero" style="border-bottom:1px solid rgba(25,21,18,.16);padding:40px 36px 30px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px">
@@ -157,7 +165,7 @@ function blockHero() { return `
     <span class="mx-net-h1" style="font-family:Fraunces,serif;font-size:36px;line-height:1.15;white-space:nowrap">${COPY.hero.line}</span>
     <span style="font-size:13.5px;color:#4a4239;max-width:520px;line-height:1.6">${COPY.hero.sub}</span>
     <div class="mx-net-search" style="display:flex;gap:10px;margin-top:8px;width:100%;max-width:640px">
-      <input data-role="q" value="${esc(st.q)}" placeholder="${esc(COPY.hero.placeholder)}" aria-label="Search the member directory" autocomplete="off" style="flex:1;border:1px solid rgba(25,21,18,.3);background:#fdfaf3;padding:13px 16px;font-size:13.5px;color:#191512">
+      <input data-role="q" value="${esc(st.q)}" placeholder="${esc(searchPlaceholder())}" aria-label="Search the member directory" autocomplete="off" style="flex:1;border:1px solid rgba(25,21,18,.3);background:#fdfaf3;padding:13px 16px;font-size:13.5px;color:#191512">
       <span data-act="search" class="mx-net-act" style="padding:13px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;align-self:stretch;display:inline-flex;align-items:center" data-hover="background:#7e151b">${COPY.hero.button}</span>
     </div>
     <span style="font-size:11px;color:#4a4239">${COPY.hero.hint}</span>

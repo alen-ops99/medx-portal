@@ -590,6 +590,59 @@ module.exports = function mountEventDay(app, ctx) {
         return v2 + legacy;
     }
 
+    // UXFIX-A1 #2 (2026-09-02): the amount an unpaid gala guest still owes — the crimson "€150 DUE"
+    // chip on the door list. Same arithmetic as gala-ops priceBlock() / server.js effectiveGalaPrice().
+    function galaDueNow() {
+        try {
+            const s = q.get("SELECT price_gala_only, price_gala_early_bird, price_gala_regular, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {};
+            let comp = null;
+            try { comp = q.get("SELECT price FROM event_components WHERE event_type = 'plexus' AND component_key = 'gala' AND is_active = 1"); } catch (e) {}
+            const compPrice = comp && comp.price != null ? Number(comp.price) : NaN;
+            const eb = Number.isFinite(compPrice) ? compPrice : Number(s.price_gala_early_bird);
+            const early = Number.isFinite(eb) ? eb : (Number(s.price_gala_only) || 150);
+            const regular = Number.isFinite(Number(s.price_gala_regular)) ? Number(s.price_gala_regular) : early;
+            const flip = String(s.early_bird_deadline || '2026-09-15').slice(0, 10);
+            return new Date().toISOString().slice(0, 10) <= flip ? early : regular;
+        } catch (e) { return 150; }
+    }
+
+    // UXFIX-A1 #2 (2026-09-02): one person, one row — a DISPLAY-level merge per lower(email).
+    // The list printed one row per REGISTRATION, so a member holding Conference + Gala + a CA row
+    // appeared two or three times and the door staffer had to guess which row to tap. The merged
+    // row keeps the ref of the registration a SCAN of this person would admit — push order below
+    // is exactly the findByEmailOrShort/fitForGate lookup priority (gate-preferred table first,
+    // newest first) — so CHECK IN drives the same v2_checkin_admits ledger a QR scan does.
+    // admitted_count / party_size stay the scan target's (admits key on registration_ref); the
+    // other bookings are noted in meta and listed in merged_refs. Nothing here writes.
+    function mergeDoorRows(rows) {
+        const merged = [], byEmail = new Map();
+        const metaUnion = (base, extra) => {
+            const parts = String(base || '').split(' · ').map(s => s.trim()).filter(Boolean);
+            const seen = new Set(parts.map(s => s.toLowerCase()));
+            String(extra || '').split(' · ').forEach(s => { const t = s.trim(); if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); parts.push(t); } });
+            return parts.join(' · ');
+        };
+        for (const r of rows) {
+            const k = r.email ? String(r.email).trim().toLowerCase() : '';
+            if (!k) { merged.push(r); continue; }
+            const g = byEmail.get(k);
+            if (!g) { const first = Object.assign({}, r, { merged_refs: [], merged_count: 1, other_admitted: 0 }); byEmail.set(k, first); merged.push(first); continue; }
+            g.merged_count += 1;
+            g.merged_refs.push(r.ref);
+            g.meta = metaUnion(g.meta, r.meta);
+            g.unpaid = (g.unpaid || r.unpaid) ? 1 : 0;
+            g.other_admitted += Number(r.admitted_count) || 0;
+            if (!(Number(r.admitted_count) > 0) && r.legacy_in) g.other_admitted += 1;   // old-scanner IN on the other booking
+        }
+        merged.forEach(g => {
+            if (g.merged_count > 1) {
+                g.meta = g.meta + ' · ' + g.merged_count + ' bookings';
+                if (g.other_admitted > 0) g.meta += ' · ' + g.other_admitted + ' in on another booking';
+            }
+        });
+        return merged;
+    }
+
     function doorRows(eventKey, qText, limit, bridgesEventId) {
         const donorId = donorEventId();
         const like = qText ? '%' + qText.toLowerCase() + '%' : null;
@@ -597,7 +650,12 @@ module.exports = function mountEventDay(app, ctx) {
         const push = (table, r, sub) => {
             const name = fullName(r);
             if (like && !(name.toLowerCase().includes(like.slice(1, -1)) || String(r.email || '').toLowerCase().includes(like.slice(1, -1)))) return;
-            rows.push({ ref: String(r.id), table, name, email: r.email || '', meta: sub, party_size: party(r), legacy_in: 0, sort: name.toLowerCase() });
+            // UXFIX-A1 #2: unpaid gala flag — feeds the crimson "€150 DUE" chip on the door row
+            const unpaid = eventKey !== 'gala' ? 0
+                : table === 'gala_registrations' ? (['paid', 'vip-comp'].includes(String(r.payment_status || '')) ? 0 : 1)
+                : table === 'croatians_abroad_registrations' ? (String(r.gala_payment_status || '') === 'paid' ? 0 : 1)
+                : 0;
+            rows.push({ ref: String(r.id), table, name, email: r.email || '', meta: sub, party_size: party(r), legacy_in: 0, unpaid, sort: name.toLowerCase() });
         };
         try {
             if (eventKey === 'conference') {
@@ -641,11 +699,15 @@ module.exports = function mountEventDay(app, ctx) {
                 party_size: a ? Number(a.party_size) || r.party_size : r.party_size,
                 admitted_count: admitted,
                 legacy_in: admitted ? 1 : legacyIn(r),
+                unpaid: r.unpaid || 0,
                 last_scan_at: a ? a.last_scan_at : null
             };
         });
-        out.sort((x, y) => (x.admitted_count > 0 || x.legacy_in) === (y.admitted_count > 0 || y.legacy_in) ? x.name.localeCompare(y.name) : ((x.admitted_count > 0 || x.legacy_in) ? 1 : -1));
-        return out.slice(0, limit || 400);
+        // UXFIX-A1 #2: merge BEFORE the sort — group order above encodes the scanner's lookup priority
+        const people = mergeDoorRows(out);
+        if (eventKey === 'gala') { const due = galaDueNow(); people.forEach(p => { if (p.unpaid) p.amount_due = due; }); }
+        people.sort((x, y) => (x.admitted_count > 0 || x.legacy_in) === (y.admitted_count > 0 || y.legacy_in) ? x.name.localeCompare(y.name) : ((x.admitted_count > 0 || x.legacy_in) ? 1 : -1));
+        return people.slice(0, limit || 400);
     }
 
     function rehearsalDoor() {

@@ -7773,7 +7773,7 @@
                         text: `<p>Plexus Conference 2026 will be held on <strong>December 4-5, 2026</strong> in Zagreb, Croatia.</p>
                         <p>Key dates:</p>
                         <ul>
-                            <li>Early Bird Registration: Until September 1</li>
+                            <li>Early Bird Registration: Until September 15</li>
                             <li>Abstract Deadline: October 15</li>
                         </ul>
                         <button class="alan-action-btn" onclick="UserPortal.showSection('plexus'); AlanChat.toggle();">
@@ -7835,7 +7835,7 @@
                         text: `<p>Plexus 2026 registration options:</p>
                         <ul>
                             <li><strong>Student:</strong> €50</li>
-                            <li><strong>Early Bird:</strong> €100 (until Sep 1)</li>
+                            <li><strong>Early Bird:</strong> €150 (until Sep 15)</li>
                             <li><strong>Regular:</strong> €150</li>
                             <li><strong>VIP:</strong> €300 (includes Gala Evening)</li>
                         </ul>
@@ -8180,7 +8180,7 @@
 
             // Key dates config — edit this array to update the Key Dates card
             keyDates: [
-                { label: 'Early Bird Registration', date: 'Until September 1, 2026', color: 'var(--up-success)' },
+                { label: 'Early Bird Registration', date: 'Until September 15, 2026', color: 'var(--up-success)' },
                 { label: 'Abstract Submission Deadline', date: 'October 15, 2026', color: 'var(--up-warning)' },
                 { label: 'Conference', date: 'December 4-5, 2026', color: '#0f172a' }
             ],

@@ -5,12 +5,15 @@
 // table; REGISTER posts to /api/bridges/events/:id/register — open to every signed-in member, no
 // application); past-edition recap cards (admin-editable guests / new-connections + photo
 // galleries) from GET /api/v2/bridges/editions (backend/v2/bridges.js); follow via /api/notify-topics.
-// Boston copy rule (admin decisions, Aug 2026): exact date & venue announced later, NO Harvard
-// branding — the designed card copy lives in COPY; live city/dates/capacity/countdown are server reads.
+// Boston copy rule — SUPERSEDED 2026-09-02 (UX audit item 1). The August rule ("exact date & venue
+// announced later, no Harvard branding") outlived the announcement: the date, time and room are
+// confirmed and public, while this screen still said "announced soon" beside a hero that named a
+// date and a Home rail that named a different one. Boston now reads from FACTS.bridges.next —
+// Monday, September 21, 2026 · 18:00, Waterhouse Room, Gordon Hall — everywhere on the page.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import { FACTS } from '../facts.js';
+import { FACTS, CTA } from '../facts.js';
 import { chrome } from '../chrome.js';
 
 export const SOURCE = 'Building Bridges.dc.html';
@@ -25,7 +28,7 @@ export const COPY = {
     eyebrowNone: 'NEXT EDITION · TO BE ANNOUNCED',
     title: 'Building Bridges <i style="color:#c9a962">in Biomedicine</i>',
     lede: per => `Connecting Croatian medicine and science with international medicine and science — intimate evenings of ${per}, built for collaboration that outlasts the night.`,
-    register: city => `REGISTER FOR ${city} →`,
+    register: `${CTA.register} →`,
     follow: on => `GET UPDATES FROM BUILDING BRIDGES · ${on ? 'ON' : 'OFF'}`,
     followSub: 'Email + portal alerts · manage topics in Profile &amp; settings'
   },
@@ -45,15 +48,14 @@ export const COPY = {
   },
   next: {
     n: '02', title: 'NEXT EVENT',
-    photoLabel: city => `PHOTO · ${city.toUpperCase()} VENUE — ANNOUNCED SOON`,
-    soon: 'EXACT DATE ANNOUNCED SOON',
+    venueLabel: venue => (venue || '').toUpperCase(),
     cardTitle: (city, year) => `Building Bridges — ${city} ${year}`,
     desc: city => `An evening connecting the Croatian biomedical community of greater ${city} with colleagues at the city's leading institutions. Keynotes, structured networking, and a shared table.`,
     goal: '<strong style="color:#191512">The goal:</strong> every guest leaves with at least one collaboration worth continuing — a co-author, a mentor, a clinical exchange.',
     spots: n => `ONLY ${n} SPOTS`, full: 'FULLY BOOKED',
     chip2: 'KEYNOTES · NETWORKING · RECEPTION',
     starts: 'EVENT STARTS IN', units: ['DAYS', 'HOURS', 'MINS'],
-    register: 'REGISTER →', registered: 'REGISTERED ✓ · MY TICKET →',
+    register: `${CTA.register} →`, registered: 'REGISTERED ✓ · MY TICKET →',
     closed: 'Registration opens soon — follow Building Bridges above and we tell you first.',
     emptyLine: 'The next evening is being planned.',
     emptyWhy: 'Follow Building Bridges and we tell you the moment the next city and date are confirmed.',
@@ -65,7 +67,7 @@ export const COPY = {
     note: 'Open to everyone — no application, no fee. Check your details and register.',
     first: 'FIRST NAME', last: 'LAST NAME', email: 'EMAIL', inst: 'INSTITUTION', role: 'ROLE / TITLE',
     motivation: 'WHAT WOULD YOU LIKE OUT OF THE EVENING? (OPTIONAL)',
-    cancel: 'NOT NOW', submit: 'REGISTER →',
+    cancel: 'NOT NOW', submit: `${CTA.register} →`,
     needName: 'Please fill in your first and last name.', needEmail: 'Please enter a valid email address.',
     done: city => `You're registered for ${city} — your entry QR is in My Med&X.`,
     already: city => `You're already registered for ${city} — your entry QR is in My Med&X.`
@@ -122,9 +124,10 @@ async function load() {
   if (nextEv) {
     const date = String(nextEv.event_date).slice(0, 10);
     const f = FACTS.bridges.next;
-    // canonical window (admin decisions): the exact date is announced later — while the admin row's
-    // date sits inside the FACTS window for that city, show the public window label + "announced soon"
-    const inWindow = String(nextEv.city || '').toLowerCase().includes(f.city.toLowerCase()) && date >= f.start && date <= f.end;
+    // The confirmed edition (city + date inside the FACTS window) is described by FACTS: one date,
+    // one time, one room, matching the Home rail and the invitation. Any other event the admin adds
+    // is shown exactly as the admin entered it.
+    const isNext = String(nextEv.city || '').toLowerCase().includes(f.city.toLowerCase()) && date >= f.start && date <= f.end;
     const capacity = Number(nextEv.capacity) || 0;
     const spots = capacity ? Math.max(0, capacity - (Number(nextEv.registration_count) || 0)) : null;
     let mine = null;
@@ -132,8 +135,8 @@ async function load() {
     next = {
       ev: nextEv, id: nextEv.id, city: nextEv.city || f.city, date,
       year: date.slice(0, 4),
-      dateLabel: inWindow ? f.label : fmt.longRange(date),
-      soon: inWindow,
+      dateLabel: isNext ? f.label : fmt.longRange(date),
+      venue: isNext ? f.venue : (nextEv.venue || ''),
       open: nextEv.registration_open === undefined ? true : !!Number(nextEv.registration_open),
       spots,
       startAt: `${date}T${(String(nextEv.event_time || '').match(/\d{1,2}:\d{2}/) || ['18:00'])[0]}:00`,
@@ -185,7 +188,7 @@ function blockHero() {
       <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:600px">${COPY.hero.lede(COPY.band.perEvening)}</div>
       ${n ? `
       <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
-        <a href="#bb-next" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b">${COPY.hero.register(esc(fmt.upper(n.city)))}</a>
+        <a href="#bb-next" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b">${COPY.hero.register}</a>
       </div>` : ''}
       ${followToggle()}
     </div>
@@ -244,9 +247,10 @@ function registerButton() {
 function nextCard() {
   const n = D.next;
   return `<div data-block="next" data-eid="${esc(n.id)}" class="mx-bb-next" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:grid;grid-template-columns:230px 1fr 260px;align-items:stretch">
-      <div style="position:relative;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239;text-align:center;padding:0 14px">${esc(COPY.next.photoLabel(n.city))}</div>
+      <div style="position:relative;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239;text-align:center;padding:0 14px">${esc(COPY.next.venueLabel(n.venue) || fmt.upper(n.city))}</div>
       <div style="padding:24px 28px;display:flex;flex-direction:column;gap:8px">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${esc(fmt.upper(n.city))} · ${esc(fmt.upper(n.dateLabel))}${n.soon ? ` · ${COPY.next.soon}` : ''}</span>
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${esc(fmt.upper(n.city))} · ${esc(fmt.upper(n.dateLabel))}</span>
+        ${n.venue ? `<span style="font-size:12.5px;color:#4a4239">${esc(n.venue)}</span>` : ''}
         <span style="font-family:Fraunces,serif;font-size:26px;line-height:1.15">${esc(COPY.next.cardTitle(n.city, n.year))}</span>
         <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${esc(COPY.next.desc(n.city))}</span>
         <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${COPY.next.goal}</span>

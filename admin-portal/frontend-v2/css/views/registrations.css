@@ -10,6 +10,10 @@
    inline overflow:hidden ellipses need a 0 track minimum to engage). */
 .mx-regs-grid > * { min-width: 0; }
 
+/* Audit 2026-09-02 #11 — single-line rows (name · dimmed email inline): each cell needs a 0
+   minimum so its inline ellipsis engages instead of the row growing to a second line. */
+.mx-regrow > * { min-width: 0; }
+
 /* ≤620px: the row grid drops the EVENT and WHEN columns so WHO + STATUS stay readable. */
 @media (max-width: 620px) {
   .mx-regrow { grid-template-columns: auto 1.9fr 1fr !important; }

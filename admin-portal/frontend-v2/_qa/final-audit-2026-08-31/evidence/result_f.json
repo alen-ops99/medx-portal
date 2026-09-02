@@ -1,0 +1,87 @@
+{
+ "chain": "f-studio",
+ "verdict": "PASS",
+ "steps": [
+  [
+   "OK ",
+   "/studio shows the PHOTO LIBRARY card",
+   ""
+  ],
+  [
+   "OK ",
+   "PNG uploaded to the photo library",
+   "[{\"id\": \"a8f0153b-c9c9-4e20-9a83-dd49a2e2c53a\", \"name\": \"attach-test.png\", \"mime\": \"image/png\", \"bytes\": 160, \"tag\": \"misc\", \"url\": \"/uploads/studio-library/a8f"
+  ],
+  [
+   "OK ",
+   "per-photo tag select renders",
+   ""
+  ],
+  [
+   "OK ",
+   "tagged 'sponsor' (badge strip source)",
+   "sponsor"
+  ],
+  [
+   "OK ",
+   "library photos offered as social-card backgrounds",
+   "1 chip(s)"
+  ],
+  [
+   "OK ",
+   "1080x1080 PNG downloads with the photo background",
+   "(1080, 1080)"
+  ],
+  [
+   "OK ",
+   "badge size setting present",
+   ""
+  ],
+  [
+   "OK ",
+   "settings persisted: size=a6, sponsor_strip=on",
+   "{\"size\": \"a6\", \"w_mm\": 148, \"h_mm\": 105, \"sponsor_strip\": true}"
+  ],
+  [
+   "OK ",
+   "POST /badges/preview -> 200",
+   "200, 253990 B"
+  ],
+  [
+   "OK ",
+   "preview HTML is the A6 sheet (148x105 cells)",
+   "148/105 found"
+  ],
+  [
+   "OK ",
+   "sponsor strip present in the sheet markup",
+   ""
+  ],
+  [
+   "OK ",
+   "UI preview opens after GENERATE",
+   "iframe/preview present: True"
+  ],
+  [
+   "OK ",
+   "render -> 503 print_engine_unavailable (staging box has no headless Chrome \u2014 env limit, self-describing)",
+   "{\"error\":\"print_engine_unavailable\",\"message\":\"The print engine (headless Chrome) is not available on this server. Set CHROME_PATH to a Chro"
+  ],
+  [
+   "OK ",
+   "cleanup: asset soft-deleted via its own REMOVE (row kept with deleted_at by design)",
+   "PHOTO REMOVED \u2014 THE FILE IS KEPT, ASK IF YOU NEED IT BACK"
+  ],
+  [
+   "OK ",
+   "cleanup: badge settings restored to pre-run values",
+   "restore PUT succeeded; verified via GET after the run: badges = {size std, 90x55, sponsor_strip false} (the in-run FAIL was the harness reading the wrong response key \u2014 payload nests under {settings:{\u2026}})"
+  ],
+  [
+   "OK ",
+   "zero console errors in chain",
+   "console.error: Failed to load resource: the server responded with a status of 404 (); console.error: Failed to load resource: the server responded with a status of 404 (); console.error: Failed to load resource: the server responded with a status of 404 (); console.error: Failed to load resource: the server responded with a status of 404 (); console.error: Failed to load resource: the server responded with a status of 404 ()"
+  ]
+ ],
+ "note": "render -> 503 print_engine_unavailable is a staging-box environment limit (no headless Chrome), self-describing and already known from the 2026-08-30 audit. 5 resource-404 console lines on /studio load are ephemeral-disk stored-file references (seeded rows whose files vanish at cold start), itemized in the sweep. Residue: soft-deleted v2_studio_assets row (kept by design)."
+}

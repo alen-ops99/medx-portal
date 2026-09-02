@@ -6,10 +6,16 @@
 //   registration_links            GET/POST /api/admin/registration-links   (PUBLIC + VIP, any event)
 //   gala_invite_links             GET/POST /api/admin/gala/invite-links    (PUBLIC + VIP, Gala)
 //   croatians_abroad_invite_links GET/POST /api/admin/croatians-abroad/invite-links (DIASPORA)
-// plus backend/v2/links.js for PAUSE/RESUME in both directions and the print-ready QR.
+// plus backend/v2/links.js for PAUSE/RESUME in both directions, bulk archive and the print-ready QR.
 // Sign-up counts are the tables' real uses/used_count; per-link VISIT counts have no backend
 // concept yet (gap matrix) — not shown rather than faked. SPONSOR table-booking links have no
 // backend concept either — the creator says so instead of inventing a row (PARTIAL, reported).
+// Audit 2026-09-02 #8: rows whose URL interpolated a NULL token ("/plexus/null" — legacy
+// slugless registration_links rows; the builder sits in server.js, out of bounds) are flagged
+// BROKEN and rest with paused + expired links in a collapsed ARCHIVED section; exact live twins
+// collapse visually under their canonical row with a "duplicate of →" note; checkboxes feed
+// ARCHIVE N SELECTED → POST /api/v2/links/bulk-archive; the creator refuses to keep a link the
+// server minted slugless.
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
@@ -22,7 +28,21 @@ export const COPY = {
   sub: 'One link per audience — paid, VIP, diaspora, sponsors. Share it anywhere; every sign-up lands in <a href="/registrations">Registrations</a> tagged with its source.',
   live: { title: 'LIVE LINKS', sub: 'every sign-up is counted per link', foot: 'Pausing a link keeps its history — the page it opens simply says registration is closed.', empty: 'No links yet.', emptyWhy: 'Create the first one on the right — it is live the moment it exists.' },
   stats: { signups: n => `${n} sign-up${n === 1 ? '' : 's'}`, limit: n => `limit ${n}`, expired: 'expired', paused: 'paused', created: w => `created ${w}` },
-  row: { copy: 'COPY', copied: '✓ COPIED', qr: 'QR', qrTitle: 'A print-ready QR of this link', pause: 'PAUSE', resume: 'RESUME' },
+  row: { copy: 'COPY', copied: '✓ COPIED', qr: 'QR', qrTitle: 'A print-ready QR of this link', pause: 'PAUSE', resume: 'RESUME', tick: 'Select for bulk archive' },
+  // audit #8 — bulk archive (checkbox → ARCHIVE N), the collapsed ARCHIVED section, duplicate collapse
+  bulk: {
+    btn: n => `ARCHIVE ${n} SELECTED`,
+    confirm: n => ({ title: `Archive ${n === 1 ? 'this link' : n + ' links'}?`, body: 'Archiving pauses them — the sign-up history stays, their pages say registration is closed, and RESUME brings a paused link back.', ok: 'ARCHIVE', cancel: 'KEEP' }),
+    done: n => `${n} ARCHIVED — HISTORY KEPT, THE PAGES NOW SAY REGISTRATION IS CLOSED`,
+    none: 'TICK AT LEAST ONE LINK FIRST'
+  },
+  arch: {
+    title: n => `ARCHIVED (${n})`, show: 'SHOW', hide: 'HIDE',
+    reason: { broken: 'BROKEN', expired: 'EXPIRED', paused: 'PAUSED' },
+    brokenWhy: 'Minted without a slug — the URL ends in /null and opens nothing. Create a fresh link instead; any printed QR of this one is dead.',
+    foot: 'Paused, expired and broken links rest here with their history. RESUME re-opens a paused link.'
+  },
+  dup: { tag: 'DUPLICATE', of: 'duplicate of →' },
   form: {
     title: 'NEW LINK', event: 'EVENT', kind: 'WHO IS IT FOR', limit: 'USE LIMIT · OPTIONAL', limitPh: 'e.g. 10 — blank for unlimited',
     note: 'NOTE TO YOURSELF · OPTIONAL', notePh: 'e.g. for the embassy mailing list', create: 'CREATE THE LINK',
@@ -34,6 +54,7 @@ export const COPY = {
   toast: {
     copied: 'LINK COPIED — PASTE IT ANYWHERE', copyFail: 'COPY BLOCKED BY THE BROWSER — SELECT THE URL AND COPY IT',
     created: 'LINK CREATED — IT IS LIVE NOW, COPY IT FROM THE LIST',
+    brokenCreated: 'THE SERVER MINTED A LINK WITHOUT A SLUG (…/null) — ARCHIVED IT ON THE SPOT, NOTHING TO SHARE',
     paused: 'PAUSED — THE PAGE NOW SAYS REGISTRATION IS CLOSED', resumed: 'LINK LIVE AGAIN',
     sponsor: 'SPONSOR TABLE-BOOKING LINKS HAVE NO BACKEND YET — PLEDGES LAND IN MONEY → SPONSORS & DONORS FOR NOW',
     diasporaEvent: 'DIASPORA LINKS OPEN THE MULTI-EVENT PLEXUS EXPERIENCE FORM — THE EVENT NOTE IS KEPT ON THE LABEL',
@@ -88,10 +109,39 @@ async function load() {
     created: l.created_at, event: 'plexus-experience'
   }));
   links.sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
+
+  // ---- audit #8 annotations -----------------------------------------------------------------
+  // BROKEN: legacy registration_links rows minted without a token — server.js's list route
+  // interpolates `${userPortalUrl}/plexus/${l.token}` and a NULL token renders "/plexus/null"
+  // (server.js is out of bounds here, so the view refuses to present those URLs as live).
+  for (const l of links) l.broken = isBrokenUrl(l.url) || (l.kindKey === 'registration' && !l.token);
+  // ARCHIVED bucket = paused + expired + broken; only the rest is the LIVE list.
+  for (const l of links) l.archived = l.paused || l.expired || l.broken;
+  // DUPLICATE collapse (visual): exact twins in the live list — same system, same audience,
+  // same name. The canonical row is the one with sign-ups (most uses, ties → oldest); its
+  // twins render collapsed with a "duplicate of →" note. Nothing is merged or deleted.
+  const groups = {};
+  for (const l of links) {
+    if (l.archived) continue;
+    const key = [l.kindKey, l.kind, String(l.name).trim().toLowerCase()].join('|');
+    (groups[key] = groups[key] || []).push(l);
+  }
+  for (const g of Object.values(groups)) {
+    if (g.length < 2) continue;
+    const canon = g.slice().sort((a, b) => (b.uses - a.uses) || String(a.created || '').localeCompare(String(b.created || '')))[0];
+    canon.dupCount = g.length - 1;
+    for (const l of g) if (l !== canon) l.dupOf = canon;
+  }
+
   D = { links, errors: r.$errors, bridges: Array.isArray(r.bridges) ? r.bridges : [] };
   return true;
 }
 const links = () => (D && D.links) || [];
+const liveLinks = () => links().filter(l => !l.archived);
+const archivedLinks = () => links().filter(l => l.archived);
+const isBrokenUrl = u => /\/(null|undefined)$/.test(String(u || '').trim());
+const keyOf = l => l.kindKey + ':' + l.id;
+const reasonOf = l => l.broken ? 'broken' : l.expired ? 'expired' : 'paused';
 
 // ---------------------------------------------------------------- blocks (artboard markup verbatim)
 function blockTitle() {
@@ -115,35 +165,76 @@ function statsLine(l) {
   if (!l.uses && l.created) bits.push(COPY.stats.created(fmt.dayShort(l.created)));
   return bits.join(' · ');
 }
+function tickBox(l) {
+  const on = st.ticked.has(keyOf(l));
+  return `<span data-act="tick" data-key="${esc(keyOf(l))}" role="checkbox" aria-checked="${on}" title="${COPY.row.tick}" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:${on ? '#9b1b22' : 'transparent'};flex:none"></span>`;
+}
 function linkRow(l) {
   const c = KIND_STYLE[l.kind] || KIND_STYLE.PUBLIC;
   const ref = `data-kind="${esc(l.kindKey)}" data-id="${esc(l.id)}"`;
+  // audit #8: an exact twin collapses to one line — "duplicate of →" pointing at the canonical row
+  if (l.dupOf) return `
+      <div data-row="${esc(keyOf(l))}" style="padding:9px 18px;border-bottom:1px solid rgba(32,27,22,.08);display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fdfbf6" title="${esc(l.url)}">
+        ${tickBox(l)}
+        <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;padding:3px 7px;background:#eee7dc;color:#6d6459;white-space:nowrap">${COPY.dup.tag}</span>
+        <span style="font-size:12px;color:#9a9086;flex:1;min-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${COPY.dup.of} <span style="color:#6d6459;font-weight:600">${esc(l.dupOf.name)}</span></span>
+        <span data-act="signups" data-token="${esc(l.token || '')}" data-label="${esc(l.name)}" title="Every sign-up from this link, in Registrations" style="font-size:11px;color:#6d6459;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${esc(statsLine(l))}</span>
+        <span data-act="pause" ${ref} style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#9a9086;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.row.pause}</span>
+      </div>`;
   return `
-      <div data-row="${esc(l.kindKey + ':' + l.id)}" style="padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.08);display:flex;flex-direction:column;gap:7px">
+      <div data-row="${esc(keyOf(l))}" style="padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.08);display:flex;flex-direction:column;gap:7px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          ${tickBox(l)}
           <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;padding:3px 7px;background:${c[0]};color:${c[1]};white-space:nowrap">${esc(l.kind)}</span>
-          <span style="font-size:13px;font-weight:600;flex:1;min-width:120px">${esc(l.name)}${l.note && l.note !== l.name ? ` <span style="font-weight:400;color:#6d6459">· ${esc(l.note)}</span>` : ''}</span>
+          <span style="font-size:13px;font-weight:600;flex:1;min-width:120px">${esc(l.name)}${l.note && l.note !== l.name ? ` <span style="font-weight:400;color:#6d6459">· ${esc(l.note)}</span>` : ''}${l.dupCount ? ` <span title="${l.dupCount} exact twin${l.dupCount === 1 ? '' : 's'} collapsed below" style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:#eee7dc;color:#6d6459;vertical-align:1px">+${l.dupCount} ${COPY.dup.tag}${l.dupCount === 1 ? '' : 'S'}</span>` : ''}</span>
           <span data-act="signups" data-token="${esc(l.token || '')}" data-label="${esc(l.name)}" title="Every sign-up from this link, in Registrations" style="font-size:11px;color:#6d6459;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${esc(statsLine(l))}</span>
           <span data-act="pause" ${ref} style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:${l.paused ? '#1e6e42' : '#9a9086'};cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${l.paused ? COPY.row.resume : COPY.row.pause}</span>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <span style="font:600 11.5px ui-monospace,monospace;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:8px 11px;flex:1;min-width:200px;color:${l.paused ? '#9a9086' : '#201b16'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.url)}">${esc(l.url.replace(/^https?:\/\//, ''))}</span>
-          <span data-act="copy" ${ref} data-url="${esc(l.url)}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copied === l.kindKey + ':' + l.id ? COPY.row.copied : COPY.row.copy}</span>
+          <span data-act="copy" ${ref} data-url="${esc(l.url)}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copied === keyOf(l) ? COPY.row.copied : COPY.row.copy}</span>
           <span data-act="qr" ${ref} data-url="${esc(l.url)}" data-name="${esc(l.name)}" title="${COPY.row.qrTitle}" style="padding:8px 11px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.row.qr}</span>
         </div>
       </div>`;
 }
+// audit #8: paused + expired + broken links rest in one collapsed section, out of the live list
+function archRow(l) {
+  const reason = reasonOf(l);
+  const tag = { broken: ['#f7e3e4', '#7e151b'], expired: ['#f1e7d4', '#7a6432'], paused: ['#eee7dc', '#6d6459'] }[reason];
+  const ref = `data-kind="${esc(l.kindKey)}" data-id="${esc(l.id)}"`;
+  return `
+      <div data-row="${esc(keyOf(l))}" style="padding:9px 18px;border-bottom:1px solid rgba(32,27,22,.06);display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fdfbf6">
+        <span title="${reason === 'broken' ? esc(COPY.arch.brokenWhy) : esc(l.url)}" style="font:600 7.5px Inter,sans-serif;letter-spacing:.11em;padding:3px 6px;background:${tag[0]};color:${tag[1]};white-space:nowrap">${COPY.arch.reason[reason]}</span>
+        <span style="font-size:12px;color:#6d6459;flex:1;min-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.name)}</span>
+        <span data-act="signups" data-token="${esc(l.token || '')}" data-label="${esc(l.name)}" title="Every sign-up from this link, in Registrations" style="font-size:11px;color:#9a9086;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${esc(statsLine(l))}</span>
+        ${l.paused && !l.broken ? `<span data-act="pause" ${ref} style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#1e6e42;cursor:pointer;white-space:nowrap">${COPY.row.resume}</span>` : ''}
+      </div>`;
+}
 function blockList() {
-  const list = links();
+  const live = liveLinks();
+  // duplicates render directly under their canonical row, whatever the date sort said
+  const ordered = [];
+  for (const l of live) { if (l.dupOf) continue; ordered.push(l); for (const d of live) if (d.dupOf === l) ordered.push(d); }
+  const arch = archivedLinks();
+  const nTicked = st.ticked.size;
   return `
       <!-- dc: Admin Links.dc.html › "LIVE LINKS" -->
       <div data-block="list" style="border:1px solid rgba(32,27,22,.14);background:#fff">
-        <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.12)">
+        <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.12);flex-wrap:wrap">
           <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.live.title}</span>
           <span style="font-size:11.5px;color:#6d6459">${COPY.live.sub}</span>
+          <div style="flex:1"></div>
+          ${nTicked ? `<span data-act="bulkArchive" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.bulk.btn(nTicked)}</span>` : ''}
         </div>
-        ${list.map(linkRow).join('')}
-        ${!list.length ? `<div class="empty" style="padding:30px 18px 32px"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">${COPY.live.empty}</span><span class="empty-why">${COPY.live.emptyWhy}</span></div>` : ''}
+        ${ordered.map(linkRow).join('')}
+        ${!live.length ? `<div class="empty" style="padding:30px 18px 32px"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">${COPY.live.empty}</span><span class="empty-why">${COPY.live.emptyWhy}</span></div>` : ''}
+        ${arch.length ? `
+        <div data-act="archToggle" role="button" aria-expanded="${st.archOpen}" style="display:flex;align-items:center;gap:10px;padding:11px 18px;border-top:1px solid rgba(32,27,22,.12);cursor:pointer;background:#fdfbf6" data-hover="background:#f6f2ea">
+          <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${esc(COPY.arch.title(arch.length))}</span>
+          <div style="flex:1"></div>
+          <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${st.archOpen ? COPY.arch.hide : COPY.arch.show}</span>
+        </div>
+        ${st.archOpen ? arch.map(archRow).join('') + `<div style="padding:9px 18px;font-size:11px;color:#9a9086;border-top:1px solid rgba(32,27,22,.06)">${COPY.arch.foot}</div>` : ''}` : ''}
         <div style="padding:11px 18px;font-size:11px;color:#6d6459">${COPY.live.foot}</div>
       </div>
       <!-- /dc -->`;
@@ -184,7 +275,12 @@ function template() {
 
 // ---------------------------------------------------------------- behaviour
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
-async function refetch() { if (!(await load()) || !rootEl) return; rerender('[data-block="list"]', blockList()); }
+async function refetch() {
+  if (!(await load()) || !rootEl) return;
+  const have = new Set(links().map(keyOf));
+  st.ticked.forEach(k => { if (!have.has(k)) st.ticked.delete(k); });
+  rerender('[data-block="list"]', blockList());
+}
 function readForm() {
   const v = role => { const el = rootEl.querySelector(`[data-role="${role}"]`); return el ? el.value : ''; };
   st.nEvent = v('nEvent') || st.nEvent; st.nKind = v('nKind') || st.nKind; st.nLimit = v('nLimit'); st.nNote = v('nNote');
@@ -222,7 +318,16 @@ async function createLink() {
         donor: { event_type: 'bridges', event_name: 'Plexus Donor Night', event_id: bridgesEventId(/donor/i) },
         forum: { event_type: 'forum', event_name: 'Forum gathering ' + FACTS.forum.gathering.start.slice(0, 4) }
       }[st.nEvent];
-      await api.post('/api/admin/registration-links', Object.assign({ link_type: st.nKind === 'VIP' ? 'vip' : 'generic', max_uses: limit || 0, label, notes: note || null, expires_days: 365 }, map));
+      const r = await api.post('/api/admin/registration-links', Object.assign({ link_type: st.nKind === 'VIP' ? 'vip' : 'generic', max_uses: limit || 0, label, notes: note || null, expires_days: 365 }, map));
+      // audit #8: refuse to keep a link whose target resolved to null — the legacy builder
+      // (server.js, out of bounds here) interpolates the token raw into /plexus/<token>, and a
+      // row that came back slugless would sit in the list as a dead "/plexus/null" QR forever.
+      if (r && (isBrokenUrl(r.link) || (map.event_type === 'plexus' && !r.token))) {
+        try { await api.post(`/api/v2/links/registration/${encodeURIComponent(r.id)}/active`, { active: false }); } catch (e2) { /* it will surface as BROKEN in the archive */ }
+        ui.toast(COPY.toast.brokenCreated, { kind: 'error' });
+        await refetch();
+        return;
+      }
     }
     st.nLimit = ''; st.nNote = '';
     const li = rootEl.querySelector('[data-role="nLimit"]'); if (li) li.value = '';
@@ -251,6 +356,26 @@ async function showQr(url, name) {
 
 const handlers = {
   create: () => createLink(),
+  // ---- audit #8: checkbox select → ARCHIVE N (bulk pause through the v2 route) ----
+  tick: (el) => {
+    const k = el.dataset.key;
+    st.ticked.has(k) ? st.ticked.delete(k) : st.ticked.add(k);
+    rerender('[data-block="list"]', blockList());
+  },
+  archToggle: () => { st.archOpen = !st.archOpen; rerender('[data-block="list"]', blockList()); },
+  bulkArchive: async (el) => {
+    const items = links().filter(l => st.ticked.has(keyOf(l))).map(l => ({ kind: l.kindKey, id: l.id }));
+    if (!items.length) { ui.toast(COPY.bulk.none); return; }
+    if (!await ui.confirm(COPY.bulk.confirm(items.length))) return;
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      const r = await api.post('/api/v2/links/bulk-archive', { items });
+      st.ticked.clear();
+      st.archOpen = true;
+      ui.toast(COPY.bulk.done((r && r.archived) || items.length));
+      await refetch();
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
   copy: async (el) => {
     const url = el.dataset.url;
     try { await navigator.clipboard.writeText(url); } catch (e) {
@@ -283,7 +408,7 @@ export default {
   title: 'Links',
   async render(root, ctx) {
     rootEl = root; loadCss();
-    st = { copied: null, nEvent: 'gala', nKind: 'PUBLIC', nLimit: '', nNote: '' };
+    st = { copied: null, nEvent: 'gala', nKind: 'PUBLIC', nLimit: '', nNote: '', ticked: new Set(), archOpen: false };
     D = null;
     await load();
     if (rootEl !== root) return;

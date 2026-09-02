@@ -7,7 +7,7 @@
 import { api } from '../api.js';
 import { session, state } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import { FACTS, routeFor } from '../facts.js';
+import { FACTS, routeFor, CTA, trueDateFor, reconcileEarlyBird, galaPriceNow } from '../facts.js';
 import { chrome } from '../chrome.js';
 import { profileCompletion } from '../member.js';
 import router from '../router.js';
@@ -21,7 +21,12 @@ export const COPY = {
     greetings: ['Good morning', 'Good afternoon', 'Good evening'],   // time-of-day; text easter eggs removed by decision
     open: (name, city) => `${name} is open for registration — two days in ${city}, this December. Discover what's next.`,
     soon: (name, city) => `${name} opens for registration soon — two days in ${city}, this December. Discover what's next.`,
-    tickets: 'EVENT TICKETS →', checkIn: new Date() >= new Date(FACTS.plexus.start + 'T00:00:00') ? 'CHECK IN' : 'CHECK-IN OPENS DEC 4', my: 'MY MED&amp;X'
+    // UX audit 2026-09-02 › item 2: under "…is open for registration", the hero's own buttons could
+    // not start that task — two of the three opened an empty wallet and the third was a status
+    // dressed as a button. One CTA now: register when they hold nothing, their tickets when they do.
+    // Check-in is a date, so it reads as a date until the doors open (item 6: never a third verb).
+    register: `${CTA.register} →`, tickets: 'EVENT TICKETS →', checkIn: 'CHECK IN →',
+    checkInSoon: `CHECK-IN OPENS ${fmt.upper(fmt.shortDate(FACTS.plexus.start))}`
   },
   start: {
     title: 'GETTING STARTED', left: n => (n === 1 ? '1 STEP LEFT' : n + ' STEPS LEFT'),
@@ -29,7 +34,7 @@ export const COPY = {
     profile: pct => `Complete your profile — <strong style="color:#191512">${pct}%</strong> done · `, edit: 'EDIT PROFILE →',
     resent: 'Link sent — check your inbox (and spam).'
   },
-  next: { eyebrow: 'NEXT EVENT', free: 'Free entry', schedule: 'VIEW SCHEDULE', register: 'PRE-REGISTER NOW →', mine: 'MY TICKET →', units: ['DAYS', 'HOURS', 'MINUTES'] },
+  next: { eyebrow: 'NEXT EVENT', free: 'Free entry', schedule: 'VIEW SCHEDULE', register: `${CTA.register} →`, mine: 'MY TICKET →', units: ['DAYS', 'HOURS', 'MINUTES'] },
   projects: {
     n: '01', title: 'OUR PROJECTS', sub: 'Apply, register, and follow every Med&amp;X project from here.',
     cards: {
@@ -41,8 +46,8 @@ export const COPY = {
     },
     // used only when GET /api/public/status is unavailable (wording from the artboard, facts from FACTS)
     fallback: {
-      plexus: { status_label: 'Pre-registration open', detail_line: `${FACTS.plexus.dateRange} · ${FACTS.plexus.city} · Free entry`, cta_label: 'Register', cta_target: 'plexus' },
-      gala: { status_label: 'Reserve your seat', detail_line: `${FACTS.gala.dateLabel} · ${FACTS.gala.venue} · €${FACTS.gala.priceEarly} through ${FACTS.gala.priceFlipLabel}`, cta_label: 'Reserve seat', cta_target: 'gala' },
+      plexus: { status_label: 'Registration open', detail_line: `${FACTS.plexus.dateRange} · ${FACTS.plexus.city} · Free entry`, cta_label: CTA.register, cta_target: 'plexus' },
+      gala: { status_label: 'Seats limited', detail_line: `${FACTS.gala.dateLabel} · ${FACTS.gala.venue} · €${FACTS.gala.priceEarly} through ${FACTS.gala.priceFlipLabel}`, cta_label: CTA.reserve(`€${FACTS.gala.priceEarly}`), cta_target: 'gala' },
       accelerator: { status_label: 'Opens November 15', detail_line: `Partner labs and clinics · ${FACTS.accelerator.opensLabel}`, cta_label: 'Learn more', cta_target: 'accelerator' },
       forum: { status_label: 'By invitation', detail_line: `Forum gathering · ${FACTS.forum.gathering.label}`, cta_label: 'Enter code', cta_target: 'forum' },
       bridges: { status_label: `${FACTS.bridges.next.city} · ${FACTS.bridges.next.short}`, detail_line: `${FACTS.bridges.next.city} · ${FACTS.bridges.next.label}`, cta_label: 'View program', cta_target: 'bridges' }
@@ -122,7 +127,11 @@ async function load() {
     next: api.get('/api/me/next-event'),
     net: api.get('/api/networking/profile'),
     comp: api.get('/api/v2/profile/completion'),
-    nl: api.get('/api/v2/newsletter/preferences')
+    nl: api.get('/api/v2/newsletter/preferences'),
+    // one directory, one count (audit small notes): this band said 59 MEMBERS while the Network
+    // screen offered "BROWSE ALL 48 MEMBERS" — /api/public/impact counts every row in `users`,
+    // the directory counts the members you can actually open. The directory number is the true one.
+    netSummary: api.get('/api/v2/network/summary')
   });
   if (r.me) session.update(Object.assign({}, r.me, { email_verified: (session.user || {}).email_verified }));
   const me = session.user || r.me || {};
@@ -130,8 +139,12 @@ async function load() {
   const projects = {}; ((r.status && r.status.projects) || []).forEach(p => { projects[p.project_key] = p; });
   const feed = (r.feed && r.feed.items) || [];
   let keyDates = (r.plexus && Array.isArray(r.plexus.key_dates) && r.plexus.key_dates.length) ? r.plexus.key_dates : null;
+  const directoryMembers = r.netSummary && Number.isFinite(Number(r.netSummary.members)) ? Number(r.netSummary.members) : null;
+  const sitePrice = r.site && r.site.price && Number(r.site.price.current);
   return {
-    me, conf, projects, feed, impact: r.impact,
+    me, conf, projects, feed,
+    impact: r.impact ? Object.assign({}, r.impact, directoryMembers == null ? {} : { members: directoryMembers }) : null,
+    galaPrice: Number.isFinite(sitePrice) && sitePrice > 0 ? sitePrice : galaPriceNow(),
     followed: (r.topics && r.topics.projects) || [],
     next: r.next || {},
     completion: r.comp && Array.isArray(r.comp.items)
@@ -156,6 +169,8 @@ function blockHero() {
   const greeting = COPY.hero.greetings[hour < 12 ? 0 : hour < 18 ? 1 : 2];
   const open = D.conf ? !!D.conf.registration_open : true;
   const city = (D.conf && D.conf.venue_city) || FACTS.plexus.city;
+  const holdsTicket = !!D.next.registered;
+  const checkInOpen = new Date() >= new Date(FACTS.plexus.start + 'T00:00:00');
   return `
   <!-- dc: Med&X Home.dc.html › "YOUR NEXT EVENT" -->
   <div style="border-bottom:1px solid rgba(25,21,18,.16);position:relative;overflow:hidden">
@@ -196,10 +211,14 @@ function blockHero() {
       <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:46px;line-height:1.08">${esc(greeting)}, <i>${esc((me.first_name || '').trim() || session.displayName())}</i>.</div>
       <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:460px;margin-top:14px">${esc((open ? COPY.hero.open : COPY.hero.soon)(D.shortName, city))}</div>
       <div class="mx-wrap-center" style="display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;justify-content:center">
-        <a href="/app/me" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.tickets}</a>
-        <a href="/app/me?open=qr" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#191512;text-decoration:none;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.hero.checkIn}</a>
-        <a href="/app/me" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#191512;text-decoration:none;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.hero.my}</a>
+        ${holdsTicket
+          ? `<a href="/app/me" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.tickets}</a>`
+          : `<a href="/app/plexus/mine" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.register}</a>`}
+        ${holdsTicket && checkInOpen
+          ? `<a href="/app/me?open=qr" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#191512;text-decoration:none;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.hero.checkIn}</a>`
+          : ''}
       </div>
+      ${checkInOpen ? '' : `<div style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;margin-top:12px">${COPY.hero.checkInSoon}</div>`}
     </div>
     <span style="order:1"></span>
     </div>
@@ -236,6 +255,14 @@ function blockNextEvent() {
   <!-- /dc -->`;
 }
 
+// The two registration cards say the two verbs (item 6) whatever wording the status feed carries;
+// every other card keeps the admin's own label. Detail lines pass through the early-bird repair so
+// a stale "€150 through 1 Sep" can't outrank the Gala page (item 1).
+function cardCta(key, p) {
+  if (key === 'plexus') return CTA.register;
+  if (key === 'gala') return CTA.reserve(fmt.eur(D.galaPrice));
+  return fmt.upper(p.cta_label || 'Open');
+}
 function blockProjects() {
   const card = key => {
     const p = D.projects[key] || COPY.projects.fallback[key]; const c = CARD[key]; const meta = COPY.projects.cards[key];
@@ -246,8 +273,8 @@ function blockProjects() {
         <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
           <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${c.status}">${esc(fmt.upper(fmt.detail(p.status_label || '')))}</span>
           <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${meta.title}</span>
-          <span style="font-size:12px;color:${c.detail};line-height:1.5">${esc(fmt.detail(p.detail_line || ''))}</span>
-          <a href="${to}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:${c.cta};margin-top:auto;white-space:nowrap">${esc(fmt.upper(p.cta_label || 'Open'))} →</a>
+          <span style="font-size:12px;color:${c.detail};line-height:1.5">${esc(fmt.detail(reconcileEarlyBird(p.detail_line || '')))}</span>
+          <a href="${to}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:${c.cta};margin-top:auto;white-space:nowrap">${esc(cardCta(key, p))} →</a>
         </div>
       </div>`;
   };
@@ -307,7 +334,7 @@ function blockLatest() {
           <div style="display:flex;gap:12px;align-items:center;padding:9px 0;${i < rows.length - 1 ? 'border-bottom:1px solid rgba(25,21,18,.1)' : ''}">
             <span style="width:7px;height:7px;background:${DOTS[i % DOTS.length]};flex:none"></span>
             <span style="font-size:13px;color:#191512;flex:1;line-height:1.3">${esc(fmt.detail(r.label))}</span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#9b8f80;white-space:nowrap">${esc(fmt.keyDateLabel(r.date))}</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#9b8f80;white-space:nowrap">${esc(fmt.keyDateLabel(trueDateFor(r.label) || r.date))}</span>
           </div>`).join('')}
         </div>
         <!-- /dc -->
@@ -411,8 +438,9 @@ const handlers = {
   dlIcs: () => {
     const year = (D.conf && D.conf.year) || FACTS.year;
     const events = D.keyDates.map((r, i) => {
-      const d = fmt.parseLooseDate(r.date, year); if (!d) return null;
-      const range = String(r.date).match(/(\d{1,2})\s?[-–]\s?(\d{1,2})/);
+      const date = trueDateFor(r.label) || r.date;                 // the calendar exports the same date the rail shows
+      const d = fmt.parseLooseDate(date, year); if (!d) return null;
+      const range = String(date).match(/(\d{1,2})\s?[-–]\s?(\d{1,2})/);
       const end = new Date(d); end.setDate(d.getDate() + (range ? (+range[2] - +range[1]) : 0) + 1);
       return { uid: 'keydate-' + i + '-' + fmt.ymd(d), start: fmt.ymd(d), end: fmt.ymd(end), summary: fmt.detail(r.label), location: /plexus|conference|gala/i.test(r.label) ? `${FACTS.plexus.venue}, ${FACTS.plexus.city}` : '' };
     }).filter(Boolean);

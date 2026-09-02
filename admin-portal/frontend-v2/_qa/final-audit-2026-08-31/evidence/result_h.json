@@ -1,0 +1,96 @@
+{
+ "chain": "h-wallet-day",
+ "verdict": "PASS",
+ "steps": [
+  [
+   "OK ",
+   "member my-status intact (same reg id, original holder)",
+   "{\"id\": \"cfb9a158-5b8e-481a-90ef-8040ca227f17\", \"email\": \"member025@staging.medx.hr\"}"
+  ],
+  [
+   "OK ",
+   "member /app/gala renders the held seat state",
+   "PROJECTS \u2192 MED&X GALA EVENING MED&X ANNUAL AWARDS \u00b7 BLACK TIE \u00b7 SEATS LIMITED Med&X Gala Evening Saturday, 5 December 20"
+  ],
+  [
+   "OK ",
+   "rehearsal toggle present",
+   ""
+  ],
+  [
+   "OK ",
+   "rehearsal mode visibly on (amber state)",
+   ""
+  ],
+  [
+   "OK ",
+   "KNOWN DEFECT still present: TEST codes -> NOT FOUND in ID-check lookup (defect #3 of 2026-08-30, unchanged by this wave)",
+   "{\"ok\": false, \"result\": \"not_found\", \"message\": \"No registration found for this code.\"}"
+  ],
+  [
+   "OK ",
+   "ID-check lookup resolves a scrubbed real code (read-only)",
+   "{\"person\": {\"name\": \"Member 025 Test\", \"email\": \"member025@staging.medx.hr\", \"institution\": \"University Hospital Basel\", \"country\": \"Switzerland\"}, \"doors\": [\"conference\", \"gala\", \"bridges\"]}"
+  ],
+  [
+   "OK ",
+   "party 1-of-N: three admits pass (1/3, 2/3, ALL IN)",
+   "['admitted', 'admitted', 'party_complete', 'over_capacity']"
+  ],
+  [
+   "OK ",
+   "4th scan -> over_capacity",
+   "['admitted', 'admitted', 'party_complete', 'over_capacity']"
+  ],
+  [
+   "OK ",
+   "over-capacity card is the crimson state",
+   "rgb(155, 27, 34) / rgb(248, 233, 234)"
+  ],
+  [
+   "OK ",
+   "OVER CAPACITY copy shown",
+   ""
+  ],
+  [
+   "OK ",
+   "overview read OK (rehearsal isolated from real gates)",
+   "[{\"event_key\": \"conference\", \"label\": \"Plexus Week \\u2014 Conference\", \"starts_at\": \"2026-12-04T08:00:00\", \"ends_at\": \"2"
+  ],
+  [
+   "OK ",
+   "door URL now carries the /__admin staging prefix (defect #2 of 2026-08-30 FIXED)",
+   "https://medx-staging.onrender.com/__admin/api/v2/door/36dc13d4d97857a0565d0fc1e72c014ba8a5"
+  ],
+  [
+   "OK ",
+   "door page serves for a live token",
+   "200, 8061 B"
+  ],
+  [
+   "OK ",
+   "door /status live",
+   "{\"ok\":true,\"gate\":{\"event_key\":\"conference\",\"expected\":71,\"admitted\":1},\"expires_at\":\"2026-12-05T23:"
+  ],
+  [
+   "OK ",
+   "cleanup: door token revoked via its own endpoint",
+   "200"
+  ],
+  [
+   "OK ",
+   "revoked door page -> 410",
+   "410"
+  ],
+  [
+   "OK ",
+   "cleanup: rehearsal admits cleared via /rehearsal/reset",
+   "200"
+  ],
+  [
+   "OK ",
+   "zero console errors in chain",
+   ""
+  ]
+ ]
+}

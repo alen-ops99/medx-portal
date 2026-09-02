@@ -1,0 +1,106 @@
+{
+ "chain": "a-forum-nomination",
+ "verdict": "PASS",
+ "steps": [
+  [
+   "OK ",
+   "API guard: short statement -> 400",
+   "got 400"
+  ],
+  [
+   "OK ",
+   "member /app/forum shows PUT A COLLEAGUE FORWARD block",
+   ""
+  ],
+  [
+   "OK ",
+   "live character counter tracks statement",
+   "219 characters \u2014 thank you for the detail"
+  ],
+  [
+   "OK ",
+   "confirmation copy shown in place",
+   ""
+  ],
+  [
+   "OK ",
+   "hub API carries the nomination (after replica sync)",
+   "[{\"id\": \"871a9ac2-6351-4745-aaad-999ca3c469a4\", \"nominee_name\": \"Audit Test\", \"nominee_email\": \"audit.nominee@staging.medx.hr\", \"institution\": \"Staging Audit Institute\", \"statement\": \"This is an audit"
+  ],
+  [
+   "OK ",
+   "admin recruitment pipeline shows the nominee",
+   ""
+  ],
+  [
+   "OK ",
+   "\"put forward by <member>\" attribution rendered",
+   "Staging Audit Institute \u00b7 put forward by Member 003 Test"
+  ],
+  [
+   "OK ",
+   "THE STATEMENT expands with member words verbatim",
+   ""
+  ],
+  [
+   "OK ",
+   "SHORTLIST control present",
+   ""
+  ],
+  [
+   "OK ",
+   "shortlist clicked",
+   "AUDIT TEST IS ON THE SHORTLIST \u2014 THE NOMINATING MEMBER HAS BEEN TOLD."
+  ],
+  [
+   "OK ",
+   "shortlist created ONE forum_candidates row",
+   "{\"id\": \"5f2f309e-67c8-44dc-ace3-d4f7de02e8b6\", \"status\": \"imported\", \"source\": \"nomination\"}"
+  ],
+  [
+   "OK ",
+   "candidate row source='nomination', status='imported'",
+   "source=nomination status=imported"
+  ],
+  [
+   "OK ",
+   "nominee still visible in pipeline (as SHORTLIST row)",
+   ""
+  ],
+  [
+   "OK ",
+   "nominator email landed in staging dump",
+   "Your_Forum_nomination_is_moving_forward_1788146525496.html"
+  ],
+  [
+   "OK ",
+   "email names the colleague",
+   ""
+  ],
+  [
+   "OK ",
+   "email addressed to the nominating member",
+   "file=Your_Forum_nomination_is_moving_forward_1788146525496.html"
+  ],
+  [
+   "OK ",
+   "decline after shortlist -> 409 already-decided",
+   "got 409"
+  ],
+  [
+   "OK ",
+   "cleanup: candidate row deleted via DELETE /api/admin/forum/candidates/:id",
+   "200"
+  ],
+  [
+   "OK ",
+   "candidate row verified gone",
+   ""
+  ],
+  [
+   "OK ",
+   "zero console errors in chain (guard-4xx resource logs excluded)",
+   ""
+  ]
+ ]
+}

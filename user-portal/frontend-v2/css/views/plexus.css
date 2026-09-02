@@ -16,10 +16,6 @@
 /* QR pass image (My Plexus › "03 · MY PASS") */
 .mx-qr { width: 148px; height: 148px; object-fit: contain; background: #fff; border: 1px solid rgba(25,21,18,.16); padding: 8px; box-sizing: content-box; display: block; }
 
-/* speaker search field — the artboard draws it as a styled span; here it is a real input with the same inline look */
-.mx-speaker-q { font-family: Inter, sans-serif; background: transparent; border-radius: 0; box-sizing: border-box; }
-.mx-speaker-q:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
-
 @media (max-width: 900px) {
   /* ink program section: text column + (200px photo | text) grid → single column */
   .mx-grid-photo { grid-template-columns: 1fr !important; }
@@ -28,7 +24,6 @@
   .mx-prog-head { flex-wrap: wrap !important; }
   .mx-prog-head > .mx-hint { margin-left: 0 !important; flex-basis: 100%; }
   .mx-speakers-head { flex-wrap: wrap !important; }
-  .mx-speakers-head > .mx-speaker-q { margin-left: 0 !important; width: 100% !important; }
   /* hero paddings not covered by the shared hooks */
   .mx-pad-hero-z { padding: 48px 18px 40px !important; }
   .mx-pad-mine { padding: 32px 18px 26px !important; }
@@ -36,8 +31,7 @@
   /* My Plexus hero facts column loses its left rule when stacked */
   .mx-mine-facts { border-left: 0 !important; padding-left: 0 !important; }
   .mx-min-420 { min-width: 0 !important; }
-  /* Zagreb mosaic + photo strip rows get shorter */
-  .mx-zagreb-grid { grid-auto-rows: 190px !important; }
+  /* photo strip rows get shorter */
   .mx-photo-strip { grid-auto-rows: 130px !important; }
   /* at-a-glance and program rows wrap their right-hand labels */
   .mx-glance-row, .mx-day-row { flex-wrap: wrap !important; }
@@ -48,10 +42,8 @@
   .mx-min-420 { flex-basis: 100% !important; }
 }
 @media (max-width: 500px) {
-  .mx-span-2 { grid-column: auto !important; }
   .mx-display-52, .mx-display-54 { font-size: 30px !important; }
   .mx-display-42 { font-size: 28px !important; }
   .mx-session-indent { padding-left: 0 !important; }
-  .mx-speaker-filters { flex-wrap: wrap; }
   .mx-bio-sheet { padding: 20px 18px !important; }
 }

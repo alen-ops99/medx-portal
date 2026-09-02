@@ -8,11 +8,17 @@
 // signup_form_responses, each row tagged with its source link (README: "Every sign-up lands in
 // Registrations tagged with its source link"). Bulk email + resend-confirmation stage
 // pending_approval rows in scheduled_emails — NOTHING sends without the Outbox OK (note 2).
+// Audit 2026-09-02 #11: rows are single-line (name · dimmed email inline, ~40px), the render
+// windows at 60 with SHOW ALL N (the server SHOW MORE stays for sets past the fetch limit),
+// the ALL-REGISTRATIONS stat and the EXPORT count reconcile visibly (the stat counts live rows,
+// the export counts the listed set incl. cancelled — both now say so), and COUNTRY facts
+// normalize at render via people.js countryName (HR → Croatia, US/USA → United States).
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
 import { chrome } from '../chrome.js';
 import router from '../router.js';
+import { countryName } from './people.js';
 
 export const SOURCE = 'Admin Registrations.dc.html';
 
@@ -20,13 +26,14 @@ export const COPY = {
   title: 'Registrations', back: '← PEOPLE',
   sub: 'Every sign-up across every event — filter, open the file, act. New submissions appear here the second the form is sent.',
   emailSel: n => `EMAIL SELECTED · ${n}`, exportCsv: n => `EXPORT CSV · ${n}`,
-  stats: { all: 'ALL REGISTRATIONS', conference: 'CONFERENCE', gala: 'GALA', boston: 'BOSTON', of: n => `of ${n}`, unpaid: n => `${n} unpaid` },
+  inclCancelled: n => `incl. ${n} cancelled`,
+  stats: { all: 'ALL REGISTRATIONS', conference: 'CONFERENCE', gala: 'GALA', boston: 'BOSTON', of: n => `of ${n}`, unpaid: n => `${n} unpaid`, cancelled: n => `+ ${n} cancelled` },
   searchPh: 'Name, email, note — e.g. “vegan”, “pending”, “kbc”',
   events: [['all', 'ALL EVENTS'], ['conference', 'PLEXUS CONFERENCE'], ['gala', 'GALA EVENING'], ['boston', 'BOSTON'], ['donor', 'DONOR NIGHT'], ['bridges', 'BUILDING BRIDGES'], ['forum', 'FORUM'], ['signup', 'SIGN-UP FORMS']],   // first five per the artboard; the rest are live data (v2)
   chips: ['ALL', 'PAID', 'PENDING', 'FREE'],
   cols: { who: 'WHO', event: 'EVENT', status: 'STATUS', when: 'WHEN' },
   empty: 'Nothing matches these filters.',
-  foot: (n, t) => `Showing ${n} of ${t} registration${t === 1 ? '' : 's'}`, more: 'SHOW MORE',
+  foot: (n, t) => `Showing ${n} of ${t} registration${t === 1 ? '' : 's'}`, more: 'SHOW MORE', showAll: n => `SHOW ALL ${n}`,
   linkFilter: l => `SOURCE LINK · ${l}`, clearLink: '× CLEAR',
   panel: {
     registered: w => `registered ${w}`, none: 'No registrations to show — the file panel fills as sign-ups arrive.',
@@ -97,6 +104,12 @@ async function load() {
 }
 const rows = () => (D && Array.isArray(D.rows)) ? D.rows : [];
 const selRow = () => rows().find(r => r.key === st.sel) || rows()[0] || null;
+// audit #11: the export button says exactly what it exports — the listed set, cancelled included
+function exportLabel() {
+  const list = rows();
+  const cx = list.filter(r => r.status === 'CANCELLED').length;
+  return COPY.exportCsv(list.length) + (cx ? ` · ${COPY.inclCancelled(cx)}` : '');
+}
 
 // ---------------------------------------------------------------- blocks (artboard markup verbatim)
 function blockTitle() {
@@ -112,7 +125,7 @@ function blockTitle() {
     </div>
     <div style="flex:1"></div>
     <span data-act="emailSel" data-role="emailSel" style="padding:10px 15px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.emailSel(st.ticked.size)}</span>
-    <span data-act="exportCsv" data-role="exportCsv" style="padding:10px 15px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.exportCsv(rows().length)}</span>
+    <span data-act="exportCsv" data-role="exportCsv" style="padding:10px 15px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${exportLabel()}</span>
   </div>
   <!-- /dc -->`;
 }
@@ -121,10 +134,13 @@ function blockStats() {
   const cap = s.conference_cap || FACTS.plexus.cap;
   const cell = (act, label, num, sub, subColor, last) => `
       <span data-act="${act}" role="button" style="padding:14px 18px;${last ? '' : 'border-right:1px solid rgba(32,27,22,.1);'}cursor:pointer;display:block" data-hover="background:#fdfbf6"><span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${label}</span><span style="display:block;font-family:Fraunces,serif;font-size:26px;margin-top:2px">${num} ${sub ? `<span style="font-size:13px;color:${subColor}">${sub}</span>` : ''}</span></span>`;
+  // audit #11: the ALL stat counts LIVE rows; the cancelled remainder is named right on the stat,
+  // so it can no longer silently disagree with the export button (which lists cancelled too).
+  const cxAll = D && D.grand_total != null && s.all != null ? Math.max(0, D.grand_total - s.all) : 0;
   return `
   <!-- dc: Admin Registrations.dc.html › "Stat strip" -->
   <div data-block="stats" class="mx-grid-4" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(4,1fr)">
-    ${cell('statAll', COPY.stats.all, s.all == null ? '—' : s.all, '', '#6d6459')}
+    ${cell('statAll', COPY.stats.all, s.all == null ? '—' : s.all, cxAll ? COPY.stats.cancelled(cxAll) : '', '#9a9086')}
     ${cell('statConf', COPY.stats.conference, s.conference == null ? '—' : s.conference, cap ? COPY.stats.of(cap) : '', '#6d6459')}
     ${cell('statGala', COPY.stats.gala, s.gala == null ? '—' : s.gala, s.gala_unpaid ? COPY.stats.unpaid(s.gala_unpaid) : '', '#9b1b22')}
     ${cell('statBoston', COPY.stats.boston, s.boston == null ? '—' : s.boston, s.boston_cap ? COPY.stats.of(s.boston_cap) : '', '#6d6459', true)}
@@ -146,25 +162,29 @@ function blockFilters() {
 function rowHtml(r, selected) {
   const c = ST[r.status] || ST.FREE;
   const lt = r.link ? (LINK_TAG[r.link.kind] || LINK_TAG.LINK) : null;
+  // audit #11: one line per row — name with the email inline and dimmed (~40px, was two lines)
   return `
-      <div data-act="open" data-key="${esc(r.key)}" role="button" aria-label="Open ${esc(r.name)}" class="mx-regrow" style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:11px 16px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center;cursor:pointer;background:${selected ? '#f6f2ea' : '#fff'}">
+      <div data-act="open" data-key="${esc(r.key)}" role="button" aria-label="Open ${esc(r.name)}" class="mx-regrow" style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:8px 16px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center;cursor:pointer;background:${selected ? '#f6f2ea' : '#fff'}">
         <span data-act="tick" data-key="${esc(r.key)}" role="checkbox" aria-checked="${st.ticked.has(r.key)}" aria-label="Select ${esc(r.name)}" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:${st.ticked.has(r.key) ? '#9b1b22' : 'transparent'};flex:none"></span>
-        <span style="min-width:0"><span style="display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${r.status === 'CANCELLED' ? 'color:#9a9086;text-decoration:line-through' : ''}">${esc(r.name)}</span><span style="display:block;font-size:10.5px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.email)}</span></span>
+        <span style="min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:600;${r.status === 'CANCELLED' ? 'color:#9a9086;text-decoration:line-through' : ''}">${esc(r.name)}</span>${r.email ? ` <span style="font-size:10.5px;color:#6d6459">· ${esc(r.email)}</span>` : ''}</span>
         <span class="mx-reg-event" style="min-width:0;display:flex;align-items:center;gap:6px"><span style="font-size:11.5px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.event)}</span>${lt ? `<span data-act="linkTag" data-link="${esc(r.link.ref)}" data-label="${esc(r.link.label)}" title="Source link — click to see every sign-up from it" style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:${lt[0]};color:${lt[1]};white-space:nowrap;cursor:pointer;flex:none">${esc(r.link.kind === 'LINK' ? 'LINK' : r.link.kind)}</span>` : ''}</span>
         <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:${c[0]};color:${c[1]};white-space:nowrap;justify-self:start">${esc(r.status)}</span>
         <span class="mx-reg-when" style="font:600 9px Inter,sans-serif;color:#9a9086;white-space:nowrap">${esc(fmt.dayLabel(r.when) || '')}</span>
       </div>`;
 }
+const REG_WINDOW = 60;                                     // audit #11: window the render, keep the page short
 function blockTable() {
   const list = rows(); const sel = selRow();
+  const visible = st.shown ? list.slice(0, st.shown) : list;
   const allTicked = list.length && list.every(r => st.ticked.has(r.key));
-  const more = D && D.total > list.length;
+  const canExpand = list.length > visible.length;          // display window (SHOW ALL)
+  const more = D && D.total > list.length;                 // server fetch window (SHOW MORE)
   return `
       <div data-block="table" style="border:1px solid rgba(32,27,22,.14);background:#fff">
         <div style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:9px 16px;border-bottom:1px solid rgba(32,27,22,.14);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;align-items:center"><span data-act="selAll" role="checkbox" aria-checked="${!!allTicked}" title="Select everything shown" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:${allTicked ? '#9b1b22' : 'transparent'}"></span><span>${COPY.cols.who}</span><span class="mx-reg-event">${COPY.cols.event}</span><span>${COPY.cols.status}</span><span class="mx-reg-when">${COPY.cols.when}</span></div>
-        ${list.map(r => rowHtml(r, sel && r.key === sel.key)).join('')}
+        ${visible.map(r => rowHtml(r, sel && r.key === sel.key)).join('')}
         ${!list.length ? `<div style="padding:24px 16px;text-align:center;font-size:13px;color:#6d6459">${COPY.empty}</div>` : ''}
-        <div style="padding:10px 16px;font-size:11px;color:#6d6459;display:flex;gap:14px;align-items:baseline">${COPY.foot(list.length, D ? D.total : 0)}<div style="flex:1"></div>${more ? `<span data-act="more" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.more} · ${D.total - list.length}</span>` : ''}</div>
+        <div style="padding:10px 16px;font-size:11px;color:#6d6459;display:flex;gap:14px;align-items:baseline">${COPY.foot(visible.length, D ? D.total : 0)}<div style="flex:1"></div>${canExpand ? `<span data-act="showAll" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.showAll(list.length)}</span>` : more ? `<span data-act="more" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.more} · ${D.total - list.length}</span>` : ''}</div>
       </div>`;
 }
 function panelActions(r) {
@@ -188,7 +208,9 @@ function blockPanel() {
         <div class="empty" style="padding:30px 18px 32px"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">No file open.</span><span class="empty-why">${COPY.panel.none}</span></div>
       </div>`;
   const ini = r.name.replace('Dr. ', '').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
-  const facts = (r.facts || []).concat([[COPY.panel.source, r.source || '—']]);
+  // COUNTRY facts normalize at render (audit #11) — same countryName rule the People directory uses
+  const facts = (r.facts || []).map(([k, v]) => k === 'COUNTRY' ? [k, countryName(v)] : [k, v])
+    .concat([[COPY.panel.source, r.source || '—']]);
   return `
       <!-- dc: Admin Registrations.dc.html › "Registration file" -->
       <div data-block="panel" class="mx-sticky" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;position:sticky;top:16px">
@@ -356,7 +378,7 @@ function redrawData() {
 }
 function syncButtons() {
   const e1 = rootEl && rootEl.querySelector('[data-role="emailSel"]'); if (e1) e1.textContent = COPY.emailSel(st.ticked.size);
-  const e2 = rootEl && rootEl.querySelector('[data-role="exportCsv"]'); if (e2) e2.textContent = COPY.exportCsv(rows().length);
+  const e2 = rootEl && rootEl.querySelector('[data-role="exportCsv"]'); if (e2) e2.textContent = exportLabel();
 }
 async function refetch(alsoFilters) {
   if (!(await load()) || !rootEl) return;
@@ -376,7 +398,7 @@ function bindInputs() {
     ev.addEventListener('change', () => { st.event = ev.value; st.sel = null; refetch(false); });
   }
 }
-function setFilter(patch) { Object.assign(st, patch); st.sel = null; refetch(true); }
+function setFilter(patch) { Object.assign(st, patch); st.sel = null; st.shown = REG_WINDOW; refetch(true); }   // a new filter starts a fresh window (audit #11)
 
 function csvExport() {
   const list = rows();
@@ -425,7 +447,8 @@ const handlers = {
   statConf: () => setFilter({ event: 'conference', status: 'ALL' }),
   statGala: () => setFilter({ event: 'gala', status: 'ALL' }),
   statBoston: () => setFilter({ event: 'boston', status: 'ALL' }),
-  more: () => { st.limit += 400; refetch(false); },
+  showAll: () => { st.shown = 0; rerender('[data-block="table"]', blockTable()); },   // 0 = no display window
+  more: () => { st.limit += 400; st.shown = 0; refetch(false); },
   emailSel: () => {
     if (!st.ticked.size) { ui.toast(COPY.toast.tickFirst); return; }
     const seen = new Set(); const recips = [];
@@ -451,8 +474,8 @@ const handlers = {
   openGala: () => {
     const r = selRow(); if (!r || !r.gala_id) return;
     const target = 'gala:' + r.gala_id;
-    if (rows().some(x => x.key === target)) { st.sel = target; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); ensureTimeline(); }
-    else { ui.toast(COPY.toast.galaRowMissing); st.q = ''; st.event = 'gala'; st.status = 'ALL'; st.link = null; st.sel = target; refetch(true); }
+    if (rows().some(x => x.key === target)) { st.sel = target; st.shown = 0; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); ensureTimeline(); }
+    else { ui.toast(COPY.toast.galaRowMissing); st.q = ''; st.event = 'gala'; st.status = 'ALL'; st.link = null; st.sel = target; st.shown = 0; refetch(true); }
   },
   tlAdd: async (el) => {                                  // append-only staff note (v2 timeline)
     const r = selRow(); if (!r || !r.email) return;
@@ -498,7 +521,7 @@ export default {
     rootEl = root; loadCss();
     st = { q: String(ctx.query.q || ''), event: String(ctx.query.event || 'all'), status: 'ALL',
       link: ctx.query.link ? String(ctx.query.link) : null, linkLabel: ctx.query.label ? String(ctx.query.label) : null,
-      limit: 400, sel: null, ticked: new Set(), cancelConfirm: null };
+      limit: 400, shown: REG_WINDOW, sel: null, ticked: new Set(), cancelConfirm: null };
     D = null; TL = null;
     await load();
     await loadTransfers();                                // RECENT TRANSFERS strip (additive)

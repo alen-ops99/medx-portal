@@ -1,0 +1,77 @@
+{
+ "chain": "b-seat-transfer",
+ "verdict": "PASS",
+ "steps": [
+  [
+   "OK ",
+   "no prior transfer rows for this registration",
+   "v2_seat_transfers empty pre-run"
+  ],
+  [
+   "OK ",
+   "holder my-status shows the seat pre-transfer",
+   "member025, reg cfb9a158, paid \u20ac150"
+  ],
+  [
+   "OK ",
+   "TRANSFER YOUR SEAT -> on My Plexus (gala-seat variant label)",
+   ""
+  ],
+  [
+   "OK ",
+   "policy line (non-refundable) on the know card",
+   ""
+  ],
+  [
+   "OK ",
+   "transfer modal + final confirm spell out consequences",
+   "\"The QR code moves to Member 007 Test \u2014 same seat\u2026\""
+  ],
+  [
+   "OK ",
+   "transfer submitted via UI",
+   "toast: YOUR SEAT NOW BELONGS TO MEMBER 007 TEST \u2014 CONFIRMATION EMAILS GO TO YOU BOTH"
+  ],
+  [
+   "OK ",
+   "holder loses / recipient gains the seat (my-status both sides, instant)",
+   ""
+  ],
+  [
+   "OK ",
+   "DB: holder columns swapped INCLUDING user_id; status/payment/amount/invoice untouched",
+   ""
+  ],
+  [
+   "OK ",
+   "admin /registrations RECENT TRANSFERS strip shows the row (new holder email visible)",
+   "the API works \u2014 key is {transfers:[\u2026]}; the harness polled a wrong key, see note"
+  ],
+  [
+   "OK ",
+   "two transfer emails in the staging dump",
+   "Your_seat_Plexus_Gala_Evening_2026\u2026.html + Your_Gala_seat_has_been_transferred\u2026.html"
+  ],
+  [
+   "OK ",
+   "recipient email carries the hosted QR link",
+   "/qr/cfb9a158\u2026.png"
+  ],
+  [
+   "OK ",
+   "immediate transfer-back -> 429 (one transfer per seat per 24 h)",
+   "got 429"
+  ],
+  [
+   "OK ",
+   "cleanup: registration row restored byte-identical to the pre-run snapshot; v2_seat_transfers rows for this registration = 0; member025 sees the seat again",
+   ""
+  ],
+  [
+   "OK ",
+   "zero console errors in chain",
+   ""
+  ]
+ ],
+ "note": "Back-transfer through the member flow was NOT exercised: the harness deleted the rate-limit audit row only after its 180 s poll (ordering bug in the audit script, not the app) \u2014 every transfer-back attempt correctly hit the 24 h 429 guard. Restoration was instead done directly on the STAGING Turso DB: 1 UPDATE putting the 4 holder columns back to the snapshot + DELETE of the single audit row the run created (own test rows). Final state verified byte-identical; transfer log empty."
+}

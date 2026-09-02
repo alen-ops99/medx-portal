@@ -7,7 +7,7 @@
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import { FACTS, galaPriceNow } from '../facts.js';
+import { FACTS, galaPriceNow, CTA } from '../facts.js';
 import { chrome } from '../chrome.js';
 import router from '../router.js';
 
@@ -31,8 +31,9 @@ export const COPY = {
   hero: {
     eyebrow: (status, cap) => `${status || 'PRE-REGISTRATION OPEN'} · FREE · ${FACTS.plexus.edition}TH YEAR${cap ? ` · CAPPED AT ${cap} SEATS` : ''}`,
     title: 'Plexus Conference', line: (range, venue) => `${range} · ${venue} — keynotes, research, and the Gala Evening.`,
-    register: 'PRE-REGISTER NOW →', mine: 'MY PLEXUS →', schedule: 'VIEW SCHEDULE',
-    interested: "I'M INTERESTED", noted: '✓ NOTED — UPDATES ON',
+    // "PRE-REGISTER" sat beside "REGISTER — FREE" on one page while registration was open
+    // (UX audit 2026-09-02 › item 6). One verb, and it is the true one.
+    register: `${CTA.register} →`, mine: 'MY PLEXUS →', schedule: 'VIEW SCHEDULE',
     follow: on => `GET UPDATES FROM PLEXUS · ${on ? 'ON' : 'OFF'}`,
     followSub: 'Email + portal alerts · manage topics in Profile &amp; settings'
   },
@@ -46,6 +47,8 @@ export const COPY = {
     n: '01', title: 'ON THE PLEXUS STAGE', all: 'ALL SPEAKERS →',
     sub: 'Global hospital and university leaders headline Plexus 2026, alongside the full conference speaker programme.',
     confirmed: 'CONFIRMED', viewBio: 'VIEW BIO →',
+    teaser: n => `${n} speaker${n === 1 ? '' : 's'} confirmed for the stage.`,
+    teaserWhy: 'Portraits, full bios and the session each one leads live on Program & speakers.',
     emptyLine: 'Speakers are announced as they confirm.', emptyWhy: 'The team is confirming this year’s speakers now — follow Plexus and hear the moment names go up.'
   },
   threads: {
@@ -66,10 +69,10 @@ export const COPY = {
     eyebrow: 'EXCLUSIVE EVENING EVENT · THE JEWEL OF PLEXUS',
     title: 'Gala Evening <i style="color:#c9a962">&amp;</i> Awards Ceremony',
     body: (when, venue) => `${when} — ${venue}. Five courses, keynote addresses, live music — seating limited to keep the room personal.`,
-    rsvp: price => `RSVP · ${price} →`, note: 'Same form as Plexus — pick the conference, the Gala, or both.'
+    reserve: price => `${CTA.reserve(price)} →`, note: 'Same form as Plexus — pick the conference, the Gala, or both.'
   },
   connect: {
-    n: '04', title: 'CONNECT WITH PARTICIPANTS', pts: '+10 PTS PER CONNECTION',
+    n: '04', title: 'CONNECT WITH PARTICIPANTS',
     line: 'Meet the room before you walk into it.',
     body: 'Find attendees, send messages, and schedule 1-on-1 meetings — across Plexus and the Gala.',
     cta: 'OPEN THE NETWORK →'
@@ -95,10 +98,12 @@ export const COPY = {
     register: 'REGISTER — FREE →', mine: 'MY PLEXUS →',
     daySummary: (n, first) => `${n} session${n === 1 ? '' : 's'} · ${first}${n > 1 ? ' …' : ''}`,
     add: '＋ ADD', added: '✓ ADDED',
-    spN: '02', spTitle: 'SPEAKERS', spFilters: ['ALL', 'PLEXUS', 'GALA'], spSearch: 'Search speakers…',
-    spHint: 'Click a speaker to view their full bio and add their session to your schedule.',
+    // UX audit 2026-09-02 › item 9: the ALL/PLEXUS/GALA chips could never change a result (every
+    // speaker is tagged PLEXUS · GALA) and a search box stood over four names; both are gone until
+    // the roster passes ~12. The helper line went too — each card already says BIO + ADD SESSION.
+    spN: '02', spTitle: 'SPEAKERS',
     bioAdd: 'BIO + ADD SESSION →',
-    spEmpty: q => q ? `No speaker matches “${q}”.` : 'No speakers announced for this filter yet.',
+    spEmpty: 'No speakers announced yet.',
     spEmptyWhy: 'Names go up here as the team confirms them — follow Plexus to hear first.'
   },
   zagreb: {
@@ -107,20 +112,20 @@ export const COPY = {
     guide: 'DOWNLOAD THE WELCOME GUIDE', myPlexus: 'MY PLEXUS →',
     stopsN: '01', stopsTitle: 'SIX STOPS BEFORE DINNER', stopsSub: 'All in the walkable centre, an easy stroll from the venue.',
     stops: [
-      { n: '01', name: 'Ban Jelačić Square', note: 'The city’s beating heart — cafés on every side, advent stalls in December. 5 minutes from the venue.', ph: 'PHOTO · BAN JELAČIĆ SQUARE', wide: true },
-      { n: '02', name: 'St. Mark’s Church', note: 'The famous tiled roof, coats of arms and all.', ph: 'PHOTO · ST. MARK’S CHURCH' },
-      { n: '03', name: 'Zagreb Cathedral', note: 'Zagreb’s grand dame over Kaptol — rising again, stone by stone, after the 2020 earthquake.', ph: 'PHOTO · ZAGREB CATHEDRAL' },
-      { n: '04', name: 'Dolac Market', note: 'The “Belly of Zagreb” — red umbrellas, morning buzz.', ph: 'PHOTO · DOLAC MARKET' },
-      { n: '05', name: 'Upper Town at dusk', note: 'Cobblestones, the Stone Gate, gas lamps lit by hand.', ph: 'PHOTO · UPPER TOWN LANTERNS' },
-      { n: '06', name: 'Tkalčićeva Street', note: 'Café-lined and lively till late — end the night here.', ph: 'PHOTO · TKALČIĆEVA STREET' }
+      { n: '01', name: 'Ban Jelačić Square', note: 'The city’s beating heart — cafés on every side, advent stalls in December. 5 minutes from the venue.' },
+      { n: '02', name: 'St. Mark’s Church', note: 'The famous tiled roof, coats of arms and all.' },
+      { n: '03', name: 'Zagreb Cathedral', note: 'Zagreb’s grand dame over Kaptol — rising again, stone by stone, after the 2020 earthquake.' },
+      { n: '04', name: 'Dolac Market', note: 'The “Belly of Zagreb” — red umbrellas, morning buzz.' },
+      { n: '05', name: 'Upper Town at dusk', note: 'Cobblestones, the Stone Gate, gas lamps lit by hand.' },
+      { n: '06', name: 'Tkalčićeva Street', note: 'Café-lined and lively till late — end the night here.' }
     ],
     bonus: { title: 'December bonus: Advent in Zagreb', note: 'Voted Europe’s best Christmas market three years running — mulled wine, lights, and music on every square.' },
     tasteN: '02', tasteTitle: 'TASTE ZAGREB', tasteSub: 'Come hungry.',
     taste: [
-      { name: 'Štrukli', note: 'Baked dough, fresh cheese, sour cream — the city’s signature comfort.', ph: 'PHOTO · ŠTRUKLI' },
-      { name: 'Ćevapi', note: 'The Balkan classic — flatbread, raw onion, ajvar. No cutlery required.', ph: 'PHOTO · ĆEVAPI' },
-      { name: 'Croatian wine', note: '130+ native grapes — start with a Graševina, stay for the Plavac Mali.', ph: 'PHOTO · CROATIAN WINE' },
-      { name: 'Craft beer', note: 'The Garden, Zmajska, Nova Runda — a scene in full swing.', ph: 'PHOTO · CRAFT BEER' }
+      { name: 'Štrukli', note: 'Baked dough, fresh cheese, sour cream — the city’s signature comfort.' },
+      { name: 'Ćevapi', note: 'The Balkan classic — flatbread, raw onion, ajvar. No cutlery required.' },
+      { name: 'Croatian wine', note: '130+ native grapes — start with a Graševina, stay for the Plavac Mali.' },
+      { name: 'Craft beer', note: 'The Garden, Zmajska, Nova Runda — a scene in full swing.' }
     ],
     aroundTitle: '03 · GETTING AROUND',
     around: [
@@ -129,7 +134,6 @@ export const COPY = {
       { b: 'Bolt &amp; Uber', t: '&nbsp;— available across the city and from the airport' }
     ],
     closing: 'December in Zagreb: advent stalls, mulled wine, and the season’s best conversations.',
-    heroPh: 'PHOTO · ZAGREB ADVENT, UPPER TOWN AT DUSK',
     guideDone: 'The welcome guide opened in a new tab — save it for December.'
   },
   mine: {
@@ -142,24 +146,31 @@ export const COPY = {
       galaApproved: 'Your Gala seat is approved — settle the payment and the seat is yours. Everything else about your Plexus stays free.',
       galaPaid: 'Everything is set: conference registered, Gala seat paid. Your QR pass below opens every door you registered for.'
     },
-    register: 'PRE-REGISTER NOW →', addGala: 'ADD THE GALA →', pay: 'PAY FOR YOUR SEAT →', tickets: 'MY TICKETS →',
+    register: `${CTA.register} →`, addGala: 'ADD THE GALA →', pay: 'PAY FOR YOUR SEAT →', tickets: 'MY TICKETS →',
     ctaSub: { none: 'OPENS THE REGISTRATION FORM · PICK EITHER OR BOTH', gala: 'OPENS THE SAME FORM · GALA PRESELECTED', pay: 'SECURE CARD PAYMENT · STRIPE', done: 'TICKETS, RECEIPTS &amp; WALLET PASSES LIVE IN MY MED&amp;X' },
     facts: { conference: 'Conference', gala: 'Gala Evening', eb: 'Gala early bird', until: l => `UNTIL ${l}` },
     includedN: '01', includedTitle: "WHAT'S INCLUDED",
     confCard: {
       title: 'Plexus Conference', tag: 'FREE ENTRY', tagDone: '✓ REGISTERED',
       items: (d, first) => [`Both conference days — ${d}`, 'All keynotes, panels, and research sessions', 'Workshops and poster sessions', `Welcome Reception — ${first}, 18:00`, 'Certificate of attendance'],
-      cta: 'REGISTER — FREE →', ctaDone: 'VIEW TICKET →'
+      cta: `${CTA.register} →`, ctaDone: 'VIEW TICKET →'
     },
     galaCard: {
       title: 'Gala Evening <i style="color:#c9a962">&amp;</i> Awards', price: p => `${p} PER GUEST`, tagPaid: '✓ SEAT PAID', tagPending: 'SEAT REQUESTED', tagApproved: 'APPROVED · PAY NOW',
       items: ['Five-course gala dinner with wine pairing', 'Med&amp;X Annual Awards ceremony', 'Live music and entertainment', 'Keynote speaker meet &amp; greet', 'Black tie / formal evening attire'],
-      cta: 'RESERVE A SEAT →', ctaPay: 'PAY FOR YOUR SEAT →', ctaPaid: 'VIEW TICKET →'
+      cta: price => `${CTA.reserve(price)} →`, ctaPay: 'PAY FOR YOUR SEAT →', ctaPaid: 'VIEW TICKET →'
     },
     knowN: '02', knowTitle: 'GOOD TO KNOW',
     know: [
       { tag: 'EARLY BIRD', title: 'Seats are capped', note: (p, l, p2) => `Book your Gala seat by ${l} for ${p} — the room is kept intentionally small, and Gala seats go first. After that the seat is ${p2}.` },
-      { tag: 'CAN’T MAKE IT?', title: 'Transfer to a colleague', note: () => 'Seats are non-refundable — but you can transfer your seat to a colleague up to the day of the event, right from this page.', act: 'transfer', actLabel: 'TRANSFER →', actLabelSeat: 'TRANSFER YOUR SEAT →' },
+      // UX audit 2026-09-02 › item 15: the note promised a transfer "right from this page" to
+      // members with nothing to transfer. It says what the policy is until a seat exists, and only
+      // then does it point at the control that is genuinely on this card.
+      { tag: 'CAN’T MAKE IT?', title: 'Transfer to a colleague',
+        note: (p, l, p2, holds) => (holds
+          ? 'Seats are non-refundable — but you can transfer your seat to a colleague up to the day of the event, right from this page.'
+          : 'Seats are non-refundable — once you hold one, you can transfer it to a colleague up to the day of the event.'),
+        act: 'transfer', actLabel: 'TRANSFER →', actLabelSeat: 'TRANSFER YOUR SEAT →' },
       { tag: 'QUESTIONS?', title: 'We’re one message away', note: () => 'Anything about your registration or Gala seat — message us and replies land in your portal inbox.', href: '/app/messages?about=plexus', actLabel: 'OPEN MESSAGES →' }
     ],
     passN: '03', passTitle: 'MY PASS',
@@ -199,7 +210,6 @@ export const COPY = {
   toasts: {
     followed: 'You follow Plexus now — updates land in your inbox and alerts.',
     unfollowed: 'Plexus updates are off. Turn them back on any time.',
-    interested: 'Noted — Plexus updates are on. See you in December.',
     sessionAdded: t => `Added to your schedule — ${t}.`, sessionRemoved: t => `Removed from your schedule — ${t}.`,
     pdfOpen: 'The program PDF opened in a new tab.',
     icsNone: 'No dates could be exported yet.'
@@ -207,7 +217,7 @@ export const COPY = {
 };
 
 // ---------------------------------------------------------------- module state
-let D = null, st = null, rootEl = null, unbind = null, timers = [], tab = '', qUnbind = null;
+let D = null, st = null, rootEl = null, unbind = null, timers = [], tab = '';
 const CACHE = new Map();                          // public reads, 60 s — snappy tab switches
 function cget(path, opts) {
   const hit = CACHE.get(path);
@@ -371,7 +381,7 @@ function crumb(items) {
   const sep = '<span style="color:rgba(25,21,18,.35);font-size:10px">→</span>';
   return `
   <!-- dc: Plexus Conference.dc.html › "Breadcrumb" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+  <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
     ${items.map((it, i) => (i ? sep + '\n    ' : '') + (it.to
       ? `<a href="${it.to}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${it.label}</a>`
       : `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:${i ? '#191512' : '#4a4239'}">${it.label}</span>`)).join('\n    ')}
@@ -427,6 +437,10 @@ function blockBio() {
 }
 
 // ---------------------------------------------------------------- OVERVIEW (Plexus Conference.dc.html)
+// UX audit 2026-09-02 › item 12: the hero used to offer "I'M INTERESTED" directly above the
+// "GET UPDATES FROM PLEXUS · OFF" toggle — two adjacent controls setting the same follow flag, and
+// no way to tell what either committed you to. The labelled toggle is the better control because it
+// shows its state, so it is the only one left. Hero: register + schedule, then the toggle.
 function ovHero() {
   const on = D.followed;
   const capBit = D.conf.cap ? `CAPPED AT ${fmt.num(D.conf.cap)} SEATS` : '';
@@ -444,7 +458,6 @@ function ovHero() {
           ? `<a href="/app/plexus/mine" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.mine}</a>`
           : `<a href="${formUrl('conference')}" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.register}</a>`}
         <a href="/app/plexus/program" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="border-color:#f7f1e6;color:#f7f1e6">${COPY.hero.schedule}</a>
-        <span data-act="interested" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#f7f1e6">${st.interested || on ? COPY.hero.noted : COPY.hero.interested}</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
         <span data-act="tgFollow" role="switch" aria-checked="${on}" aria-label="Get updates from Plexus" style="width:34px;height:18px;flex:none;cursor:pointer;background:${on ? '#9b1b22' : 'rgba(247,241,230,.3)'};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:${on ? '18px' : '2px'}"></span></span>
@@ -503,8 +516,11 @@ function speakerCard(sp, { program } = {}) {
         </div>
       </div>`;
 }
+// UX audit 2026-09-02 › item 9: the same four portraits stood here and again one click away on
+// Program & speakers, which is the tab that can also open a bio and add a session. That tab is the
+// canonical roster now; the overview names the room and points at it.
 function ovStage() {
-  const four = D.speakers.slice(0, 4);
+  const n = D.speakers.length;
   return `
     <!-- dc: Plexus Conference.dc.html › "01 · ON THE PLEXUS STAGE" -->
     <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 4px">
@@ -513,15 +529,15 @@ function ovStage() {
       <a href="/app/plexus/program" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-left:10px;white-space:nowrap">${COPY.stage.all}</a>
     </div>
     <div style="font-size:13px;color:#4a4239;max-width:640px;line-height:1.55">${esc(COPY.stage.sub)}</div>
-    ${four.length ? `
-    <div class="mx-grid-4" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;padding:18px 0 24px">
-      ${four.map(sp => speakerCard(sp)).join('')}
-    </div>` : `
+    ${n ? `
+    <a href="/app/plexus/program" style="display:flex;align-items:center;gap:16px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:16px 20px;margin:16px 0 24px;color:#191512;text-decoration:none" data-hover="background:#f7efdf">
+      <span style="flex:1;min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:17px;line-height:1.25">${esc(COPY.stage.teaser(n))}</span><span style="display:block;font-size:12px;color:#4a4239;margin-top:3px">${esc(COPY.stage.teaserWhy)}</span></span>
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap;flex:none">${COPY.stage.all}</span>
+    </a>` : `
     <div class="empty" style="padding:26px 0 24px">
       <span class="rule-gold" style="margin-bottom:6px"></span>
       <span class="empty-line">${esc(COPY.stage.emptyLine)}</span>
       <span class="empty-why">${esc(COPY.stage.emptyWhy)}</span>
-      <span data-act="interested" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap">${st.interested || D.followed ? COPY.hero.noted : COPY.hero.interested}</span>
     </div>`}
     <!-- /dc -->`;
 }
@@ -591,7 +607,7 @@ function ovProgramInk() {
           <span style="font-family:Fraunces,serif;font-size:23px;line-height:1.15">${COPY.galaBlock.title}</span>
           <span style="font-size:12px;color:rgba(247,241,230,.7);line-height:1.55">${esc(COPY.galaBlock.body(when, D.gala.venueFull))}</span>
           <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-            <a href="${formUrl('gala')}" style="padding:10px 16px;background:#c9a962;color:#191512;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;text-decoration:none;white-space:nowrap">${COPY.galaBlock.rsvp(fmt.eur(D.gala.price))}</a>
+            <a href="${formUrl('gala')}" style="padding:10px 16px;background:#c9a962;color:#191512;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;text-decoration:none;white-space:nowrap">${COPY.galaBlock.reserve(fmt.eur(D.gala.price))}</a>
             <span style="font-size:11px;color:rgba(247,241,230,.55)">${COPY.galaBlock.note}</span>
           </div>
         </div>
@@ -602,7 +618,6 @@ function ovProgramInk() {
         <span style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
           <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962">${COPY.connect.n}</span>
           <span style="font:600 12px Inter,sans-serif;letter-spacing:.16em">${COPY.connect.title}</span>
-          ${(session.user || {}).quiet ? '' : `<span style="padding:2px 7px;border:1px solid rgba(201,169,98,.5);color:#c9a962;font:600 8.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.connect.pts}</span>`}
         </span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.connect.line}</span>
         <span style="font-size:12px;color:rgba(247,241,230,.65);line-height:1.5">${COPY.connect.body}</span>
@@ -693,20 +708,14 @@ function progDays() {
   return { html: parts.join(''), anySessions };
 }
 function progSpeakers() {
-  const q = norm(st.q);
-  const list = D.speakers.filter(sp => {
-    const tag = speakerTag(sp);
-    if (st.spf !== 'ALL' && !tag.includes(st.spf)) return false;
-    if (!q) return true;
-    return norm(`${sp.name} ${sp.title} ${sp.institution} ${sp.talk_title}`).includes(q);
-  });
+  const list = D.speakers;
   return list.length ? `
-    <div class="mx-grid-4" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;padding-bottom:10px">
+    <div class="mx-grid-4" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;padding-bottom:24px">
       ${list.map(sp => speakerCard(sp, { program: true })).join('')}
     </div>` : `
     <div class="empty" style="padding:20px 0 14px">
       <span class="rule-gold" style="margin-bottom:6px"></span>
-      <span class="empty-line">${esc(COPY.prog.spEmpty(st.q.trim()))}</span>
+      <span class="empty-line">${esc(COPY.prog.spEmpty)}</span>
       <span class="empty-why">${esc(COPY.prog.spEmptyWhy)}</span>
     </div>`;
 }
@@ -739,13 +748,8 @@ function programTpl() {
     <div class="mx-speakers-head" style="display:flex;align-items:baseline;gap:14px;border-top:1px solid rgba(25,21,18,.16);padding:24px 0 12px">
       <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.prog.spN}</span>
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.prog.spTitle}</span>
-      <div class="mx-speaker-filters" style="display:flex;margin-left:14px;gap:6px" role="group" aria-label="Filter speakers">
-        ${COPY.prog.spFilters.map(f => { const on = st.spf === f; return `<span data-act="spf" data-f="${f}" role="radio" aria-checked="${on}" style="padding:7px 12px;border:1px solid ${on ? '#191512' : 'rgba(25,21,18,.3)'};background:${on ? '#191512' : 'transparent'};color:${on ? '#f7f1e6' : '#4a4239'};font:600 9px Inter,sans-serif;letter-spacing:.15em;cursor:pointer">${f}</span>`; }).join('')}
-      </div>
-      <input data-role="speakerQ" type="search" class="mx-speaker-q mx-w220" placeholder="${COPY.prog.spSearch}" aria-label="Search speakers" autocomplete="off" value="${esc(st.q)}" style="margin-left:auto;border:1px solid rgba(25,21,18,.22);padding:8px 14px;font-size:12px;color:#4a4239;width:220px">
     </div>
     <div data-block="speakers">${progSpeakers()}</div>
-    <div style="font-size:12px;color:#4a4239;padding-bottom:24px">${COPY.prog.spHint}</div>
     <!-- /dc -->
   </div>
   ${blockHelp(COPY.help.program, COPY.help.subShort, true)}
@@ -754,27 +758,28 @@ function programTpl() {
 }
 
 // ---------------------------------------------------------------- ZAGREB (Plexus Zagreb.dc.html)
+// UX audit 2026-09-02 › item 7 (text collapse): neither frontend-v2/assets/ nor the medx.hr mirror
+// holds a single Zagreb-landmark or food photograph, and stripe placeholders read as unfinished art.
+// Text-only reads finished — the six stops are numbered rows in the house vocabulary, the taste
+// cards keep their name+note, and the hero is a flat ink surface under its scrim gradient.
+// When real Zagreb/advent photography arrives: recompress ≤300 KB into frontend-v2/assets/ as
+// zg-<stop>.jpg and restore the photo tiles by putting an <img …object-fit:cover> inside each card
+// exactly as accelerator.js does its cohort blocks (stripe underlay kept as the degrade state).
 function zagrebTpl() {
   const Z = COPY.zagreb;
-  const stopCard = (s) => `
-      <div ${s.wide ? 'class="mx-span-2" style="position:relative;overflow:hidden;grid-column:span 2"' : 'style="position:relative;overflow:hidden"'}>
-        <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(25,21,18,.09) 0 12px,rgba(25,21,18,.04) 12px 24px)"></div>
-        <span style="position:absolute;left:14px;top:12px;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239">${esc(s.ph)}</span>
-        <div style="position:absolute;left:0;right:0;bottom:0;padding:${s.wide ? '44px 18px 16px' : '36px 18px 14px'};background:linear-gradient(180deg,rgba(25,21,18,0) 0%,rgba(25,21,18,.85) 70%)">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:${s.wide ? '15px' : '14px'};color:#c9a962">${s.n}</span>
-          <span style="display:block;font-family:Fraunces,serif;font-size:${s.wide ? '21px' : '18px'};color:#f7f1e6${s.wide ? ';margin-top:2px' : ''}">${esc(s.name)}</span>
-          <span style="display:block;font-size:${s.wide ? '12px' : '11.5px'};color:rgba(247,241,230,.75);margin-top:${s.wide ? '3px' : '2px'}">${esc(s.note)}</span>
-        </div>
+  const stopRow = (s) => `
+      <div class="mx-zagreb-row mx-wrap-row" style="display:flex;gap:16px;align-items:baseline;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12);flex-wrap:wrap">
+        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962;width:34px;flex:none">${s.n}</span>
+        <span style="font-family:Fraunces,serif;font-size:17px;flex:none">${esc(s.name)}</span>
+        <span style="font-size:12.5px;color:#4a4239;line-height:1.5;flex:1;min-width:220px">${esc(s.note)}</span>
       </div>`;
   return `
 <div data-screen-label="Explore Zagreb" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
   ${crumb([{ label: COPY.crumb.projects }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.zagreb }])}
   ${tabStrip()}
   <!-- dc: Plexus Zagreb.dc.html › "Hero" -->
-  <div style="position:relative;overflow:hidden">
-    <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(25,21,18,.1) 0 14px,rgba(25,21,18,.05) 14px 28px)"></div>
+  <div style="position:relative;overflow:hidden;background:#191512">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.5) 0%,rgba(25,21,18,.68) 100%)"></div>
-    <span style="position:absolute;right:16px;bottom:12px;font:600 8.5px ui-monospace,Menlo,monospace;color:rgba(247,241,230,.6)">${esc(Z.heroPh)}</span>
     <div class="mx-pad-hero-z" style="position:relative;padding:84px 36px 72px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${esc(Z.eyebrow)}</span>
       <div class="mx-display-54" style="font-family:Fraunces,serif;font-style:italic;font-size:54px;line-height:1.05;color:#f7f1e6;margin-top:20px">${esc(Z.title)}</div>
@@ -793,9 +798,9 @@ function zagrebTpl() {
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${Z.stopsTitle}</span>
       <span style="font-size:12.5px;color:#4a4239">${esc(Z.stopsSub)}</span>
     </div>
-    <div class="mx-grid-4 mx-zagreb-grid" style="display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:210px;gap:14px;padding-bottom:26px">
-      ${Z.stops.map(stopCard).join('')}
-      <div style="background:#191512;color:#f7f1e6;padding:20px 22px;display:flex;flex-direction:column;justify-content:center;gap:8px">
+    <div style="max-width:960px">
+      ${Z.stops.map(stopRow).join('')}
+      <div style="background:#191512;color:#f7f1e6;padding:20px 22px;display:flex;flex-direction:column;justify-content:center;gap:8px;margin:18px 0 26px">
         <span style="font-family:Fraunces,serif;font-weight:600;font-size:15px;color:#c9a962">+</span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:18px;line-height:1.3">${esc(Z.bonus.title)}</span>
         <span style="font-size:11.5px;color:rgba(247,241,230,.7);line-height:1.5">${esc(Z.bonus.note)}</span>
@@ -811,7 +816,6 @@ function zagrebTpl() {
     <div class="mx-grid-4" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;padding-bottom:26px">
       ${Z.taste.map(t => `
       <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div style="height:120px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239">${esc(t.ph)}</div>
         <div style="padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-family:Fraunces,serif;font-size:16px">${esc(t.name)}</span><span style="font-size:12px;color:#4a4239;line-height:1.5">${esc(t.note)}</span></div>
       </div>`).join('')}
     </div>
@@ -892,7 +896,7 @@ function mineIncluded() {
     ? `<span data-act="payGala" style="margin-top:auto;align-self:flex-start;padding:12px 20px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#d9bd7f">${COPY.mine.galaCard.ctaPay}</span>`
     : g === 'pending'
     ? `<span data-act="galaPendingInfo" style="margin-top:auto;align-self:flex-start;padding:12px 20px;border:1px solid rgba(201,169,98,.65);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap">${COPY.mine.galaCard.tagPending}</span>`
-    : `<a href="${formUrl('gala')}" style="margin-top:auto;align-self:flex-start;padding:12px 20px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;text-decoration:none" data-hover="background:#d9bd7f">${COPY.mine.galaCard.cta}</a>`;
+    : `<a href="${formUrl('gala')}" style="margin-top:auto;align-self:flex-start;padding:12px 20px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;text-decoration:none" data-hover="background:#d9bd7f">${COPY.mine.galaCard.cta(fmt.eur(D.gala.price))}</a>`;
   return `
     <!-- dc: My Plexus.dc.html › "01 · WHAT'S INCLUDED" -->
     <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 14px">
@@ -917,6 +921,7 @@ function mineIncluded() {
 }
 function mineKnow() {
   const registered = !!D.myReg;
+  const holdsSomething = registered || !!D.galaReg;
   return `
     <!-- dc: My Plexus.dc.html › "02 · GOOD TO KNOW" -->
     <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;border-top:1px solid rgba(25,21,18,.16);padding:24px 0 14px">
@@ -928,8 +933,8 @@ function mineKnow() {
       <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:6px">
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${k.tag}</span>
         <span style="font-family:Fraunces,serif;font-size:16px">${k.title}</span>
-        <span style="font-size:12.5px;color:#4a4239;line-height:1.5">${esc(k.note(fmt.eur(D.gala.price), fmt.longRange(D.gala.ebDeadline, D.gala.ebDeadline).replace(/, \d{4}$/, ''), fmt.eur(D.gala.priceRegular)))}</span>
-        ${k.act === 'transfer' && (registered || D.galaReg) ? `<span data-act="transfer" data-v2="${D.galaReg ? 'gala seat transfer (POST /api/v2/transfer/gala)' : 'transfer request (POST /api/plexus/registration/:id/transfer)'}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:pointer;margin-top:4px;white-space:nowrap">${D.galaReg ? k.actLabelSeat : k.actLabel}</span>` : ''}
+        <span style="font-size:12.5px;color:#4a4239;line-height:1.5">${esc(k.note(fmt.eur(D.gala.price), fmt.longRange(D.gala.ebDeadline, D.gala.ebDeadline).replace(/, \d{4}$/, ''), fmt.eur(D.gala.priceRegular), holdsSomething))}</span>
+        ${k.act === 'transfer' && holdsSomething ? `<span data-act="transfer" data-v2="${D.galaReg ? 'gala seat transfer (POST /api/v2/transfer/gala)' : 'transfer request (POST /api/plexus/registration/:id/transfer)'}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:pointer;margin-top:4px;white-space:nowrap">${D.galaReg ? k.actLabelSeat : k.actLabel}</span>` : ''}
         ${k.href ? `<a href="${k.href}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:4px;white-space:nowrap">${k.actLabel}</a>` : ''}
       </div>`).join('')}
     </div>
@@ -1017,22 +1022,11 @@ function openBioFocus() {
 }
 
 const handlers = {
-  interested: async (el) => {
-    el.setAttribute('aria-disabled', 'true');
-    try {
-      await api.post('/api/notify-topics', { project: 'plexus', on: true });
-      st.interested = true; D.followed = true;
-      rerender('[data-block="hero"]', `<div data-block="hero">${ovHero()}</div>`);
-      const stage = rootEl.querySelector('[data-block="stage"]'); if (stage) rerender('[data-block="stage"]', `<div data-block="stage">${ovStage()}</div>`);
-      ui.toast(COPY.toasts.interested);
-      chrome.refresh();
-    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
-  },
   tgFollow: async () => {
     const on = !D.followed;
     try {
       await api.post('/api/notify-topics', { project: 'plexus', on });
-      D.followed = on; if (!on) st.interested = false;
+      D.followed = on;
       rerender('[data-block="hero"]', `<div data-block="hero">${ovHero()}</div>`);
       ui.toast(on ? COPY.toasts.followed : COPY.toasts.unfollowed);
       chrome.refresh();
@@ -1079,7 +1073,6 @@ const handlers = {
       ui.toast(had ? COPY.toasts.sessionRemoved((s && s.title) || 'session') : COPY.toasts.sessionAdded((s && s.title) || 'session'));
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
-  spf: (el) => { st.spf = el.dataset.f; rerenderSpeakersHead(); },
   payGala: async (el) => {
     const g = D.galaReg;
     if (!g) return;
@@ -1169,27 +1162,6 @@ async function confirmSeatTransfer(name, email) {
     if (rootEl && tab === 'mine') rootEl.innerHTML = mineTpl();
   } catch (e) { ui.toast(e.message, { kind: 'error', ms: 7000 }); }
 }
-function rerenderSpeakersHead() {
-  // filters live in the head row; grid below — refresh both, keep the input's focus/value
-  const q = rootEl.querySelector('[data-role="speakerQ"]');
-  const hadFocus = q && document.activeElement === q;
-  rootEl.querySelectorAll('[data-act="spf"]').forEach(el => {
-    const on = el.dataset.f === st.spf;
-    el.setAttribute('aria-checked', String(on));
-    el.style.border = `1px solid ${on ? '#191512' : 'rgba(25,21,18,.3)'}`;
-    el.style.background = on ? '#191512' : 'transparent';
-    el.style.color = on ? '#f7f1e6' : '#4a4239';
-  });
-  rerender('[data-block="speakers"]', `<div data-block="speakers">${progSpeakers()}</div>`);
-  if (hadFocus) { const q2 = rootEl.querySelector('[data-role="speakerQ"]'); if (q2) q2.focus(); }
-}
-function bindSpeakerSearch() {
-  const q = rootEl.querySelector('[data-role="speakerQ"]');
-  if (!q) return;
-  const onInput = () => { st.q = q.value; rerender('[data-block="speakers"]', `<div data-block="speakers">${progSpeakers()}</div>`); };
-  q.addEventListener('input', onInput);
-  qUnbind = () => q.removeEventListener('input', onInput);
-}
 function startCountdown() {
   if (!rootEl.querySelector('[data-cd="days"]')) return;
   timers.push(ui.countdown(D.countdownTo, ({ days, hrs, min }) => {
@@ -1208,17 +1180,15 @@ export default {
     rootEl = root;
     D = await load(tab);
     if (rootEl !== root) return;                 // navigated away while loading
-    st = { bio: null, interested: false, dayOpen: { 0: true }, spf: 'ALL', q: '' };
+    st = { bio: null, dayOpen: { 0: true } };
     root.innerHTML = tab === '' ? overviewTpl() : tab === 'program' ? programTpl() : tab === 'zagreb' ? zagrebTpl() : mineTpl();
     unbind = ui.bind(root, handlers);
-    if (tab === 'program') bindSpeakerSearch();
     startCountdown();
     chrome.refresh();
   },
   destroy() {
     timers.forEach(stop => { try { stop(); } catch (e) {} }); timers = [];
     if (unbind) unbind(); unbind = null;
-    if (qUnbind) qUnbind(); qUnbind = null;
     rootEl = null; D = null; st = null;
   }
 };

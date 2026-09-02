@@ -21,7 +21,7 @@
                       };
                       var DETAIL_HR={
                         'December 4-5, 2026 - Zagreb - Free entry':'4.-5. prosinca 2026. - Zagreb - Besplatan ulaz',
-                        'Saturday December 5 - Hotel Esplanade - EUR 150 through 1 Sep':'Subota 5. prosinca - Hotel Esplanade - 150 EUR do 1. rujna',
+                        'Saturday December 5 - Hotel Esplanade - EUR 150 through 15 Sep':'Subota 5. prosinca - Hotel Esplanade - 150 EUR do 15. rujna',
                         'Placements across partner labs and clinics - November 2026':'Stažiranja u partnerskim laboratorijima i klinikama - studeni 2026.',
                         'Biomedical Forum gathering - May 2027':'Okupljanje Biomedicinskog foruma - svibanj 2027.',
                         'Building Bridges at Harvard Medical School':'Building Bridges na Harvard Medical School'
@@ -34,7 +34,7 @@
                       // from cache or this list. The words "Loading projects" are never user-visible.
                       var FALLBACK=[
                         {project_key:'plexus',status_label:'Pre-registration open',status_kind:'open',detail_line:'December 4-5, 2026 - Zagreb - Free entry',cta_label:'Register',cta_target:'plexus'},
-                        {project_key:'gala',status_label:'Reserve your seat',status_kind:'open',detail_line:'Saturday December 5 - Hotel Esplanade - EUR 150 through 1 Sep',cta_label:'Reserve seat',cta_target:'gala'},
+                        {project_key:'gala',status_label:'Reserve your seat',status_kind:'open',detail_line:'Saturday December 5 - Hotel Esplanade - EUR 150 through 15 Sep',cta_label:'Reserve seat',cta_target:'gala'},
                         {project_key:'accelerator',status_label:'Applications open in November',status_kind:'soon',detail_line:'Placements across partner labs and clinics - November 2026',cta_label:'Learn more',cta_target:'accelerator'},
                         {project_key:'forum',status_label:'By invitation',status_kind:'info',detail_line:'Biomedical Forum gathering - May 2027',cta_label:'Enter code',cta_target:'forum'},
                         {project_key:'bridges',status_label:'Boston - September 2026',status_kind:'info',detail_line:'Building Bridges at Harvard Medical School',cta_label:'View program',cta_target:'bridges'}

@@ -2,18 +2,19 @@
    Med&X ADMIN portal v2 — CALENDAR view hooks (js/views/calendar.js)
    Rule (ARCHITECTURE §4): class hooks never carry look — inline styles do.
    Two jobs live here:
-     1. responsive: the 12-month grid scrolls sideways instead of crushing
+     1. responsive: the add-entry form wraps instead of crushing on a phone
+        (the on-screen 12-month year board was deleted — UX audit 2026-09-02
+        #7 — so its sideways-scroll hooks went with it; the two-column
+        KEY DATES / TEAM TASKS row collapses on the shared .mx-two rule in
+        css/app.css)
      2. print: EXPORT PDF = the print-ready ONE-PAGE year board (README note 23)
         — body.mxc-printing is set by the view around window.print(); only the
         hidden .mxc-print board renders, on A4 landscape, in the Med&X look.
+        This is now the ONLY 12-month grid, and the one place it reads well.
    Loaded/unloaded by the view itself (link[data-view-css="calendar"]).
    ========================================================================== */
 
-/* ---- 1 · the year board scrolls sideways on narrow screens ---------------- */
-.mxc-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-@media (max-width: 960px) {
-  .mxc-grid { min-width: 720px; }
-}
+/* ---- 1 · the add-entry form wraps on narrow screens ---------------------- */
 @media (max-width: 620px) {
   .mxc-form input, .mxc-form select { flex: 1 1 auto; min-width: 0 !important; }
   .mxc-form input[data-role="evName"] { flex: 1 1 100% !important; }

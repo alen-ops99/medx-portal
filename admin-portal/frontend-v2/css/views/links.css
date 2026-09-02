@@ -10,6 +10,10 @@
 .mx-links-grid > * { min-width: 0; }
 .mx-links-grid [data-row] > div { min-width: 0; }
 
+/* Audit 2026-09-02 #8 — the collapsed duplicate rows and the ARCHIVED section are single-line:
+   their cells need a 0 minimum so the name ellipsis engages instead of the row wrapping. */
+.mx-links-grid [data-row] > span { min-width: 0; }
+
 /* ≤620px: give the monospace URL pill the full row so COPY / QR never squeeze it to nothing. */
 @media (max-width: 620px) {
   .mx-links-grid [data-row] span[style*="ui-monospace"] { flex: 1 1 100% !important; min-width: 0 !important; }

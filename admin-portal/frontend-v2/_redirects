@@ -1,0 +1,24 @@
+# Netlify redirects — Med&X ADMIN portal v2 (a future admin-v2 site). Order matters: first match wins.
+# The staging admin backend lives BEHIND the launcher at https://medx-staging.onrender.com/__admin/…
+# (deploy/staging/launcher.js strips the prefix), so every relative /api/… call from this site is
+# proxied there (status 200 = proxy, URL unchanged). The member portal is reachable through /__member/*
+# (health probe of GET /api/public/status, note 0b). Placeholder host: medx-staging.onrender.com — `sed`
+# it (or scripts/apply-config.js staging --host …) to the real Render host on deploy.
+# Deploy copies this file to the publish root (netlify.toml build command).
+/api  https://medx-staging.onrender.com/__admin/api  200
+/api/*  https://medx-staging.onrender.com/__admin/api/:splat  200
+/uploads/*  https://medx-staging.onrender.com/__admin/uploads/:splat  200
+/photo-library/*  https://medx-staging.onrender.com/__admin/photo-library/:splat  200
+/health  https://medx-staging.onrender.com/__admin/health  200
+/newsletter  https://medx-staging.onrender.com/__admin/newsletter  200
+/review  https://medx-staging.onrender.com/__admin/review  200
+/evaluate  https://medx-staging.onrender.com/__admin/evaluate  200
+/apply  https://medx-staging.onrender.com/__admin/apply  200
+/e/*  https://medx-staging.onrender.com/__admin/e/:splat  200
+/a/*  https://medx-staging.onrender.com/__admin/a/:splat  200
+/__admin/*  https://medx-staging.onrender.com/__admin/:splat  200
+/__staging/*  https://medx-staging.onrender.com/__staging/:splat  200
+/__member/*  https://medx-staging.onrender.com/:splat  200
+
+# SPA fallback — every client route (/today, /projects/plexus, /inbox …) renders the shell
+/*  /index.html  200

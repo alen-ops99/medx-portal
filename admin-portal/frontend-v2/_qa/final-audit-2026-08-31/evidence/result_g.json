@@ -1,0 +1,101 @@
+{
+ "chain": "g-gala",
+ "verdict": "PASS",
+ "steps": [
+  [
+   "OK ",
+   "/gala board renders with + TABLE",
+   ""
+  ],
+  [
+   "OK ",
+   "table T-AUD created via the legacy route",
+   "TABLE ADDED"
+  ],
+  [
+   "OK ",
+   "UNSEATED strip lists guests",
+   "30 chip(s)"
+  ],
+  [
+   "OK ",
+   "scrubbed-member guest available on the strip",
+   "(1, '3d2c0c8e-14df-42a6-83be-79a2e44af7d3', 'member004@staging.medx.hr')"
+  ],
+  [
+   "OK ",
+   "guest starts unseated (seat_number NULL)",
+   "member004@staging.medx.hr"
+  ],
+  [
+   "OK ",
+   "assign submitted",
+   "MEMBER 004 TEST \u2192 T-AUD \u2014 WALLET PASS UPDATES TOO"
+  ],
+  [
+   "OK ",
+   "gala_registrations.seat_number MIRRORED by the assign (wallet-pass source)",
+   "seat_number=T-AUD"
+  ],
+  [
+   "OK ",
+   "board tile shows occupancy 1/2",
+   ""
+  ],
+  [
+   "OK ",
+   "table editor lists the seated guest with \u2715",
+   ""
+  ],
+  [
+   "OK ",
+   "unassign clears the seat_number mirror server-side",
+   ""
+  ],
+  [
+   "OK ",
+   "cleanup: table deleted",
+   "TABLE REMOVED \u2014 ITS GUESTS ARE UNSEATED"
+  ],
+  [
+   "OK ",
+   "EDIT CATEGORIES manager opens",
+   ""
+  ],
+  [
+   "OK ",
+   "category added with a stable key",
+   "{\"key\": \"audit-cat\", \"label\": \"AUDIT CAT\", \"archived\": 0}"
+  ],
+  [
+   "OK ",
+   "rename changes the label, never the key",
+   "key=audit-cat label=AUDIT CAT RENAMED"
+  ],
+  [
+   "OK ",
+   "category archived (kept for tagged guests, hidden from pickers)",
+   ""
+  ],
+  [
+   "OK ",
+   "ADD GUEST picker shows the live set only (archived hidden, INVOICE priced)",
+   "[\"INVOICE \\u2014 \\u20ac150\", \"VIP \\u2014 FREE\", \"SPONSOR SEAT\"]"
+  ],
+  [
+   "OK ",
+   "historic trio still live",
+   "['invoice', 'sponsor', 'vip']"
+  ],
+  [
+   "OK ",
+   "guest ends unseated (as found)",
+   ""
+  ],
+  [
+   "OK ",
+   "zero console errors in chain",
+   ""
+  ]
+ ]
+}

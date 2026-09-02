@@ -2,6 +2,17 @@
    Responsive overrides ONLY — the look lives inline in the copied artboard markup
    (ARCHITECTURE.md §4: mx-* hooks never carry look). */
 
+/* UXFIX-M2 #10 (2026-09-02): with exactly five speakers the 4-column stage grid strands one card
+   on row two. Five across on desktop instead — one even row, uniform square crop (the crop rule
+   itself — aspect-ratio:1/1 + object-fit:cover — already lives inline on the cards). Scoped to
+   the stage grid: the only other .mx-grid-4 in this view is the moments gallery (.mx-gala-gallery).
+   Harmless fallback (4+1) where :has() is unsupported. */
+@media (min-width: 901px) {
+  [data-screen-label="Gala Evening"] .mx-grid-4:not(.mx-gala-gallery):has(> div:nth-child(5):last-child) {
+    grid-template-columns: repeat(5, 1fr) !important;
+  }
+}
+
 @media (max-width: 900px) {
   .mx-gala-band { gap: 14px 18px !important; }
 }

@@ -23,7 +23,7 @@ module.exports = function mountGala(app, ctx) {
     const { db, auth, adminOnly } = ctx;
     const log = ctx.log || ((...a) => console.log('[v2/gala]', ...a));
     const KEY = 'performers';
-    const DEFAULT_DEADLINE = '2026-09-01';
+    const DEFAULT_DEADLINE = '2026-09-15';
     const MAX_PERFORMERS = 6;
 
     try {

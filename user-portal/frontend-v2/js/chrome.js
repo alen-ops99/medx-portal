@@ -20,7 +20,7 @@ export const COPY = {
   memberLabel: 'Med&amp;X Member',
   banner: { lead: 'Confirm your email to unlock everything. Link sent to ', leadShort: 'Confirm your email to unlock everything.', resend: 'RESEND LINK', resendShort: 'RESEND', sent: 'Link sent — check your inbox (and spam).' },
   hrSoon: 'Croatian (HR) arrives with the translations — English for now.',
-  stats: { points: 'POINTS', registrations: 'REGISTRATIONS', following: 'FOLLOWING', since: 'MEMBER SINCE' },
+  stats: { registrations: 'REGISTRATIONS', following: 'FOLLOWING', since: 'MEMBER SINCE' },
   drawer: { portal: 'PORTAL', projects: 'Projects', quick: 'QUICK LINKS', website: 'Website ↗' },
   searchPanel: { placeholder: 'Search events, people, tickets…', hint: 'Type at least two characters.', none: 'Nothing matched — try a name, a city or an event.', groups: { events: 'EVENTS', members: 'PEOPLE', talks: 'TALKS', mine: 'MINE' } },
   alertsPanel: { title: 'ALERTS', markAll: 'MARK ALL READ', emptyLine: 'All quiet.', emptyWhy: 'Announcements and replies land here the moment they arrive.' },
@@ -41,13 +41,15 @@ const NAV = [
   { key: 'My Med&X', label: 'My Med&amp;X', to: '/app/me' }
 ];
 // QUICK LINKS — as the artboard; "Messages" is a v2 addition (the Messages screen has no drawer entry in the export)
+// UX audit 2026-09-02 › item 14: "Mentorship" and "Opportunity board" opened _stub screens that say
+// the wiring is on its way — construction tape inside the front door — so they are out of the menu
+// until those screens ship (the routes stay for direct URLs). "Event tickets" was a third name for
+// My Med&X sitting in the same list as My Med&X; it is "My wallet" now, which is what it opens.
 const QUICK = [
   { label: 'Profile &amp; settings', to: '/app/profile' },
   { label: 'Member directory', to: '/app/network' },
-  { label: 'Event tickets', to: '/app/me' },
-  { label: 'Mentorship', to: '/app/mentorship' },
+  { label: 'My wallet', to: '/app/me' },
   { label: 'Certificates', to: '/app/me/certificates' },
-  { label: 'Opportunity board', to: '/app/opportunities' },
   { label: 'Forum eligibility', to: '/app/forum' },
   { label: 'Messages', to: '/app/messages', v2: true }
 ];
@@ -90,17 +92,23 @@ function topBar() {
 }
 function statsStrip() {
   const st = state.get().stats || {};
-  const n = v => (v == null ? '—' : esc(v));
-  const stat = (v, l) => `<span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">${n(v)}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">${l}</span></span>`;
+  // A stat is shown once it has something to say (UX audit 2026-09-02 › item 5). A row of zeros
+  // above every screen told each new member four times that they were nothing; a zero now simply
+  // waits its turn. MEMBER SINCE reads label-first — it is a date, not a score.
+  const stat = (v, l) => (Number(v) > 0
+    ? `<span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">${esc(v)}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">${l}</span></span>`
+    : '');
+  const since = st.since
+    ? `<span style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">${COPY.stats.since}</span><span style="font-family:Fraunces,serif;font-size:17px">${esc(st.since)}</span></span>`
+    : '';
   return `
   <!-- dc: Portal Chrome.dc.html › "Member stats strip" -->
   <div class="mx-stats" style="display:flex;align-items:center;gap:24px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
     <span style="font:600 10px Inter,sans-serif;letter-spacing:.18em;color:#4a4239">${fmt.todayLabel()}</span>
     <div style="flex:1"></div>
-    ${st.quiet ? '' : stat(st.points, COPY.stats.points)}
     ${stat(st.registrations, COPY.stats.registrations)}
     ${stat(st.following, COPY.stats.following)}
-    ${stat(st.since, COPY.stats.since)}
+    ${since}
   </div>
   <!-- /dc -->`;
 }
@@ -304,7 +312,6 @@ export const chrome = {
       return;
     }
     const r = await api.settle({
-      rewards: api.get('/api/rewards/summary'),
       events: api.get('/api/my/events'),
       topics: api.get('/api/notify-topics'),
       meta: api.get('/api/member/meta'),
@@ -314,7 +321,6 @@ export const chrome = {
     const u = state.get().user || {};
     const stats = {
       quiet: !!u.quiet,
-      points: r.rewards ? Number(r.rewards.balance || 0) : null,
       registrations: r.events ? Number(r.events.count || 0) : null,
       following: r.topics ? (r.topics.projects || []).length : null,
       since: r.meta && r.meta.member_since ? String(r.meta.member_since).slice(0, 4) : null

@@ -205,7 +205,7 @@ with sync_playwright() as pw:
 
     # =================== ANNOUNCEMENTS ===================
     page.goto(a.base + '/inbox/announcements', wait_until='networkidle'); page.wait_for_timeout(1200)
-    ann_t = f'QA bell {TS} — early-bird ends September 1'
+    ann_t = f'QA bell {TS} — early-bird ends September 15'
     page.select_option('[data-role=annWho]', 'gala')
     page.fill('[data-role=annTitle]', ann_t)
     page.fill('[data-role=annBody]', 'Reserve before Monday to keep the €150 seat.')

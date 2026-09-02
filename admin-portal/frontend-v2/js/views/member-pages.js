@@ -49,7 +49,7 @@ export const COPY = {
     removeTitle: 'Remove this question?', removeBody: 'Answers already given stay stored — the question just leaves the form.',
     types: { text: 'Short answer', textarea: 'Long answer', select: 'Dropdown', checkbox: 'Checkbox' },
     notes: {
-      plexus: 'Free conference registration — name, email, institution. Gala seats are a paid add-on with the early-bird price switch on Sep 1.',
+      plexus: 'Free conference registration — name, email, institution. Gala seats are a paid add-on with the early-bird price switch on Sep 15.',
       gala: 'Seat reservation with payment — the price switch runs on the early-bird date. The waitlist opens itself when seats run out.',
       accelerator: 'The 7-step application wizard — personal, education, motivation, documents. Submissions land in the Review Room.',
       forum: 'Two doors: the invitation-code unlock for invitees, and the public interest form that feeds your candidate pipeline.',

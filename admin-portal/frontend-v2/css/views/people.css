@@ -8,6 +8,11 @@
    (the artboard's list is 11 rows; the real one is the whole database) */
 .mx-people-side { position: sticky; top: 20px; }
 
+/* Audit 2026-09-02 #11 — single-line directory rows: every cell needs a 0 minimum for its own
+   inline ellipsis to engage, and the tag cell must clip rather than push the row to two lines. */
+.mx-people-row > * { min-width: 0; }
+.mx-people-row > span:nth-child(3) { overflow: hidden; flex-wrap: nowrap; }
+
 @media (max-width: 960px) {
   .mx-people-side { position: static; }
   .mx-people-row { grid-template-columns: 1.6fr 1fr auto !important; }

@@ -1,10 +1,12 @@
 // Source: My MedX.dc.html
 // Blocks (artboard order): "MY MED&X · MEMBERSHIP, TICKETS & RECORD" (intro + member card panel) ›
-// "REWARDS" band › "01 · MY WALLET" (CURRENT TICKETS / PAST PURCHASES) › "02 · MY RECORD"
+// "01 · MY WALLET" (CURRENT TICKETS / PAST PURCHASES) › "02 · MY RECORD"
 // (EVENTS · CERTIFICATES · BADGES) › "03 · SETTINGS" › help band. Wallet empty state from
 // Empty States.dc.html › "MY WALLET · NO TICKETS YET". Ticket-card vocabulary: Emails.dc.html.
-// Tabs: /app/me (wallet) · /app/me/certificates · /app/me/rewards (OPEN REWARDS →) — the two
-// sub-tabs have no artboard of their own and reuse this screen's vocabulary (v2-marked).
+// Tabs: /app/me (wallet) · /app/me/certificates — the sub-tab has no artboard of its own and
+// reuses this screen's vocabulary (v2-marked). The REWARDS band, the /app/me/rewards tab and the
+// points economy were deleted (UX audit 2026-09-02 › item 4); badges, certificates and attendance
+// cards stay — they are the recognition layer the audit keeps.
 // Backend: user-portal/backend/v2/wallet.js (/api/v2/wallet/*) + existing member routes.
 import { api } from '../api.js';
 import { session } from '../state.js';
@@ -25,20 +27,6 @@ export const COPY = {
     label: 'MEMBER CARD · 2026', member: 'MEMBER', motto: 'Jedna karta, sva vrata.',
     mottoSub: 'One card, every door · tap to flip back', fast: 'FAST CHECK-IN AT MED&X EVENTS',
     present: 'PRESENT FULL SCREEN', presentHint: 'Show this code at the door'
-  },
-  rewards: {
-    tag: 'REWARDS', line: n => `<strong style="color:#191512">${fmt.num(n)} point${Number(n) === 1 ? '' : 's'}</strong> · earn at every event and connection, redeem for seats and perks.`,
-    open: 'OPEN REWARDS →', back: '← BACK TO MY MED&X',
-    quiet: 'Rewards are not part of your membership view — your record and tickets live in My Med&X.',
-    earnTitle: 'HOW POINTS ARE EARNED', redeemTitle: 'REDEEM FOR EVENT CREDIT', codesTitle: 'MY CODES', ledgerTitle: 'ACTIVITY',
-    earn: [['Event payments', '+1 point per €1'], ['Event check-in', '+100'], ['Profile completed', '+50'], ['Email confirmed', '+25']],
-    balance: 'POINTS BALANCE', lifetime: 'LIFETIME POINTS', minNote: m => `Coupons apply to purchases of €${m} or more.`,
-    redeem: 'REDEEM', locked: n => `${fmt.num(n)} MORE`, redeemQ: (p, e) => `Redeem ${fmt.num(p)} points for a €${e} coupon?`,
-    redeemBody: 'You get a one-time code to paste into checkout. Points leave your balance right away.',
-    coupon: e => `Your €${e} coupon is ready.`, copy: 'COPY CODE', copied: 'Code copied — paste it at checkout.',
-    noCodes: 'No codes yet — redeem a tier above and it appears here.', noActivity: 'No activity yet — points arrive with payments, check-ins and your profile.',
-    more: 'SHOW MORE', showLess: 'SHOW LESS',
-    reasons: { payment: 'Event payment', checkin: 'Event check-in', profile: 'Profile completed', verify: 'Email confirmed', admin_adjust: 'Adjustment', redeem: 'Coupon redeemed' }
   },
   wallet: {
     n: '01', title: 'MY WALLET', cur: 'CURRENT TICKETS', past: 'PAST PURCHASES',
@@ -74,19 +62,15 @@ export const COPY = {
     emptyLine: 'No certificates yet.', emptyWhy: 'Attend an event and your certificate of attendance appears here, ready to download and verify.',
     emptyCta: 'BROWSE EVENTS →', back: '← BACK TO MY MED&X', no: 'N°'
   },
+  // UX audit 2026-09-02 › item 8: name, email, password and language were editable here AND on
+  // Profile & settings, in two different UI systems, with no answer to "where do I change X".
+  // Profile & settings is the single owner now — every control moved there — and My Med&X goes back
+  // to what it is best at: the card, the wallet, the record.
   settings: {
     n: '03', title: 'SETTINGS',
-    name: 'NAME', email: 'EMAIL', password: 'PASSWORD', language: 'LANGUAGE', follow: 'PROJECTS I FOLLOW', interests: 'MY INTERESTS',
-    change: 'CHANGE →', switch: 'SWITCH →', add: '+ ADD', unconfirmed: 'UNCONFIRMED', resend: 'RESEND LINK',
-    resent: 'Link sent — check your inbox (and spam).',
-    nameSaved: 'Name updated.', pwSaved: 'Password changed.', langSaved: 'Saved — English for now; Hrvatski arrives with the translations.',
-    emailTitle: 'Change your email',
-    emailBody: 'Your email links every ticket, receipt and certificate to you, so changes go through the team — message us and we move everything over safely.',
-    emailCta: 'MESSAGE US →', emailToast: 'Email changes go through the team — message us and we handle it.',
-    followed: 'Following updated.', interestsSaved: 'Interests updated.',
-    pwMismatch: 'The passwords do not match.', pwShort: 'At least 8 characters.',
-    projects: { plexus: 'Plexus Conference', gala: 'Gala Evening', accelerator: 'The Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges' },
-    suggestions: ['Neuroscience', 'Sleep Medicine', 'Oncology', 'Public Health', 'Biotech', 'AI in Medicine', 'Mental Health', 'Genetics']
+    line: 'Account settings live in your <i>Profile &amp; settings</i>.',
+    why: 'Your name, email, password, language, the projects you follow and your interests — all in one place.',
+    cta: 'OPEN PROFILE &amp; SETTINGS →'
   },
   help: {
     line: "Don't see something, or something looks wrong?",
@@ -95,8 +79,6 @@ export const COPY = {
   },
   err: { load: 'Could not reach the portal — showing what we have.', dl: 'Download failed — please try again.' }
 };
-
-const PROJECT_KEYS = ['plexus', 'gala', 'accelerator', 'forum', 'bridges'];
 
 // ---- view state ----
 let D = null, st = null, unbind = null, rootEl = null, qrObjectUrl = null;
@@ -127,10 +109,6 @@ async function load(tab) {
     tickets: api.get('/api/v2/wallet/tickets'),
     events: api.get('/api/my/events'),
     record: api.get('/api/member/record'),
-    rewards: api.get('/api/rewards/summary'),
-    topics: api.get('/api/notify-topics'),
-    net: api.get('/api/networking/profile'),
-    locale: api.get('/api/me/locale'),
     attendance: attendanceCall
   });
   // Certificates tab: mint-on-open only when a checked-in Plexus registration exists —
@@ -152,8 +130,6 @@ async function load(tab) {
     purchases = (r.events.past || []).map(e => lift(e, false));
     items = upcoming.concat(purchases);
   }
-  let interests = (r.net && r.net.research_interests) || [];
-  if (typeof interests === 'string') interests = interests.split(',').map(s => s.trim()).filter(Boolean);
   const certs = (r.record && r.record.certificates) || [];
   if (r.myCert && r.myCert.id && !certs.find(c => c.id === r.myCert.id)) {
     certs.unshift({ id: r.myCert.id, title: (r.myCert.conference_name ? r.myCert.conference_name + ' — Certificate of Attendance' : 'Certificate of Attendance'), number: r.myCert.certificate_number, issue_date: r.myCert.issue_date, type: r.myCert.certificate_type || 'attendance' });
@@ -161,8 +137,6 @@ async function load(tab) {
   return {
     me, meta: r.meta || {}, member: r.member, items, upcoming, purchases,
     record: r.record || { events: [], certificates: [], badges: [] }, certs,
-    rewards: r.rewards, topics: (r.topics && r.topics.projects) || [], net: r.net || null,
-    interests, locale: (r.locale && r.locale.locale) || 'en',
     attendance: r.attendance, v2: !!r.tickets, quiet: !!me.quiet
   };
 }
@@ -286,21 +260,6 @@ function blockHero() {
   </div>
   <!-- /dc -->`;
 }
-function blockRewardsBand() {
-  if (D.quiet) return '<!-- dc: My MedX.dc.html › "REWARDS" --><!-- hidden for quiet profiles (server-flagged) --><!-- /dc -->';
-  const bal = D.rewards ? Number(D.rewards.balance || 0) : 0;
-  return `
-  <!-- dc: My MedX.dc.html › "REWARDS" -->
-  <div style="border-bottom:1px solid rgba(25,21,18,.16)">
-    <div class="mx-gutter mx-wrap-row" style="padding:13px 36px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.rewards.tag}</span>
-      <span style="font-size:12.5px;color:#4a4239">${COPY.rewards.line(bal)}</span>
-      <div style="flex:1"></div>
-      <a href="/app/me/rewards" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.rewards.open}</a>
-    </div>
-  </div>
-  <!-- /dc -->`;
-}
 function ticketCard(it) {
   const gala = it.kind === 'gala';
   const wrapBorder = gala ? 'border:1px solid rgba(201,169,98,.55)' : 'border:1px solid rgba(25,21,18,.16)';
@@ -392,9 +351,46 @@ function blockWallet() {
   </div>
   <!-- /dc -->`;
 }
+// UX audit 2026-09-02 › item 15: MY RECORD listed the same "BUILDING BRIDGES — BOSTON" twice, for
+// an evening that has not happened. One row per event — the richest one wins (an attended row
+// outranks a merely registered one) — and an attendance card, which is a souvenir of having been
+// there, waits until the member has actually been through the door.
+function eventKey(e) {
+  return String(e.event_id || e.id || `${e.title || ''}|${String(e.start_date || e.date || '').slice(0, 10)}`).toLowerCase();
+}
+function dedupeEvents(list) {
+  const by = new Map();
+  list.forEach(e => {
+    const k = eventKey(e);
+    const prev = by.get(k);
+    if (!prev || (!prev.attended && e.attended) || (!prev.paid && e.paid)) by.set(k, e);
+  });
+  return [...by.values()];
+}
+function attendedKeys() {
+  const keys = new Set();
+  const norm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  (D.record.events || []).forEach(e => { if (e.attended) keys.add(norm(e.title)); });
+  (D.items || []).forEach(it => { if (it.checked_in) keys.add(norm(it.title)); });
+  return keys;
+}
+function visibleCards(cards) {
+  const been = attendedKeys();
+  const norm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const upcoming = new Set((D.upcoming || []).map(it => norm(it.title)));
+  const seen = new Set();
+  return cards.filter(c => {
+    const name = norm(c.event_name || c.title || c.label || c.event);
+    const key = `${c.kind || ''}|${name}`;
+    if (seen.has(key)) return false;                       // one card per event
+    if (c.kind !== 'year' && !been.has(name) && upcoming.has(name)) return false;  // not through the door yet
+    seen.add(key);
+    return true;
+  });
+}
 function blockRecord() {
   const R = COPY.record;
-  const evs = (D.record.events || []);
+  const evs = dedupeEvents(D.record.events || []);
   const eventsInner = evs.length ? evs.slice(0, 4).map(ev => {
     const chip = ev.attended ? R.attended : (ev.paid ? R.confirmed : R.registered);
     return `<span style="display:flex;gap:8px;align-items:baseline;justify-content:space-between"><span style="font-size:12.5px;color:#191512;line-height:1.45;min-width:0">${esc(ev.title)}<span style="color:#4a4239"> · ${esc(fmt.keyDateLabel(fmt.longRange(ev.start_date, ev.end_date) || ''))}</span></span><span style="padding:2px 6px;border:1px solid rgba(25,21,18,.22);font:600 8px Inter,sans-serif;letter-spacing:.13em;color:${ev.attended ? '#6e5626' : '#4a4239'};white-space:nowrap">${chip}</span></span>`;
@@ -416,8 +412,9 @@ function blockRecord() {
         </span>
         <span style="font-size:12px;color:#4a4239">${R.badgesEmpty.replace(/&/g, '&amp;')}</span>`;
   const att = D.attendance;
-  const attCards = att && (att.cards || att.items || (Array.isArray(att) ? att : null));
-  const attBlock = attCards && attCards.length ? `
+  const rawCards = (att && (att.cards || att.items || (Array.isArray(att) ? att : null))) || [];
+  const attCards = visibleCards(rawCards);
+  const attBlock = attCards.length ? `
     <div data-v2="attendance cards — GET /api/v2/attendance-cards/mine" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:7px;grid-column:1/-1">
       <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${R.cards}</span>
       <span style="display:flex;gap:10px;flex-wrap:wrap">${attCards.map(c => { const href = c.download_url || c.image_url || c.url || ''; return `<a href="${esc(href ? api.url(href) : '#')}" ${href ? 'target="_blank" rel="noopener"' : ''} style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap">${esc(fmt.upper(c.event_name || c.title || c.label || c.event || 'CARD'))} ↓</a>`; }).join('')}</span>
@@ -447,21 +444,8 @@ function blockRecord() {
   </div>
   <!-- /dc -->`;
 }
-function chipRow(list, rmAct, addAct) {
-  return `${list.map(v => `<span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px;white-space:nowrap">${esc(v.label)} <span data-act="${rmAct}" data-key="${esc(v.key)}" role="button" aria-label="Remove ${esc(v.label)}" style="cursor:pointer;color:#9b1b22">×</span></span>`).join('')}
-        <span data-act="${addAct}" style="padding:5px 10px;border:1px dashed rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.settings.add}</span>`;
-}
 function blockSettings() {
   const S = COPY.settings;
-  const emailOk = session.emailConfirmed();
-  const follows = (D.topics || []).map(k => ({ key: k, label: S.projects[k] || k }));
-  const interests = (D.interests || []).map(k => ({ key: k, label: k }));
-  const row = (label, valueHtml, act, actLabel) => `
-  <div class="mx-me-row" style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
-    <span class="mx-me-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;width:120px;flex:none">${label}</span>
-    <span style="font-size:13.5px;flex:1;min-width:0">${valueHtml}</span>
-    ${act ? `<span data-act="${act}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${actLabel}</span>` : ''}
-  </div>`;
   return `
   <!-- dc: My MedX.dc.html › "03 · SETTINGS" -->
   <div data-block="settings">
@@ -469,15 +453,10 @@ function blockSettings() {
     <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${S.n}</span>
     <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${S.title}</span>
   </div>
-  ${row(S.name, esc([D.me.first_name, D.me.last_name].filter(Boolean).join(' ') || session.displayName()), 'chgName', S.change)}
-  ${row(S.email, `${esc(D.me.email || '')}${emailOk ? '' : ` <span style="padding:2px 6px;margin-left:6px;border:1px solid rgba(155,27,34,.45);color:#9b1b22;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${S.unconfirmed}</span> <span data-act="resend" data-v2="RESEND LINK — wiring-map addition for unconfirmed accounts" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${S.resend}</span>`}`, 'chgEmail', S.change)}
-  ${row(S.password, '••••••••', 'chgPw', S.change)}
-  ${row(S.language, D.locale === 'hr' ? '<span style="font-weight:600">Hrvatski</span> · English' : '<span style="font-weight:600">English</span> · Hrvatski', 'chgLang', S.switch)}
-  ${row(S.follow, `<span style="display:flex;gap:8px;flex-wrap:wrap">${chipRow(follows, 'followRm', 'followAdd')}</span>`)}
-  <div class="mx-me-row" style="display:flex;gap:16px;align-items:center;padding:12px 0 26px">
-    <span class="mx-me-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;width:120px;flex:none">${S.interests}</span>
-    <span style="font-size:13.5px;flex:1;display:flex;gap:8px;flex-wrap:wrap;min-width:0">${chipRow(interests, 'intRm', 'intAdd')}</span>
-  </div>
+  <a href="/app/profile" style="display:flex;align-items:center;gap:18px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:18px 20px;margin:10px 0 26px;color:#191512;text-decoration:none;flex-wrap:wrap" data-hover="background:#f7efdf">
+    <span style="flex:1;min-width:240px"><span style="display:block;font-family:Fraunces,serif;font-size:17px;line-height:1.3">${S.line}</span><span style="display:block;font-size:12.5px;color:#4a4239;margin-top:3px;line-height:1.5">${S.why}</span></span>
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap;flex:none">${S.cta}</span>
+  </a>
   </div>
   <!-- /dc -->`;
 }
@@ -528,89 +507,13 @@ function certificatesTab() {
   </div>`;
 }
 
-// ---------------------------------------------------------------- sub-tab: rewards
-function rewardsTab() {
-  const R = COPY.rewards;
-  if (D.quiet) return `
-  <!-- v2: rewards tab — OPEN REWARDS target (quiet profiles get the dignified note) -->
-  <div class="mx-pad-hero" style="padding:54px 36px 46px;display:flex;flex-direction:column;align-items:center;text-align:center">
-    <span style="width:28px;height:1px;background:#c9a962;margin-bottom:14px"></span>
-    <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;line-height:1.15;max-width:640px">Your membership speaks for <i style="color:#9b1b22">itself</i>.</div>
-    <div style="font-size:14px;line-height:1.6;color:#4a4239;max-width:460px;margin-top:12px">${R.quiet.replace(/&/g, '&amp;')}</div>
-    <a href="/app/me" style="margin-top:22px;padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${R.back.replace(/&/g, '&amp;')}</a>
-  </div>`;
-  const rw = D.rewards || { balance: 0, lifetime_points: 0, tiers: [], ledger: [], redemptions: [], min_purchase: 50 };
-  const tiers = (rw.tiers || []).map(t => {
-    const afford = Number(rw.balance || 0) >= t.points;
-    return `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:6px;align-items:flex-start">
-        <span style="font-family:Fraunces,serif;font-size:26px">${fmt.eur(t.euros)}</span>
-        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${fmt.num(t.points)} POINTS</span>
-        ${afford
-        ? `<span data-act="redeem" data-points="${t.points}" data-euros="${t.euros}" style="margin-top:6px;padding:9px 16px;background:#9b1b22;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${R.redeem}</span>`
-        : `<span aria-disabled="true" style="margin-top:6px;padding:9px 16px;border:1px solid rgba(25,21,18,.25);color:#4a4239;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;white-space:nowrap;opacity:.6">${R.locked(t.points - Number(rw.balance || 0))}</span>`}
-      </div>`;
-  }).join('');
-  const codes = (rw.redemptions || []);
-  const codesHtml = codes.length ? codes.map(c => `
-      <div class="mx-me-row" style="display:flex;gap:14px;align-items:center;padding:11px 0;border-bottom:1px solid rgba(25,21,18,.12)">
-        <span style="font:600 12px ui-monospace,Menlo,monospace;letter-spacing:.08em">${esc(c.coupon_code)}</span>
-        <span style="font-size:12px;color:#4a4239">${fmt.eur(c.coupon_value_eur)}${c.expires_at && c.status === 'active' ? ' · until ' + esc(fmt.longRange(String(c.expires_at).slice(0, 10), null)) : ''}</span>
-        <div style="flex:1"></div>
-        <span style="padding:2px 8px;border:1px solid ${c.status === 'active' ? 'rgba(201,169,98,.65)' : 'rgba(25,21,18,.22)'};font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:${c.status === 'active' ? '#6e5626' : '#4a4239'}">${esc(fmt.upper(c.status))}</span>
-        ${c.status === 'active' ? `<span data-act="copyCode" data-code="${esc(c.coupon_code)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${R.copy}</span>` : ''}
-      </div>`).join('') : `<div style="font-size:12.5px;color:#4a4239;padding:8px 0 2px">${R.noCodes}</div>`;
-  const ledger = (rw.ledger || []).slice(0, st.ledgerN);
-  const ledgerHtml = ledger.length ? ledger.map(l => `
-      <div style="display:flex;gap:14px;align-items:baseline;padding:9px 0;border-bottom:1px solid rgba(25,21,18,.1)">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#9b8f80;flex:none;width:52px">${esc(fmt.shortDate(l.created_at))}</span>
-        <span style="font-size:13px;flex:1;min-width:0">${esc(l.note || R.reasons[l.reason] || l.reason)}</span>
-        <span style="font-family:Fraunces,serif;font-size:15px;color:${Number(l.delta) >= 0 ? '#6e5626' : '#9b1b22'}">${Number(l.delta) >= 0 ? '+' : ''}${fmt.num(l.delta)}</span>
-      </div>`).join('') : `<div style="font-size:12.5px;color:#4a4239;padding:8px 0 2px">${R.noActivity}</div>`;
-  return `
-  <!-- v2: rewards tab — OPEN REWARDS → rewards summary + points ledger (/api/rewards/*) -->
-  <div style="padding:42px 36px 26px;border-bottom:1px solid rgba(25,21,18,.16)" class="mx-gutter">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-      <span style="width:28px;height:1px;background:#c9a962"></span>
-      <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#9b1b22">MY MED&amp;X · REWARDS</span>
-    </div>
-    <div class="mx-wrap-row" style="display:flex;gap:44px;align-items:baseline;flex-wrap:wrap">
-      <span><span class="mx-display-46" style="font-family:Fraunces,serif;font-size:44px;line-height:1.05;display:block">${fmt.num(rw.balance)}</span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${R.balance}</span></span>
-      <span><span style="font-family:Fraunces,serif;font-size:28px;line-height:1.05;display:block;color:#4a4239">${fmt.num(rw.lifetime_points)}</span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${R.lifetime}</span></span>
-      <div style="flex:1"></div>
-      <a href="/app/me" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap">${R.back.replace(/&/g, '&amp;')}</a>
-    </div>
-    <div style="font-size:12.5px;color:#4a4239;margin-top:12px">${R.minNote(rw.min_purchase || 50)}</div>
-  </div>
-  <div class="mx-gutter" style="padding:20px 36px 34px">
-    <div class="mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:34px;align-items:start">
-      <div>
-        <div style="font:600 11px Inter,sans-serif;letter-spacing:.15em;color:#6e5626;padding-bottom:6px">${R.earnTitle}</div>
-        ${R.earn.map(([a, b]) => `<div style="display:flex;gap:14px;align-items:baseline;padding:9px 0;border-bottom:1px solid rgba(25,21,18,.1)"><span style="font-size:13px;flex:1">${a}</span><span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#6e5626">${b}</span></div>`).join('')}
-        <div style="font:600 11px Inter,sans-serif;letter-spacing:.15em;color:#6e5626;padding:22px 0 6px">${R.codesTitle}</div>
-        <div data-block="codes">${codesHtml}</div>
-      </div>
-      <div>
-        <div style="font:600 11px Inter,sans-serif;letter-spacing:.15em;color:#6e5626;padding-bottom:10px">${R.redeemTitle}</div>
-        <div class="mx-grid-3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">${tiers}</div>
-        <div style="font:600 11px Inter,sans-serif;letter-spacing:.15em;color:#6e5626;padding:22px 0 4px">${R.ledgerTitle}</div>
-        <div data-block="ledger">${ledgerHtml}</div>
-        ${(rw.ledger || []).length > st.ledgerN ? `<span data-act="moreLedger" style="display:inline-block;margin-top:10px;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:pointer">${R.more}</span>` : ''}
-      </div>
-    </div>
-  </div>`;
-}
-
 // ---------------------------------------------------------------- template
 function template() {
   if (st.view === 'certificates') return `
 <div data-screen-label="My Med&X" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">${certificatesTab()}</div>`;
-  if (st.view === 'rewards') return `
-<div data-screen-label="My Med&X" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">${rewardsTab()}</div>`;
   return `
 <div data-screen-label="My Med&X" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
   ${blockHero()}
-  ${blockRewardsBand()}
   <div class="mx-gutter" style="padding:0 36px">
     ${blockWallet()}
     ${blockRecord()}
@@ -630,140 +533,7 @@ function repaintCard() {
         ${cardInner()}`;
 }
 
-// ---------------------------------------------------------------- modals (settings)
-function inputRow(label, name, type, value, ph) {
-  return `<label style="display:block;margin-top:12px"><span class="label" style="display:block;font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;margin-bottom:5px">${label}</span>
-    <input name="${name}" type="${type || 'text'}" value="${esc(value || '')}" placeholder="${esc(ph || '')}" autocomplete="off" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font:13px Inter,sans-serif;color:#191512;width:100%;box-sizing:border-box"></label>`;
-}
-function openNameModal() {
-  const m = ui.modal({
-    eyebrow: 'SETTINGS · NAME', title: 'Change your name',
-    body: `${inputRow('FIRST NAME', 'first', 'text', D.me.first_name)}${inputRow('LAST NAME', 'last', 'text', D.me.last_name)}<p data-role="error" style="color:#9b1b22;font-size:12px;min-height:14px;margin:8px 0 0"></p>`,
-    actions: [{ label: 'CANCEL' }, {
-      label: 'SAVE', kind: 'primary', onClick: () => {
-        const first = m.el.querySelector('[name=first]').value.trim();
-        const last = m.el.querySelector('[name=last]').value.trim();
-        if (!first) { m.el.querySelector('[data-role=error]').textContent = 'A first name is required.'; return false; }
-        // PUT /api/auth/profile overwrites every field — send the current values back with the new name
-        api.put('/api/auth/profile', {
-          first_name: first, last_name: last, phone: D.me.phone || null, institution: D.me.institution || null,
-          country: D.me.country || null, bio: D.me.bio || null, is_public_profile: D.me.is_public_profile ? 1 : 0
-        }).then(() => {
-          D.me.first_name = first; D.me.last_name = last;
-          session.update({ first_name: first, last_name: last });
-          ui.toast(COPY.settings.nameSaved);
-          rerender('[data-block="settings"]', blockSettings());
-        }).catch(e => ui.toast(e.message, { kind: 'error' }));
-      }
-    }]
-  });
-}
-function openEmailModal() {
-  ui.modal({
-    eyebrow: 'SETTINGS · EMAIL', title: COPY.settings.emailTitle,
-    body: `<p>${COPY.settings.emailBody.replace(/&/g, '&amp;')}</p>`,
-    actions: [{ label: 'CLOSE' }, { label: COPY.settings.emailCta, kind: 'primary', onClick: () => router.navigate('/app/messages') }]
-  });
-  ui.toast(COPY.settings.emailToast);
-}
-function openPasswordModal() {
-  const m = ui.modal({
-    eyebrow: 'SETTINGS · PASSWORD', title: 'Change your password',
-    body: `${inputRow('CURRENT PASSWORD', 'cur', 'password')}${inputRow('NEW PASSWORD', 'nw', 'password', '', 'At least 8 characters')}${inputRow('REPEAT NEW PASSWORD', 'nw2', 'password')}<p data-role="error" style="color:#9b1b22;font-size:12px;min-height:14px;margin:8px 0 0"></p>`,
-    actions: [{ label: 'CANCEL' }, {
-      label: 'SAVE', kind: 'primary', onClick: () => {
-        const cur = m.el.querySelector('[name=cur]').value, nw = m.el.querySelector('[name=nw]').value, nw2 = m.el.querySelector('[name=nw2]').value;
-        const err = m.el.querySelector('[data-role=error]');
-        if (nw.length < 8) { err.textContent = COPY.settings.pwShort; return false; }
-        if (nw !== nw2) { err.textContent = COPY.settings.pwMismatch; return false; }
-        // keepSession: a 401 here means "wrong current password", not an expired token
-        api.post('/api/auth/change-password', { currentPassword: cur, newPassword: nw }, { keepSession: true })
-          .then(() => { ui.toast(COPY.settings.pwSaved); m.close(); })
-          .catch(e => { err.textContent = e.message; });
-        return false;
-      }
-    }]
-  });
-}
-function openLanguageModal() {
-  const m = ui.modal({
-    eyebrow: 'SETTINGS · LANGUAGE', title: 'Portal language',
-    body: `<p>English is the portal language for now — Hrvatski switches on with the translations. Your choice is remembered.</p>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <span data-lang="en" role="radio" aria-checked="${D.locale !== 'hr'}" style="padding:9px 18px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;background:${D.locale !== 'hr' ? '#191512' : 'transparent'};color:${D.locale !== 'hr' ? '#f7f1e6' : '#4a4239'}">ENGLISH</span>
-        <span data-lang="hr" role="radio" aria-checked="${D.locale === 'hr'}" style="padding:9px 18px;border:1px solid rgba(25,21,18,.3);border-left:none;font:600 10px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;background:${D.locale === 'hr' ? '#191512' : 'transparent'};color:${D.locale === 'hr' ? '#f7f1e6' : '#4a4239'}">HRVATSKI</span>
-      </div>`,
-    actions: [{ label: 'DONE', kind: 'primary' }]
-  });
-  m.el.querySelectorAll('[data-lang]').forEach(el => {
-    el.setAttribute('tabindex', '0');
-    el.addEventListener('click', async () => {
-      const locale = el.dataset.lang;
-      try {
-        await api.patch('/api/me', { locale });
-        D.locale = locale;
-        ui.toast(COPY.settings.langSaved);
-        m.close();
-        rerender('[data-block="settings"]', blockSettings());
-      } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-    });
-  });
-}
-function openFollowModal() {
-  const left = PROJECT_KEYS.filter(k => !(D.topics || []).includes(k));
-  if (!left.length) return ui.toast('You already follow every project.');
-  const m = ui.modal({
-    eyebrow: 'SETTINGS · PROJECTS I FOLLOW', title: 'Follow a project',
-    body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(k => `<span data-follow="${k}" role="button" style="padding:7px 12px;border:1px solid rgba(25,21,18,.22);font-size:12.5px;cursor:pointer" data-hover="border-color:#9b1b22;color:#9b1b22">${esc(COPY.settings.projects[k])}</span>`).join('')}</div>`,
-    actions: [{ label: 'DONE', kind: 'primary' }]
-  });
-  m.el.querySelectorAll('[data-follow]').forEach(el => {
-    el.setAttribute('tabindex', '0');
-    el.addEventListener('click', async () => {
-      try {
-        await api.post('/api/notify-topics', { project: el.dataset.follow, on: true });
-        D.topics.push(el.dataset.follow);
-        ui.toast(COPY.settings.followed); m.close();
-        rerender('[data-block="settings"]', blockSettings());
-        chrome.refresh();
-      } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-    });
-  });
-}
-async function saveInterests(next) {
-  const p = D.net || {};
-  // PUT /api/networking/profile overwrites every column — carry the existing values along
-  await api.put('/api/networking/profile', {
-    career_stage: p.career_stage || null, looking_for: p.looking_for || null,
-    research_interests: next, working_on: p.working_on || null,
-    timezone: p.timezone || 'Europe/Zagreb', meeting_format: p.meeting_format || 'video',
-    open_to_coffee_chats: p.open_to_coffee_chats == null ? 1 : p.open_to_coffee_chats,
-    coffeeMatchmaker: !!p.coffee_matchmaker_opt_in
-  });
-  D.interests = next;
-  if (D.net) D.net.research_interests = next;
-  ui.toast(COPY.settings.interestsSaved);
-  rerender('[data-block="settings"]', blockSettings());
-}
-function openInterestsModal() {
-  const left = COPY.settings.suggestions.filter(s => !(D.interests || []).some(i => i.toLowerCase() === s.toLowerCase()));
-  const m = ui.modal({
-    eyebrow: 'SETTINGS · MY INTERESTS', title: 'Add an interest',
-    body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(s => `<span data-int="${esc(s)}" role="button" style="padding:7px 12px;border:1px solid rgba(25,21,18,.22);font-size:12.5px;cursor:pointer" data-hover="border-color:#9b1b22;color:#9b1b22">${esc(s)}</span>`).join('') || '<span style="font-size:12.5px;color:#4a4239">All suggestions added — type your own below.</span>'}</div>
-      ${inputRow('OR TYPE YOUR OWN', 'custom', 'text', '', 'e.g. Cardiology')}`,
-    actions: [{ label: 'CANCEL' }, {
-      label: 'ADD', kind: 'primary', onClick: () => {
-        const v = m.el.querySelector('[name=custom]').value.trim();
-        if (!v) return true;
-        saveInterests((D.interests || []).concat([v])).catch(e => ui.toast(e.message, { kind: 'error' }));
-      }
-    }]
-  });
-  m.el.querySelectorAll('[data-int]').forEach(el => {
-    el.setAttribute('tabindex', '0');
-    el.addEventListener('click', () => { m.close(); saveInterests((D.interests || []).concat([el.dataset.int])).catch(e => ui.toast(e.message, { kind: 'error' })); });
-  });
-}
+// ---------------------------------------------------------------- modals
 function openPresent() {
   if (!st.qrUrl) return ui.toast(COPY.err.dl, { kind: 'error' });
   const m = ui.modal({
@@ -833,29 +603,6 @@ const handlers = {
     authedDownload(`/api/v2/wallet/confirmations/${encodeURIComponent(it.id)}.pdf`, `medx-confirmation.pdf`)
       .catch(e => ui.toast(e.message, { kind: 'error' }));
   },
-  chgName: openNameModal,
-  chgEmail: openEmailModal,
-  chgPw: openPasswordModal,
-  chgLang: openLanguageModal,
-  followAdd: openFollowModal,
-  followRm: async (el) => {
-    try {
-      await api.post('/api/notify-topics', { project: el.dataset.key, on: false });
-      D.topics = D.topics.filter(k => k !== el.dataset.key);
-      ui.toast(COPY.settings.followed);
-      rerender('[data-block="settings"]', blockSettings());
-      chrome.refresh();
-    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-  },
-  intAdd: openInterestsModal,
-  intRm: (el) => saveInterests((D.interests || []).filter(i => i !== el.dataset.key)).catch(e => ui.toast(e.message, { kind: 'error' })),
-  resend: async (el) => {
-    const email = D.me.email; if (!email) return;
-    el.setAttribute('aria-disabled', 'true');
-    try { const r = await api.post('/api/auth/request-verification', { email }); ui.toast(r.message || COPY.settings.resent); if (r.devVerifyUrl) console.info('[dev] verification link:', r.devVerifyUrl); }
-    catch (e) { ui.toast(e.message, { kind: 'error' }); }
-    setTimeout(() => el.removeAttribute('aria-disabled'), 30000);
-  },
   certDl: (el) => {
     authedDownload(`/api/v2/wallet/certificates/${encodeURIComponent(el.dataset.id)}.pdf`, `medx-certificate-${el.dataset.num || 'attendance'}.pdf`)
       .catch(e => ui.toast(e.message, { kind: 'error' }));
@@ -869,26 +616,7 @@ const handlers = {
       try { document.execCommand('copy'); ui.toast(COPY.certs.copied); } catch (e2) { ui.toast(url); }
       ta.remove();
     }
-  },
-  redeem: (el) => {
-    const points = Number(el.dataset.points), euros = Number(el.dataset.euros);
-    ui.confirm({ eyebrow: 'REWARDS · REDEEM', title: COPY.rewards.redeemQ(points, euros), body: `<p>${COPY.rewards.redeemBody}</p>`, ok: COPY.rewards.redeem, cancel: 'KEEP MY POINTS' })
-      .then(ok => {
-        if (!ok) return;
-        api.post('/api/rewards/redeem', { tier: points }).then(r => {
-          if (D.rewards) { D.rewards.balance = r.balance; D.rewards.redemptions = [{ coupon_code: r.coupon_code, coupon_value_eur: r.coupon_value_eur, status: 'active', expires_at: r.expires_at }].concat(D.rewards.redemptions || []); }
-          if (rootEl) rootEl.innerHTML = template();
-          ui.modal({
-            eyebrow: 'REWARDS · YOUR CODE', title: COPY.rewards.coupon(r.coupon_value_eur),
-            body: `<div style="font:600 16px ui-monospace,Menlo,monospace;letter-spacing:.1em;border:1px dashed rgba(25,21,18,.35);padding:14px;text-align:center;background:#fdfaf3">${esc(r.coupon_code)}</div><p style="margin-top:10px">Paste it into the checkout coupon field — valid on purchases of ${fmt.eur(r.min_purchase || 50)}+.</p>`,
-            actions: [{ label: 'DONE' }, { label: COPY.rewards.copy, kind: 'primary', onClick: () => { try { navigator.clipboard.writeText(r.coupon_code); ui.toast(COPY.rewards.copied); } catch (e) { } } }]
-          });
-          chrome.refresh();
-        }).catch(e => ui.toast(e.message, { kind: 'error' }));
-      });
-  },
-  copyCode: async (el) => { try { await navigator.clipboard.writeText(el.dataset.code); ui.toast(COPY.rewards.copied); } catch (e) { ui.toast(el.dataset.code); } },
-  moreLedger: () => { st.ledgerN += 24; rootEl.innerHTML = template(); }
+  }
 };
 
 // ---------------------------------------------------------------- QR blob (Bearer-auth image)
@@ -910,13 +638,14 @@ export default {
     ensureCss();
     rootEl = root;
     const tab = (ctx.params && ctx.params.tab) || '';
-    const view = tab === 'certificates' ? 'certificates' : tab === 'rewards' ? 'rewards' : 'wallet';
+    // /app/me/rewards is gone with the points economy — a bookmarked URL lands on the wallet (no dead route)
+    const view = tab === 'certificates' ? 'certificates' : 'wallet';
     D = await load(view === 'certificates' ? 'certificates' : '');
     if (rootEl !== root) return;
     st = {
       view, tab: ctx.query && ctx.query.qa === 'past' ? 'past' : 'cur',
       cardBack: !!(ctx.query && (ctx.query.open === 'qr' || ctx.query.view === 'ticket')),
-      qrUrl: null, ledgerN: 12
+      qrUrl: null
     };
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);

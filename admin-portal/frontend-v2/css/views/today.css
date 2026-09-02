@@ -1,0 +1,18 @@
+/* css/views/today.css — Today view hooks (behaviour + responsive only; the artboard's look lives
+   inline in js/views/today.js). Loaded by the view, id mx-css-today.
+
+   UXFIX-A1 #12 (2026-09-02): on a phone the page led with the brochure — greeting, four stat
+   cards, chart, five project cards — and "NEEDS YOUR ATTENTION" arrived ~2.5 screens down.
+   At ≤480px the sections reorder (CSS order on the .mx-gutter flex column): what needs you and
+   the live counts first, the quiet content after, projects last. Desktop order is untouched. */
+
+@media (max-width: 480px) {
+  .mx-t-greet              { order: 1; }
+  [data-block="customise"] { order: 2; }   /* stays glued to its ✎ CUSTOMISE toggle */
+  .mx-t-attn               { order: 3; }   /* NEEDS YOUR ATTENTION + DO IT NOW */
+  [data-block="hero"]      { order: 4; }   /* live counts + sparkline */
+  .mx-t-coming             { order: 5; }   /* COMING UP + TEAM TASKS */
+  [data-block="weekly"]    { order: 6; }
+  [data-block="projects"]  { order: 7; }   /* the brochure goes last */
+  [data-block="footer"]    { order: 8; }
+}

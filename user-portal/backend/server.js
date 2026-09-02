@@ -1312,7 +1312,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
 
         const galaSettings = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
         const galaPrice = effectiveGalaPrice();
-        const ebDeadline = galaSettings.early_bird_deadline || '2026-09-01';
+        const ebDeadline = galaSettings.early_bird_deadline || '2026-09-15';
         const isEarly = new Date().toISOString().slice(0, 10) <= ebDeadline;
         const fmtD = (iso) => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); } catch(e) { return iso; } };
         const galaVenue = galaSettings.venue || 'Hotel Esplanade Zagreb';
@@ -5757,7 +5757,7 @@ function effectiveGalaPrice() {
     try { comp = query.get("SELECT price FROM event_components WHERE event_type='plexus' AND component_key='gala' AND is_active=1"); } catch(e) {}
     const eb = (comp && comp.price != null) ? Number(comp.price) : Number(s.price_gala_early_bird);
     const reg = Number.isFinite(Number(s.price_gala_regular)) ? Number(s.price_gala_regular) : eb;
-    const deadline = s.early_bird_deadline || '2026-09-01';
+    const deadline = s.early_bird_deadline || '2026-09-15';
     if (Number.isFinite(eb)) {
         const today = new Date().toISOString().slice(0, 10);
         return today <= deadline ? eb : reg;
@@ -8632,12 +8632,12 @@ async function initializeApp() {
     if (!existingGalaSettings) {
         db.run("INSERT INTO gala_settings (id) VALUES ('default')");
     }
-    // 2026 Gala early-bird pricing: €150 until 1 Sep 2026, then €175 (regular). Both the
+    // 2026 Gala early-bird pricing: €150 until 15 Sep 2026, then €175 (regular). Both the
     // standalone Gala link AND the new Plexus multi-event link charge via effectiveGalaPrice()
     // so pricing stays unified. All three values are admin-editable in gala_settings.
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_early_bird REAL DEFAULT 150"); } catch(e) {}
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_regular REAL DEFAULT 175"); } catch(e) {}
-    try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-01'"); } catch(e) {}
+    try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-15'"); } catch(e) {}
     // Admin-editable copy for the public /plexus page (the lede + the description under each
     // event card). Seeded once with the launch defaults; edited from the admin Plexus section.
     // In gala_desc, the literal {venue} is replaced at render time with the live Gala venue.
@@ -10527,7 +10527,7 @@ async function initializeApp() {
         // rows and the member hub reflects the change with no code change.
         const projectStatusSeeds = [
             ['plexus', 'Pre-registration open', 'open', 'December 4-5, 2026 - Zagreb - Free entry', 'Register', 'plexus'],
-            ['gala', 'Reserve your seat', 'open', 'Saturday December 5 - Hotel Esplanade - EUR 150 through 1 Sep', 'Reserve seat', 'gala'],
+            ['gala', 'Reserve your seat', 'open', 'Saturday December 5 - Hotel Esplanade - EUR 150 through 15 Sep', 'Reserve seat', 'gala'],
             ['accelerator', 'Applications open in November', 'soon', 'Placements across partner labs and clinics - November 2026', 'Learn more', 'accelerator'],
             ['forum', 'By invitation', 'info', 'Biomedical Forum gathering - May 2027', 'Enter code', 'forum'],
             ['bridges', 'Boston - September 2026', 'info', 'Building Bridges at Harvard Medical School', 'View program', 'bridges']
@@ -10617,7 +10617,7 @@ async function initializeApp() {
     if (!conf) {
         const confId = uuidv4();
         db.run(`INSERT INTO conferences (id, name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, early_bird_deadline, regular_deadline, abstract_deadline)
-            VALUES (?, 'Plexus Conference 2026', 2026, 'plexus-2026', 'Where young biomedical minds connect', '2026-12-04', '2026-12-05', 'Hotel Esplanade', 'Zagreb', 'Croatia', '2026-09-01', '2026-11-15', '2026-10-01')`,
+            VALUES (?, 'Plexus Conference 2026', 2026, 'plexus-2026', 'Where young biomedical minds connect', '2026-12-04', '2026-12-05', 'Hotel Esplanade', 'Zagreb', 'Croatia', '2026-09-15', '2026-11-15', '2026-10-01')`,
             [confId]);
 
         const tickets = [

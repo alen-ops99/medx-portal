@@ -13,6 +13,7 @@ import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
 
+import { chrome } from '../chrome.js';
 import { COUNTRIES, countryName } from './profile-countries.js';
 
 export const SOURCE = 'Profile.dc.html';
@@ -43,6 +44,21 @@ export const COPY = {
     n: '03', title: 'ACCOUNT &amp; PREFERENCES',
     email: 'Email', notConfirmed: 'not yet confirmed', confirmed: 'confirmed', resend: 'RESEND LINK',
     resent: 'Link sent — check your inbox (and spam).',
+    // UX audit 2026-09-02 › item 8 — Profile & settings is the ONE place account settings live.
+    // Password, the projects you follow and your research interests moved here from My Med&X, where
+    // they were a second, differently-styled copy of this screen. These three save on the spot (they
+    // are not part of the profile draft), which is why each carries its own action.
+    pw: { t: 'Password', s: 'Changed here — you need your current one.', change: 'CHANGE →' },
+    follow: { t: 'Projects I follow', s: 'Announcements and reminders for these reach your inbox and alerts.', add: '+ ADD', none: 'Following nothing yet.' },
+    interests: { t: 'My interests', s: 'Used to suggest people worth meeting in the member directory.', add: '+ ADD', none: 'No interests added yet.' },
+    pwTitle: 'Change your password', pwCur: 'CURRENT PASSWORD', pwNew: 'NEW PASSWORD', pwNew2: 'REPEAT NEW PASSWORD',
+    pwHint: 'At least 8 characters', pwSaved: 'Password changed.',
+    pwMismatch: 'The passwords do not match.', pwShort: 'At least 8 characters.',
+    followTitle: 'Follow a project', followAll: 'You already follow every project.', followed: 'Following updated.',
+    interestsTitle: 'Add an interest', interestsSaved: 'Interests updated.',
+    interestsOwn: 'OR TYPE YOUR OWN', interestsAllAdded: 'All suggestions added — type your own below.',
+    projects: { plexus: 'Plexus Conference', gala: 'Gala Evening', accelerator: 'The Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges' },
+    suggestions: ['Neuroscience', 'Sleep Medicine', 'Oncology', 'Public Health', 'Biotech', 'AI in Medicine', 'Mental Health', 'Genetics'],
     dir: { t: 'Directory visibility', s: 'Let other members find you and send connection requests.' },
     upd: { t: 'Event updates', s: 'News from projects you follow · Plexus, Gala, the Accelerator.' },
     lang: { t: 'Language', s: 'Portal interface language.', en: 'EN', hr: 'HR' },
@@ -90,13 +106,25 @@ function draftFrom(p) {
     locale: p.locale === 'hr' ? 'hr' : 'en'
   };
 }
+function interestsFrom(net) {
+  let v = (net && net.research_interests) || [];
+  if (typeof v === 'string') v = v.split(',').map(s => s.trim()).filter(Boolean);
+  return Array.isArray(v) ? v : [];
+}
 async function load() {
-  const r = await api.settle({ v2: api.get('/api/v2/profile') });
-  if (r.v2 && r.v2.profile) return { profile: r.v2.profile, completion: r.v2.completion, v2: true };
+  // topics + networking profile arrive with the profile: the follow list and research interests are
+  // settings now (item 8), and both save through their own routes rather than the profile draft.
+  const r = await api.settle({
+    v2: api.get('/api/v2/profile'),
+    topics: api.get('/api/notify-topics'),
+    net: api.get('/api/networking/profile')
+  });
+  const extras = { topics: (r.topics && r.topics.projects) || [], net: r.net || null, interests: interestsFrom(r.net) };
+  if (r.v2 && r.v2.profile) return Object.assign({ profile: r.v2.profile, completion: r.v2.completion, v2: true }, extras);
   // v2 backend not deployed yet: render read-mostly from the legacy profile route; saves will surface the API error
   const me = await api.get('/api/auth/me').catch(() => null);
   if (!me) return null;
-  return {
+  return Object.assign(extras, {
     profile: {
       id: me.id, email: me.email, email_verified: session.emailConfirmed() ? 1 : 0,
       first_name: me.first_name, last_name: me.last_name, title: me.title || '', institution: me.institution,
@@ -104,7 +132,7 @@ async function load() {
       is_public_profile: Number(me.is_public_profile) === 1, updates_opt_in: true, locale: 'en', member_since: null
     },
     completion: null, v2: false
-  };
+  });
 }
 function draftBody() {
   const d = D.draft;
@@ -246,6 +274,32 @@ function prefRows() {
           </span>
         </div>`;
 }
+// The three settings that moved here from My Med&X. They save immediately (own routes), so they sit
+// above SAVE CHANGES with their own actions rather than inside the profile draft.
+function settingChips(list, rmAct, addAct, addLabel, noneLabel) {
+  return `<span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            ${list.length ? list.map(v => `<span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px;white-space:nowrap">${esc(v.label)} <span data-act="${rmAct}" data-key="${esc(v.key)}" role="button" tabindex="0" aria-label="Remove ${esc(v.label)}" style="cursor:pointer;color:#9b1b22">×</span></span>`).join('') : `<span style="font-size:12px;color:#4a4239;align-self:center">${noneLabel}</span>`}
+            <span data-act="${addAct}" role="button" tabindex="0" style="padding:5px 10px;border:1px dashed rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${addLabel}</span>
+          </span>`;
+}
+function accountExtraRows() {
+  const a = COPY.account;
+  const follows = (D.topics || []).map(k => ({ key: k, label: a.projects[k] || k }));
+  const interests = (D.interests || []).map(k => ({ key: k, label: k }));
+  return `
+        <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
+          <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.pw.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.pw.s}</span></span>
+          <span data-act="chgPw" role="button" tabindex="0" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${a.pw.change}</span>
+        </div>
+        <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1);flex-wrap:wrap">
+          <span style="flex:1;min-width:200px"><span style="display:block;font-size:13px;font-weight:600">${a.follow.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.follow.s}</span></span>
+          ${settingChips(follows, 'followRm', 'followAdd', a.follow.add, a.follow.none)}
+        </div>
+        <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1);flex-wrap:wrap">
+          <span style="flex:1;min-width:200px"><span style="display:block;font-size:13px;font-weight:600">${a.interests.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.interests.s}</span></span>
+          ${settingChips(interests, 'intRm', 'intAdd', a.interests.add, a.interests.none)}
+        </div>`;
+}
 function saveRow() {
   const a = COPY.account;
   const label = D.saving ? a.saving : (D.saved ? a.saved : a.save);
@@ -270,6 +324,7 @@ function blockAccount() {
           ${verified ? '' : `<span data-act="resend" role="button" tabindex="0" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${a.resend}</span>`}
         </div>
         <span data-block="prefs" style="display:contents">${prefRows()}</span>
+        <span data-block="accountExtras" style="display:contents">${accountExtraRows()}</span>
         <span data-block="saveRow" style="display:contents">${saveRow()}</span>
       </div>
       <!-- /dc -->`;
@@ -345,6 +400,7 @@ function refreshPhoto() {
 function refreshCompletion() { rerender('[data-block="completion"]', completionCard()); }
 function refreshChips() { rerender('[data-block="chips"]', chipRow()); }
 function refreshPrefs() { rerender('[data-block="prefs"]', prefRows()); }
+function refreshAccountExtras() { rerender('[data-block="accountExtras"]', accountExtraRows()); }
 function refreshSaveRow() { rerender('[data-block="saveRow"]', saveRow()); }
 function refreshPreviewCard() { rerender('[data-block="preview"]', previewCard()); }
 
@@ -429,7 +485,103 @@ function toggleSpec(label) {
   refreshChips(); schedulePreview();
 }
 
+// ---------------------------------------------------------------- settings modals (moved from My Med&X)
+function modalInput(label, name, type, value, ph) {
+  return `<label style="display:block;margin-top:12px"><span class="label" style="display:block;${LABEL};margin-bottom:5px">${label}</span>
+    <input name="${name}" type="${type || 'text'}" value="${esc(value || '')}" placeholder="${esc(ph || '')}" autocomplete="off" style="${INPUT};width:100%;box-sizing:border-box"></label>`;
+}
+function openPasswordModal() {
+  const a = COPY.account;
+  const m = ui.modal({
+    eyebrow: 'SETTINGS · PASSWORD', title: a.pwTitle,
+    body: `${modalInput(a.pwCur, 'cur', 'password')}${modalInput(a.pwNew, 'nw', 'password', '', a.pwHint)}${modalInput(a.pwNew2, 'nw2', 'password')}<p data-role="error" style="color:#9b1b22;font-size:12px;min-height:14px;margin:8px 0 0"></p>`,
+    actions: [{ label: 'CANCEL' }, {
+      label: 'SAVE', kind: 'primary', onClick: () => {
+        const cur = m.el.querySelector('[name=cur]').value, nw = m.el.querySelector('[name=nw]').value, nw2 = m.el.querySelector('[name=nw2]').value;
+        const err = m.el.querySelector('[data-role=error]');
+        if (nw.length < 8) { err.textContent = a.pwShort; return false; }
+        if (nw !== nw2) { err.textContent = a.pwMismatch; return false; }
+        // keepSession: a 401 here means "wrong current password", not an expired token
+        api.post('/api/auth/change-password', { currentPassword: cur, newPassword: nw }, { keepSession: true })
+          .then(() => { ui.toast(a.pwSaved); m.close(); })
+          .catch(e => { err.textContent = e.message; });
+        return false;
+      }
+    }]
+  });
+}
+function openFollowModal() {
+  const a = COPY.account;
+  const left = Object.keys(a.projects).filter(k => !(D.topics || []).includes(k));
+  if (!left.length) return ui.toast(a.followAll);
+  const m = ui.modal({
+    eyebrow: 'SETTINGS · PROJECTS I FOLLOW', title: a.followTitle,
+    body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(k => `<span data-follow="${k}" role="button" style="padding:7px 12px;border:1px solid rgba(25,21,18,.22);font-size:12.5px;cursor:pointer" data-hover="border-color:#9b1b22;color:#9b1b22">${esc(a.projects[k])}</span>`).join('')}</div>`,
+    actions: [{ label: 'DONE', kind: 'primary' }]
+  });
+  m.el.querySelectorAll('[data-follow]').forEach(el => {
+    el.setAttribute('tabindex', '0');
+    el.addEventListener('click', async () => {
+      try {
+        await api.post('/api/notify-topics', { project: el.dataset.follow, on: true });
+        D.topics.push(el.dataset.follow);
+        ui.toast(a.followed); m.close();
+        refreshAccountExtras();
+        chrome.refresh();                          // FOLLOWING in the stats strip appears at 1
+      } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+    });
+  });
+}
+async function saveInterests(next) {
+  const p = D.net || {};
+  // PUT /api/networking/profile overwrites every column — carry the existing values along
+  await api.put('/api/networking/profile', {
+    career_stage: p.career_stage || null, looking_for: p.looking_for || null,
+    research_interests: next, working_on: p.working_on || null,
+    timezone: p.timezone || 'Europe/Zagreb', meeting_format: p.meeting_format || 'video',
+    open_to_coffee_chats: p.open_to_coffee_chats == null ? 1 : p.open_to_coffee_chats,
+    coffeeMatchmaker: !!p.coffee_matchmaker_opt_in
+  });
+  D.interests = next;
+  if (D.net) D.net.research_interests = next;
+  ui.toast(COPY.account.interestsSaved);
+  refreshAccountExtras();
+}
+function openInterestsModal() {
+  const a = COPY.account;
+  const left = a.suggestions.filter(s => !(D.interests || []).some(i => i.toLowerCase() === s.toLowerCase()));
+  const m = ui.modal({
+    eyebrow: 'SETTINGS · MY INTERESTS', title: a.interestsTitle,
+    body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(s => `<span data-int="${esc(s)}" role="button" style="padding:7px 12px;border:1px solid rgba(25,21,18,.22);font-size:12.5px;cursor:pointer" data-hover="border-color:#9b1b22;color:#9b1b22">${esc(s)}</span>`).join('') || `<span style="font-size:12.5px;color:#4a4239">${a.interestsAllAdded}</span>`}</div>
+      ${modalInput(a.interestsOwn, 'custom', 'text', '', 'e.g. Cardiology')}`,
+    actions: [{ label: 'CANCEL' }, {
+      label: 'ADD', kind: 'primary', onClick: () => {
+        const v = m.el.querySelector('[name=custom]').value.trim();
+        if (!v) return true;
+        saveInterests((D.interests || []).concat([v])).catch(e => ui.toast(e.message, { kind: 'error' }));
+      }
+    }]
+  });
+  m.el.querySelectorAll('[data-int]').forEach(el => {
+    el.setAttribute('tabindex', '0');
+    el.addEventListener('click', () => { m.close(); saveInterests((D.interests || []).concat([el.dataset.int])).catch(e => ui.toast(e.message, { kind: 'error' })); });
+  });
+}
+
 const handlers = {
+  chgPw: openPasswordModal,
+  followAdd: openFollowModal,
+  followRm: async (el) => {
+    try {
+      await api.post('/api/notify-topics', { project: el.dataset.key, on: false });
+      D.topics = D.topics.filter(k => k !== el.dataset.key);
+      ui.toast(COPY.account.followed);
+      refreshAccountExtras();
+      chrome.refresh();
+    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  intAdd: openInterestsModal,
+  intRm: (el) => saveInterests((D.interests || []).filter(i => i !== el.dataset.key)).catch(e => ui.toast(e.message, { kind: 'error' })),
   pickPhoto: (el, e) => { if (e && e.target && e.target.tagName === 'INPUT') return; const input = q('[data-role="photoInput"]'); if (input) input.click(); },
   tgSpec: el => toggleSpec(el.dataset.spec),
   addSpec: () => addSpecFromInput(),
@@ -504,6 +656,7 @@ export default {
       profile: data.profile, completion: data.completion, v2: data.v2,
       draft: draftFrom(data.profile),
       custom: (data.profile.specialties || []).filter(s => !COPY.fixedSpecs.includes(s)),
+      topics: data.topics || [], net: data.net || null, interests: data.interests || [],
       saved: false, saving: false, photoBusy: false, photoPreview: null
     };
     // the server (not a client guess) says whether the email is verified — let the shell banner agree

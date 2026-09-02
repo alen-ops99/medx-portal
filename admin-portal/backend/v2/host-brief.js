@@ -234,8 +234,16 @@ module.exports = function mountHostBrief(app, ctx) {
         const catLabels = eventKey === 'gala' ? galaCategoryLabels() : {};
 
         // -------- headline counts
-        const bookings = guests.length;
-        const people = guests.reduce((n, g) => n + g.party, 0);
+        // UXFIX closing (2026-09-02, audit #1): the brief's denominators follow the DOOR's own
+        // computation — backend/v2/event-day.js expectedPeople(), the canonical one. For the gala
+        // that counts only paid / vip-comp seats (an unpaid gala QR is a refusal state at the
+        // door); every other door expects all non-cancelled bookings. The full guest list below —
+        // pay breakdown, notes, dietary lines — still covers everyone, so pending seats stay
+        // visible for chasing; they are just not "expected" until they are payable at the door.
+        const allBookings = guests.length;
+        const expGuests = eventKey === 'gala' ? guests.filter(g => g.pay === 'paid') : guests;
+        const bookings = expGuests.length;
+        const people = expGuests.reduce((n, g) => n + g.party, 0);
         const plusOnes = people - bookings;
         const sumPay = s => guests.filter(g => g.pay === s).reduce((n, g) => n + g.party, 0);
         const paidPeople = sumPay('paid'), pendingPeople = sumPay('pending'), freePeople = sumPay('free');
@@ -317,12 +325,12 @@ module.exports = function mountHostBrief(app, ctx) {
             unknown_plus_ones: plusOnes
         };
 
-        // -------- arrivals
-        const arrivals = bookings ? arrivalsFor(eventKey, people) : null;
+        // -------- arrivals (expected_people = the door's denominator, same as event-day's counters)
+        const arrivals = allBookings ? arrivalsFor(eventKey, people) : null;
 
         // -------- talking points (auto-derived, deterministic, each one door-usable)
         const points = [];
-        if (!bookings) {
+        if (!allBookings) {
             points.push('No registrations yet for this door — the brief fills itself as bookings land.');
         } else {
             if (institutions.length && institutions[0].people >= 2) {
@@ -335,7 +343,7 @@ module.exports = function mountHostBrief(app, ctx) {
                 else points.push(`${plural(foreign.reduce((n, c) => n + c.people, 0), 'guest')} from abroad tonight`);
                 if (countries.length >= 5) points.push(`Guests from ${countries.length} countries in the room`);
             }
-            if (pendingPeople > 0) points.push(`${plural(pendingPeople, 'unpaid seat')} to resolve at the door (${plural(pendingBookings, 'booking')})`);
+            if (pendingPeople > 0) points.push(`${plural(pendingPeople, 'unpaid seat')} to resolve at the door (${plural(pendingBookings, 'booking')})${eventKey === 'gala' ? ' — not in the expected count until paid' : ''}`);
             if (catCounts.size) {
                 const bits = [...catCounts.entries()].map(([lab, c]) => `${c.n} × ${lab}`);
                 const names = [...catCounts.values()].flatMap(c => c.names);
@@ -359,7 +367,7 @@ module.exports = function mountHostBrief(app, ctx) {
             event_label: label,
             date_label: dateLabel,
             generated_at: new Date().toISOString(),
-            empty: !bookings,
+            empty: !allBookings,
             headline: {
                 bookings, people, plus_ones: plusOnes,
                 paid_people: paidPeople, pending_people: pendingPeople, pending_bookings: pendingBookings, free_people: freePeople,

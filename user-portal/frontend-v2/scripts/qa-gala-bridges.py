@@ -120,20 +120,23 @@ with sync_playwright() as pw:
         # ===== GALA =====
         page.goto(a.base + '/app/gala', wait_until='networkidle'); page.wait_for_timeout(1200)
         view = page.locator('#view').inner_text()
-        check('gala: renders (hero + band + sections)', all(s in view.upper() for s in ('GALA', 'THE EVENING BEGINS IN', 'ON STAGE THAT NIGHT', 'FEATURED PERFORMERS', 'WHY WE GATHER', 'THE EVENING AT A GLANCE')))
+        check('gala: renders (hero + band + sections)', all(s in view.upper() for s in ('GALA', 'THE EVENING BEGINS IN', 'ON STAGE THAT NIGHT', 'WHY WE GATHER', 'THE EVENING AT A GLANCE')))
         check('gala: countdown ticking', page.locator('[data-cd=days]').first.inner_text().strip() not in ('', '—'))
         meta = api_get('/api/v2/gala/meta')
         cur = meta['price']['current']
         check('gala: band price = server effective price', f'€{cur:g}' in view, f'server €{cur}')
         check('gala: € only, never EUR', ('€' in view) and not re.search(r'\bEUR\b', view))
         check('gala: no capacity figure (seats limited copy)', 'SEATS LIMITED' in view.upper() and not re.search(r'(?<!€)\b150\b(?!\s*UNTIL)', view.replace('€150', '')))
-        check('gala: performers TBA by default', 'ANNOUNCED CLOSER TO DECEMBER' in view.upper() and 'announced this autumn' in view)
+        check('gala: performers one-line tease by default (no placeholder cards)', 'announced this autumn' in view and 'ANNOUNCED CLOSER TO DECEMBER' not in view.upper() and 'FEATURED PERFORMERS' not in view.upper())
 
-        # RESERVE YOUR SEAT → server-rendered /plexus with the member prefilled + pick=gala
-        href = page.locator('a:has-text("RESERVE YOUR SEAT")').first.get_attribute('href') or ''
-        check('gala: RESERVE href → /plexus?pick=gala&src=portal&prefill', href.startswith('/plexus?') and 'pick=gala' in href and 'src=portal' in href and 'email=' in href, href)
-        rsvp = page.locator('a:has-text("RSVP")').first.get_attribute('href') or ''
-        check('gala: RSVP href → same /plexus form', 'pick=gala' in rsvp, rsvp)
+        # RESERVE A SEAT · €<price> → server-rendered /plexus with the member prefilled + pick=gala
+        # (one verb on both blocks — "RESERVE YOUR SEAT" and "RSVP · €150" are gone, audit item 6)
+        reserve = page.locator('a:has-text("RESERVE A SEAT")')
+        href = reserve.first.get_attribute('href') or ''
+        check('gala: RESERVE A SEAT href → /plexus?pick=gala&src=portal&prefill', href.startswith('/plexus?') and 'pick=gala' in href and 'src=portal' in href and 'email=' in href, href)
+        hrefs = [reserve.nth(i).get_attribute('href') or '' for i in range(reserve.count())]
+        check('gala: both reserve blocks use the one verb + the one form', len(hrefs) >= 2 and all('pick=gala' in h for h in hrefs), f'{len(hrefs)} links')
+        check('gala: no RSVP / RESERVE YOUR SEAT wording left', 'RSVP' not in view and 'RESERVE YOUR SEAT' not in view)
         p2 = ctx.new_page(); p2.goto(a.base + href, wait_until='load'); p2.wait_for_timeout(800)
         t2 = p2.locator('body').inner_text()
         check('gala: /plexus form loads with Gala card', 'Reserve your place' in t2 and 'Gala' in t2)

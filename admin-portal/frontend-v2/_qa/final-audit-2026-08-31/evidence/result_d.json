@@ -1,0 +1,117 @@
+{
+ "chain": "d-messages",
+ "verdict": "PASS",
+ "steps": [
+  [
+   "OK ",
+   "?about=gala preselects the GALA topic chip",
+   ""
+  ],
+  [
+   "OK ",
+   "composer opens focused",
+   ""
+  ],
+  [
+   "OK ",
+   "member message sent and rendered",
+   ""
+  ],
+  [
+   "OK ",
+   "admin thread API carries topic 'gala'",
+   "{\"key\": \"1dfd5f6a-f17e-4f69-bd5c-d6dbe9cb45f9\", \"name\": \"Member 003 Test\", \"topic\": \"gala\"}"
+  ],
+  [
+   "OK ",
+   "admin /inbox/messages lists the member thread",
+   ""
+  ],
+  [
+   "OK ",
+   "GALA chip visible on the thread row",
+   ""
+  ],
+  [
+   "OK ",
+   "thread opens with the tagged message",
+   ""
+  ],
+  [
+   "OK ",
+   "SAVED REPLIES picker opens",
+   ""
+  ],
+  [
+   "OK ",
+   "seeded saved replies present",
+   "12 visible"
+  ],
+  [
+   "OK ",
+   "new saved reply listed in picker",
+   ""
+  ],
+  [
+   "OK ",
+   "picker drops body into reply box with {first_name} resolved from the display name",
+   "got \"Dear Member,\" \u2014 the app substitutes the FIRST TOKEN of the thread display name (correct for real names like \"Laura Rodman\" -> \"Laura\"; the scrubbed seed name \"Member 003 Test\" tokenizes to \"Member\"). Minor: a multi-word first_name (e.g. \"Ana Marija\") would also be cut \u2014 noted in the defect list, not a chain failure."
+  ],
+  [
+   "OK ",
+   "composer shows Replying as <name> \u00b7 Med&X",
+   "Replying as Alen \u00b7 Med&X \u2014 members see your name on this reply."
+  ],
+  [
+   "OK ",
+   "reply recorded on the thread",
+   ""
+  ],
+  [
+   "OK ",
+   "member sees the admin reply",
+   ""
+  ],
+  [
+   "OK ",
+   "reply attributed with the admin's name (ALEN \u00b7 MED&X)",
+   "ALEN JUGINOVI\u0106 \u00b7 MED&X \u00b7 23:43"
+  ],
+  [
+   "OK ",
+   "attachment thumbnail renders member-side",
+   "1 img(s)"
+  ],
+  [
+   "OK ",
+   "attachment downloads member-side",
+   "200, 160 B"
+  ],
+  [
+   "OK ",
+   "member attachment message sent",
+   ""
+  ],
+  [
+   "OK ",
+   "admin sees the member attachment message",
+   ""
+  ],
+  [
+   "OK ",
+   "attachment thumbnail renders admin-side",
+   "2 img(s)"
+  ],
+  [
+   "OK ",
+   "cleanup: audit saved reply deleted",
+   "0 canned remain"
+  ],
+  [
+   "OK ",
+   "zero console errors in chain",
+   ""
+  ]
+ ],
+ "note": "residue: DM rows member003<->team (3 msgs, 2 attachments) \u2014 no delete route by design"
+}

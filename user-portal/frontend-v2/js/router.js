@@ -61,6 +61,9 @@ export const router = {
     const query = parseQuery(location.search);
     let hit = this.match(pathname);
     let route = hit ? hit.route : null, params = hit ? hit.params : {};
+    // alias rows (UX audit 2026-09-02, small notes): a bare /signin is a path people type — send it
+    // to the real screen instead of the 404, keeping any ?next=… they arrived with.
+    if (route && route.redirect) return this.navigate(route.redirect + location.search, { replace: true });
     // guards
     if (route && route.auth && !session.isAuthed) {
       if (route.guestTo) return this.navigate(route.guestTo, { replace: true });

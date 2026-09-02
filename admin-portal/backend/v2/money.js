@@ -55,6 +55,12 @@
 'use strict';
 
 const crypto = require('crypto');
+// ONE TRUTH for the gala numbers (UX audit 2026-09-02 #1): the summary tile's gala line reads
+// the SAME computation the Gala screen serves (v2/gala-ops.js computeSummary — seats incl.
+// plus-ones × price-by-the-clock), never a local re-derivation. Loaded defensively so a missing
+// export can only ever fall back to the old local math, not crash the mount.
+let galaTruth = null;
+try { galaTruth = require('./gala-ops.js'); } catch (e) { galaTruth = null; }
 
 module.exports = function mountMoney(app, ctx) {
     const { db, auth, adminOnly, saveDb } = ctx;
@@ -308,7 +314,7 @@ module.exports = function mountMoney(app, ctx) {
             try { gs = getRow("SELECT price_gala_early_bird, price_gala_regular, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {}; } catch (e) {}
             const early = Number(gs.price_gala_early_bird) || 150;
             const regular = Number(gs.price_gala_regular) || 175;
-            const deadline = String(gs.early_bird_deadline || '2026-09-01').slice(0, 10);
+            const deadline = String(gs.early_bird_deadline || '2026-09-15').slice(0, 10);
             const price = new Date().toISOString().slice(0, 10) <= deadline ? early : regular;
             const owed = Number(g.amount_paid) > 0 ? null : price; // partial payments keep the wording generic
 
@@ -1181,10 +1187,18 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
                                    WHERE status IN ('paid','thanked') AND substr(COALESCE(paid_at,''),1,4) = ?`, [y]);
         const ledgerInvoiced = sumRow(`SELECT COALESCE(SUM(amount),0) AS t, COUNT(*) AS c FROM v2_sponsor_ledger WHERE status='invoiced'`, []);
 
-        // -- unpaid gala seats at today's price + legacy invoices still open
-        const galaUnpaid = sumRow(`SELECT COUNT(*) AS c FROM gala_registrations
-                                   WHERE payment_status != 'paid' AND COALESCE(status,'') NOT IN ('rejected','cancelled')`, []);
-        const price = galaPriceByClock();
+        // -- unpaid gala seats: read the ONE canonical computation (gala-ops computeSummary —
+        //    seats incl. plus-ones, the full inactive-status list, the same price rule the Gala
+        //    screen and the member portal charge by). The pre-audit local math survives only as
+        //    the fallback for a broken gala-ops module.
+        let galaSum = null;
+        try { galaSum = galaTruth && galaTruth.computeSummary ? galaTruth.computeSummary(db) : null; } catch (e) { galaSum = null; }
+        const galaUnpaid = galaSum
+            ? { c: galaSum.seats.chase }
+            : sumRow(`SELECT COUNT(*) AS c FROM gala_registrations
+                      WHERE payment_status != 'paid' AND COALESCE(status,'') NOT IN ('rejected','cancelled')`, []);
+        const price = galaSum ? (Number(galaSum.price.current) || 0) : galaPriceByClock();
+        const galaOwedEur = galaSum ? galaSum.eur.outstanding : (galaUnpaid.c || 0) * price;
         const legacyInvOpen = sumRow(`SELECT COALESCE(SUM(total),0) AS t, COUNT(*) AS c FROM finance_invoices
                                       WHERE direction='outgoing' AND status IN ('issued','sent') AND fiscal_year = ?`, [year]);
 
@@ -1203,7 +1217,7 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
         ].filter(s => s.amount > 0 || s.key === 'legacy_tx');
         const owedSources = [
             src('expected', 'Expected income — entered by hand', expOpen.t, expOpen.c),
-            src('gala_unpaid', `Reserved Gala seats × ${price} €`, (galaUnpaid.c || 0) * price, galaUnpaid.c),
+            src('gala_unpaid', `Neplaćena Gala mjesta × ${price} € · unpaid seats incl. plus-ones`, galaOwedEur, galaUnpaid.c),
             src('book_out_open', 'Izlazni računi — nenaplaćeni', bookOutOpen.t, bookOutOpen.c),
             src('legacy_invoices', 'Legacy invoices still open', legacyInvOpen.t, legacyInvOpen.c),
             src('sponsor_ledger', 'Sponsor pledges at invoiced', ledgerInvoiced.t, ledgerInvoiced.c)
@@ -1249,7 +1263,7 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
             spent: { total: total(spentSources), sources: spentSources },
             owed: { total: total(owedSources), sources: owedSources },
             payment_orders: { total: num2(payOrders.t), count: payOrders.c || 0 },
-            gala: { unpaid_count: galaUnpaid.c || 0, price },
+            gala: { unpaid_count: galaUnpaid.c || 0, price, basis: 'seats', shared: !!galaSum },   // one truth: gala-ops computeSummary (audit #1)
             recent_in: recent.slice(0, 25)
         };
     }

@@ -2,6 +2,7 @@
 // the server-rendered paths (cfg.serverPaths). Add a screen = add one row + one view module.
 //   path     — pattern; ':name' segment, ':name?' optional
 //   view     — dynamic import of the view module (default export { title, render, destroy })
+//   redirect — instead of a view: replace the URL with this path (typed-path aliases)
 //   auth     — true → guests bounce to /app/auth/signin?next=…; guestTo overrides the bounce target
 //   layout   — 'portal' (chrome) | 'auth' (ink ground, no chrome) | 'bare' (cream, no chrome)
 //   active   — drawer highlight key: Home · Plexus · Gala · Accelerator · Forum · Bridges · Network · My Med&X
@@ -12,6 +13,7 @@ export const ROUTES = [
   { path: '/app',       view: home, auth: true, guestTo: '/app/auth/welcome', active: 'Home', title: 'Home' },
   { path: '/app/home',  view: home, auth: true, guestTo: '/app/auth/welcome', active: 'Home', title: 'Home' },
   { path: '/app/auth/:view?', view: () => import('./views/auth.js'), layout: 'auth', title: 'Member Portal' },   // welcome|signin|signup|verify|reset|forum-code
+  { path: '/signin',    redirect: '/app/auth/signin' },   // typed-path alias (audit small notes) — /signin used to 404
   { path: '/app/plexus/:tab?', view: () => import('./views/plexus.js'), auth: true, active: 'Plexus', title: 'Plexus Conference' }, // program|zagreb|mine
   { path: '/app/gala',  view: () => import('./views/gala.js'), auth: true, active: 'Gala', title: 'Gala Evening' },
   { path: '/app/accelerator/:tab?', view: () => import('./views/accelerator.js'), auth: true, active: 'Accelerator', title: 'The Accelerator' }, // apply

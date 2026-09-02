@@ -1,0 +1,116 @@
+{
+ "chain": "c-money",
+ "verdict": "PASS",
+ "steps": [
+  [
+   "OK ",
+   "/money renders the rebuilt screen (KNJIGA IZLAZNIH)",
+   ""
+  ],
+  [
+   "OK ",
+   "work unit created via UI",
+   "RADNA JEDINICA DODANA"
+  ],
+  [
+   "OK ",
+   "non-fiscalized outgoing row lands in the book",
+   "RA\u010cUN UPISAN U KNJIGU"
+  ],
+  [
+   "OK ",
+   "row stored as nefiskalizirani",
+   ""
+  ],
+  [
+   "OK ",
+   "travel order created via UI",
+   "PUTNI NALOG PUT-2026-001 OTVOREN"
+  ],
+  [
+   "OK ",
+   "order number auto-assigned PUT-2026-NNN (blank field overtypeable)",
+   "PUT-2026-001"
+  ],
+  [
+   "OK ",
+   "STILL OWED tile +100 (open outgoing row)",
+   "1350.0 -> 1450.0"
+  ],
+  [
+   "OK ",
+   "SPENT tile +50 (travel order)",
+   "0.0 -> 50.0"
+  ],
+  [
+   "OK ",
+   "UI shows the new book row after reload",
+   ""
+  ],
+  [
+   "OK ",
+   "CSV button label carries filtered count + unit",
+   "CSV \u2014 IZLAZNI RA\u010cUNI \u00b7 2026 \u00b7 AUD-X \u00b7 1 redak"
+  ],
+  [
+   "OK ",
+   "book_out CSV has exactly the 1 filtered row",
+   "1 data row(s)"
+  ],
+  [
+   "OK ",
+   "travel CSV has exactly the 1 filtered row",
+   "label: CSV \u2014 PUTNI NALOZI \u00b7 2026 \u00b7 Audit Traveler \u00b7 1 redak"
+  ],
+  [
+   "OK ",
+   "units CSV row count matches list (1)",
+   "1 rows"
+  ],
+  [
+   "OK ",
+   "UI: fiscalized without FIRA number refused with a clear toast",
+   "TYPE THE FIRA INVOICE NUMBER \u2014 FISCAL INVOICES ARE ISSUED ONLY IN FIRA, THE PORTAL NEVER CREATES ONE."
+  ],
+  [
+   "OK ",
+   "API: fiscalized without invoice_number -> 400",
+   "got 400"
+  ],
+  [
+   "OK ",
+   "API: deleting a referenced work unit -> 409",
+   "got 409"
+  ],
+  [
+   "OK ",
+   "cleanup: book row deleted via UI",
+   ""
+  ],
+  [
+   "OK ",
+   "cleanup: travel order deleted via UI",
+   ""
+  ],
+  [
+   "OK ",
+   "cleanup: work unit deleted once unreferenced",
+   "200"
+  ],
+  [
+   "OK ",
+   "tiles back to baseline",
+   "{'collected': 5100.0, 'spent': 0.0, 'owed': 1350.0} -> {'collected': 5100.0, 'spent': 0.0, 'owed': 1350.0}"
+  ],
+  [
+   "OK ",
+   "work-unit list back to baseline",
+   ""
+  ],
+  [
+   "OK ",
+   "zero console errors in chain",
+   "console.error: Failed to load resource: the server responded with a status of 400 ()"
+  ]
+ ]
+}

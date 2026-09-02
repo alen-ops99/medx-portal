@@ -16,6 +16,10 @@
  *   GET  /api/v2/links/qr?data=<url>      auth+adminOnly → { dataUrl }
  *        Print-ready QR of the shareable link as a PNG data URL (same `qrcode` dep the
  *        server already uses for tickets, server.js:11).
+ *   POST /api/v2/links/bulk-archive       auth+adminOnly ← { items: [{ kind, id }, …] } (≤200)
+ *        UX audit 2026-09-02 #8: checkbox-select → ARCHIVE N. Archive = the same pause flag the
+ *        single toggle writes (is_active=0 / revoked=1) — history kept, pages say registration
+ *        is closed, RESUME still works. Returns { archived, failed:[{kind,id,error}] }.
  *
  * No new tables, no ALTERs — is_active / revoked already exist on all three tables.
  */
@@ -58,6 +62,33 @@ module.exports = function mountLinks(app, ctx) {
             audit(req, active ? 'links.resume' : 'links.pause', `${req.params.kind}/${row.label || row.event_name || req.params.id}`);
             res.json({ success: true, id: req.params.id, kind: req.params.kind, active });
         } catch (e) { log('active toggle failed:', e.message); res.status(500).json({ error: 'Could not update the link.' }); }
+    });
+
+    // Bulk archive (audit #8) — one call for the checkbox sweep; per-row failures are reported,
+    // never silently dropped, and every archived row is the SAME reversible pause the single
+    // toggle writes (no deletes here — link history is sign-up history).
+    app.post('/api/v2/links/bulk-archive', auth, adminOnly, (req, res) => {
+        try {
+            const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 200) : [];
+            if (!items.length) return res.status(400).json({ error: 'Send items: [{ kind, id }, …]' });
+            let archived = 0;
+            const failed = [];
+            for (const it of items) {
+                const kind = String((it && it.kind) || '');
+                const id = String((it && it.id) || '');
+                const k = KINDS[kind];
+                if (!k || !id) { failed.push({ kind, id, error: 'kind must be one of: registration, gala, croatians' }); continue; }
+                try {
+                    const row = one(`SELECT * FROM ${k.table} WHERE id = ?`, [id]);
+                    if (!row) { failed.push({ kind, id, error: 'Link not found' }); continue; }
+                    db().run(`UPDATE ${k.table} SET ${k.col} = ? WHERE id = ?`, [k.activeVal(false), id]);
+                    archived++;
+                    audit(req, 'links.bulk_archive', `${kind}/${row.label || row.event_name || id}`);
+                } catch (e) { failed.push({ kind, id, error: 'Could not update the link.' }); }
+            }
+            if (archived) saveDb();
+            res.json({ success: true, archived, failed });
+        } catch (e) { log('bulk-archive failed:', e.message); res.status(500).json({ error: 'Could not archive the links.' }); }
     });
 
     app.get('/api/v2/links/qr', auth, adminOnly, async (req, res) => {

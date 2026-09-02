@@ -1,13 +1,15 @@
 // Source: Admin Studio.dc.html — make and store things (README note 23: badges from live guest
-// lists, per-person certificates, print suite, social cards, brand kit downloads, stored files).
+// lists, per-person certificates, print suite, social cards, brand kit downloads).
 // Blocks (artboard order): "Tool cards" (Name badges · Certificates · Print suite · Social cards ·
 // Sign-up form pages · 3D ballroom planner) › "Tool drawer" (per-tool real content) ›
-// "BRAND ASSETS" › "PHOTO LIBRARY" (team review C — Laura) › "STORED FILES".
+// "BRAND ASSETS" › "PHOTO LIBRARY" (team review C — Laura).
+// UX audit 2026-09-02 #15: the artboard's "STORED FILES" card is deleted — it was an empty box
+// pointing at Settings → TEAM LIBRARY, where those files already live (see the note further down).
 // Real wiring: print suite = the existing /api/admin/print/* engine (context + HTML preview always
 // work; the print-ready PDF needs headless Chrome on the service and says so when it is missing);
 // certificates = the existing certificates table + a brand-true preview (v2 studio module);
 // social cards = the artboard's 1080×1080 canvas download + the member portal's live attendance
-// cards (v2_attendance_cards, images served member-side); stored files = the existing team_files.
+// cards (v2_attendance_cards, images served member-side).
 // Studio extras (team review Aug 2026 §C "Studio"):
 //   photo library (v2_studio_assets — upload ≤8MB jpg/png/webp, tags, copy-URL, soft delete);
 //   per-tool SETTINGS drawers (v2_studio_settings) that the generate buttons genuinely read —
@@ -19,9 +21,7 @@
 //   "+ UPLOAD" is the photo-library upload (team files upload lives in Settings → TEAM LIBRARY).
 import cfg from '../config.js';
 import { api } from '../api.js';
-import { session } from '../state.js';
-import { ui, esc, fmt } from '../ui.js';
-import { perms } from '../perms.js';
+import { ui, esc } from '../ui.js';
 
 export const SOURCE = 'Admin Studio.dc.html';
 export const COPY = {
@@ -98,7 +98,6 @@ export const COPY = {
     by: n => n ? `by ${n}` : '',
     empty: 'No photos yet.', emptyWhy: 'Speakers, venues, sponsor logos, past editions — upload them once, reuse them everywhere. Tag sponsor logos “sponsor” and the badge strip picks them up.'
   },
-  stored: { title: 'STORED FILES', open: 'OPEN', note: 'photos → PHOTO LIBRARY above · other team files upload in Settings → TEAM LIBRARY', empty: 'Nothing stored yet.', emptyWhy: 'Sponsor decks, floor plans, photo archives — the team library in Settings keeps them forever.' },
   merch: { note: 'Merch studio — its own tool, one link deep, unchanged', open: 'MERCH →' },
   engineDown: 'The print engine (headless Chrome) is off on this machine — the on-screen preview is exact; the print-ready PDF renders on the staging service.'
 };
@@ -126,7 +125,6 @@ async function load() {
     printCtx: api.get('/api/admin/print/context?event=conference'),
     certSummary: api.get('/api/v2/studio/certificates/summary'),
     cards: api.get('/api/v2/studio/attendance-cards'),
-    files: api.get('/api/admin/files'),
     library: api.get('/api/v2/studio/library'),
     settings: api.get('/api/v2/studio/settings')
   });
@@ -135,7 +133,6 @@ async function load() {
     printCtx: r.printCtx || null,
     certSummary: r.certSummary || { total: 0, by_type: [], recent: [] },
     cards: (r.cards && r.cards.cards) || [],
-    files: (r.files && r.files.files) || [],
     photos: (r.library && r.library.photos) || [],
     settings: Object.assign(JSON.parse(JSON.stringify(SETTINGS_FALLBACK)), (r.settings && r.settings.settings) || {})
   };
@@ -420,40 +417,10 @@ function blockLibrary() {
     </div>
     <!-- /v2 -->`;
 }
-const KIND = m => {
-  const s = String(m || '');
-  if (/pdf/.test(s)) return 'PDF';
-  if (/word|docx?/.test(s)) return 'DOCX';
-  if (/sheet|excel|xlsx?|csv/.test(s)) return 'SHEET';
-  if (/presentation|pptx?/.test(s)) return 'DECK';
-  if (/zip|compressed/.test(s)) return 'ZIP';
-  if (/image\//.test(s)) return 'IMAGE';
-  return (s.split('/')[1] || 'FILE').toUpperCase().slice(0, 6);
-};
-function storedRows() {
-  return `<div data-block="storedRows">
-      ${D.files.map(f => `
-      <div style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
-        <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:3px 7px;flex:none">${esc(KIND(f.mime))}</span>
-        <span style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
-        <span style="font-size:11px;color:#9a9086;white-space:nowrap">${esc(fmt.when(String(f.created_at || '').replace(' ', 'T') + 'Z').toLowerCase())}</span>
-        <span data-act="storedOpen" data-id="${esc(f.id)}" data-name="${esc(f.name)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer">${COPY.stored.open}</span>
-      </div>`).join('')}
-      ${!D.files.length ? `<div class="empty"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">${COPY.stored.empty}</span><span class="empty-why">${COPY.stored.emptyWhy}</span></div>` : ''}
-    </div>`;
-}
-function blockStored() {
-  const err = D.errors.files;
-  // the artboard's "+ UPLOAD" here was the review's dead button — it is now the PHOTO LIBRARY
-  // upload above (team review item 6); team-file uploads live in Settings → TEAM LIBRARY.
-  return `
-    <!-- dc: Admin Studio.dc.html › "STORED FILES" -->
-    <div data-block="stored" style="border:1px solid rgba(32,27,22,.14);background:#fff">
-      <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.stored.title}</span><div style="flex:1"></div><span style="font-size:10.5px;color:#9a9086">${COPY.stored.note}</span></div>
-      ${err ? (err.isLocked ? ui.lockedBlock(perms.label(err.section)) : `<div class="empty"><span class="empty-why">${esc(err.message)}</span></div>`) : storedRows()}
-    </div>
-    <!-- /dc -->`;
-}
+// UX AUDIT 2026-09-02 #15 — "STORED FILES" is DELETED. It was an empty box whose own body text
+// sent the reader to Settings → Team library, so it occupied the bottom of the Studio without
+// doing work. The team library keeps the files; the Studio keeps what it makes. The PHOTO LIBRARY
+// above is the Studio's own store and is untouched.
 function template() {
   return `
 <div data-screen-label="Admin Studio" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
@@ -468,7 +435,6 @@ function template() {
     ${blockDrawer()}
     ${blockBrand()}
     ${blockLibrary()}
-    ${blockStored()}
   </div>
 </div>`;
 }
@@ -721,16 +687,6 @@ const handlers = {
   copyHex: (el) => {
     try { navigator.clipboard.writeText(el.dataset.hex).catch(() => {}); } catch (e) {}
     ui.toast(COPY.brand.copied(el.dataset.hex));
-  },
-  storedOpen: async (el) => {
-    try {
-      const res = await fetch(api.url('/api/admin/files/' + encodeURIComponent(el.dataset.id) + '/download'), { headers: { Authorization: 'Bearer ' + session.token } });
-      if (!res.ok) throw new Error('Could not open the file (' + res.status + ')');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = el.dataset.name || 'file'; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   }
 };
 

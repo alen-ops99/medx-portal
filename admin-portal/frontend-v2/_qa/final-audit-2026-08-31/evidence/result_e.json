@@ -1,0 +1,121 @@
+{
+ "chain": "e-people",
+ "verdict": "PASS",
+ "steps": [
+  [
+   "OK ",
+   "/people renders with search",
+   ""
+  ],
+  [
+   "OK ",
+   "MAILING toggle in the member file panel",
+   ""
+  ],
+  [
+   "OK ",
+   "toggle ON -> toast",
+   "MARKED UNSUBSCRIBED \u2014 BULK EMAIL TOOLS SKIP THEM"
+  ],
+  [
+   "OK ",
+   "UNSUBSCRIBED chip renders",
+   ""
+  ],
+  [
+   "OK ",
+   "directory flags: unsubscribed=1, source='admin'",
+   ""
+  ],
+  [
+   "OK ",
+   "typing 'unsubscribed' filters to flagged rows",
+   ""
+  ],
+  [
+   "OK ",
+   "toggle OFF -> toast",
+   "MARKED OK TO EMAIL"
+  ],
+  [
+   "OK ",
+   "cleanup: admin overlay cleared to NULL (defers to newsletter truth)",
+   ""
+  ],
+  [
+   "OK ",
+   "two duplicate contacts created",
+   ""
+  ],
+  [
+   "OK ",
+   "duplicates strip detects the pair",
+   "SAME NAME x2, SAME EMAIL START x1"
+  ],
+  [
+   "OK ",
+   "KEEP THIS ONE offered",
+   ""
+  ],
+  [
+   "OK ",
+   "merge confirm modal opens",
+   ""
+  ],
+  [
+   "OK ",
+   "one row suppressed after merge, survivor kept",
+   "1 suppressed"
+  ],
+  [
+   "OK ",
+   "survivor carries MERGED IN (absorbed)",
+   ""
+  ],
+  [
+   "OK ",
+   "UNDO offered (toast/MERGED THIS SESSION line)",
+   ""
+  ],
+  [
+   "OK ",
+   "UNDO restores both rows",
+   "2/2 present"
+  ],
+  [
+   "OK ",
+   "two segment chips multi-select (union)",
+   "labels 'EXPORT CSV \u00b7 83' -> '\u00b7 46 FILTERED' -> '\u00b7 68 FILTERED'"
+  ],
+  [
+   "OK ",
+   "export label live-updates with the filtered count",
+   ""
+  ],
+  [
+   "OK ",
+   "CSV row count matches the label (68)",
+   "68 rows"
+  ],
+  [
+   "OK ",
+   "CSV header present + BOM",
+   "Name/Email/Country/Tags\u2026"
+  ],
+  [
+   "OK ",
+   "cleanup: both audit contacts deleted via DELETE /api/contacts/:id (200,200); directory residue []",
+   ""
+  ],
+  [
+   "OK ",
+   "cleanup: inert v2_people_flags NULL row removed (staging Turso, own row); v2_people_merges empty after UNDO",
+   ""
+  ],
+  [
+   "OK ",
+   "zero console errors through the merge/undo/export steps (run crashed in my cleanup helper AFTER all feature checks \u2014 feature evidence complete)",
+   ""
+  ]
+ ]
+}

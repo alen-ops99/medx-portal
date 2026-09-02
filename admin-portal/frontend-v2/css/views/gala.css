@@ -11,6 +11,15 @@
   outline-offset: -1px;
 }
 
+/* Audit 2026-09-02 #14 — the meal select showed "MEAT / STANDA▾": the view now renders the SHORT
+   option label (full name on the title + in MENU OPTIONS) and the column is wider; these rules
+   only stop a long option from widening the row. */
+.mx-gala-row select[data-role="mealSel"],
+.mx-gala-row select[data-role="tableSel"] { min-width: 0; text-overflow: ellipsis; }
+
+/* the board is an input now (tap a tile → pick a guest) — keep the affordance visible on touch */
+[data-block="board"] > span:hover { border-color: #201b16; }
+
 @media (max-width: 960px) {
   /* board tiles: 5 across → 4 across once the right pane goes full-width */
   [data-block="board"] { grid-template-columns: repeat(4, 1fr) !important; }

@@ -133,3 +133,39 @@ body.drawer-open #mx-drawer { transform: translateX(312px); }
 
 /* Netlify HUD badge iframe overlaps bottom-right controls on the review deploy — hide it (2026-08-28) */
 #nl-badge-frame, iframe[id^="nl-badge"] { display: none !important; pointer-events: none !important; }
+
+/* ---- ≤480px: 44px tap targets on section tabs, breadcrumbs and chips (UXFIX-M2 #13, 2026-09-02) ----
+   The audit measured 12px-tall tab links and 11px breadcrumb links at 390px. Type size stays;
+   only the touch area grows (min-height:44px on the links, inline-flex centred). Section-tab
+   strips become one left-aligned horizontally scrollable row instead of two centred wrapped rows.
+   Hooks: .mx-tabs (accelerator — class added), .mx-plexus-tabs (plexus). Strips and breadcrumb
+   rows in views that carry no hook yet are matched by their verbatim artboard inline signature —
+   the same [style*=…] technique the export's responsive.css used (see the header note above);
+   when those views gain .mx-tabs / .mx-crumbs hooks the attribute selectors can be dropped. */
+@media (max-width: 480px) {
+  .mx-tabs, .mx-plexus-tabs,
+  .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"] {
+    justify-content: flex-start !important; flex-wrap: nowrap !important;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    padding-top: 0 !important; padding-bottom: 0 !important;
+  }
+  .mx-tabs::-webkit-scrollbar, .mx-plexus-tabs::-webkit-scrollbar,
+  .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"]::-webkit-scrollbar { display: none; }
+  .mx-tabs > a, .mx-tabs > span, .mx-plexus-tabs > a, .mx-plexus-tabs > span,
+  .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"] > a,
+  .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"] > span {
+    display: inline-flex !important; align-items: center; min-height: 44px; flex: none;
+  }
+  .mx-crumbs, .mx-gutter[style*="gap:13px;padding:10px 36px"],
+  .mx-profile-pad[style*="gap:13px;padding:10px 36px"] {
+    padding-top: 0 !important; padding-bottom: 0 !important;
+  }
+  .mx-crumbs > a, .mx-crumbs > span,
+  .mx-gutter[style*="gap:13px;padding:10px 36px"] > a,
+  .mx-gutter[style*="gap:13px;padding:10px 36px"] > span,
+  .mx-profile-pad[style*="gap:13px;padding:10px 36px"] > a,
+  .mx-profile-pad[style*="gap:13px;padding:10px 36px"] > span {
+    display: inline-flex !important; align-items: center; min-height: 44px;
+  }
+  .chip { min-height: 44px; display: inline-flex; align-items: center; }
+}

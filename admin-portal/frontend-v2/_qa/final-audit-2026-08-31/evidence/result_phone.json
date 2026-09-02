@@ -1,0 +1,216 @@
+{
+ "admin": [
+  {
+   "route": "/",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/projects/plexus",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/projects/accelerator",
+   "scrollWidth": 396,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/projects/forum",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/projects/bridges",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/gala",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/inbox",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/people",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/money",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/calendar",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/studio",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/settings",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/event-day",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/registrations",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/links",
+   "scrollWidth": 1664,
+   "ok": false,
+   "culprit": "HTML. w=1664",
+   "console": []
+  },
+  {
+   "route": "/member-pages",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/accelerator-review",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  }
+ ],
+ "member": [
+  {
+   "route": "/app/home",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/plexus",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/plexus/program",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/plexus/zagreb",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/gala",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/accelerator",
+   "scrollWidth": 394,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/forum",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/bridges",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/network",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/messages",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/me",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/profile",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  },
+  {
+   "route": "/app/projects",
+   "scrollWidth": 390,
+   "ok": true,
+   "culprit": null,
+   "console": []
+  }
+ ]
+}

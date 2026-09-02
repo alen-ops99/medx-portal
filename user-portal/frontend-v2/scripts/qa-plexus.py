@@ -154,20 +154,22 @@ def run():
         check('overview renders (hero eyebrow FREE · 9TH YEAR)', 'FREE' in root.inner_text() and '9TH YEAR' in root.inner_text())
         check('countdown cells filled', page.locator('[data-cd=days]').inner_text().strip() not in ('', '—'))
         check('€ never EUR on overview', 'EUR' not in root.inner_text(), 'searched rendered text')
-        check('REGISTER NOW → /plexus?pick=conference', (page.locator('[data-block=hero] a', has_text='REGISTER NOW').get_attribute('href') or '') == '/plexus?pick=conference&src=portal')
-        check('RSVP → /plexus?pick=gala + live € price', '/plexus?pick=gala' in (page.locator('a', has_text='RSVP ·').get_attribute('href') or '') and '€' in page.locator('a', has_text='RSVP ·').inner_text())
-        # I'M INTERESTED → POST /api/notify-topics
-        with page.expect_response(lambda r: '/api/notify-topics' in r.url and r.request.method == 'POST') as ri:
-            page.click('[data-act=interested]')
-        check("I'M INTERESTED → POST /api/notify-topics 200", ri.value.status == 200)
-        t = toast(page); check("I'M INTERESTED toast", 'updates are on' in t.lower(), t)
-        page.wait_for_timeout(400)
-        check('label flips to NOTED + toggle ON', 'NOTED' in page.locator('[data-act=interested]').inner_text() and page.locator('[data-act=tgFollow]').get_attribute('aria-checked') == 'true')
-        # follow toggle off
+        check('REGISTER — FREE → /plexus?pick=conference', (page.locator('[data-block=hero] a', has_text='REGISTER — FREE').get_attribute('href') or '') == '/plexus?pick=conference&src=portal')
+        check('RESERVE A SEAT → /plexus?pick=gala + live € price', '/plexus?pick=gala' in (page.locator('a', has_text='RESERVE A SEAT ·').get_attribute('href') or '') and '€' in page.locator('a', has_text='RESERVE A SEAT ·').inner_text())
+        # GET UPDATES FROM PLEXUS — the ONE follow control (I'M INTERESTED deleted, audit item 12)
+        was_on = page.locator('[data-act=tgFollow]').get_attribute('aria-checked') == 'true'
         with page.expect_response(lambda r: '/api/notify-topics' in r.url and r.request.method == 'POST') as ri:
             page.click('[data-act=tgFollow]')
-        check('GET UPDATES toggle → POST 200', ri.value.status == 200); t = toast(page)
-        check('toggle-off toast', 'off' in t.lower(), t)
+        check('follow toggle → POST /api/notify-topics 200', ri.value.status == 200)
+        t = toast(page)
+        check('follow toggle toast states the new state', ('off' in t.lower()) if was_on else ('you follow plexus' in t.lower()), t)
+        page.wait_for_timeout(400)
+        check('toggle aria-checked flips', page.locator('[data-act=tgFollow]').get_attribute('aria-checked') == ('false' if was_on else 'true'))
+        # flip back — the account leaves in its starting state
+        with page.expect_response(lambda r: '/api/notify-topics' in r.url and r.request.method == 'POST') as ri:
+            page.click('[data-act=tgFollow]')
+        check('follow toggle back → POST 200', ri.value.status == 200); t = toast(page)
+        check('toggle-back toast', ('you follow plexus' in t.lower()) if was_on else ('off' in t.lower()), t)
         # ADD TO CALENDAR
         with page.expect_download(timeout=6000) as dl: page.click('[data-act=dlIcs]')
         check('ADD TO CALENDAR → .ics download', dl.value.suggested_filename.endswith('.ics'), dl.value.suggested_filename); toast(page)
@@ -230,21 +232,12 @@ def run():
         # ADD TO CALENDAR (program header)
         with page.expect_download(timeout=6000) as dl: page.click('[data-act=dlIcs]')
         check('program ADD TO CALENDAR → .ics', dl.value.suggested_filename.endswith('.ics')); toast(page)
-        # speaker filters + search + tag from v2 meta
+        # speaker filters + search were deleted by design (audit item 9) — the tab IS the canonical roster
+        check('speaker filter chips are gone', page.locator('[data-act=spf]').count() == 0)
+        check('speaker search box is gone', page.locator('[data-role=speakerQ]').count() == 0)
         n_all = page.locator('[data-block=speakers] [data-act=vb]').count()
-        page.click('[data-act=spf][data-f=GALA]'); page.wait_for_timeout(300)
-        n_gala = page.locator('[data-block=speakers] [data-act=vb]').count()
-        page.click('[data-act=spf][data-f=PLEXUS]'); page.wait_for_timeout(300)
-        n_plexus = page.locator('[data-block=speakers] [data-act=vb]').count()
-        check('speaker filters filter (ALL ≥ GALA ≥ 1, PLEXUS ≥ 1 via v2 meta tag)', n_all >= n_gala >= 1 and n_plexus >= 1, f'all={n_all} gala={n_gala} plexus={n_plexus}')
+        check('speakers grid renders the canonical roster', n_all >= 1, f'{n_all} cards')
         check('PLEXUS · GALA tag rendered from v2 speaker-meta', 'PLEXUS · GALA' in page.locator('[data-block=speakers]').inner_text())
-        page.click('[data-act=spf][data-f=ALL]'); page.wait_for_timeout(200)
-        page.fill('[data-role=speakerQ]', 'smith'); page.wait_for_timeout(300)
-        n_q = page.locator('[data-block=speakers] [data-act=vb]').count()
-        page.fill('[data-role=speakerQ]', 'zzzz-no-such'); page.wait_for_timeout(300)
-        empty_ok = 'No speaker matches' in page.locator('[data-block=speakers]').inner_text()
-        page.fill('[data-role=speakerQ]', ''); page.wait_for_timeout(200)
-        check('speaker search narrows + empty state', 1 <= n_q < max(n_all, 2) and empty_ok, f'q=smith → {n_q}')
         # BIO + ADD SESSION from the speakers grid: modal lists the seeded session with an add control
         page.click('[data-block=speakers] [data-act=vb] >> nth=0'); page.wait_for_timeout(400)
         bio_txt = page.locator('[data-role=bio-scrim]').inner_text() if page.locator('[data-role=bio-scrim]').count() else ''
@@ -277,11 +270,11 @@ def run():
         page.wait_for_timeout(800)
         mroot = page.locator('[data-screen-label="My Plexus"]')
         check('mine (fresh) shows REGISTRATION OPEN + empty pass slot', 'REGISTRATION OPEN' in mroot.inner_text() and 'Your QR pass appears here' in mroot.inner_text())
-        check('mine REGISTER NOW → form pick=conference,gala', '/plexus?pick=conference%2Cgala' in (page.locator('[data-block=mine-hero] a', has_text='REGISTER NOW').get_attribute('href') or '') or '/plexus?pick=conference,gala' in (page.locator('[data-block=mine-hero] a', has_text='REGISTER NOW').get_attribute('href') or ''))
+        check('mine REGISTER — FREE → form pick=conference,gala', '/plexus?pick=conference%2Cgala' in (page.locator('[data-block=mine-hero] a', has_text='REGISTER — FREE').get_attribute('href') or '') or '/plexus?pick=conference,gala' in (page.locator('[data-block=mine-hero] a', has_text='REGISTER — FREE').get_attribute('href') or ''))
         check('gala card RESERVE A SEAT → form pick=gala', '/plexus?pick=gala' in (page.locator('#view a:has-text("RESERVE A SEAT")').get_attribute('href') or ''))
         # the ONE server-rendered form really opens (full page load through the proxy)
-        page.click('[data-block=mine-hero] a:has-text("REGISTER NOW")'); page.wait_for_load_state('load'); page.wait_for_timeout(900)
-        check('REGISTER NOW loads the server-rendered /plexus form', '/plexus?pick=' in page.url and 'Reserve your place' in page.content(), page.url)
+        page.click('[data-block=mine-hero] a:has-text("REGISTER — FREE")'); page.wait_for_load_state('load'); page.wait_for_timeout(900)
+        check('REGISTER — FREE loads the server-rendered /plexus form', '/plexus?pick=' in page.url and 'Reserve your place' in page.content(), page.url)
         check('form recognises the signed-in member (account linking)', 'signed in as' in page.content().lower())
         page.go_back(wait_until='networkidle'); page.wait_for_timeout(600)
         page.goto(a.base + '/app/plexus/mine', wait_until='networkidle'); page.wait_for_timeout(900)

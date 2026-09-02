@@ -116,7 +116,10 @@ export const COPY = {
   },
   cohorts: {
     title: 'PREVIOUS COHORTS', sub: 'The people who went — and where.',
-    photo1: 'PHOTO · COHORT ARRIVAL, BOSTON', photo2: 'PHOTO · LAB DAY',
+    // UXFIX-M2 #7 (2026-09-02): real photos replace the striped placeholders. Sources: medx.hr
+    // live-site mirror (acc_25_2 = MGH Boston arrival, acc_25 = lab day), recompressed ≤300KB.
+    photo1: { src: '/assets/ax-cohort-arrival.jpg', alt: 'A fellow arriving at Massachusetts General Hospital, Boston' },
+    photo2: { src: '/assets/ax-lab-day.jpg', alt: 'Two fellows in the lab at their host institution' },
     fellowsLabel: range => `FELLOWS ${range}`, range: '2024–2026',
     foot: n => `${n} fellows across the 2024–2026 cohorts · placed at our host institutions.`,
     classOf: y => `CLASS OF ${y}`,
@@ -398,7 +401,7 @@ const completion = () => completionFor(W.values, W.files, W.submitted, W.consent
 function blockCrumbs(applyTab) {
   return `
   <!-- dc: ${applyTab ? 'Accelerator Application' : 'Accelerator'}.dc.html › "Breadcrumb" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+  <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${COPY.crumbs.projects}</span>
     <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
     ${applyTab
@@ -414,7 +417,7 @@ function blockTabs(applyTab) {
   const off = 'font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none;white-space:nowrap';
   return `
   <!-- dc: Accelerator.dc.html › "Tabs" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+  <div class="mx-tabs mx-gutter" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
     ${applyTab ? `<a href="/app/accelerator" style="${off}" data-hover="color:#191512">${COPY.tabs.overview}</a>` : `<span style="${on}" aria-current="page">${COPY.tabs.overview}</span>`}
     ${applyTab ? `<span style="${on}" aria-current="page">${COPY.tabs.apply}</span>` : `<a href="/app/accelerator/apply" style="${off}" data-hover="color:#191512">${COPY.tabs.apply}</a>`}
   </div>
@@ -688,8 +691,8 @@ function blockTeam() {
           <span style="font-size:12px;color:#4a4239">${COPY.cohorts.sub}</span>
         </div>
         <div class="mx-ax-cohorts" style="display:grid;grid-template-columns:1fr 1fr 1.2fr;grid-auto-rows:220px;gap:12px;padding-bottom:24px">
-          <div style="background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239">${COPY.cohorts.photo1}</div>
-          <div style="background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239">${COPY.cohorts.photo2}</div>
+          <div style="position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px)"><img data-role="cohort-photo" src="${COPY.cohorts.photo1.src}" alt="${COPY.cohorts.photo1.alt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;display:block"></div>
+          <div style="position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px)"><img data-role="cohort-photo" src="${COPY.cohorts.photo2.src}" alt="${COPY.cohorts.photo2.alt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;display:block"></div>
           <div style="background:#191512;color:#f7f1e6;padding:18px 22px;display:flex;flex-direction:column">
             <div data-block="fellows" style="display:flex;flex-direction:column;flex:1;min-height:0">${fellowsList()}</div>
           </div>
@@ -1330,12 +1333,18 @@ const handlers = {
   clearFile: (el, ev) => { ev.stopPropagation(); W.files[el.dataset.doc] = null; refreshWizardUi(true); }
 };
 function appSectionInner() {
+  // UX audit 2026-09-02 › item 15 (third case, deferred by M1): the RESULTS LOOKUP field stood on
+  // the page three months before applications even open — an affordance with nothing to look up.
+  // It appears the moment applications open (live intake state; FACTS.accelerator.opens is the
+  // fallback clock in openState()) and stays afterwards, which is when AX26-XXXX codes exist.
+  const lookupLive = openState() !== 'before';
   return `
         <div id="acc-application" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 12px">
           <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.application.n}</span>
           <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.application.title}</span>
         </div>
         ${applicationCard()}
+        ${lookupLive ? `
         <div class="mx-ax-lookup mx-wrap-row" style="display:flex;gap:12px;align-items:center;padding:14px 0 8px;flex-wrap:wrap">
           <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962;white-space:nowrap">${COPY.results.label}</span>
           <input data-role="code" placeholder="${COPY.results.placeholder}" aria-label="Results access code" maxlength="9" autocapitalize="characters" autocomplete="off" spellcheck="false" style="border:1px solid rgba(25,21,18,.25);padding:9px 13px;font:600 11px ui-monospace,Menlo,monospace;color:#191512;background:#fdfaf3;letter-spacing:.1em;width:110px;text-transform:uppercase;border-radius:0">
@@ -1343,7 +1352,8 @@ function appSectionInner() {
           <span style="font-size:11.5px;color:#4a4239">${COPY.results.hint}</span>
         </div>
         <div data-role="codeErr" role="alert" style="font-size:11.5px;color:#9b1b22;padding:0 0 10px;${st.codeErr ? '' : 'display:none'}">${esc(st.codeErr || '')}</div>
-        <div data-block="results">${resultsBlock()}</div>
+        <div data-block="results">${resultsBlock()}</div>` : `
+        <!-- v2: RESULTS LOOKUP hidden until applications open (openState() 'before' — intake state, FACTS.accelerator.opens fallback) — UX audit item 15 -->`}
         <div style="padding-bottom:12px"></div>`;
 }
 
@@ -1416,6 +1426,12 @@ export default {
       cleanupFns.push(() => { root.removeEventListener('input', onFieldInput); root.removeEventListener('change', onFieldInput); root.removeEventListener('change', onFileChange); });
     } else {
       root.innerHTML = overviewTemplate();
+      // cohort photos degrade to the artboard's striped placeholder if an asset ever 404s
+      // (same pattern as gala.js portrait fallback)
+      root.querySelectorAll('img[data-role="cohort-photo"]').forEach(img => {
+        img.addEventListener('error', () => img.remove(), { once: true });
+        if (img.complete && img.naturalWidth === 0) img.remove();
+      });
     }
     unbind = ui.bind(root, handlers);
     startTimers(applyTab);

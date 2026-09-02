@@ -48,6 +48,9 @@
  *   GET  /newsletter                       per-topic subscriber counts + drafts & history
  *   POST /newsletter/queue                 stage a newsletter into the outbox (email and/or portal)
  *   GET  /badges                           {outbox_batches, outbox_emails, unread_messages}
+ *   GET  /needs-reply                      {count} — threads waiting on an admin reply (UX audit
+ *                                          2026-09-02 #4: the MEMBER MESSAGES tab badge; same rule
+ *                                          as the tab's NEEDS A REPLY filter, additive, read-only)
  */
 'use strict';
 
@@ -785,5 +788,50 @@ ${paragraphs(body)}
         } catch (err) { fail(res, err, 'Could not count the inbox.'); }
     });
 
-    log('inbox: /api/v2/inbox/{audiences,compose,outbox/:batch(+edit,unschedule),threads(+read,archive,reply),canned(+:id),newsletter(+queue),badges} + /api/v2/messages/attach; attachments → ' + ATTACH_DIR);
+    // ---- needs-reply count (UX audit 2026-09-02 #4) — the MEMBER MESSAGES tab badge ----
+    // A thread needs a reply when its LAST message is the member's, or any inbound row is still
+    // unread — exactly the rule the tab's NEEDS A REPLY filter applies client-side. Threads this
+    // admin archived stay out (with the same reopen-on-newer-message rule as GET /threads, minus
+    // the write — this route is a pure count). Additive: nothing existing changes shape.
+    app.get('/api/v2/inbox/needs-reply', auth, adminOnly, (req, res) => {
+        try {
+            const adminId = String((req.user && req.user.id) || 'admin');
+            const rows = all(`SELECT sender_id, receiver_id, sender_type, is_read, created_at
+                                FROM direct_messages
+                               WHERE COALESCE(sender_type,'user') = 'admin' OR COALESCE(receiver_type,'user') = 'admin'
+                               ORDER BY created_at ASC, rowid ASC`);
+            const resolved = new Map();                      // rawKey (users.id OR legacy email) → thread key
+            const keyOf = (rawKey) => {
+                if (resolved.has(rawKey)) return resolved.get(rawKey);
+                const u = one('SELECT id FROM users WHERE id = ?', [rawKey])
+                    || one('SELECT id FROM users WHERE LOWER(email) = LOWER(?)', [rawKey]);
+                const k = u ? u.id : rawKey;
+                resolved.set(rawKey, k);
+                return k;
+            };
+            const byMember = new Map();
+            rows.forEach(r => {
+                const inbound = String(r.sender_type || 'user') !== 'admin';
+                const rawKey = String(inbound ? r.sender_id : r.receiver_id || '');
+                if (!rawKey) return;
+                const key = keyOf(rawKey);
+                const t = byMember.get(key) || { unread: 0, lastInbound: false, lastAt: '' };
+                if (inbound && !Number(r.is_read || 0)) t.unread++;
+                t.lastInbound = inbound;
+                t.lastAt = String(r.created_at || '');
+                byMember.set(key, t);
+            });
+            const state = threadState(adminId);
+            let count = 0;
+            byMember.forEach((t, key) => {
+                const s = state[key];
+                let archived = !!(s && Number(s.archived));
+                if (archived && s.archived_at && t.lastAt > String(s.archived_at)) archived = false;
+                if (!archived && (t.unread > 0 || t.lastInbound)) count++;
+            });
+            res.json({ count });
+        } catch (err) { fail(res, err, 'Could not count the messages.'); }
+    });
+
+    log('inbox: /api/v2/inbox/{audiences,compose,outbox/:batch(+edit,unschedule),threads(+read,archive,reply),canned(+:id),newsletter(+queue),badges,needs-reply} + /api/v2/messages/attach; attachments → ' + ATTACH_DIR);
 };

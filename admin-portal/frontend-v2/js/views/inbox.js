@@ -15,6 +15,12 @@
 // SAVED REPLIES picker manages v2_canned_replies via /api/v2/inbox/canned; ONE image/PDF ≤ 5 MB
 // per message uploads through POST /api/v2/messages/attach (thread reading stays the existing
 // GET /api/admin/messages/:key, which marks inbound read).
+// UX audit 2026-09-02 (#4 + #6): the MEMBER MESSAGES tab badge counts threads WAITING ON A REPLY
+// (GET /api/v2/inbox/needs-reply — unread alone missed guests whose thread was opened but never
+// answered); a broken attachment thumbnail hides itself and leaves the labelled chip; Enter in the
+// member reply box is a NEWLINE — only the SEND button sends. Weekly pulses get DISCARD ALL n
+// (confirm first, pending batches only — the same /cancel the per-row DISCARD uses, so approved
+// and sent history is never touched) plus an age flag on stale rows.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -33,6 +39,14 @@ export const COPY = {
     empty: 'Outbox is clear — nothing waiting to send.',
     approve: 'APPROVE & SEND', later: 'SEND LATER', discard: 'DISCARD', sureDiscard: 'SURE? DISCARD',
     approveAll: (n) => `APPROVE ALL ${n} →`, cancel: 'CANCEL',
+    // bulk discard for piled-up weekly pulses (UX audit #6) — pending drafts only, never history
+    discardAll: (n) => `DISCARD ALL ${n}`,
+    discardAllEyebrow: 'EMAIL & OUTBOX · WEEKLY PULSES',
+    discardAllTitle: 'Discard the waiting weekly pulses?',
+    discardAllBody: (n) => `Discards ${n} stale draft${n === 1 ? '' : 's'} — nothing is sent. Everything already approved or sent stays exactly as it is.`,
+    discardAllCancel: 'KEEP THEM',
+    discardedAll: (n) => `DISCARDED ${n} DRAFT${n === 1 ? '' : 'S'} — NOTHING WAS SENT`,
+    weeksOld: (w) => w === 1 ? '1 WEEK OLD' : `${w} WEEKS OLD`,
     sends: (label) => `SENDS ${label}`,
     kinds: { pulse: 'WEEKLY PULSES — ROUTINE', guest: 'GUEST & MEMBER MESSAGES', survey: 'SURVEYS & FOLLOW-UPS', newsletter: 'NEWSLETTERS', other: 'ONE-OFF EMAILS' },
     to: (to, n) => `to ${to}${n > 1 ? ` +${n - 1} more` : ''}`,
@@ -65,7 +79,8 @@ export const COPY = {
     empty: { line: 'No member messages yet.', why: 'When a member writes from their portal, the thread lands here with its topic — and your reply lands back in their portal inbox.' },
     none: 'Nothing needs a reply — switch to ALL to browse every thread.',
     markRead: 'MARK READ', markUnread: 'MARK UNREAD', archive: 'ARCHIVE', unarchive: 'UNARCHIVE',
-    viewPerson: 'VIEW PERSON →', replyPh: 'Reply — Enter sends, Shift+Enter for a new line…', send: 'SEND',
+    viewPerson: 'VIEW PERSON →', replyPh: 'Write your reply — nothing goes out until you click SEND…', send: 'SEND',
+    badgeTitle: (n) => `${fmt.plural(n, 'member thread')} waiting for a reply`,
     sentToast: 'REPLY SENT — LANDS IN THEIR PORTAL INBOX',
     archivedToast: 'THREAD ARCHIVED — HIDDEN, NEVER DELETED', unarchivedToast: 'THREAD IS BACK IN THE LIST',
     // staff identity on replies (team review ask 1) — members see the same attribution
@@ -89,7 +104,7 @@ export const COPY = {
   announce: {
     title: 'POST TO MEMBERS’ NOTIFICATION BELL', who: 'WHO SHOULD SEE THIS?',
     audiences: [['all', 'Everyone'], ['plexus', 'Plexus followers'], ['gala', 'Gala guests'], ['accelerator', 'Accelerator followers'], ['forum', 'Forum members'], ['bridges', 'Building Bridges followers']],
-    t: 'TITLE', tPh: 'e.g. Gala early-bird ends September 1', m: 'MESSAGE', mPh: 'Write the details members should read.',
+    t: 'TITLE', tPh: 'e.g. Gala early-bird ends September 15', m: 'MESSAGE', mPh: 'Write the details members should read.',
     link: 'LINK (OPTIONAL)', linkPh: 'e.g. the Gala page', until: 'SHOW UNTIL',
     untils: [['', 'Removed by hand'], ['7', 'One week'], ['14', 'Two weeks'], ['event', 'The event date']],
     push: 'Also send a push notification to followers’ phones',
@@ -177,6 +192,7 @@ function futureBatches(list) {
 async function load(tab) {
   const want = {
     badges: api.get('/api/v2/inbox/badges'),
+    needs: api.get('/api/v2/inbox/needs-reply'),        // MEMBER MESSAGES tab badge (audit #4)
     chat: api.get('/api/teamchat/overview')
   };
   if (tab === 'outbox') {
@@ -189,19 +205,28 @@ async function load(tab) {
   if (tab === 'news') want.nl = api.get('/api/v2/inbox/newsletter');
   const r = await api.settle(want);
   const chatChannels = r.chat ? [...(r.chat.channels || [])].filter(c => String(c.name || '').indexOf('dm:') !== 0) : [];
+  const threads = r.threads && Array.isArray(r.threads.threads) ? r.threads.threads : [];
   return {
     errors: r.$errors,
     badges: r.badges || { outbox_batches: 0, outbox_emails: 0, unread_messages: 0 },
+    // NEEDS A REPLY count for the tab badge; an older backend without the route falls back to
+    // the loaded threads (messages tab) or the plain unread count (a floor, never an overcount)
+    needsReply: r.needs ? Number(r.needs.count) || 0
+      : (r.threads ? countNeedsReply(threads) : Number((r.badges || {}).unread_messages) || 0),
     chat: r.chat || null,
     chatChannels,
     chatUnread: r.chat ? [...(r.chat.channels || []), ...(r.chat.dms || [])].reduce((n, c) => n + Number(c.unread || 0), 0) : 0,
     pending: r.pending && Array.isArray(r.pending.batches) ? r.pending.batches : [],
     deferred: r.scheduled ? futureBatches(r.scheduled.batches) : [],
     audiences: r.audiences && Array.isArray(r.audiences.groups) ? r.audiences.groups : [],
-    threads: r.threads && Array.isArray(r.threads.threads) ? r.threads.threads : [],
+    threads,
     recent: r.recent && Array.isArray(r.recent.notifications) ? r.recent.notifications : [],
     nl: r.nl || { total_active: 0, topics: [], history: [], sends: [] }
   };
+}
+// same rule as visibleThreads('needs') — kept in step with the backend's /needs-reply route
+function countNeedsReply(threads) {
+  return (threads || []).filter(t => !t.archived && (t.unread > 0 || !t.last.mine)).length;
 }
 
 // ---------------------------------------------------------------- shared blocks
@@ -217,7 +242,8 @@ function blockTitle() {
 function blockTabs() {
   const badges = {
     outbox: D.badges.outbox_batches || 0,
-    messages: D.badges.unread_messages || 0,
+    // NEEDS A REPLY count, not raw unread — an opened-but-unanswered guest thread still shows (audit #4)
+    messages: D.needsReply || 0,
     announce: 0, news: 0,
     chat: D.chatUnread || 0
   };
@@ -227,7 +253,8 @@ function blockTabs() {
     ${TAB_ORDER.map(id => {
       const on = st.tab === id;
       const b = badges[id];
-      return `<a href="/inbox/${TAB_TO_SLUG[id]}" style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${COPY.tabs[id]}${b ? `<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">${b}</span>` : ''}</a>`;
+      const tip = id === 'messages' && b ? ` title="${esc(COPY.messages.badgeTitle(b))}"` : '';
+      return `<a href="/inbox/${TAB_TO_SLUG[id]}"${tip} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${COPY.tabs[id]}${b ? `<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">${b}</span>` : ''}</a>`;
     }).join('\n    ')}
   </div>
   <!-- /dc -->`;
@@ -278,6 +305,13 @@ function previewDrawer(b) {
 }
 function blockWaiting() {
   const groups = outboxGroups();
+  // stale-pulse age flag (audit #6): a weekly pulse a week or more old is flagged in weeks
+  const ageChip = (b, g) => {
+    if (g.kind !== 'pulse' || b._deferred || !b.created_at) return '';
+    const days = fmt.daysSince(b.created_at);
+    if (days == null || days < 7) return '';
+    return `<span data-v2="stale-pulse age flag (audit #6)" style="padding:4px 8px;background:#f8f1e2;color:#7a6432;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;white-space:nowrap">${COPY.outbox.weeksOld(Math.floor(days / 7))}</span>`;
+  };
   const row = (b, g) => `
       <div class="mx-outbox-row" style="display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.08)">
         <span style="font-family:Fraunces,serif;font-size:18px;width:30px;text-align:center;flex:none">${Number(b.count) || 0}</span>
@@ -285,6 +319,7 @@ function blockWaiting() {
           <span style="display:block;font-size:13.5px;font-weight:600">${esc(batchTitle(b))}</span>
           <span style="display:block;font-size:11.5px;color:#6d6459;margin-top:2px">${esc(COPY.outbox.to((b.sample && b.sample.to) || '—', Number(b.count) || 0))}</span>
         </span>
+        ${ageChip(b, g)}
         ${b._deferred ? `
         <span class="mx-defer" style="padding:7px 11px;background:#f8f1e2;color:#7a6432;font:600 9px Inter,sans-serif;letter-spacing:.12em;white-space:nowrap">${esc(COPY.outbox.sends(deferLabel(b.earliest_scheduled_for)))}</span>
         <span data-act="cancelLater" data-batch="${esc(b.batch_id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.outbox.cancel}</span>` : `
@@ -305,6 +340,7 @@ function blockWaiting() {
         <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${g.label}</span>
         <div style="flex:1"></div>
         ${g.items.length > 1 ? `<span data-act="approveAll" data-kind="${g.kind}" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#1e6e42;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.outbox.approveAll(g.items.length)}</span>` : ''}
+        ${g.kind === 'pulse' && g.items.length > 1 ? `<span data-act="discardAllPulse" data-v2="bulk discard for piled-up weekly pulses (audit #6) — confirm first, pending only" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#7e151b">${COPY.outbox.discardAll(g.items.length)}</span>` : ''}
       </div>
       ${g.items.map(b => row(b, g)).join('')}
       ${g.deferred.map(b => row(Object.assign({ _deferred: true }, b), g)).join('')}`).join('')}
@@ -449,6 +485,11 @@ function blockConversation() {
 }
 // ONE attachment per message — thumbnail for images, a labelled chip otherwise. Paths are relative
 // ('/uploads/messages/…' — this backend mirrors the member portal's route) or absolute (Cloudinary).
+// AUDIT #4 — the broken preview: a locally stored '/uploads/messages/…' file does not survive a
+// redeploy (that disk is ephemeral — only the Cloudinary copy is permanent), so its <img> renders
+// as the browser's broken-image glyph inside the bubble. The thumbnail now HIDES ITSELF on error
+// (same onerror pattern the Studio photo tiles use) and the labelled chip below — the part that
+// still opens or downloads the file — stays. Non-images never got a thumbnail to begin with.
 function attUrl(p) { return p ? (String(p).startsWith('/') ? api.url(p) : p) : ''; }
 function attIsImage(x) { return /\.(jpe?g|png|webp|gif)(\s|\?|$)/i.test(String(x.attachment_name || '') + ' ' + String(x.attachment_path || x.attachment_url || '')); }
 function msgAttachment(x, mine) {
@@ -457,7 +498,7 @@ function msgAttachment(x, mine) {
   const name = x.attachment_name || COPY.messages.file;
   const url = attUrl(p);
   const bd = mine ? 'rgba(246,242,234,.4)' : 'rgba(32,27,22,.2)';
-  const img = attIsImage(x) ? `<a href="${esc(url)}" target="_blank" rel="noopener" style="display:block;margin-top:8px"><img src="${esc(url)}" alt="${esc(name)}" loading="lazy" style="max-width:220px;max-height:160px;border:1px solid ${bd};display:block"></a>` : '';
+  const img = attIsImage(x) ? `<a href="${esc(url)}" target="_blank" rel="noopener" data-v2="thumbnail hides itself when the file can't render (audit #4) — the chip below stays" style="display:block;margin-top:8px"><img src="${esc(url)}" alt="${esc(name)}" loading="lazy" onerror="this.parentNode.style.display='none'" style="max-width:220px;max-height:160px;border:1px solid ${bd};display:block"></a>` : '';
   return `${img}<a href="${esc(url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:6px 10px;border:1px solid ${bd};font:600 9px Inter,sans-serif;letter-spacing:.1em;color:inherit;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\u2295 ${esc(name)}</a>`;
 }
 function tabMessages() {
@@ -737,10 +778,11 @@ function wire() {
   on('nlSubject', 'input', e => { st.nlSubject = e.target.value; });
   on('nlBody', 'input', e => { st.nlBody = e.target.value; });
   on('nlTopic', 'change', e => { st.nlTopic = e.target.value; });
-  // enter-to-send inputs (reply is a textarea now — Enter sends, Shift+Enter = newline, so a
-  // multi-paragraph SAVED REPLY fits; the draft survives re-renders via st.replyDraft)
+  // MEMBER-BOUND reply box: Enter is a NEWLINE and the SEND button is the only way out (audit #4).
+  // These replies leave the building — a half-typed line must never reach a member because a key
+  // was hit while thinking. Team chat below keeps Enter-to-send: that one stays inside the team.
+  // The draft survives re-renders via st.replyDraft.
   on('reply', 'input', e => { st.replyDraft = e.target.value; });
-  on('reply', 'keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlers.sendReply(rootEl.querySelector('[data-act="sendReply"]')); } });
   on('msgFile', 'change', e => handlers.msgFilePicked(e.target));
   on('chDraft', 'input', e => { st.chDraft = e.target.value; });
   on('chDraft', 'keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlers.chSend(); } });
@@ -766,6 +808,7 @@ async function reloadThreads(keepOpen = true) {
   if (!rootEl) return;
   D.threads = r.threads && Array.isArray(r.threads.threads) ? r.threads.threads : [];
   if (r.badges) D.badges = r.badges;
+  D.needsReply = countNeedsReply(D.threads);   // the tab badge follows the list we just loaded
   if (!keepOpen || !D.threads.some(t => t.key === st.openKey)) st.openKey = null;
   rerender('[data-block="messages"]', tabMessages());
   rerender('[data-block="tabs"]', blockTabs());
@@ -780,6 +823,7 @@ async function openThreadByKey(key) {
     st.thread = Array.isArray(msgs) ? msgs : [];
     const t = openThreadObj(); if (t) t.unread = 0;
     D.badges.unread_messages = D.threads.reduce((n, x) => n + (x.archived ? 0 : x.unread), 0);
+    D.needsReply = countNeedsReply(D.threads);   // opening a thread clears its unread, not its "needs a reply"
     rerender('[data-block="messages"]', tabMessages());
     rerender('[data-block="tabs"]', blockTabs());
     chrome.refresh();
@@ -922,6 +966,32 @@ const handlers = {
       catch (e) { ui.toast(e.message, { kind: 'error' }); }
     }
     if (ok) ui.toast(COPY.outbox.sentAll(ok, emails));
+    await reloadOutbox();
+  },
+  // Bulk DISCARD for piled-up weekly pulses (audit #6). It cancels ONLY the batches that are
+  // sitting in this pending group — the same POST /api/admin/outbox/:batch/cancel the per-row
+  // DISCARD uses, which by definition touches rows still in 'pending_approval'. Anything already
+  // approved, scheduled or sent is not in D.pending and is never addressed here, so DRAFTS &
+  // HISTORY keeps its record. The confirm names the count and says plainly that nothing is sent.
+  discardAllPulse: async (el) => {
+    const items = D.pending.filter(b => (KIND_OF_ENGINE[b.source_engine] || 'other') === 'pulse');
+    if (!items.length) return;
+    const ok = await ui.confirm({
+      eyebrow: COPY.outbox.discardAllEyebrow,
+      title: COPY.outbox.discardAllTitle,
+      body: COPY.outbox.discardAllBody(items.length),
+      ok: COPY.outbox.discardAll(items.length),
+      cancel: COPY.outbox.discardAllCancel
+    });
+    if (!ok) return;
+    el.setAttribute('aria-disabled', 'true');
+    let done = 0;
+    for (const b of items) {
+      try { await api.post('/api/admin/outbox/' + encodeURIComponent(b.batch_id) + '/cancel', {}); done++; }
+      catch (e) { ui.toast(e.message, { kind: 'error' }); }
+    }
+    st.discardConfirm = null; st.previewBatch = null;
+    if (done) ui.toast(COPY.outbox.discardedAll(done));
     await reloadOutbox();
   },
   later: async (el) => {

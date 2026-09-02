@@ -24,14 +24,23 @@ export const COPY = {
   kpi: {
     kDays: { k: 'DAYS TO PLEXUS', label: 'Days to Plexus' },
     kConf: { k: 'CONFERENCE REGISTERED', label: 'Conference registered', sub: cap => `free entry · cap ${cap}` },
-    kGala: { k: 'GALA SEATS PAID', label: 'Gala seats paid', chase: (n, eb) => `${n} payment${n === 1 ? '' : 's'} to chase · early bird ends ${eb}`, clear: eb => `all seats paid · early bird ends ${eb}`, after: 'regular price now' },
+    // UXFIX closing (2026-09-02, audit #1): the card counted registration ROWS and called them
+    // seats. It now reads the canonical /api/v2/gala-ops/summary (seats incl. plus-ones); on an
+    // older backend it falls back to the local row walk and says BOOKINGS, which is what rows are.
+    kGala: {
+      k: 'GALA SEATS PAID', kFallback: 'GALA BOOKINGS PAID', label: 'Gala seats paid',
+      chase: (n, eur, tail) => `${n} seat${n === 1 ? '' : 's'} unpaid · ${eur} outstanding · ${tail}`,
+      chaseBookings: (n, tail) => `${n} payment${n === 1 ? '' : 's'} to chase · ${tail}`,
+      clear: tail => `all seats paid · ${tail}`,
+      ebEnds: eb => `early bird ends ${eb}`, after: 'regular price now'
+    },
     kMoney: { k: 'COLLECTED THIS YEAR', label: 'Collected this year', sub: n => `${n} Gala payment${n === 1 ? '' : 's'} · all of Money →` },
     locked: 'locked for you · ask Alen'
   },
   trends: { title: 'REGISTRATIONS — LAST 30 DAYS', scope: 'ALL EVENTS · CONFERENCE + GALA + BRIDGES + FORUM' },
   projects: {
     title: 'YOUR PROJECTS', sub: 'each one is a hub — everything for that project lives inside',
-    plexus: { live: 'LIVE', closed: 'REGISTRATION CLOSED', title: FACTS.plexus.week, line: (r, cap, g) => `${r} registered of ${cap} · ${g} gala paid`, parts: FACTS.plexus.parts },
+    plexus: { live: 'LIVE', closed: 'REGISTRATION CLOSED', title: FACTS.plexus.week, line: (r, cap, galaBit) => `${r} registered of ${cap} · ${galaBit}`, parts: FACTS.plexus.parts },
     accelerator: { title: FACTS.accelerator.short, opens: `OPENS ${FACTS.accelerator.opensShort.toUpperCase()}`, apps: n => n === 0 ? '0 applications yet' : `${n} application${n === 1 ? '' : 's'}`, hosts: n => `${n} host institution${n === 1 ? '' : 's'} ready` },
     forum: { title: FACTS.forum.name, eyebrow: 'BY INVITATION', line: (m, c) => `${m} member${m === 1 ? '' : 's'} · ${c} candidate${c === 1 ? '' : 's'}`, gathering: `gathering ${FACTS.forum.gathering.label}` },
     bridges: { title: FACTS.bridges.name, next: (city, when) => `NEXT · ${city.toUpperCase()} · ${when}`, none: 'NO DATE SET', line: (past, n, city) => `${past} past edition${past === 1 ? '' : 's'} · ${n} ${city} sign-up${n === 1 ? '' : 's'}`, venueSoon: 'venue announced soon' },
@@ -42,12 +51,16 @@ export const COPY = {
     foot: 'Snoozed rows return tomorrow — a row only disappears for good when the thing itself is resolved.',
     snooze: 'SNOOZE 1D', snoozeTitle: 'Hides for you until tomorrow — the row returns until the thing itself is resolved', snoozed: 'SNOOZED FOR 1 DAY', showAll: n => `SHOW ALL ${n} →`, showLess: 'SHOW FEWER',
     outbox: { title: (e, b) => `${e} email${e === 1 ? '' : 's'} in ${b} batch${b === 1 ? '' : 'es'} ${e === 1 ? 'is' : 'are'} waiting for your OK`, sub: s => `${s} — nothing sends without you`, cta: 'REVIEW & SEND' },
-    messages: { title: n => `${n} member message${n === 1 ? ' is' : 's are'} waiting`, sub: 'Your reply lands in their portal inbox', cta: 'REPLY' },
+    // UXFIX-A1 #4 (2026-09-02): counts threads that NEED A REPLY (same rule as the Inbox tab), not just unread
+    messages: { title: n => `${n} member message${n === 1 ? ' is' : 's are'} waiting for a reply`, sub: (who, d) => who ? `${who} has waited ${d} day${d === 1 ? '' : 's'} — your reply lands in their portal inbox` : 'Your reply lands in their portal inbox', cta: 'REPLY' },
+    // UXFIX-A1 #5 (2026-09-02): the six "IN OUTBOX →" echo rows collapse into this ONE row
+    drafts: { title: n => `${n} draft${n === 1 ? '' : 's'} waiting in the Outbox`, sub: 'Reminders and digests you already actioned — approve or discard them there, nothing sends without you', cta: 'REVIEW →' },
+    plan: 'PLAN THE MONTH WITH AI →',   // UXFIX-A1 #5: the AI-planner promo, demoted to the quiet footer
     tasks: { title: n => `${n} overdue task${n === 1 ? '' : 's'}`, sub: d => `Oldest is ${d} day${d === 1 ? '' : 's'} — one shared list with Calendar`, cta: 'OPEN TASKS' },
     nag: {
       galaSub: (date, days) => `Reserved ${date} · ${days} day${days === 1 ? '' : 's'} waiting · reminder queues to the Outbox for your OK`,
-      actioned: 'Reminder is in the Outbox — approve it there to send', inOutbox: 'IN OUTBOX →',
-      subs: { content_plan_missing: 'Plan next month with the content planner — one click opens it', monthly_digest: 'Review the digest, then approve it in the Outbox', forum_consideration: who => `${who} asked to be considered — review in the Forum hub`, forum_candidate_escalated: who => `${who} needs a decision — Forum hub`, task_overdue: 'One shared list with Calendar', task_due_soon: 'Due soon — one shared list with Calendar' },
+      // (the per-row "IN OUTBOX →" echo state is gone — actioned nags collapse into the drafts row, UXFIX-A1 #5)
+      subs: { monthly_digest: 'Review the digest, then approve it in the Outbox', forum_consideration: who => `${who} asked to be considered — review in the Forum hub`, forum_candidate_escalated: who => `${who} needs a decision — Forum hub`, task_overdue: 'One shared list with Calendar', task_due_soon: 'Due soon — one shared list with Calendar' },
       ctas: { payment_reminder: 'CHASE PAYMENT', dietary_reminder: 'SEND REMINDER', nudge_assignee: 'NUDGE', digest_review: 'REVIEW DIGEST', open_link: 'OPEN', default: 'OPEN' },
       queued: 'REMINDER QUEUED — APPROVE IT IN THE OUTBOX', nudged: 'NUDGE QUEUED'
     }
@@ -70,7 +83,8 @@ export const COPY = {
     gate: 'No read yet — the four advisors compile it every Friday once ANTHROPIC_API_KEY is set on the admin service.', gateCta: 'HEALTH CHECKS →',
     locked: 'The Weekly Read needs Executive Suite access — ask Alen.'
   },
-  footer: { admin: 'ADMIN:', health: 'SYSTEM HEALTH', audit: 'AUDIT LOG', member: 'VIEW MEMBER PORTAL ↗' }
+  // UXFIX-A1 #15 (2026-09-02): the footer's SYSTEM HEALTH link duplicated the header pill — removed, header pill kept
+  footer: { admin: 'ADMIN:', audit: 'AUDIT LOG', member: 'VIEW MEMBER PORTAL ↗' }
 };
 const KPI_KEYS = ['kDays', 'kConf', 'kGala', 'kMoney'];
 const SC_KEYS = ['sScan', 'sEmail', 'sNews', 'sFind'];
@@ -97,10 +111,12 @@ async function load() {
     pstats: api.get('/api/dashboard/portal-stats'),
     gala: api.get('/api/admin/gala/registrations'),
     galaSettings: api.get('/api/admin/gala/settings'),
+    galaOps: api.get('/api/v2/gala-ops/summary'),   // UXFIX closing: ONE truth for the gala tallies (seats incl. plus-ones)
     finance: api.get('/api/finance/dashboard'),
     nag: api.get('/api/admin/nag/items'),
     tasks: api.get('/api/admin/tasks'),
     outbox: api.get('/api/admin/outbox?status=pending_approval'),
+    threads: api.get('/api/v2/inbox/threads'),   // UXFIX-A1 #4: member threads needing a reply
     advisors: api.get('/api/admin/advisors/latest'),
     prefs: api.get('/api/dashboard-preferences/' + PREFS_SECTION),
     calendar: api.get('/api/admin/year-calendar'),
@@ -126,12 +142,20 @@ async function load() {
   const dated = bridges.filter(b => b.event_date && /^\d{4}-\d{2}-\d{2}/.test(b.event_date)).map(b => Object.assign({}, b, { d: String(b.event_date).slice(0, 10) }));
   const nextBridges = dated.filter(b => b.d >= today).sort((a, b) => a.d.localeCompare(b.d))[0] || null;
   const tasks = (Array.isArray(r.tasks) ? r.tasks : []).filter(t => t.status !== 'done');
+  // Canonical gala numbers (audit #1): /api/v2/gala-ops/summary counts SEATS (1 + guest_count,
+  // plus-ones included) over non-cancelled rows — the same block the Gala and Money screens read.
+  // The local row walk below survives only as the degraded path for an older backend.
+  const ops = r.galaOps && r.galaOps.seats && r.galaOps.eur ? r.galaOps : null;
   return {
     errors: r.$errors, me: session.user || r.me || {}, conf, summary: r.summary, trends: r.trends, pstats: r.pstats, finance: r.finance, galaSettings: gs,
-    gala: { rows: galaRows, paid, toChase, price, ebDeadline, ebDays: fmt.daysUntil(ebDeadline), collected: paid.reduce((n, g) => n + (Number(g.amount_paid) || 0), 0), owed: toChase.length * price },
+    gala: { rows: galaRows, paid, toChase, price, ebDeadline, ebDays: fmt.daysUntil(ebDeadline), collected: paid.reduce((n, g) => n + (Number(g.amount_paid) || 0), 0), owed: toChase.length * price, ops },
     nag: (r.nag && Array.isArray(r.nag.items)) ? r.nag.items : [],
     tasks, team: Array.isArray(r.team) ? r.team : [],
     outbox: (r.outbox && Array.isArray(r.outbox.batches)) ? r.outbox.batches : [],
+    // UXFIX-A1 #4: threads needing a reply — the Inbox tab's exact rule; null = endpoint unavailable (fall back to unread)
+    msgNeedsReply: (r.threads && Array.isArray(r.threads.threads))
+      ? r.threads.threads.filter(t => !t.archived && (Number(t.unread) > 0 || !(t.last && t.last.mine)))
+      : null,
     advisors: r.advisors, prefs, status, bridges: { all: bridges, dated, next: nextBridges, past: dated.filter(b => b.d < today).length },
     calendar: Array.isArray(r.calendar) ? r.calendar : [],
     forumCandidates: r.forumCand && r.forumCand.counts ? Number(r.forumCand.counts.all || 0) : 0,
@@ -144,16 +168,24 @@ async function load() {
 // ---------------------------------------------------------------- derived lists
 function kpiDefs() {
   const c = COPY.kpi, p = D.prefs, g = D.gala, conf = D.conf;
+  const ops = g.ops;
   const regs = D.summary ? Number(D.summary.plexus.registrations || 0) : (D.pstats ? Number(D.pstats.plexus.registrations || 0) : null);
-  const eb = fmt.dayShort(g.ebDeadline);
   const galaLocked = isLocked('gala');
-  const galaSub = galaLocked ? c.locked : g.ebDays > 0 ? (g.toChase.length ? c.kGala.chase(g.toChase.length, eb) : c.kGala.clear(eb)) : (g.toChase.length ? `${g.toChase.length} payment${g.toChase.length === 1 ? '' : 's'} to chase · ${c.kGala.after}` : c.kGala.after);
-  const collected = isLocked('finance') && isLocked('gala') ? null : g.collected + (D.pstats && D.pstats.plexus ? Number(D.pstats.plexus.revenue || 0) : 0);
+  const tail = g.ebDays > 0 ? c.kGala.ebEnds(fmt.dayShort(g.ebDeadline)) : c.kGala.after;
+  const chasing = ops ? ops.seats.chase : g.toChase.length;
+  const galaSub = galaLocked ? c.locked
+    : ops
+      ? (ops.seats.chase ? c.kGala.chase(ops.seats.chase, fmt.eur(ops.eur.outstanding), tail) : c.kGala.clear(tail))
+      : (g.toChase.length ? c.kGala.chaseBookings(g.toChase.length, tail) : c.kGala.clear(tail));
+  const galaPaid = ops ? ops.seats.paid : g.paid.length;               // seats when canonical, bookings on the fallback
+  const galaPayments = ops ? ops.bookings.paid : g.paid.length;        // payments = registration rows, both paths
+  const galaCollected = ops ? ops.eur.collected : g.collected;
+  const collected = isLocked('finance') && isLocked('gala') ? null : galaCollected + (D.pstats && D.pstats.plexus ? Number(D.pstats.plexus.revenue || 0) : 0);
   return [
     { on: p.kDays, k: c.kDays.k, v: String(D.plexusDays), sub: `${fmt.longRange(conf.start_date || FACTS.plexus.start, conf.end_date || FACTS.plexus.end)} · ${FACTS.plexus.venue}, ${conf.venue_city || FACTS.plexus.city}`, subColor: '#6d6459', href: '/projects/plexus' },
     { on: p.kConf, k: c.kConf.k, v: regs == null ? '—' : String(regs), sub: c.kConf.sub(D.cap), subColor: '#6d6459', href: '/registrations' },
-    { on: p.kGala, k: c.kGala.k, v: galaLocked ? '—' : String(g.paid.length), sub: galaSub, subColor: !galaLocked && g.toChase.length ? '#9b1b22' : '#6d6459', href: '/gala' },
-    { on: p.kMoney, k: c.kMoney.k, v: collected == null ? '—' : fmt.eur(collected), sub: collected == null ? c.locked : c.kMoney.sub(g.paid.length), subColor: '#6d6459', href: '/money' }
+    { on: p.kGala, k: ops ? c.kGala.k : c.kGala.kFallback, v: galaLocked ? '—' : String(galaPaid), sub: galaSub, subColor: !galaLocked && chasing ? '#9b1b22' : '#6d6459', href: '/gala' },
+    { on: p.kMoney, k: c.kMoney.k, v: collected == null ? '—' : fmt.eur(collected), sub: collected == null ? c.locked : c.kMoney.sub(galaPayments), subColor: '#6d6459', href: '/money' }
   ].filter(k => k.on);
 }
 function shortcutDefs() {
@@ -176,19 +208,33 @@ function overdueTasks() { const today = fmt.ymd(new Date()); return D.tasks.filt
 function attentionItems() {
   const a = COPY.attention, items = [];
   if (D.outbox.length) { const emails = D.outbox.reduce((n, b) => n + Number(b.count || 0), 0); const subjects = D.outbox.map(b => b.sample && b.sample.subject).filter(Boolean).slice(0, 2).join(' · '); items.push({ id: 'outbox', dot: '#c9a962', title: a.outbox.title(emails, D.outbox.length), sub: a.outbox.sub(subjects || fmt.plural(D.outbox.length, 'batch', 'batches')), cta: a.outbox.cta, href: '/inbox/outbox' }); }
-  const unread = D.pstats && D.pstats.pending ? Number(D.pstats.pending.unreadMessages || 0) : 0;
-  if (unread > 0) items.push({ id: 'messages', dot: '#c9a962', title: a.messages.title(unread), sub: a.messages.sub, cta: a.messages.cta, href: '/inbox/messages' });
+  // UXFIX-A1 #4: member threads NEEDING A REPLY (the Inbox tab's own rule) — a guest must never wait invisibly.
+  // Falls back to the old unread count when the threads endpoint is unavailable.
+  const need = D.msgNeedsReply;
+  if (need && need.length) {
+    const oldest = need.reduce((x, t) => (!x || String((t.last || {}).at || '') < String((x.last || {}).at || '')) ? t : x, null);
+    const days = oldest && oldest.last && oldest.last.at ? Math.max(0, fmt.daysSince(oldest.last.at) || 0) : 0;
+    items.push({ id: 'messages', dot: days >= 2 ? '#9b1b22' : '#c9a962', title: a.messages.title(need.length), sub: a.messages.sub(oldest ? oldest.name : '', days), cta: a.messages.cta, href: '/inbox/messages' });
+  } else if (!need) {
+    const unread = D.pstats && D.pstats.pending ? Number(D.pstats.pending.unreadMessages || 0) : 0;
+    if (unread > 0) items.push({ id: 'messages', dot: '#c9a962', title: a.messages.title(unread), sub: a.messages.sub('', 0), cta: a.messages.cta, href: '/inbox/messages' });
+  }
+  // UXFIX-A1 #5: actioned nags all point at the same single action (approve in the Outbox) —
+  // collapse them into ONE row below; the AI-planner promo is not urgent and moves to the quiet footer.
+  let actionedCount = 0;
   D.nag.forEach(n => {
+    if (n.kind === 'content_plan_missing') return;                    // #5: feature ad, not urgent — quiet corner
+    if (n.status === 'actioned') { actionedCount++; return; }         // #5: collapsed into one row after the loop
     const p = n.action_payload || {}; const who = p.who || p.name || '';
     let sub = '';
     if (n.kind === 'gala_unpaid') { const g = D.gala.rows.find(x => x.id === (p.gala_id || n.subject_id)); const when = g ? fmt.longRange(g.created_at) : ''; const days = g ? Math.max(0, fmt.daysSince(g.created_at) || 0) : null; sub = g ? a.nag.galaSub(when, days) : 'Reserved · reminder queues to the Outbox for your OK'; }
     else { const s = a.nag.subs[n.kind]; sub = typeof s === 'function' ? s(who || 'A member') : (s || (who ? who + ' · ' : '') + String(n.kind || '').replace(/_/g, ' ')); }
-    const actioned = n.status === 'actioned';
     const act = ['payment_reminder', 'dietary_reminder', 'nudge_assignee'].includes(n.action_kind);
     const href = n.action_kind === 'digest_review' ? routeForSection(p.open_section || 'newsletter', '/inbox/newsletter') : /^task_/.test(n.kind) ? '/calendar/tasks' : n.kind === 'gala_unpaid' ? '/gala' : routeForSection(p.open_section || n.kind, '/today');
-    items.push({ id: n.id, dot: actioned ? '#c9a962' : (NAG_DOT[n.kind] || '#c9a962'), title: String(n.title || '').replace(/:\s+/, ' — '), sub: actioned ? a.nag.actioned : sub,
-      cta: actioned ? a.nag.inOutbox : (a.nag.ctas[n.action_kind] || a.nag.ctas.default), href: actioned ? '/inbox/outbox' : href, act: !actioned && act, nagId: n.id });
+    items.push({ id: n.id, dot: NAG_DOT[n.kind] || '#c9a962', title: String(n.title || '').replace(/:\s+/, ' — '), sub,
+      cta: a.nag.ctas[n.action_kind] || a.nag.ctas.default, href, act, nagId: n.id });
   });
+  if (actionedCount) items.push({ id: 'nagOutbox', dot: '#c9a962', title: a.drafts.title(actionedCount), sub: a.drafts.sub, cta: a.drafts.cta, href: '/inbox/outbox' });
   const od = overdueTasks();
   if (od.length) { const oldest = Math.max(...od.map(t => fmt.daysSince(t.due_date) || 0)); items.push({ id: 'tasks', dot: '#9b1b22', title: a.tasks.title(od.length), sub: a.tasks.sub(oldest), cta: a.tasks.cta, href: '/calendar/tasks' }); }
   const snoozed = readSnoozes();
@@ -225,7 +271,7 @@ function blockGreeting() {
   const greeting = COPY.greetings[hour < 12 ? 0 : hour < 18 ? 1 : 2];
   return `
     <!-- dc: Admin Home.dc.html › "Greeting row" -->
-    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+    <div class="mx-t-greet" style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
       <span class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;white-space:nowrap">${esc(greeting)}, <i>${esc(session.firstName())}</i>.</span>
       <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${fmt.todayLabel()}</span>
       <div style="flex:1"></div>
@@ -317,7 +363,7 @@ function blockProjects() {
         <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
       </div>
       <div class="mx-grid-5" style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
-        ${card('/projects/plexus', true, Number(conf.registration_open) ? '#9b1b22' : '#6d6459', (Number(conf.registration_open) || !conf.id ? c.plexus.live : c.plexus.closed) + ' · ' + esc(fmt.rangeLabel(conf.start_date || FACTS.plexus.start, conf.end_date || FACTS.plexus.end)), esc(c.plexus.title), esc(c.plexus.line(regs, D.cap, isLocked('gala') ? '—' : g.paid.length)), esc(c.plexus.parts))}
+        ${card('/projects/plexus', true, Number(conf.registration_open) ? '#9b1b22' : '#6d6459', (Number(conf.registration_open) || !conf.id ? c.plexus.live : c.plexus.closed) + ' · ' + esc(fmt.rangeLabel(conf.start_date || FACTS.plexus.start, conf.end_date || FACTS.plexus.end)), esc(c.plexus.title), esc(c.plexus.line(regs, D.cap, isLocked('gala') ? '— gala paid' : (g.ops ? `${g.ops.seats.paid} gala seat${g.ops.seats.paid === 1 ? '' : 's'} paid` : `${g.paid.length} gala booking${g.paid.length === 1 ? '' : 's'} paid`))), esc(c.plexus.parts))}
         ${card('/projects/accelerator', false, accColor, esc(accLabel), esc(c.accelerator.title), esc(c.accelerator.apps(apps)), D.institutions == null ? esc(FACTS.accelerator.hosts.length + ' host institutions (canonical)') : esc(c.accelerator.hosts(D.institutions)))}
         ${card('/projects/forum', false, '#6d6459', esc(s.forum ? fmt.upper(s.forum.status_label) : c.forum.eyebrow), esc(c.forum.title), esc(c.forum.line(members, D.forumCandidates)), esc(c.forum.gathering))}
         ${card('/projects/bridges', false, nb ? '#2f7d4f' : '#b7791f', nb ? esc(c.bridges.next(nbCity, nbWhen)) : c.bridges.none, esc(c.bridges.title), esc(c.bridges.line(D.bridges.past, nb ? Number(nb.registration_count || 0) : 0, nbCity)), esc((nb ? fmt.rangeLabel(nb.d) : FACTS.bridges.next.label) + ' · ' + nbVenue))}
@@ -349,9 +395,10 @@ function attentionRows() {
         </div>
         ${shown.map(row).join('')}
         ${!items.length ? `<div style="padding:26px 20px;text-align:center;font-size:13px;color:#6d6459">${a.empty}</div>` : ''}
-        <div style="display:flex;gap:18px;padding:12px 20px;align-items:baseline">
+        <div style="display:flex;gap:18px;padding:12px 20px;align-items:baseline;flex-wrap:wrap">
           <span style="font-size:11.5px;color:#6d6459">${a.foot}</span>
           <div style="flex:1"></div>
+          ${(() => { const plan = D.nag.find(n => n.kind === 'content_plan_missing'); return plan ? `<a href="${esc(routeForSection(((plan.action_payload || {}).open_section) || 'pr-media', '/studio'))}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;white-space:nowrap" data-hover="color:#201b16">${a.plan}</a>` : ''; })()}
           ${items.length > TOP_ROWS ? `<span data-act="showAll" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${st.showAll ? a.showLess : a.showAll(items.length)}</span>` : ''}
         </div>
       </div>`;
@@ -360,7 +407,7 @@ function blockAttention() {
   const shortcuts = shortcutDefs();
   return `
     <!-- dc: Admin Home.dc.html › "NEEDS YOUR ATTENTION" + "DO IT NOW" -->
-    <div class="mx-two" style="display:grid;grid-template-columns:1.6fr 1fr;gap:22px;align-items:start">
+    <div class="mx-two mx-t-attn" style="display:grid;grid-template-columns:1.6fr 1fr;gap:22px;align-items:start">
       <div style="border:1px solid rgba(32,27,22,.14);background:#fff">${attentionRows()}</div>
       <div style="display:flex;flex-direction:column;gap:22px">
         <div data-block="doit" style="border:1px solid rgba(32,27,22,.14);background:#fff">
@@ -401,7 +448,7 @@ function blockComingTasks() {
   const rows = comingUp();
   return `
     <!-- dc: Admin Home.dc.html › "COMING UP" + "TEAM TASKS" -->
-    <div class="mx-two" style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start">
+    <div class="mx-two mx-t-coming" style="display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start">
       <div data-block="coming" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
         <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.comingUp.title}</span>
         ${rows.map((r, i) => `<div style="display:flex;gap:12px;align-items:baseline;padding:8px 0;${i < rows.length - 1 ? 'border-bottom:1px solid rgba(32,27,22,.08)' : ''}"><span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:${r.color};white-space:nowrap">${esc(r.label)}</span><span style="font-size:12.5px;flex:1">${esc(r.text)}</span></div>`).join('')}
@@ -414,6 +461,13 @@ function blockComingTasks() {
 }
 function blockWeekly() {
   const w = COPY.weekly; const r = weeklyRead();
+  // UXFIX-A1 #15 (2026-09-02): no card until a REAL weekly read exists — the SAMPLE placeholder
+  // and the not-yet-compiled gate line were occupying prime space without doing work. The locked
+  // state stays (a real read may exist that this admin cannot see).
+  if (!r.locked && (r.mock || r.empty)) return `
+    <!-- dc: Admin Home.dc.html › "THE WEEKLY READ" -->
+    <!-- hidden: no real weekly read yet (UXFIX-A1 #15) -->
+    <!-- /dc -->`;
   const headline = r.locked ? w.locked : r.empty ? w.gate : r.headline;
   const label = r.locked || r.empty ? w.gateCta : (st.wrOpen ? w.hide : w.read);
   const head = r.locked || r.empty
@@ -432,12 +486,11 @@ function blockWeekly() {
     <!-- /dc -->`;
 }
 function blockFooter() {
-  const h = state.get().health || { label: 'CHECKING…', color: '#6d6459' };
+  // UXFIX-A1 #15 (2026-09-02): the SYSTEM HEALTH link repeated the header pill on the same screen — dropped, pill kept
   return `
     <!-- dc: Admin Home.dc.html › "ADMIN:" footer row -->
     <div data-block="footer" style="display:flex;gap:20px;align-items:center;padding-top:2px;flex-wrap:wrap">
       <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${COPY.footer.admin}</span>
-      <a href="/settings/health" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:${h.color}" data-hover="color:#201b16">${COPY.footer.health} · ${esc(h.label)}</a>
       <a href="/settings/audit" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459" data-hover="color:#201b16">${COPY.footer.audit}</a>
       <a href="${esc(cfg.memberPortalUrl || '/')}" target="_blank" rel="noopener" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459" data-hover="color:#201b16">${COPY.footer.member}</a>
     </div>
@@ -532,8 +585,9 @@ function blockDoIt() {
 }
 
 function startTimers() {
-  // health pill: refresh every 5 minutes while Today is mounted (state subscription redraws the pill + footer)
-  const off = state.subscribe((s, keys) => { if (keys.includes('health') && rootEl) { rerender('[data-block="pill"]', `<span data-block="pill">${pill()}</span>`); rerender('[data-block="footer"]', blockFooter()); } });
+  // health pill: refresh every 5 minutes while Today is mounted (state subscription redraws the pill;
+  // the footer no longer shows health — UXFIX-A1 #15)
+  const off = state.subscribe((s, keys) => { if (keys.includes('health') && rootEl) { rerender('[data-block="pill"]', `<span data-block="pill">${pill()}</span>`); } });
   timers.push(off);
   const id = setInterval(() => health.refresh(), 5 * 60 * 1000);
   timers.push(() => clearInterval(id));
@@ -543,6 +597,11 @@ export default {
   title: 'Today',
   async render(root, ctx) {
     rootEl = root;
+    // UXFIX-A1 #12 (2026-09-02): phone-order stylesheet (≤480px: attention + live counts first,
+    // brochure content after) — same id-guarded injection as the other views' css links.
+    if (!document.getElementById('mx-css-today')) {
+      const l = document.createElement('link'); l.id = 'mx-css-today'; l.rel = 'stylesheet'; l.href = '/css/views/today.css'; document.head.appendChild(l);
+    }
     st = { custOpen: ctx.query.qa === 'customise', wrOpen: false, wrAll: false, showAll: false, adding: false, taskDraft: '', taskWho: '' };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading

@@ -37,7 +37,11 @@ export const COPY = {
   confModal: { eyebrow: 'CONFERENCE SETTINGS', title: 'Plexus Week — dates, venue & capacity', start: 'FIRST DAY', end: 'LAST DAY', venue: 'VENUE', vcity: 'CITY', cap: 'CAPACITY (SEATS)', open: 'Registration open', save: 'SAVE', cancel: 'CANCEL', saved: 'CONFERENCE SAVED — EVERY SCREEN READS IT LIVE', capBad: 'CAPACITY MUST BE A WHOLE NUMBER OF SEATS' },
   stats: {
     days: 'DAYS TO GO', reg: 'CONFERENCE REGISTERED', regSub: cap => `CAP ${cap} · OPEN LIST →`,
-    gala: 'GALA SEATS', galaSub: (p, c) => `${p} PAID · ${c} TO CHASE →`,
+    // UXFIX closing (2026-09-02, audit #1): the cell counted registration ROWS, kept chasing
+    // cancelled ones, and called the result seats. Canonical numbers now come from
+    // /api/v2/gala-ops/summary (seats incl. plus-ones, cancelled/rejected/declined/expired out);
+    // an older backend falls back to the local rows and says BOOKINGS, which is what rows are.
+    gala: 'GALA SEATS', galaFallback: 'GALA BOOKINGS', galaSub: (p, c) => `${p} PAID · ${c} TO CHASE →`,
     speakers: 'SPEAKERS', speakersLive: n => `${n} live for members · manage →`, speakersDraft: 'program in draft · manage →',
     money: 'COLLECTED', moneySub: 'OPEN MONEY →', calendar: 'CALENDAR →'
   },
@@ -138,6 +142,7 @@ async function load() {
     pstats: api.get('/api/dashboard/portal-stats'),
     gala: api.get('/api/admin/gala/registrations'),
     gs: api.get('/api/admin/gala/settings'),
+    galaOps: api.get('/api/v2/gala-ops/summary'),   // UXFIX closing: ONE truth for the gala tallies (seats incl. plus-ones)
     sessions: api.get('/api/admin/plexus/sessions'),
     speakers: api.get('/api/admin/plexus/speakers'),
     meta: api.get('/api/v2/plexus-hub/speaker-meta'),
@@ -156,8 +161,10 @@ async function load() {
     ov: api.get('/api/v2/plexus-hub/stats-overrides?scope=' + STATS_SCOPE)
   });
   const conf = r.conf || {};
-  const galaRows = (Array.isArray(r.gala) ? r.gala : []).filter(g => !['rejected', 'cancelled'].includes(String(g.status || '')));
+  // Local fallback walk — same inactive list as gala-ops.js (declined/expired excluded too, audit #1)
+  const galaRows = (Array.isArray(r.gala) ? r.gala : []).filter(g => !['rejected', 'cancelled', 'declined', 'expired'].includes(String(g.status || '').toLowerCase()));
   const paid = galaRows.filter(g => g.payment_status === 'paid');
+  const galaOps = r.galaOps && r.galaOps.seats && r.galaOps.eur ? r.galaOps : null;
   const gs = r.gs || {};
   const ebDeadline = (gs.early_bird_deadline || FACTS.gala.priceFlip).slice(0, 10);
   const cmeList = Array.isArray(r.cme) ? r.cme : [];
@@ -168,6 +175,7 @@ async function load() {
     revenue: r.pstats && r.pstats.plexus ? Number(r.pstats.plexus.revenue || 0) : 0,
     gala: {
       rows: galaRows, paid, toChase: galaRows.filter(g => g.payment_status !== 'paid'),
+      ops: galaOps,
       settings: gs, price: galaPriceNow(gs), early: Number(gs.price_gala_early_bird) || FACTS.gala.priceEarly,
       regular: Number(gs.price_gala_regular) || FACTS.gala.priceRegular,
       ebDeadline, ebDays: fmt.daysUntil(ebDeadline),
@@ -213,7 +221,7 @@ function afterLabel() { // 'Dec 6' — the day after the last conference day
 }
 const weekOver = () => (fmt.daysUntil(D.conf.end_date || FACTS.plexus.end) || 0) < 0;
 function figLive() {
-  return { registered: D.regs == null ? '—' : String(D.regs), gala_paid: String(D.gala.paid.length), speakers_confirmed: String(spConfirmed().length), days_to_go: String(D.days) };
+  return { registered: D.regs == null ? '—' : String(D.regs), gala_paid: String(D.gala.ops ? D.gala.ops.seats.paid : D.gala.paid.length), speakers_confirmed: String(spConfirmed().length), days_to_go: String(D.days) };
 }
 function figEffective() {
   const live = figLive(); const out = {};
@@ -283,7 +291,8 @@ function blockTitle() {
 function blockStats() {
   const s = COPY.stats;
   const galaLocked = isLocked('gala');
-  const collected = galaLocked ? null : D.gala.collected + D.revenue;
+  const ops = D.gala.ops;
+  const collected = galaLocked ? null : (ops ? ops.eur.collected : D.gala.collected) + D.revenue;
   const live = spLive().length;
   const cell = (inner, href, act) => href
     ? `<a href="${href}" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block" data-hover="background:#fdfbf6;color:#201b16">${inner}</a>`
@@ -304,9 +313,9 @@ function blockStats() {
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.regs == null ? '—' : esc(fmt.num(D.regs))}</div>
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${esc(s.regSub(D.cap))}</div>`, '/registrations')}
         ${cell(`
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.gala}</div>
-          <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${galaLocked ? '—' : D.gala.rows.length}</div>
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${galaLocked ? esc(COPY.locked('plexus')) : esc(s.galaSub(D.gala.paid.length, D.gala.toChase.length))}</div>`, '/gala')}
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${ops ? s.gala : s.galaFallback}</div>
+          <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${galaLocked ? '—' : (ops ? ops.seats.reserved : D.gala.rows.length)}</div>
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${galaLocked ? esc(COPY.locked('plexus')) : esc(ops ? s.galaSub(ops.seats.paid, ops.seats.chase) : s.galaSub(D.gala.paid.length, D.gala.toChase.length))}</div>`, '/gala')}
         ${cell(`
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.speakers}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.speakers.length}</div>
@@ -490,7 +499,7 @@ function blockGala() {
         <div data-block="gala" style="background:#fff;border:1px solid rgba(32,27,22,.14)">
           <div style="padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em">${c.title}</span><span style="font-size:12px;color:#9a9086">${esc(c.when(when[0], when[1] || ''))}</span><div style="flex:1"></div><a href="/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${c.full}</a></div>
           ${galaLocked ? `<div style="padding:8px 0">${ui.lockedBlock(perms.label('plexus'))}</div>` : `
-          ${row({ id: 'gala-seats', tag: c.seats.tag(g.paid.length), tagColor: '#1e6e42', name: c.seats.name, status: c.seats.status(g.rows.length, g.toChase.length), action: c.seats.action, href: '/gala' })}
+          ${row({ id: 'gala-seats', tag: c.seats.tag(g.ops ? g.ops.seats.paid : g.paid.length), tagColor: '#1e6e42', name: c.seats.name, status: c.seats.status(g.ops ? g.ops.seats.reserved : g.rows.length, g.ops ? g.ops.seats.chase : g.toChase.length), action: c.seats.action, href: '/gala' })}
           ${row({ id: 'gala-waitlist', tag: c.waitlist.tag, tagColor: '#6d6459', name: c.waitlist.name, status: c.waitlist.status(D.waitn), action: c.waitlist.action, href: '/gala' })}
           ${row({ id: 'gala-donor', tag: D.croat ? c.donor.tag(D.croat) : c.donor.none, tagColor: D.croat ? '#1e6e42' : '#9b1b22', name: c.donor.name, status: D.croat ? c.donor.status(fmt.dayShort(D.conf.start_date || FACTS.plexus.start)) : c.donor.emptyStatus(fmt.dayShort(D.conf.start_date || FACTS.plexus.start)), action: c.donor.action, href: '/links' })}
           ${row({ id: 'gala-onday', tag: c.onday.tag, tagColor: '#6d6459', name: c.onday.name, status: c.onday.status, action: c.onday.action, href: '/event-day' })}`}

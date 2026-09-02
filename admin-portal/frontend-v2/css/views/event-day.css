@@ -11,3 +11,16 @@
 @media (max-width: 960px) {
   .mx-ed-doorlist { max-height: none !important; }
 }
+
+/* UXFIX-A1 #3 (2026-09-02): the door-staff link URL wraps inside its card (min-width:0 +
+   overflow-wrap:anywhere live inline on the span); at phone width it takes its own full line so
+   the buttons wrap below it and nothing can stretch the page sideways. */
+@media (max-width: 480px) {
+  [data-role="doorUrl"] { flex-basis: 100%; }
+}
+
+/* UXFIX-A1 #2 (2026-09-02): dense one-line door rows — at phone width the inline meta gives way
+   first (it ellipsizes); the name keeps at least half the line and the button never wraps under. */
+@media (max-width: 480px) {
+  .mx-ed-row .mx-row-text > span:first-child { max-width: 100% !important; }
+}

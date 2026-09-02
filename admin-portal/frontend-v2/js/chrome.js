@@ -5,6 +5,10 @@
 // v2 additions (no artboard): PROJECTS dropdown (Plexus · Accelerator · Forum · Bridges + Review Room ·
 // What members see · Event Day Room), EVENT DAY nav item on event dates, locked nav items, the ≤760px
 // MENU collapse (note 0a), assistant rows in the search field (note 14).
+// Audit 2026-09-02 #10: "/" and ⌘K/Ctrl+K focus the search box ("/" steps aside while a field has
+// focus); the results popover right-aligns and clamps inside the viewport; the palette carries
+// HR/EN operator vocabulary (`syn`) with diacritic folding, so "invoice", "račun"/"racun",
+// "putni nalog", "scan" or "badge" find their screens instead of "No matches".
 //
 //   import { chrome } from './chrome.js';
 //   chrome.mount();                 // once (app.js)
@@ -52,7 +56,10 @@ const PROJECTS = [
   { k: 'LINKS', label: COPY.projects.links, to: '/links', sub: 'invitation links', sections: ['plexus', 'bridges'] },
   { k: 'LIVE', label: COPY.projects.eventDay, to: '/event-day', sub: 'always reachable', sections: ['gameday', 'plexus'] }
 ];
-// search palette — SCREEN / ACTION entries (Admin Home.dc.html `palette`, retargeted to v2 routes)
+// search palette — SCREEN / ACTION entries (Admin Home.dc.html `palette`, retargeted to v2 routes).
+// Audit #10: `syn` carries the operator vocabulary — HR/EN synonyms ("invoice/račun",
+// "putni nalog", "scan", "badge") so the words people actually type find the screen; matching
+// folds diacritics both ways (see fold()), so "racun" finds "račun" and vice versa.
 const PALETTE = [
   { kind: 'SCREEN', label: 'Today', href: '/today' },
   { kind: 'SCREEN', label: 'Plexus Week hub', href: '/projects/plexus' },
@@ -60,25 +67,45 @@ const PALETTE = [
   { kind: 'SCREEN', label: 'Accelerator — Review Room', href: '/accelerator-review' },
   { kind: 'SCREEN', label: 'Biomedical Forum hub', href: '/projects/forum' },
   { kind: 'SCREEN', label: 'Building Bridges hub', href: '/projects/bridges' },
-  { kind: 'SCREEN', label: 'Gala Evening — guests, seating, chase', href: '/gala' },
-  { kind: 'SCREEN', label: 'Inbox — email, outbox, chat', href: '/inbox' },
-  { kind: 'SCREEN', label: 'People', href: '/people' },
-  { kind: 'SCREEN', label: 'Registrations — all events', href: '/registrations' },
-  { kind: 'SCREEN', label: 'Money', href: '/money' },
-  { kind: 'SCREEN', label: 'Calendar & tasks', href: '/calendar' },
+  { kind: 'SCREEN', label: 'Gala Evening — guests, seating, chase', syn: 'seating stol stolovi raspored sjedenja meal menu večera kitchen gosti naplata', href: '/gala' },
+  { kind: 'SCREEN', label: 'Inbox — email, outbox, chat', syn: 'poruke pošta mail', href: '/inbox' },
+  { kind: 'SCREEN', label: 'People', syn: 'ljudi članovi members kontakti directory imenik', href: '/people' },
+  { kind: 'SCREEN', label: 'Registrations — all events', syn: 'prijave registracije sign-ups sudionici attendees', href: '/registrations' },
+  { kind: 'SCREEN', label: 'Money', syn: 'novac finance financije knjige računi bookkeeping', href: '/money' },
+  { kind: 'SCREEN', label: 'Calendar & tasks', syn: 'kalendar zadaci rokovi deadlines', href: '/calendar' },
   { kind: 'SCREEN', label: 'Studio', href: '/studio' },
-  { kind: 'SCREEN', label: 'Settings', href: '/settings' },
-  { kind: 'SCREEN', label: 'System health', href: '/settings/health' },
-  { kind: 'SCREEN', label: 'Event Day room', href: '/event-day' },
-  { kind: 'SCREEN', label: 'What members see', href: '/member-pages' },
-  { kind: 'SCREEN', label: 'Invitation links', href: '/links' },
-  { kind: 'ACTION', label: 'New task', href: '/calendar/tasks' },
-  { kind: 'ACTION', label: 'Open the check-in scanner', href: '/event-day' },
-  { kind: 'ACTION', label: 'Email registrants', href: '/inbox/email' },
-  { kind: 'ACTION', label: 'Post news to members', href: '/inbox/announcements' },
-  { kind: 'ACTION', label: 'Create a guest pass', href: '/people' },
-  { kind: 'ACTION', label: 'Change my display name', href: '#profile' }
+  { kind: 'SCREEN', label: 'Settings', syn: 'postavke team tim pristup access', href: '/settings' },
+  { kind: 'SCREEN', label: 'System health', syn: 'env keys zdravlje provjere checks', href: '/settings/health' },
+  { kind: 'SCREEN', label: 'Event Day room', syn: 'door vrata check-in kontrola live', href: '/event-day' },
+  { kind: 'SCREEN', label: 'What members see', syn: 'member pages publish objavi', href: '/member-pages' },
+  { kind: 'SCREEN', label: 'Invitation links', syn: 'qr link poveznica invite pozivnica registration', href: '/links' },
+  { kind: 'ACTION', label: 'New task', syn: 'zadatak todo', href: '/calendar/tasks' },
+  { kind: 'ACTION', label: 'Open the check-in scanner', syn: 'scan qr skener skeniraj check in door vrata ulaz', href: '/event-day' },
+  { kind: 'ACTION', label: 'Email registrants', syn: 'send mail pošalji poruka bulk', href: '/inbox/email' },
+  { kind: 'ACTION', label: 'Post news to members', syn: 'announcement obavijest novosti', href: '/inbox/announcements' },
+  { kind: 'ACTION', label: 'Create a guest pass', syn: 'vip pass propusnica gost', href: '/people' },
+  { kind: 'ACTION', label: 'Change my display name', syn: 'profile profil ime', href: '#profile' },
+  // ---- operator vocabulary → destinations (audit #10: "invoice" used to return "No matches") ----
+  { kind: 'ACTION', label: 'Upiši račun — Money · Knjiga ulaznih računa', syn: 'invoice račun incoming ulazni trošak expense bill supplier dobavljač enter', href: '/money/ulazni' },
+  { kind: 'ACTION', label: 'Izlazni računi — Money · Knjiga izlaznih računa', syn: 'invoice račun outgoing izlazni fira fiskalizirani naplata kupac customer', href: '/money/izlazni' },
+  { kind: 'ACTION', label: 'Putni nalog — Money · Putni nalozi', syn: 'travel order putni nalog trip put reimbursement', href: '/money/putni' },
+  { kind: 'ACTION', label: 'Nalog za plaćanje — Money', syn: 'payment order nalog plaćanje pay wire transfer', href: '/money/nalozi' },
+  { kind: 'ACTION', label: 'Radne jedinice — Money', syn: 'work unit radna jedinica grant budget proračun', href: '/money/jedinice' },
+  { kind: 'ACTION', label: 'Izvještaji — Money reports', syn: 'report izvještaj export csv presjek po projektu osobi', href: '/money/izvjestaji' },
+  { kind: 'ACTION', label: 'Otvorena potraživanja — still owed', syn: 'owed potraživanja refund chase unpaid dug naplata receivables', href: '/money/owed' },
+  { kind: 'ACTION', label: 'Chase a Gala payment', syn: 'chase refund unpaid reminder podsjetnik dug gala seat mjesto', href: '/gala' },
+  { kind: 'ACTION', label: 'Gala seating board', syn: 'seat seating stol table raspored sjedenja assign', href: '/gala' },
+  { kind: 'ACTION', label: 'Kitchen sheet — Gala meals', syn: 'kitchen meal menu večera jelovnik hrana dietary kuhinja', href: '/gala' },
+  { kind: 'ACTION', label: 'Approve & send — Outbox', syn: 'approve outbox odobri pošalji queue batch waiting ok', href: '/inbox' },
+  { kind: 'ACTION', label: 'Badges & QR — Event Day room', syn: 'badge bedž qr ticket ulaznica akreditacija door scan', href: '/event-day' }
 ];
+// diacritic folding for the palette — "racun" ⇄ "račun", "bedz" ⇄ "bedž"
+const fold = s => String(s || "").toLowerCase().replace(/\u0111/g, "d").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+function paletteMatches(q) {
+  const toks = fold(q).split(/\s+/).filter(Boolean);
+  if (!toks.length) return [];
+  return PALETTE.filter(p => { const hay = fold(p.label + ' ' + (p.syn || '')); return toks.every(t => hay.includes(t)); });
+}
 const IMPERATIVE = /^(email|send|add|create|make|chase|remind|invite|schedule|publish|post|change|update|set|open|show|how|what|who|list|find|count|which|when|where|draft|queue|approve|cancel|delete|remove|rename|move|export|generate|book|tell|give|explain|can)\b/i;
 
 const NAV_ON = 'font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box';
@@ -112,7 +139,7 @@ function searchResults() {
   const q = searchState.q.trim(), qv = q.toLowerCase();
   if (!qv) return '';
   const rows = [];
-  PALETTE.filter(p => p.label.toLowerCase().includes(qv)).slice(0, 6).forEach(p => rows.push({ kind: p.kind, label: p.label, href: p.href }));
+  paletteMatches(q).slice(0, 6).forEach(p => rows.push({ kind: p.kind, label: p.label, href: p.href }));
   searchState.people.slice(0, 6).forEach(p => rows.push({ kind: 'PERSON', label: `${p.name} — ${p.event || p.type}${p.status ? ', ' + p.status : ''}`, href: routeForSection(p.section || 'people', '/people') }));
   const a = searchState.assistant;
   let assist = '';
@@ -127,7 +154,7 @@ function searchResults() {
     </div>`;
   }
   const askRow = !a && !searchState.busy ? `<div class="mx-pop-row" data-act="ask"><span class="mx-pop-kind">ASK</span><span style="flex:1;min-width:0">“${esc(q)}” — ask the assistant ↵</span></div>` : '';
-  return `<div class="mx-pop" role="listbox" data-stop="1">
+  return `<div class="mx-pop" role="listbox" data-stop="1" style="left:auto;right:0;width:min(320px,calc(100vw - 32px))">
     ${rows.map(r => `<a href="${esc(r.href)}" class="mx-pop-row" data-act="result" data-href="${esc(r.href)}"><span class="mx-pop-kind">${r.kind}</span><span style="flex:1;min-width:0">${esc(r.label)}</span></a>`).join('')}
     ${!rows.length && !a && !searchState.busy ? `<div class="mx-pop-note">${COPY.search.none}</div>` : ''}
     ${askRow}${assist}
@@ -264,7 +291,22 @@ export const chrome = {
     els.chrome = document.getElementById('chrome');
     els.overlays = document.getElementById('chrome-overlays');
     ui.bind(els.chrome, handlers);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePopover(); document.body.classList.remove('menu-open'); } });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closePopover(); document.body.classList.remove('menu-open'); return; }
+      // audit #10: "/" and ⌘K / Ctrl+K land the cursor in the search box. "/" steps aside
+      // while any field has focus (people type slashes); the chord works from anywhere.
+      const cmdK = (e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'k';
+      const slash = e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey;
+      if (!cmdK && !slash) return;
+      const t = e.target;
+      const typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''));
+      if (slash && typing) return;
+      const q = els.chrome && els.chrome.querySelector('[data-role="q"]');
+      if (!q) return;
+      e.preventDefault();
+      q.focus();
+      try { q.select(); } catch (err) {}
+    });
     document.addEventListener('click', e => {
       if (!popover) return;
       if (e.target.closest('[data-stop]') || e.target.closest('[data-act="profile"]') || e.target.closest('[data-act="projects"]') || e.target.closest('[data-role="q"]') || e.target.closest('.mx-projects')) return;

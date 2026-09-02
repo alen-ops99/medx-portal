@@ -44,10 +44,54 @@ export const FACTS = Object.freeze({
   projectOrder: Object.freeze(['plexus', 'gala', 'accelerator', 'forum', 'bridges'])
 });
 
-// Gala price by the clock (README: flips automatically on Sep 1). Production reads server config
+// Gala price by the clock (flips on FACTS.gala.priceFlip). Production reads server config
 // (/api/public/site price.current) first; this is the fallback.
 export function galaPriceNow(now = new Date()) {
   return now < new Date(FACTS.gala.priceFlip + 'T00:00:00+02:00') ? FACTS.gala.priceEarly : FACTS.gala.priceRegular;
+}
+
+// ---------------------------------------------------------------------------------------------
+// TWO VERBS, EVERYWHERE (UX audit 2026-09-02 › item 6).
+// The portal offers exactly two registration actions, and every screen says them the same way:
+// the conference (and Building Bridges) are free to register for, the Gala is a seat you reserve
+// at the price of the day. No view invents a third wording — import these, never retype them.
+export const CTA = Object.freeze({
+  register: 'REGISTER — FREE',
+  reserve: price => `RESERVE A SEAT · ${price}`
+});
+
+// ---------------------------------------------------------------------------------------------
+// ONE DATE TRUTH (UX audit 2026-09-02 › item 1).
+// Admin-edited free text (plexus settings `key_dates`, the /api/public/status detail lines) has
+// drifted from these facts before — Home quoted a gala early bird ending 1 Sep while the Gala,
+// Plexus and the form all said 15 Sep, and Boston appeared as three different dates on one screen.
+// A row whose LABEL names a fact we hold is re-dated from FACTS here, so no two screens can quote
+// different dates for the same thing. Labels, order and any row we don't recognise stay untouched.
+// Order matters, and each test names its subject exactly: "Plexus Conference & Gala" is the
+// conference range, "Gala seats" is the gala night, and a row like "Donor Night — during Plexus
+// Week" names neither, so it keeps whatever date the admin gave it.
+const DATE_TRUTH = [
+  { test: /early.?bird|price\s*(flip|change)/i, date: () => `Until ${FACTS.gala.priceFlipLabel}` },
+  { test: /building bridges|boston/i, date: () => FACTS.bridges.next.label },
+  { test: /accelerator/i, date: () => FACTS.accelerator.opensLabel },
+  { test: /plexus conference|conference\s*(&|and)\s*gala|plexus\s*20\d{2}/i, date: () => FACTS.plexus.dateRange },
+  { test: /\bgala\b/i, date: () => FACTS.gala.dateLabel }
+];
+export function trueDateFor(label) {
+  const s = String(label == null ? '' : label);
+  if (!s) return null;
+  const hit = DATE_TRUTH.find(r => r.test.test(s));
+  return hit ? hit.date() : null;
+}
+
+// Repairs a stale early-bird deadline inside admin prose ("€150 through 1 Sep", "until Sep 1").
+// Only fires on a sentence that is actually about the price, and only rewrites the date token that
+// follows through/until/till/before — everything else the admin wrote survives verbatim.
+const EB_DEADLINE = /\b(through|until|till|before)\s+((?:\d{1,2}\s*(?:st|nd|rd|th)?\s*)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:\s*\d{1,2})?)/i;
+export function reconcileEarlyBird(text) {
+  const s = String(text == null ? '' : text);
+  if (!s || !/early.?bird|€|\bEUR\b/i.test(s)) return s;
+  return s.replace(EB_DEADLINE, (_, lead) => `${lead} ${FACTS.gala.priceFlipLabel}`);
 }
 
 // v2 client routes per project key (cta_target from /api/public/status → route)

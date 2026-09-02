@@ -50,10 +50,12 @@ export const COPY = {
   csvBtn: 'KITCHEN SHEET (CSV)', csvDone: 'KITCHEN SHEET DOWNLOADED', csvFile: 'gala-kitchen-sheet.csv',
   eventDay: 'EVENT DAY ROOM →',
   kpi: {
-    reserved: 'RESERVED', reservedSub: 'seats spoken for',
-    paid: 'PAID', paidSub: v => `${fmt.eur(v)} collected`,
-    chase: 'TO CHASE', chaseSub: v => `${fmt.eur(v)} outstanding`,
-    seated: 'SEATED', seatedSub: r => `of ${r} · rest unassigned`,
+    // Audit 2026-09-02 #1: every stat names its basis — these are SEATS (plus-ones included),
+    // and the numbers come from the shared /api/v2/gala-ops/summary, the same read Money uses.
+    reserved: 'RESERVED', reservedSub: 'seats spoken for · incl. plus-ones',
+    paid: 'PAID', paidSub: v => `seats paid · ${fmt.eur(v)} collected`,
+    chase: 'TO CHASE', chaseSub: v => `seats unpaid · ${fmt.eur(v)} outstanding`,
+    seated: 'SEATED', seatedSub: r => `of ${r} seats · rest unassigned`,
     room: 'ROOM', roomSub: 'tables × seats · limited by design'
   },
   list: {
@@ -91,7 +93,7 @@ export const COPY = {
     restored: 'SEAT RESTORED'
   },
   board: {
-    title: 'SEATING BOARD', hint: 'assign tables in the list — this fills in live',
+    title: 'SEATING BOARD', hint: 'tap a table to seat a guest — the list dropdowns still work',
     foot: 'Hover a table to see who sits there · the head table is T1. The walk-the-room 3D view builds on this same plan in production.',
     empty: 'empty',
     addTable: '+ TABLE', addTitle: 'Add a table', create: 'CREATE TABLE',
@@ -109,7 +111,14 @@ export const COPY = {
     unseatedNone: 'Everyone active is placed.',
     unseatedMore: n => `+ ${n} more — assign from the list`,
     seatTitle: name => `Seat ${name}`, full: 'FULL',
-    seated: (name, t) => `${name.toUpperCase()} → ${t} — WALLET PASS UPDATES TOO`
+    seated: (name, t) => `${name.toUpperCase()} → ${t} — WALLET PASS UPDATES TOO`,
+    // audit #14: the board is an input now — tap a table tile, pick the guest, done
+    tileTitle: (l, n, cap) => `Table <i>${esc(l)}</i> — ${n}/${cap}`,
+    tilePick: 'TAP A GUEST TO SEAT THEM HERE',
+    tileFull: 'This table is full — unseat someone from it (✎) or pick another table.',
+    tileNone: 'Everyone active already has a table.',
+    tileHint: 'Assigning stamps seat_number onto the registration — the wallet pass updates too. The row dropdowns in the guest list stay as the fallback.',
+    filterList: l => `SHOW TABLE ${l} IN THE LIST`
   },
   cat: {
     title: 'Guest categories',
@@ -295,6 +304,13 @@ function unseatedRows() {
 }
 
 function menuSorted() { return (D.menu || []).slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)); }
+// Audit #14: 'Meat / Standard' overflowed its own select ("MEAT / STANDA▾"). The dropdown shows
+// the short form — the first segment before any / — · ( dash — and the full label rides the
+// select's title (and stays intact in MENU OPTIONS and the kitchen count).
+function mealShort(o) {
+  const full = String((o && o.label) || '');
+  return (full.split(/[\/·(—–-]/)[0].trim() || full).toUpperCase();
+}
 function defaultOption() { const m = menuSorted(); return m.find(o => o.is_default) || m[0] || null; }
 function deriveOption(r) {
   const text = String(r.dietary || '').trim().toLowerCase();
@@ -332,6 +348,19 @@ function chipOf(r) {
 }
 
 function stats() {
+  // ONE truth (audit #1): the KPI strip reads the server's canonical summary — the same
+  // /api/v2/gala-ops/summary computation Money's gala line reads — so the two screens can
+  // never disagree again. The local math below survives ONLY as the fallback for an
+  // overview read that failed (D.errors.ops); it is the identical formula, not a rival one.
+  const sv = D.ops && D.ops.summary;
+  if (sv && sv.seats) {
+    return {
+      reserved: sv.seats.reserved, paidSeats: sv.seats.paid, chaseSeats: sv.seats.chase,
+      seated: sv.seats.seated,
+      collected: (sv.eur && sv.eur.collected) || 0,
+      owed: (sv.eur && sv.eur.outstanding) || 0
+    };
+  }
   const act = D.regs.filter(isActive);
   const am = assignMap();
   const reserved = act.reduce((n, r) => n + seatsOf(r), 0);
@@ -433,13 +462,13 @@ function guestRow(r) {
   const sure = st.cancelConfirm === r.id;
   const hint = [r.dietary ? 'Dietary: ' + r.dietary : '', r.requests ? 'Requests: ' + r.requests : ''].filter(Boolean).join(' · ');
   return `
-    <div data-row="${esc(r.id)}" class="mx-gala-row" style="display:grid;grid-template-columns:1.7fr 92px 96px 1fr auto;gap:10px;padding:9px 18px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center">
+    <div data-row="${esc(r.id)}" class="mx-gala-row" style="display:grid;grid-template-columns:1.7fr 92px 112px 1fr auto;gap:10px;padding:9px 18px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center">
       <span style="min-width:0" ${hint ? `title="${esc(hint)}"` : ''}><span style="display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nameOf(r))}</span><span style="display:block;font-size:10.5px;color:#6d6459">${subBits.join(' · ')}</span></span>
       <select data-role="tableSel" data-id="${esc(r.id)}" aria-label="Table for ${esc(nameOf(r))}" style="border:1px solid rgba(32,27,22,.2);background:#f6f2ea;padding:6px 4px;font:600 11px Inter,sans-serif;color:#201b16;width:100%">
         <option value="">—</option>${tablesSorted().map(x => `<option value="${esc(x.id)}"${t && t.id === x.id ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}
       </select>
-      <select data-role="mealSel" data-id="${esc(r.id)}" aria-label="Meal for ${esc(nameOf(r))}" style="border:1px solid rgba(32,27,22,.2);background:#f6f2ea;padding:6px 4px;font:600 11px Inter,sans-serif;color:#201b16;width:100%">
-        ${menuSorted().map(o => `<option value="${esc(o.id)}"${meal && meal.id === o.id ? ' selected' : ''}>${esc(String(o.label).toUpperCase())}</option>`).join('')}
+      <select data-role="mealSel" data-id="${esc(r.id)}" aria-label="Meal for ${esc(nameOf(r))}" title="${esc((meal && meal.label) || '')}" style="border:1px solid rgba(32,27,22,.2);background:#f6f2ea;padding:6px 4px;font:600 11px Inter,sans-serif;color:#201b16;width:100%">
+        ${menuSorted().map(o => `<option value="${esc(o.id)}" title="${esc(o.label)}"${meal && meal.id === o.id ? ' selected' : ''}>${esc(mealShort(o))}</option>`).join('')}
       </select>
       <span style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
         ${st.catEdit === r.id
@@ -493,7 +522,7 @@ function blockList() {
       <span data-act="addToggle" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.list.add}</span>
     </div>
     <span data-block="addwrap">${addPanel()}</span>
-    <div class="mx-gala-head" style="display:grid;grid-template-columns:1.7fr 92px 96px 1fr auto;gap:10px;padding:8px 18px;border-bottom:1px solid rgba(32,27,22,.12);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;align-items:center"><span>${COPY.list.cols.guest}</span><span>${COPY.list.cols.table}</span><span>${COPY.list.cols.meal}</span><span>${COPY.list.cols.status}</span><span></span></div>
+    <div class="mx-gala-head" style="display:grid;grid-template-columns:1.7fr 92px 112px 1fr auto;gap:10px;padding:8px 18px;border-bottom:1px solid rgba(32,27,22,.12);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;align-items:center"><span>${COPY.list.cols.guest}</span><span>${COPY.list.cols.table}</span><span>${COPY.list.cols.meal}</span><span>${COPY.list.cols.status}</span><span></span></div>
     <div data-block="rows">${rowsHtml()}</div>
   </div>
   <!-- /dc -->`;
@@ -566,7 +595,7 @@ function boardCells() {
     const bg = n ? (n >= cap ? '#f1e7d4' : '#fdfbf6') : 'transparent';
     const bd = n ? '#c9a962' : 'rgba(32,27,22,.18)';
     const fg = n >= cap ? '#7a6432' : '#201b16';
-    return `<span data-act="tableFilter" data-label="${esc(t.label)}" title="${esc(who)}" style="position:relative;border:1px solid ${bd};background:${bg};padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">
+    return `<span data-act="tileSeat" data-id="${esc(t.id)}" data-label="${esc(t.label)}" title="${esc(who)}" style="position:relative;border:1px solid ${bd};background:${bg};padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">
         <span data-act="tblEdit" data-id="${esc(t.id)}" data-v2="table-tools" title="${COPY.board.editTitle}" style="position:absolute;top:1px;right:4px;font:400 10px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#201b16">✎</span>
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.1em;color:#201b16">${esc(t.label)}</span>
         <span style="font-family:Fraunces,serif;font-size:16px;color:${fg}">${n}/${cap}</span>
@@ -880,8 +909,51 @@ const handlers = {
   chipFilter: (el) => { const b = el.dataset.bucket; st.filter = st.filter === b ? 'all' : b; redrawLive(); },
   clearFilter: () => { st.filter = 'all'; redrawLive(); },
   clearTable: () => { st.filterTable = null; redrawLive(); },
-  tableFilter: (el) => { const l = el.dataset.label; st.filterTable = st.filterTable === l ? null : l; redrawLive(); },
   toggleCancelled: () => { st.showCancelled = !st.showCancelled; redrawLive(); },
+
+  // audit #14: the board is the input — tap a table tile, pick the guest, seated. Goes through
+  // the EXISTING /api/admin/gala/tables/:id/assign route (seat_number mirror included); the
+  // old tap-to-filter lives on as an action inside the same popover.
+  tileSeat: (el) => {
+    const t = tableById(el.dataset.id); if (!t) return;
+    const am = assignMap();
+    const act = D.regs.filter(isActive);
+    const at = act.filter(r => am[r.id] === t.id);
+    const n = at.reduce((s, r) => s + seatsOf(r), 0);
+    const cap = Number(t.capacity) || 8;
+    const un = unseatedRows();
+    const full = n >= cap;
+    const label = 'font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459';
+    const body = `
+      ${at.length ? `<div style="${label};margin-bottom:4px">${COPY.board.seatedAt}</div><div style="font-size:12.5px;line-height:1.6;margin-bottom:12px">${at.map(r => esc(nameOf(r)) + (seatsOf(r) > 1 ? ` <span style="color:#6d6459;font-size:10.5px">+${seatsOf(r) - 1}</span>` : '')).join(' · ')}</div>` : ''}
+      ${full
+        ? `<div style="font-size:12.5px;color:#7a6432;line-height:1.6">${COPY.board.tileFull}</div>`
+        : un.length
+          ? `<div style="${label};margin-bottom:6px">${COPY.board.tilePick}</div>
+             <div style="display:flex;gap:6px;flex-wrap:wrap;max-height:220px;overflow:auto">${un.map(r =>
+               `<span data-act="seatHere" data-id="${esc(r.id)}" title="${esc(COPY.board.seatTitle(nameOf(r)))}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.08em;padding:5px 9px;background:#fdfbf6;border:1px solid rgba(32,27,22,.22);cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${esc(nameOf(r))}${seatsOf(r) > 1 ? ` +${seatsOf(r) - 1}` : ''}</span>`).join('')}</div>`
+          : `<div style="font-size:12.5px;color:#6d6459;font-style:italic">${COPY.board.tileNone}</div>`}
+      <div style="font-size:11px;color:#6d6459;line-height:1.55;margin-top:12px">${COPY.board.tileHint}</div>`;
+    const m = ui.modal({
+      eyebrow: 'SEATING BOARD', title: COPY.board.tileTitle(t.label, n, cap), body,
+      actions: [
+        { label: COPY.board.filterList(esc(t.label)), onClick: () => { st.filterTable = t.label; redrawLive(); } },
+        { label: 'CLOSE', kind: 'primary' }
+      ]
+    });
+    ui.bind(m.el, {
+      seatHere: async (btn) => {
+        busy(btn, true);
+        try {
+          await api.post('/api/admin/gala/tables/' + encodeURIComponent(t.id) + '/assign', { registration_id: btn.dataset.id });
+          m.close();
+          const r = regById(btn.dataset.id);
+          ui.toast(COPY.board.seated(r ? nameOf(r) : 'GUEST', t.label));
+          if (rootEl) refresh({ regs: false });
+        } catch (e) { busy(btn, false); ui.toast(e.message, { kind: 'error' }); }
+      }
+    });
+  },
 
   // ---- TABLE TOOLS (build 2026-08-31 — the old portal's table CRUD, on the board itself;
   // all three go through the EXISTING /api/admin/gala/tables routes, never a v2 duplicate) ----
