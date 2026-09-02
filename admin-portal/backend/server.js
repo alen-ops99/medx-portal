@@ -8280,7 +8280,7 @@ async function initializeApp() {
     // and so the shared DB schema is consistent regardless of which service boots first.
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_early_bird REAL DEFAULT 150"); } catch(e) {}
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_regular REAL DEFAULT 175"); } catch(e) {}
-    try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-01'"); } catch(e) {}
+    try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-15'"); } catch(e) {}
     // Admin-editable copy for the public /plexus page (mirror of the user-portal table so the
     // admin GET/PUT work regardless of boot order; seeded once with launch defaults).
     db.run(`CREATE TABLE IF NOT EXISTS plexus_page_settings (
@@ -8647,8 +8647,8 @@ async function initializeApp() {
         const _yc = query.get('SELECT COUNT(*) AS n FROM year_calendar_entries');
         if (!_yc || _yc.n === 0) {
             const seed = [
-                ['Building Bridges — Boston',       'bridges', '2026-09-01', null,         'potential', '#2563eb', 'Boston edition — date to be confirmed'],
-                ['Plexus early-bird deadline',      'plexus',  '2026-09-01', null,         'confirmed', '#b45309', 'Early-bird registration closes'],
+                ['Building Bridges — Boston',       'bridges', '2026-09-15', null,         'potential', '#2563eb', 'Boston edition — date to be confirmed'],
+                ['Plexus early-bird deadline',      'plexus',  '2026-09-15', null,         'confirmed', '#b45309', 'Early-bird registration closes'],
                 ['Plexus Donor Night',              'plexus',  '2026-12-04', null,         'confirmed', '#9b1b22', 'Esplanade salon, Zagreb'],
                 ['Plexus Week — Conference',        'plexus',  '2026-12-04', '2026-12-05', 'confirmed', '#9b1b22', 'Novinarski dom, Zagreb'],
                 ['Plexus Gala',                     'gala',    '2026-12-05', null,         'confirmed', '#c9a962', 'Hotel Esplanade, Zagreb'],
@@ -8696,7 +8696,7 @@ async function initializeApp() {
     if (!conf) {
         const confId = uuidv4();
         db.run(`INSERT INTO conferences (id, name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, early_bird_deadline, regular_deadline, abstract_deadline)
-            VALUES (?, 'Plexus Conference 2026', 2026, 'plexus-2026', 'Where young biomedical minds connect', '2026-12-04', '2026-12-05', 'Hotel Esplanade', 'Zagreb', 'Croatia', '2026-09-01', '2026-11-15', '2026-10-01')`,
+            VALUES (?, 'Plexus Conference 2026', 2026, 'plexus-2026', 'Where young biomedical minds connect', '2026-12-04', '2026-12-05', 'Hotel Esplanade', 'Zagreb', 'Croatia', '2026-09-15', '2026-11-15', '2026-10-01')`,
             [confId]);
 
         const tickets = [
@@ -23116,7 +23116,7 @@ By applying to this program, I provide the following consents:
     // seeded project_status rows; daysLeft is computed at generation time.
     function digestKnownDeadlines() {
         return [
-            { key: 'gala_earlybird', date: '2026-09-01', section: 'gala', urgent: 'register at the early-bird gala price', friendly: 'The early-bird gala price of EUR 150 runs through 1 September.' },
+            { key: 'gala_earlybird', date: '2026-09-15', section: 'gala', urgent: 'register at the early-bird gala price', friendly: 'The early-bird gala price of EUR 150 runs through 1 September.' },
             { key: 'accelerator', date: '2026-11-01', section: 'accelerator', urgent: 'get your Accelerator application ready', friendly: 'Med&X Accelerator applications open in November.' },
             { key: 'plexus', date: '2026-12-04', section: 'plexus', urgent: 'pre-register for Plexus 2026 in Zagreb', friendly: 'Plexus 2026 comes to Zagreb on December 4-5.' },
             { key: 'gala', date: '2026-12-05', section: 'gala', urgent: 'reserve your seat at the Med&X Gala', friendly: 'The Med&X Gala is on December 5 at Hotel Esplanade.' }
@@ -30134,7 +30134,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                     try { comp = query.get("SELECT price FROM event_components WHERE event_type='plexus' AND component_key='gala' AND is_active=1"); } catch (e) {}
                     const ebPrice = (comp && comp.price != null) ? Number(comp.price) : Number(settings.price_gala_early_bird);
                     const regularPrice = Number.isFinite(Number(settings.price_gala_regular)) ? Number(settings.price_gala_regular) : ebPrice;
-                    const deadline = settings.early_bird_deadline || '2026-09-01';
+                    const deadline = settings.early_bird_deadline || '2026-09-15';
                     const price = Number.isFinite(ebPrice)
                         ? (new Date().toISOString().slice(0, 10) <= deadline ? ebPrice : regularPrice)
                         : (Number(settings.price_gala_only) || 150);

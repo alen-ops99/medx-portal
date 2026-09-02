@@ -691,28 +691,42 @@ const GALA_KEYNOTES_2026 = [
 ];
 // Fully self-contained (inline styles only) so it renders identically on every public
 // surface — the /plexus page, the croatians-abroad invite, and the gala invite — none of
-// which share the same CSS class definitions.
-function galaKeynoteBlock() {
-    const label = 'font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;';
+// which share the same CSS class definitions. `light=true` renders the cream house-token
+// variant for the reskinned /plexus page (UXFIX-M2 #3); the default keeps the dark tokens
+// for the two ink-shelled invite surfaces. Broken images now collapse (display:none) instead
+// of reserving empty space — no grey rectangles on any origin.
+function galaKeynoteBlock(light) {
+    const T = light ? {
+        label: '#6e5626', name: '#191512', role: '#6e5626', imgBg: '#f7f1e6', shadow: '',
+        wrap: 'background:#fdfaf3;border:1px solid rgba(201,169,98,.5);border-radius:0;',
+        card: 'background:#f7f1e6;border:1px solid rgba(25,21,18,.12);border-radius:0;',
+        rule: 'rgba(25,21,18,.12)'
+    } : {
+        label: '#c9a962', name: '#fff', role: '#e8c97a', imgBg: '#1e293b', shadow: 'box-shadow:0 4px 14px rgba(0,0,0,0.28);',
+        wrap: 'background:linear-gradient(135deg,rgba(201,169,98,0.10),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.28);border-radius:14px;',
+        card: 'background:rgba(255,255,255,0.025);border:1px solid rgba(201,169,98,0.16);border-radius:14px;',
+        rule: 'rgba(201,169,98,0.18)'
+    };
+    const label = `font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${T.label};`;
     // Centered card: large circular photo on top, name + role/place beneath. object-fit:cover
-    // fills the whole circle (no gap inside the ring); object-position:center top keeps faces framed.
+    // fills the whole circle (no gap inside the ring).
     const cards = GALA_KEYNOTES_2026.map(k => `
-            <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:16px 12px;background:rgba(255,255,255,0.025);border:1px solid rgba(201,169,98,0.16);border-radius:14px;">
-                <img src="${k.img}" alt="${escapeHtml(k.name)}" loading="lazy" style="width:90px;height:90px;border-radius:50%;object-fit:cover;object-position:center;border:3px solid #c9a962;background:#1e293b;display:block;box-shadow:0 4px 14px rgba(0,0,0,0.28);" onerror="this.style.visibility='hidden'">
-                <div style="font-size:14.5px;font-weight:600;color:#fff;line-height:1.25;margin-top:13px;">${escapeHtml(k.name)}</div>
-                <div style="font-size:12px;font-style:italic;color:#e8c97a;margin-top:4px;line-height:1.4;">${escapeHtml(k.role)}${k.place ? '<br>' + escapeHtml(k.place) : ''}</div>
+            <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:16px 12px;${T.card}">
+                <img src="${k.img}" alt="${escapeHtml(k.name)}" loading="lazy" style="width:90px;height:90px;border-radius:50%;object-fit:cover;object-position:center;border:3px solid #c9a962;background:${T.imgBg};display:block;${T.shadow}" onerror="this.style.display='none'">
+                <div style="font-size:14.5px;font-weight:600;color:${T.name};line-height:1.25;margin-top:13px;">${escapeHtml(k.name)}</div>
+                <div style="font-size:12px;font-style:italic;color:${T.role};margin-top:4px;line-height:1.4;">${escapeHtml(k.role)}${k.place ? '<br>' + escapeHtml(k.place) : ''}</div>
             </div>`).join('');
-    return `<div style="background:linear-gradient(135deg,rgba(201,169,98,0.10),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.28);border-radius:14px;padding:18px;margin:0 0 20px;">
+    return `<div style="${T.wrap}padding:18px;margin:0 0 20px;">
             <div style="${label}margin-bottom:14px;text-align:center;">Gala Evening &middot; Keynote Speakers</div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:12px;">${cards}</div>
-            <div style="margin-top:16px;padding-top:15px;border-top:1px solid rgba(201,169,98,0.18);display:flex;gap:14px;align-items:center;justify-content:center;">
+            <div style="margin-top:16px;padding-top:15px;border-top:1px solid ${T.rule};display:flex;gap:14px;align-items:center;justify-content:center;">
                 <div style="display:flex;align-items:center;">
-                    <img src="/assets/gala/mus512_singer.jpg" alt="Tatiana Cameron" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:#1e293b;" onerror="this.style.visibility='hidden'">
-                    <img src="/assets/gala/mus512_guitarist.jpg" alt="Ante Gelo" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:#1e293b;margin-left:-16px;" onerror="this.style.visibility='hidden'">
+                    <img src="/assets/gala/mus512_singer.jpg" alt="Tatiana Cameron" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:${T.imgBg};" onerror="this.style.display='none'">
+                    <img src="/assets/gala/mus512_guitarist.jpg" alt="Ante Gelo" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:${T.imgBg};margin-left:-16px;" onerror="this.style.display='none'">
                 </div>
                 <div>
                     <div style="${label}margin-bottom:3px;">Live Music</div>
-                    <div style="font-size:14px;font-weight:600;color:#fff;">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
+                    <div style="font-size:14px;font-weight:600;color:${T.name};">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
                 </div>
             </div>
         </div>`;
@@ -1153,89 +1167,86 @@ const REVOKED_INVITE_IDS = new Set([
 // gala_registrations table + Gala Sheet tab as every other Gala entry point (unified data).
 // Reachable publicly at /plexus and via an admin-generated link at /plexus/:token (the token's
 // registration_links.component_keys decide which of the three events the link OFFERS).
-const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title || 'Plexus 2026'}</title><link rel="icon" type="image/png" href="/assets/favicon-x.png"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>
+const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title || 'Plexus 2026'}</title><link rel="icon" type="image/png" href="/assets/favicon-x.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>
+    /* UXFIX-M2 #3 (2026-09-02): reskinned in place with the member-portal house tokens —
+       ink #191512 / cream #f7f1e6 / card #fdfaf3 / crimson #9b1b22 / gold #c9a962 / #6e5626,
+       Fraunces display, Inter micro-labels, hairline rules, square corners. All class names,
+       ids and breakpoints are unchanged; the inline client JS is untouched. */
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif; color:#e2e8f0; padding:32px 16px; }
+    body { min-height:100vh; background:#f7f1e6; font-family:Inter,-apple-system,BlinkMacSystemFont,system-ui,sans-serif; color:#191512; padding:32px 16px; -webkit-font-smoothing:antialiased; }
     /* Wide on desktop (was a fixed 640px strip — that's why it didn't use desktop space). */
     .container { max-width:1080px; margin:0 auto; }
     @media (min-width:1280px) { .container { max-width:1200px; } }
     .logo { text-align:center; margin-bottom:24px; }
-    .logo img { height:38px; width:auto; display:inline-block; filter:brightness(0) invert(1); }
-    .logo span { font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px; }
-    .logo span em { font-style:normal; color:#c9a962; }
-    .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:20px; padding:28px 26px; min-width:0; max-width:100%; }
-    /* Hero header band spanning the full width on desktop. */
-    .hero { background:linear-gradient(135deg,rgba(201,169,98,0.12),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.22); border-radius:20px; padding:34px 28px; text-align:center; margin-bottom:20px; }
-    .hero .lede { max-width:640px; margin:0 auto; }
+    .logo img { height:38px; width:auto; display:inline-block; filter:brightness(0); }
+    .logo span { font-family:Fraunces,serif; font-size:28px; font-weight:600; color:#191512; letter-spacing:-0.5px; }
+    .logo span em { font-style:normal; color:#6e5626; }
+    .card { background:#fdfaf3; border:1px solid rgba(25,21,18,.16); border-radius:0; padding:28px 26px; min-width:0; max-width:100%; }
+    /* Hero header band — house ink card with a gold hairline, italic Fraunces headline. */
+    .hero { background:#191512; color:#f7f1e6; border:1px solid rgba(201,169,98,.55); border-radius:0; padding:38px 28px; text-align:center; margin-bottom:20px; }
+    .hero .lede { max-width:640px; margin:0 auto; color:rgba(247,241,230,.8); }
     /* Two-column layout on desktop: events on the left, the form on the right. */
     .plex-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:20px; align-items:start; }
     .form-col { position:sticky; top:24px; }
-    .badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#c9a962; margin-bottom:12px; padding:5px 12px; background:rgba(201,169,98,0.12); border-radius:20px; }
-    h1 { font-size:24px; font-weight:700; color:#fff; margin-bottom:6px; line-height:1.2; }
-    .hero h1 { font-size:clamp(26px,4vw,38px); }
-    .lede { font-size:14px; color:#94a3b8; margin-bottom:8px; line-height:1.55; }
-    .section-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#c9a962; margin:22px 0 12px; }
-    .plex-cal-row { margin-top:16px; padding-top:16px; border-top:1px solid rgba(201,169,98,0.18); display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
-    .plex-cal-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#94a3b8; }
+    .badge { display:inline-block; font:600 10px Inter,sans-serif; letter-spacing:.18em; text-transform:uppercase; color:#c9a962; margin-bottom:14px; padding:6px 12px; border:1px solid rgba(201,169,98,.65); border-radius:0; }
+    h1 { font-family:Fraunces,serif; font-weight:500; font-size:26px; color:#191512; margin-bottom:6px; line-height:1.15; letter-spacing:-.3px; }
+    .hero h1 { color:#f7f1e6; font-style:italic; font-size:clamp(28px,4.2vw,44px); }
+    .lede { font-size:14px; color:#4a4239; margin-bottom:8px; line-height:1.6; }
+    .section-label { font:600 11px Inter,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#6e5626; margin:22px 0 12px; }
+    .plex-cal-row { margin-top:16px; padding-top:16px; border-top:1px solid rgba(25,21,18,.16); display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+    .plex-cal-label { font:600 10px Inter,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#4a4239; }
     .plex-cal-links { display:flex; flex-wrap:wrap; gap:8px; }
-    .plex-cal-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border:1px solid rgba(201,169,98,0.4); border-radius:999px; background:rgba(201,169,98,0.08); color:#e8e2d4; font-size:12.5px; font-weight:600; text-decoration:none; transition:all 0.2s; }
-    .plex-cal-btn:hover { background:rgba(201,169,98,0.18); transform:translateY(-1px); }
-    .plex-cal-btn i { color:#c9a962; font-size:12px; }
-    .event-option { background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
-    .event-option::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background 0.2s; }
-    .event-option:hover { border-color:rgba(201,169,98,0.3); background:rgba(255,255,255,0.06); transform:translateY(-1px); }
-    .event-option.evt-conference::before { background:rgba(167,139,250,0.5); }
-    .event-option.evt-bridges::before { background:rgba(45,212,191,0.5); }
-    .event-option.evt-gala::before { background:rgba(201,169,98,0.5); }
-    .event-option.evt-conference.selected { border-color:#a78bfa; background:rgba(167,139,250,0.06); }
-    .event-option.evt-conference.selected::before { background:#a78bfa; width:4px; }
-    .event-option.evt-bridges.selected { border-color:#2dd4bf; background:rgba(45,212,191,0.06); }
-    .event-option.evt-bridges.selected::before { background:#2dd4bf; width:4px; }
-    .event-option.evt-gala.selected { border-color:#c9a962; background:rgba(201,169,98,0.08); }
-    .event-option.evt-gala.selected::before { background:#c9a962; width:4px; }
-    .event-checkbox { flex-shrink:0; width:22px; height:22px; border:2px solid rgba(255,255,255,0.2); border-radius:6px; display:flex; align-items:center; justify-content:center; margin-top:2px; transition:all 0.2s; }
-    .event-option.evt-conference.selected .event-checkbox { background:#a78bfa; border-color:#a78bfa; }
-    .event-option.evt-bridges.selected .event-checkbox { background:#2dd4bf; border-color:#2dd4bf; }
+    .plex-cal-btn { display:inline-flex; align-items:center; gap:7px; padding:9px 14px; border:1px solid rgba(25,21,18,.3); border-radius:0; background:transparent; color:#191512; font:600 10px Inter,sans-serif; letter-spacing:.14em; text-transform:uppercase; text-decoration:none; transition:border-color .15s ease; }
+    .plex-cal-btn:hover { border-color:#191512; }
+    .plex-cal-btn i { color:#6e5626; font-size:12px; }
+    .event-option { background:#fdfaf3; border:1px solid rgba(25,21,18,.16); border-radius:0; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:border-color .15s ease; position:relative; overflow:hidden; }
+    .event-option::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background .15s ease; }
+    .event-option:hover { border-color:rgba(25,21,18,.45); }
+    .event-option.selected { border-color:#191512; }
+    .event-option.evt-conference.selected::before { background:#9b1b22; }
+    .event-option.evt-bridges.selected::before { background:#191512; }
+    .event-option.evt-gala.selected::before { background:#c9a962; }
+    .event-checkbox { flex-shrink:0; width:20px; height:20px; border:1px solid rgba(25,21,18,.35); border-radius:0; background:#fdfaf3; display:flex; align-items:center; justify-content:center; margin-top:2px; transition:background .15s ease,border-color .15s ease; }
+    .event-option.evt-conference.selected .event-checkbox { background:#9b1b22; border-color:#9b1b22; }
+    .event-option.evt-bridges.selected .event-checkbox { background:#191512; border-color:#191512; }
     .event-option.evt-gala.selected .event-checkbox { background:#c9a962; border-color:#c9a962; }
-    .event-checkbox i { color:#fff; font-size:12px; display:none; }
+    .event-checkbox i { color:#f7f1e6; font-size:11px; display:none; }
+    .event-option.evt-gala.selected .event-checkbox i { color:#191512; }
     .event-option.selected .event-checkbox i { display:block; }
-    .event-icon { flex-shrink:0; width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-top:-1px; box-shadow:0 5px 16px rgba(0,0,0,0.24); transition:transform 0.2s ease; }
-    .event-option:hover .event-icon { transform:scale(1.06); }
-    .event-option.evt-conference .event-icon { background:linear-gradient(135deg,rgba(167,139,250,0.32),rgba(167,139,250,0.07)); color:#c4b5fd; border:1px solid rgba(167,139,250,0.28); }
-    .event-option.evt-bridges .event-icon { background:linear-gradient(135deg,rgba(45,212,191,0.32),rgba(45,212,191,0.07)); color:#5eead4; border:1px solid rgba(45,212,191,0.28); }
-    .event-option.evt-gala .event-icon { background:linear-gradient(135deg,rgba(201,169,98,0.34),rgba(201,169,98,0.08)); color:#e8c97a; border:1px solid rgba(201,169,98,0.30); }
     .event-body { flex:1; }
     .event-title-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:4px; }
-    .event-name { font-size:15.5px; font-weight:600; color:#fff; }
-    .event-price { font-size:13px; font-weight:600; color:#c9a962; white-space:nowrap; }
-    .event-price.free { color:#22c55e; }
-    .event-meta { font-size:12px; color:#94a3b8; line-height:1.45; }
-    .event-status { display:inline-block; font-size:10px; font-weight:700; letter-spacing:0.6px; text-indent:0.6px; text-align:center; text-transform:uppercase; color:#c9a962; background:rgba(201,169,98,0.12); border:1px solid rgba(201,169,98,0.25); padding:2px 9px; border-radius:20px; margin:2px 0 6px; }
-    .event-date { font-size:12.5px; font-weight:600; color:#e2e8f0; margin-bottom:4px; }
-    /* Gala keynote highlight (Lord Smith of Finsbury, Chancellor of Cambridge). */
-    .keynote-card { background:linear-gradient(135deg,rgba(201,169,98,0.12),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.28); border-radius:14px; padding:16px 18px; margin-top:14px; display:flex; gap:16px; align-items:center; }
-    .keynote-card img { width:72px; height:72px; border-radius:50%; object-fit:cover; object-position:center 22%; border:2px solid #c9a962; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.25); }
-    .keynote-card .kc-label { font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:#c9a962; font-weight:700; margin-bottom:4px; }
-    .keynote-card .kc-name { font-size:15.5px; font-weight:600; color:#fff; line-height:1.2; }
-    .keynote-card .kc-role { font-size:12.5px; font-style:italic; color:#e8c97a; margin-top:3px; }
+    .event-name { font-family:Fraunces,serif; font-size:17px; font-weight:500; color:#191512; }
+    .event-price { font:600 10px Inter,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#6e5626; white-space:nowrap; }
+    .event-price.free { color:#6e5626; }
+    .event-meta { font-size:12.5px; color:#4a4239; line-height:1.5; }
+    .event-status { display:inline-block; font:600 8.5px Inter,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#6e5626; border:1px solid rgba(201,169,98,.65); background:transparent; padding:3px 9px; border-radius:0; margin:2px 0 6px; }
+    .event-date { font-size:12.5px; font-weight:600; color:#191512; margin-bottom:4px; }
+    /* Gala keynote highlight — used by the legacy single-keynote card only; the four-keynote
+       block is galaKeynoteBlock(true) (light variant). */
+    .keynote-card { background:#fdfaf3; border:1px solid rgba(201,169,98,.5); border-radius:0; padding:16px 18px; margin-top:14px; display:flex; gap:16px; align-items:center; }
+    .keynote-card img { width:72px; height:72px; border-radius:50%; object-fit:cover; object-position:center 22%; border:2px solid #c9a962; flex-shrink:0; }
+    .keynote-card .kc-label { font:600 9px Inter,sans-serif; letter-spacing:.2em; text-transform:uppercase; color:#6e5626; margin-bottom:4px; }
+    .keynote-card .kc-name { font-family:Fraunces,serif; font-size:16px; font-weight:500; color:#191512; line-height:1.2; }
+    .keynote-card .kc-role { font-size:12.5px; font-style:italic; color:#6e5626; margin-top:3px; }
     .form-grid { display:grid; gap:14px; margin-top:6px; }
     .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    label { display:block; font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:5px; }
-    input, select, textarea { width:100%; padding:11px 13px; border:1px solid rgba(255,255,255,0.1); border-radius:9px; background:rgba(255,255,255,0.05); color:#fff; font-size:13.5px; font-family:inherit; }
-    input:focus, select:focus, textarea:focus { border-color:#c9a962; outline:none; box-shadow:0 0 0 3px rgba(201,169,98,0.1); }
-    input::placeholder, textarea::placeholder { color:#64748b; }
+    label { display:block; font:600 10px Inter,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#4a4239; margin-bottom:6px; }
+    input, select, textarea { width:100%; padding:11px 12px; border:1px solid rgba(25,21,18,.25); border-radius:0; background:#fdfaf3; color:#191512; font-size:13.5px; font-family:Inter,sans-serif; }
+    input:focus, select:focus, textarea:focus { outline:1px solid #9b1b22; outline-offset:-1px; box-shadow:none; }
+    input::placeholder, textarea::placeholder { color:#9b8f80; }
     textarea { resize:vertical; min-height:60px; }
-    .total-display { display:none; justify-content:space-between; align-items:center; padding:14px 16px; background:rgba(201,169,98,0.1); border-radius:10px; border:1px solid rgba(201,169,98,0.25); margin-top:16px; }
+    .total-display { display:none; justify-content:space-between; align-items:center; padding:14px 16px; background:#191512; color:#f7f1e6; border:1px solid rgba(201,169,98,.55); border-radius:0; margin-top:16px; }
     .total-display.show { display:flex; }
-    .total-display .label { font-size:13px; color:#94a3b8; }
-    .total-display .amount { font-size:22px; font-weight:700; color:#c9a962; }
-    .submit-btn { width:100%; margin-top:16px; padding:15px; border:none; border-radius:11px; background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; font-size:15px; font-weight:700; cursor:pointer; transition:all 0.2s; }
-    .submit-btn:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(201,169,98,0.25); }
-    .submit-btn:disabled { opacity:0.55; cursor:not-allowed; transform:none; box-shadow:none; }
-    .msg { margin-top:14px; padding:12px 14px; border-radius:9px; font-size:13px; display:none; }
-    .msg.err { display:block; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; }
-    .foot { text-align:center; font-size:12px; color:#64748b; margin-top:20px; }
-    .foot a { color:#c9a962; text-decoration:none; }
+    .total-display .label { font:600 10px Inter,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:rgba(247,241,230,.75); }
+    .total-display .amount { font-family:Fraunces,serif; font-size:24px; font-weight:500; color:#c9a962; }
+    .submit-btn { width:100%; margin-top:16px; padding:15px 20px; border:0; border-radius:0; background:#9b1b22; color:#f7f1e6; font:600 11px Inter,sans-serif; letter-spacing:.16em; text-transform:uppercase; cursor:pointer; transition:background .15s ease; }
+    .submit-btn:hover { background:#7e151b; }
+    .submit-btn:disabled { opacity:.55; cursor:not-allowed; }
+    .msg { margin-top:14px; padding:12px 14px; border-radius:0; font-size:13px; display:none; }
+    .msg.err { display:block; background:rgba(155,27,34,.06); border:1px solid rgba(155,27,34,.35); color:#7e151b; }
+    .foot { text-align:center; font-size:12px; color:#4a4239; margin-top:20px; }
+    .foot a { color:#9b1b22; text-decoration:none; }
+    .foot a:hover { color:#191512; }
     /* Mid widths — drop the two-column split to a single stacked column. */
     @media (max-width: 880px) {
         .plex-layout { grid-template-columns: minmax(0, 1fr); }
@@ -1248,35 +1259,34 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
         .container { max-width: 100%; }
         .card { padding: 22px 18px; }
         .logo span { font-size: 24px; }
-        h1 { font-size: 21px; }
+        h1 { font-size: 22px; }
         .lede { font-size: 13.5px; }
         .event-option { padding: 14px; gap: 12px; }
-        .event-icon { width: 34px; height: 34px; font-size: 14px; }
-        .event-name { font-size: 14.5px; }
-        .event-price { font-size: 12.5px; white-space: normal; }
-        .event-meta { font-size: 11.5px; }
+        .event-name { font-size: 16px; }
+        .event-price { white-space: normal; }
+        .event-meta { font-size: 12px; }
         .form-row { grid-template-columns: 1fr; gap: 12px; }
-        .submit-btn { padding: 14px; font-size: 14px; }
+        .submit-btn { padding: 14px; }
         /* iOS Safari auto-zooms any focused control whose font-size is < 16px.
            Bump form controls to 16px on phones/tablets only (desktop keeps 13.5px). */
         input, select, textarea { font-size: 16px; }
         /* Comfortable 44px touch targets for the add-to-calendar chips. */
         .plex-cal-btn { min-height: 44px; }
     }
-    /* Small phone — further compaction, larger touch targets kept comfortable. */
+    /* Small phone — further compaction, touch targets kept comfortable. */
     @media (max-width: 480px) {
         body { padding: 16px 10px; }
-        .card { padding: 18px 14px; border-radius: 16px; }
-        h1 { font-size: 19px; margin-bottom: 8px; }
+        .card { padding: 18px 14px; }
+        h1 { font-size: 20px; margin-bottom: 8px; }
         .lede { font-size: 12.5px; line-height: 1.55; }
         .event-title-row { flex-wrap: wrap; gap: 4px; }
-        .event-name { font-size: 14px; }
+        .event-name { font-size: 15px; }
         .section-label { font-size: 10px; margin: 18px 0 10px; }
-        .total-display .amount { font-size: 19px; }
+        .total-display .amount { font-size: 20px; }
         .foot { font-size: 11px; }
     }
 </style></head><body><div class="container">
-    <div class="logo"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X" /></div>
+    <div class="logo"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X" onerror="this.outerHTML='<span>med<em>&amp;</em>X</span>'" /></div>
     ${inner}
     <div class="foot">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a><br>
         <span style="display:inline-block;margin-top:8px;">
@@ -1287,7 +1297,7 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     </div>
 </div></body></html>`;
 
-const plexusNoticePage = (heading, body) => PLEXUS_SHELL(`<div class="card" style="text-align:center;"><h1 style="color:#ef4444;">${heading}</h1><p class="lede" style="margin-top:10px;">${body}</p></div>`, heading);
+const plexusNoticePage = (heading, body) => PLEXUS_SHELL(`<div class="card" style="text-align:center;"><h1 style="color:#9b1b22;">${heading}</h1><p class="lede" style="margin-top:10px;">${body}</p></div>`, heading);
 
 app.get(['/plexus', '/plexus/:token'], async (req, res) => {
     try {
@@ -1309,7 +1319,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
 
         const galaSettings = query.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
         const galaPrice = effectiveGalaPrice();
-        const ebDeadline = galaSettings.early_bird_deadline || '2026-09-01';
+        const ebDeadline = galaSettings.early_bird_deadline || '2026-09-15';
         const isEarly = new Date().toISOString().slice(0, 10) <= ebDeadline;
         const fmtD = (iso) => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); } catch(e) { return iso; } };
         const galaVenue = galaSettings.venue || 'Hotel Esplanade Zagreb';
@@ -1379,7 +1389,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
 
         // Gala keynote highlight — shown when the Gala is offered. Four confirmed keynotes
         // + live music (see galaKeynoteBlock); supersedes the single gala_settings keynote.
-        const keynoteCard = offered.includes('gala') ? galaKeynoteBlock() : '';
+        const keynoteCard = offered.includes('gala') ? galaKeynoteBlock(true) : '';
 
         // One-click prefill from the Forum wing (/plexus?fn=..&ln=..&email=..&inst=..&src=forum).
         // These are REFLECTED query values echoed into value="" attributes — escape rigorously (XSS).
@@ -1407,7 +1417,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                     <form id="plexForm" onsubmit="return plexSubmit(event)">
                         <div class="section-label" style="margin-top:0;">Your details</div>
                         <!-- Account linking: filled by the inline script when a portal login exists on this device (omitted when the member-card toggle for this page is OFF) -->
-                        ${showMemberCard ? `<div id="plexLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(34,197,94,.35);border-radius:10px;background:rgba(34,197,94,.07);font-size:12.5px;color:#a7f3d0;line-height:1.5;"></div>` : ''}
+                        ${showMemberCard ? `<div id="plexLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(201,169,98,.5);border-radius:0;background:#f1e8d3;font-size:12.5px;color:#191512;line-height:1.5;"></div>` : ''}
                         <div class="form-grid">
                             <div class="form-row">
                                 <div><label>First name *</label><input id="pf_first" required maxlength="100" value="${prefFirst}"></div>
@@ -1420,17 +1430,17 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                             </div>
                             <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian"></div>
                             <div><label>Allergies (for the Gala)</label><input id="pf_allergies" maxlength="200" placeholder="e.g. nuts, shellfish"></div>
-                            <div><label>Additional guests for the Gala <span style="color:#64748b;font-weight:400;">(max 2)</span></label>
+                            <div><label>Additional guests for the Gala <span style="color:#9b8f80;font-weight:400;">(max 2)</span></label>
                                 <select id="pf_guests" onchange="plexGuestFields();plexRecompute()">
                                     <option value="0">No additional guests</option>
                                     <option value="1">+1 guest (+&euro;${galaPrice})</option>
                                     <option value="2">+2 guests (+&euro;${galaPrice * 2})</option>
                                 </select></div>
                             <div id="pf_guest_fields" style="display:none;"></div>
-                            <div><label>Discount code <span style="color:#64748b;font-weight:400;">(optional, applies to the Gala)</span></label>
+                            <div><label>Discount code <span style="color:#9b8f80;font-weight:400;">(optional, applies to the Gala)</span></label>
                                 <div style="display:flex;gap:8px;">
                                     <input id="pf_coupon" maxlength="40" placeholder="Enter code" style="text-transform:uppercase;flex:1;" oninput="plexClearCoupon()">
-                                    <button type="button" id="pf_couponBtn" onclick="plexApplyCoupon()" style="padding:11px 16px;border:none;border-radius:9px;background:linear-gradient(135deg,#c9a962,#b8965a);color:#0f172a;font-weight:700;cursor:pointer;white-space:nowrap;">Apply</button>
+                                    <button type="button" id="pf_couponBtn" onclick="plexApplyCoupon()" style="padding:11px 16px;border:0;border-radius:0;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;white-space:nowrap;">Apply</button>
                                 </div>
                                 <div id="pf_couponMsg" style="margin-top:6px;font-size:12px;display:none;"></div></div>
                             <div><label>Anything else?${reqStar('notes')}</label><textarea id="pf_notes" maxlength="500"${reqAttr('notes')}></textarea></div>
@@ -1487,11 +1497,11 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             if (n < 1) { box.style.display = 'none'; box.innerHTML = ''; return; }
             var html = '';
             for (var g = 0; g < n; g++) {
-                html += '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-top:10px;">'
+                html += '<div style="border:1px solid rgba(25,21,18,.16);border-radius:0;padding:12px 14px;margin-top:10px;background:#f7f1e6;">'
                     + '<div style="font-weight:700;font-size:13px;margin-bottom:8px;">Guest ' + (g + 1) + '</div>'
                     + '<div><label>Full name *</label><input id="pf_gname' + g + '" maxlength="120" value="' + plexEsc(keep[g].name) + '"></div>'
                     + '<div><label>Institution / Company</label><input id="pf_ginst' + g + '" maxlength="160" value="' + plexEsc(keep[g].inst) + '"></div>'
-                    + '<div><label>Email <span style="color:#64748b;font-weight:400;">(so they receive the entry QR too)</span></label><input id="pf_gemail' + g + '" type="email" maxlength="160" value="' + plexEsc(keep[g].email) + '"></div>'
+                    + '<div><label>Email <span style="color:#9b8f80;font-weight:400;">(so they receive the entry QR too)</span></label><input id="pf_gemail' + g + '" type="email" maxlength="160" value="' + plexEsc(keep[g].email) + '"></div>'
                     + '</div>';
             }
             box.innerHTML = html; box.style.display = 'block';
@@ -1521,14 +1531,14 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         async function plexApplyCoupon(){
             var code = ((document.getElementById('pf_coupon') || {}).value || '').trim();
             var m = document.getElementById('pf_couponMsg');
-            if (!code) { if (m) { m.style.display = 'block'; m.style.color = '#fca5a5'; m.textContent = 'Enter a code'; } return; }
+            if (!code) { if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = 'Enter a code'; } return; }
             var b = document.getElementById('pf_couponBtn'); b.disabled = true; b.textContent = '\\u2026';
             try {
                 var r = await fetch('/api/invite/validate-coupon', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: code, event_type: 'gala' }) });
                 var d = await r.json();
-                if (d.valid) { plexDiscount = Number(d.discount_value) || 0; plexDiscountType = d.discount_type; if (m) { m.style.display = 'block'; m.style.color = '#5eead4'; m.textContent = (d.discount_type === 'fixed' ? ('\\u20AC' + d.discount_value + ' off') : (d.discount_value + '% off')) + ' applied to the Gala'; } }
-                else { plexDiscount = 0; plexDiscountType = ''; if (m) { m.style.display = 'block'; m.style.color = '#fca5a5'; m.textContent = d.error || 'Invalid or expired code'; } }
-            } catch(e) { if (m) { m.style.display = 'block'; m.style.color = '#fca5a5'; m.textContent = 'Could not validate'; } }
+                if (d.valid) { plexDiscount = Number(d.discount_value) || 0; plexDiscountType = d.discount_type; if (m) { m.style.display = 'block'; m.style.color = '#6e5626'; m.textContent = (d.discount_type === 'fixed' ? ('\\u20AC' + d.discount_value + ' off') : (d.discount_value + '% off')) + ' applied to the Gala'; } }
+                else { plexDiscount = 0; plexDiscountType = ''; if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = d.error || 'Invalid or expired code'; } }
+            } catch(e) { if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = 'Could not validate'; } }
             b.disabled = false; b.textContent = 'Apply';
             plexRecompute();
         }
@@ -1576,7 +1586,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                     btn.disabled=false; plexRecompute(); return false;
                 }
                 if(d.checkout_url){ window.location = d.checkout_url; return false; }
-                document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#22c55e;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>You are registered</h1><p class="lede" style="margin-top:10px;">Thank you, ' + plexEsc(body.first_name) + '. A confirmation email with your check-in QR code is on its way to ' + plexEsc(body.email) + '. We look forward to welcoming you to Plexus 2026 in Zagreb.</p></div>';
+                document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#c9a962;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>You are registered</h1><p class="lede" style="margin-top:10px;">Thank you, ' + plexEsc(body.first_name) + '. A confirmation email with your check-in QR code is on its way to ' + plexEsc(body.email) + '. We look forward to welcoming you to Plexus 2026 in Zagreb.</p></div>';
             } catch(e){ plexPayFallback(); btn.disabled=false; plexRecompute(); }
             return false;
         }
@@ -1586,12 +1596,12 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             var m = document.getElementById('plexMsg'); if(m) m.style.display='none';
             box.style.display='block';
             box.innerHTML =
-                '<div style="margin-top:14px;padding:20px 18px;border:1px solid rgba(201,169,98,0.4);border-radius:14px;background:rgba(201,169,98,0.06);text-align:left;">'
-                + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><i class="fas fa-shield-halved" style="color:#c9a962;"></i><strong style="color:#e8e2d4;font-size:14px;">We could not open secure checkout</strong></div>'
-                + '<p style="font-size:13px;color:#94a3b8;line-height:1.6;margin:0 0 14px;">Your details are safe and nothing has been charged. This is usually a brief connection issue. Try again, or reach us and we will send you a secure payment link.</p>'
+                '<div style="margin-top:14px;padding:20px 18px;border:1px solid rgba(201,169,98,.5);border-radius:0;background:#f1e8d3;text-align:left;">'
+                + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><i class="fas fa-shield-halved" style="color:#6e5626;"></i><strong style="color:#191512;font-size:14px;">We could not open secure checkout</strong></div>'
+                + '<p style="font-size:13px;color:#4a4239;line-height:1.6;margin:0 0 14px;">Your details are safe and nothing has been charged. This is usually a brief connection issue. Try again, or reach us and we will send you a secure payment link.</p>'
                 + '<div style="display:flex;flex-wrap:wrap;gap:8px;">'
-                + '<button type="button" onclick="plexRetry()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:none;border-radius:9px;background:linear-gradient(135deg,#c9a962,#b8965a);color:#0f172a;font-weight:700;cursor:pointer;font-size:13px;"><i class="fas fa-rotate-right"></i> Try again</button>'
-                + '<a href="mailto:laura.rodman@medx.hr?subject=Plexus%202026%20registration%20%E2%80%94%20payment%20help" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1px solid rgba(201,169,98,0.5);border-radius:9px;color:#e8e2d4;font-weight:600;text-decoration:none;font-size:13px;"><i class="fas fa-envelope"></i> laura.rodman@medx.hr</a>'
+                + '<button type="button" onclick="plexRetry()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:0;border-radius:0;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;"><i class="fas fa-rotate-right"></i> Try again</button>'
+                + '<a href="mailto:laura.rodman@medx.hr?subject=Plexus%202026%20registration%20%E2%80%94%20payment%20help" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1px solid rgba(25,21,18,.3);border-radius:0;color:#191512;font-weight:600;text-decoration:none;font-size:13px;"><i class="fas fa-envelope"></i> laura.rodman@medx.hr</a>'
                 + '</div></div>';
         }
         function plexRetry(){
@@ -5763,7 +5773,7 @@ function effectiveGalaPrice() {
     try { comp = query.get("SELECT price FROM event_components WHERE event_type='plexus' AND component_key='gala' AND is_active=1"); } catch(e) {}
     const eb = (comp && comp.price != null) ? Number(comp.price) : Number(s.price_gala_early_bird);
     const reg = Number.isFinite(Number(s.price_gala_regular)) ? Number(s.price_gala_regular) : eb;
-    const deadline = s.early_bird_deadline || '2026-09-01';
+    const deadline = s.early_bird_deadline || '2026-09-15';
     if (Number.isFinite(eb)) {
         const today = new Date().toISOString().slice(0, 10);
         return today <= deadline ? eb : reg;
@@ -8642,7 +8652,7 @@ async function initializeApp() {
     // so pricing stays unified. All three values are admin-editable in gala_settings.
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_early_bird REAL DEFAULT 150"); } catch(e) {}
     try { db.run("ALTER TABLE gala_settings ADD COLUMN price_gala_regular REAL DEFAULT 175"); } catch(e) {}
-    try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-01'"); } catch(e) {}
+    try { db.run("ALTER TABLE gala_settings ADD COLUMN early_bird_deadline TEXT DEFAULT '2026-09-15'"); } catch(e) {}
     // Admin-editable copy for the public /plexus page (the lede + the description under each
     // event card). Seeded once with the launch defaults; edited from the admin Plexus section.
     // In gala_desc, the literal {venue} is replaced at render time with the live Gala venue.
@@ -10263,7 +10273,7 @@ async function initializeApp() {
             ]);
             if (!query.get("SELECT id FROM forum_news LIMIT 1")) {
                 const news = [
-                    { title:'The circle welcomes its autumn convening', body:'The Autumn Symposium returns to the Novinarski dom in Zagreb, with three addresses from members and a discussion held under a rule of discretion.', date:'2026-09-01', sort:1 },
+                    { title:'The circle welcomes its autumn convening', body:'The Autumn Symposium returns to the Novinarski dom in Zagreb, with three addresses from members and a discussion held under a rule of discretion.', date:'2026-09-15', sort:1 },
                     { title:'A note on the close of the year', body:'The Gala Evening at the Hotel Esplanade will again close the Med&X year, and welcome those newly invited to the Forum.', date:'2026-10-15', sort:2 }
                 ];
                 news.forEach(n => db.run(`INSERT INTO forum_news (id, title, body, date, sort, status) VALUES (?,?,?,?,?, 'published')`, [uuidv4(), n.title, n.body, n.date, n.sort]));
@@ -10622,7 +10632,7 @@ async function initializeApp() {
     if (!conf) {
         const confId = uuidv4();
         db.run(`INSERT INTO conferences (id, name, year, slug, description, start_date, end_date, venue_name, venue_city, venue_country, early_bird_deadline, regular_deadline, abstract_deadline)
-            VALUES (?, 'Plexus Conference 2026', 2026, 'plexus-2026', 'Where young biomedical minds connect', '2026-12-04', '2026-12-05', 'Hotel Esplanade', 'Zagreb', 'Croatia', '2026-09-01', '2026-11-15', '2026-10-01')`,
+            VALUES (?, 'Plexus Conference 2026', 2026, 'plexus-2026', 'Where young biomedical minds connect', '2026-12-04', '2026-12-05', 'Hotel Esplanade', 'Zagreb', 'Croatia', '2026-09-15', '2026-11-15', '2026-10-01')`,
             [confId]);
 
         const tickets = [
