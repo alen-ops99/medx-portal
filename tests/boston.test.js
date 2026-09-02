@@ -244,7 +244,7 @@ async function t(name, fn) {
             body: { name: 'Ana Horvat', email: 'Ana@Example.org', institution: 'Massachusetts General Hospital', position: 'Postdoctoral fellow', presentation: false }
         });
         assert.strictEqual(r.statusCode, 200);
-        assert.deepStrictEqual(r.body, { success: true });
+        assert.strictEqual(r.body.success, true, 'success flag'); assert.ok(r.body.wallet && 'google' in r.body.wallet && 'calendar' in r.body.wallet, 'wallet links in response');
         const rows = query.all('SELECT * FROM bridges_registrations WHERE event_id = ?', [EVENT_ID]);
         assert.strictEqual(rows.length, 1);
         const row = rows[0];

@@ -313,18 +313,17 @@ module.exports = function mountBoston(app, deps) {
         return got.length === want.length && crypto.timingSafeEqual(got, want);
     }
 
-    // ------------------------------------------------------------ confirmation email
-    function confirmationEmailHtml(reg, presentation) {
+    // ------------------------------------------------------------ wallet links (email + on-page)
+    // Google Wallet — minted with the shared/wallet builders. The dedicated Boston class
+    // (BB_GOOGLE_CLASS_ID) carries the event name/venue/date at CLASS level, so the object keeps
+    // only what the class can't know: holder name, registration №, status, dress code. Falls back
+    // to the shared approved class when the Boston env is absent. Provisioning is non-blocking.
+    // Reused by the confirmation email AND the register response, so the success box on the page
+    // can offer the same three buttons immediately (Alen 2026-09-01).
+    function walletLinks(reg) {
         const base = baseUrl();
         const id = String(reg.id);
         const fullName = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Med&X Guest';
-        const first = reg.first_name || 'there';
-
-        // Google Wallet — minted with the shared/wallet builders. The dedicated Boston class
-        // (BB_GOOGLE_CLASS_ID) carries the event name/venue/date at CLASS level, so the object keeps
-        // only what the class can't know: holder name, registration №, status, dress code. Falls back
-        // to the shared approved class when the Boston env is absent. Provisioning is non-blocking
-        // and failure never holds up the email.
         let walletSaveUrl = null;
         if (wallet.isConfigured()) {
             try {
@@ -353,6 +352,16 @@ module.exports = function mountBoston(app, deps) {
         const appleWalletUrl = applePass.isConfigured()
             ? `${base}/api/boston/pass/${passToken(id)}.pkpass`
             : null;                                     // env absent → button simply omitted
+        return { google: walletSaveUrl, apple: appleWalletUrl, calendar: `${base}/boston.ics` };
+    }
+
+    function confirmationEmailHtml(reg, presentation) {
+        const base = baseUrl();
+        const id = String(reg.id);
+        const fullName = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Med&X Guest';
+        const first = reg.first_name || 'there';
+        const links = walletLinks(reg);
+        const walletSaveUrl = links.google, appleWalletUrl = links.apple;
 
         return emailTemplates.ticketConfirmation({
             firstName: first,
@@ -447,7 +456,7 @@ module.exports = function mountBoston(app, deps) {
                 const rk = String(email).toLowerCase();
                 const last = RESEND_AT.get(rk) || 0;
                 if (Date.now() - last < 10 * 60 * 1000) {
-                    return res.json({ already: true, message: 'You are already registered — your confirmation was re-sent a moment ago. Check your inbox (and spam).' });
+                    return res.json({ already: true, wallet: walletLinks(prior), message: 'You are already registered — your confirmation was re-sent a moment ago. Check your inbox (and spam).' });
                 }
                 RESEND_AT.set(rk, Date.now());
                 const priorPresentation = /5-minute presentation/.test(String(prior.notes || ''));
@@ -457,7 +466,7 @@ module.exports = function mountBoston(app, deps) {
                         query.run('UPDATE bridges_registrations SET confirmation_sent = 1 WHERE id = ?', [prior.id]);
                     }
                 } catch (e) { console.warn('[Boston] re-send failed:', e.message); }
-                return res.json({ already: true, message: 'You are already registered — we have re-sent your confirmation email to ' + email + '.' });
+                return res.json({ already: true, wallet: walletLinks(prior), message: 'You are already registered — we have re-sent your confirmation email to ' + email + '.' });
             }
 
             // Capacity gate — held seats only (mirrors /api/public-events/register).
@@ -512,7 +521,7 @@ module.exports = function mountBoston(app, deps) {
                 }
             } catch (e) { /* sheets must never affect the registration */ }
 
-            res.json({ success: true });
+            res.json({ success: true, wallet: walletLinks(query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || { id }) });
         } catch (e) {
             console.error('[Boston] registration error:', e.message);
             res.status(500).json({ error: 'Registration failed. Please try again.' });
@@ -969,7 +978,8 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
       <p class="slabel" style="text-align:center;">Registration received</p>
       <p class="headline">You are <i style="font-weight:400;">in</i>.</p>
       <p class="lede" id="donetext">Your confirmation email is on its way — it carries your <b>entry QR code</b> and your <b>Apple &amp; Google Wallet passes</b>. Show either at the door.</p>
-      <a class="cal" href="/boston.ics">Add to calendar &darr;</a>
+      <div id="walletbtns" style="display:none;margin:18px 0 4px;text-align:center;"></div>
+      <a class="cal" id="callink" href="/boston.ics">Add to calendar &darr;</a>
     </div>
   </section>
 </main>
@@ -994,6 +1004,12 @@ ${FOOTER_HTML}
     .then(function(res){
       if(res.ok&&(res.j.success||res.j.already)){
         if(res.j.already){document.getElementById('donetext').innerHTML='You were already registered — we have <b>re-sent your confirmation email</b> with your entry QR and wallet passes to <b>'+email.replace(/</g,'&lt;')+'</b>.';}
+        var w=res.j.wallet||{};var wb=document.getElementById('walletbtns');var bs='';
+        var st='display:block;margin:0 auto 10px;max-width:280px;padding:14px 10px;font:600 11px Inter,Helvetica,sans-serif;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;text-align:center;';
+        if(w.apple){bs+='<a href="'+w.apple+'" style="'+st+'background:#191512;color:#f7f1e6;border:1px solid #c9a962;">Add to Apple Wallet &rarr;</a>';}
+        if(w.google){bs+='<a href="'+w.google+'" style="'+st+'background:#c9a962;color:#191512;border:1px solid #191512;">Add to Google Wallet &rarr;</a>';}
+        if(w.calendar){bs+='<a href="'+w.calendar+'" style="'+st+'border:1px solid rgba(25,21,18,.35);color:#191512;">Add to Calendar &rarr;</a>';document.getElementById('callink').style.display='none';}
+        if(bs){wb.innerHTML=bs;wb.style.display='block';}
         document.getElementById('formwrap').style.display='none';
         document.getElementById('done').style.display='block';
         window.scrollTo({top:document.getElementById('done').getBoundingClientRect().top+window.pageYOffset-90,behavior:'smooth'});
