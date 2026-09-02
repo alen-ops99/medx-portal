@@ -533,31 +533,8 @@ module.exports = function mountBoston(app, deps) {
             } catch (e) { console.warn('[Boston] confirmation email failed:', e.message); }
 
             // Google Sheets — non-blocking, same JSON shape as the Stripe-webhook sheet posts.
-            try {
-                const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
-                if (sheetsWebhook) {
-                    fetch(sheetsWebhook, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            timestamp: new Date().toISOString(),
-                            events: ['bridges'],
-                            name: fullName, email, institution,
-                            country: '', role: position || '',
-                            event: 'Building Bridges Boston 2026',
-                            event_type: 'bridges',
-                            items: 'bridges',
-                            dietary: '', allergies: '', guests: 0,
-                            custom_summary: presentation ? '5-minute presentation requested' : '',
-                            applied_for: 'bridges',
-                            amount: 0, payment: 'Free',
-                            coupon: '', discount: '0',
-                            ticket_code: shortCode(id),
-                            registration_id: id
-                        })
-                    }).catch(err => console.warn('[Boston] Sheets POST failed (non-blocking):', err.message));
-                }
-            } catch (e) { /* sheets must never affect the registration */ }
+// Master Plexus sheet mirror REMOVED (Alen 2026-09-02): Boston rows belong only to the
+            // dedicated Boston sheet (pushToBostonSheet below) — the Croatia master must not list them.
 
             const freshRow = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || { id };
             pushToBostonSheet(freshRow, presentation);
