@@ -419,19 +419,19 @@ async function t(name, fn) {
     });
 
     // -------- branded entry QR
-    await t('branded QR: 300px PNG that still decodes to the exact bridges payload', async () => {
+    await t('branded QR: 900px retina PNG that still decodes to the exact bridges payload', async () => {
         if (!pngjsT || !jsQRT || !QRCodeT) { console.log('        (decode SKIPPED — run npm install in user-portal/backend)'); return; }
         const r = await call(app, 'GET', '/api/boston/qr/:id.png', { params: { id: anaId } });
         assert.strictEqual(r.statusCode, 200);
         assert.strictEqual(r.headers['content-type'], 'image/png');
         const img = pngjsT.PNG.sync.read(r.body);
-        assert.strictEqual(img.width, 300); assert.strictEqual(img.height, 300);
+        assert.strictEqual(img.width, 900); assert.strictEqual(img.height, 900);
         const code = jsQRT(new Uint8ClampedArray(img.data.buffer, img.data.byteOffset, img.data.length), img.width, img.height);
         assert.ok(code, 'jsQR could not decode the composited QR — the plate overlay broke it');
         assert.deepStrictEqual(JSON.parse(code.data), { type: 'MEDX_MEMBER', regId: anaId, evt: 'bridges' },
             'payload must replicate the prod /qr/:id.png bridges branch exactly');
         const plain = await QRCodeT.toBuffer(JSON.stringify({ type: 'MEDX_MEMBER', regId: anaId, evt: 'bridges' }),
-            { errorCorrectionLevel: 'H', width: 300, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+            { errorCorrectionLevel: 'H', width: 900, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
         assert.ok(!plain.equals(r.body), 'plate does not appear to be composited (identical to a plain QR)');
     });
     await t('branded QR: unknown/malformed id -> 404', async () => {

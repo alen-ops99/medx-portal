@@ -213,9 +213,10 @@ const s3 = (() => {
 })();
 
 // ---------------------------------------------------------------- branded entry QR (plate overlay)
-// qr-plate.png — 253×58 white plate carrying the Med&X + HMPA logos — is alpha-composited onto the
-// center of a 300 px QR rendered at error-correction level H (30% recoverable), so the overlay never
-// costs scannability. Decodability is asserted in tests with a real decoder (jsQR).
+// qr-plate.png — a 3× (retina-sharp) white plate carrying the Med&X + HMPA logos — is
+// alpha-composited onto the center of a 900 px QR rendered at error-correction level H (30%
+// recoverable); the email displays it at 120 px so every screen gets ≥3× density and the logos
+// stay crisp when tapped-to-enlarge. Decodability is asserted in tests with a real decoder (jsQR).
 let plateCache;                                          // undefined = not tried, null = unavailable
 function loadPlate() {
     if (plateCache !== undefined) return plateCache;
@@ -225,7 +226,7 @@ function loadPlate() {
 }
 async function brandedQrPng(payloadJson) {
     const qrBuf = await QRCodeLib.toBuffer(payloadJson, {
-        errorCorrectionLevel: 'H', width: 300, margin: 2, color: { dark: '#000000', light: '#ffffff' }
+        errorCorrectionLevel: 'H', width: 900, margin: 2, color: { dark: '#000000', light: '#ffffff' }
     });
     const plate = loadPlate();
     if (!plate) return qrBuf;
