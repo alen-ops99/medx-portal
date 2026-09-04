@@ -133,7 +133,11 @@ export const COPY = {
   },
   planner: {
     title: '3D BALLROOM PLANNER',
-    open: 'OPEN THE 3D PLANNER ↗',
+    open: 'SEATING CONSOLE ↗',
+    dvorana: 'WALK THE 3D DVORANA ↗',
+    layout: 'IMPORT 3D LAYOUT', layoutTitle: 'plexus-picker-layout.json from the 3D dvorana — the seating board rebuilds to match the room (tables, seats per table)',
+    layoutResult: r => `ROOM SYNCED — ${r.updated} TABLE${r.updated === 1 ? '' : 'S'} UPDATED · ${r.created} NEW · ${r.total_seats} SEATS${(r.not_in_layout || []).length ? ` · ${r.not_in_layout.length} NOT IN LAYOUT (kept)` : ''}`,
+    layoutBad: 'THAT IS NOT A 3D-DVORANA LAYOUT FILE — export “Tlocrt za odabir stolova (.json)” from the dvorana',
     import: 'IMPORT CONSOLE CSV', importing: 'IMPORTING…',
     importTitle: 'The console’s guest CSV (columns table, name, email) — re-imports update, never duplicate',
     tooBig: 'THAT FILE IS TOO BIG FOR A GUEST CSV',
@@ -629,6 +633,8 @@ function blockBoard() {
 // ---- 3D ballroom planner (v2 addition, build 2026-08-31 — no artboard block; the old portal's
 // console CSV loop, brought beside the board: link out · import · the email-keyed "Stol N" list) ----
 const PLANNER_URL = 'https://plexus-tables.netlify.app';
+// the walkable three.js Smaragdna dvorana (artifact; local source Esplanade_Emerald_Ballroom/)
+const DVORANA_URL = 'https://claude.ai/code/artifact/fe4ad6bc-95f4-4f5b-9ef9-c8326d201841';
 function plannerRow(t) {
   return `<div style="display:flex;align-items:center;gap:8px;padding:7px 18px;border-bottom:1px solid rgba(32,27,22,.06)">
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;background:#f1e7d4;color:#7a6432;padding:3px 7px;white-space:nowrap">${esc(COPY.planner.stol(String(t.table_no == null ? '' : t.table_no).trim()))}</span>
@@ -644,6 +650,8 @@ function blockPlanner() {
     <div style="display:flex;align-items:center;gap:8px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.planner.title}</span>
       <div style="flex:1"></div>
+      <a href="${DVORANA_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#9b1b22;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#7e151b">${COPY.planner.dvorana}</a>
+      <label title="${COPY.planner.layoutTitle}" style="padding:6px 10px;border:1px solid #7a6432;background:#f8f1e2;color:#7a6432;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap;display:flex;align-items:center${st.layoutBusy ? ';opacity:.5;pointer-events:none' : ''}">${st.layoutBusy ? COPY.planner.importing : COPY.planner.layout}<input type="file" data-role="layoutFile" accept=".json,application/json" style="display:none"></label>
       <a href="${PLANNER_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.planner.open}</a>
       <label title="${COPY.planner.importTitle}" style="padding:6px 10px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap;display:flex;align-items:center${st.taBusy ? ';opacity:.5;pointer-events:none' : ''}" data-hover="border-color:#201b16">${st.taBusy ? COPY.planner.importing : COPY.planner.import}<input type="file" data-role="taFile" accept=".csv,text/csv,text/plain" style="display:none"></label>
     </div>
@@ -882,6 +890,26 @@ function readTblFields(el) {
 
 // ---- console CSV import (EXISTING /api/admin/gala/table-assignments/import — table,name,email;
 // upsert by lower(email): re-imports update rows, never duplicate) ----
+// 3D dvorana → seating board: plexus-picker-layout.json rebuilds gala_tables to match the room
+async function importLayoutFile(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { ui.toast(COPY.planner.layoutBad, { kind: 'error' }); return; }
+  let data = null;
+  try { data = JSON.parse(await file.text()); } catch (e) {}
+  if (!data || !Array.isArray(data.tables) || !data.tables.length) { ui.toast(COPY.planner.layoutBad, { kind: 'error' }); return; }
+  st.layoutBusy = true; rerender('[data-block="planner"]', blockPlanner());
+  try {
+    const r = await api.post('/api/v2/gala-ops/layout-import', { tables: data.tables, stage: data.stage || null });
+    st.taReport = COPY.planner.layoutResult(r);
+    ui.toast(st.taReport);
+    await refresh();
+  } catch (err) { ui.toast(err.message, { kind: 'error' }); }
+  st.layoutBusy = false;
+  rerender('[data-block="planner"]', blockPlanner());
+}
+
 async function importCsvFile(input) {
   const f = input.files && input.files[0];
   input.value = '';
@@ -1380,6 +1408,7 @@ async function handleChange(e) {
     return;
   }
   if (el.matches('[data-role="taFile"]')) { importCsvFile(el); }
+  if (el.matches('[data-role="layoutFile"]')) { importLayoutFile(el); }
 }
 function handleInput(e) {
   if (e.target && e.target.matches && e.target.matches('[data-role="q"]')) {

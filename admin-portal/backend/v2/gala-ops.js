@@ -838,6 +838,61 @@ module.exports = function mountGalaOps(app, ctx) {
         return { subject, html: inviteEmailHtml(lang, inv.name, price, openUrl) };
     }
 
+    // ---- 3D dvorana → seating board sync (Alen 2026-09-04) --------------------------------
+    // The walkable Smaragdna-dvorana app exports plexus-picker-layout.json
+    // ({ tables: [{ n, x, z, seats, label }], stage, … }). This route makes that file the source
+    // of truth for gala_tables: create/update by table number, capacities follow the 3D room,
+    // positions kept in notes. Tables missing from the layout are reported (and deleted only when
+    // empty AND retire:true) — never silently, never with guests seated.
+    app.post('/api/v2/gala-ops/layout-import', auth, adminOnly, (req, res) => {
+        try {
+            const body = req.body || {};
+            const tables = Array.isArray(body.tables) ? body.tables : null;
+            if (!tables || !tables.length) return res.status(400).json({ error: 'No tables in the layout — export plexus-picker-layout.json from the 3D dvorana and upload that file.' });
+            const retire = !!body.retire;
+            const existing = getAll('SELECT * FROM gala_tables');
+            const byLabel = {};
+            existing.forEach(t => { byLabel[String(t.label || '').toUpperCase()] = t; });
+            let created = 0, updated = 0, seats = 0;
+            const seen = new Set();
+            for (const t of tables) {
+                const n = parseInt(t.n, 10);
+                if (!Number.isFinite(n) || n <= 0) continue;
+                const label = 'T' + n;
+                const cap = Math.max(1, parseInt(t.seats, 10) || 10);
+                seats += cap;
+                const note = ['3D dvorana', t.label ? String(t.label).slice(0, 60) : null,
+                              (t.x != null && t.z != null) ? `pos ${t.x},${t.z}` : null].filter(Boolean).join(' · ');
+                const hit = byLabel[label] || byLabel[String(n)];
+                seen.add(label); seen.add(String(n));
+                if (hit) {
+                    db().run('UPDATE gala_tables SET capacity = ?, notes = ? WHERE id = ?', [cap, note, hit.id]);
+                    updated++;
+                } else {
+                    db().run('INSERT INTO gala_tables (id, label, capacity, notes) VALUES (?,?,?,?)',
+                        [crypto.randomUUID(), label, cap, note]);
+                    created++;
+                }
+            }
+            const leftovers = existing.filter(t => !seen.has(String(t.label || '').toUpperCase()));
+            const retired = [], kept = [];
+            for (const t of leftovers) {
+                let occupied = 0;
+                try { occupied = (getAll('SELECT COUNT(*) c FROM gala_seat_assignments WHERE table_id = ?', [t.id])[0] || {}).c || 0; } catch (e) {}
+                if (retire && !occupied) {
+                    try { db().run('DELETE FROM gala_seat_assignments WHERE table_id = ?', [t.id]); } catch (e) {}
+                    db().run('DELETE FROM gala_tables WHERE id = ?', [t.id]);
+                    retired.push(t.label);
+                } else {
+                    kept.push({ label: t.label, occupied });
+                }
+            }
+            persist();
+            audit(req, 'gala.layout_import', `3D layout: ${created} created, ${updated} updated, ${retired.length} retired`);
+            res.json({ ok: true, created, updated, retired, not_in_layout: kept, tables: tables.length, total_seats: seats });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     app.get('/api/v2/gala-ops/invites', auth, adminOnly, (req, res) => {
         try { res.json(invitesPayload()); }
         catch (e) { log('invites read failed:', e.message); res.status(500).json({ error: 'Invitations are unavailable right now.' }); }
