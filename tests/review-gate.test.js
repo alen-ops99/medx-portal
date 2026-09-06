@@ -309,6 +309,86 @@ const REAL_ROWS = [
         assert.strictEqual(sent.length, 1, 'no duplicate ask email');
     });
 
+    await t('domain intel: academic classifier, name match, verdict combiner', () => {
+        assert.ok(gate.isAcademicishDomain('hms.harvard.edu'));
+        assert.ok(gate.isAcademicishDomain('med.uni.rs'));
+        assert.ok(gate.isAcademicishDomain('kbc-zagreb.hr'));
+        assert.ok(gate.isAcademicishDomain('ucl.ac.uk'));
+        assert.ok(!gate.isAcademicishDomain('tradelink-global.com'));
+        assert.ok(!gate.isAcademicishDomain('medx.hr'));
+        assert.ok(gate.institutionNameMatch('TradeLink LLC', 'tradelink.com'));
+        assert.ok(gate.institutionNameMatch('Boston Medical Consulting', 'bmc.com'), 'acronym');
+        assert.ok(!gate.institutionNameMatch('Xvqzwbnk LLC', 'medx.hr'));
+        assert.ok(!gate.institutionNameMatch('', 'tradelink.com'));
+        assert.strictEqual(gate.domainVerdict({ academic: true }).pass, true);
+        assert.strictEqual(gate.domainVerdict({ academic: false, ageDays: 4000, alive: true, nameMatch: true }).pass, true);
+        assert.strictEqual(gate.domainVerdict({ academic: false, ageDays: 30, alive: true, nameMatch: true }).pass, false);
+        assert.strictEqual(gate.domainVerdict({ academic: false, ageDays: null, alive: true, nameMatch: true }).pass, false, 'unverifiable age is not a pass');
+        assert.strictEqual(gate.domainVerdict({ academic: false, ageDays: 4000, alive: false, nameMatch: true }).pass, false);
+        assert.strictEqual(gate.domainVerdict({ academic: false, ageDays: 4000, alive: true, nameMatch: false }).pass, false);
+    });
+
+    await t('shaky company domain: no auto-approve — Alen gets findings, guest sees warm page', async () => {
+        const routes = {};
+        const sent = [];
+        const appStub = { get: (p, h) => { routes['GET ' + p] = h; }, post: (p, h) => { routes['POST ' + p] = h; } };
+        gate.mountReviewRoutes(appStub, {
+            JWT_SECRET: 'unit-secret-2',
+            sendEmail: async (to, subject, html) => { sent.push({ to, subject, html }); return { success: true }; },
+            checkDomain: async (domain, institution) => ({
+                pass: false, tier: 'corporate',
+                reasons: ['the domain was registered only 12 days ago'],
+                evidence: [['Domain', domain], ['Registered', '12 days ago \u26a0']]
+            })
+        });
+        let notes = 'HELD — review';
+        let approved = 0; let rowEmail = 'shady@gmail.com';
+        gate.registerReviewHandlers('bridges_registrations', {
+            approve: async () => { approved++; return { status: 'done', headline: 'Approved.', message: 'ok' }; },
+            reject: async () => ({ status: 'done', headline: 'Rejected.', message: 'ok' }),
+            getRow: () => ({ id: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', name: 'Shady Person', email: rowEmail, institution: 'FreshCo LLC', notes, state: 'pending' }),
+            setNotes: (id, n) => { notes = n; },
+            setEmail: (id, e) => { rowEmail = e; },
+            eventLabel: 'Building Bridges in Biomedicine — Boston'
+        });
+        const run = async (key, params, body) => {
+            const req = { params: params || {}, body: body || {} };
+            let out = { statusCode: 200, body: null };
+            const res = {
+                status(c) { out.statusCode = c; return this; },
+                send(b) { out.body = b; return this; },
+                json(b) { out.body = b; return this; }
+            };
+            await routes[key](req, res);
+            return out;
+        };
+        // organizer asks for institutional confirmation
+        const tok = gate.reviewToken('unit-secret-2', 'bridges_registrations', 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6');
+        await run('GET /api/review/:token/verify', { token: tok });
+        // registrant submits a corporate address
+        const vtoken = gate.verifyPageToken('unit-secret-2', 'bridges_registrations', 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6');
+        const sub = await run('POST /verify-registration/:vtoken', { vtoken }, { email: 'ceo@freshco-global.com' });
+        assert.strictEqual(sub.statusCode, 200);
+        // click from the corporate inbox
+        const sig2 = gate.instConfirmSig('unit-secret-2', 'bridges_registrations', 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', 'ceo@freshco-global.com');
+        const click = await run('GET /verify-registration/:vtoken/confirm/:sig2', { vtoken, sig2 });
+        assert.strictEqual(click.statusCode, 200);
+        assert.ok(String(click.body).includes('All set'), 'guest sees the warm finalizing page');
+        assert.ok(!String(click.body).includes('You are confirmed'), 'guest is NOT told they are confirmed');
+        assert.strictEqual(approved, 0, 'NOT auto-approved');
+        assert.strictEqual(rowEmail, 'ceo@freshco-global.com', 'row re-pointed at the verified inbox for a later approve');
+        assert.ok(gate.getMarker(notes, 'DOMAIN-FLAGGED'), 'flag marker stamped');
+        const flagMail = sent[sent.length - 1];
+        assert.strictEqual(flagMail.to, gate.REVIEW_TO, 'findings go to Alen');
+        assert.ok(/Company domain needs your OK/.test(flagMail.subject));
+        assert.ok(flagMail.html.includes('12 days'), 'evidence in the email');
+        // idempotent second click: same warm page, no duplicate email to Alen
+        const before = sent.length;
+        const click2 = await run('GET /verify-registration/:vtoken/confirm/:sig2', { vtoken, sig2 });
+        assert.ok(String(click2.body).includes('All set'));
+        assert.strictEqual(sent.length, before, 'no duplicate findings email');
+    });
+
     await t('default review recipient is Alen', () => {
         assert.strictEqual(gate.REVIEW_TO, 'juginovic.alen@gmail.com');
     });

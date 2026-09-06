@@ -647,6 +647,7 @@ module.exports = function mountBoston(app, deps) {
                 id: reg.id,
                 name: `${reg.first_name || ''} ${reg.last_name || ''}`.trim(),
                 email: reg.email,
+                institution: reg.institution || '',
                 notes: reg.notes,
                 state: reg.status === 'pending-review' ? 'pending' : (reg.status === 'cancelled' ? 'rejected' : 'approved')
             };

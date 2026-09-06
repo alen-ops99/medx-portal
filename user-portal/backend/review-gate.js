@@ -506,6 +506,11 @@ function guestLinkInactivePage() {
         '<p>This confirmation link is not active any more. If you believe this is a mistake, just reply to the email you received and we will sort it out.</p>');
 }
 
+function guestAlmostDonePage() {
+    return guestPage('All set — thank you', 'All set — thank you.',
+        '<p>Your confirmation went through. We are finalizing your registration and <b>your ticket will follow by email</b> shortly.</p>', 'ok');
+}
+
 function guestConfirmedPage(instEmail) {
     const where = instEmail ? 'to <b>' + esc(instEmail) + '</b>' : 'to the email address you registered with';
     return guestPage('You are confirmed', 'You are confirmed.',
@@ -590,12 +595,24 @@ function buildVerifyAskEmail({ firstName, confirmUrl, eventLabel }) {
         { preheader: 'One quick step and your ticket is on its way.' });
 }
 
-function buildFyiEmail({ name, instEmail }) {
+function buildFyiEmail({ name, instEmail, evidence }) {
     const T = tpl.T;
+    const evHtml = (evidence && evidence.length) ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:16px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td style="padding:6px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        ${evidence.map(([label, value], i) => {
+            const sep = i ? `border-top:1px solid ${T.hairline};` : '';
+            return `<tr>
+              <td class="em-goldlab em-hair" style="${sep}padding:9px 18px 9px 0;font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.goldDark};vertical-align:top;white-space:nowrap;">${esc(label)}</td>
+              <td class="em-ink em-hair" style="${sep}padding:9px 0;font-family:${T.sans};font-size:13px;line-height:1.5;color:${T.ink};word-break:break-word;">${esc(value)}</td>
+            </tr>`;
+        }).join('')}
+        </table>
+      </td></tr></table>` : '';
     const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">
       <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">For your information</div>
       <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${T.ink};margin-top:10px;">&#10003; Registration confirmed</div>
-      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:14px;"><b class="em-ink" style="color:${T.ink};">${esc(name)}</b> confirmed from <b class="em-ink" style="color:${T.ink};">${esc(instEmail)}</b>. The ticket was issued automatically to that institutional address — nothing for you to do.</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:14px;"><b class="em-ink" style="color:${T.ink};">${esc(name)}</b> confirmed from <b class="em-ink" style="color:${T.ink};">${esc(instEmail)}</b>. The ticket was issued automatically to that institutional address — nothing for you to do.</div>${evHtml}
     </td></tr></table>`;
     return tpl.shell({
         darkReady: true,
@@ -621,6 +638,126 @@ function buildInstConfirmEmail({ firstName, confirmUrl, eventLabel, name, instEm
         { facts,
           preheader: 'Confirm your registration — your ticket follows to this address.',
           footNote: 'If this wasn&#39;t you, simply ignore this email — nothing will be issued.' });
+}
+
+// ---------------------------------------------------------------- company-domain intelligence
+// Inbox control proves a person can read mail at a domain — not that the "company" is real
+// (a fraud domain costs $10 and five minutes). Tiers, per Alen 2026-09-06:
+//   academic/hospital-style domains  → trusted, auto-issue (hard to fake).
+//   corporate domains                → free background check: RDAP registration age,
+//                                      website liveness, name match vs the claimed
+//                                      institution. Clean → auto-issue (FYI carries the
+//                                      evidence). Shaky → NO auto-issue: Alen gets the
+//                                      findings with Approve/Reject; the guest sees a warm
+//                                      "your ticket will follow" page and learns nothing.
+const ACADEMIC_DOMAIN_RE = /\.(edu|gov|mil|int)$|\.(edu|ac|gov|gouv|nhs|uni)\.[a-z]{2,3}$/i;
+const ACADEMIC_HINT_RE = /(univ|uni-|college|hospital|klinik|clinic|kbc-|bolnica|institut|academy|akadem|fakultet|charite|helmholtz|max-planck|mpg\.de|cnrs|inserm|pasteur|salk|scripps|broadinstitute|dana-farber|mskcc|mayo|clevelandclinic|hopkinsmedicine|mgb|partners)/i;
+
+function isAcademicishDomain(domain) {
+    const d = String(domain || '').toLowerCase().trim();
+    return !!d && (ACADEMIC_DOMAIN_RE.test(d) || ACADEMIC_HINT_RE.test(d));
+}
+
+// Does the claimed institution plausibly own this domain? Token containment both ways,
+// plus an acronym check ("Boston Medical Consulting" ↔ bmc.com).
+function institutionNameMatch(institution, domain) {
+    const core = String(domain || '').toLowerCase().split('.').slice(0, -1).join('');   // labels minus TLD
+    const inst = String(institution || '').toLowerCase()
+        .replace(/\b(llc|inc|ltd|gmbh|corp|co|doo|d\.o\.o|sa|ag|plc|kg|bv|oy|ab)\b\.?/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ').trim();
+    if (!core || !inst) return false;
+    const tokens = inst.split(' ').filter(t => t.length >= 4);
+    const squashed = inst.replace(/ /g, '');
+    if (tokens.some(t => core.includes(t))) return true;
+    if (core.length >= 4 && squashed.includes(core)) return true;
+    const acronym = inst.split(' ').filter(Boolean).map(w => w[0]).join('');
+    if (acronym.length >= 3 && core === acronym) return true;
+    return false;
+}
+
+async function fetchWithTimeout(url, ms, opts) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try { return await fetch(url, Object.assign({ signal: ctrl.signal, redirect: 'follow' }, opts || {})); }
+    finally { clearTimeout(t); }
+}
+
+// RDAP (free, no key): IANA bootstrap maps the TLD to its registry's RDAP base, then
+// <base>/domain/<name> yields the registration date → age in days. null = could not verify
+// (registry without RDAP — e.g. .hr — timeout, parse trouble): treated as "unverified",
+// never as young. The bootstrap is cached in-process for a day. (rdap.org itself 403s
+// automated callers, so we go straight to the registries the way it would have.)
+let RDAP_BOOTSTRAP = { at: 0, map: null };
+async function rdapBaseForTld(tld) {
+    if (!RDAP_BOOTSTRAP.map || Date.now() - RDAP_BOOTSTRAP.at > 86400000) {
+        const r = await fetchWithTimeout('https://data.iana.org/rdap/dns.json', 6000);
+        if (!r.ok) throw new Error('rdap bootstrap ' + r.status);
+        const j = await r.json();
+        const map = {};
+        for (const [tlds, urls] of (j.services || [])) {
+            for (const t of tlds) map[t.toLowerCase()] = urls[0];
+        }
+        RDAP_BOOTSTRAP = { at: Date.now(), map };
+    }
+    return RDAP_BOOTSTRAP.map[tld] || null;
+}
+async function rdapDomainAgeDays(domain) {
+    try {
+        const tld = String(domain).toLowerCase().split('.').pop();
+        const base = await rdapBaseForTld(tld);
+        if (!base) return null;
+        const r = await fetchWithTimeout(base.replace(/\/+$/, '') + '/domain/' + encodeURIComponent(domain), 6000,
+            { headers: { Accept: 'application/rdap+json' } });
+        if (!r.ok) return null;
+        const j = await r.json();
+        const ev = (j.events || []).find(e => e.eventAction === 'registration');
+        if (!ev || !ev.eventDate) return null;
+        const days = (Date.now() - Date.parse(ev.eventDate)) / 86400000;
+        return Number.isFinite(days) ? days : null;
+    } catch { return null; }
+}
+
+async function websiteAlive(domain) {
+    for (const host of [domain, 'www.' + domain]) {
+        try {
+            const r = await fetchWithTimeout('https://' + host, 6000, { method: 'GET' });
+            if (r.status < 500) return true;
+        } catch { /* try next */ }
+    }
+    return false;
+}
+
+// Pure verdict combiner (unit-tested). Clean corporate = verified age >= 1 year AND a live
+// website AND a name match. Anything less goes to Alen with the reasons spelled out.
+function domainVerdict({ academic, ageDays, alive, nameMatch }) {
+    if (academic) return { pass: true, tier: 'academic', reasons: [] };
+    const reasons = [];
+    if (ageDays == null) reasons.push('the domain\u2019s registration age could not be verified');
+    else if (ageDays < 365) reasons.push('the domain was registered only ' + Math.max(1, Math.round(ageDays)) + ' days ago');
+    if (!alive) reasons.push('no website answers at the domain');
+    if (!nameMatch) reasons.push('the domain does not match the claimed institution');
+    return { pass: reasons.length === 0, tier: 'corporate', reasons };
+}
+
+const fmtAge = d => d == null ? 'unverified' : d >= 365 ? (d / 365).toFixed(1) + ' years' : Math.max(1, Math.round(d)) + ' days';
+
+// The full check → verdict + human-readable evidence rows for the FYI / review email.
+async function checkCompanyDomain(domain, institution) {
+    const d = String(domain || '').toLowerCase().trim();
+    if (isAcademicishDomain(d)) {
+        return { pass: true, tier: 'academic', reasons: [],
+            evidence: [['Domain', d + ' — academic/hospital, auto-trusted']] };
+    }
+    const [ageDays, alive] = await Promise.all([rdapDomainAgeDays(d), websiteAlive(d)]);
+    const nameMatch = institutionNameMatch(institution, d);
+    const v = domainVerdict({ academic: false, ageDays, alive, nameMatch });
+    v.evidence = [
+        ['Domain', d],
+        ['Registered', fmtAge(ageDays) + (ageDays != null && ageDays < 365 ? ' ago \u26a0' : ageDays == null ? ' \u26a0' : ' ago')],
+        ['Website', alive ? 'live' : 'not reachable \u26a0'],
+        ['Matches institution', nameMatch ? 'yes' : 'no \u26a0']
+    ];
+    return v;
 }
 
 // ---------------------------------------------------------------- routes + handler registry
@@ -782,19 +919,54 @@ function mountReviewRoutes(app, deps = {}) {
             if (!/^[0-9a-f]{32}$/.test(given) || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expect))) {
                 return res.status(404).send(guestLinkNotRightPage());
             }
+            // Already flagged for Alen on an earlier click — re-show the friendly page, re-send nothing.
+            if (getMarker(row.notes, 'DOMAIN-FLAGGED')) return res.send(guestAlmostDonePage());
             let notes2 = upsertMarker(row.notes, 'verified via', instEmail);
             if (typeof h.setEmail === 'function' && String(row.email || '').trim().toLowerCase() !== instEmail) {
                 notes2 = upsertMarker(notes2, 'original-email', String(row.email || '').trim());
                 h.setEmail(parsed.id, instEmail);   // ticket + passes + sheet row go to the verified institutional inbox
+            }
+            // Company-domain background check (tiers: academic auto-trusts; corporate must look real).
+            const domain = instEmail.split('@')[1] || '';
+            const checkFn = typeof deps.checkDomain === 'function' ? deps.checkDomain : checkCompanyDomain;
+            let intel;
+            try { intel = await checkFn(domain, row.institution || ''); }
+            catch (e) {
+                console.warn('[ReviewGate] domain check errored (treated as shaky):', e.message);
+                intel = { pass: false, tier: 'corporate', reasons: ['the domain background check could not complete'],
+                    evidence: [['Domain', domain], ['Check', 'errored \u26a0']] };
+            }
+            if (!intel.pass) {
+                notes2 = upsertMarker(notes2, 'DOMAIN-FLAGGED', new Date().toISOString());
+                h.setNotes(parsed.id, notes2);
+                try {
+                    const urls = reviewUrls(secret, parsed.table, parsed.id);
+                    const fields = {
+                        'Name': row.name || '\u2014',
+                        'Institutional email': instEmail,
+                        'Original email': row.email || '\u2014',
+                        'Claimed institution': row.institution || '\u2014'
+                    };
+                    for (const [k, v] of (intel.evidence || [])) fields[k] = v;
+                    await sendEmail(REVIEW_TO, `Company domain needs your OK — ${row.name || instEmail}`,
+                        buildReviewEmail({
+                            kind: (h.eventLabel || parsed.table) + ' \u00b7 company-domain check',
+                            fields,
+                            reason: 'They control ' + instEmail + ', but: ' + intel.reasons.join('; ') + '.',
+                            approveUrl: urls.approveUrl, rejectUrl: urls.rejectUrl
+                        }));
+                } catch (revErr) { console.warn('[ReviewGate] domain-flag review email failed:', revErr.message); }
+                console.log(`[ReviewGate] ${parsed.table}/${parsed.id} confirmed via ${instEmail} but domain flagged (${intel.reasons.join('; ')}) — held for Alen`);
+                return res.send(guestAlmostDonePage());
             }
             h.setNotes(parsed.id, notes2);
             const out = await h.approve(parsed.id) || {};                                  // EXACT approve path
             if (out.status === 'done') {
                 try {
                     await sendEmail(REVIEW_TO, `✓ Registration confirmed — ${row.name || row.email}`,
-                        buildFyiEmail({ name: row.name || row.email, instEmail }));
+                        buildFyiEmail({ name: row.name || row.email, instEmail, evidence: intel.evidence }));
                 } catch (fyiErr) { console.warn('[ReviewGate] FYI email failed:', fyiErr.message); }
-                console.log(`[ReviewGate] ${parsed.table}/${parsed.id} confirmed via ${instEmail} — auto-approved`);
+                console.log(`[ReviewGate] ${parsed.table}/${parsed.id} confirmed via ${instEmail} — auto-approved (${intel.tier})`);
             }
             return res.send(guestConfirmedPage(instEmail));
         } catch (e) {
@@ -829,6 +1001,10 @@ module.exports = {
     getMarker,
     upsertMarker,
     buildReviewEmail,
+    isAcademicishDomain,
+    institutionNameMatch,
+    domainVerdict,
+    checkCompanyDomain,
     buildVerifyAskEmail,
     buildInstConfirmEmail,
     registerReviewHandlers,

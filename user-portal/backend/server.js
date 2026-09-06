@@ -28443,6 +28443,7 @@ By applying to this program, I provide the following consents:
                 id: row.id,
                 name: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
                 email: row.email,
+                institution: row.institution || '',
                 notes: row.notes,
                 state: st.includes('pending-review') ? 'pending' : (st.includes('cancelled') ? 'rejected' : 'approved')
             };
