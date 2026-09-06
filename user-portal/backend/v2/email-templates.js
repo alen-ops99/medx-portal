@@ -957,7 +957,7 @@ function mount(/* app, ctx */) { /* template library — no routes, no tables */
 Object.assign(mount, {
     confirmEmail, ticketConfirmation, newsletter, attendanceCard, yearInReview,
     newsletterWelcome, newsletterConfirm, brandedPage,
-    TOPIC_LABELS, topicLabels, esc, escUrl, T
+    TOPIC_LABELS, topicLabels, esc, escUrl, T, shell, btn, microStyle
 });
 Object.assign(mount, {
     paymentReceived, paymentReminder, registrationCancelled, seatTransferred, transferReceived,

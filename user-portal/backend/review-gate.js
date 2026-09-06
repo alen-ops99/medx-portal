@@ -27,6 +27,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const tpl = require('./v2/email-templates');   // house shell/btn/T — every gate email uses the brand template
 
 const REVIEW_TO = process.env.REVIEW_EMAIL || 'juginovic.alen@gmail.com';
 
@@ -387,54 +388,53 @@ const instConfirmSig = (secret, table, id, instEmail) => crypto.createHmac('sha2
     .digest('hex').slice(0, 32);
 
 // ---------------------------------------------------------------- the review email (to Alen)
-// Branded inline-styles-only HTML in the house ink/cream/gold language. Every submitted field
-// is shown VERBATIM (escaped) so machine-generated garbage is visible at a glance.
+// Built on the house v2 shell (ink header + wordmark, gold rule, cream body, Fraunces
+// headline, light color-scheme metas so dark-mode clients don't invert it). Every submitted
+// field is shown VERBATIM (escaped) so machine-generated garbage is visible at a glance.
 function buildReviewEmail({ kind, fields, reason, approveUrl, rejectUrl, verifyUrl }) {
-    const rows = Object.entries(fields || {}).map(([label, value]) => {
+    const T = tpl.T;
+    const rows = Object.entries(fields || {}).map(([label, value], i) => {
         const v = String(value == null ? '' : value).trim();
+        const sep = i ? `border-top:1px solid ${T.hairline};` : '';
         return `<tr>
-            <td style="padding:9px 14px 9px 0;font:600 10px Helvetica,Arial,sans-serif;letter-spacing:1.6px;text-transform:uppercase;color:#8a7d70;vertical-align:top;white-space:nowrap;">${esc(label)}</td>
-            <td style="padding:9px 0;font:14px/1.55 Helvetica,Arial,sans-serif;color:#241d18;word-break:break-word;">${v ? esc(v) : '<span style="color:#b3a795;">&mdash;</span>'}</td>
+          <td style="${sep}padding:11px 18px 11px 0;font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.goldDark};vertical-align:top;white-space:nowrap;">${esc(label)}</td>
+          <td style="${sep}padding:11px 0;font-family:${T.sans};font-size:13.5px;line-height:1.55;color:${T.ink};word-break:break-word;">${v ? esc(v) : `<span style="color:${T.soft};">&mdash;</span>`}</td>
         </tr>`;
     }).join('\n');
-
-    return `<div style="background:#efe7d6;padding:28px 12px;">
-  <div style="max-width:600px;margin:0 auto;">
-    <div style="text-align:center;padding:0 0 18px;">
-      <div style="font:600 11px Helvetica,Arial,sans-serif;letter-spacing:3px;text-transform:uppercase;color:#b0893b;">Med&amp;X &middot; Registration review</div>
-    </div>
-    <div style="background:#fbf8f1;border:1px solid rgba(43,33,25,.09);border-radius:16px;padding:30px 30px 26px;">
-      <div style="font:500 26px Georgia,'Times New Roman',serif;letter-spacing:-.3px;color:#211b17;">A registration needs your review</div>
-      <div style="width:38px;height:1px;background:rgba(176,137,59,.45);margin:16px 0 18px;"></div>
-      <div style="font:14px/1.6 Helvetica,Arial,sans-serif;color:#4a4139;">A new submission on the <b>${esc(kind)}</b> was held before any confirmation, QR, wallet pass or sheet row was issued. Nothing has been sent to the registrant.</div>
-      <div style="margin:18px 0 4px;padding:12px 16px;border:1px solid rgba(143,45,42,.32);border-radius:10px;background:rgba(143,45,42,.07);font:600 13.5px/1.5 Helvetica,Arial,sans-serif;color:#7c2320;">Reason: ${esc(reason)}</div>
-      <table cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0 6px;border-collapse:collapse;">
-        ${rows}
+    const W = 'width:320px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;white-space:normal;line-height:1.5;';
+    const action = (html, caption) => `
+        <tr><td align="center" style="padding-top:16px;">${html}</td></tr>
+        <tr><td align="center" style="padding-top:6px;font-family:${T.sans};font-size:11px;line-height:1.55;color:${T.soft};">${caption}</td></tr>`;
+    const bodyHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">Held for your review</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:29px;line-height:1.15;letter-spacing:-.01em;color:${T.ink};margin-top:10px;">A registration needs your review</div>
+      <div style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:${T.soft};margin-top:14px;">A new submission on the <b style="color:${T.ink};">${esc(kind)}</b> was held. The registrant has received <b style="color:${T.ink};">nothing</b> — no confirmation, QR, wallet pass or sheet row — until you decide.</div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;"><tr>
+        <td style="background:rgba(155,27,34,.06);border-left:3px solid ${T.crimson};padding:12px 16px;">
+          <span style="font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.crimson};">Reason&nbsp;&nbsp;</span>
+          <span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(reason)}</span>
+        </td>
+      </tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td style="padding:8px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+${rows}
+        </table>
+      </td></tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
+        ${action(tpl.btn('Approve', approveUrl, 'solid', W), 'Releases the registration — standard confirmation, ticket and sheet row.')}
+        ${verifyUrl ? action(tpl.btn('Ask for institutional confirmation', verifyUrl, 'gold', W + 'font-size:10px;letter-spacing:.12em;'), 'They confirm from an institutional inbox — success issues tickets automatically and you get a one&#8209;line FYI.') : ''}
+        ${action(tpl.btn('Reject', rejectUrl, 'ghost', W), 'Cancels quietly — the registrant is never notified.')}
       </table>
-      <table cellpadding="0" cellspacing="0" style="margin:22px auto 4px;">
-        <tr>
-          <td style="padding:0 7px;">
-            <a href="${esc(approveUrl)}" style="display:inline-block;background:#2f6e3a;color:#f2f7f0;padding:14px 30px;border-radius:10px;font:600 12px Helvetica,Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">Approve</a>
-          </td>
-          <td style="padding:0 7px;">
-            <a href="${esc(rejectUrl)}" style="display:inline-block;background:#8f2d2a;color:#fbf3e6;padding:14px 30px;border-radius:10px;font:600 12px Helvetica,Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">Reject</a>
-          </td>
-        </tr>
-      </table>${verifyUrl ? `
-      <table cellpadding="0" cellspacing="0" style="margin:12px auto 4px;">
-        <tr>
-          <td>
-            <a href="${esc(verifyUrl)}" style="display:inline-block;background:#fbf8f1;color:#6e5626;border:1.5px solid #b0893b;padding:12px 26px;border-radius:10px;font:600 11px Helvetica,Arial,sans-serif;letter-spacing:1.8px;text-transform:uppercase;text-decoration:none;">Ask for institutional confirmation</a>
-          </td>
-        </tr>
-      </table>` : ''}
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(43,33,25,.08);font:12px/1.7 Helvetica,Arial,sans-serif;color:#8a7d70;">
-        <b style="color:#6f6256;">Approve</b> releases the registration: the guest receives the standard confirmation and the row reaches the usual sheet. <b style="color:#6f6256;">Reject</b> cancels it quietly — the registrant is never notified either way until you approve.${verifyUrl ? ` <b style="color:#6f6256;">Ask for institutional confirmation</b> emails the registrant a polite request to confirm from their institutional address — a completed confirmation approves and issues tickets automatically, and you get a one-line FYI.` : ''} All links are safe to click twice (each decision is applied once).
-      </div>
-    </div>
-    <div style="text-align:center;padding:18px 10px 0;font:11.5px/1.7 Helvetica,Arial,sans-serif;color:#94897c;">Med&amp;X registration review gate &middot; this email was sent only to you.</div>
-  </div>
-</div>`;
+      <div style="margin-top:24px;padding-top:14px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:11px;line-height:1.7;color:${T.soft};">Safe to click twice — each decision is applied once. This email was sent only to you.</div>
+    </td></tr></table>`;
+    return tpl.shell({
+        title: 'Registration review — Med&X',
+        preheader: 'Held before anything was issued — approve, reject, or ask for institutional confirmation.',
+        headerRightLabel: 'REGISTRATION REVIEW',
+        rule: 'gold',
+        bodyHtml,
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Review gate · sent only to the organizer']
+    });
 }
 
 // ---------------------------------------------------------------- result pages (browser)
@@ -546,22 +546,21 @@ function verifyFormPage(vtoken, firstName) {
 // Polite and unsuspicious — a legitimate guest reads a routine "one more step"; the emails
 // never mention review, holds or fraud.
 function emailShell(headline, bodyHtml, buttonLabel, buttonUrl) {
-    return `<div style="background:#efe7d6;padding:28px 12px;">
-  <div style="max-width:560px;margin:0 auto;">
-    <div style="text-align:center;padding:0 0 18px;">
-      <div style="font:600 11px Helvetica,Arial,sans-serif;letter-spacing:3px;text-transform:uppercase;color:#b0893b;">Med&amp;X</div>
-    </div>
-    <div style="background:#fbf8f1;border:1px solid rgba(43,33,25,.09);border-radius:16px;padding:30px 30px 26px;">
-      <div style="font:500 24px Georgia,'Times New Roman',serif;letter-spacing:-.3px;color:#211b17;">${headline}</div>
-      <div style="width:38px;height:1px;background:rgba(176,137,59,.45);margin:16px 0 18px;"></div>
-      <div style="font:14px/1.7 Helvetica,Arial,sans-serif;color:#4a4139;">${bodyHtml}</div>
-      <table cellpadding="0" cellspacing="0" style="margin:24px auto 6px;"><tr><td>
-        <a href="${esc(buttonUrl)}" style="display:inline-block;background:#8f2d2a;color:#fbf3e6;padding:15px 34px;border-radius:10px;font:600 12px Helvetica,Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">${buttonLabel} &rarr;</a>
-      </td></tr></table>
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(43,33,25,.08);font:12px/1.7 Helvetica,Arial,sans-serif;color:#8a7d70;">Questions? Laura Rodman (<a href="mailto:laura.rodman@medx.hr" style="color:#b0893b;text-decoration:none;">laura.rodman@medx.hr</a>).</div>
-    </div>
-  </div>
-</div>`;
+    const T = tpl.T;
+    const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">Your registration</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;letter-spacing:-.01em;color:${T.ink};margin-top:10px;">${headline}</div>
+      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:16px;">${bodyHtml}</div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr></table>
+      <div style="margin-top:24px;padding-top:14px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:11.5px;line-height:1.7;color:${T.soft};">Questions? Just reply to this email — or write to Laura Rodman at laura.rodman@medx.hr.</div>
+    </td></tr></table>`;
+    return tpl.shell({
+        title: headline + ' — Med&X',
+        preheader: '',
+        headerRightLabel: 'REGISTRATION',
+        rule: 'crimson',
+        bodyHtml: body
+    });
 }
 
 function buildVerifyAskEmail({ firstName, confirmUrl }) {
@@ -570,6 +569,22 @@ function buildVerifyAskEmail({ firstName, confirmUrl }) {
          <p style="margin:0 0 10px;">Thank you for registering — we are delighted you will be joining us.</p>
          <p style="margin:0;">To complete your registration, please confirm it from your <b>institutional email address</b> (your university, hospital, institute or company). It takes under a minute:</p>`,
         'Confirm my registration', confirmUrl);
+}
+
+function buildFyiEmail({ name, instEmail }) {
+    const T = tpl.T;
+    const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">For your information</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${T.ink};margin-top:10px;">&#10003; Registration confirmed</div>
+      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:14px;"><b style="color:${T.ink};">${esc(name)}</b> confirmed from <b style="color:${T.ink};">${esc(instEmail)}</b>. Tickets were issued automatically — nothing for you to do.</div>
+    </td></tr></table>`;
+    return tpl.shell({
+        title: 'Registration confirmed — Med&X',
+        headerRightLabel: 'REGISTRATION REVIEW',
+        rule: 'gold',
+        bodyHtml: body,
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Review gate · sent only to the organizer']
+    });
 }
 
 function buildInstConfirmEmail({ firstName, confirmUrl }) {
@@ -743,7 +758,7 @@ function mountReviewRoutes(app, deps = {}) {
             if (out.status === 'done') {
                 try {
                     await sendEmail(REVIEW_TO, `✓ Registration confirmed — ${row.name || row.email}`,
-                        `<div style="font:14px/1.7 Helvetica,Arial,sans-serif;color:#2c2521;padding:14px 4px;">&#10003; <b>${esc(row.name || row.email)}</b> confirmed via <b>${esc(instEmail)}</b> &mdash; tickets issued automatically.</div>`);
+                        buildFyiEmail({ name: row.name || row.email, instEmail }));
                 } catch (fyiErr) { console.warn('[ReviewGate] FYI email failed:', fyiErr.message); }
                 console.log(`[ReviewGate] ${parsed.table}/${parsed.id} confirmed via ${instEmail} — auto-approved`);
             }

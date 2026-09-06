@@ -922,7 +922,7 @@ async function t(name, fn) {
         assert.strictEqual(confMail.to, BOT3.email, 'the ticket goes to the ORIGINAL registered address');
         assert.ok(/You are in/.test(confMail.subject), 'standard confirmation subject');
         assert.strictEqual(fyiMail.to, 'juginovic.alen@gmail.com', 'FYI goes to Alen');
-        assert.ok(fyiMail.html.includes('prof.x@med.uni.rs') && /tickets issued automatically/.test(fyiMail.html), 'FYI one-liner');
+        assert.ok(fyiMail.html.includes('prof.x@med.uni.rs') && /issued automatically/i.test(fyiMail.html), 'FYI one-liner');
 
         // 5) Idempotent: a second confirm click renders the same page, sends nothing
         mailsBefore = sentEmails.length;
