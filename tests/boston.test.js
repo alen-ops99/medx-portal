@@ -724,10 +724,13 @@ async function t(name, fn) {
         assert.strictEqual(row.status, 'pending-review');
         assert.strictEqual(Number(row.confirmation_sent), 0);
         assert.ok(String(row.notes).includes('HELD — review'), 'notes marker missing: ' + row.notes);
-        assert.strictEqual(sentEmails.length, mailsBefore + 1, 'exactly one review email');
-        const mail = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(sentEmails.length, mailsBefore + 2, 'review email to Alen + soft acknowledgment to the registrant');
+        const mail = sentEmails[sentEmails.length - 2];
         assert.strictEqual(mail.to, 'juginovic.alen@gmail.com', 'review email goes to Alen');
-        assert.ok(!sentEmails.some(m => m.to === BOT.email), 'the bot must receive NOTHING');
+        const ack = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(ack.to, BOT.email, 'soft acknowledgment goes to the registrant');
+        assert.ok(/We received your registration/.test(ack.subject), 'ack subject');
+        assert.ok(!/\.pkpass|wallet|\/qr\//i.test(ack.html), 'ack carries no ticket assets');
         assert.ok(mail.html.includes('A registration needs your review'), 'review headline missing');
         assert.ok(mail.html.includes('Looks machine-generated'), 'reason missing');
         assert.ok(mail.html.includes('RQstQeTGKseNqJzmVHMmE') && mail.html.includes('Ugakeu LLC')
@@ -815,7 +818,7 @@ async function t(name, fn) {
         const r1 = await call(app, 'POST', '/api/boston/register', { body: { ...BOT2 } });
         assert.strictEqual(r1.body.held, true, 'second bot must be held too');
         const row = query.get('SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?)', [BOT2.email]);
-        const mail = sentEmails[sentEmails.length - 1];
+        const mail = sentEmails[sentEmails.length - 2];
         const rm = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/reject/.exec(mail.html);
         assert.ok(rm, 'reject link missing');
         const mailsBefore = sentEmails.length;
@@ -826,7 +829,7 @@ async function t(name, fn) {
         assert.strictEqual(fresh.status, 'cancelled');
         assert.ok(String(fresh.notes).includes('rejected'), 'notes should record the rejection');
         assert.strictEqual(sentEmails.length, mailsBefore, 'reject must email no one');
-        assert.ok(!sentEmails.some(m => m.to === BOT2.email), 'the registrant must never be emailed');
+        assert.ok(!sentEmails.some(m => m.to === BOT2.email && !/We received your registration/.test(m.subject)), 'beyond the soft acknowledgment, the registrant is never emailed');
         const r3 = await call(app, 'GET', '/api/review/:token/reject', { params: { token: rm[1] } });
         assert.ok(String(r3.body).includes('Already rejected'), 'second reject must be the idempotent page');
     });
@@ -846,7 +849,7 @@ async function t(name, fn) {
         const r0 = await call(app, 'POST', '/api/boston/register', { body: { ...BOT3 } });
         assert.strictEqual(r0.body.held, true, 'BOT3 must be held');
         const row = query.get('SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?)', [BOT3.email]);
-        const reviewMail = sentEmails[sentEmails.length - 1];
+        const reviewMail = sentEmails[sentEmails.length - 2];
         const vm = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/verify/.exec(reviewMail.html);
         assert.ok(vm, 'review email must carry the ask-for-institutional-confirmation link');
 
@@ -939,7 +942,7 @@ async function t(name, fn) {
         const BOT4 = { name: 'GkZpWqXvBnTrLmDsFhJq', email: 'ttx9032@botmail.example', institution: 'Pqzkwv LLC', position: 'XcVbNmQwErTzUkKjHgFd' };
         await call(app, 'POST', '/api/boston/register', { body: { ...BOT4 } });
         const row = query.get('SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?)', [BOT4.email]);
-        const mail = sentEmails[sentEmails.length - 1];
+        const mail = sentEmails[sentEmails.length - 2];
         const rm = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/reject/.exec(mail.html);
         await call(app, 'GET', '/api/review/:token/reject', { params: { token: rm[1] } });
         const vm = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/verify/.exec(mail.html);

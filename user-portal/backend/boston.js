@@ -338,24 +338,59 @@ module.exports = function mountBoston(app, deps) {
         _gTok = j.access_token; _gTokAt = Date.now();
         return _gTok;
     }
-    function bostonSheetRow(reg, presentation) {
+    function bostonSheetRow(reg, presentation, statusLabel) {
         let when = String(reg.registered_at || '');
         try {
             const d = new Date(when.replace(' ', 'T') + (when.includes('Z') ? '' : 'Z'));
             when = d.toLocaleString('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' ET';
         } catch (e) {}
+        const label = statusLabel || (reg.status === 'registered' || reg.status === 'confirmed' ? 'Confirmed'
+            : reg.status === 'pending-review' ? 'Pending review'
+            : reg.status === 'cancelled' ? 'Rejected' : (reg.status || 'registered'));
         return [when, reg.first_name || '', reg.last_name || '', reg.email, reg.institution || '', reg.position || '',
-                presentation ? 'Yes' : 'No', reg.status || 'registered', Number(reg.checked_in) ? 'Yes' : 'No'];
+                presentation ? 'Yes' : 'No', label, Number(reg.checked_in) ? 'Yes' : 'No', String(reg.id || '')];
     }
-    function pushToBostonSheet(reg, presentation) {
+    // Upsert by registration id (column J): held rows land as 'Pending review', then the SAME
+    // row is updated in place — 'Institutional confirmation requested' → 'Confirmed'/'Rejected' —
+    // so the sheet mirrors the review pipeline without duplicate rows. (Alen 2026-09-06)
+    function pushToBostonSheet(reg, presentation, statusLabel) {
         const sheetId = process.env.BB_SHEET_ID;
         if (!sheetId || !process.env.GOOGLE_OAUTH_REFRESH_TOKEN) return;
-        sheetsToken().then(tok => fetch(
-            `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:I1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        const doAppend = tok => fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A1:J1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
             { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ values: [bostonSheetRow(reg, presentation)] }) }
-        )).then(r => { if (r && !r.ok) console.warn('[Boston] sheet append HTTP', r.status); })
-          .catch(e => console.warn('[Boston] sheet append failed (non-blocking):', e.message));
+              body: JSON.stringify({ values: [bostonSheetRow(reg, presentation, statusLabel)] }) });
+        sheetsToken().then(async tok => {
+            const rowIdx = await findBostonSheetRow(tok, sheetId, String(reg.id || ''));
+            if (rowIdx == null) return doAppend(tok);
+            return fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/A${rowIdx}:J${rowIdx}?valueInputOption=RAW`,
+                { method: 'PUT', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ values: [bostonSheetRow(reg, presentation, statusLabel)] }) });
+        }).then(r => { if (r && !r.ok) console.warn('[Boston] sheet upsert HTTP', r.status); })
+          .catch(e => console.warn('[Boston] sheet upsert failed (non-blocking):', e.message));
+    }
+    async function findBostonSheetRow(tok, sheetId, id) {
+        if (!id) return null;
+        try {
+            const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/J1:J2000`,
+                { headers: { Authorization: 'Bearer ' + tok } });
+            if (!r.ok) return null;
+            const vals = (await r.json()).values || [];
+            for (let i = 0; i < vals.length; i++) if ((vals[i][0] || '') === id) return i + 1;
+        } catch (e) {}
+        return null;
+    }
+    function updateBostonSheetStatus(id, label) {
+        const sheetId = process.env.BB_SHEET_ID;
+        if (!sheetId || !process.env.GOOGLE_OAUTH_REFRESH_TOKEN) return;
+        sheetsToken().then(async tok => {
+            const rowIdx = await findBostonSheetRow(tok, sheetId, String(id));
+            if (rowIdx == null) return null;
+            return fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/H${rowIdx}?valueInputOption=RAW`,
+                { method: 'PUT', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ values: [[label]] }) });
+        }).then(r => { if (r && !r.ok) console.warn('[Boston] sheet status HTTP', r.status); })
+          .catch(e => console.warn('[Boston] sheet status failed (non-blocking):', e.message));
     }
 
     // ------------------------------------------------------------ wallet links (email + on-page)
@@ -557,6 +592,11 @@ module.exports = function mountBoston(app, deps) {
                             approveUrl: urls.approveUrl, rejectUrl: urls.rejectUrl, verifyUrl: urls.verifyUrl
                         }));
                 } catch (e) { console.error('[ReviewGate] Boston review email failed:', e.message); }
+                try {
+                    await sendEmail(email, 'We received your registration — Building Bridges Boston',
+                        reviewGate.buildPendingEmail({ firstName: first_name, eventLabel: EVENT_NAME }));
+                } catch (e) { console.warn('[ReviewGate] pending-ack email failed:', e.message); }
+                pushToBostonSheet(query.get('SELECT * FROM bridges_registrations WHERE id = ?', [heldId]), presentation, 'Pending review');
                 console.log(`[ReviewGate] Boston registration ${heldId} (${email}) held for review`);
                 return res.json({ success: true, held: true });
             }
@@ -617,7 +657,7 @@ module.exports = function mountBoston(app, deps) {
                     query.run('UPDATE bridges_registrations SET confirmation_sent = 1 WHERE id = ?', [id]);
                 }
             } catch (e) { console.warn('[ReviewGate] approved-registration confirmation failed:', e.message); }
-            pushToBostonSheet(query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || fresh, presentation);
+            pushToBostonSheet(query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || fresh, presentation, 'Confirmed');
             console.log(`[ReviewGate] Boston registration ${id} APPROVED — confirmation sent, sheet row pushed`);
             return { status: 'done', headline: 'Approved.',
                 message: `${guest} is registered for Building Bridges Boston — the standard confirmation email (entry QR + wallet passes) has been sent to ${reg.email}, and the row was pushed to the Boston sheet.` };
@@ -635,6 +675,7 @@ module.exports = function mountBoston(app, deps) {
             const notes = String(reg.notes || '').replace('HELD — review', 'HELD — review · rejected ' + new Date().toISOString().slice(0, 10));
             query.run(`UPDATE bridges_registrations SET status = 'cancelled', notes = ? WHERE id = ?`, [notes, id]);
             flushDb();
+            updateBostonSheetStatus(id, 'Rejected');
             console.log(`[ReviewGate] Boston registration ${id} REJECTED`);
             return { status: 'done', headline: 'Rejected.',
                 message: `${guest}'s registration has been cancelled. They received nothing — no confirmation, no QR, no wallet pass — and no sheet row was written.` };
@@ -677,6 +718,7 @@ module.exports = function mountBoston(app, deps) {
                 eventLine: `${EVENT_NAME} · ${DATE_LONG} · 6:00 PM`
             };
         },
+        sheetStatus: (id, label) => updateBostonSheetStatus(id, label),
         eventLabel: 'Building Bridges in Biomedicine — Boston'
     });
 

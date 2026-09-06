@@ -622,6 +622,18 @@ function emailShell(headline, bodyHtml, buttonLabel, buttonUrl, opts) {
     });
 }
 
+// Held registrants get a soft acknowledgment — so nobody thinks the click already
+// registered them, and nobody learns they tripped a review. No ticket assets in it.
+function buildPendingEmail({ firstName, eventLabel }) {
+    const forEvent = eventLabel ? ` for <b class="em-ink" style="color:#f2e7d6;">${esc(eventLabel)}</b>` : '';
+    return emailShell('We received your registration',
+        `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
+         <p style="margin:0 0 10px;">Thank you for registering${forEvent} — we are happy to have you.</p>
+         <p style="margin:0;">We are completing a quick review of your registration. You will receive your <b>confirmation and ticket by email</b> shortly — no further action is needed from you right now.</p>`,
+        'Visit medx.hr', 'https://medx.hr',
+        { eyebrow: 'Registration received', preheader: 'Your registration is in — confirmation follows by email.' });
+}
+
 function buildVerifyAskEmail({ firstName, confirmUrl, eventLabel }) {
     const forEvent = eventLabel ? ` for <b class="em-ink">${esc(eventLabel)}</b>` : '';
     return emailShell('One more step — confirm your registration',
@@ -882,6 +894,7 @@ function mountReviewRoutes(app, deps = {}) {
             await sendEmail(row.email, 'One more step — confirm your registration',
                 buildVerifyAskEmail({ firstName, confirmUrl: `${baseUrl()}/verify-registration/${vtoken}`, eventLabel: h.eventLabel }));
             h.setNotes(parsed.id, upsertMarker(row.notes, 'VERIFY-REQUESTED', new Date().toISOString()));
+            if (typeof h.sheetStatus === 'function') { try { h.sheetStatus(parsed.id, 'Institutional confirmation requested'); } catch (e) {} }
             console.log(`[ReviewGate] institutional confirmation requested for ${parsed.table}/${parsed.id} (${row.email})`);
             return res.send(resultPage('Confirmation request sent', 'Confirmation request sent.',
                 `A polite &ldquo;one more step&rdquo; note was emailed to <b>${esc(row.email)}</b>. If they confirm from an institutional address, the registration approves automatically &mdash; tickets go out and you get a one-line FYI. Approve and Reject in your review email keep working meanwhile.`, 'approve'));
@@ -992,6 +1005,7 @@ function mountReviewRoutes(app, deps = {}) {
                             approveUrl: urls.approveUrl, rejectUrl: urls.rejectUrl
                         }));
                 } catch (revErr) { console.warn('[ReviewGate] domain-flag review email failed:', revErr.message); }
+                if (typeof h.sheetStatus === 'function') { try { h.sheetStatus(parsed.id, 'Awaiting approval (domain check)'); } catch (e) {} }
                 console.log(`[ReviewGate] ${parsed.table}/${parsed.id} confirmed via ${instEmail} but domain flagged (${intel.reasons.join('; ')}) — held for Alen`);
                 return res.send(guestAlmostDonePage());
             }
@@ -1042,6 +1056,7 @@ module.exports = {
     domainVerdict,
     checkCompanyDomain,
     buildVerifyAskEmail,
+    buildPendingEmail,
     buildInstConfirmEmail,
     registerReviewHandlers,
     mountReviewRoutes

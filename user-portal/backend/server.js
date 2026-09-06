@@ -28675,6 +28675,10 @@ By applying to this program, I provide the following consents:
                             approveUrl: urls.approveUrl, rejectUrl: urls.rejectUrl, verifyUrl: urls.verifyUrl
                         }));
                 } catch (e) { console.error('[ReviewGate] Zagreb review email failed:', e.message); }
+                try {
+                    await sendEventConfirmation(email, 'We received your registration — Plexus 2026',
+                        reviewGate.buildPendingEmail({ firstName: first_name, eventLabel: 'Plexus 2026' }));
+                } catch (e) { console.warn('[ReviewGate] Zagreb pending-ack email failed:', e.message); }
                 console.log(`[ReviewGate] Zagreb registration ${regId} (${email}) held for review — ${gateReason}`);
                 return res.json({ success: true, id: regId, status: 'pending-review', held: true });
             }
