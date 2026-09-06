@@ -37,3 +37,4 @@ registrations-log.csv
 * 3.*
 * 4.*
 *.preGalaInvites-*
+user-portal/backend/node_modules
