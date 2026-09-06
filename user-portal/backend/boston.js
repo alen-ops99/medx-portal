@@ -654,7 +654,14 @@ module.exports = function mountBoston(app, deps) {
         setNotes: (id, notes) => {
             query.run('UPDATE bridges_registrations SET notes = ? WHERE id = ?', [notes, id]);
             flushDb();
-        }
+        },
+        // Institutional confirmation re-points the row at the verified inbox: the ticket,
+        // wallet passes and sheet row then all go to the proven-real address.
+        setEmail: (id, email) => {
+            query.run('UPDATE bridges_registrations SET email = ? WHERE id = ?', [email, id]);
+            flushDb();
+        },
+        eventLabel: 'Building Bridges in Biomedicine — Boston'
     });
 
     // ------------------------------------------------------------ GET /boston.ics

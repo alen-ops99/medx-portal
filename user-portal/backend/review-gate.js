@@ -397,25 +397,25 @@ function buildReviewEmail({ kind, fields, reason, approveUrl, rejectUrl, verifyU
         const v = String(value == null ? '' : value).trim();
         const sep = i ? `border-top:1px solid ${T.hairline};` : '';
         return `<tr>
-          <td style="${sep}padding:11px 18px 11px 0;font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.goldDark};vertical-align:top;white-space:nowrap;">${esc(label)}</td>
-          <td style="${sep}padding:11px 0;font-family:${T.sans};font-size:13.5px;line-height:1.55;color:${T.ink};word-break:break-word;">${v ? esc(v) : `<span style="color:${T.soft};">&mdash;</span>`}</td>
+          <td class="em-goldlab em-hair" style="${sep}padding:11px 18px 11px 0;font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.goldDark};vertical-align:top;white-space:nowrap;">${esc(label)}</td>
+          <td class="em-ink em-hair" style="${sep}padding:11px 0;font-family:${T.sans};font-size:13.5px;line-height:1.55;color:${T.ink};word-break:break-word;">${v ? esc(v) : `<span class="em-soft" style="color:${T.soft};">&mdash;</span>`}</td>
         </tr>`;
     }).join('\n');
     const W = 'width:320px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;white-space:normal;line-height:1.5;';
     const action = (html, caption) => `
         <tr><td align="center" style="padding-top:16px;">${html}</td></tr>
-        <tr><td align="center" style="padding-top:6px;font-family:${T.sans};font-size:11px;line-height:1.55;color:${T.soft};">${caption}</td></tr>`;
+        <tr><td align="center" class="em-soft" style="padding-top:6px;font-family:${T.sans};font-size:11px;line-height:1.55;color:${T.soft};">${caption}</td></tr>`;
     const bodyHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
-      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">Held for your review</div>
-      <div style="font-family:${T.serif};font-weight:500;font-size:29px;line-height:1.15;letter-spacing:-.01em;color:${T.ink};margin-top:10px;">A registration needs your review</div>
-      <div style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:${T.soft};margin-top:14px;">A new submission on the <b style="color:${T.ink};">${esc(kind)}</b> was held. The registrant has received <b style="color:${T.ink};">nothing</b> — no confirmation, QR, wallet pass or sheet row — until you decide.</div>
+      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">Held for your review</div>
+      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:29px;line-height:1.15;letter-spacing:-.01em;color:${T.ink};margin-top:10px;">A registration needs your review</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:${T.soft};margin-top:14px;">A new submission on the <b class="em-ink" style="color:${T.ink};">${esc(kind)}</b> was held. The registrant has received <b class="em-ink" style="color:${T.ink};">nothing</b> — no confirmation, QR, wallet pass or sheet row — until you decide.</div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;"><tr>
-        <td style="background:rgba(155,27,34,.06);border-left:3px solid ${T.crimson};padding:12px 16px;">
+        <td class="em-reason" style="background:rgba(155,27,34,.06);border-left:3px solid ${T.crimson};padding:12px 16px;">
           <span style="font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.crimson};">Reason&nbsp;&nbsp;</span>
-          <span style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(reason)}</span>
+          <span class="em-ink" style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(reason)}</span>
         </td>
       </tr></table>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td style="padding:8px 20px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:18px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td style="padding:8px 20px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
 ${rows}
         </table>
@@ -423,11 +423,12 @@ ${rows}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
         ${action(tpl.btn('Approve', approveUrl, 'solid', W), 'Releases the registration — standard confirmation, ticket and sheet row.')}
         ${verifyUrl ? action(tpl.btn('Ask for institutional confirmation', verifyUrl, 'gold', W + 'font-size:10px;letter-spacing:.12em;'), 'They confirm from an institutional inbox — success issues tickets automatically and you get a one&#8209;line FYI.') : ''}
-        ${action(tpl.btn('Reject', rejectUrl, 'ghost', W), 'Cancels quietly — the registrant is never notified.')}
+        ${action(tpl.btn('Reject', rejectUrl, 'ghost', W + '" class="em-ghost'), 'Cancels quietly — the registrant is never notified.')}
       </table>
-      <div style="margin-top:24px;padding-top:14px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:11px;line-height:1.7;color:${T.soft};">Safe to click twice — each decision is applied once. This email was sent only to you.</div>
+      <div class="em-soft em-hair" style="margin-top:24px;padding-top:14px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:11px;line-height:1.7;color:${T.soft};">Safe to click twice — each decision is applied once. This email was sent only to you.</div>
     </td></tr></table>`;
     return tpl.shell({
+        darkReady: true,
         title: 'Registration review — Med&X',
         preheader: 'Held before anything was issued — approve, reject, or ask for institutional confirmation.',
         headerRightLabel: 'REGISTRATION REVIEW',
@@ -505,9 +506,10 @@ function guestLinkInactivePage() {
         '<p>This confirmation link is not active any more. If you believe this is a mistake, just reply to the email you received and we will sort it out.</p>');
 }
 
-function guestConfirmedPage() {
+function guestConfirmedPage(instEmail) {
+    const where = instEmail ? 'to <b>' + esc(instEmail) + '</b>' : 'to the email address you registered with';
     return guestPage('You are confirmed', 'You are confirmed.',
-        '<p>Thank you &mdash; your registration is confirmed and <b>your ticket is on its way</b> to the email address you registered with. We look forward to welcoming you.</p>', 'ok');
+        '<p>Thank you &mdash; your registration is confirmed and <b>your ticket is on its way</b> ' + where + '. We look forward to welcoming you.</p>', 'ok');
 }
 
 function verifyFormPage(vtoken, firstName) {
@@ -545,40 +547,58 @@ function verifyFormPage(vtoken, firstName) {
 // ---------------------------------------------------------------- registrant-facing emails
 // Polite and unsuspicious — a legitimate guest reads a routine "one more step"; the emails
 // never mention review, holds or fraud.
-function emailShell(headline, bodyHtml, buttonLabel, buttonUrl) {
+function emailShell(headline, bodyHtml, buttonLabel, buttonUrl, opts) {
     const T = tpl.T;
+    const o = opts || {};
+    const factsHtml = (o.facts && o.facts.length) ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:18px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td style="padding:8px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        ${o.facts.map(([label, value], i) => {
+            const sep = i ? `border-top:1px solid ${T.hairline};` : '';
+            return `<tr>
+              <td class="em-goldlab em-hair" style="${sep}padding:10px 18px 10px 0;font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.goldDark};vertical-align:top;white-space:nowrap;">${esc(label)}</td>
+              <td class="em-ink em-hair" style="${sep}padding:10px 0;font-family:${T.sans};font-size:13.5px;line-height:1.55;color:${T.ink};word-break:break-word;">${esc(value)}</td>
+            </tr>`;
+        }).join('\n')}
+        </table>
+      </td></tr></table>` : '';
+    const noteHtml = o.footNote ? `<div class="em-soft" style="font-family:${T.sans};font-size:12px;line-height:1.65;color:${T.soft};margin-top:14px;">${o.footNote}</div>` : '';
     const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
-      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">Your registration</div>
-      <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;letter-spacing:-.01em;color:${T.ink};margin-top:10px;">${headline}</div>
-      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:16px;">${bodyHtml}</div>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr></table>
-      <div style="margin-top:24px;padding-top:14px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:11.5px;line-height:1.7;color:${T.soft};">Questions? Just reply to this email — or write to Laura Rodman at laura.rodman@medx.hr.</div>
+      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">${o.eyebrow || 'Your registration'}</div>
+      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;letter-spacing:-.01em;color:${T.ink};margin-top:10px;">${headline}</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:16px;">${bodyHtml}</div>${factsHtml}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr></table>${noteHtml}
+      <div class="em-soft em-hair" style="margin-top:24px;padding-top:14px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:11.5px;line-height:1.7;color:${T.soft};">Questions? Just reply to this email — or write to Laura Rodman at laura.rodman@medx.hr.</div>
     </td></tr></table>`;
     return tpl.shell({
+        darkReady: true,
         title: headline + ' — Med&X',
-        preheader: '',
+        preheader: o.preheader || '',
         headerRightLabel: 'REGISTRATION',
         rule: 'crimson',
         bodyHtml: body
     });
 }
 
-function buildVerifyAskEmail({ firstName, confirmUrl }) {
+function buildVerifyAskEmail({ firstName, confirmUrl, eventLabel }) {
+    const forEvent = eventLabel ? ` for <b class="em-ink">${esc(eventLabel)}</b>` : '';
     return emailShell('One more step — confirm your registration',
         `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
-         <p style="margin:0 0 10px;">Thank you for registering — we are delighted you will be joining us.</p>
-         <p style="margin:0;">To complete your registration, please confirm it from your <b>institutional email address</b> (your university, hospital, institute or company). It takes under a minute:</p>`,
-        'Confirm my registration', confirmUrl);
+         <p style="margin:0 0 10px;">Thank you for registering${forEvent} — we are delighted you will be joining us.</p>
+         <p style="margin:0;">To complete your registration, please confirm it from your <b>institutional email address</b> (your university, hospital, institute or company). It takes under a minute — and your ticket will be delivered to that address:</p>`,
+        'Confirm my registration', confirmUrl,
+        { preheader: 'One quick step and your ticket is on its way.' });
 }
 
 function buildFyiEmail({ name, instEmail }) {
     const T = tpl.T;
     const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">
-      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">For your information</div>
-      <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${T.ink};margin-top:10px;">&#10003; Registration confirmed</div>
-      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:14px;"><b style="color:${T.ink};">${esc(name)}</b> confirmed from <b style="color:${T.ink};">${esc(instEmail)}</b>. Tickets were issued automatically — nothing for you to do.</div>
+      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">For your information</div>
+      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${T.ink};margin-top:10px;">&#10003; Registration confirmed</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:14px;"><b class="em-ink" style="color:${T.ink};">${esc(name)}</b> confirmed from <b class="em-ink" style="color:${T.ink};">${esc(instEmail)}</b>. The ticket was issued automatically to that institutional address — nothing for you to do.</div>
     </td></tr></table>`;
     return tpl.shell({
+        darkReady: true,
         title: 'Registration confirmed — Med&X',
         headerRightLabel: 'REGISTRATION REVIEW',
         rule: 'gold',
@@ -587,11 +607,20 @@ function buildFyiEmail({ name, instEmail }) {
     });
 }
 
-function buildInstConfirmEmail({ firstName, confirmUrl }) {
-    return emailShell('Confirm your registration',
+function buildInstConfirmEmail({ firstName, confirmUrl, eventLabel, name, instEmail }) {
+    const ev = eventLabel || 'our event';
+    const facts = [];
+    if (name) facts.push(['Name', name]);
+    facts.push(['Event', ev]);
+    if (instEmail) facts.push(['Ticket goes to', instEmail]);
+    return emailShell('Almost there — one click to confirm',
         `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
-         <p style="margin:0;">One click and you are done — confirm your Med&amp;X registration below. Your ticket will follow to the email address you registered with.</p>`,
-        'Confirm my registration', confirmUrl);
+         <p style="margin:0 0 10px;">We are happy to have you at <b class="em-ink">${esc(ev)}</b>.</p>
+         <p style="margin:0;">Confirming from this address completes your registration — your ticket will arrive right here, moments later.</p>`,
+        'Confirm my registration', confirmUrl,
+        { facts,
+          preheader: 'Confirm your registration — your ticket follows to this address.',
+          footNote: 'If this wasn&#39;t you, simply ignore this email — nothing will be issued.' });
 }
 
 // ---------------------------------------------------------------- routes + handler registry
@@ -678,7 +707,7 @@ function mountReviewRoutes(app, deps = {}) {
             const vtoken = verifyPageToken(secret, parsed.table, parsed.id);
             const firstName = String(row.name || '').trim().split(/\s+/)[0] || '';
             await sendEmail(row.email, 'One more step — confirm your registration',
-                buildVerifyAskEmail({ firstName, confirmUrl: `${baseUrl()}/verify-registration/${vtoken}` }));
+                buildVerifyAskEmail({ firstName, confirmUrl: `${baseUrl()}/verify-registration/${vtoken}`, eventLabel: h.eventLabel }));
             h.setNotes(parsed.id, upsertMarker(row.notes, 'VERIFY-REQUESTED', new Date().toISOString()));
             console.log(`[ReviewGate] institutional confirmation requested for ${parsed.table}/${parsed.id} (${row.email})`);
             return res.send(resultPage('Confirmation request sent', 'Confirmation request sent.',
@@ -726,7 +755,7 @@ function mountReviewRoutes(app, deps = {}) {
             const sig2 = instConfirmSig(secret, parsed.table, parsed.id, instEmail);
             const firstName = String(row.name || '').trim().split(/\s+/)[0] || '';
             await sendEmail(instEmail, 'Confirm your registration — Med&X',
-                buildInstConfirmEmail({ firstName, confirmUrl: `${baseUrl()}/verify-registration/${req.params.vtoken}/confirm/${sig2}` }));
+                buildInstConfirmEmail({ firstName, confirmUrl: `${baseUrl()}/verify-registration/${req.params.vtoken}/confirm/${sig2}`, eventLabel: h.eventLabel, name: row.name, instEmail }));
             h.setNotes(parsed.id, upsertMarker(row.notes, 'VERIFY-SENT', instEmail + ' ' + new Date().toISOString()));
             console.log(`[ReviewGate] institutional confirm email sent for ${parsed.table}/${parsed.id} → ${instEmail} (domain recorded: ${check.domain})`);
             return res.json({ success: true });
@@ -743,7 +772,7 @@ function mountReviewRoutes(app, deps = {}) {
             const h = parsed && HANDLERS.get(parsed.table);
             const row = h && typeof h.getRow === 'function' ? h.getRow(parsed.id) : null;
             if (!row) return res.status(404).send(guestLinkNotRightPage());
-            if (row.state === 'approved') return res.send(guestConfirmedPage());           // idempotent
+            if (row.state === 'approved') return res.send(guestConfirmedPage(row.email));  // idempotent
             if (row.state === 'rejected') return res.status(410).send(guestLinkInactivePage());
             const sentVal = getMarker(row.notes, 'VERIFY-SENT');
             if (!sentVal) return res.status(404).send(guestLinkNotRightPage());
@@ -753,7 +782,12 @@ function mountReviewRoutes(app, deps = {}) {
             if (!/^[0-9a-f]{32}$/.test(given) || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expect))) {
                 return res.status(404).send(guestLinkNotRightPage());
             }
-            h.setNotes(parsed.id, upsertMarker(row.notes, 'verified via', instEmail));
+            let notes2 = upsertMarker(row.notes, 'verified via', instEmail);
+            if (typeof h.setEmail === 'function' && String(row.email || '').trim().toLowerCase() !== instEmail) {
+                notes2 = upsertMarker(notes2, 'original-email', String(row.email || '').trim());
+                h.setEmail(parsed.id, instEmail);   // ticket + passes + sheet row go to the verified institutional inbox
+            }
+            h.setNotes(parsed.id, notes2);
             const out = await h.approve(parsed.id) || {};                                  // EXACT approve path
             if (out.status === 'done') {
                 try {
@@ -762,7 +796,7 @@ function mountReviewRoutes(app, deps = {}) {
                 } catch (fyiErr) { console.warn('[ReviewGate] FYI email failed:', fyiErr.message); }
                 console.log(`[ReviewGate] ${parsed.table}/${parsed.id} confirmed via ${instEmail} — auto-approved`);
             }
-            return res.send(guestConfirmedPage());
+            return res.send(guestConfirmedPage(instEmail));
         } catch (e) {
             console.error('[ReviewGate] institutional confirm failed:', e.message);
             return res.status(500).send(guestLinkNotRightPage());

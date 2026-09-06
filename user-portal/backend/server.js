@@ -28451,7 +28451,15 @@ By applying to this program, I provide the following consents:
             db.run('UPDATE croatians_abroad_registrations SET notes = ? WHERE id = ?', [notes, id]);
             saveDb();
             flushDb();
-        }
+        },
+        // Institutional confirmation re-points the row at the verified inbox: tickets,
+        // wallet passes and any sheet row then go to the proven-real address.
+        setEmail: (id, email) => {
+            db.run('UPDATE croatians_abroad_registrations SET email = ? WHERE id = ?', [email, id]);
+            saveDb();
+            flushDb();
+        },
+        eventLabel: 'Plexus 2026'
     });
 
     app.post('/api/croatians-abroad/register', registrationLimiter, optionalAuth, async (req, res) => {

@@ -919,7 +919,7 @@ async function t(name, fn) {
         assert.strictEqual(sentEmails.length, mailsBefore + 2, 'confirmation to registrant + FYI to Alen');
         const confMail = sentEmails[sentEmails.length - 2];
         const fyiMail = sentEmails[sentEmails.length - 1];
-        assert.strictEqual(confMail.to, BOT3.email, 'the ticket goes to the ORIGINAL registered address');
+        assert.strictEqual(confMail.to, 'prof.x@med.uni.rs', 'the ticket goes to the VERIFIED institutional address');
         assert.ok(/You are in/.test(confMail.subject), 'standard confirmation subject');
         assert.strictEqual(fyiMail.to, 'juginovic.alen@gmail.com', 'FYI goes to Alen');
         assert.ok(fyiMail.html.includes('prof.x@med.uni.rs') && /issued automatically/i.test(fyiMail.html), 'FYI one-liner');

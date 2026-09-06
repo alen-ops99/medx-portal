@@ -72,21 +72,50 @@ function btn(label, href, kind, extra) {
 // the wallet stack: three actions, ONE width — appended last so it beats the kind padding
 const BTN_STACK_W = 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;';
 
+// Dark-mode CSS for shells that opt in (darkReady): class-based !important overrides under
+// prefers-color-scheme (Apple Mail, Outlook iOS) + [data-ogsc] (Outlook.com/Windows). Callers
+// opt in AND class their body text (em-ink/em-soft/em-goldlab/em-hair/em-fact/em-reason/
+// em-ghost) — inline colors stay authoritative for every client that shows the light email.
+const DARK_CSS = `<style>
+@media (prefers-color-scheme: dark) {
+  body, .em-canvas { background:#161210 !important; }
+  .em-cardbg { background:#211b16 !important; }
+  .em-ink { color:#f3ece0 !important; }
+  .em-soft { color:#cfc5b6 !important; }
+  .em-goldlab { color:#c9a962 !important; }
+  .em-hair { border-color:rgba(247,241,230,.16) !important; }
+  .em-fact { background:#2a2319 !important; border-color:rgba(247,241,230,.14) !important; }
+  .em-reason { background:rgba(155,27,34,.25) !important; }
+  .em-ghost { color:#f3ece0 !important; border-color:rgba(247,241,230,.45) !important; }
+}
+[data-ogsc] body, [data-ogsc] .em-canvas { background:#161210 !important; }
+[data-ogsc] .em-cardbg { background:#211b16 !important; }
+[data-ogsc] .em-ink { color:#f3ece0 !important; }
+[data-ogsc] .em-soft { color:#cfc5b6 !important; }
+[data-ogsc] .em-goldlab { color:#c9a962 !important; }
+[data-ogsc] .em-hair { border-color:rgba(247,241,230,.16) !important; }
+[data-ogsc] .em-fact { background:#2a2319 !important; }
+[data-ogsc] .em-reason { background:rgba(155,27,34,.25) !important; }
+[data-ogsc] .em-ghost { color:#f3ece0 !important; border-color:rgba(247,241,230,.45) !important; }
+</style>`;
+
 // The 600px shell: ink header (logo + right micro-label), accent rule, body, hairline footer.
 // rule: 'crimson' | 'gold' | 'split' (newsletter's 50/50 crimson→gold).
-function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, bodyHtml, footerItems, lang }) {
+// darkReady: opt-in dark-mode support — see DARK_CSS above.
+function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, bodyHtml, footerItems, lang, darkReady }) {
     const ruleBg = rule === 'gold' ? `background:${T.gold};`
         : rule === 'split' ? `background:${T.crimson};background:linear-gradient(90deg,${T.crimson} 0 50%,${T.gold} 50% 100%);`
         : `background:${T.crimson};`;
     const footer = (footerItems && footerItems.length ? footerItems : [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`])
-        .map(it => `<div style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.7;">${it}</div>`).join('');
+        .map(it => `<div class="em-soft" style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.7;">${it}</div>`).join('');
+    const scheme = darkReady ? 'light dark' : 'light';
     return `<!DOCTYPE html>
 <html lang="${lang === 'hr' ? 'hr' : 'en'}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
+<meta name="color-scheme" content="${scheme}">
+<meta name="supported-color-schemes" content="${scheme}">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>${esc(title || 'Med&X')}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -94,12 +123,13 @@ function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, body
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
 <style>@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter:wght@400..700&display=swap');
 a[x-apple-data-detectors]{color:inherit !important;text-decoration:none !important;font-size:inherit !important;font-family:inherit !important;font-weight:inherit !important;line-height:inherit !important;}
-:root{color-scheme:light;supported-color-schemes:light;}</style>
+:root{color-scheme:${scheme};supported-color-schemes:${scheme};}</style>
+${darkReady ? DARK_CSS : ''}
 </head>
-<body style="margin:0;padding:0;background:${T.canvas};font-family:${T.sans};-webkit-text-size-adjust:100%;">
+<body class="em-canvas" style="margin:0;padding:0;background:${T.canvas};font-family:${T.sans};-webkit-text-size-adjust:100%;">
 ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${esc(preheader)}</div>` : ''}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${T.canvas};padding:32px 12px;"><tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${T.cream};box-shadow:0 10px 34px rgba(25,21,18,.18);">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-canvas" style="background:${T.canvas};padding:32px 12px;"><tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" class="em-cardbg" style="max-width:600px;width:100%;background:${T.cream};box-shadow:0 10px 34px rgba(25,21,18,.18);">
   <tr><td style="background:${T.ink};padding:${headerExtraHtml ? '26px 40px 22px' : '22px 40px'};">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td align="left" style="vertical-align:middle;"><img src="${escUrl(logoUrl())}" alt="med&amp;X" height="20" style="height:20px;width:auto;display:block;border:0;"></td>
@@ -109,7 +139,7 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:al
   </td></tr>
   <tr><td style="height:2px;font-size:0;line-height:0;${ruleBg}">&nbsp;</td></tr>
   <tr><td>${bodyHtml}</td></tr>
-  <tr><td align="center" style="border-top:1px solid ${T.hairline};padding:18px 40px;">
+  <tr><td align="center" class="em-hair" style="border-top:1px solid ${T.hairline};padding:18px 40px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">${footer}</td></tr></table>
     <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin-top:12px;"><tr>
       <td style="${microStyle(T.goldDark, 9, '.16em')};vertical-align:middle;"><a href="https://medx.hr" style="color:${T.goldDark};text-decoration:none;">MEDX.HR</a></td>
