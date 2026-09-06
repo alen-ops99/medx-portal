@@ -662,6 +662,21 @@ module.exports = function mountBoston(app, deps) {
             query.run('UPDATE bridges_registrations SET email = ? WHERE id = ?', [email, id]);
             flushDb();
         },
+        // The confirmed page shows the ticket immediately (QR + wallets) so nobody depends
+        // on institutional spam filters to see it. Same assets as the confirmation email.
+        ticketAssets: (id) => {
+            const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
+            if (!reg) return null;
+            const links = walletLinks(reg);
+            return {
+                qrUrl: `${baseUrl()}/api/boston/qr/${String(id)}.png`,
+                apple: links.apple,
+                google: links.google,
+                calendar: links.calendar,
+                ticketNumber: ticketNo(id),
+                eventLine: `${EVENT_NAME} · ${DATE_LONG} · 6:00 PM`
+            };
+        },
         eventLabel: 'Building Bridges in Biomedicine — Boston'
     });
 

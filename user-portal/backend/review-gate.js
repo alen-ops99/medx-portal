@@ -387,6 +387,19 @@ const instConfirmSig = (secret, table, id, instEmail) => crypto.createHmac('sha2
     .update('medxver2:' + String(table) + ':' + String(id) + ':' + String(instEmail || '').trim().toLowerCase())
     .digest('hex').slice(0, 32);
 
+
+// Gate emails render ONE look everywhere: the espresso/cappuccino dark card (tone:'dark' in
+// the house shell). Dark backgrounds pass through Outlook/Gmail dark transforms untouched,
+// so light-mode and dark-mode readers see the same designed email. (Alen 2026-09-06.)
+const DT = {
+    ink: '#f2e7d6',            // strong text on espresso
+    soft: '#d3c5b2',           // body text
+    gold: '#d7b56c',           // micro-labels
+    hair: 'rgba(240,228,210,.18)',
+    factBg: '#342718',         // cappuccino facts card
+    factBorder: 'rgba(240,228,210,.16)',
+    reasonBg: 'rgba(183,40,47,.32)'
+};
 // ---------------------------------------------------------------- the review email (to Alen)
 // Built on the house v2 shell (ink header + wordmark, gold rule, cream body, Fraunces
 // headline, light color-scheme metas so dark-mode clients don't invert it). Every submitted
@@ -395,27 +408,27 @@ function buildReviewEmail({ kind, fields, reason, approveUrl, rejectUrl, verifyU
     const T = tpl.T;
     const rows = Object.entries(fields || {}).map(([label, value], i) => {
         const v = String(value == null ? '' : value).trim();
-        const sep = i ? `border-top:1px solid ${T.hairline};` : '';
+        const sep = i ? `border-top:1px solid ${DT.hair};` : '';
         return `<tr>
-          <td class="em-goldlab em-hair" style="${sep}padding:11px 18px 11px 0;font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.goldDark};vertical-align:top;white-space:nowrap;">${esc(label)}</td>
-          <td class="em-ink em-hair" style="${sep}padding:11px 0;font-family:${T.sans};font-size:13.5px;line-height:1.55;color:${T.ink};word-break:break-word;">${v ? esc(v) : `<span class="em-soft" style="color:${T.soft};">&mdash;</span>`}</td>
+          <td class="em-goldlab em-hair" style="${sep}padding:11px 18px 11px 0;font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${DT.gold};vertical-align:top;white-space:nowrap;">${esc(label)}</td>
+          <td class="em-ink em-hair" style="${sep}padding:11px 0;font-family:${T.sans};font-size:13.5px;line-height:1.55;color:${DT.ink};word-break:break-word;">${v ? esc(v) : `<span class="em-soft" style="color:${DT.soft};">&mdash;</span>`}</td>
         </tr>`;
     }).join('\n');
     const W = 'width:320px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;white-space:normal;line-height:1.5;';
     const action = (html, caption) => `
         <tr><td align="center" style="padding-top:16px;">${html}</td></tr>
-        <tr><td align="center" class="em-soft" style="padding-top:6px;font-family:${T.sans};font-size:11px;line-height:1.55;color:${T.soft};">${caption}</td></tr>`;
+        <tr><td align="center" class="em-soft" style="padding-top:6px;font-family:${T.sans};font-size:11px;line-height:1.55;color:${DT.soft};">${caption}</td></tr>`;
     const bodyHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
-      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">Held for your review</div>
-      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:29px;line-height:1.15;letter-spacing:-.01em;color:${T.ink};margin-top:10px;">A registration needs your review</div>
-      <div class="em-soft" style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:${T.soft};margin-top:14px;">A new submission on the <b class="em-ink" style="color:${T.ink};">${esc(kind)}</b> was held. The registrant has received <b class="em-ink" style="color:${T.ink};">nothing</b> — no confirmation, QR, wallet pass or sheet row — until you decide.</div>
+      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${DT.gold};">Held for your review</div>
+      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:29px;line-height:1.15;letter-spacing:-.01em;color:${DT.ink};margin-top:10px;">A registration needs your review</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:${DT.soft};margin-top:14px;">A new submission on the <b class="em-ink" style="color:${DT.ink};">${esc(kind)}</b> was held. The registrant has received <b class="em-ink" style="color:${DT.ink};">nothing</b> — no confirmation, QR, wallet pass or sheet row — until you decide.</div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;"><tr>
-        <td class="em-reason" style="background:rgba(155,27,34,.06);border-left:3px solid ${T.crimson};padding:12px 16px;">
-          <span style="font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.crimson};">Reason&nbsp;&nbsp;</span>
-          <span class="em-ink" style="font-family:${T.sans};font-size:13px;color:${T.ink};">${esc(reason)}</span>
+        <td class="em-reason" style="background:${DT.reasonBg};border-left:3px solid #c9313a;padding:12px 16px;">
+          <span style="font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#f0b9b4;">Reason&nbsp;&nbsp;</span>
+          <span class="em-ink" style="font-family:${T.sans};font-size:13px;color:${DT.ink};">${esc(reason)}</span>
         </td>
       </tr></table>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:18px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td style="padding:8px 20px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:18px;background:${DT.factBg};border:1px solid ${DT.factBorder};"><tr><td style="padding:8px 20px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
 ${rows}
         </table>
@@ -423,12 +436,12 @@ ${rows}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
         ${action(tpl.btn('Approve', approveUrl, 'solid', W + '" class="em-btn'), 'Releases the registration — standard confirmation, ticket and sheet row.')}
         ${verifyUrl ? action(tpl.btn('Ask for institutional confirmation', verifyUrl, 'gold', W + 'font-size:10px;letter-spacing:.12em;'), 'They confirm from an institutional inbox — success issues tickets automatically and you get a one&#8209;line FYI.') : ''}
-        ${action(tpl.btn('Reject', rejectUrl, 'ghost', W + '" class="em-ghost'), 'Cancels quietly — the registrant is never notified.')}
+        ${action(tpl.btn('Reject', rejectUrl, 'ghost', W + 'color:#f2e7d6;border-color:rgba(240,228,210,.5);'), 'Cancels quietly — the registrant is never notified.')}
       </table>
-      <div class="em-soft em-hair" style="margin-top:24px;padding-top:14px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:11px;line-height:1.7;color:${T.soft};">Safe to click twice — each decision is applied once. This email was sent only to you.</div>
+      <div class="em-soft em-hair" style="margin-top:24px;padding-top:14px;border-top:1px solid ${DT.hair};font-family:${T.sans};font-size:11px;line-height:1.7;color:${DT.soft};">Safe to click twice — each decision is applied once. This email was sent only to you.</div>
     </td></tr></table>`;
     return tpl.shell({
-        darkReady: true,
+        tone: 'dark',
         title: 'Registration review — Med&X',
         preheader: 'Held before anything was issued — approve, reject, or ask for institutional confirmation.',
         headerRightLabel: 'REGISTRATION REVIEW',
@@ -517,8 +530,26 @@ function guestAlmostDonePage() {
         '<p>Your confirmation went through. We are finalizing your registration and <b>your ticket will follow by email</b> shortly.</p>', 'ok');
 }
 
-function guestConfirmedPage(instEmail) {
+function guestConfirmedPage(instEmail, assets) {
     const where = instEmail ? 'to <b>' + esc(instEmail) + '</b>' : 'to the email address you registered with';
+    let ticketHtml = '';
+    if (assets && assets.qrUrl) {
+        const btn = (label, href, solid) => href ? `<a href="${esc(href)}" style="display:inline-block;margin:6px 5px 0;padding:13px 22px;border-radius:0;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;${solid ? 'background:#9b1b22;color:#f7f1e6;' : 'border:1px solid rgba(25,21,18,.35);color:#191512;'}">${label}</a>` : '';
+        ticketHtml = `
+<div style="margin-top:22px;padding:24px 18px;background:#fff;border:1px solid rgba(43,33,25,.12);text-align:center;">
+  <div style="font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#6e5626;">Your ticket${assets.ticketNumber ? ' &middot; ' + esc(assets.ticketNumber) : ''}</div>
+  <img src="${esc(assets.qrUrl)}" alt="Entry QR" style="display:block;width:240px;max-width:80%;height:auto;margin:14px auto 6px;">
+  ${assets.eventLine ? `<div style="font-size:12.5px;color:#4a4139;line-height:1.5;margin-top:4px;">${esc(assets.eventLine)}</div>` : ''}
+  <div style="margin-top:10px;">
+    ${btn('Apple Wallet', assets.apple, true)}
+    ${btn('Google Wallet', assets.google, true)}
+    ${btn('Add to calendar', assets.calendar, false)}
+  </div>
+</div>
+<p style="margin-top:16px;">This is your entry QR — screenshot it or add it to your wallet now. The same ticket was also emailed ${where} (check spam or quarantine if you don&#39;t see it).</p>`;
+        return guestPage('You are confirmed', 'You are confirmed.',
+            '<p>Thank you &mdash; your registration is confirmed. We look forward to welcoming you.</p>' + ticketHtml, 'ok');
+    }
     return guestPage('You are confirmed', 'You are confirmed.',
         '<p>Thank you &mdash; your registration is confirmed and <b>your ticket is on its way</b> ' + where + '. We look forward to welcoming you.</p>', 'ok');
 }
@@ -562,27 +593,27 @@ function emailShell(headline, bodyHtml, buttonLabel, buttonUrl, opts) {
     const T = tpl.T;
     const o = opts || {};
     const factsHtml = (o.facts && o.facts.length) ? `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:18px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td style="padding:8px 20px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:16px;background:${DT.factBg};border:1px solid ${DT.factBorder};"><tr><td style="padding:4px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
         ${o.facts.map(([label, value], i) => {
-            const sep = i ? `border-top:1px solid ${T.hairline};` : '';
+            const sep = i ? `border-top:1px solid ${DT.hair};` : '';
             return `<tr>
-              <td class="em-goldlab em-hair" style="${sep}padding:10px 18px 10px 0;font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.goldDark};vertical-align:top;white-space:nowrap;">${esc(label)}</td>
-              <td class="em-ink em-hair" style="${sep}padding:10px 0;font-family:${T.sans};font-size:13.5px;line-height:1.55;color:${T.ink};word-break:break-word;">${esc(value)}</td>
+              <td class="em-goldlab em-hair" style="${sep}padding:9px 14px 9px 0;font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:${DT.gold};vertical-align:middle;white-space:nowrap;">${esc(label)}</td>
+              <td class="em-ink em-hair" style="${sep}padding:9px 0;font-family:${T.sans};font-size:12.5px;line-height:1.45;color:${DT.ink};word-break:break-word;">${esc(value)}</td>
             </tr>`;
         }).join('\n')}
         </table>
       </td></tr></table>` : '';
-    const noteHtml = o.footNote ? `<div class="em-soft" style="font-family:${T.sans};font-size:12px;line-height:1.65;color:${T.soft};margin-top:14px;">${o.footNote}</div>` : '';
+    const noteHtml = o.footNote ? `<div class="em-soft" style="font-family:${T.sans};font-size:12px;line-height:1.65;color:${DT.soft};margin-top:14px;">${o.footNote}</div>` : '';
     const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
-      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">${o.eyebrow || 'Your registration'}</div>
-      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;letter-spacing:-.01em;color:${T.ink};margin-top:10px;">${headline}</div>
-      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:16px;">${bodyHtml}</div>${factsHtml}
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;" class="em-btn')}</td></tr></table>${noteHtml}
-      <div class="em-soft em-hair" style="margin-top:24px;padding-top:14px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:11.5px;line-height:1.7;color:${T.soft};">Questions? Just reply to this email — or write to Laura Rodman at laura.rodman@medx.hr.</div>
+      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${DT.gold};">${o.eyebrow || 'Your registration'}</div>
+      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;letter-spacing:-.01em;color:${DT.ink};margin-top:10px;">${headline}</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${DT.soft};margin-top:16px;">${bodyHtml}</div>${factsHtml}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;background:#a8232b;')}</td></tr></table>${noteHtml}
+      <div class="em-soft em-hair" style="margin-top:24px;padding-top:14px;border-top:1px solid ${DT.hair};font-family:${T.sans};font-size:11.5px;line-height:1.7;color:${DT.soft};">Questions? Just reply to this email — or write to Laura Rodman at laura.rodman@medx.hr.</div>
     </td></tr></table>`;
     return tpl.shell({
-        darkReady: true,
+        tone: 'dark',
         title: headline + ' — Med&X',
         preheader: o.preheader || '',
         headerRightLabel: 'REGISTRATION',
@@ -604,24 +635,24 @@ function buildVerifyAskEmail({ firstName, confirmUrl, eventLabel }) {
 function buildFyiEmail({ name, instEmail, evidence }) {
     const T = tpl.T;
     const evHtml = (evidence && evidence.length) ? `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:16px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td style="padding:6px 20px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:16px;background:${DT.factBg};border:1px solid ${DT.factBorder};"><tr><td style="padding:4px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
         ${evidence.map(([label, value], i) => {
-            const sep = i ? `border-top:1px solid ${T.hairline};` : '';
+            const sep = i ? `border-top:1px solid ${DT.hair};` : '';
             return `<tr>
-              <td class="em-goldlab em-hair" style="${sep}padding:9px 18px 9px 0;font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.goldDark};vertical-align:top;white-space:nowrap;">${esc(label)}</td>
-              <td class="em-ink em-hair" style="${sep}padding:9px 0;font-family:${T.sans};font-size:13px;line-height:1.5;color:${T.ink};word-break:break-word;">${esc(value)}</td>
+              <td class="em-goldlab em-hair" style="${sep}padding:9px 14px 9px 0;font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:${DT.gold};vertical-align:middle;white-space:nowrap;">${esc(label)}</td>
+              <td class="em-ink em-hair" style="${sep}padding:9px 0;font-family:${T.sans};font-size:12.5px;line-height:1.45;color:${DT.ink};word-break:break-word;">${esc(value)}</td>
             </tr>`;
         }).join('')}
         </table>
       </td></tr></table>` : '';
     const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">
-      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">For your information</div>
-      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${T.ink};margin-top:10px;">&#10003; Registration confirmed</div>
-      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:14px;"><b class="em-ink" style="color:${T.ink};">${esc(name)}</b> confirmed from <b class="em-ink" style="color:${T.ink};">${esc(instEmail)}</b>. The ticket was issued automatically to that institutional address — nothing for you to do.</div>${evHtml}
+      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${DT.gold};">For your information</div>
+      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${DT.ink};margin-top:10px;">&#10003; Registration confirmed</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${DT.soft};margin-top:14px;"><b class="em-ink" style="color:${DT.ink};">${esc(name)}</b> confirmed from <b class="em-ink" style="color:${DT.ink};">${esc(instEmail)}</b>. The ticket was issued automatically to that institutional address — nothing for you to do.</div>${evHtml}
     </td></tr></table>`;
     return tpl.shell({
-        darkReady: true,
+        tone: 'dark',
         title: 'Registration confirmed — Med&X',
         headerRightLabel: 'REGISTRATION REVIEW',
         rule: 'gold',
@@ -634,8 +665,7 @@ function buildInstConfirmEmail({ firstName, confirmUrl, eventLabel, name, instEm
     const ev = eventLabel || 'our event';
     const facts = [];
     if (name) facts.push(['Name', name]);
-    facts.push(['Event', ev]);
-    if (instEmail) facts.push(['Ticket goes to', instEmail]);
+    if (instEmail) facts.push(['Ticket to', instEmail]);
     return emailShell('Almost there — one click to confirm',
         `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
          <p style="margin:0 0 10px;">We are happy to have you at <b class="em-ink">${esc(ev)}</b>.</p>
@@ -915,7 +945,7 @@ function mountReviewRoutes(app, deps = {}) {
             const h = parsed && HANDLERS.get(parsed.table);
             const row = h && typeof h.getRow === 'function' ? h.getRow(parsed.id) : null;
             if (!row) return res.status(404).send(guestLinkNotRightPage());
-            if (row.state === 'approved') return res.send(guestConfirmedPage(row.email));  // idempotent
+            if (row.state === 'approved') return res.send(guestConfirmedPage(row.email, typeof h.ticketAssets === 'function' ? h.ticketAssets(parsed.id) : null));  // idempotent
             if (row.state === 'rejected') return res.status(410).send(guestLinkInactivePage());
             const sentVal = getMarker(row.notes, 'VERIFY-SENT');
             if (!sentVal) return res.status(404).send(guestLinkNotRightPage());
@@ -974,7 +1004,7 @@ function mountReviewRoutes(app, deps = {}) {
                 } catch (fyiErr) { console.warn('[ReviewGate] FYI email failed:', fyiErr.message); }
                 console.log(`[ReviewGate] ${parsed.table}/${parsed.id} confirmed via ${instEmail} — auto-approved (${intel.tier})`);
             }
-            return res.send(guestConfirmedPage(instEmail));
+            return res.send(guestConfirmedPage(instEmail, typeof h.ticketAssets === 'function' ? h.ticketAssets(parsed.id) : null));
         } catch (e) {
             console.error('[ReviewGate] institutional confirm failed:', e.message);
             return res.status(500).send(guestLinkNotRightPage());

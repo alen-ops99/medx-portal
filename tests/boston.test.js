@@ -911,7 +911,7 @@ async function t(name, fn) {
         const conf = await call(app, 'GET', '/verify-registration/:vtoken/confirm/:sig2', { params: { vtoken, sig2 } });
         assert.strictEqual(conf.statusCode, 200);
         assert.ok(String(conf.body).includes('You are confirmed'), 'warm confirmed page');
-        assert.ok(String(conf.body).includes('your ticket is on its way'), 'ticket line');
+        assert.ok(String(conf.body).includes('entry QR') || String(conf.body).includes('your ticket is on its way'), 'ticket line (embedded QR or on-its-way copy)');
         const fresh = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [row.id]);
         assert.strictEqual(fresh.status, 'registered', 'confirm click must approve');
         assert.strictEqual(Number(fresh.confirmation_sent), 1);

@@ -109,13 +109,21 @@ const DARK_CSS = `<style>
 // The 600px shell: ink header (logo + right micro-label), accent rule, body, hairline footer.
 // rule: 'crimson' | 'gold' | 'split' (newsletter's 50/50 crimson→gold).
 // darkReady: opt-in dark-mode support — see DARK_CSS above.
-function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, bodyHtml, footerItems, lang, darkReady }) {
+// tone:'dark' renders the single-look espresso/cappuccino shell: the same warm dark design
+// in every client and both themes — nothing left for Outlook/Gmail dark transforms to mangle
+// (dark backgrounds pass through those transforms untouched).
+function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, bodyHtml, footerItems, lang, darkReady, tone }) {
+    const dark = tone === 'dark';
+    const canvasBg = dark ? '#120e0a' : T.canvas;
+    const cardBg = dark ? '#291e14' : T.cream;
+    const footColor = dark ? '#cbbca7' : T.soft;
+    const footHair = dark ? 'rgba(240,228,210,.16)' : T.hairline;
     const ruleBg = rule === 'gold' ? `background:${T.gold};`
         : rule === 'split' ? `background:${T.crimson};background:linear-gradient(90deg,${T.crimson} 0 50%,${T.gold} 50% 100%);`
         : `background:${T.crimson};`;
     const footer = (footerItems && footerItems.length ? footerItems : [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`])
-        .map(it => `<div class="em-soft" style="font-family:${T.sans};font-size:11px;color:${T.soft};line-height:1.7;">${it}</div>`).join('');
-    const scheme = darkReady ? 'light dark' : 'light';
+        .map(it => `<div class="em-soft" style="font-family:${T.sans};font-size:11px;color:${footColor};line-height:1.7;">${it}</div>`).join('');
+    const scheme = dark ? 'light dark' : (darkReady ? 'light dark' : 'light');
     return `<!DOCTYPE html>
 <html lang="${lang === 'hr' ? 'hr' : 'en'}">
 <head>
@@ -133,10 +141,10 @@ a[x-apple-data-detectors]{color:inherit !important;text-decoration:none !importa
 :root{color-scheme:${scheme};supported-color-schemes:${scheme};}</style>
 ${darkReady ? DARK_CSS : ''}
 </head>
-<body class="em-canvas" style="margin:0;padding:0;background:${T.canvas};font-family:${T.sans};-webkit-text-size-adjust:100%;">
+<body class="em-canvas" style="margin:0;padding:0;background:${canvasBg};font-family:${T.sans};-webkit-text-size-adjust:100%;">
 ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${esc(preheader)}</div>` : ''}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-canvas" style="background:${T.canvas};padding:32px 12px;"><tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" class="em-cardbg" style="max-width:600px;width:100%;background:${T.cream};box-shadow:0 10px 34px rgba(25,21,18,.18);">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-canvas" style="background:${canvasBg};padding:32px 12px;"><tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" class="em-cardbg" style="max-width:600px;width:100%;background:${cardBg};box-shadow:0 10px 34px rgba(25,21,18,.18);">
   <tr><td style="background:${T.ink};padding:${headerExtraHtml ? '26px 40px 22px' : '22px 40px'};">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td align="left" style="vertical-align:middle;"><img src="${escUrl(logoUrl())}" alt="med&amp;X" height="20" style="height:20px;width:auto;display:block;border:0;"></td>
@@ -146,7 +154,7 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:al
   </td></tr>
   <tr><td style="height:2px;font-size:0;line-height:0;${ruleBg}">&nbsp;</td></tr>
   <tr><td>${bodyHtml}</td></tr>
-  <tr><td align="center" class="em-hair" style="border-top:1px solid ${T.hairline};padding:18px 40px;">
+  <tr><td align="center" class="em-hair" style="border-top:1px solid ${footHair};padding:18px 40px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">${footer}</td></tr></table>
     <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin-top:12px;"><tr>
       <td style="${microStyle(T.goldDark, 9, '.16em')};vertical-align:middle;"><a href="https://medx.hr" style="color:${T.goldDark};text-decoration:none;">MEDX.HR</a></td>
