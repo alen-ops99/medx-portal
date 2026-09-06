@@ -533,9 +533,11 @@ module.exports = function mountBoston(app, deps) {
 
             // Dedupe by email (held seats only, same predicate as the sibling public-events route):
             // a duplicate submit RE-SENDS the confirmation instead of creating a second seat.
+            // One person = one registration: a row re-pointed at a verified institutional inbox
+            // still answers for the ORIGINAL address it registered with (notes original-email).
             const prior = query.get(`SELECT * FROM bridges_registrations
-                WHERE event_id = ? AND LOWER(email) = LOWER(?)
-                  AND (status IN ('confirmed','registered') OR payment_status IN ('paid','comp'))`, [EVENT_ID, email]);
+                WHERE event_id = ? AND (LOWER(email) = LOWER(?) OR notes LIKE '%original-email ' || ? || '%')
+                  AND (status IN ('confirmed','registered') OR payment_status IN ('paid','comp'))`, [EVENT_ID, email, String(email).trim().toLowerCase()]);
             if (prior) {
                 // Throttle re-sends: one confirmation re-send per address per 10 minutes, so the
                 // public form can't be used to bombard someone's inbox.
