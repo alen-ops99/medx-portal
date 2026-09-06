@@ -110,6 +110,13 @@ function magicOk(ext, buf) {
 
 const RESEND_AT = new Map(); // email -> last re-send ms (per process; resets on deploy — fine)
 
+// ---- bot gate (Alen 2026-09-06: gibberish registrations got wallet passes) -----------------
+// Score-based: random-string names/institutions/positions ("RQstQeTGKseNqJzmVHMmE", "Ugakeu LLC")
+// put the registration on HOLD — no ticket, no sheet row — and Alen gets an approve/reject email.
+// ONE shared implementation for every public form (heuristics + tokens + review email + the
+// /api/review routes live in ./review-gate; server.js's Zagreb flow uses the same module).
+const reviewGate = require('./review-gate');
+
 // ---------------------------------------------------------------- S3 (SigV4 — no SDK)
 // Plain AWS Signature V4 over node crypto+https: exactly the two operations this wing needs (PUT an
 // object; presign a 15-minute GET) in ~90 lines, instead of @aws-sdk/client-s3's ~40 MB dependency
@@ -466,6 +473,12 @@ module.exports = function mountBoston(app, deps) {
     app.post('/api/boston/register', async (req, res) => {
         try {
             const b = req.body || {};
+            // Honeypot: the form carries a visually hidden 'website' input no human sees or
+            // tabs into. Filled → a bot autofilled everything: pretend success, write NOTHING.
+            if (String(b.website || '').trim()) {
+                console.log('[ReviewGate] Boston honeypot tripped — submission silently dropped');
+                return res.json({ success: true });
+            }
             const clean = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
             const fullName = clean(b.name, 200);
             const email = clean(b.email, 160);
@@ -516,6 +529,38 @@ module.exports = function mountBoston(app, deps) {
                 }
             }
 
+            // ---- review gate (Alen 2026-09-06): gibberish-looking registrations are HELD ----
+            // No confirmation, no QR, no wallet pass, no sheet row — Alen decides by email.
+            // The response is indistinguishable from a real success so bots learn nothing.
+            if (reviewGate.suspicionScore({ name: fullName, institution, position }) >= 2) {
+                // One review email per address: a retrying bot must not bombard the inbox.
+                const priorHeld = query.get(`SELECT id FROM bridges_registrations
+                    WHERE event_id = ? AND LOWER(email) = LOWER(?) AND status = 'pending-review'`, [EVENT_ID, email]);
+                if (priorHeld) return res.json({ success: true, held: true });
+                const heldId = crypto.randomUUID();
+                query.run(`INSERT INTO bridges_registrations
+                    (id, event_id, first_name, last_name, email, institution, position, notes, status, payment_status, confirmation_sent, registered_at)
+                    VALUES (?,?,?,?,?,?,?,?,'pending-review','n/a',0,CURRENT_TIMESTAMP)`,
+                    [heldId, EVENT_ID, first_name, last_name, email, institution, position || null,
+                     (presentation ? '5-minute presentation requested | ' : '') + 'HELD — review']);
+                flushDb();
+                try {
+                    const urls = reviewGate.reviewUrls(JWT_SECRET, 'bridges_registrations', heldId);
+                    await sendEmail(reviewGate.REVIEW_TO, 'A registration needs your review — Building Bridges Boston',
+                        reviewGate.buildReviewEmail({
+                            kind: 'Boston form',
+                            reason: 'Looks machine-generated',
+                            fields: {
+                                'Full name': fullName, 'Email': email, 'Institution': institution,
+                                'Position': position, '5-min presentation': presentation ? 'Yes' : 'No'
+                            },
+                            approveUrl: urls.approveUrl, rejectUrl: urls.rejectUrl, verifyUrl: urls.verifyUrl
+                        }));
+                } catch (e) { console.error('[ReviewGate] Boston review email failed:', e.message); }
+                console.log(`[ReviewGate] Boston registration ${heldId} (${email}) held for review`);
+                return res.json({ success: true, held: true });
+            }
+
             const id = crypto.randomUUID();
             query.run(`INSERT INTO bridges_registrations
                 (id, event_id, first_name, last_name, email, institution, position, notes, status, payment_status, confirmation_sent, registered_at)
@@ -542,6 +587,73 @@ module.exports = function mountBoston(app, deps) {
         } catch (e) {
             console.error('[Boston] registration error:', e.message);
             res.status(500).json({ error: 'Registration failed. Please try again.' });
+        }
+    });
+
+    // ------------------------------------------------------------ review-gate decisions (bridges)
+    // Approve/reject handlers for rows this wing held. The /api/review/:token routes themselves
+    // are mounted ONCE from server.js (top level) via reviewGate.mountReviewRoutes; this only
+    // plugs the bridges_registrations decisions into that shared dispatcher. Idempotent: a
+    // decision applies only to 'pending-review' rows — clicking a link twice re-sends nothing.
+    reviewGate.registerReviewHandlers('bridges_registrations', {
+        approve: async (id) => {
+            const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
+            if (!reg) return { status: 'notfound' };
+            const guest = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'the guest';
+            if (reg.status !== 'pending-review') {
+                return { status: 'already', headline: reg.status === 'cancelled' ? 'Already rejected.' : 'Already approved.',
+                    message: reg.status === 'cancelled'
+                        ? `${guest}'s registration was rejected earlier — nothing was sent.`
+                        : `${guest}'s registration was approved earlier — the confirmation email was already on its way. Nothing was re-sent.` };
+            }
+            const notes = String(reg.notes || '').replace('HELD — review', 'HELD — review · approved ' + new Date().toISOString().slice(0, 10));
+            query.run(`UPDATE bridges_registrations SET status = 'registered', notes = ? WHERE id = ?`, [notes, id]);
+            flushDb();
+            const presentation = /5-minute presentation/.test(String(reg.notes || ''));
+            const fresh = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || reg;
+            try {
+                const send = await sendConfirmation(fresh, presentation);
+                if (send && send.success !== false) {
+                    query.run('UPDATE bridges_registrations SET confirmation_sent = 1 WHERE id = ?', [id]);
+                }
+            } catch (e) { console.warn('[ReviewGate] approved-registration confirmation failed:', e.message); }
+            pushToBostonSheet(query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || fresh, presentation);
+            console.log(`[ReviewGate] Boston registration ${id} APPROVED — confirmation sent, sheet row pushed`);
+            return { status: 'done', headline: 'Approved.',
+                message: `${guest} is registered for Building Bridges Boston — the standard confirmation email (entry QR + wallet passes) has been sent to ${reg.email}, and the row was pushed to the Boston sheet.` };
+        },
+        reject: async (id) => {
+            const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
+            if (!reg) return { status: 'notfound' };
+            const guest = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'the registrant';
+            if (reg.status !== 'pending-review') {
+                return { status: 'already', headline: reg.status === 'cancelled' ? 'Already rejected.' : 'Already approved.',
+                    message: reg.status === 'cancelled'
+                        ? `${guest}'s registration was already rejected.`
+                        : `${guest}'s registration was approved earlier and the confirmation already went out — rejecting from this link is disabled. Cancel it from the admin side if needed.` };
+            }
+            const notes = String(reg.notes || '').replace('HELD — review', 'HELD — review · rejected ' + new Date().toISOString().slice(0, 10));
+            query.run(`UPDATE bridges_registrations SET status = 'cancelled', notes = ? WHERE id = ?`, [notes, id]);
+            flushDb();
+            console.log(`[ReviewGate] Boston registration ${id} REJECTED`);
+            return { status: 'done', headline: 'Rejected.',
+                message: `${guest}'s registration has been cancelled. They received nothing — no confirmation, no QR, no wallet pass — and no sheet row was written.` };
+        },
+        // Institutional-confirmation flow primitives (state = notes markers, restart-safe).
+        getRow: (id) => {
+            const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
+            if (!reg) return null;
+            return {
+                id: reg.id,
+                name: `${reg.first_name || ''} ${reg.last_name || ''}`.trim(),
+                email: reg.email,
+                notes: reg.notes,
+                state: reg.status === 'pending-review' ? 'pending' : (reg.status === 'cancelled' ? 'rejected' : 'approved')
+            };
+        },
+        setNotes: (id, notes) => {
+            query.run('UPDATE bridges_registrations SET notes = ? WHERE id = ?', [notes, id]);
+            flushDb();
         }
     });
 
@@ -930,6 +1042,7 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
 .btn:hover{background:linear-gradient(180deg,#8f2d2a,var(--crimson-dark));transform:translateY(-1px);}
 .btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
 .err{display:none;margin-top:14px;padding:12px 14px;border-radius:10px;background:rgba(143,45,42,.08);border:1px solid rgba(143,45,42,.3);color:#7c2320;font-size:13.5px;line-height:1.55;}
+.hp{position:absolute!important;left:-9999px!important;top:-9999px!important;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;}
 .fine{margin-top:18px;padding-top:16px;border-top:1px solid rgba(43,33,25,.1);font-size:11.5px;line-height:1.65;color:#8a7d70;}
 .fine a{color:var(--gold);text-decoration:none;}
 /* ---- success ---- */
@@ -981,6 +1094,8 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
           <input type="text" id="f_inst" name="institution" autocomplete="organization" placeholder="Hospital, university, institute or company" required></div>
         <div class="field"><label for="f_pos">Position <span class="opt">(optional)</span></label>
           <input type="text" id="f_pos" name="position" autocomplete="organization-title" placeholder="e.g. Postdoctoral fellow"></div>
+        <div class="hp" aria-hidden="true"><label for="f_web">Website</label>
+          <input type="text" id="f_web" name="website" tabindex="-1" autocomplete="off"></div>
         <label class="check" for="f_pres">
           <input type="checkbox" id="f_pres" name="presentation">
           <span class="t">I would like to give a short 5-minute presentation of my lab, clinic, department, or institution.</span>
@@ -993,7 +1108,7 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
     </div>
     <div id="done">
       <p class="slabel" style="text-align:center;">Registration received</p>
-      <p class="headline">You are <i style="font-weight:400;">in</i>.</p>
+      <p class="headline" id="doneheadline">You are <i style="font-weight:400;">in</i>.</p>
       <p class="lede" id="donetext">Your confirmation email is on its way — it carries your <b>entry QR code</b> and your <b>Apple &amp; Google Wallet passes</b>. Show either at the door.</p>
       <div id="walletbtns" style="display:none;margin:18px 0 4px;text-align:center;"></div>
       <a class="cal" id="callink" href="/boston.ics">Add to calendar &darr;</a>
@@ -1016,10 +1131,21 @@ ${FOOTER_HTML}
     if(!name||!email||!inst){errbox.textContent='Please fill in your name, email and institution.';errbox.style.display='block';return;}
     btn.disabled=true;btn.textContent='Registering\u2026';
     fetch('/api/boston/register',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:name,email:email,institution:inst,position:pos,presentation:pres})})
+      body:JSON.stringify({name:name,email:email,institution:inst,position:pos,presentation:pres,
+        website:(document.getElementById('f_web')||{value:''}).value})})
     .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
     .then(function(res){
       if(res.ok&&(res.j.success||res.j.already)){
+        if(res.j.held){
+          /* Held for review: no imminent-confirmation promise, no wallet buttons, no calendar. */
+          document.getElementById('doneheadline').textContent='Thank you for registering.';
+          document.getElementById('donetext').textContent='Your registration is being reviewed — we will confirm it by email shortly.';
+          document.getElementById('callink').style.display='none';
+          document.getElementById('formwrap').style.display='none';
+          document.getElementById('done').style.display='block';
+          window.scrollTo({top:document.getElementById('done').getBoundingClientRect().top+window.pageYOffset-90,behavior:'smooth'});
+          return;
+        }
         if(res.j.already){document.getElementById('donetext').innerHTML='You were already registered — we have <b>re-sent your confirmation email</b> with your entry QR and wallet passes to <b>'+email.replace(/</g,'&lt;')+'</b>.';}
         var w=res.j.wallet||{};var wb=document.getElementById('walletbtns');var bs='';
         var st='display:block;margin:0 auto 10px;max-width:280px;padding:14px 10px;font:600 11px Inter,Helvetica,sans-serif;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;text-align:center;';

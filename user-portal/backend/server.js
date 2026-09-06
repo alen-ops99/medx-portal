@@ -1428,6 +1428,8 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                                 <div><label>Institution / Company${reqStar('institution')}</label><input id="pf_inst" maxlength="160"${reqAttr('institution')} value="${prefInst}"></div>
                                 <div><label>Country${reqStar('country')}</label><input id="pf_country" maxlength="80"${reqAttr('country')}></div>
                             </div>
+                            <!-- Honeypot (review gate): visually hidden, tabindex -1 — humans never see or reach it; a bot autofilling every input trips it and the submission is silently dropped server-side. -->
+                            <div aria-hidden="true" style="position:absolute!important;left:-9999px!important;top:-9999px!important;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;"><label>Website</label><input id="pf_website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
                             <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian"></div>
                             <div><label>Allergies (for the Gala)</label><input id="pf_allergies" maxlength="200" placeholder="e.g. nuts, shellfish"></div>
                             <div><label>Additional guests for the Gala <span style="color:#9b8f80;font-weight:400;">(max 2)</span></label>
@@ -1553,6 +1555,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             var body = {
                 source: 'plexus',
                 link_token: PLEX_TOKEN || undefined,
+                website: ((document.getElementById('pf_website') || {}).value || ''),
                 first_name: document.getElementById('pf_first').value.trim(),
                 last_name: document.getElementById('pf_last').value.trim(),
                 email: document.getElementById('pf_email').value.trim(),
@@ -1586,6 +1589,10 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                     btn.disabled=false; plexRecompute(); return false;
                 }
                 if(d.checkout_url){ window.location = d.checkout_url; return false; }
+                if(d.held){
+                    document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#c9a962;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>Thank you for registering.</h1><p class="lede" style="margin-top:10px;">Your registration is being reviewed \\u2014 we will confirm it by email shortly.</p></div>';
+                    return false;
+                }
                 document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#c9a962;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>You are registered</h1><p class="lede" style="margin-top:10px;">Thank you, ' + plexEsc(body.first_name) + '. A confirmation email with your check-in QR code is on its way to ' + plexEsc(body.email) + '. We look forward to welcoming you to Plexus 2026 in Zagreb.</p></div>';
             } catch(e){ plexPayFallback(); btn.disabled=false; plexRecompute(); }
             return false;
@@ -5655,6 +5662,18 @@ const query = {
 try {
     require('./boston')(app, { query, saveDb, sendEmail: sendEventConfirmation, flushDb, JWT_SECRET });
 } catch (e) { console.error('[Boston] wing failed to mount:', e.message); }
+
+// ===== REVIEW GATE (Alen 2026-09-06) — bot/gibberish + country holds, decided by email =====
+// Shared module: heuristics + safe-country matcher + Alen's approve/reject email + the
+// GET /api/review/:token/approve|reject routes. Mounted ONCE here (top level, so it beats the
+// /api/* 404 catch-all); the per-table decision handlers plug in from the flows that hold rows
+// (boston.js → bridges_registrations, the CA register block below → croatians_abroad_registrations).
+const reviewGate = require('./review-gate');
+try {
+    // sendEmail powers the institutional-confirmation flow (ask + confirm + FYI emails) —
+    // sendEventConfirmation so the team CC applies, exactly like every registrant-facing email.
+    reviewGate.mountReviewRoutes(app, { JWT_SECRET, sendEmail: sendEventConfirmation });
+} catch (e) { console.error('[ReviewGate] routes failed to mount:', e.message); }
 
 // Once the production demo purge has run (app_state marker), the demo seed blocks must never
 // re-arm — an emptied table would otherwise re-seed on the next boot, and the admin/user seed
@@ -28241,10 +28260,211 @@ By applying to this program, I provide the following consents:
     // gala_registrations table reused for QR/check-in compatibility).
     // optionalAuth (account linking): a logged-in member's JWT attaches both the CA row and
     // the linked gala row to their account at submit time; anonymous flow is untouched.
+    // ---- CA pre-registration confirmation + Sheets mirror, EXTRACTED (review gate 2026-09-06) ----
+    // One implementation, two callers: the untouched immediate path (free-only Path A in the
+    // route below) and the review-gate APPROVE handler — an approved registration receives
+    // EXACTLY the email + sheet row it would have received had it never been held.
+    async function caSendPreRegConfirmation({ regId, first_name, last_name, email, finalConf, finalBridges, finalGala, regSource }) {
+        // Event-list HTML used in the confirmation email (per-event color accents)
+        const eventListHtml = [
+            finalConf ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
+                <strong style="color:#0f172a;">Plexus Conference</strong>
+                <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
+                <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to be announced</div></td></tr>` : '',
+            finalBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #2dd4bf;">
+                <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
+                <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
+                <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : '',
+            finalGala ? `<tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
+                <strong style="color:#0f172a;">Plexus Gala Evening</strong>
+                <span style="color:#f59e0b;font-size:12px;font-weight:600;margin-left:8px;">AWAITING PAYMENT</span>
+                <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>` : ''
+        ].filter(Boolean).join('');
+
+        // QR ticket for check-in at Conference / Bridges (Gala entry arrives with payment)
+        let caQrDataUrl = '';
+        try {
+            const caQrPayload = JSON.stringify({
+                type: 'MEDX_MEMBER',
+                caRegId: regId, regId,
+                email, name: `${first_name} ${last_name || ''}`.trim(),
+                evt: 'croatians-abroad', evtName: 'Plexus 2026',
+                events: [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null].filter(Boolean)
+            });
+            caQrDataUrl = await QRCode.toDataURL(caQrPayload, { width: 220, margin: 2 });
+        } catch(qrErr) { console.warn('CA free QR gen failed:', qrErr.message); }
+
+        const qrBlock = caQrDataUrl ? `
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
+                <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
+                    <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
+                    <tr><td align="center" style="text-align:center;"><img src="${caQrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
+                    <tr><td style="padding-top:8px;font-size:13px;color:#475569;font-family:'Courier New',monospace;letter-spacing:2px;"><span style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:1.5px;color:#94a3b8;">MANUAL CODE&nbsp;&nbsp;</span>${String(regId).substring(0, 8).toUpperCase()}</td></tr>
+                    <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this QR at the entrance to each event you've pre-registered for</td></tr>
+                </table>
+            </td></tr></table>` : '';
+
+        try {
+            await sendEventConfirmation(email, "You're pre-registered — Plexus 2026", buildEmailTemplate('Pre-Registration Confirmed', `
+                <p>Dear <strong>${first_name}</strong>,</p>
+                <p>Thank you for accepting our invitation. Your pre-registration for <strong>Plexus 2026</strong> is confirmed.</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                    <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Selections</td></tr>
+                    ${eventListHtml}
+                </table>
+                ${qrBlock}
+                ${(finalConf || finalBridges) ? `<p>We will email you ${[finalConf ? 'the <strong>Conference program</strong>' : null, finalBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(finalConf && finalBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
+                <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> (${(() => { try { const g = query.get("SELECT date, venue, keynote_name FROM gala_settings WHERE id='default'") || {}; return [g.date ? fmtEventDate(g.date) : '5 December 2026', g.venue || 'Hotel Esplanade Zagreb', g.keynote_name ? g.keynote_name + ' keynote' : ''].filter(Boolean).join(', '); } catch (e) { return '5 December 2026, Hotel Esplanade Zagreb'; } })()}), simply reply to this email and we will send you the ticket link.</p>
+                <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
+                <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
+            `));
+        } catch(emailErr) { console.warn('CA pre-reg email failed:', emailErr.message); }
+    }
+
+    // Log to Google Sheets — `events` array tells the Apps Script which tab(s) to write to.
+    function caMirrorPreRegToSheets({ regId, first_name, last_name, email, institution, country, role, dietary, notes, events, regSource, caAppliedFor, customAnswers, inviteLabel }) {
+        try {
+            mirrorToSheets({
+                events,                            // ← tab routing (['conference','bridges','gala'])
+                name: first_name + ' ' + (last_name || ''),
+                email, institution: institution || '', country: country || '', role: role || '',
+                event: regSource === 'plexus' ? 'Plexus 2026' : 'Plexus 2026 — Croatians Abroad',
+                event_type: 'croatians-abroad',
+                items: events.join(' + '),
+                dietary: dietary || '', notes: notes || '',
+                applied_for: caAppliedFor,
+                custom_summary: customAnswersSummary(customAnswers || {}),
+                custom_answers: customAnswers || {},
+                amount: 0, payment: 'Free (Pre-Registered)',
+                invite_label: inviteLabel || '',
+                ticket_code: String(regId).substring(0, 8).toUpperCase(),
+                registration_id: regId
+            });
+        } catch(e) {}
+    }
+
+    // ---- review-gate decisions for the Zagreb form (croatians_abroad_registrations) ----
+    // Rows held by the register route below carry 'pending-review' per-event statuses. APPROVE
+    // flips them to the normal initial values and then runs the SAME confirmation + Sheets code
+    // path as an unheld registration; REJECT cancels quietly. Idempotent: a decision applies
+    // only while some status is still 'pending-review'. The Stripe gala payment webhook is
+    // untouched — a held gala never got a checkout session, and after approval the payment
+    // itself remains the filter (the confirmation invites a reply for the ticket link).
+    reviewGate.registerReviewHandlers('croatians_abroad_registrations', {
+        approve: async (id) => {
+            const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
+            if (!row) return { status: 'notfound' };
+            const guest = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'the guest';
+            const pending = [row.conference_status, row.bridges_status, row.gala_status].includes('pending-review');
+            if (!pending) {
+                const wasCancelled = [row.conference_status, row.bridges_status, row.gala_status].includes('cancelled');
+                return { status: 'already', headline: wasCancelled ? 'Already rejected.' : 'Already approved.',
+                    message: wasCancelled
+                        ? `${guest}'s registration was rejected earlier — nothing was sent.`
+                        : `${guest}'s registration was approved earlier — the confirmation email was already on its way. Nothing was re-sent.` };
+            }
+            const wantConf = !!Number(row.selected_conference);
+            const wantBridges = !!Number(row.selected_bridges);
+            const wantGala = !!Number(row.selected_gala);
+            db.run(`UPDATE croatians_abroad_registrations
+                    SET conference_status = ?, bridges_status = ?, gala_status = ?, gala_payment_status = ?
+                    WHERE id = ?`,
+                [wantConf ? 'pre-registered' : null,
+                 wantBridges ? 'pre-registered' : null,
+                 wantGala ? 'awaiting_payment' : null,
+                 wantGala ? (row.gala_payment_status || 'pending') : null, id]);
+            if (row.gala_registration_id) {
+                db.run(`UPDATE gala_registrations SET status = 'awaiting_payment' WHERE id = ? AND status = 'pending-review'`, [row.gala_registration_id]);
+            }
+            // The invite-link counter the immediate free path increments at registration time.
+            if (row.invite_link_id) {
+                try { db.run('UPDATE croatians_abroad_invite_links SET used_count = COALESCE(used_count,0) + 1 WHERE id = ?', [row.invite_link_id]); } catch(e) {}
+            }
+            saveDb();
+            flushDb();
+            let customAnswers = {};
+            try { customAnswers = JSON.parse(row.custom_answers || 'null') || {}; } catch(e) {}
+            let inviteLabel = '';
+            try { inviteLabel = (row.invite_link_id && (query.get('SELECT label FROM croatians_abroad_invite_links WHERE id = ?', [row.invite_link_id]) || {}).label) || ''; } catch(e) {}
+            const regSource = row.source === 'plexus' ? 'plexus' : 'croatians-abroad';
+            const caAppliedFor = row.applied_for
+                || [wantConf ? 'Plexus Conference' : null, wantBridges ? 'Croatian Biomedical Bridges' : null, wantGala ? 'Gala Evening' : null].filter(Boolean).join(', ');
+            await caSendPreRegConfirmation({
+                regId: id, first_name: row.first_name, last_name: row.last_name, email: row.email,
+                finalConf: wantConf, finalBridges: wantBridges, finalGala: wantGala, regSource
+            });
+            // Sheet tabs: free events only — a gala row reaches the sheet when payment confirms,
+            // exactly as on the untouched path (the webhook posts it).
+            caMirrorPreRegToSheets({
+                regId: id, first_name: row.first_name, last_name: row.last_name, email: row.email,
+                institution: row.institution, country: row.country, role: row.role,
+                dietary: row.dietary, notes: row.notes,
+                events: [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null].filter(Boolean),
+                regSource, caAppliedFor, customAnswers, inviteLabel
+            });
+            console.log(`[ReviewGate] Zagreb registration ${id} APPROVED — confirmation sent to ${row.email}`);
+            return { status: 'done', headline: 'Approved.',
+                message: `${guest}'s Plexus registration is confirmed — the standard confirmation email has been sent to ${row.email}.`
+                    + (wantGala ? ' The Gala portion now awaits payment; they were invited to reply for the ticket link (payment remains the filter there).' : '') };
+        },
+        reject: async (id) => {
+            const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
+            if (!row) return { status: 'notfound' };
+            const guest = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'the registrant';
+            const pending = [row.conference_status, row.bridges_status, row.gala_status].includes('pending-review');
+            if (!pending) {
+                const wasCancelled = [row.conference_status, row.bridges_status, row.gala_status].includes('cancelled');
+                return { status: 'already', headline: wasCancelled ? 'Already rejected.' : 'Already approved.',
+                    message: wasCancelled
+                        ? `${guest}'s registration was already rejected.`
+                        : `${guest}'s registration was approved earlier and the confirmation already went out — rejecting from this link is disabled. Cancel it from the admin side if needed.` };
+            }
+            db.run(`UPDATE croatians_abroad_registrations
+                    SET conference_status = ?, bridges_status = ?, gala_status = ?
+                    WHERE id = ?`,
+                [Number(row.selected_conference) ? 'cancelled' : null,
+                 Number(row.selected_bridges) ? 'cancelled' : null,
+                 Number(row.selected_gala) ? 'cancelled' : null, id]);
+            if (row.gala_registration_id) {
+                db.run(`UPDATE gala_registrations SET status = 'cancelled' WHERE id = ? AND status = 'pending-review'`, [row.gala_registration_id]);
+            }
+            saveDb();
+            flushDb();
+            console.log(`[ReviewGate] Zagreb registration ${id} REJECTED`);
+            return { status: 'done', headline: 'Rejected.',
+                message: `${guest}'s registration has been cancelled. They received nothing — no confirmation, no QR, no payment link — and no sheet row was written.` };
+        },
+        // Institutional-confirmation flow primitives (state = notes markers, restart-safe).
+        getRow: (id) => {
+            const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
+            if (!row) return null;
+            const st = [row.conference_status, row.bridges_status, row.gala_status];
+            return {
+                id: row.id,
+                name: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+                email: row.email,
+                notes: row.notes,
+                state: st.includes('pending-review') ? 'pending' : (st.includes('cancelled') ? 'rejected' : 'approved')
+            };
+        },
+        setNotes: (id, notes) => {
+            db.run('UPDATE croatians_abroad_registrations SET notes = ? WHERE id = ?', [notes, id]);
+            saveDb();
+            flushDb();
+        }
+    });
+
     app.post('/api/croatians-abroad/register', registrationLimiter, optionalAuth, async (req, res) => {
         try {
             const { invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
                     selected_conference, selected_bridges, selected_gala } = req.body || {};
+            // Honeypot (review gate): the /plexus form carries a visually hidden 'website' input
+            // no human sees or tabs into. Filled → a bot autofilled everything: pretend success,
+            // write NOTHING (no row, no email, no hold — a silent drop).
+            if (String((req.body || {}).website || '').trim()) {
+                console.log('[ReviewGate] /plexus honeypot tripped — submission silently dropped');
+                return res.json({ success: true });
+            }
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
             let wantConf = !!Number(selected_conference);
             let wantBridges = !!Number(selected_bridges);
@@ -28321,6 +28541,32 @@ By applying to this program, I provide the following consents:
             const finalBridges = wantBridges;
             const finalGala = wantGala;
 
+            // ---- REVIEW GATE (Alen 2026-09-06): three holds on this Zagreb funnel ----
+            //   1. gibberish-looking name/institution/role (bot registrations),
+            //   2. country outside the safe list — or blank/unknown (required signal here),
+            //   3. a SAFE country claim with zero corroboration from a free-mail address
+            //      (the "types Croatia to slip past" fraud pattern).
+            // Held rows are written with 'pending-review' statuses and get NO registrant email,
+            // NO Sheets row, NO Stripe checkout — Alen approves or rejects from the review email.
+            const gateName = `${first_name} ${last_name || ''}`.trim();
+            const gateGibberish = reviewGate.suspicionScore({ name: gateName, institution, position: role }) >= 2;
+            const gateCountryHold = !reviewGate.isSafeCountry(country);
+            const gateCoherenceHold = !gateCountryHold
+                && reviewGate.coherenceHold({ country, name: gateName, email, institution });
+            const gateHeld = gateGibberish || gateCountryHold || gateCoherenceHold;
+            const gateReason = [
+                gateGibberish ? 'Looks machine-generated' : null,
+                gateCountryHold ? 'Country requires manual approval: ' + (String(country || '').trim() || '(blank)') : null,
+                gateCoherenceHold ? 'Claimed country does not match name/email/institution' : null
+            ].filter(Boolean).join(' · ');
+            if (gateHeld) {
+                // One review email per address — a retrying bot must not bombard the inbox.
+                const priorHeld = query.get(`SELECT id FROM croatians_abroad_registrations
+                    WHERE LOWER(email) = LOWER(?) AND (conference_status = 'pending-review'
+                       OR bridges_status = 'pending-review' OR gala_status = 'pending-review')`, [email]);
+                if (priorHeld) return res.json({ success: true, id: priorHeld.id, status: 'pending-review', held: true });
+            }
+
             const regId = require('crypto').randomUUID();
             let galaRegistrationId = null;
 
@@ -28331,8 +28577,10 @@ By applying to this program, I provide the following consents:
                 galaRegistrationId = require('crypto').randomUUID();
                 db.run(
                     `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id)
-                     VALUES (?, ?, ?, ?, ?, 'awaiting_payment', 'pending', ?, ?, ?)`,
-                    [galaRegistrationId, first_name, last_name || '', email, institution || '', dietary || null, notes || null, linkedUserId]
+                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+                    [galaRegistrationId, first_name, last_name || '', email, institution || '',
+                     gateHeld ? 'pending-review' : 'awaiting_payment',      // review gate: held gala rows wait for Alen
+                     dietary || null, notes || null, linkedUserId]
                 );
             }
 
@@ -28344,9 +28592,9 @@ By applying to this program, I provide the following consents:
                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
                 [regId, invite_link_id || null, first_name, last_name || '', email, institution || '', country || '', role || '', dietary || '', notes || '',
                  finalConf ? 1 : 0, finalBridges ? 1 : 0, finalGala ? 1 : 0,
-                 finalConf ? 'pre-registered' : null,
-                 finalBridges ? 'pre-registered' : null,
-                 finalGala ? 'awaiting_payment' : null,
+                 finalConf ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
+                 finalBridges ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
+                 finalGala ? (gateHeld ? 'pending-review' : 'awaiting_payment') : null,
                  finalGala ? 'pending' : null,
                  galaRegistrationId, regSource, linkedUserId]
             );
@@ -28365,91 +28613,74 @@ By applying to this program, I provide the following consents:
             saveDb();
             flushDb(); // durability: the CA registration row is final now — push to Turso immediately
 
-            // Helper: build the event-list HTML used in confirmation emails (with per-event color accents)
-            const eventListHtml = [
-                finalConf ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
-                    <strong style="color:#0f172a;">Plexus Conference</strong>
-                    <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to be announced</div></td></tr>` : '',
-                finalBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #2dd4bf;">
-                    <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
-                    <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : '',
-                finalGala ? `<tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
-                    <strong style="color:#0f172a;">Plexus Gala Evening</strong>
-                    <span style="color:#f59e0b;font-size:12px;font-weight:600;margin-left:8px;">AWAITING PAYMENT</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>` : ''
-            ].filter(Boolean).join('');
+            // Gala extras (guests + allergies) — persisted for ANY gala selection, held or not,
+            // so an approved registration keeps its full party details. Shared by the held
+            // branch below and the untouched paid Path B.
+            const galaGuestCount = Math.max(0, Math.min(2, parseInt(req.body.guest_count, 10) || 0)); // +guests, max 2
+            const galaAllergies = (req.body.allergies || '').toString().slice(0, 200);
+            const persistGalaExtras = () => {
+                // Persist guests + allergies on the gala row (allergies folded into requests) + CA row.
+                try {
+                    const reqText = [notes, galaAllergies ? ('Allergies: ' + galaAllergies) : ''].filter(Boolean).join(' | ') || null;
+                    db.run('UPDATE gala_registrations SET guest_count = ?, requests = ? WHERE id = ?', [galaGuestCount, reqText, galaRegistrationId]);
+                    db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [galaGuestCount, regId]);
+                    // Per-guest details (name/institution/email) → ca_registration_guests (2026-08-30)
+                    try {
+                        const guestRows = Array.isArray(req.body.guests) ? req.body.guests.slice(0, galaGuestCount) : [];
+                        for (const g of guestRows) {
+                            const gName = String((g && g.name) || '').slice(0, 120).trim();
+                            const gInst = String((g && g.institution) || '').slice(0, 160).trim();
+                            const gEmailRaw = String((g && g.email) || '').slice(0, 160).trim().toLowerCase();
+                            const gEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(gEmailRaw) ? gEmailRaw : '';
+                            if (!gName && !gEmail) continue;
+                            db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?, ?, ?, ?, ?)',
+                                [uuidv4(), regId, gName, gInst, gEmail]);
+                        }
+                    } catch (gErr) { console.error('[CA] guest details save failed (non-blocking):', gErr.message); }
+                } catch(e) {}
+            };
+
+            // ---------- HELD: review gate — stop here, Alen decides by email ----------
+            // The row(s) sit at 'pending-review'; the registrant gets NO email, NO Sheets row,
+            // NO Stripe checkout (payment links are never minted for held registrations). The
+            // response mirrors a normal success shape, plus held:true so the page can show its
+            // "being reviewed" copy instead of promising an imminent confirmation.
+            if (gateHeld) {
+                if (finalGala) persistGalaExtras();
+                try {
+                    const urls = reviewGate.reviewUrls(JWT_SECRET, 'croatians_abroad_registrations', regId);
+                    const heldGuests = galaGuestCount
+                        ? galaGuestCount + (Array.isArray(req.body.guests) ? ' — ' + req.body.guests.slice(0, galaGuestCount).map(g => String((g && g.name) || '').trim()).filter(Boolean).join(', ') : '')
+                        : 'None';
+                    await sendEventConfirmation(reviewGate.REVIEW_TO, 'A registration needs your review — Plexus (Zagreb form)',
+                        reviewGate.buildReviewEmail({
+                            kind: 'Zagreb form',
+                            reason: gateReason,
+                            fields: {
+                                'First name': first_name, 'Last name': last_name || '', 'Email': email,
+                                'Institution': institution || '', 'Country': country || '', 'Role': role || '',
+                                'Selected events': caAppliedFor, 'Gala guests': finalGala ? heldGuests : 'n/a (no Gala)',
+                                'Dietary': dietary || '', 'Allergies': galaAllergies, 'Notes': notes || '',
+                                'Custom answers': customAnswersSummary(caCf.answers), 'Source': regSource
+                            },
+                            approveUrl: urls.approveUrl, rejectUrl: urls.rejectUrl, verifyUrl: urls.verifyUrl
+                        }));
+                } catch (e) { console.error('[ReviewGate] Zagreb review email failed:', e.message); }
+                console.log(`[ReviewGate] Zagreb registration ${regId} (${email}) held for review — ${gateReason}`);
+                return res.json({ success: true, id: regId, status: 'pending-review', held: true });
+            }
 
             // ---------- PATH A: Free-only (no Gala) → confirm immediately ----------
             if (!finalGala) {
-                // Generate QR ticket for check-in at Conference / Bridges
-                let caQrDataUrl = '';
-                try {
-                    const caQrPayload = JSON.stringify({
-                        type: 'MEDX_MEMBER',
-                        caRegId: regId, regId,
-                        email, name: `${first_name} ${last_name || ''}`.trim(),
-                        evt: 'croatians-abroad', evtName: 'Plexus 2026',
-                        events: [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null].filter(Boolean)
-                    });
-                    caQrDataUrl = await QRCode.toDataURL(caQrPayload, { width: 220, margin: 2 });
-                } catch(qrErr) { console.warn('CA free QR gen failed:', qrErr.message); }
-
-                const qrBlock = caQrDataUrl ? `
-                    <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
-                        <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
-                            <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
-                            <tr><td align="center" style="text-align:center;"><img src="${caQrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
-                            <tr><td style="padding-top:8px;font-size:13px;color:#475569;font-family:'Courier New',monospace;letter-spacing:2px;"><span style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:1.5px;color:#94a3b8;">MANUAL CODE&nbsp;&nbsp;</span>${String(regId).substring(0, 8).toUpperCase()}</td></tr>
-                            <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this QR at the entrance to each event you've pre-registered for</td></tr>
-                        </table>
-                    </td></tr></table>` : '';
-
-                try {
-                    await sendEventConfirmation(email, "You're pre-registered — Plexus 2026", buildEmailTemplate('Pre-Registration Confirmed', `
-                        <p>Dear <strong>${first_name}</strong>,</p>
-                        <p>Thank you for accepting our invitation. Your pre-registration for <strong>Plexus 2026</strong> is confirmed.</p>
-                        <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-                            <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Selections</td></tr>
-                            ${eventListHtml}
-                        </table>
-                        ${qrBlock}
-                        ${(finalConf || finalBridges) ? `<p>We will email you ${[finalConf ? 'the <strong>Conference program</strong>' : null, finalBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(finalConf && finalBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
-                        <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> (${(() => { try { const g = query.get("SELECT date, venue, keynote_name FROM gala_settings WHERE id='default'") || {}; return [g.date ? fmtEventDate(g.date) : '5 December 2026', g.venue || 'Hotel Esplanade Zagreb', g.keynote_name ? g.keynote_name + ' keynote' : ''].filter(Boolean).join(', '); } catch (e) { return '5 December 2026, Hotel Esplanade Zagreb'; } })()}), simply reply to this email and we will send you the ticket link.</p>
-                        <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
-                        <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
-                    `));
-                } catch(emailErr) { console.warn('CA pre-reg email failed:', emailErr.message); }
-
-                // Log to Google Sheets — `events` array tells the Apps Script which tab(s) to write to
-                try {
-                    const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
-                    if (sheetsWebhook) {
-                        const events = [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null, finalGala ? 'gala' : null].filter(Boolean);
-                        fetch(sheetsWebhook, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                timestamp: new Date().toISOString(),
-                                events,                            // ← new: tab routing (['conference','bridges','gala'])
-                                name: first_name + ' ' + (last_name || ''),
-                                email, institution: institution || '', country: country || '', role: role || '',
-                                event: regSource === 'plexus' ? 'Plexus 2026' : 'Plexus 2026 — Croatians Abroad',
-                                event_type: 'croatians-abroad',
-                                items: events.join(' + '),
-                                dietary: dietary || '', notes: notes || '',
-                                applied_for: caAppliedFor,
-                                custom_summary: customAnswersSummary(caCf.answers),
-                                custom_answers: caCf.answers,
-                                amount: 0, payment: 'Free (Pre-Registered)',
-                                invite_label: caInvite?.label || '',
-                                ticket_code: String(regId).substring(0, 8).toUpperCase(),
-                                registration_id: regId
-                            })
-                        }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
-                    }
-                } catch(e) {}
+                // Confirmation email (QR + selections) and the Sheets tab mirror — the SAME
+                // extracted code path the review-gate APPROVE handler replays later, so a held
+                // registration that Alen approves receives exactly this.
+                await caSendPreRegConfirmation({ regId, first_name, last_name, email, finalConf, finalBridges, finalGala, regSource });
+                caMirrorPreRegToSheets({
+                    regId, first_name, last_name, email, institution, country, role, dietary, notes,
+                    events: [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null, finalGala ? 'gala' : null].filter(Boolean),
+                    regSource, caAppliedFor, customAnswers: caCf.answers, inviteLabel: caInvite?.label || ''
+                });
 
                 // Increment invite-link usage
                 if (caInvite) {
@@ -28468,31 +28699,13 @@ By applying to this program, I provide the following consents:
             // ---------- PATH B: Gala selected → server-trusted pricing (guests + coupon) ----------
             // ALL amounts re-derived here from the DB — never trust a client-sent price.
             const galaBase = effectiveGalaPrice();                                   // per-person Gala price
-            const guests = Math.max(0, Math.min(2, parseInt(req.body.guest_count, 10) || 0)); // +guests, max 2
+            const guests = galaGuestCount;                                           // +guests, max 2 (hoisted above)
             const subtotal = Math.round(galaBase * (1 + guests) * 100) / 100;
             const galaPromo = lookupPromo('gala', req.body.coupon || req.body.coupon_code || '', { email, price: subtotal });
             const galaDiscount = galaPromo ? promoDiscount(galaPromo, subtotal) : 0;
             const galaPrice = Math.max(0, Math.round((subtotal - galaDiscount) * 100) / 100);
-            const galaAllergies = (req.body.allergies || '').toString().slice(0, 200);
             // Persist guests + allergies on the gala row (allergies folded into requests) + CA row.
-            try {
-                const reqText = [notes, galaAllergies ? ('Allergies: ' + galaAllergies) : ''].filter(Boolean).join(' | ') || null;
-                db.run('UPDATE gala_registrations SET guest_count = ?, requests = ? WHERE id = ?', [guests, reqText, galaRegistrationId]);
-                db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [guests, regId]);
-                // Per-guest details (name/institution/email) → ca_registration_guests (2026-08-30)
-                try {
-                    const guestRows = Array.isArray(req.body.guests) ? req.body.guests.slice(0, guests) : [];
-                    for (const g of guestRows) {
-                        const gName = String((g && g.name) || '').slice(0, 120).trim();
-                        const gInst = String((g && g.institution) || '').slice(0, 160).trim();
-                        const gEmailRaw = String((g && g.email) || '').slice(0, 160).trim().toLowerCase();
-                        const gEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(gEmailRaw) ? gEmailRaw : '';
-                        if (!gName && !gEmail) continue;
-                        db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?, ?, ?, ?, ?)',
-                            [uuidv4(), regId, gName, gInst, gEmail]);
-                    }
-                } catch (gErr) { console.error('[CA] guest details save failed (non-blocking):', gErr.message); }
-            } catch(e) {}
+            persistGalaExtras();
             // Stripe needs a real charge; a 100%-off / sub-€0.50 result can't be charged.
             if (galaPrice < 0.5) {
                 return res.status(400).json({ error: 'That code brings the Gala to €0 — please email info@medx.hr to be added as a complimentary guest.' });

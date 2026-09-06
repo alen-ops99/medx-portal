@@ -166,6 +166,11 @@ const sendEmailStub = async (to, subject, html) => { sentEmails.push({ to, subje
 const JWT_SECRET = 'test-secret-boston';
 const app = makeApp();
 mountBoston(app, { query, saveDb: () => {}, sendEmail: sendEmailStub, flushDb: () => {}, JWT_SECRET });
+// Review-gate routes — in prod server.js mounts these ONCE at top level (passing its real
+// sendEmail); the boston wing only registers its bridges_registrations decision handlers into
+// the shared registry. Here the SAME capturing stub carries every review/verification email.
+const reviewGate = require('../user-portal/backend/review-gate.js');
+reviewGate.mountReviewRoutes(app, { JWT_SECRET, sendEmail: sendEmailStub });
 
 const EVENT_ID = 'bb-boston-2026-09-21';
 const BASE = 'https://medx-user-portal.onrender.com';
@@ -670,6 +675,297 @@ async function t(name, fn) {
         assert.ok(lines[2].includes('"Ivan"') && lines[2].includes('"Yes"') && lines[2].includes('"Harvard Medical School"'), 'ivan row (presentation Yes)');
         assert.ok(lines[1].includes('"Postdoctoral fellow"'), 'position exported');
         assert.ok(lines[1].includes('"registered"') && lines[1].endsWith('"No"'), 'status + checked-in exported');
+    });
+
+    // ==================== review gate (bot/gibberish holds + honeypot) ====================
+
+    await t('review routes are mounted alongside the wing', () => {
+        assert.ok(app.routes['GET /api/review/:token/approve'], 'approve route missing');
+        assert.ok(app.routes['GET /api/review/:token/reject'], 'reject route missing');
+    });
+
+    await t('/boston page: hidden honeypot field + held-state copy in the page JS', async () => {
+        const r = await call(app, 'GET', '/boston');
+        const html = String(r.body);
+        assert.ok(html.includes('name="website"'), 'honeypot input missing');
+        assert.ok(html.includes('id="f_web"'), 'honeypot id missing');
+        assert.ok(html.includes('tabindex="-1"'), 'honeypot must be untabbable');
+        assert.ok(html.includes('autocomplete="off"'), 'honeypot autocomplete off missing');
+        assert.ok(/\.hp\{position:absolute/.test(html), 'honeypot off-screen CSS missing');
+        assert.ok(html.includes("website:(document.getElementById('f_web')"), 'form JS must post the honeypot value');
+        assert.ok(html.includes('Thank you for registering.'), 'held headline copy missing from page JS');
+        assert.ok(html.includes('being reviewed'), 'held review line missing from page JS');
+    });
+
+    await t('honeypot filled -> {success:true}, NOTHING written, no email at all', async () => {
+        const rowsBefore = Number(query.get('SELECT COUNT(*) AS n FROM bridges_registrations').n);
+        const mailsBefore = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/register', {
+            body: { name: 'Bot Net', email: 'bot@spam.example', institution: 'Spam Inc', website: 'http://spam.example' }
+        });
+        assert.strictEqual(r.statusCode, 200);
+        assert.deepStrictEqual(r.body, { success: true }, 'silent generic success only');
+        assert.strictEqual(Number(query.get('SELECT COUNT(*) AS n FROM bridges_registrations').n), rowsBefore, 'a row was written');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'an email escaped');
+    });
+
+    const BOT = { name: 'RQstQeTGKseNqJzmVHMmE', email: 'zqp8817xk@botmail.example', institution: 'Ugakeu LLC', position: 'cCzNfiIdNITvvnWjrBf' };
+    let heldId = null, approveToken = null;
+    await t('gibberish registration HELD: pending-review row, marker, review email to Alen, nothing to the bot', async () => {
+        const mailsBefore = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/register', { body: { ...BOT } });
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(r.body.success, true, 'must look like success to the bot');
+        assert.strictEqual(r.body.held, true, 'held flag for the page');
+        assert.ok(!r.body.wallet, 'held response must NOT mint wallet links');
+        const row = query.get('SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?)', [BOT.email]);
+        assert.ok(row, 'held row missing');
+        heldId = row.id;
+        assert.strictEqual(row.status, 'pending-review');
+        assert.strictEqual(Number(row.confirmation_sent), 0);
+        assert.ok(String(row.notes).includes('HELD — review'), 'notes marker missing: ' + row.notes);
+        assert.strictEqual(sentEmails.length, mailsBefore + 1, 'exactly one review email');
+        const mail = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(mail.to, 'juginovic.alen@gmail.com', 'review email goes to Alen');
+        assert.ok(!sentEmails.some(m => m.to === BOT.email), 'the bot must receive NOTHING');
+        assert.ok(mail.html.includes('A registration needs your review'), 'review headline missing');
+        assert.ok(mail.html.includes('Looks machine-generated'), 'reason missing');
+        assert.ok(mail.html.includes('RQstQeTGKseNqJzmVHMmE') && mail.html.includes('Ugakeu LLC')
+            && mail.html.includes('cCzNfiIdNITvvnWjrBf'), 'submitted fields must appear verbatim');
+        const am = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/approve/.exec(mail.html);
+        const rm = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/reject/.exec(mail.html);
+        assert.ok(am && rm, 'approve/reject links missing from the email');
+        approveToken = am[1];
+        assert.ok(approveToken.endsWith('.' + heldId), 'token must bind the held row id');
+        assert.deepStrictEqual(reviewGate.verifyReviewToken(JWT_SECRET, approveToken),
+            { table: 'bridges_registrations', id: heldId }, 'token must verify against the shared implementation');
+    });
+
+    await t('held duplicate re-submit: no second row, no second review email', async () => {
+        const mailsBefore = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/register', { body: { ...BOT } });
+        assert.strictEqual(r.body.held, true);
+        assert.strictEqual(query.all('SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?)', [BOT.email]).length, 1, 'second held row');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'Alen must not be re-emailed by a retrying bot');
+    });
+
+    await t('wrong/forged review tokens -> 404 page', async () => {
+        for (const token of ['garbage', 'f'.repeat(32) + '.bridges_registrations.' + heldId,
+                             approveToken.replace('bridges_registrations', 'croatians_abroad_registrations'),
+                             mintPassToken(heldId)]) {
+            const r = await call(app, 'GET', '/api/review/:token/approve', { params: { token } });
+            assert.strictEqual(r.statusCode, 404, 'expected 404 for token ' + token);
+        }
+        const ghost = reviewGate.reviewToken(JWT_SECRET, 'bridges_registrations', crypto.randomUUID());
+        const g = await call(app, 'GET', '/api/review/:token/approve', { params: { token: ghost } });
+        assert.strictEqual(g.statusCode, 404, 'valid-shape token for unknown row must 404');
+    });
+
+    await t('APPROVE: row registered, confirmation sent to registrant, Boston sheet push attempted', async () => {
+        // The sheet push wants env + fetch — swap the killed fetch for a capturing stub.
+        const fetchCalls = [];
+        const savedFetch = global.fetch;
+        process.env.BB_SHEET_ID = 'test-sheet-id';
+        process.env.GOOGLE_OAUTH_CLIENT_ID = 'cid';
+        process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'cs';
+        process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'rt';
+        global.fetch = async (url) => {
+            fetchCalls.push(String(url));
+            if (String(url).includes('oauth2')) return { ok: true, json: async () => ({ access_token: 'tok' }) };
+            return { ok: true, json: async () => ({}) };
+        };
+        try {
+            const mailsBefore = sentEmails.length;
+            const r = await call(app, 'GET', '/api/review/:token/approve', { params: { token: approveToken } });
+            assert.strictEqual(r.statusCode, 200);
+            assert.ok(String(r.body).includes('Approved'), 'approve result page expected');
+            const row = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [heldId]);
+            assert.strictEqual(row.status, 'registered');
+            assert.strictEqual(Number(row.confirmation_sent), 1);
+            assert.ok(String(row.notes).includes('approved'), 'notes should record the approval');
+            assert.strictEqual(sentEmails.length, mailsBefore + 1, 'exactly the confirmation email went out');
+            const conf = sentEmails[sentEmails.length - 1];
+            assert.strictEqual(conf.to, BOT.email, 'confirmation goes to the registrant');
+            assert.ok(/You are in/.test(conf.subject), 'standard confirmation subject');
+            assert.ok(conf.html.includes(`/api/boston/qr/${heldId}.png`), 'confirmation carries the entry QR');
+            for (let i = 0; i < 30 && !fetchCalls.some(u => u.includes('sheets.googleapis.com')); i++) {
+                await new Promise(res => setImmediate(res));            // sheet push is fire-and-forget
+            }
+            assert.ok(fetchCalls.some(u => u.includes('sheets.googleapis.com')),
+                'sheet append must be attempted; saw: ' + fetchCalls.join(', '));
+        } finally {
+            global.fetch = savedFetch;
+            delete process.env.BB_SHEET_ID;
+            delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+            delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+            delete process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+        }
+    });
+
+    await t('APPROVE is idempotent: a second click re-sends nothing', async () => {
+        const mailsBefore = sentEmails.length;
+        const r = await call(app, 'GET', '/api/review/:token/approve', { params: { token: approveToken } });
+        assert.strictEqual(r.statusCode, 200);
+        assert.ok(String(r.body).includes('Already approved'), 'idempotent page expected');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'no re-send on the second approve');
+    });
+
+    await t('REJECT: held row -> cancelled, registrant never emailed, idempotent', async () => {
+        const BOT2 = { name: 'NqZxKvWpRtLmBcDfGhJs', email: 'kkzw7712@botmail.example', institution: 'Qwkzrt LLC', position: 'ZnRqWtBvvKlpMhhDsFg' };
+        const r1 = await call(app, 'POST', '/api/boston/register', { body: { ...BOT2 } });
+        assert.strictEqual(r1.body.held, true, 'second bot must be held too');
+        const row = query.get('SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?)', [BOT2.email]);
+        const mail = sentEmails[sentEmails.length - 1];
+        const rm = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/reject/.exec(mail.html);
+        assert.ok(rm, 'reject link missing');
+        const mailsBefore = sentEmails.length;
+        const r2 = await call(app, 'GET', '/api/review/:token/reject', { params: { token: rm[1] } });
+        assert.strictEqual(r2.statusCode, 200);
+        assert.ok(String(r2.body).includes('Rejected'), 'reject result page expected');
+        const fresh = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [row.id]);
+        assert.strictEqual(fresh.status, 'cancelled');
+        assert.ok(String(fresh.notes).includes('rejected'), 'notes should record the rejection');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'reject must email no one');
+        assert.ok(!sentEmails.some(m => m.to === BOT2.email), 'the registrant must never be emailed');
+        const r3 = await call(app, 'GET', '/api/review/:token/reject', { params: { token: rm[1] } });
+        assert.ok(String(r3.body).includes('Already rejected'), 'second reject must be the idempotent page');
+    });
+
+    // ==================== institutional-confirmation flow (verify) ====================
+
+    await t('verification routes are mounted', () => {
+        for (const k of ['GET /api/review/:token/verify', 'GET /verify-registration/:vtoken',
+                         'POST /verify-registration/:vtoken', 'GET /verify-registration/:vtoken/confirm/:sig2']) {
+            assert.ok(app.routes[k], 'missing ' + k);
+        }
+    });
+
+    await t('verify flow happy path: ask -> registrant email -> inst submit -> confirm click auto-approves', async () => {
+        // A third held bot row to run the whole flow on.
+        const BOT3 = { name: 'WqXzKtRvNpLsGhBdFmJc', email: 'pzq5541b@botmail.example', institution: 'Zzkwqx LLC', position: 'QwZxRtKvNmPlBhGfDsWj' };
+        const r0 = await call(app, 'POST', '/api/boston/register', { body: { ...BOT3 } });
+        assert.strictEqual(r0.body.held, true, 'BOT3 must be held');
+        const row = query.get('SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?)', [BOT3.email]);
+        const reviewMail = sentEmails[sentEmails.length - 1];
+        const vm = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/verify/.exec(reviewMail.html);
+        assert.ok(vm, 'review email must carry the ask-for-institutional-confirmation link');
+
+        // 1) Alen clicks ASK → admin page + polite ask email to the REGISTRANT's submitted address
+        let mailsBefore = sentEmails.length;
+        const ask = await call(app, 'GET', '/api/review/:token/verify', { params: { token: vm[1] } });
+        assert.strictEqual(ask.statusCode, 200);
+        assert.ok(String(ask.body).includes('Confirmation request sent'), 'admin result page');
+        assert.strictEqual(sentEmails.length, mailsBefore + 1, 'exactly the ask email went out');
+        const askMail = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(askMail.to, BOT3.email, 'ask email goes to the registrant');
+        assert.ok(/One more step/.test(askMail.subject), 'ask subject');
+        assert.ok(askMail.html.includes('institutional email address'), 'ask copy');
+        assert.ok(!/review|held|fraud|suspic/i.test(askMail.html), 'registrant email must stay unsuspicious');
+        const pm = /\/verify-registration\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)/.exec(askMail.html);
+        assert.ok(pm, 'ask email must link the public verification page');
+        const vtoken = pm[1];
+        assert.ok(String(query.get('SELECT notes FROM bridges_registrations WHERE id = ?', [row.id]).notes)
+            .includes('VERIFY-REQUESTED'), 'ask marker persisted');
+
+        // Idempotent + rate-limited: a second ASK click sends nothing new
+        mailsBefore = sentEmails.length;
+        const ask2 = await call(app, 'GET', '/api/review/:token/verify', { params: { token: vm[1] } });
+        assert.ok(String(ask2.body).includes('Confirmation request sent'), 'second ask still renders sent');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'no duplicate ask email inside the rate window');
+
+        // 2) The public page renders; forged vtokens 404
+        const page = await call(app, 'GET', '/verify-registration/:vtoken', { params: { vtoken } });
+        assert.strictEqual(page.statusCode, 200);
+        assert.ok(String(page.body).includes('institutional email'), 'form page copy');
+        assert.ok(String(page.body).includes(`/verify-registration/${vtoken}`), 'form posts to its own token');
+        const forged = await call(app, 'GET', '/verify-registration/:vtoken', { params: { vtoken: 'f'.repeat(32) + '.bridges_registrations.' + row.id } });
+        assert.strictEqual(forged.statusCode, 404, 'forged vtoken must 404');
+
+        // 3) Free-mail submit rejected; institutional accepted → confirm email to THAT address
+        const bad = await call(app, 'POST', '/verify-registration/:vtoken', { params: { vtoken }, body: { email: 'someone@gmail.com' } });
+        assert.strictEqual(bad.statusCode, 400, 'gmail must be rejected');
+        assert.ok(/personal email/.test(bad.body.error), 'friendly rejection copy');
+        mailsBefore = sentEmails.length;
+        const good = await call(app, 'POST', '/verify-registration/:vtoken', { params: { vtoken }, body: { email: 'Prof.X@med.uni.rs' } });
+        assert.strictEqual(good.statusCode, 200);
+        assert.strictEqual(good.body.success, true);
+        assert.strictEqual(sentEmails.length, mailsBefore + 1, 'exactly the institutional confirm email went out');
+        const instMail = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(instMail.to, 'prof.x@med.uni.rs', 'confirm email goes to the institutional inbox (lowercased)');
+        assert.ok(/Confirm your registration/.test(instMail.subject), 'confirm subject');
+        const cm = new RegExp('/verify-registration/' + vtoken.replace(/\./g, '\\.') + '/confirm/([0-9a-f]{32})').exec(instMail.html);
+        assert.ok(cm, 'confirm email must carry the sig2 link');
+        const sig2 = cm[1];
+        assert.strictEqual(sig2, reviewGate.instConfirmSig(JWT_SECRET, 'bridges_registrations', row.id, 'prof.x@med.uni.rs'), 'sig2 binds row + inst email');
+
+        // Rate limit: immediate second submit → 429, no email
+        mailsBefore = sentEmails.length;
+        const again = await call(app, 'POST', '/verify-registration/:vtoken', { params: { vtoken }, body: { email: 'other@med.uni.rs' } });
+        assert.strictEqual(again.statusCode, 429, 'second submit inside the window must be rate-limited');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'no email on the rate-limited submit');
+
+        // 4) Wrong sig2 404s; the real confirm click approves EXACTLY like APPROVE + FYI to Alen
+        const wrong = await call(app, 'GET', '/verify-registration/:vtoken/confirm/:sig2', { params: { vtoken, sig2: 'f'.repeat(32) } });
+        assert.strictEqual(wrong.statusCode, 404, 'wrong sig2 must 404');
+        mailsBefore = sentEmails.length;
+        const conf = await call(app, 'GET', '/verify-registration/:vtoken/confirm/:sig2', { params: { vtoken, sig2 } });
+        assert.strictEqual(conf.statusCode, 200);
+        assert.ok(String(conf.body).includes('You are confirmed'), 'warm confirmed page');
+        assert.ok(String(conf.body).includes('your ticket is on its way'), 'ticket line');
+        const fresh = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [row.id]);
+        assert.strictEqual(fresh.status, 'registered', 'confirm click must approve');
+        assert.strictEqual(Number(fresh.confirmation_sent), 1);
+        assert.ok(String(fresh.notes).includes('verified via prof.x@med.uni.rs'), 'verified marker persisted');
+        assert.strictEqual(sentEmails.length, mailsBefore + 2, 'confirmation to registrant + FYI to Alen');
+        const confMail = sentEmails[sentEmails.length - 2];
+        const fyiMail = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(confMail.to, BOT3.email, 'the ticket goes to the ORIGINAL registered address');
+        assert.ok(/You are in/.test(confMail.subject), 'standard confirmation subject');
+        assert.strictEqual(fyiMail.to, 'juginovic.alen@gmail.com', 'FYI goes to Alen');
+        assert.ok(fyiMail.html.includes('prof.x@med.uni.rs') && /tickets issued automatically/.test(fyiMail.html), 'FYI one-liner');
+
+        // 5) Idempotent: a second confirm click renders the same page, sends nothing
+        mailsBefore = sentEmails.length;
+        const conf2 = await call(app, 'GET', '/verify-registration/:vtoken/confirm/:sig2', { params: { vtoken, sig2 } });
+        assert.strictEqual(conf2.statusCode, 200);
+        assert.ok(String(conf2.body).includes('You are confirmed'), 'idempotent warm page');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'no double emails on the second click');
+        // The public page for an approved row is the warm page too
+        const pageAfter = await call(app, 'GET', '/verify-registration/:vtoken', { params: { vtoken } });
+        assert.ok(String(pageAfter.body).includes('You are confirmed'), 'page after approval');
+    });
+
+    await t('verify links for a rejected row are inactive', async () => {
+        const BOT4 = { name: 'GkZpWqXvBnTrLmDsFhJq', email: 'ttx9032@botmail.example', institution: 'Pqzkwv LLC', position: 'XcVbNmQwErTzUkKjHgFd' };
+        await call(app, 'POST', '/api/boston/register', { body: { ...BOT4 } });
+        const row = query.get('SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?)', [BOT4.email]);
+        const mail = sentEmails[sentEmails.length - 1];
+        const rm = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/reject/.exec(mail.html);
+        await call(app, 'GET', '/api/review/:token/reject', { params: { token: rm[1] } });
+        const vm = /\/api\/review\/([0-9a-f]{32}\.bridges_registrations\.[0-9a-fA-F-]+)\/verify/.exec(mail.html);
+        const mailsBefore = sentEmails.length;
+        const ask = await call(app, 'GET', '/api/review/:token/verify', { params: { token: vm[1] } });
+        assert.ok(String(ask.body).includes('Already rejected'), 'ask after reject must not send');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'no email for a rejected row');
+        const vtoken = reviewGate.verifyPageToken(JWT_SECRET, 'bridges_registrations', row.id);
+        const page = await call(app, 'GET', '/verify-registration/:vtoken', { params: { vtoken } });
+        assert.strictEqual(page.statusCode, 410, 'public page for a rejected row is inactive');
+    });
+
+    await t('clean registration (credentialed academic) is untouched by the gate', async () => {
+        const mailsBefore = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/register', {
+            body: { name: 'Tanja Petnicki-Ocwieja, PhD', email: 'tanja@tufts.example', institution: 'Tufts University School of Medicine', position: 'Research Assistant Professor' }
+        });
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(r.body.success, true);
+        assert.ok(!r.body.held, 'a real registrant must not be held');
+        assert.ok(r.body.wallet && 'google' in r.body.wallet, 'wallet links present for real registrants');
+        const row = query.get('SELECT * FROM bridges_registrations WHERE LOWER(email) = ?', ['tanja@tufts.example']);
+        assert.strictEqual(row.status, 'registered');
+        assert.strictEqual(Number(row.confirmation_sent), 1);
+        assert.strictEqual(sentEmails.length, mailsBefore + 1, 'confirmation sent immediately');
+        assert.strictEqual(sentEmails[sentEmails.length - 1].to, 'tanja@tufts.example');
     });
 
     // -------- absolute safety: every "send" went to the stub
