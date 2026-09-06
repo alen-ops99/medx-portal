@@ -78,25 +78,32 @@ const BTN_STACK_W = 'width:260px;max-width:100%;padding-left:0;padding-right:0;t
 // em-ghost) — inline colors stay authoritative for every client that shows the light email.
 const DARK_CSS = `<style>
 @media (prefers-color-scheme: dark) {
-  body, .em-canvas { background:#161210 !important; }
-  .em-cardbg { background:#211b16 !important; }
-  .em-ink { color:#f3ece0 !important; }
-  .em-soft { color:#cfc5b6 !important; }
-  .em-goldlab { color:#c9a962 !important; }
-  .em-hair { border-color:rgba(247,241,230,.16) !important; }
-  .em-fact { background:#2a2319 !important; border-color:rgba(247,241,230,.14) !important; }
-  .em-reason { background:rgba(155,27,34,.25) !important; }
-  .em-ghost { color:#f3ece0 !important; border-color:rgba(247,241,230,.45) !important; }
+  body, .em-canvas { background:#0f0c0a !important; }
+  .em-cardbg { background:#251d16 !important; }
+  .em-ink { color:#f6efe2 !important; }
+  .em-soft { color:#d9cebd !important; }
+  .em-goldlab { color:#d7b56c !important; }
+  .em-hair { border-color:rgba(247,241,230,.2) !important; }
+  .em-fact { background:#2f251a !important; border-color:rgba(247,241,230,.16) !important; }
+  .em-reason { background:rgba(183,40,47,.3) !important; }
+  .em-ghost { color:#f6efe2 !important; border-color:rgba(247,241,230,.5) !important; }
+  .em-btn { background:#b3242c !important; color:#fff7ea !important; }
 }
-[data-ogsc] body, [data-ogsc] .em-canvas { background:#161210 !important; }
-[data-ogsc] .em-cardbg { background:#211b16 !important; }
-[data-ogsc] .em-ink { color:#f3ece0 !important; }
-[data-ogsc] .em-soft { color:#cfc5b6 !important; }
-[data-ogsc] .em-goldlab { color:#c9a962 !important; }
-[data-ogsc] .em-hair { border-color:rgba(247,241,230,.16) !important; }
-[data-ogsc] .em-fact { background:#2a2319 !important; }
-[data-ogsc] .em-reason { background:rgba(155,27,34,.25) !important; }
-[data-ogsc] .em-ghost { color:#f3ece0 !important; border-color:rgba(247,241,230,.45) !important; }
+[data-ogsc] body, [data-ogsc] .em-canvas { background:#0f0c0a !important; }
+[data-ogsc] .em-cardbg { background:#251d16 !important; }
+[data-ogsc] .em-ink { color:#f6efe2 !important; }
+[data-ogsc] .em-soft { color:#d9cebd !important; }
+[data-ogsc] .em-goldlab { color:#d7b56c !important; }
+[data-ogsc] .em-hair { border-color:rgba(247,241,230,.2) !important; }
+[data-ogsc] .em-fact { background:#2f251a !important; }
+[data-ogsc] .em-reason { background:rgba(183,40,47,.3) !important; }
+[data-ogsc] .em-ghost { color:#f6efe2 !important; border-color:rgba(247,241,230,.5) !important; }
+[data-ogsc] .em-btn { background:#b3242c !important; color:#fff7ea !important; }
+[data-ogsb] body, [data-ogsb] .em-canvas { background:#0f0c0a !important; }
+[data-ogsb] .em-cardbg { background:#251d16 !important; }
+[data-ogsb] .em-fact { background:#2f251a !important; }
+[data-ogsb] .em-reason { background:rgba(183,40,47,.3) !important; }
+[data-ogsb] .em-btn { background:#b3242c !important; }
 </style>`;
 
 // The 600px shell: ink header (logo + right micro-label), accent rule, body, hairline footer.
@@ -987,7 +994,7 @@ function mount(/* app, ctx */) { /* template library — no routes, no tables */
 Object.assign(mount, {
     confirmEmail, ticketConfirmation, newsletter, attendanceCard, yearInReview,
     newsletterWelcome, newsletterConfirm, brandedPage,
-    TOPIC_LABELS, topicLabels, esc, escUrl, T, shell, btn, microStyle
+    TOPIC_LABELS, topicLabels, esc, escUrl, T, shell, btn, microStyle, logoUrl
 });
 Object.assign(mount, {
     paymentReceived, paymentReminder, registrationCancelled, seatTransferred, transferReceived,

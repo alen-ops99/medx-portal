@@ -421,7 +421,7 @@ ${rows}
         </table>
       </td></tr></table>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-        ${action(tpl.btn('Approve', approveUrl, 'solid', W), 'Releases the registration — standard confirmation, ticket and sheet row.')}
+        ${action(tpl.btn('Approve', approveUrl, 'solid', W + '" class="em-btn'), 'Releases the registration — standard confirmation, ticket and sheet row.')}
         ${verifyUrl ? action(tpl.btn('Ask for institutional confirmation', verifyUrl, 'gold', W + 'font-size:10px;letter-spacing:.12em;'), 'They confirm from an institutional inbox — success issues tickets automatically and you get a one&#8209;line FYI.') : ''}
         ${action(tpl.btn('Reject', rejectUrl, 'ghost', W + '" class="em-ghost'), 'Cancels quietly — the registrant is never notified.')}
       </table>
@@ -487,12 +487,18 @@ input:focus{outline:none;border-color:#b0893b;box-shadow:0 0 0 3px rgba(176,137,
 .err{display:none;margin-top:12px;padding:11px 13px;border-radius:10px;background:rgba(143,45,42,.08);border:1px solid rgba(143,45,42,.3);color:#7c2320;font-size:13px;line-height:1.55;}
 .okbox{display:none;margin-top:12px;padding:11px 13px;border-radius:10px;background:rgba(47,110,58,.09);border:1px solid rgba(47,110,58,.3);color:#2f6e3a;font-size:13.5px;line-height:1.55;}
 .fine{margin-top:16px;padding-top:14px;border-top:1px solid rgba(43,33,25,.08);font-size:12px;color:#8a7d70;line-height:1.7;}
-</style></head><body><main><div class="sheet">
-<p class="kicker">Med&amp;X</p>
+</style></head><body><main><div class="sheet" style="padding:0;overflow:hidden;">
+<div style="background:#191512;padding:20px 32px;display:flex;align-items:center;justify-content:space-between;">
+  <img src="${tpl.logoUrl()}" alt="med&amp;X" style="height:20px;width:auto;display:block;">
+  <span style="font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#c9a962;">Registration</span>
+</div>
+<div style="height:2px;background:#9b1b22;"></div>
+<div style="padding:30px 32px 34px;">
 <h1>${headline}</h1><div class="bar"></div>
 ${proseHtml}
 ${extraHtml || ''}
 <p class="fine">Questions? Laura Rodman (laura.rodman@medx.hr).</p>
+</div>
 </div></main></body></html>`;
 }
 
@@ -572,7 +578,7 @@ function emailShell(headline, bodyHtml, buttonLabel, buttonUrl, opts) {
       <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">${o.eyebrow || 'Your registration'}</div>
       <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;letter-spacing:-.01em;color:${T.ink};margin-top:10px;">${headline}</div>
       <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.soft};margin-top:16px;">${bodyHtml}</div>${factsHtml}
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr></table>${noteHtml}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;" class="em-btn')}</td></tr></table>${noteHtml}
       <div class="em-soft em-hair" style="margin-top:24px;padding-top:14px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:11.5px;line-height:1.7;color:${T.soft};">Questions? Just reply to this email — or write to Laura Rodman at laura.rodman@medx.hr.</div>
     </td></tr></table>`;
     return tpl.shell({
