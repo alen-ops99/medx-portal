@@ -609,7 +609,7 @@ function emailShell(headline, bodyHtml, buttonLabel, buttonUrl, opts) {
       <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${DT.gold};">${o.eyebrow || 'Your registration'}</div>
       <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;letter-spacing:-.01em;color:${DT.ink};margin-top:10px;">${headline}</div>
       <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${DT.soft};margin-top:16px;">${bodyHtml}</div>${factsHtml}
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;background:#a8232b;')}</td></tr></table>${noteHtml}
+      ${(buttonLabel && buttonUrl) ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;background:#a8232b;')}</td></tr></table>` : ''}${noteHtml}
       <div class="em-soft em-hair" style="margin-top:24px;padding-top:14px;border-top:1px solid ${DT.hair};font-family:${T.sans};font-size:11.5px;line-height:1.7;color:${DT.soft};">Questions? Just reply to this email — or write to Laura Rodman at laura.rodman@medx.hr.</div>
     </td></tr></table>`;
     return tpl.shell({
@@ -628,10 +628,10 @@ function buildPendingEmail({ firstName, eventLabel }) {
     const forEvent = eventLabel ? ` for <b class="em-ink" style="color:#f2e7d6;">${esc(eventLabel)}</b>` : '';
     return emailShell('We received your registration',
         `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
-         <p style="margin:0 0 10px;">Thank you for registering${forEvent} — we are happy to have you.</p>
-         <p style="margin:0;">We are completing a quick review of your registration. You will receive your <b>confirmation and ticket by email</b> shortly — no further action is needed from you right now.</p>`,
-        'Visit medx.hr', 'https://medx.hr',
-        { eyebrow: 'Registration received', preheader: 'Your registration is in — confirmation follows by email.' });
+         <p style="margin:0 0 10px;">We received your registration${forEvent} and are completing a quick review.</p>
+         <p style="margin:0;">You will receive a <b>confirmation email</b> shortly to complete your registration. Please note — <b>your registration is not finished yet</b>.</p>`,
+        null, null,
+        { eyebrow: 'Registration received', preheader: 'Your registration is in review — a confirmation email will follow.' });
 }
 
 function buildVerifyAskEmail({ firstName, confirmUrl, eventLabel }) {
