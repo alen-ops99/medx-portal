@@ -447,7 +447,7 @@ module.exports = function mountBoston(app, deps) {
             firstName: first,
             eventName: 'Building Bridges in Biomedicine — Boston',
             headlineHtml: 'Building Bridges Boston — you are <i>in</i>.',
-            introHtml: `Dear ${esc(first)} — your registration is confirmed. Med&X and the Harvard Medical Postdoc Association look forward to welcoming you at Harvard Medical School for an evening of panels, participant presentations and a networking reception.`
+            introHtml: `Dear ${esc(first)} — your registration is confirmed. Med&X and the Harvard Medical Postdoc Association look forward to welcoming you in the Waterhouse Room, Gordon Hall, Harvard Medical School for an evening of panels, participant presentations and a networking reception.`
                 + (presentation ? ` You asked to give a 5-minute presentation — we will confirm presentation slots by email based on the total number of requests.` : ''),
             whenLines: [`${DATE_LONG} · 6:00 PM · doors from 5:30 PM`],
             venue: VENUE_FULL,
@@ -782,7 +782,7 @@ module.exports = function mountBoston(app, deps) {
                     primary: [],
                     secondary: [
                         { key: 'when', label: 'WHEN', value: 'Sep 21 · 6:00 PM (doors 5:30 PM)' },
-                        { key: 'where', label: 'WHERE', value: 'Gordon Hall · Harvard Medical School' }
+                        { key: 'where', label: 'WHERE', value: 'Waterhouse Room, Gordon Hall, Harvard Medical School' }
                     ],
                     auxiliary: [
                         { key: 'guest', label: 'GUEST', value: name },

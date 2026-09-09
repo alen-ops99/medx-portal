@@ -10488,7 +10488,7 @@ async function initializeApp() {
     try {
         const feedSeeds = [
             ['call', 'Call for abstracts — Plexus 2026 opens', 'Submit your research for the December meeting in Zagreb. Posters and short talks both welcome.', 'plexus', 'Read the call', '2026-06-24 09:00:00', 1],
-            ['news', 'Building Bridges comes to Boston in September', 'Our flagship exchange lands at Harvard Medical School this fall. Members hear the dates first.', 'bridges', 'See details', '2026-06-20 10:00:00', 1],
+            ['news', 'Building Bridges comes to Boston in September', 'Our flagship exchange lands in the Waterhouse Room, Gordon Hall, Harvard Medical School this fall. Members hear the dates first.', 'bridges', 'See details', '2026-06-20 10:00:00', 1],
             ['recording', 'New in the talk library — three Plexus keynotes', 'Past-conference sessions are now available on demand, from stem cells to genome medicine.', 'talks', 'Open the library', '2026-06-16 12:00:00', 1],
             ['opportunity', 'Fresh lab openings on the opportunity board', 'Research positions and fellowships across partner institutions, curated for Med&X members.', 'network', 'Browse opportunities', '2026-06-11 08:30:00', 1],
             ['spotlight', 'Member spotlight — the 2025 Accelerator cohort', 'Where last year’s placements landed, in their own words. A living record of the two-way bridge.', 'accelerator', 'Read more', '2026-06-05 15:00:00', 1],
@@ -10564,7 +10564,7 @@ async function initializeApp() {
             ['gala', 'Reserve your seat', 'open', 'Saturday December 5 - Hotel Esplanade - EUR 150 through 1 Sep', 'Reserve seat', 'gala'],
             ['accelerator', 'Applications open in November', 'soon', 'Placements across partner labs and clinics - November 2026', 'Learn more', 'accelerator'],
             ['forum', 'By invitation', 'info', 'Biomedical Forum gathering - May 2027', 'Enter code', 'forum'],
-            ['bridges', 'Boston - September 2026', 'info', 'Building Bridges at Harvard Medical School', 'View program', 'bridges']
+            ['bridges', 'Boston - September 2026', 'info', 'Building Bridges — Waterhouse Room, Gordon Hall, Harvard Medical School', 'View program', 'bridges']
         ];
         projectStatusSeeds.forEach(p => {
             if (!query.get('SELECT project_key FROM project_status WHERE project_key = ?', [p[0]])) {
@@ -10579,7 +10579,7 @@ async function initializeApp() {
         const announcementSeeds = [
             ['ann-plexus-abstracts-2026', 'plexus', 'Plexus 2026 - call for abstracts is open', 'Submit your research for the December meeting in Zagreb. Posters and short talks are both welcome.', 'plexus', 0],
             ['ann-accelerator-nov-2026', 'accelerator', 'Accelerator applications open in November', 'Placements across our partner labs and clinics open next month. Ready your CV and a mentor letter now.', 'accelerator', 1],
-            ['ann-bridges-boston-2026', 'bridges', 'Building Bridges lands at Harvard Medical School', 'Our flagship exchange comes to Boston in September 2026. Members hear the confirmed dates here first.', 'bridges', 0]
+            ['ann-bridges-boston-2026', 'bridges', 'Building Bridges — Waterhouse Room, Gordon Hall, Harvard Medical School', 'Our flagship exchange comes to Boston in September 2026. Members hear the confirmed dates here first.', 'bridges', 0]
         ];
         announcementSeeds.forEach(a => {
             if (!query.get('SELECT id FROM member_announcements WHERE id = ?', [a[0]])) {
