@@ -328,6 +328,29 @@ module.exports = function mountBoston(app, deps) {
     let _gTok = null, _gTokAt = 0;
     async function sheetsToken() {
         if (_gTok && Date.now() - _gTokAt < 45 * 60 * 1000) return _gTok;
+        // Preferred: the wallet service account (never expires; the sheet must be shared with
+        // its client_email as Editor). The user-OAuth refresh token died 2026-09-09 — Google
+        // revokes testing-mode refresh tokens after 7 days — killing sheet pushes silently.
+        try {
+            const sa = JSON.parse(process.env.GOOGLE_WALLET_SA_KEY || 'null');
+            if (sa && sa.client_email && sa.private_key) {
+                const now = Math.floor(Date.now() / 1000);
+                const b64u = x => Buffer.from(JSON.stringify(x)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                const input = b64u({ alg: 'RS256', typ: 'JWT' }) + '.' + b64u({
+                    iss: sa.client_email, scope: 'https://www.googleapis.com/auth/spreadsheets',
+                    aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600
+                });
+                const sig = crypto.sign('RSA-SHA256', Buffer.from(input), sa.private_key)
+                    .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                const r = await fetch('https://oauth2.googleapis.com/token', {
+                    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: input + '.' + sig })
+                });
+                const j = await r.json();
+                if (j.access_token) { _gTok = j.access_token; _gTokAt = Date.now(); return _gTok; }
+                console.warn('[Boston] SA sheets token refused:', j.error || r.status);
+            }
+        } catch (e) { console.warn('[Boston] SA sheets token failed:', e.message); }
         const body = new URLSearchParams({
             client_id: process.env.GOOGLE_OAUTH_CLIENT_ID, client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
             refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN, grant_type: 'refresh_token'
