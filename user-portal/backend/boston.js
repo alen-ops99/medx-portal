@@ -805,7 +805,7 @@ module.exports = function mountBoston(app, deps) {
                     primary: [],
                     secondary: [
                         { key: 'when', label: 'WHEN', value: 'Sep 21 · 6:00 PM (doors 5:30 PM)' },
-                        { key: 'where', label: 'WHERE', value: 'Waterhouse Room, Gordon Hall, Harvard Medical School' }
+                        { key: 'where', label: 'WHERE', value: 'Waterhouse Room, Harvard Medical School' }
                     ],
                     auxiliary: [
                         { key: 'guest', label: 'GUEST', value: name },
