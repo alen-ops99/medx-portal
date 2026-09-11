@@ -1167,6 +1167,7 @@ const PERMISSION_SECTIONS = [
     { id: 'accelerator',   label: 'Med&X Accelerator',     group: 'Projects',        desc: 'Applications, reviews, interviews, sites' },
     { id: 'forum',         label: 'Biomedical Forum',      group: 'Projects',        desc: 'Members, events, mentorship, council' },
     { id: 'bridges',       label: 'Building Bridges',      group: 'Projects',        desc: 'Events, speakers, Croatians abroad' },
+    { id: 'plexus-meetups',label: 'Plexus Meetups',        group: 'Projects',        desc: 'Plexus Week meetups: tables, hosts, attendees, waitlists, invitations' },
     { id: 'gameday',       label: 'Game Day',              group: 'Events & access', desc: 'Event-day staff console & tracking' },
     { id: 'conferences',   label: 'Conferences',           group: 'Events & access', desc: 'Conference & ticket-type management' },
     { id: 'editions',      label: 'Editions',              group: 'Events & access', desc: 'Past & future editions' },
@@ -1194,6 +1195,10 @@ const PERMISSION_SECTIONS = [
 // not exhaustive-by-route.
 const SECTION_ROUTE_MAP = [
     ['/api/admin/export/forum-registrations', 'forum'],
+    // — Plexus Week MEETUPS (2026-09-11): its own section so the founder can grant the meetups
+    //   drawer without handing over the whole Plexus project. Admins with full access
+    //   (allowed_sections NULL) keep it automatically; a scoped admin needs the grant.
+    ['/api/v2/meetups-ops', 'plexus-meetups'],
     // — Plexus Week (incl. Gala, ticketing, check-in, sponsors, volunteers, auctions, event ops) —
     ['/api/plexus', 'plexus'], ['/api/admin/plexus', 'plexus'], ['/api/admin/plexus-experience', 'plexus'],
     ['/api/gala', 'plexus'], ['/api/admin/gala', 'plexus'],
