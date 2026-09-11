@@ -46,6 +46,7 @@ const fs = require('fs');
 const emailTemplates = require('./v2/email-templates');
 const applePass = require('./v2/apple-pass');
 const wallet = require('../../shared/wallet');
+const brandedQr = require('../../shared/branded-qr');
 
 // Optional libraries, resolved once. multer is the multipart parser server.js already uses (in
 // package.json — always present on Render); qrcode + pngjs render/composite the branded entry QR.
@@ -224,30 +225,13 @@ const s3 = (() => {
 // alpha-composited onto the center of a 900 px QR rendered at error-correction level H (30%
 // recoverable); the email displays it at 120 px so every screen gets ≥3× density and the logos
 // stay crisp when tapped-to-enlarge. Decodability is asserted in tests with a real decoder (jsQR).
-let plateCache;                                          // undefined = not tried, null = unavailable
-function loadPlate() {
-    if (plateCache !== undefined) return plateCache;
-    try { plateCache = pngjsLib.PNG.sync.read(fs.readFileSync(path.join(__dirname, 'qr-plate.png'))); }
-    catch (e) { console.warn('[Boston] qr-plate.png unavailable — serving plain QR:', e.message); plateCache = null; }
-    return plateCache;
-}
+//
+// The compositing itself moved to shared/branded-qr.js (2026-09-11) so the Plexus Week meetup
+// codes reuse it with the Med&X-only plate instead of a second copy of the same maths. Same
+// pixels as before: 900 px, level H, margin 2, real alpha blend.
+const BOSTON_PLATE = path.join(__dirname, 'qr-plate.png');
 async function brandedQrPng(payloadJson) {
-    const qrBuf = await QRCodeLib.toBuffer(payloadJson, {
-        errorCorrectionLevel: 'H', width: 900, margin: 2, color: { dark: '#000000', light: '#ffffff' }
-    });
-    const plate = loadPlate();
-    if (!plate) return qrBuf;
-    const img = pngjsLib.PNG.sync.read(qrBuf);
-    const x0 = Math.round((img.width - plate.width) / 2), y0 = Math.round((img.height - plate.height) / 2);
-    for (let y = 0; y < plate.height; y++) {
-        for (let x = 0; x < plate.width; x++) {
-            const ps = (plate.width * y + x) << 2, pd = (img.width * (y0 + y) + (x0 + x)) << 2;
-            const a = plate.data[ps + 3] / 255;                       // real alpha compositing
-            for (let c = 0; c < 3; c++) img.data[pd + c] = Math.round(plate.data[ps + c] * a + img.data[pd + c] * (1 - a));
-            img.data[pd + 3] = 255;
-        }
-    }
-    return pngjsLib.PNG.sync.write(img);
+    return brandedQr.render({ payload: payloadJson, platePath: BOSTON_PLATE, qrcode: QRCodeLib, pngjs: pngjsLib });
 }
 
 module.exports = function mountBoston(app, deps) {
