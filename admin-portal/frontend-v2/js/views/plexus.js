@@ -26,6 +26,10 @@ import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow } from '../facts.js';
 import { perms } from '../perms.js';
 import router from '../router.js';
+// v2 2026-09-11 — the AWARDS tab (design/AWARDS-SPEC.md §Admin). It is a fifth screen with its
+// own data, drawer and handlers, so it lives in its own module and this file delegates: one
+// import, one row in TAB_ORDER, one branch in template(), and its handler map merged below.
+import * as awards from './plexus-awards.js';
 
 export const SOURCE = 'Admin Plexus Hub.dc.html';
 
@@ -107,6 +111,9 @@ export const COPY = {
     waitlist: { tag: 'AUTO', name: 'Waitlist', status: n => `${n} waiting · auto-offers a freed seat · 24 h to accept`, action: 'VIEW' },
     donor: { name: 'Donor Night — Croatians Abroad', none: '0 INVITED', tag: n => `${n} SIGNED UP`, status: d => `${d} · the diaspora list from the Croatians Abroad flow`, emptyStatus: d => `${d} · guest list empty`, action: 'INVITE' },
     onday: { tag: 'ON THE DAY', name: 'Check-in, ops map & stage Q&A', status: 'Live tools in the Event Day room', action: 'REHEARSE' },
+    // v2 2026-09-11 — the awards are presented at this evening, so the Gala card carries the door
+    // to them (design/AWARDS-SPEC.md: "also exposed to the Gala hub as an Awards block").
+    awards: { tag: 'THE AWARDS', name: 'Four awards & their laureates', status: 'Nominations, the reading panel, the running order for the MC', action: 'OPEN' },
     more: 'More tools:', planner: '3D ballroom planner', auctions: 'charity auctions', moreTail: '— auction pledges land in Money → Sponsors & donors'
   },
   after: {
@@ -135,7 +142,7 @@ export const COPY = {
   locked: sec => `${perms.label(sec) || 'That section'} is locked for you — ask Alen.`,
 
   // ---- v2 2026-09-11: tab strip ----------------------------------------------------------------
-  tabs: { hub: 'THE WEEK', meetups: 'MEETUPS', meetupsLocked: 'MEETUPS · LOCKED' },
+  tabs: { hub: 'THE WEEK', meetups: 'MEETUPS', meetupsLocked: 'MEETUPS · LOCKED', awards: 'AWARDS', awardsLocked: 'AWARDS · LOCKED' },
 
   // ---- v2 2026-09-11: edition switcher ---------------------------------------------------------
   ed: {
@@ -250,10 +257,15 @@ const FIG_KEYS = ['registered', 'gala_paid', 'speakers_confirmed', 'days_to_go']
 // LIVE deep links (chrome PALETTE, facts.js SECTION_ROUTES, eventday.js) that pre-open an inline
 // hub panel, so they map to the hub tab and set openPanel exactly as before.
 const PANEL_SLUGS = ['speakers', 'schedule', 'qa'];
-const SLUG_TO_TAB = { '': 'hub', meetups: 'meetups', speakers: 'hub', schedule: 'hub', qa: 'hub' };
-const TAB_TO_SLUG = { hub: '', meetups: 'meetups' };
-const TAB_ORDER = ['hub', 'meetups'];
+const SLUG_TO_TAB = { '': 'hub', meetups: 'meetups', awards: 'awards', speakers: 'hub', schedule: 'hub', qa: 'hub' };
+const TAB_TO_SLUG = { hub: '', meetups: 'meetups', awards: 'awards' };
+const TAB_ORDER = ['hub', 'meetups', 'awards'];
 const MEET_SECTION = 'plexus-meetups';
+const AW_SECTION = awards.AW_SECTION;
+// Which tab is gated behind which permission section — blockTabs() reads exactly this, so a new
+// tab never needs a second `id === '…'` branch in the markup.
+const TAB_SECTION = { meetups: MEET_SECTION, awards: AW_SECTION };
+const TAB_LOCKED_COPY = { meetups: 'meetupsLocked', awards: 'awardsLocked' };
 const CAP_MIN = 1, CAP_MAX = 60;
 
 // ---- shared inline vocabulary (same values the other screens use; look stays inline) ----
@@ -310,6 +322,10 @@ async function load(tab, editionId) {
   };
   if (tab === 'meetups') {
     if (perms.can(MEET_SECTION)) want.meet = api.get('/api/v2/meetups-ops/overview' + (editionId ? '?edition=' + encodeURIComponent(editionId) : ''));
+    return shape(await api.settle(want));
+  }
+  if (tab === 'awards') {
+    if (perms.can(AW_SECTION)) want.aw = awards.loadAwards(editionId);
     return shape(await api.settle(want));
   }
   Object.assign(want, {
@@ -378,7 +394,8 @@ function shape(r) {
     // v2 2026-09-11 — edition switcher + MEETUPS tab
     eds: (r.eds && Array.isArray(r.eds.editions)) ? r.eds.editions : [],
     edActive: (r.eds && r.eds.active) || null,
-    meet: r.meet || null
+    meet: r.meet || null,
+    aw: r.aw || null
   };
 }
 
@@ -529,15 +546,15 @@ function blockEditions() {
     <!-- /v2 -->`;
 }
 function blockTabs() {
-  const meetLocked = !canMeet();
   return `
-    <!-- v2: hub tab strip — /projects/plexus (the week) · /projects/plexus/meetups -->
+    <!-- v2: hub tab strip — /projects/plexus (the week) · /projects/plexus/meetups · /projects/plexus/awards -->
     <div data-block="tabs" class="mxp-tabs" data-v2="tab strip" style="display:flex;gap:0;border-bottom:1px solid rgba(32,27,22,.18);margin-top:20px">
       ${TAB_ORDER.map(id => {
         const on = st.tab === id;
-        const locked = id === 'meetups' && meetLocked;
-        const tip = locked ? ` title="${esc(COPY.meet.lockedWhy)}"` : '';
-        return `<a href="${esc(hrefTab(id))}"${tip} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};${locked ? 'opacity:.5;' : ''}border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${locked ? COPY.tabs.meetupsLocked : COPY.tabs[id]}</a>`;
+        const sec = TAB_SECTION[id];
+        const locked = !!sec && !perms.can(sec);
+        const tip = locked ? ` title="${esc(perms.lockedCopy(sec).why)}"` : '';
+        return `<a href="${esc(hrefTab(id))}"${tip} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};${locked ? 'opacity:.5;' : ''}border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${locked ? COPY.tabs[TAB_LOCKED_COPY[id]] : COPY.tabs[id]}</a>`;
       }).join('\n      ')}
     </div>
     <!-- /v2 -->`;
@@ -760,7 +777,8 @@ function blockGala() {
           ${row({ id: 'gala-seats', tag: c.seats.tag(g.ops ? g.ops.seats.paid : g.paid.length), tagColor: '#1e6e42', name: c.seats.name, status: c.seats.status(g.ops ? g.ops.seats.reserved : g.rows.length, g.ops ? g.ops.seats.chase : g.toChase.length), action: c.seats.action, href: '/gala' })}
           ${row({ id: 'gala-waitlist', tag: c.waitlist.tag, tagColor: '#6d6459', name: c.waitlist.name, status: c.waitlist.status(D.waitn), action: c.waitlist.action, href: '/gala' })}
           ${row({ id: 'gala-donor', tag: D.croat ? c.donor.tag(D.croat) : c.donor.none, tagColor: D.croat ? '#1e6e42' : '#9b1b22', name: c.donor.name, status: D.croat ? c.donor.status(fmt.dayShort(D.conf.start_date || FACTS.plexus.start)) : c.donor.emptyStatus(fmt.dayShort(D.conf.start_date || FACTS.plexus.start)), action: c.donor.action, href: '/links' })}
-          ${row({ id: 'gala-onday', tag: c.onday.tag, tagColor: '#6d6459', name: c.onday.name, status: c.onday.status, action: c.onday.action, href: '/event-day' })}`}
+          ${row({ id: 'gala-onday', tag: c.onday.tag, tagColor: '#6d6459', name: c.onday.name, status: c.onday.status, action: c.onday.action, href: '/event-day' })}
+          ${awards.canAwards() ? row({ id: 'gala-awards', tag: c.awards.tag, tagColor: '#c9a962', name: c.awards.name, status: c.awards.status, action: c.awards.action, href: hrefTab('awards') }) : ''}`}
           <div style="padding:12px 20px;font-size:12px;color:#6d6459">${c.more} <a href="${esc(PLANNER_URL)}" target="_blank" rel="noopener" data-row="gala-planner">${c.planner} ↗</a> · <a href="/money" data-row="gala-auctions">${c.auctions}</a> ${c.moreTail}</div>
         </div>
         <!-- /dc -->`;
@@ -1196,7 +1214,7 @@ function template() {
   <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:34px 28px 60px">
     ${blockTitle()}
     ${blockTabs()}
-    ${st.tab === 'meetups' ? blockMeetups() : blockHub()}
+    ${st.tab === 'meetups' ? blockMeetups() : st.tab === 'awards' ? awards.blockAwards(D.errors.aw) : blockHub()}
     ${blockFooterEdition()}
   </div>
 </div>`;
@@ -1780,13 +1798,18 @@ async function addAttendee(body, who) {
 // hidden in the markup — this refuses the handler too, so a stale button or a keyboard Enter on one
 // can never write into a closed year.
 const RO_SAFE = new Set(['edToggle', 'msFocus', 'openSpeakers', 'openSchedule', 'openQa', 'copyStats', 'peOpen', 'editionsOpen', 'cmeExport', 'editList', 'archiveNote', 'start2027',
-  'mAtt', 'mInv', 'mHostLink', 'mCsv', 'mAttCsv', 'mDrawerClose']);
+  'mAtt', 'mInv', 'mHostLink', 'mCsv', 'mAttCsv', 'mDrawerClose',
+  // the AWARDS tab's read-only-safe actions — everything that only LOOKS
+  ...awards.AW_RO_SAFE]);
+// The awards tab's handlers are merged in here, so they get the SAME archived-edition refusal as
+// every other write on this screen: hidden in the markup AND refused in the handler.
+const ALL_HANDLERS = Object.assign({}, handlers, awards.awardsHandlers);
 function bindHandlers(root) {
   const wrapped = {};
-  Object.keys(handlers).forEach(k => {
+  Object.keys(ALL_HANDLERS).forEach(k => {
     wrapped[k] = (el, ev) => {
       if (isArchived() && !RO_SAFE.has(k)) { ui.toast(COPY.ed.roToast); return; }
-      return handlers[k](el, ev);
+      return ALL_HANDLERS[k](el, ev);
     };
   });
   return ui.bind(root, wrapped);
@@ -1832,6 +1855,7 @@ function paintPicker(p) { const bag = p.read(); if (bag) paintPart(`[data-block=
 function onInput(e) {
   const t = e.target;
   if (!t || !t.matches) return;
+  if (st.tab === 'awards' && awards.awardsOnInput(e)) return;   // the awards search box owns its own repaint
   const p = pickerFor(t);
   if (p) {
     if (!p.alive()) return;
@@ -1875,11 +1899,20 @@ export default {
       msSaved: false, ovEdit: null,
       drawer: null, form: null, att: null, inv: null
     };
+    // The awards tab keeps its own state; this is the only contract between the two modules.
+    awards.initAwards({
+      paint: () => paint(),
+      paintPart: (sel, html) => paintPart(sel, html),
+      rootEl: () => rootEl,
+      editionId: () => st.editionId,
+      readOnly: () => isArchived()
+    });
     D = await load(tab, st.editionId);
     if (rootEl !== root) return; // navigated away while loading
     // an unknown ?edition= falls back to the active year (the server resolves the same way)
     if (st.editionId && !D.eds.some(e => e.id === st.editionId)) st.editionId = null;
     if (!st.editionId && D.edActive) st.editionId = D.edActive.id;
+    awards.setAwardsData(D.aw);
     root.innerHTML = template();
     unbind = bindHandlers(root);
     onChangeBound = onChange; root.addEventListener('change', onChangeBound);

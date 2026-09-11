@@ -16,6 +16,9 @@ export const PERMISSION_SECTIONS = Object.freeze([
   // id and SECTION_ROUTE_MAP maps /api/v2/meetups-ops → it. It MUST stay adjacent to the other
   // Projects rows: js/views/settings.js derives the groups from consecutive runs of `group`.
   { id: 'plexus-meetups', label: 'Plexus Meetups', group: 'Projects' },
+  // Plexus Gala AWARDS (design/AWARDS-SPEC.md) — same shape, same adjacency rule: server.js
+  // PERMISSION_SECTIONS carries the id and SECTION_ROUTE_MAP maps /api/v2/awards-ops → it.
+  { id: 'plexus-awards', label: 'Plexus Awards', group: 'Projects' },
   { id: 'gameday', label: 'Game Day', group: 'Events & access' },
   { id: 'conferences', label: 'Conferences', group: 'Events & access' },
   { id: 'editions', label: 'Editions', group: 'Events & access' },
