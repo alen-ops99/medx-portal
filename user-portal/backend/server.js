@@ -694,28 +694,42 @@ const GALA_KEYNOTES_2026 = [
 ];
 // Fully self-contained (inline styles only) so it renders identically on every public
 // surface — the /plexus page, the croatians-abroad invite, and the gala invite — none of
-// which share the same CSS class definitions.
-function galaKeynoteBlock() {
-    const label = 'font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#c9a962;';
+// which share the same CSS class definitions. `light=true` renders the cream house-token
+// variant for the reskinned /plexus page (UXFIX-M2 #3); the default keeps the dark tokens
+// for the two ink-shelled invite surfaces. Broken images now collapse (display:none) instead
+// of reserving empty space — no grey rectangles on any origin.
+function galaKeynoteBlock(light) {
+    const T = light ? {
+        label: '#6e5626', name: '#191512', role: '#6e5626', imgBg: '#f7f1e6', shadow: '',
+        wrap: 'background:#fdfaf3;border:1px solid rgba(201,169,98,.5);border-radius:0;',
+        card: 'background:#f7f1e6;border:1px solid rgba(25,21,18,.12);border-radius:0;',
+        rule: 'rgba(25,21,18,.12)'
+    } : {
+        label: '#c9a962', name: '#fff', role: '#e8c97a', imgBg: '#1e293b', shadow: 'box-shadow:0 4px 14px rgba(0,0,0,0.28);',
+        wrap: 'background:linear-gradient(135deg,rgba(201,169,98,0.10),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.28);border-radius:14px;',
+        card: 'background:rgba(255,255,255,0.025);border:1px solid rgba(201,169,98,0.16);border-radius:14px;',
+        rule: 'rgba(201,169,98,0.18)'
+    };
+    const label = `font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${T.label};`;
     // Centered card: large circular photo on top, name + role/place beneath. object-fit:cover
-    // fills the whole circle (no gap inside the ring); object-position:center top keeps faces framed.
+    // fills the whole circle (no gap inside the ring).
     const cards = GALA_KEYNOTES_2026.map(k => `
-            <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:16px 12px;background:rgba(255,255,255,0.025);border:1px solid rgba(201,169,98,0.16);border-radius:14px;">
-                <img src="${k.img}" alt="${escapeHtml(k.name)}" loading="lazy" style="width:90px;height:90px;border-radius:50%;object-fit:cover;object-position:center;border:3px solid #c9a962;background:#1e293b;display:block;box-shadow:0 4px 14px rgba(0,0,0,0.28);" onerror="this.style.visibility='hidden'">
-                <div style="font-size:14.5px;font-weight:600;color:#fff;line-height:1.25;margin-top:13px;">${escapeHtml(k.name)}</div>
-                <div style="font-size:12px;font-style:italic;color:#e8c97a;margin-top:4px;line-height:1.4;">${escapeHtml(k.role)}${k.place ? '<br>' + escapeHtml(k.place) : ''}</div>
+            <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:16px 12px;${T.card}">
+                <img src="${k.img}" alt="${escapeHtml(k.name)}" loading="lazy" style="width:90px;height:90px;border-radius:50%;object-fit:cover;object-position:center;border:3px solid #c9a962;background:${T.imgBg};display:block;${T.shadow}" onerror="this.style.display='none'">
+                <div style="font-size:14.5px;font-weight:600;color:${T.name};line-height:1.25;margin-top:13px;">${escapeHtml(k.name)}</div>
+                <div style="font-size:12px;font-style:italic;color:${T.role};margin-top:4px;line-height:1.4;">${escapeHtml(k.role)}${k.place ? '<br>' + escapeHtml(k.place) : ''}</div>
             </div>`).join('');
-    return `<div style="background:linear-gradient(135deg,rgba(201,169,98,0.10),rgba(201,169,98,0.02));border:1px solid rgba(201,169,98,0.28);border-radius:14px;padding:18px;margin:0 0 20px;">
+    return `<div style="${T.wrap}padding:18px;margin:0 0 20px;">
             <div style="${label}margin-bottom:14px;text-align:center;">Gala Evening &middot; Keynote Speakers</div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:12px;">${cards}</div>
-            <div style="margin-top:16px;padding-top:15px;border-top:1px solid rgba(201,169,98,0.18);display:flex;gap:14px;align-items:center;justify-content:center;">
+            <div style="margin-top:16px;padding-top:15px;border-top:1px solid ${T.rule};display:flex;gap:14px;align-items:center;justify-content:center;">
                 <div style="display:flex;align-items:center;">
-                    <img src="/assets/gala/mus512_singer.jpg" alt="Tatiana Cameron" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:#1e293b;" onerror="this.style.visibility='hidden'">
-                    <img src="/assets/gala/mus512_guitarist.jpg" alt="Ante Gelo" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:#1e293b;margin-left:-16px;" onerror="this.style.visibility='hidden'">
+                    <img src="/assets/gala/mus512_singer.jpg" alt="Tatiana Cameron" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:${T.imgBg};" onerror="this.style.display='none'">
+                    <img src="/assets/gala/mus512_guitarist.jpg" alt="Ante Gelo" loading="lazy" style="width:50px;height:50px;border-radius:50%;object-fit:cover;object-position:center;border:2.5px solid #c9a962;background:${T.imgBg};margin-left:-16px;" onerror="this.style.display='none'">
                 </div>
                 <div>
                     <div style="${label}margin-bottom:3px;">Live Music</div>
-                    <div style="font-size:14px;font-weight:600;color:#fff;">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
+                    <div style="font-size:14px;font-weight:600;color:${T.name};">Tatiana &lsquo;Taj&#269;i&rsquo; Cameron &amp; Ante Gelo</div>
                 </div>
             </div>
         </div>`;
@@ -1156,89 +1170,86 @@ const REVOKED_INVITE_IDS = new Set([
 // gala_registrations table + Gala Sheet tab as every other Gala entry point (unified data).
 // Reachable publicly at /plexus and via an admin-generated link at /plexus/:token (the token's
 // registration_links.component_keys decide which of the three events the link OFFERS).
-const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title || 'Plexus 2026'}</title><link rel="icon" type="image/png" href="/assets/favicon-x.png"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>
+const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${title || 'Plexus 2026'}</title><link rel="icon" type="image/png" href="/assets/favicon-x.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>
+    /* UXFIX-M2 #3 (2026-09-02): reskinned in place with the member-portal house tokens —
+       ink #191512 / cream #f7f1e6 / card #fdfaf3 / crimson #9b1b22 / gold #c9a962 / #6e5626,
+       Fraunces display, Inter micro-labels, hairline rules, square corners. All class names,
+       ids and breakpoints are unchanged; the inline client JS is untouched. */
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { min-height:100vh; background:linear-gradient(160deg,#0f172a,#1e293b); font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif; color:#e2e8f0; padding:32px 16px; }
+    body { min-height:100vh; background:#f7f1e6; font-family:Inter,-apple-system,BlinkMacSystemFont,system-ui,sans-serif; color:#191512; padding:32px 16px; -webkit-font-smoothing:antialiased; }
     /* Wide on desktop (was a fixed 640px strip — that's why it didn't use desktop space). */
     .container { max-width:1080px; margin:0 auto; }
     @media (min-width:1280px) { .container { max-width:1200px; } }
     .logo { text-align:center; margin-bottom:24px; }
-    .logo img { height:38px; width:auto; display:inline-block; filter:brightness(0) invert(1); }
-    .logo span { font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px; }
-    .logo span em { font-style:normal; color:#c9a962; }
-    .card { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,98,0.2); border-radius:20px; padding:28px 26px; min-width:0; max-width:100%; }
-    /* Hero header band spanning the full width on desktop. */
-    .hero { background:linear-gradient(135deg,rgba(201,169,98,0.12),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.22); border-radius:20px; padding:34px 28px; text-align:center; margin-bottom:20px; }
-    .hero .lede { max-width:640px; margin:0 auto; }
+    .logo img { height:38px; width:auto; display:inline-block; filter:brightness(0); }
+    .logo span { font-family:Fraunces,serif; font-size:28px; font-weight:600; color:#191512; letter-spacing:-0.5px; }
+    .logo span em { font-style:normal; color:#6e5626; }
+    .card { background:#fdfaf3; border:1px solid rgba(25,21,18,.16); border-radius:0; padding:28px 26px; min-width:0; max-width:100%; }
+    /* Hero header band — house ink card with a gold hairline, italic Fraunces headline. */
+    .hero { background:#191512; color:#f7f1e6; border:1px solid rgba(201,169,98,.55); border-radius:0; padding:38px 28px; text-align:center; margin-bottom:20px; }
+    .hero .lede { max-width:640px; margin:0 auto; color:rgba(247,241,230,.8); }
     /* Two-column layout on desktop: events on the left, the form on the right. */
     .plex-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:20px; align-items:start; }
     .form-col { position:sticky; top:24px; }
-    .badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#c9a962; margin-bottom:12px; padding:5px 12px; background:rgba(201,169,98,0.12); border-radius:20px; }
-    h1 { font-size:24px; font-weight:700; color:#fff; margin-bottom:6px; line-height:1.2; }
-    .hero h1 { font-size:clamp(26px,4vw,38px); }
-    .lede { font-size:14px; color:#94a3b8; margin-bottom:8px; line-height:1.55; }
-    .section-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#c9a962; margin:22px 0 12px; }
-    .plex-cal-row { margin-top:16px; padding-top:16px; border-top:1px solid rgba(201,169,98,0.18); display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
-    .plex-cal-label { font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#94a3b8; }
+    .badge { display:inline-block; font:600 10px Inter,sans-serif; letter-spacing:.18em; text-transform:uppercase; color:#c9a962; margin-bottom:14px; padding:6px 12px; border:1px solid rgba(201,169,98,.65); border-radius:0; }
+    h1 { font-family:Fraunces,serif; font-weight:500; font-size:26px; color:#191512; margin-bottom:6px; line-height:1.15; letter-spacing:-.3px; }
+    .hero h1 { color:#f7f1e6; font-style:italic; font-size:clamp(28px,4.2vw,44px); }
+    .lede { font-size:14px; color:#4a4239; margin-bottom:8px; line-height:1.6; }
+    .section-label { font:600 11px Inter,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#6e5626; margin:22px 0 12px; }
+    .plex-cal-row { margin-top:16px; padding-top:16px; border-top:1px solid rgba(25,21,18,.16); display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+    .plex-cal-label { font:600 10px Inter,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#4a4239; }
     .plex-cal-links { display:flex; flex-wrap:wrap; gap:8px; }
-    .plex-cal-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border:1px solid rgba(201,169,98,0.4); border-radius:999px; background:rgba(201,169,98,0.08); color:#e8e2d4; font-size:12.5px; font-weight:600; text-decoration:none; transition:all 0.2s; }
-    .plex-cal-btn:hover { background:rgba(201,169,98,0.18); transform:translateY(-1px); }
-    .plex-cal-btn i { color:#c9a962; font-size:12px; }
-    .event-option { background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
-    .event-option::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background 0.2s; }
-    .event-option:hover { border-color:rgba(201,169,98,0.3); background:rgba(255,255,255,0.06); transform:translateY(-1px); }
-    .event-option.evt-conference::before { background:rgba(167,139,250,0.5); }
-    .event-option.evt-bridges::before { background:rgba(45,212,191,0.5); }
-    .event-option.evt-gala::before { background:rgba(201,169,98,0.5); }
-    .event-option.evt-conference.selected { border-color:#a78bfa; background:rgba(167,139,250,0.06); }
-    .event-option.evt-conference.selected::before { background:#a78bfa; width:4px; }
-    .event-option.evt-bridges.selected { border-color:#2dd4bf; background:rgba(45,212,191,0.06); }
-    .event-option.evt-bridges.selected::before { background:#2dd4bf; width:4px; }
-    .event-option.evt-gala.selected { border-color:#c9a962; background:rgba(201,169,98,0.08); }
-    .event-option.evt-gala.selected::before { background:#c9a962; width:4px; }
-    .event-checkbox { flex-shrink:0; width:22px; height:22px; border:2px solid rgba(255,255,255,0.2); border-radius:6px; display:flex; align-items:center; justify-content:center; margin-top:2px; transition:all 0.2s; }
-    .event-option.evt-conference.selected .event-checkbox { background:#a78bfa; border-color:#a78bfa; }
-    .event-option.evt-bridges.selected .event-checkbox { background:#2dd4bf; border-color:#2dd4bf; }
+    .plex-cal-btn { display:inline-flex; align-items:center; gap:7px; padding:9px 14px; border:1px solid rgba(25,21,18,.3); border-radius:0; background:transparent; color:#191512; font:600 10px Inter,sans-serif; letter-spacing:.14em; text-transform:uppercase; text-decoration:none; transition:border-color .15s ease; }
+    .plex-cal-btn:hover { border-color:#191512; }
+    .plex-cal-btn i { color:#6e5626; font-size:12px; }
+    .event-option { background:#fdfaf3; border:1px solid rgba(25,21,18,.16); border-radius:0; padding:16px; margin-bottom:10px; display:flex; gap:14px; cursor:pointer; transition:border-color .15s ease; position:relative; overflow:hidden; }
+    .event-option::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background .15s ease; }
+    .event-option:hover { border-color:rgba(25,21,18,.45); }
+    .event-option.selected { border-color:#191512; }
+    .event-option.evt-conference.selected::before { background:#9b1b22; }
+    .event-option.evt-bridges.selected::before { background:#191512; }
+    .event-option.evt-gala.selected::before { background:#c9a962; }
+    .event-checkbox { flex-shrink:0; width:20px; height:20px; border:1px solid rgba(25,21,18,.35); border-radius:0; background:#fdfaf3; display:flex; align-items:center; justify-content:center; margin-top:2px; transition:background .15s ease,border-color .15s ease; }
+    .event-option.evt-conference.selected .event-checkbox { background:#9b1b22; border-color:#9b1b22; }
+    .event-option.evt-bridges.selected .event-checkbox { background:#191512; border-color:#191512; }
     .event-option.evt-gala.selected .event-checkbox { background:#c9a962; border-color:#c9a962; }
-    .event-checkbox i { color:#fff; font-size:12px; display:none; }
+    .event-checkbox i { color:#f7f1e6; font-size:11px; display:none; }
+    .event-option.evt-gala.selected .event-checkbox i { color:#191512; }
     .event-option.selected .event-checkbox i { display:block; }
-    .event-icon { flex-shrink:0; width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:18px; margin-top:-1px; box-shadow:0 5px 16px rgba(0,0,0,0.24); transition:transform 0.2s ease; }
-    .event-option:hover .event-icon { transform:scale(1.06); }
-    .event-option.evt-conference .event-icon { background:linear-gradient(135deg,rgba(167,139,250,0.32),rgba(167,139,250,0.07)); color:#c4b5fd; border:1px solid rgba(167,139,250,0.28); }
-    .event-option.evt-bridges .event-icon { background:linear-gradient(135deg,rgba(45,212,191,0.32),rgba(45,212,191,0.07)); color:#5eead4; border:1px solid rgba(45,212,191,0.28); }
-    .event-option.evt-gala .event-icon { background:linear-gradient(135deg,rgba(201,169,98,0.34),rgba(201,169,98,0.08)); color:#e8c97a; border:1px solid rgba(201,169,98,0.30); }
     .event-body { flex:1; }
     .event-title-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:4px; }
-    .event-name { font-size:15.5px; font-weight:600; color:#fff; }
-    .event-price { font-size:13px; font-weight:600; color:#c9a962; white-space:nowrap; }
-    .event-price.free { color:#22c55e; }
-    .event-meta { font-size:12px; color:#94a3b8; line-height:1.45; }
-    .event-status { display:inline-block; font-size:10px; font-weight:700; letter-spacing:0.6px; text-indent:0.6px; text-align:center; text-transform:uppercase; color:#c9a962; background:rgba(201,169,98,0.12); border:1px solid rgba(201,169,98,0.25); padding:2px 9px; border-radius:20px; margin:2px 0 6px; }
-    .event-date { font-size:12.5px; font-weight:600; color:#e2e8f0; margin-bottom:4px; }
-    /* Gala keynote highlight (Lord Smith of Finsbury, Chancellor of Cambridge). */
-    .keynote-card { background:linear-gradient(135deg,rgba(201,169,98,0.12),rgba(201,169,98,0.02)); border:1px solid rgba(201,169,98,0.28); border-radius:14px; padding:16px 18px; margin-top:14px; display:flex; gap:16px; align-items:center; }
-    .keynote-card img { width:72px; height:72px; border-radius:50%; object-fit:cover; object-position:center 22%; border:2px solid #c9a962; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.25); }
-    .keynote-card .kc-label { font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:#c9a962; font-weight:700; margin-bottom:4px; }
-    .keynote-card .kc-name { font-size:15.5px; font-weight:600; color:#fff; line-height:1.2; }
-    .keynote-card .kc-role { font-size:12.5px; font-style:italic; color:#e8c97a; margin-top:3px; }
+    .event-name { font-family:Fraunces,serif; font-size:17px; font-weight:500; color:#191512; }
+    .event-price { font:600 10px Inter,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#6e5626; white-space:nowrap; }
+    .event-price.free { color:#6e5626; }
+    .event-meta { font-size:12.5px; color:#4a4239; line-height:1.5; }
+    .event-status { display:inline-block; font:600 8.5px Inter,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#6e5626; border:1px solid rgba(201,169,98,.65); background:transparent; padding:3px 9px; border-radius:0; margin:2px 0 6px; }
+    .event-date { font-size:12.5px; font-weight:600; color:#191512; margin-bottom:4px; }
+    /* Gala keynote highlight — used by the legacy single-keynote card only; the four-keynote
+       block is galaKeynoteBlock(true) (light variant). */
+    .keynote-card { background:#fdfaf3; border:1px solid rgba(201,169,98,.5); border-radius:0; padding:16px 18px; margin-top:14px; display:flex; gap:16px; align-items:center; }
+    .keynote-card img { width:72px; height:72px; border-radius:50%; object-fit:cover; object-position:center 22%; border:2px solid #c9a962; flex-shrink:0; }
+    .keynote-card .kc-label { font:600 9px Inter,sans-serif; letter-spacing:.2em; text-transform:uppercase; color:#6e5626; margin-bottom:4px; }
+    .keynote-card .kc-name { font-family:Fraunces,serif; font-size:16px; font-weight:500; color:#191512; line-height:1.2; }
+    .keynote-card .kc-role { font-size:12.5px; font-style:italic; color:#6e5626; margin-top:3px; }
     .form-grid { display:grid; gap:14px; margin-top:6px; }
     .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    label { display:block; font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:5px; }
-    input, select, textarea { width:100%; padding:11px 13px; border:1px solid rgba(255,255,255,0.1); border-radius:9px; background:rgba(255,255,255,0.05); color:#fff; font-size:13.5px; font-family:inherit; }
-    input:focus, select:focus, textarea:focus { border-color:#c9a962; outline:none; box-shadow:0 0 0 3px rgba(201,169,98,0.1); }
-    input::placeholder, textarea::placeholder { color:#64748b; }
+    label { display:block; font:600 10px Inter,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#4a4239; margin-bottom:6px; }
+    input, select, textarea { width:100%; padding:11px 12px; border:1px solid rgba(25,21,18,.25); border-radius:0; background:#fdfaf3; color:#191512; font-size:13.5px; font-family:Inter,sans-serif; }
+    input:focus, select:focus, textarea:focus { outline:1px solid #9b1b22; outline-offset:-1px; box-shadow:none; }
+    input::placeholder, textarea::placeholder { color:#9b8f80; }
     textarea { resize:vertical; min-height:60px; }
-    .total-display { display:none; justify-content:space-between; align-items:center; padding:14px 16px; background:rgba(201,169,98,0.1); border-radius:10px; border:1px solid rgba(201,169,98,0.25); margin-top:16px; }
+    .total-display { display:none; justify-content:space-between; align-items:center; padding:14px 16px; background:#191512; color:#f7f1e6; border:1px solid rgba(201,169,98,.55); border-radius:0; margin-top:16px; }
     .total-display.show { display:flex; }
-    .total-display .label { font-size:13px; color:#94a3b8; }
-    .total-display .amount { font-size:22px; font-weight:700; color:#c9a962; }
-    .submit-btn { width:100%; margin-top:16px; padding:15px; border:none; border-radius:11px; background:linear-gradient(135deg,#c9a962,#b8965a); color:#0f172a; font-size:15px; font-weight:700; cursor:pointer; transition:all 0.2s; }
-    .submit-btn:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(201,169,98,0.25); }
-    .submit-btn:disabled { opacity:0.55; cursor:not-allowed; transform:none; box-shadow:none; }
-    .msg { margin-top:14px; padding:12px 14px; border-radius:9px; font-size:13px; display:none; }
-    .msg.err { display:block; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#fca5a5; }
-    .foot { text-align:center; font-size:12px; color:#64748b; margin-top:20px; }
-    .foot a { color:#c9a962; text-decoration:none; }
+    .total-display .label { font:600 10px Inter,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:rgba(247,241,230,.75); }
+    .total-display .amount { font-family:Fraunces,serif; font-size:24px; font-weight:500; color:#c9a962; }
+    .submit-btn { width:100%; margin-top:16px; padding:15px 20px; border:0; border-radius:0; background:#9b1b22; color:#f7f1e6; font:600 11px Inter,sans-serif; letter-spacing:.16em; text-transform:uppercase; cursor:pointer; transition:background .15s ease; }
+    .submit-btn:hover { background:#7e151b; }
+    .submit-btn:disabled { opacity:.55; cursor:not-allowed; }
+    .msg { margin-top:14px; padding:12px 14px; border-radius:0; font-size:13px; display:none; }
+    .msg.err { display:block; background:rgba(155,27,34,.06); border:1px solid rgba(155,27,34,.35); color:#7e151b; }
+    .foot { text-align:center; font-size:12px; color:#4a4239; margin-top:20px; }
+    .foot a { color:#9b1b22; text-decoration:none; }
+    .foot a:hover { color:#191512; }
     /* Mid widths — drop the two-column split to a single stacked column. */
     @media (max-width: 880px) {
         .plex-layout { grid-template-columns: minmax(0, 1fr); }
@@ -1251,35 +1262,34 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
         .container { max-width: 100%; }
         .card { padding: 22px 18px; }
         .logo span { font-size: 24px; }
-        h1 { font-size: 21px; }
+        h1 { font-size: 22px; }
         .lede { font-size: 13.5px; }
         .event-option { padding: 14px; gap: 12px; }
-        .event-icon { width: 34px; height: 34px; font-size: 14px; }
-        .event-name { font-size: 14.5px; }
-        .event-price { font-size: 12.5px; white-space: normal; }
-        .event-meta { font-size: 11.5px; }
+        .event-name { font-size: 16px; }
+        .event-price { white-space: normal; }
+        .event-meta { font-size: 12px; }
         .form-row { grid-template-columns: 1fr; gap: 12px; }
-        .submit-btn { padding: 14px; font-size: 14px; }
+        .submit-btn { padding: 14px; }
         /* iOS Safari auto-zooms any focused control whose font-size is < 16px.
            Bump form controls to 16px on phones/tablets only (desktop keeps 13.5px). */
         input, select, textarea { font-size: 16px; }
         /* Comfortable 44px touch targets for the add-to-calendar chips. */
         .plex-cal-btn { min-height: 44px; }
     }
-    /* Small phone — further compaction, larger touch targets kept comfortable. */
+    /* Small phone — further compaction, touch targets kept comfortable. */
     @media (max-width: 480px) {
         body { padding: 16px 10px; }
-        .card { padding: 18px 14px; border-radius: 16px; }
-        h1 { font-size: 19px; margin-bottom: 8px; }
+        .card { padding: 18px 14px; }
+        h1 { font-size: 20px; margin-bottom: 8px; }
         .lede { font-size: 12.5px; line-height: 1.55; }
         .event-title-row { flex-wrap: wrap; gap: 4px; }
-        .event-name { font-size: 14px; }
+        .event-name { font-size: 15px; }
         .section-label { font-size: 10px; margin: 18px 0 10px; }
-        .total-display .amount { font-size: 19px; }
+        .total-display .amount { font-size: 20px; }
         .foot { font-size: 11px; }
     }
 </style></head><body><div class="container">
-    <div class="logo"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X" /></div>
+    <div class="logo"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X" onerror="this.outerHTML='<span>med<em>&amp;</em>X</span>'" /></div>
     ${inner}
     <div class="foot">Questions? <a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a> &middot; <a href="https://medx.hr">medx.hr</a><br>
         <span style="display:inline-block;margin-top:8px;">
@@ -1290,7 +1300,7 @@ const PLEXUS_SHELL = (inner, title) => `<!DOCTYPE html><html lang="en"><head><me
     </div>
 </div></body></html>`;
 
-const plexusNoticePage = (heading, body) => PLEXUS_SHELL(`<div class="card" style="text-align:center;"><h1 style="color:#ef4444;">${heading}</h1><p class="lede" style="margin-top:10px;">${body}</p></div>`, heading);
+const plexusNoticePage = (heading, body) => PLEXUS_SHELL(`<div class="card" style="text-align:center;"><h1 style="color:#9b1b22;">${heading}</h1><p class="lede" style="margin-top:10px;">${body}</p></div>`, heading);
 
 app.get(['/plexus', '/plexus/:token'], async (req, res) => {
     try {
@@ -1382,7 +1392,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
 
         // Gala keynote highlight — shown when the Gala is offered. Four confirmed keynotes
         // + live music (see galaKeynoteBlock); supersedes the single gala_settings keynote.
-        const keynoteCard = offered.includes('gala') ? galaKeynoteBlock() : '';
+        const keynoteCard = offered.includes('gala') ? galaKeynoteBlock(true) : '';
 
         // One-click prefill from the Forum wing (/plexus?fn=..&ln=..&email=..&inst=..&src=forum).
         // These are REFLECTED query values echoed into value="" attributes — escape rigorously (XSS).
@@ -1410,7 +1420,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                     <form id="plexForm" onsubmit="return plexSubmit(event)">
                         <div class="section-label" style="margin-top:0;">Your details</div>
                         <!-- Account linking: filled by the inline script when a portal login exists on this device (omitted when the member-card toggle for this page is OFF) -->
-                        ${showMemberCard ? `<div id="plexLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(34,197,94,.35);border-radius:10px;background:rgba(34,197,94,.07);font-size:12.5px;color:#a7f3d0;line-height:1.5;"></div>` : ''}
+                        ${showMemberCard ? `<div id="plexLinkNote" style="display:none;margin-bottom:14px;padding:11px 14px;border:1px solid rgba(201,169,98,.5);border-radius:0;background:#f1e8d3;font-size:12.5px;color:#191512;line-height:1.5;"></div>` : ''}
                         <div class="form-grid">
                             <div class="form-row">
                                 <div><label>First name *</label><input id="pf_first" required maxlength="100" value="${prefFirst}"></div>
@@ -1421,19 +1431,21 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                                 <div><label>Institution / Company${reqStar('institution')}</label><input id="pf_inst" maxlength="160"${reqAttr('institution')} value="${prefInst}"></div>
                                 <div><label>Country${reqStar('country')}</label><input id="pf_country" maxlength="80"${reqAttr('country')}></div>
                             </div>
+                            <!-- Honeypot (review gate): visually hidden, tabindex -1 — humans never see or reach it; a bot autofilling every input trips it and the submission is silently dropped server-side. -->
+                            <div aria-hidden="true" style="position:absolute!important;left:-9999px!important;top:-9999px!important;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;"><label>Website</label><input id="pf_website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
                             <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian"></div>
                             <div><label>Allergies (for the Gala)</label><input id="pf_allergies" maxlength="200" placeholder="e.g. nuts, shellfish"></div>
-                            <div><label>Additional guests for the Gala <span style="color:#64748b;font-weight:400;">(max 2)</span></label>
+                            <div><label>Additional guests for the Gala <span style="color:#9b8f80;font-weight:400;">(max 2)</span></label>
                                 <select id="pf_guests" onchange="plexGuestFields();plexRecompute()">
                                     <option value="0">No additional guests</option>
                                     <option value="1">+1 guest (+&euro;${galaPrice})</option>
                                     <option value="2">+2 guests (+&euro;${galaPrice * 2})</option>
                                 </select></div>
                             <div id="pf_guest_fields" style="display:none;"></div>
-                            <div><label>Discount code <span style="color:#64748b;font-weight:400;">(optional, applies to the Gala)</span></label>
+                            <div><label>Discount code <span style="color:#9b8f80;font-weight:400;">(optional, applies to the Gala)</span></label>
                                 <div style="display:flex;gap:8px;">
                                     <input id="pf_coupon" maxlength="40" placeholder="Enter code" style="text-transform:uppercase;flex:1;" oninput="plexClearCoupon()">
-                                    <button type="button" id="pf_couponBtn" onclick="plexApplyCoupon()" style="padding:11px 16px;border:none;border-radius:9px;background:linear-gradient(135deg,#c9a962,#b8965a);color:#0f172a;font-weight:700;cursor:pointer;white-space:nowrap;">Apply</button>
+                                    <button type="button" id="pf_couponBtn" onclick="plexApplyCoupon()" style="padding:11px 16px;border:0;border-radius:0;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;white-space:nowrap;">Apply</button>
                                 </div>
                                 <div id="pf_couponMsg" style="margin-top:6px;font-size:12px;display:none;"></div></div>
                             <div><label>Anything else?${reqStar('notes')}</label><textarea id="pf_notes" maxlength="500"${reqAttr('notes')}></textarea></div>
@@ -1490,11 +1502,11 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             if (n < 1) { box.style.display = 'none'; box.innerHTML = ''; return; }
             var html = '';
             for (var g = 0; g < n; g++) {
-                html += '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-top:10px;">'
+                html += '<div style="border:1px solid rgba(25,21,18,.16);border-radius:0;padding:12px 14px;margin-top:10px;background:#f7f1e6;">'
                     + '<div style="font-weight:700;font-size:13px;margin-bottom:8px;">Guest ' + (g + 1) + '</div>'
                     + '<div><label>Full name *</label><input id="pf_gname' + g + '" maxlength="120" value="' + plexEsc(keep[g].name) + '"></div>'
                     + '<div><label>Institution / Company</label><input id="pf_ginst' + g + '" maxlength="160" value="' + plexEsc(keep[g].inst) + '"></div>'
-                    + '<div><label>Email <span style="color:#64748b;font-weight:400;">(so they receive the entry QR too)</span></label><input id="pf_gemail' + g + '" type="email" maxlength="160" value="' + plexEsc(keep[g].email) + '"></div>'
+                    + '<div><label>Email <span style="color:#9b8f80;font-weight:400;">(so they receive the entry QR too)</span></label><input id="pf_gemail' + g + '" type="email" maxlength="160" value="' + plexEsc(keep[g].email) + '"></div>'
                     + '</div>';
             }
             box.innerHTML = html; box.style.display = 'block';
@@ -1524,14 +1536,14 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         async function plexApplyCoupon(){
             var code = ((document.getElementById('pf_coupon') || {}).value || '').trim();
             var m = document.getElementById('pf_couponMsg');
-            if (!code) { if (m) { m.style.display = 'block'; m.style.color = '#fca5a5'; m.textContent = 'Enter a code'; } return; }
+            if (!code) { if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = 'Enter a code'; } return; }
             var b = document.getElementById('pf_couponBtn'); b.disabled = true; b.textContent = '\\u2026';
             try {
                 var r = await fetch('/api/invite/validate-coupon', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: code, event_type: 'gala' }) });
                 var d = await r.json();
-                if (d.valid) { plexDiscount = Number(d.discount_value) || 0; plexDiscountType = d.discount_type; if (m) { m.style.display = 'block'; m.style.color = '#5eead4'; m.textContent = (d.discount_type === 'fixed' ? ('\\u20AC' + d.discount_value + ' off') : (d.discount_value + '% off')) + ' applied to the Gala'; } }
-                else { plexDiscount = 0; plexDiscountType = ''; if (m) { m.style.display = 'block'; m.style.color = '#fca5a5'; m.textContent = d.error || 'Invalid or expired code'; } }
-            } catch(e) { if (m) { m.style.display = 'block'; m.style.color = '#fca5a5'; m.textContent = 'Could not validate'; } }
+                if (d.valid) { plexDiscount = Number(d.discount_value) || 0; plexDiscountType = d.discount_type; if (m) { m.style.display = 'block'; m.style.color = '#6e5626'; m.textContent = (d.discount_type === 'fixed' ? ('\\u20AC' + d.discount_value + ' off') : (d.discount_value + '% off')) + ' applied to the Gala'; } }
+                else { plexDiscount = 0; plexDiscountType = ''; if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = d.error || 'Invalid or expired code'; } }
+            } catch(e) { if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = 'Could not validate'; } }
             b.disabled = false; b.textContent = 'Apply';
             plexRecompute();
         }
@@ -1546,6 +1558,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             var body = {
                 source: 'plexus',
                 link_token: PLEX_TOKEN || undefined,
+                website: ((document.getElementById('pf_website') || {}).value || ''),
                 first_name: document.getElementById('pf_first').value.trim(),
                 last_name: document.getElementById('pf_last').value.trim(),
                 email: document.getElementById('pf_email').value.trim(),
@@ -1579,7 +1592,11 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                     btn.disabled=false; plexRecompute(); return false;
                 }
                 if(d.checkout_url){ window.location = d.checkout_url; return false; }
-                document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#22c55e;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>You are registered</h1><p class="lede" style="margin-top:10px;">Thank you, ' + plexEsc(body.first_name) + '. A confirmation email with your check-in QR code is on its way to ' + plexEsc(body.email) + '. We look forward to welcoming you to Plexus 2026 in Zagreb.</p></div>';
+                if(d.held){
+                    document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#c9a962;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>Thank you for registering.</h1><p class="lede" style="margin-top:10px;">Your registration is being reviewed \\u2014 we will confirm it by email shortly.</p></div>';
+                    return false;
+                }
+                document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#c9a962;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>You are registered</h1><p class="lede" style="margin-top:10px;">Thank you, ' + plexEsc(body.first_name) + '. A confirmation email with your check-in QR code is on its way to ' + plexEsc(body.email) + '. We look forward to welcoming you to Plexus 2026 in Zagreb.</p></div>';
             } catch(e){ plexPayFallback(); btn.disabled=false; plexRecompute(); }
             return false;
         }
@@ -1589,12 +1606,12 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             var m = document.getElementById('plexMsg'); if(m) m.style.display='none';
             box.style.display='block';
             box.innerHTML =
-                '<div style="margin-top:14px;padding:20px 18px;border:1px solid rgba(201,169,98,0.4);border-radius:14px;background:rgba(201,169,98,0.06);text-align:left;">'
-                + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><i class="fas fa-shield-halved" style="color:#c9a962;"></i><strong style="color:#e8e2d4;font-size:14px;">We could not open secure checkout</strong></div>'
-                + '<p style="font-size:13px;color:#94a3b8;line-height:1.6;margin:0 0 14px;">Your details are safe and nothing has been charged. This is usually a brief connection issue. Try again, or reach us and we will send you a secure payment link.</p>'
+                '<div style="margin-top:14px;padding:20px 18px;border:1px solid rgba(201,169,98,.5);border-radius:0;background:#f1e8d3;text-align:left;">'
+                + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><i class="fas fa-shield-halved" style="color:#6e5626;"></i><strong style="color:#191512;font-size:14px;">We could not open secure checkout</strong></div>'
+                + '<p style="font-size:13px;color:#4a4239;line-height:1.6;margin:0 0 14px;">Your details are safe and nothing has been charged. This is usually a brief connection issue. Try again, or reach us and we will send you a secure payment link.</p>'
                 + '<div style="display:flex;flex-wrap:wrap;gap:8px;">'
-                + '<button type="button" onclick="plexRetry()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:none;border-radius:9px;background:linear-gradient(135deg,#c9a962,#b8965a);color:#0f172a;font-weight:700;cursor:pointer;font-size:13px;"><i class="fas fa-rotate-right"></i> Try again</button>'
-                + '<a href="mailto:laura.rodman@medx.hr?subject=Plexus%202026%20registration%20%E2%80%94%20payment%20help" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1px solid rgba(201,169,98,0.5);border-radius:9px;color:#e8e2d4;font-weight:600;text-decoration:none;font-size:13px;"><i class="fas fa-envelope"></i> laura.rodman@medx.hr</a>'
+                + '<button type="button" onclick="plexRetry()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:0;border-radius:0;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;"><i class="fas fa-rotate-right"></i> Try again</button>'
+                + '<a href="mailto:laura.rodman@medx.hr?subject=Plexus%202026%20registration%20%E2%80%94%20payment%20help" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1px solid rgba(25,21,18,.3);border-radius:0;color:#191512;font-weight:600;text-decoration:none;font-size:13px;"><i class="fas fa-envelope"></i> laura.rodman@medx.hr</a>'
                 + '</div></div>';
         }
         function plexRetry(){
@@ -5579,11 +5596,15 @@ if (STORAGE_IS_EPHEMERAL) {
 }
 // Endpoints whose multipart body is parsed then discarded (never persisted) — always allowed.
 const UPLOAD_EXEMPT_SUFFIXES = ['/import', '/prospects/preview'];
+// Boston presentation uploads never touch local disk (multer memoryStorage → S3 in boston.js),
+// so the ephemeral-disk guard does not apply to them — exempt the route by prefix.
+const UPLOAD_EXEMPT_PREFIXES = ['/api/boston/upload/'];
 app.use((req, res, next) => {
     if (!STORAGE_IS_EPHEMERAL) return next();
     if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') return next();
     if (!(req.headers['content-type'] || '').includes('multipart/form-data')) return next();
     if (UPLOAD_EXEMPT_SUFFIXES.some(s => req.path.endsWith(s))) return next();
+    if (UPLOAD_EXEMPT_PREFIXES.some(s => req.path.startsWith(s))) return next();
     return res.status(503).json({ error: 'File uploads are temporarily unavailable. Persistent storage is not configured, so an uploaded file would be lost on the next restart. Please contact the administrator.' });
 });
 
@@ -5639,6 +5660,25 @@ const query = {
         stmt.free(); return rows;
     }
 };
+
+// ===== BUILDING BRIDGES — BOSTON (public wing; additive, self-contained module) =====
+// Registered here (top-level, before initializeApp's SPA catch-all) so /boston and its API beat
+// the SPA; the module touches the DB lazily at request time, after initializeApp has opened it.
+try {
+    require('./boston')(app, { query, saveDb, sendEmail: sendEventConfirmation, flushDb, JWT_SECRET });
+} catch (e) { console.error('[Boston] wing failed to mount:', e.message); }
+
+// ===== REVIEW GATE (Alen 2026-09-06) — bot/gibberish + country holds, decided by email =====
+// Shared module: heuristics + safe-country matcher + Alen's approve/reject email + the
+// GET /api/review/:token/approve|reject routes. Mounted ONCE here (top level, so it beats the
+// /api/* 404 catch-all); the per-table decision handlers plug in from the flows that hold rows
+// (boston.js → bridges_registrations, the CA register block below → croatians_abroad_registrations).
+const reviewGate = require('./review-gate');
+try {
+    // sendEmail powers the institutional-confirmation flow (ask + confirm + FYI emails) —
+    // sendEventConfirmation so the team CC applies, exactly like every registrant-facing email.
+    reviewGate.mountReviewRoutes(app, { JWT_SECRET, sendEmail: sendEventConfirmation });
+} catch (e) { console.error('[ReviewGate] routes failed to mount:', e.message); }
 
 // Once the production demo purge has run (app_state marker), the demo seed blocks must never
 // re-arm — an emptied table would otherwise re-seed on the next boot, and the admin/user seed
@@ -10454,7 +10494,7 @@ async function initializeApp() {
     try {
         const feedSeeds = [
             ['call', 'Call for abstracts — Plexus 2026 opens', 'Submit your research for the December meeting in Zagreb. Posters and short talks both welcome.', 'plexus', 'Read the call', '2026-06-24 09:00:00', 1],
-            ['news', 'Building Bridges comes to Boston in September', 'Our flagship exchange lands at Harvard Medical School this fall. Members hear the dates first.', 'bridges', 'See details', '2026-06-20 10:00:00', 1],
+            ['news', 'Building Bridges comes to Boston in September', 'Our flagship exchange lands in the Waterhouse Room, Gordon Hall, Harvard Medical School this fall. Members hear the dates first.', 'bridges', 'See details', '2026-06-20 10:00:00', 1],
             ['recording', 'New in the talk library — three Plexus keynotes', 'Past-conference sessions are now available on demand, from stem cells to genome medicine.', 'talks', 'Open the library', '2026-06-16 12:00:00', 1],
             ['opportunity', 'Fresh lab openings on the opportunity board', 'Research positions and fellowships across partner institutions, curated for Med&X members.', 'network', 'Browse opportunities', '2026-06-11 08:30:00', 1],
             ['spotlight', 'Member spotlight — the 2025 Accelerator cohort', 'Where last year’s placements landed, in their own words. A living record of the two-way bridge.', 'accelerator', 'Read more', '2026-06-05 15:00:00', 1],
@@ -10530,7 +10570,7 @@ async function initializeApp() {
             ['gala', 'Reserve your seat', 'open', 'Saturday December 5 - Hotel Esplanade - EUR 150 through 15 Sep', 'Reserve seat', 'gala'],
             ['accelerator', 'Applications open in November', 'soon', 'Placements across partner labs and clinics - November 2026', 'Learn more', 'accelerator'],
             ['forum', 'By invitation', 'info', 'Biomedical Forum gathering - May 2027', 'Enter code', 'forum'],
-            ['bridges', 'Boston - September 2026', 'info', 'Building Bridges at Harvard Medical School', 'View program', 'bridges']
+            ['bridges', 'Boston - September 2026', 'info', 'Building Bridges — Waterhouse Room, Gordon Hall, Harvard Medical School', 'View program', 'bridges']
         ];
         projectStatusSeeds.forEach(p => {
             if (!query.get('SELECT project_key FROM project_status WHERE project_key = ?', [p[0]])) {
@@ -10545,7 +10585,7 @@ async function initializeApp() {
         const announcementSeeds = [
             ['ann-plexus-abstracts-2026', 'plexus', 'Plexus 2026 - call for abstracts is open', 'Submit your research for the December meeting in Zagreb. Posters and short talks are both welcome.', 'plexus', 0],
             ['ann-accelerator-nov-2026', 'accelerator', 'Accelerator applications open in November', 'Placements across our partner labs and clinics open next month. Ready your CV and a mentor letter now.', 'accelerator', 1],
-            ['ann-bridges-boston-2026', 'bridges', 'Building Bridges lands at Harvard Medical School', 'Our flagship exchange comes to Boston in September 2026. Members hear the confirmed dates here first.', 'bridges', 0]
+            ['ann-bridges-boston-2026', 'bridges', 'Building Bridges — Waterhouse Room, Gordon Hall, Harvard Medical School', 'Our flagship exchange comes to Boston in September 2026. Members hear the confirmed dates here first.', 'bridges', 0]
         ];
         announcementSeeds.forEach(a => {
             if (!query.get('SELECT id FROM member_announcements WHERE id = ?', [a[0]])) {
@@ -28235,10 +28275,220 @@ By applying to this program, I provide the following consents:
     // gala_registrations table reused for QR/check-in compatibility).
     // optionalAuth (account linking): a logged-in member's JWT attaches both the CA row and
     // the linked gala row to their account at submit time; anonymous flow is untouched.
+    // ---- CA pre-registration confirmation + Sheets mirror, EXTRACTED (review gate 2026-09-06) ----
+    // One implementation, two callers: the untouched immediate path (free-only Path A in the
+    // route below) and the review-gate APPROVE handler — an approved registration receives
+    // EXACTLY the email + sheet row it would have received had it never been held.
+    async function caSendPreRegConfirmation({ regId, first_name, last_name, email, finalConf, finalBridges, finalGala, regSource }) {
+        // Event-list HTML used in the confirmation email (per-event color accents)
+        const eventListHtml = [
+            finalConf ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
+                <strong style="color:#0f172a;">Plexus Conference</strong>
+                <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
+                <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to be announced</div></td></tr>` : '',
+            finalBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #2dd4bf;">
+                <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
+                <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
+                <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : '',
+            finalGala ? `<tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
+                <strong style="color:#0f172a;">Plexus Gala Evening</strong>
+                <span style="color:#f59e0b;font-size:12px;font-weight:600;margin-left:8px;">AWAITING PAYMENT</span>
+                <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>` : ''
+        ].filter(Boolean).join('');
+
+        // QR ticket for check-in at Conference / Bridges (Gala entry arrives with payment)
+        let caQrDataUrl = '';
+        try {
+            const caQrPayload = JSON.stringify({
+                type: 'MEDX_MEMBER',
+                caRegId: regId, regId,
+                email, name: `${first_name} ${last_name || ''}`.trim(),
+                evt: 'croatians-abroad', evtName: 'Plexus 2026',
+                events: [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null].filter(Boolean)
+            });
+            caQrDataUrl = await QRCode.toDataURL(caQrPayload, { width: 220, margin: 2 });
+        } catch(qrErr) { console.warn('CA free QR gen failed:', qrErr.message); }
+
+        const qrBlock = caQrDataUrl ? `
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
+                <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
+                    <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
+                    <tr><td align="center" style="text-align:center;"><img src="${caQrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
+                    <tr><td style="padding-top:8px;font-size:13px;color:#475569;font-family:'Courier New',monospace;letter-spacing:2px;"><span style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:1.5px;color:#94a3b8;">MANUAL CODE&nbsp;&nbsp;</span>${String(regId).substring(0, 8).toUpperCase()}</td></tr>
+                    <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this QR at the entrance to each event you've pre-registered for</td></tr>
+                </table>
+            </td></tr></table>` : '';
+
+        try {
+            await sendEventConfirmation(email, "You're pre-registered — Plexus 2026", buildEmailTemplate('Pre-Registration Confirmed', `
+                <p>Dear <strong>${first_name}</strong>,</p>
+                <p>Thank you for accepting our invitation. Your pre-registration for <strong>Plexus 2026</strong> is confirmed.</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                    <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Selections</td></tr>
+                    ${eventListHtml}
+                </table>
+                ${qrBlock}
+                ${(finalConf || finalBridges) ? `<p>We will email you ${[finalConf ? 'the <strong>Conference program</strong>' : null, finalBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(finalConf && finalBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
+                <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> (${(() => { try { const g = query.get("SELECT date, venue, keynote_name FROM gala_settings WHERE id='default'") || {}; return [g.date ? fmtEventDate(g.date) : '5 December 2026', g.venue || 'Hotel Esplanade Zagreb', g.keynote_name ? g.keynote_name + ' keynote' : ''].filter(Boolean).join(', '); } catch (e) { return '5 December 2026, Hotel Esplanade Zagreb'; } })()}), simply reply to this email and we will send you the ticket link.</p>
+                <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
+                <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
+            `));
+        } catch(emailErr) { console.warn('CA pre-reg email failed:', emailErr.message); }
+    }
+
+    // Log to Google Sheets — `events` array tells the Apps Script which tab(s) to write to.
+    function caMirrorPreRegToSheets({ regId, first_name, last_name, email, institution, country, role, dietary, notes, events, regSource, caAppliedFor, customAnswers, inviteLabel }) {
+        try {
+            mirrorToSheets({
+                events,                            // ← tab routing (['conference','bridges','gala'])
+                name: first_name + ' ' + (last_name || ''),
+                email, institution: institution || '', country: country || '', role: role || '',
+                event: regSource === 'plexus' ? 'Plexus 2026' : 'Plexus 2026 — Croatians Abroad',
+                event_type: 'croatians-abroad',
+                items: events.join(' + '),
+                dietary: dietary || '', notes: notes || '',
+                applied_for: caAppliedFor,
+                custom_summary: customAnswersSummary(customAnswers || {}),
+                custom_answers: customAnswers || {},
+                amount: 0, payment: 'Free (Pre-Registered)',
+                invite_label: inviteLabel || '',
+                ticket_code: String(regId).substring(0, 8).toUpperCase(),
+                registration_id: regId
+            });
+        } catch(e) {}
+    }
+
+    // ---- review-gate decisions for the Zagreb form (croatians_abroad_registrations) ----
+    // Rows held by the register route below carry 'pending-review' per-event statuses. APPROVE
+    // flips them to the normal initial values and then runs the SAME confirmation + Sheets code
+    // path as an unheld registration; REJECT cancels quietly. Idempotent: a decision applies
+    // only while some status is still 'pending-review'. The Stripe gala payment webhook is
+    // untouched — a held gala never got a checkout session, and after approval the payment
+    // itself remains the filter (the confirmation invites a reply for the ticket link).
+    reviewGate.registerReviewHandlers('croatians_abroad_registrations', {
+        approve: async (id) => {
+            const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
+            if (!row) return { status: 'notfound' };
+            const guest = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'the guest';
+            const pending = [row.conference_status, row.bridges_status, row.gala_status].includes('pending-review');
+            if (!pending) {
+                const wasCancelled = [row.conference_status, row.bridges_status, row.gala_status].includes('cancelled');
+                return { status: 'already', headline: wasCancelled ? 'Already rejected.' : 'Already approved.',
+                    message: wasCancelled
+                        ? `${guest}'s registration was rejected earlier — nothing was sent.`
+                        : `${guest}'s registration was approved earlier — the confirmation email was already on its way. Nothing was re-sent.` };
+            }
+            const wantConf = !!Number(row.selected_conference);
+            const wantBridges = !!Number(row.selected_bridges);
+            const wantGala = !!Number(row.selected_gala);
+            db.run(`UPDATE croatians_abroad_registrations
+                    SET conference_status = ?, bridges_status = ?, gala_status = ?, gala_payment_status = ?
+                    WHERE id = ?`,
+                [wantConf ? 'pre-registered' : null,
+                 wantBridges ? 'pre-registered' : null,
+                 wantGala ? 'awaiting_payment' : null,
+                 wantGala ? (row.gala_payment_status || 'pending') : null, id]);
+            if (row.gala_registration_id) {
+                db.run(`UPDATE gala_registrations SET status = 'awaiting_payment' WHERE id = ? AND status = 'pending-review'`, [row.gala_registration_id]);
+            }
+            // The invite-link counter the immediate free path increments at registration time.
+            if (row.invite_link_id) {
+                try { db.run('UPDATE croatians_abroad_invite_links SET used_count = COALESCE(used_count,0) + 1 WHERE id = ?', [row.invite_link_id]); } catch(e) {}
+            }
+            saveDb();
+            flushDb();
+            let customAnswers = {};
+            try { customAnswers = JSON.parse(row.custom_answers || 'null') || {}; } catch(e) {}
+            let inviteLabel = '';
+            try { inviteLabel = (row.invite_link_id && (query.get('SELECT label FROM croatians_abroad_invite_links WHERE id = ?', [row.invite_link_id]) || {}).label) || ''; } catch(e) {}
+            const regSource = row.source === 'plexus' ? 'plexus' : 'croatians-abroad';
+            const caAppliedFor = row.applied_for
+                || [wantConf ? 'Plexus Conference' : null, wantBridges ? 'Croatian Biomedical Bridges' : null, wantGala ? 'Gala Evening' : null].filter(Boolean).join(', ');
+            await caSendPreRegConfirmation({
+                regId: id, first_name: row.first_name, last_name: row.last_name, email: row.email,
+                finalConf: wantConf, finalBridges: wantBridges, finalGala: wantGala, regSource
+            });
+            // Sheet tabs: free events only — a gala row reaches the sheet when payment confirms,
+            // exactly as on the untouched path (the webhook posts it).
+            caMirrorPreRegToSheets({
+                regId: id, first_name: row.first_name, last_name: row.last_name, email: row.email,
+                institution: row.institution, country: row.country, role: row.role,
+                dietary: row.dietary, notes: row.notes,
+                events: [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null].filter(Boolean),
+                regSource, caAppliedFor, customAnswers, inviteLabel
+            });
+            console.log(`[ReviewGate] Zagreb registration ${id} APPROVED — confirmation sent to ${row.email}`);
+            return { status: 'done', headline: 'Approved.',
+                message: `${guest}'s Plexus registration is confirmed — the standard confirmation email has been sent to ${row.email}.`
+                    + (wantGala ? ' The Gala portion now awaits payment; they were invited to reply for the ticket link (payment remains the filter there).' : '') };
+        },
+        reject: async (id) => {
+            const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
+            if (!row) return { status: 'notfound' };
+            const guest = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'the registrant';
+            const pending = [row.conference_status, row.bridges_status, row.gala_status].includes('pending-review');
+            if (!pending) {
+                const wasCancelled = [row.conference_status, row.bridges_status, row.gala_status].includes('cancelled');
+                return { status: 'already', headline: wasCancelled ? 'Already rejected.' : 'Already approved.',
+                    message: wasCancelled
+                        ? `${guest}'s registration was already rejected.`
+                        : `${guest}'s registration was approved earlier and the confirmation already went out — rejecting from this link is disabled. Cancel it from the admin side if needed.` };
+            }
+            db.run(`UPDATE croatians_abroad_registrations
+                    SET conference_status = ?, bridges_status = ?, gala_status = ?
+                    WHERE id = ?`,
+                [Number(row.selected_conference) ? 'cancelled' : null,
+                 Number(row.selected_bridges) ? 'cancelled' : null,
+                 Number(row.selected_gala) ? 'cancelled' : null, id]);
+            if (row.gala_registration_id) {
+                db.run(`UPDATE gala_registrations SET status = 'cancelled' WHERE id = ? AND status = 'pending-review'`, [row.gala_registration_id]);
+            }
+            saveDb();
+            flushDb();
+            console.log(`[ReviewGate] Zagreb registration ${id} REJECTED`);
+            return { status: 'done', headline: 'Rejected.',
+                message: `${guest}'s registration has been cancelled. They received nothing — no confirmation, no QR, no payment link — and no sheet row was written.` };
+        },
+        // Institutional-confirmation flow primitives (state = notes markers, restart-safe).
+        getRow: (id) => {
+            const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
+            if (!row) return null;
+            const st = [row.conference_status, row.bridges_status, row.gala_status];
+            return {
+                id: row.id,
+                name: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+                email: row.email,
+                institution: row.institution || '',
+                notes: row.notes,
+                state: st.includes('pending-review') ? 'pending' : (st.includes('cancelled') ? 'rejected' : 'approved')
+            };
+        },
+        setNotes: (id, notes) => {
+            db.run('UPDATE croatians_abroad_registrations SET notes = ? WHERE id = ?', [notes, id]);
+            saveDb();
+            flushDb();
+        },
+        // Institutional confirmation re-points the row at the verified inbox: tickets,
+        // wallet passes and any sheet row then go to the proven-real address.
+        setEmail: (id, email) => {
+            db.run('UPDATE croatians_abroad_registrations SET email = ? WHERE id = ?', [email, id]);
+            saveDb();
+            flushDb();
+        },
+        eventLabel: 'Plexus 2026'
+    });
+
     app.post('/api/croatians-abroad/register', registrationLimiter, optionalAuth, async (req, res) => {
         try {
             const { invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
                     selected_conference, selected_bridges, selected_gala } = req.body || {};
+            // Honeypot (review gate): the /plexus form carries a visually hidden 'website' input
+            // no human sees or tabs into. Filled → a bot autofilled everything: pretend success,
+            // write NOTHING (no row, no email, no hold — a silent drop).
+            if (String((req.body || {}).website || '').trim()) {
+                console.log('[ReviewGate] /plexus honeypot tripped — submission silently dropped');
+                return res.json({ success: true });
+            }
             if (!email || !first_name) return res.status(400).json({ error: 'Name and email required' });
             let wantConf = !!Number(selected_conference);
             let wantBridges = !!Number(selected_bridges);
@@ -28315,6 +28565,32 @@ By applying to this program, I provide the following consents:
             const finalBridges = wantBridges;
             const finalGala = wantGala;
 
+            // ---- REVIEW GATE (Alen 2026-09-06): three holds on this Zagreb funnel ----
+            //   1. gibberish-looking name/institution/role (bot registrations),
+            //   2. country outside the safe list — or blank/unknown (required signal here),
+            //   3. a SAFE country claim with zero corroboration from a free-mail address
+            //      (the "types Croatia to slip past" fraud pattern).
+            // Held rows are written with 'pending-review' statuses and get NO registrant email,
+            // NO Sheets row, NO Stripe checkout — Alen approves or rejects from the review email.
+            const gateName = `${first_name} ${last_name || ''}`.trim();
+            const gateGibberish = reviewGate.suspicionScore({ name: gateName, institution, position: role }) >= 2;
+            const gateCountryHold = !reviewGate.isSafeCountry(country);
+            const gateCoherenceHold = !gateCountryHold
+                && reviewGate.coherenceHold({ country, name: gateName, email, institution });
+            const gateHeld = gateGibberish || gateCountryHold || gateCoherenceHold;
+            const gateReason = [
+                gateGibberish ? 'Looks machine-generated' : null,
+                gateCountryHold ? 'Country requires manual approval: ' + (String(country || '').trim() || '(blank)') : null,
+                gateCoherenceHold ? 'Claimed country does not match name/email/institution' : null
+            ].filter(Boolean).join(' · ');
+            if (gateHeld) {
+                // One review email per address — a retrying bot must not bombard the inbox.
+                const priorHeld = query.get(`SELECT id FROM croatians_abroad_registrations
+                    WHERE LOWER(email) = LOWER(?) AND (conference_status = 'pending-review'
+                       OR bridges_status = 'pending-review' OR gala_status = 'pending-review')`, [email]);
+                if (priorHeld) return res.json({ success: true, id: priorHeld.id, status: 'pending-review', held: true });
+            }
+
             const regId = require('crypto').randomUUID();
             let galaRegistrationId = null;
 
@@ -28325,8 +28601,10 @@ By applying to this program, I provide the following consents:
                 galaRegistrationId = require('crypto').randomUUID();
                 db.run(
                     `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id)
-                     VALUES (?, ?, ?, ?, ?, 'awaiting_payment', 'pending', ?, ?, ?)`,
-                    [galaRegistrationId, first_name, last_name || '', email, institution || '', dietary || null, notes || null, linkedUserId]
+                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+                    [galaRegistrationId, first_name, last_name || '', email, institution || '',
+                     gateHeld ? 'pending-review' : 'awaiting_payment',      // review gate: held gala rows wait for Alen
+                     dietary || null, notes || null, linkedUserId]
                 );
             }
 
@@ -28338,9 +28616,9 @@ By applying to this program, I provide the following consents:
                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
                 [regId, invite_link_id || null, first_name, last_name || '', email, institution || '', country || '', role || '', dietary || '', notes || '',
                  finalConf ? 1 : 0, finalBridges ? 1 : 0, finalGala ? 1 : 0,
-                 finalConf ? 'pre-registered' : null,
-                 finalBridges ? 'pre-registered' : null,
-                 finalGala ? 'awaiting_payment' : null,
+                 finalConf ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
+                 finalBridges ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
+                 finalGala ? (gateHeld ? 'pending-review' : 'awaiting_payment') : null,
                  finalGala ? 'pending' : null,
                  galaRegistrationId, regSource, linkedUserId]
             );
@@ -28364,91 +28642,78 @@ By applying to this program, I provide the following consents:
             saveDb();
             flushDb(); // durability: the CA registration row is final now — push to Turso immediately
 
-            // Helper: build the event-list HTML used in confirmation emails (with per-event color accents)
-            const eventListHtml = [
-                finalConf ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
-                    <strong style="color:#0f172a;">Plexus Conference</strong>
-                    <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to be announced</div></td></tr>` : '',
-                finalBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #2dd4bf;">
-                    <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
-                    <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : '',
-                finalGala ? `<tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
-                    <strong style="color:#0f172a;">Plexus Gala Evening</strong>
-                    <span style="color:#f59e0b;font-size:12px;font-weight:600;margin-left:8px;">AWAITING PAYMENT</span>
-                    <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>` : ''
-            ].filter(Boolean).join('');
+            // Gala extras (guests + allergies) — persisted for ANY gala selection, held or not,
+            // so an approved registration keeps its full party details. Shared by the held
+            // branch below and the untouched paid Path B.
+            const galaGuestCount = Math.max(0, Math.min(2, parseInt(req.body.guest_count, 10) || 0)); // +guests, max 2
+            const galaAllergies = (req.body.allergies || '').toString().slice(0, 200);
+            const persistGalaExtras = () => {
+                // Persist guests + allergies on the gala row (allergies folded into requests) + CA row.
+                try {
+                    const reqText = [notes, galaAllergies ? ('Allergies: ' + galaAllergies) : ''].filter(Boolean).join(' | ') || null;
+                    db.run('UPDATE gala_registrations SET guest_count = ?, requests = ? WHERE id = ?', [galaGuestCount, reqText, galaRegistrationId]);
+                    db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [galaGuestCount, regId]);
+                    // Per-guest details (name/institution/email) → ca_registration_guests (2026-08-30)
+                    try {
+                        const guestRows = Array.isArray(req.body.guests) ? req.body.guests.slice(0, galaGuestCount) : [];
+                        for (const g of guestRows) {
+                            const gName = String((g && g.name) || '').slice(0, 120).trim();
+                            const gInst = String((g && g.institution) || '').slice(0, 160).trim();
+                            const gEmailRaw = String((g && g.email) || '').slice(0, 160).trim().toLowerCase();
+                            const gEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(gEmailRaw) ? gEmailRaw : '';
+                            if (!gName && !gEmail) continue;
+                            db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?, ?, ?, ?, ?)',
+                                [uuidv4(), regId, gName, gInst, gEmail]);
+                        }
+                    } catch (gErr) { console.error('[CA] guest details save failed (non-blocking):', gErr.message); }
+                } catch(e) {}
+            };
+
+            // ---------- HELD: review gate — stop here, Alen decides by email ----------
+            // The row(s) sit at 'pending-review'; the registrant gets NO email, NO Sheets row,
+            // NO Stripe checkout (payment links are never minted for held registrations). The
+            // response mirrors a normal success shape, plus held:true so the page can show its
+            // "being reviewed" copy instead of promising an imminent confirmation.
+            if (gateHeld) {
+                if (finalGala) persistGalaExtras();
+                try {
+                    const urls = reviewGate.reviewUrls(JWT_SECRET, 'croatians_abroad_registrations', regId);
+                    const heldGuests = galaGuestCount
+                        ? galaGuestCount + (Array.isArray(req.body.guests) ? ' — ' + req.body.guests.slice(0, galaGuestCount).map(g => String((g && g.name) || '').trim()).filter(Boolean).join(', ') : '')
+                        : 'None';
+                    await sendEventConfirmation(reviewGate.REVIEW_TO, 'A registration needs your review — Plexus (Zagreb form)',
+                        reviewGate.buildReviewEmail({
+                            kind: 'Zagreb form',
+                            reason: gateReason,
+                            fields: {
+                                'First name': first_name, 'Last name': last_name || '', 'Email': email,
+                                'Institution': institution || '', 'Country': country || '', 'Role': role || '',
+                                'Selected events': caAppliedFor, 'Gala guests': finalGala ? heldGuests : 'n/a (no Gala)',
+                                'Dietary': dietary || '', 'Allergies': galaAllergies, 'Notes': notes || '',
+                                'Custom answers': customAnswersSummary(caCf.answers), 'Source': regSource
+                            },
+                            approveUrl: urls.approveUrl, rejectUrl: urls.rejectUrl, verifyUrl: urls.verifyUrl
+                        }));
+                } catch (e) { console.error('[ReviewGate] Zagreb review email failed:', e.message); }
+                try {
+                    await sendEventConfirmation(email, 'We received your registration — Plexus 2026',
+                        reviewGate.buildPendingEmail({ firstName: first_name, eventLabel: 'Plexus 2026' }));
+                } catch (e) { console.warn('[ReviewGate] Zagreb pending-ack email failed:', e.message); }
+                console.log(`[ReviewGate] Zagreb registration ${regId} (${email}) held for review — ${gateReason}`);
+                return res.json({ success: true, id: regId, status: 'pending-review', held: true });
+            }
 
             // ---------- PATH A: Free-only (no Gala) → confirm immediately ----------
             if (!finalGala) {
-                // Generate QR ticket for check-in at Conference / Bridges
-                let caQrDataUrl = '';
-                try {
-                    const caQrPayload = JSON.stringify({
-                        type: 'MEDX_MEMBER',
-                        caRegId: regId, regId,
-                        email, name: `${first_name} ${last_name || ''}`.trim(),
-                        evt: 'croatians-abroad', evtName: 'Plexus 2026',
-                        events: [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null].filter(Boolean)
-                    });
-                    caQrDataUrl = await QRCode.toDataURL(caQrPayload, { width: 220, margin: 2 });
-                } catch(qrErr) { console.warn('CA free QR gen failed:', qrErr.message); }
-
-                const qrBlock = caQrDataUrl ? `
-                    <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
-                        <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
-                            <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
-                            <tr><td align="center" style="text-align:center;"><img src="${caQrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
-                            <tr><td style="padding-top:8px;font-size:13px;color:#475569;font-family:'Courier New',monospace;letter-spacing:2px;"><span style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:1.5px;color:#94a3b8;">MANUAL CODE&nbsp;&nbsp;</span>${String(regId).substring(0, 8).toUpperCase()}</td></tr>
-                            <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this QR at the entrance to each event you've pre-registered for</td></tr>
-                        </table>
-                    </td></tr></table>` : '';
-
-                try {
-                    await sendEventConfirmation(email, "You're pre-registered — Plexus 2026", buildEmailTemplate('Pre-Registration Confirmed', `
-                        <p>Dear <strong>${first_name}</strong>,</p>
-                        <p>Thank you for accepting our invitation. Your pre-registration for <strong>Plexus 2026</strong> is confirmed.</p>
-                        <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-                            <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Selections</td></tr>
-                            ${eventListHtml}
-                        </table>
-                        ${qrBlock}
-                        ${(finalConf || finalBridges) ? `<p>We will email you ${[finalConf ? 'the <strong>Conference program</strong>' : null, finalBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(finalConf && finalBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
-                        <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> (${(() => { try { const g = query.get("SELECT date, venue, keynote_name FROM gala_settings WHERE id='default'") || {}; return [g.date ? fmtEventDate(g.date) : '5 December 2026', g.venue || 'Hotel Esplanade Zagreb', g.keynote_name ? g.keynote_name + ' keynote' : ''].filter(Boolean).join(', '); } catch (e) { return '5 December 2026, Hotel Esplanade Zagreb'; } })()}), simply reply to this email and we will send you the ticket link.</p>
-                        <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
-                        <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
-                    `));
-                } catch(emailErr) { console.warn('CA pre-reg email failed:', emailErr.message); }
-
-                // Log to Google Sheets — `events` array tells the Apps Script which tab(s) to write to
-                try {
-                    const sheetsWebhook = process.env.GOOGLE_SHEETS_WEBHOOK;
-                    if (sheetsWebhook) {
-                        const events = [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null, finalGala ? 'gala' : null].filter(Boolean);
-                        fetch(sheetsWebhook, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                timestamp: new Date().toISOString(),
-                                events,                            // ← new: tab routing (['conference','bridges','gala'])
-                                name: first_name + ' ' + (last_name || ''),
-                                email, institution: institution || '', country: country || '', role: role || '',
-                                event: regSource === 'plexus' ? 'Plexus 2026' : 'Plexus 2026 — Croatians Abroad',
-                                event_type: 'croatians-abroad',
-                                items: events.join(' + '),
-                                dietary: dietary || '', notes: notes || '',
-                                applied_for: caAppliedFor,
-                                custom_summary: customAnswersSummary(caCf.answers),
-                                custom_answers: caCf.answers,
-                                amount: 0, payment: 'Free (Pre-Registered)',
-                                invite_label: caInvite?.label || '',
-                                ticket_code: String(regId).substring(0, 8).toUpperCase(),
-                                registration_id: regId
-                            })
-                        }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
-                    }
-                } catch(e) {}
+                // Confirmation email (QR + selections) and the Sheets tab mirror — the SAME
+                // extracted code path the review-gate APPROVE handler replays later, so a held
+                // registration that Alen approves receives exactly this.
+                await caSendPreRegConfirmation({ regId, first_name, last_name, email, finalConf, finalBridges, finalGala, regSource });
+                caMirrorPreRegToSheets({
+                    regId, first_name, last_name, email, institution, country, role, dietary, notes,
+                    events: [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null, finalGala ? 'gala' : null].filter(Boolean),
+                    regSource, caAppliedFor, customAnswers: caCf.answers, inviteLabel: caInvite?.label || ''
+                });
 
                 // Increment invite-link usage
                 if (caInvite) {
@@ -28467,31 +28732,13 @@ By applying to this program, I provide the following consents:
             // ---------- PATH B: Gala selected → server-trusted pricing (guests + coupon) ----------
             // ALL amounts re-derived here from the DB — never trust a client-sent price.
             const galaBase = effectiveGalaPrice();                                   // per-person Gala price
-            const guests = Math.max(0, Math.min(2, parseInt(req.body.guest_count, 10) || 0)); // +guests, max 2
+            const guests = galaGuestCount;                                           // +guests, max 2 (hoisted above)
             const subtotal = Math.round(galaBase * (1 + guests) * 100) / 100;
             const galaPromo = lookupPromo('gala', req.body.coupon || req.body.coupon_code || '', { email, price: subtotal });
             const galaDiscount = galaPromo ? promoDiscount(galaPromo, subtotal) : 0;
             const galaPrice = Math.max(0, Math.round((subtotal - galaDiscount) * 100) / 100);
-            const galaAllergies = (req.body.allergies || '').toString().slice(0, 200);
             // Persist guests + allergies on the gala row (allergies folded into requests) + CA row.
-            try {
-                const reqText = [notes, galaAllergies ? ('Allergies: ' + galaAllergies) : ''].filter(Boolean).join(' | ') || null;
-                db.run('UPDATE gala_registrations SET guest_count = ?, requests = ? WHERE id = ?', [guests, reqText, galaRegistrationId]);
-                db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [guests, regId]);
-                // Per-guest details (name/institution/email) → ca_registration_guests (2026-08-30)
-                try {
-                    const guestRows = Array.isArray(req.body.guests) ? req.body.guests.slice(0, guests) : [];
-                    for (const g of guestRows) {
-                        const gName = String((g && g.name) || '').slice(0, 120).trim();
-                        const gInst = String((g && g.institution) || '').slice(0, 160).trim();
-                        const gEmailRaw = String((g && g.email) || '').slice(0, 160).trim().toLowerCase();
-                        const gEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(gEmailRaw) ? gEmailRaw : '';
-                        if (!gName && !gEmail) continue;
-                        db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?, ?, ?, ?, ?)',
-                            [uuidv4(), regId, gName, gInst, gEmail]);
-                    }
-                } catch (gErr) { console.error('[CA] guest details save failed (non-blocking):', gErr.message); }
-            } catch(e) {}
+            persistGalaExtras();
             // Stripe needs a real charge; a 100%-off / sub-€0.50 result can't be charged.
             if (galaPrice < 0.5) {
                 return res.status(400).json({ error: 'That code brings the Gala to €0 — please email info@medx.hr to be added as a complimentary guest.' });

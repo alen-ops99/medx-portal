@@ -155,6 +155,16 @@ function assets() {
     assetCache = out;
     return out;
 }
+// Per-model strip overrides (see buildPkpass) — cached like the defaults; a bad path caches
+// null so a misconfigured override degrades to the default strip instead of erroring per pass.
+const stripOverrideCache = new Map();
+function stripOverrideBytes(p) {
+    if (stripOverrideCache.has(p)) return stripOverrideCache.get(p);
+    let data = null;
+    try { if (fs.existsSync(p)) data = fs.readFileSync(p); } catch (e) { data = null; }
+    stripOverrideCache.set(p, data);
+    return data;
+}
 
 // ---------------------------------------------------------------- pass.json + .pkpass assembly
 // model: { style: 'eventTicket'|'generic', serial, description, fields: {primary, secondary,
@@ -184,9 +194,30 @@ function buildPkpass(model) {
     };
     if (model.relevantDate) pass.relevantDate = model.relevantDate;
     const files = [{ name: 'pass.json', data: Buffer.from(JSON.stringify(pass, null, 2), 'utf8') }];
-    for (const name of IMAGE_SETS.base) files.push({ name, data: img[name] });
+    // Per-model logo override (additive, 2026-09 Boston): model.logoFiles = { '1x': path, '2x': path }
+    // swaps the top-left wordmark for an event-specific one (e.g. Med&X × HMPA); missing/unreadable
+    // files fall back to the default asset, so passes without logoFiles are byte-identical.
+    const logoOverride = model.logoFiles || {};
+    for (const name of IMAGE_SETS.base) {
+        let data = null;
+        if (name === 'logo.png' && logoOverride['1x']) data = stripOverrideBytes(logoOverride['1x']);
+        if (name === 'logo@2x.png' && logoOverride['2x']) data = stripOverrideBytes(logoOverride['2x']);
+        files.push({ name, data: data || img[name] });
+    }
     if (model.style === 'eventTicket' && model.strip !== false) {
-        for (const name of IMAGE_SETS.strip) if (img[name]) files.push({ name, data: img[name] });
+        // Per-model strip override (additive, 2026-09 Boston): model.stripFiles = { '1x': path,
+        // '2x': path, '3x': path } swaps in an event-specific strip photo (read + cached here);
+        // any missing/unreadable file falls back to that scale's default strip. Default passes
+        // (no stripFiles) are byte-identical to before.
+        const override = model.stripFiles || {};
+        for (let i = 0; i < IMAGE_SETS.strip.length; i++) {
+            const name = IMAGE_SETS.strip[i];
+            const scale = ['1x', '2x', '3x'][i];
+            let data = null;
+            if (override[scale]) data = stripOverrideBytes(override[scale]);
+            if (!data) data = img[name];
+            if (data) files.push({ name, data });
+        }
     }
     const manifest = {};
     for (const f of files) manifest[f.name] = sha1hex(f.data);
