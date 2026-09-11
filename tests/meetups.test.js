@@ -377,6 +377,32 @@ const rowFor = (mid, email) => q.get('SELECT * FROM plexus_meetup_attendees WHER
         assert.strictEqual(r.body.edition.id, 'plexus-2027');
         assert.strictEqual(r.body.archived, true);
     });
+    await t('a PAST edition never borrows this year\'s dates, venue or price', () => {
+        // conferences / gala_settings / bridges_events each hold ONE live row with no per-year
+        // history. Reading them under a 2027 label would print 2026's gala price as that year's.
+        const past = q.get("SELECT * FROM plexus_editions WHERE id = 'plexus-2027'");
+        const live = editionsLib.activeEdition(q);
+        assert.notStrictEqual(past.status, 'active');
+        return app.call('GET', '/api/v2/plexus-week/overview', { user: asUser('u-ana'), query: { edition: 'plexus-2027' } }).then(r => {
+            for (const key of ['conference', 'gala', 'bridges']) {
+                const b = r.body.blocks.find(x => x.key === key);
+                assert.strictEqual(b.historical, false, key + ' claimed to be historical data');
+                assert.strictEqual(b.status, 'Not recorded');
+                assert.strictEqual(b.price_label, null, key + ' quoted a price for a year we have no price for');
+                assert.strictEqual(b.cta_label, null, key + ' offered an action on a closed edition');
+                assert.ok(!/2026/.test(String(b.date_label || '')), key + ' printed 2026 dates under 2027: ' + b.date_label);
+                assert.ok(String(b.date_label || '').includes('2027'), key + ' should quote the edition\'s own dates');
+            }
+            // the meetups block IS edition-scoped — it keeps answering for real
+            const meet = r.body.blocks.find(x => x.key === 'meetups');
+            assert.strictEqual(meet.meetups, 0, 'no meetups exist in 2027');
+            // and the active edition still reads live
+            return app.call('GET', '/api/v2/plexus-week/overview', { user: asUser('u-ana'), query: { edition: live.id } });
+        }).then(r2 => {
+            assert.strictEqual(r2.body.blocks.find(x => x.key === 'gala').historical, true);
+            assert.ok(r2.body.blocks.find(x => x.key === 'gala').price_label, 'the live edition still quotes the price');
+        });
+    });
     await t('editionForDate maps a legacy row to the edition of its created_at YEAR', () => {
         // Nothing is migrated (spec §1): croatians_abroad / gala rows carry no edition_id, so they
         // resolve through the year they were created in, falling back to the active edition.

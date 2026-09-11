@@ -99,12 +99,30 @@ module.exports = function mountEditions(app, ctx) {
     }
 
     // ---------------------------------------------------------------- the four blocks
+    // A PAST edition must not borrow this year's numbers. Only the meetups block is genuinely
+    // edition-scoped (plexus_meetups carries edition_id); conferences, gala_settings and
+    // bridges_events each hold ONE live row with no per-year history, so reading them under a
+    // 2025 label would print 2026's dates, venue and price as though they were that year's. When
+    // the asked-for edition is not the active one, those three blocks say what we actually know —
+    // the edition's own dates and city — and nothing we do not.
+    const isPast = (ed) => !!(ed && ed.status !== 'active');
+    function historicalBlock(ed, key, title, target) {
+        return {
+            key, title,
+            status: 'Not recorded', status_kind: 'closed', historical: false,
+            date_label: ed ? rangeLabel(ed.starts_on, ed.ends_on) : null,
+            starts_on: ed ? ed.starts_on : null,
+            venue: ed ? (ed.city || 'Zagreb') : null,
+            price_label: null, cta_label: null, cta_target: target
+        };
+    }
     function conferenceBlock(ed) {
+        if (isPast(ed)) return historicalBlock(ed, 'conference', 'Plexus Conference', '/app/plexus/program');
         const c = q.get('SELECT * FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1')
             || q.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
         const open = c ? Number(c.registration_open) === 1 : false;
         return {
-            key: 'conference',
+            key: 'conference', historical: true,
             title: c && c.name ? c.name : 'Plexus Conference',
             status: open ? 'Registration open' : 'Registration closed',
             status_kind: open ? 'open' : 'closed',
@@ -117,11 +135,12 @@ module.exports = function mountEditions(app, ctx) {
         };
     }
     function galaBlock(ed) {
+        if (isPast(ed)) return historicalBlock(ed, 'gala', 'Gala Evening', '/app/gala');
         const g = q.get("SELECT * FROM gala_settings WHERE id = 'default'") || {};
         const price = galaPrice();
         const open = g.is_registration_open === undefined || g.is_registration_open === null ? true : Number(g.is_registration_open) === 1;
         return {
-            key: 'gala',
+            key: 'gala', historical: true,
             title: 'Gala Evening',
             status: open ? `€${price.current} until ${price.flip_label}` : 'Seats closed',
             status_kind: open ? 'open' : 'closed',
@@ -137,11 +156,12 @@ module.exports = function mountEditions(app, ctx) {
     function bridgesBlock(ed) {
         // Building Bridges ZAGREB — the home edition that runs inside Plexus Week. Boston is a
         // separate Building Bridges evening and never appears as a Plexus Week block.
+        if (isPast(ed)) return historicalBlock(ed, 'bridges', 'Building Bridges Zagreb', '/app/bridges');
         const home = q.get("SELECT * FROM bridges_events WHERE slug = 'building-bridges'")
             || q.get("SELECT * FROM bridges_events WHERE lower(city) = 'zagreb' ORDER BY event_date DESC LIMIT 1");
         const open = home ? Number(home.registration_open) === 1 : false;
         return {
-            key: 'bridges',
+            key: 'bridges', historical: true,
             title: 'Building Bridges Zagreb',
             status: open ? 'Registration open' : (home ? 'By invitation' : 'Dates to come'),
             status_kind: open ? 'open' : 'soon',

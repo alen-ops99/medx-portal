@@ -454,7 +454,13 @@ module.exports = function mountMeetups(app, ctx) {
             invited: rows.filter(a => a.status === 'invited').map(core.personCard)
         };
     }
-    /** 404, never 403: a host must not be able to learn that another meetup exists. */
+    /**
+     * 404, never 403: a host must not be able to learn that another meetup exists.
+     * Admins are exempt on purpose — they already read every attendee in the admin portal's
+     * drawer, so refusing them the host's own view would hide nothing and would stop them
+     * helping a host who has lost their link. The scoping that matters holds: a member who is
+     * not this meetup's host, admin or not, gets 404.
+     */
     function hostGuard(req, res) {
         const m = core.meetupById(q, req.params.id);
         if (!m) { res.status(404).json({ error: 'Meetup not found' }); return null; }
