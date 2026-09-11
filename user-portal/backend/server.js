@@ -23277,7 +23277,14 @@ By applying to this program, I provide the following consents:
                     is_urgent: 0, target: null
                 }));
             } catch (e) {}
-            const items = aItems.concat(mItems).concat(nItems).sort((x, y) =>
+            // One publish from the admin composer writes BOTH a member_announcements row (member
+            // home feed + notification centre) and a user_notifications row (in-portal bell), so
+            // the union above would show that one announcement twice on the website bell. Keep the
+            // notification copy — it carries read-state and a routable target — and drop the member
+            // copy with the same title. Title is the same dedupe key GET /api/feed/home uses.
+            const seenTitle = new Set(nItems.map(n => String(n.title || '').trim().toLowerCase()).filter(Boolean));
+            const mUnique = mItems.filter(m => !seenTitle.has(String(m.title || '').trim().toLowerCase()));
+            const items = aItems.concat(mUnique).concat(nItems).sort((x, y) =>
                 ((y.is_urgent || 0) - (x.is_urgent || 0)) || (new Date(y.created_at || 0) - new Date(x.created_at || 0)));
             res.json({ items });
         } catch (err) {

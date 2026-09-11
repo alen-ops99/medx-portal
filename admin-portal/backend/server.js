@@ -11715,7 +11715,14 @@ async function initializeApp() {
                     is_urgent: 0, target: null
                 }));
             } catch (e) {}
-            const items = aItems.concat(mItems).concat(nItems).sort((x, y) =>
+            // One publish from the admin composer writes BOTH a member_announcements row (member
+            // home feed + notification centre) and a user_notifications row (in-portal bell), so
+            // the union above would show that one announcement twice on the website bell. Keep the
+            // notification copy — it carries read-state and a routable target — and drop the member
+            // copy with the same title. Title is the same dedupe key GET /api/feed/home uses.
+            const seenTitle = new Set(nItems.map(n => String(n.title || '').trim().toLowerCase()).filter(Boolean));
+            const mUnique = mItems.filter(m => !seenTitle.has(String(m.title || '').trim().toLowerCase()));
+            const items = aItems.concat(mUnique).concat(nItems).sort((x, y) =>
                 ((y.is_urgent || 0) - (x.is_urgent || 0)) || (new Date(y.created_at || 0) - new Date(x.created_at || 0)));
             res.json({ items });
         } catch (err) {
@@ -12067,6 +12074,32 @@ async function initializeApp() {
         const registered = registeredEmails.length;
         const interested_not_registered = interestedEmails.filter(e => !regSet.has(e)).length;
         res.json({ project, interested, registered, interested_not_registered });
+    });
+
+    // Edit a published announcement in place. Members read member_announcements live (member home
+    // feed + notification center + the site bell), so a typo has to be fixable without deleting the
+    // row and losing its place in the feed. push/push_fanned are NOT editable here: re-pushing an
+    // edited item would ring every phone a second time.
+    app.put('/api/admin/member-announcements/:id', auth, adminOnly, (req, res) => {
+        const existing = query.get('SELECT * FROM member_announcements WHERE id = ?', [req.params.id]);
+        if (!existing) return res.status(404).json({ error: 'Announcement not found' });
+        const b = req.body || {};
+        const title = b.title === undefined ? existing.title : String(b.title || '').trim();
+        if (!title) return res.status(400).json({ error: 'Title is required' });
+        const body = b.body === undefined ? existing.body : (b.body || null);
+        const link_section = b.link_section === undefined ? existing.link_section : (b.link_section || null);
+        let project_key = existing.project_key;
+        if (b.project_key !== undefined) project_key = PROJECT_HUB_ORDER.includes(b.project_key) ? b.project_key : null;
+        const ALLOWED_SCOPE = ['everyone', 'interested', 'registered', 'interested_not_registered'];
+        let audience_scope = existing.audience_scope;
+        if (b.audience_scope !== undefined && ALLOWED_SCOPE.includes(b.audience_scope)) audience_scope = b.audience_scope;
+        if (!project_key) audience_scope = 'everyone';
+        else if (!ALLOWED_SCOPE.includes(audience_scope)) audience_scope = 'interested';
+        db.run(`UPDATE member_announcements SET title = ?, body = ?, link_section = ?, project_key = ?, audience_scope = ? WHERE id = ?`,
+            [title, body, link_section, project_key, audience_scope, req.params.id]);
+        saveDb();
+        logAudit(req, 'announcement.edit', title);
+        res.json({ success: true, id: req.params.id });
     });
 
     app.delete('/api/admin/member-announcements/:id', auth, adminOnly, (req, res) => {

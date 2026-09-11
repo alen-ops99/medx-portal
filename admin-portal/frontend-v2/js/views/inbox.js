@@ -111,9 +111,15 @@ export const COPY = {
     publish: 'PUBLISH ANNOUNCEMENT', published: 'PUBLISHED TO THE MEMBER BELL', titleFirst: 'GIVE THE ANNOUNCEMENT A TITLE FIRST',
     howTitle: 'HOW MEMBERS SEE IT — THE BELL, TOP RIGHT OF THEIR PORTAL', bell: 'NOTIFICATIONS', oneNew: '1 new',
     prevTitle: 'No title yet — this preview updates as you type.', prevBody: 'No message yet — members will see exactly what you write here.',
-    justNow: (aud) => `JUST NOW · ${aud.toUpperCase()}`, alsoInbox: 'It also lands in their Messages, so nothing disappears.',
-    recent: 'RECENT ANNOUNCEMENTS', remove: 'REMOVE', sureRemove: 'SURE? REMOVE', removed: 'ANNOUNCEMENT REMOVED FROM THE BELL',
-    recentEmpty: 'Nothing published yet — the first announcement shows here.'
+    justNow: (aud) => `JUST NOW · ${aud.toUpperCase()}`,
+    // Where it actually lands (it does NOT go to Messages — that inbox is one-to-one):
+    // member_announcements (member home "LATEST FROM MED&X" + the notification centre + the
+    // medx.hr bell) plus a user_notifications row for the portal bell.
+    alsoInbox: 'It also shows on the member home feed under “Latest from Med&X”, and on the medx.hr bell.',
+    recent: 'PUBLISHED ANNOUNCEMENTS', remove: 'REMOVE', sureRemove: 'SURE? REMOVE', removed: 'ANNOUNCEMENT REMOVED — BELL AND MEMBER HOME',
+    recentEmpty: 'Nothing published yet — the first announcement shows here.',
+    edit: 'EDIT', save: 'SAVE', cancel: 'CANCEL', saved: 'ANNOUNCEMENT UPDATED', editTitle: 'TITLE', editBody: 'MESSAGE', editLink: 'LINK (OPTIONAL)',
+    everyone: 'Everyone'
   },
   news: {
     subs: 'SUBSCRIBERS', subsSub: 'people pick topics when they subscribe',
@@ -201,7 +207,10 @@ async function load(tab) {
     want.audiences = api.get('/api/v2/inbox/audiences');
   }
   if (tab === 'messages') want.threads = api.get('/api/v2/inbox/threads');
-  if (tab === 'announce') want.recent = api.get('/api/admin/notifications/user-notifications?limit=100');
+  // The announcements tab lists the member_announcements rows — the ones members actually read on
+  // their home feed and notification centre. (user_notifications is the bell-only mirror the same
+  // publish writes; it is not listed here, or every item would appear twice.)
+  if (tab === 'announce') want.memberAnns = api.get('/api/admin/member-announcements');
   if (tab === 'news') want.nl = api.get('/api/v2/inbox/newsletter');
   const r = await api.settle(want);
   const chatChannels = r.chat ? [...(r.chat.channels || [])].filter(c => String(c.name || '').indexOf('dm:') !== 0) : [];
@@ -220,7 +229,7 @@ async function load(tab) {
     deferred: r.scheduled ? futureBatches(r.scheduled.batches) : [],
     audiences: r.audiences && Array.isArray(r.audiences.groups) ? r.audiences.groups : [],
     threads,
-    recent: r.recent && Array.isArray(r.recent.notifications) ? r.recent.notifications : [],
+    memberAnns: Array.isArray(r.memberAnns) ? r.memberAnns : [],
     nl: r.nl || { total_active: 0, topics: [], history: [], sends: [] }
   };
 }
@@ -553,16 +562,31 @@ function blockAnnouncer() {
     </div>
     <!-- /dc -->`;
 }
+// The PUBLISHED ANNOUNCEMENTS list — member_announcements, the rows members read on their home
+// feed. Editable in place (PUT) and removable (DELETE); removing takes it off the member home and
+// the bell in one go.
 function blockRecentAnn() {
   const a = COPY.announce;
-  const rows = D.recent.slice(0, 8);
+  const rows = D.memberAnns.slice(0, 12);
+  const meta = r => esc([cap(r.project_key || a.everyone), fmt.dayShort(r.created_at)].filter(Boolean).join(' · '));
+  const editor = r => `
+      <div style="padding:12px 18px;border-bottom:1px solid rgba(32,27,22,.08);display:flex;flex-direction:column;gap:8px;background:#fdfbf6">
+        <label style="display:flex;flex-direction:column;gap:4px"><span style="${LABEL}">${a.editTitle}</span><input data-role="annEdTitle" value="${esc(r.title || '')}" style="${INPUT}"></label>
+        <label style="display:flex;flex-direction:column;gap:4px"><span style="${LABEL}">${a.editBody}</span><textarea data-role="annEdBody" rows="3" style="${INPUT};resize:vertical">${esc(r.body || '')}</textarea></label>
+        <label style="display:flex;flex-direction:column;gap:4px"><span style="${LABEL}">${a.editLink}</span><input data-role="annEdLink" value="${esc(r.link_section || '')}" style="${INPUT}"></label>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span data-act="annSave" data-id="${esc(r.id)}" style="padding:8px 14px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" data-hover="background:#7e151b">${a.save}</span>
+          <span data-act="annCancelEdit" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer" data-hover="color:#201b16">${a.cancel}</span>
+        </div>
+      </div>`;
   return `
     <!-- dc: Admin Inbox.dc.html › "RECENT ANNOUNCEMENTS" -->
     <div data-block="recentAnn" style="border:1px solid rgba(32,27,22,.14);background:#fff">
       <div style="padding:12px 18px;border-bottom:1px solid rgba(32,27,22,.12);font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${a.recent}</div>
-      ${rows.map(r => `
+      ${rows.map(r => st.annEditId === r.id ? editor(r) : `
       <div style="display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid rgba(32,27,22,.08)">
-        <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:600">${esc(r.title)}</span><span style="display:block;font-size:11px;color:#6d6459;margin-top:2px">${esc([cap(r.project || (r.user_group === 'all' ? 'Everyone' : r.user_group)), fmt.dayShort(r.created_at), r.expires_at ? 'until ' + fmt.dayShort(r.expires_at) : null].filter(Boolean).join(' · '))}</span></span>
+        <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:600">${esc(r.title)}</span><span style="display:block;font-size:11px;color:#6d6459;margin-top:2px">${meta(r)}</span></span>
+        <span data-act="annEdit" data-id="${esc(r.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${a.edit}</span>
         <span data-act="annRemove" data-id="${esc(r.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:${st.annConfirm === r.id ? '#9b1b22' : '#6d6459'};cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${st.annConfirm === r.id ? a.sureRemove : a.remove}</span>
       </div>`).join('')}
       ${!rows.length ? `<div style="padding:18px;font-size:12.5px;color:#6d6459;text-align:center">${a.recentEmpty}</div>` : ''}
@@ -802,6 +826,12 @@ async function reloadOutbox() {
   rerender('[data-block="waiting"]', blockWaiting());
   rerender('[data-block="tabs"]', blockTabs());
   chrome.refresh();
+}
+async function reloadAnnouncements() {
+  const r = await api.settle({ memberAnns: api.get('/api/admin/member-announcements') });
+  if (!rootEl) return;
+  D.memberAnns = Array.isArray(r.memberAnns) ? r.memberAnns : [];
+  rerender('[data-block="recentAnn"]', blockRecentAnn());
 }
 async function reloadThreads(keepOpen = true) {
   const r = await api.settle({ threads: api.get('/api/v2/inbox/threads'), badges: api.get('/api/v2/inbox/badges') });
@@ -1165,29 +1195,56 @@ const handlers = {
     if (st.annUntil === '7' || st.annUntil === '14') { const d = new Date(); d.setDate(d.getDate() + Number(st.annUntil)); expires = fmt.ymd(d) + ' 23:59:59'; }
     else if (st.annUntil === 'event') expires = FACTS.plexus.start + ' 23:59:59';
     el.setAttribute('aria-disabled', 'true');
+    // TWO writes, in this order, because the member portal reads two different tables:
+    //   1. member_announcements — the member HOME feed ("Latest from Med&X", GET /api/feed/home),
+    //      the member notification centre (GET /api/announcements) and the medx.hr bell. This is
+    //      the row that must exist, so it is written first and a failure here aborts the publish.
+    //   2. user_notifications  — the in-portal bell (GET /api/user-notifications). Additive; the
+    //      announcement still reaches members if this one fails.
+    // Writing only #2 is exactly the bug this fixes (audit B3).
+    const project = st.annWho === 'all' ? null : st.annWho;
     try {
-      await api.post('/api/admin/notifications/send', {
-        user_group: st.annWho, category: 'announcement',
-        project: st.annWho === 'all' ? null : st.annWho,
-        title: st.annTitle, message: st.annBody, link: st.annLink || null,
-        expires_at: expires, send_push: st.annPush, icon: 'fa-bullhorn'
+      await api.post('/api/admin/member-announcements', {
+        project_key: project, title: st.annTitle, body: st.annBody || null,
+        link_section: st.annLink || null, push: st.annPush ? 1 : 0,
+        audience_scope: project ? 'interested' : 'everyone'
       });
-      st.annTitle = ''; st.annBody = ''; st.annLink = ''; st.annPush = false;
+      try {
+        await api.post('/api/admin/notifications/send', {
+          user_group: st.annWho, category: 'announcement',
+          project, title: st.annTitle, message: st.annBody, link: st.annLink || null,
+          expires_at: expires, send_push: false, icon: 'fa-bullhorn'
+        });
+      } catch (e) { /* bell mirror is best-effort — the member-facing row is already in */ }
+      st.annTitle = ''; st.annBody = ''; st.annLink = ''; st.annPush = false; st.annEditId = null;
       ui.toast(COPY.announce.published);
-      const r = await api.settle({ recent: api.get('/api/admin/notifications/user-notifications?limit=100') });
-      if (r.recent && Array.isArray(r.recent.notifications)) D.recent = r.recent.notifications;
+      await reloadAnnouncements();
       rerender('[data-block="announcer"]', blockAnnouncer());
-      rerender('[data-block="recentAnn"]', blockRecentAnn());
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
     el.removeAttribute('aria-disabled');
+  },
+  annEdit: (el) => { st.annEditId = el.dataset.id; st.annConfirm = null; rerender('[data-block="recentAnn"]', blockRecentAnn()); },
+  annCancelEdit: () => { st.annEditId = null; rerender('[data-block="recentAnn"]', blockRecentAnn()); },
+  annSave: async (el) => {
+    const id = el.dataset.id;
+    const title = readRole('annEdTitle').trim();
+    if (!title) { ui.toast(COPY.announce.titleFirst); return; }
+    try {
+      await api.put('/api/admin/member-announcements/' + encodeURIComponent(id), {
+        title, body: readRole('annEdBody').trim() || null, link_section: readRole('annEdLink').trim() || null
+      });
+      st.annEditId = null;
+      ui.toast(COPY.announce.saved);
+      await reloadAnnouncements();
+    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
   annRemove: async (el) => {
     const id = el.dataset.id;
     if (st.annConfirm !== id) { st.annConfirm = id; rerender('[data-block="recentAnn"]', blockRecentAnn()); return; }
     try {
-      await api.del('/api/admin/notifications/user-notifications/' + encodeURIComponent(id));
+      await api.del('/api/admin/member-announcements/' + encodeURIComponent(id));
       st.annConfirm = null;
-      D.recent = D.recent.filter(r => r.id !== id);
+      D.memberAnns = D.memberAnns.filter(r => r.id !== id);
       ui.toast(COPY.announce.removed);
       rerender('[data-block="recentAnn"]', blockRecentAnn());
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
@@ -1327,7 +1384,7 @@ export default {
       tab, focusCompose: String((ctx.params && ctx.params.tab) || '') === 'email',
       audience: 'everyone', filter: '', manual: false, picked: new Set(), subject: '', body: '',
       msgFilter: 'needs', openKey: null, thread: [], replyDraft: '', msgAttach: null, replySending: false, canned: null,
-      annWho: 'all', annTitle: '', annBody: '', annLink: '', annUntil: '', annPush: false, annConfirm: null,
+      annWho: 'all', annTitle: '', annBody: '', annLink: '', annUntil: '', annPush: false, annConfirm: null, annEditId: null,
       nlCompose: false, nlSubject: '', nlBody: '', nlTopic: 'all', nlEmail: true, nlPortal: true, nlReplace: null,
       chOpen: null, chAdding: false, chNew: '', chDraft: '', chMsgs: [], replyTo: null, chDelConfirm: null,
       previewBatch: null, previewData: null, editOpen: false, editSubject: '', editBody: '', discardConfirm: null
