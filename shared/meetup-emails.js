@@ -232,16 +232,25 @@ function invited(p = {}) {
     });
 }
 
-// ================================================================ 05 · YOU CANCELLED
+// ================================================================ 05 · YOUR PLACE IS RELEASED
+// Two voices, one builder: a receipt when the person cancelled it themselves, and a plain notice
+// when an organizer released it for them — the thank-you would read strangely in that case.
 function cancelledByYou(p = {}) {
     const m = p.meetup || {};
     const name = esc(p.firstName || 'there');
+    const byOrganizer = !!p.byOrganizer;
+    const elsewhere = p.browseUrl
+        ? `there are usually a few places left elsewhere in the week — <a href="${escUrl(p.browseUrl)}" style="color:${DT.gold};text-decoration:underline;">have a look</a>.`
+        : 'write to us and we will see what is still open.';
     return meetupShell({
-        eyebrow: 'Cancelled',
+        eyebrow: byOrganizer ? 'A change to your place' : 'Cancelled',
         headline: `Your place is released, <i>${name}</i>.`,
         preheader: `You are no longer on the list for ${m.title || 'the meetup'}.`,
-        bodyHtml: `<p style="margin:0 0 10px;">You are off the list for <b class="em-ink" style="color:${DT.ink};">${esc(m.title || 'the meetup')}</b>, and the place has gone to the next person waiting. Thank you for telling us — that is exactly how it should work.</p>
-                   <p style="margin:0;">If your plans change again, ${p.browseUrl ? `there are usually a few places left elsewhere in the week — <a href="${escUrl(p.browseUrl)}" style="color:${DT.gold};text-decoration:underline;">have a look</a>.` : 'write to us and we will see what is still open.'}</p>`,
+        bodyHtml: byOrganizer
+            ? `<p style="margin:0 0 10px;">One of the organizers has released your place at <b class="em-ink" style="color:${DT.ink};">${esc(m.title || 'the meetup')}</b>${p.reason ? `: ${esc(p.reason)}` : '.'} Nothing is owed and nothing is needed from you.</p>
+               <p style="margin:0;">If that was not what you expected, just reply to this email and we will put it right. Otherwise, ${elsewhere}</p>`
+            : `<p style="margin:0 0 10px;">You are off the list for <b class="em-ink" style="color:${DT.ink};">${esc(m.title || 'the meetup')}</b>, and the place has gone to the next person waiting. Thank you for telling us — that is exactly how it should work.</p>
+               <p style="margin:0;">If your plans change again, ${elsewhere}</p>`,
         facts: factRows({ meetup: m, hostLine: p.hostLine }),
         rule: 'crimson'
     });

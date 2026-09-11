@@ -499,6 +499,9 @@ const rowFor = (mid, email) => q.get('SELECT * FROM plexus_meetup_attendees WHER
         const r = await cancel('u-ana', A.id);
         assert.strictEqual(r.status, 200);
         assert.strictEqual(r.body.promoted, true);
+        const receipt = sentTo('ana@example.hr')[0];
+        assert.ok(receipt, 'the portal button should leave a receipt — its toast is gone in a second');
+        assert.match(receipt.html, /Thank you for telling us/, 'a self-cancel is thanked');
         const luka = rowFor(A.id, 'luka@example.hr');
         assert.strictEqual(luka.status, 'confirmed');
         assert.ok(luka.promoted_at, 'promoted_at stamped');
@@ -887,6 +890,22 @@ const rowFor = (mid, email) => q.get('SELECT * FROM plexus_meetup_attendees WHER
         assert.strictEqual(on.body.attendee.checked_in, true);
         const off = await app.call('POST', '/api/v2/meetups-ops/attendees/:aid/checkin', { user: ADMIN, params: { aid: a.id }, body: { checked_in: false } });
         assert.strictEqual(off.body.attendee.checked_in, false);
+    });
+    await t('an ORGANIZER releasing a place never thanks the guest for doing it', async () => {
+        const F = await createMeetup({ title: 'Coffee before the keynote', capacity: 2, starts_at: '2026-12-04T08:30' });
+        await publish(F.id);
+        await join('u-ana', F.id);
+        clearMail();
+        const r = await app.call('POST', '/api/v2/meetups-ops/attendees/:aid/cancel', {
+            user: ADMIN, params: { aid: rowFor(F.id, 'ana@example.hr').id }, body: { reason: 'the table moved to Friday' }
+        });
+        assert.strictEqual(r.status, 200);
+        const e = sentTo('ana@example.hr')[0];
+        assert.ok(e, 'the guest must be told');
+        assert.match(e.subject, /Your place is released/);
+        assert.match(e.html, /One of the organizers has released your place/);
+        assert.match(e.html, /the table moved to Friday/);
+        assert.ok(!/Thank you for telling us/.test(e.html), 'the guest did not do this — do not thank them for it');
     });
     await t('an admin can force-promote, and cannot promote into a full table', async () => {
         const D = await createMeetup({ title: 'Visit to the sleep lab', kind: 'visit', capacity: 1, starts_at: '2026-12-04T15:00' });

@@ -493,7 +493,9 @@ module.exports = function mountMeetupsOps(app, ctx) {
             const result = core.cancelAndPromote(cx, hit.m, hit.a, (req.user && req.user.email) || 'admin');
             persist();
             if ((req.body || {}).notify !== false && result.cancelled && !result.noop) {
-                await send(result.cancelled.email, `Cancelled — ${hit.m.title}`, mail.cancelledByYou(mailParams(result.cancelled, hit.m)));
+                // byOrganizer: the guest did not do this, so the email must not thank them for it.
+                await send(result.cancelled.email, `Your place is released — ${hit.m.title}`,
+                    mail.cancelledByYou(mailParams(result.cancelled, hit.m, { byOrganizer: true, reason: clean((req.body || {}).reason, 300) || null })));
             }
             await afterCancel(hit.m, result);
             auditAdmin(req, 'meetups.attendee_cancel', `${hit.a.email} ← ${hit.m.title}${result.promoted ? ' (promoted ' + result.promoted.email + ')' : ''}`);

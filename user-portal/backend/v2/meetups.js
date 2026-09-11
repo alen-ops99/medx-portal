@@ -425,7 +425,9 @@ module.exports = function mountMeetups(app, ctx) {
             if (!mine || mine.status === 'cancelled') return res.status(404).json({ error: 'You do not have a place at this meetup.' });
             const result = core.cancelAndPromote(cx, m, mine, myEmail(req));
             persist();
-            await afterCancel(m, result, { notifyCancelled: false });   // they just clicked it themselves
+            // A receipt, because the portal's toast is gone in a second and nothing else says it
+            // happened. The manage PAGE is its own receipt, so that path stays silent.
+            await afterCancel(m, result);
             res.json({ success: true, promoted: !!result.promoted, meetup: meetupJson(m, { mine: result.cancelled }) });
         } catch (e) { log('cancel:', e.message); res.status(500).json({ error: 'Could not cancel your place — please try again.' }); }
     });
