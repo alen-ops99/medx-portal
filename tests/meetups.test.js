@@ -377,6 +377,14 @@ const rowFor = (mid, email) => q.get('SELECT * FROM plexus_meetup_attendees WHER
         assert.strictEqual(r.body.edition.id, 'plexus-2027');
         assert.strictEqual(r.body.archived, true);
     });
+    await t('editionForDate maps a legacy row to the edition of its created_at YEAR', () => {
+        // Nothing is migrated (spec §1): croatians_abroad / gala rows carry no edition_id, so they
+        // resolve through the year they were created in, falling back to the active edition.
+        assert.strictEqual(editionsLib.editionForDate(q, '2027-04-02T09:00:00Z').id, 'plexus-2027');
+        assert.strictEqual(editionsLib.editionForDate(q, '2026-11-30').id, 'plexus-2026');
+        assert.strictEqual(editionsLib.editionForDate(q, '1999-01-01').id, ed().id, 'an unknown year falls back to the active edition');
+        assert.strictEqual(editionsLib.editionForDate(q, null).id, ed().id);
+    });
 
     // ============================================================ CREATE + PUBLISH
     let A = null;                       // the main 3-seat coffee table
@@ -980,6 +988,16 @@ const rowFor = (mid, email) => q.get('SELECT * FROM plexus_meetup_attendees WHER
         const host = await app.call('GET', '/api/v2/meetups/mine', { user: asUser('u-hostA') });
         assert.ok(host.body.hosting.length >= 1, 'hosting list empty');
         assert.ok(host.body.hosting[0].host_url.includes('/app/plexus/meetups/'));
+    });
+    await t('"Past editions" answers what I attended in that edition, read-only', async () => {
+        const now = await app.call('GET', '/api/v2/plexus-week/overview', { user: asUser('u-luka') });
+        assert.ok(now.body.mine && Array.isArray(now.body.mine.meetups) && Array.isArray(now.body.mine.registrations));
+        assert.ok(now.body.mine.meetups.length >= 1, 'a member with places saw an empty summary');
+        assert.ok('attended' in now.body.mine.meetups[0], 'the summary should say whether I actually turned up');
+        assert.ok(now.body.certificates_url, 'certificates live in the member wallet');
+        const past = await app.call('GET', '/api/v2/plexus-week/overview', { user: asUser('u-luka'), query: { edition: 'plexus-2027' } });
+        assert.strictEqual(past.body.archived, true);
+        assert.deepStrictEqual(past.body.mine.meetups, [], 'a different edition must not borrow this one\'s places');
     });
 
     // ============================================================ EVENT DAY · meetup door

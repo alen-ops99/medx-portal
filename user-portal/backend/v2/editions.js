@@ -190,6 +190,29 @@ module.exports = function mountEditions(app, ctx) {
         } catch (e) { log('list:', e.message); res.status(500).json({ error: 'Editions are unavailable right now.' }); }
     });
 
+    // "Past editions" → a read-only summary of what I attended that year. Meetups are the only
+    // edition-scoped thing today; the older registrations carry no edition_id and are NOT migrated
+    // (spec §1), so they resolve through editionForDate() on their created_at year instead.
+    function mineFor(ed, email) {
+        if (!ed || !email) return { meetups: [], registrations: [] };
+        const meetups = q.all(`SELECT m.id, m.title, m.starts_at, m.ends_at, a.status, a.checked_in
+                                 FROM plexus_meetup_attendees a JOIN plexus_meetups m ON m.id = a.meetup_id
+                                WHERE m.edition_id = ? AND lower(a.email) = lower(?)
+                                  AND a.status IN ('confirmed','promoted')
+                                ORDER BY m.starts_at`, [ed.id, email])
+            .map(r => ({ id: r.id, title: r.title, when_label: rangeLabel(r.starts_at, r.starts_at), attended: Number(r.checked_in) === 1 }));
+        const regs = [];
+        for (const [table, label] of [['registrations', 'Conference'], ['gala_registrations', 'Gala Evening']]) {
+            for (const r of q.all(`SELECT id, created_at, status FROM ${table} WHERE lower(email) = lower(?)`, [email])) {
+                const own = editions.editionForDate(q, r.created_at);
+                if (own && own.id === ed.id && String(r.status || '').toLowerCase() !== 'cancelled') {
+                    regs.push({ kind: label, id: r.id, year: Number(ed.year) });
+                }
+            }
+        }
+        return { meetups, registrations: regs };
+    }
+
     app.get('/api/v2/plexus-week/overview', auth, (req, res) => {
         try {
             const ed = resolve(req.query);
@@ -203,7 +226,10 @@ module.exports = function mountEditions(app, ctx) {
                 city: ed ? (ed.city || 'Zagreb') : 'Zagreb',
                 date_label: ed ? rangeLabel(ed.starts_on, ed.ends_on) : null,
                 blocks: [conferenceBlock(ed), galaBlock(ed), bridgesBlock(ed), meetupsBlock(ed, email)],
-                gala_price: galaPrice()
+                gala_price: galaPrice(),
+                // what I attended that year — the read-only "Past editions" summary
+                mine: mineFor(ed, email),
+                certificates_url: '/app/me'
             });
         } catch (e) { log('overview:', e.message); res.status(500).json({ error: 'Plexus Week is unavailable right now.' }); }
     });
