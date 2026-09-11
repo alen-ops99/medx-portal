@@ -12113,8 +12113,30 @@ async function initializeApp() {
 
     // ================= ADMIN OPS: accelerator sites (member board) =================
     // The member "Where you could go" board (member reads GET /api/accelerator/sites).
+    //
+    // Audit W5: host institutions were stored in TWO tables and three admin screens disagreed —
+    // Today and the Settings health check counted accelerator_institutions (8 rows) while this hub
+    // read accelerator_sites (0 rows, because demo-purge deletes the seeded 'Example' mentor lines
+    // on every production boot) and told the admin "No host sites entered yet."
+    // The member Accelerator page already merges the two by name (buildHosts in the member view),
+    // so this route now returns the SAME union: every curated site row, plus every active
+    // institution with no site row of its own, shaped like a site. `source` tells the UI which is
+    // which — 'institution' rows are edited in the institutions list, not here.
     app.get('/api/admin/accelerator-sites', auth, adminOnly, (req, res) => {
-        res.json(query.all('SELECT * FROM accelerator_sites ORDER BY year DESC, institution'));
+        const sites = query.all('SELECT * FROM accelerator_sites ORDER BY year DESC, institution');
+        const taken = new Set(sites.map(s => String(s.institution || '').trim().toLowerCase()).filter(Boolean));
+        let extra = [];
+        try {
+            extra = query.all('SELECT * FROM accelerator_institutions WHERE COALESCE(is_active, 1) = 1 ORDER BY sort_order, name')
+                .filter(i => !taken.has(String(i.name || '').trim().toLowerCase()))
+                .map(i => ({
+                    id: i.id, institution: i.name, city: i.city || null, country: i.country || null,
+                    lab_or_clinic: null, mentor_line: null,
+                    spots: (i.available_spots === null || i.available_spots === undefined) ? null : Number(i.available_spots),
+                    year: null, active: 1, source: 'institution'
+                }));
+        } catch (e) { /* institutions table optional */ }
+        res.json(sites.map(s => ({ ...s, source: 'site' })).concat(extra));
     });
 
     app.post('/api/admin/accelerator-sites', auth, adminOnly, (req, res) => {

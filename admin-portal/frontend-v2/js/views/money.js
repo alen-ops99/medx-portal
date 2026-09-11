@@ -30,137 +30,139 @@ import { chrome } from '../chrome.js';
 export const SOURCE = 'Admin Money.dc.html';
 
 export const COPY = {
-  // Audit #13: one-directional bilingualism — Croatian term first, small English gloss after
-  // (the rule the book headers already used); never EN/HR mixed mid-sentence.
-  title: 'Money', sub: 'sve knjige na jednom mjestu — income, receivables and spending in one place',
+  // Audit C6: this screen is now ENGLISH, like every other admin screen. The statutory Croatian
+  // bookkeeping terms (knjiga izlaznih/ulaznih računa, putni nalog, nalog za plaćanje, radna
+  // jedinica, OIB, fiskalizirani račun) are kept as a small gloss after the English heading, so a
+  // Croatian bookkeeper still recognises the book they are looking at. Dates stay dd.mm.yyyy and
+  // the CSV exports keep their Croatian column headers — those go to the bookkeeper, not the screen.
+  title: 'Money', sub: 'every book in one place — income, receivables and spending',
   fiscalYear: 'FISCAL YEAR',
   stats: {
-    collected: y => `NAPLAĆENO U ${y}.`, collectedSub: 'collected — svi projekti, svi izvori prihoda',
-    owed: 'OTVORENA POTRAŽIVANJA', owedSub: n => `still owed to us — ${fmt.plural(n, 'stavka', 'stavki')}, uključuje ručni unos (npr. MZO)`,
-    owedTitle: 'Sva potraživanja — rezervirana Gala mjesta, nenaplaćeni računi i ručno uneseno (npr. dobiven natječaj čija uplata još nije sjela)',
-    spent: 'POTROŠENO', spentSub: 'spent — ulazni računi + putni nalozi + naslijeđeni troškovi',
-    net: y => `NETO ${y}.`, netSub: 'net this year — naplaćeno minus potrošeno'
+    collected: y => `COLLECTED IN ${y}`, collectedSub: 'naplaćeno — every project, every source of income',
+    owed: 'STILL OWED TO US', owedSub: n => `otvorena potraživanja — ${fmt.plural(n, 'item', 'items')}, hand-entered receivables included`,
+    owedTitle: 'Everything still owed to us — reserved Gala seats, unsettled invoices and hand-entered receivables (a won grant whose payment has not landed yet)',
+    spent: 'SPENT', spentSub: 'potrošeno — incoming invoices + travel orders + the legacy ledger',
+    net: y => `NET ${y}`, netSub: 'collected minus spent'
   },
   jump: [
-    ['bookout', 'Izlazni računi'], ['bookin', 'Ulazni računi'], ['travel', 'Putni nalozi'],
-    ['payment', 'Nalozi za plaćanje'], ['units', 'Radne jedinice'], ['reports', 'Izvještaji'], ['tools', 'Alati']
+    ['bookout', 'Outgoing invoices'], ['bookin', 'Incoming invoices'], ['travel', 'Travel orders'],
+    ['payment', 'Payment orders'], ['units', 'Work units'], ['reports', 'Reports'], ['tools', 'Tools']
   ],
   moneyIn: {
-    title: 'NEDAVNE UPLATE', sub: 'recent money in — sav prihod, neovisno o izvoru i projektu',
-    all: 'SVE TRANSAKCIJE →', empty: 'Još ništa nije sjelo u ovoj godini.',
-    foot: 'Stripe uplate, bankovne uplate, naplaćeni računi, primljene očekivane uplate i sponzorstva — jedan tok.'
+    title: 'RECENT MONEY IN', sub: 'nedavne uplate — all income, whatever the source or project',
+    all: 'ALL TRANSACTIONS →', empty: 'Nothing has landed yet this year.',
+    foot: 'Stripe payments, bank transfers, settled invoices, received receivables and sponsorships — one stream.'
   },
   owed: {
-    title: 'OTVORENA POTRAŽIVANJA', sub: 'still owed to us — sve što nam još nije sjelo',
-    add: '+ OČEKIVANA UPLATA', addTitle: 'Upiši potraživanje koje nije račun — npr. dobiven MZO natječaj čija uplata još nije stigla',
-    expTitle: 'OČEKIVANE UPLATE — RUČNI UNOS', expEmpty: 'Ništa ručno uneseno — dodaj npr. dobiveni natječaj čija uplata još nije sjela.',
-    srcPh: 'Tko nam duguje — npr. MZO — natječaj za udruge', descPh: 'Opis (neobavezno)', amtPh: '€ iznos', datePh: 'Očekivani datum',
-    save: 'SPREMI', added: 'POTRAŽIVANJE UPISANO — ZBRAJA SE U STILL OWED', needBoth: 'TREBA IZVOR I POZITIVAN IZNOS',
-    received: 'PRIMLJENO ✓ — PREBAČENO U COLLECTED', receivedUndo: 'VRAĆENO U OTVORENA POTRAŽIVANJA',
-    receiveBtn: 'PRIMLJENO', deleted: 'POTRAŽIVANJE OBRISANO',
-    confirmDelete: s => ({ title: `Obrisati "${s}"?`, body: 'Redak nestaje iz knjige potraživanja i iz zbroja STILL OWED.', ok: 'OBRIŠI', cancel: 'OSTAVI' }),
-    statusChip: { open: 'OTVORENO', received: 'PRIMLJENO', cancelled: 'OTKAZANO' },
+    title: 'STILL OWED TO US', sub: 'otvorena potraživanja — everything that has not landed yet',
+    add: '+ EXPECTED PAYMENT', addTitle: 'Enter a receivable that is not an invoice — a won grant whose payment has not arrived yet',
+    expTitle: 'EXPECTED PAYMENTS — ENTERED BY HAND', expEmpty: 'Nothing entered by hand — add a won grant whose payment has not landed yet.',
+    srcPh: 'Who owes us — e.g. Ministry of Science — NGO grant', descPh: 'Description (optional)', amtPh: '€ amount', datePh: 'Expected date',
+    save: 'SAVE', added: 'RECEIVABLE ENTERED — IT COUNTS TOWARDS STILL OWED', needBoth: 'A SOURCE AND A POSITIVE AMOUNT ARE BOTH REQUIRED',
+    received: 'RECEIVED ✓ — MOVED INTO COLLECTED', receivedUndo: 'MOVED BACK INTO STILL OWED',
+    receiveBtn: 'RECEIVED', deleted: 'RECEIVABLE DELETED',
+    confirmDelete: s => ({ title: `Delete "${s}"?`, body: 'The row leaves the receivables book and the STILL OWED total.', ok: 'DELETE', cancel: 'KEEP' }),
+    statusChip: { open: 'OPEN', received: 'RECEIVED', cancelled: 'CANCELLED' },
     lineDoor: { gala_unpaid: '/gala', sponsor_ledger: '/gala' },
-    foot: 'Gala mjesta se naplaćuju kod projekta (Plexus › Gala) — ovdje se samo zbrajaju.'
+    foot: 'Gala seats are collected on the project (Plexus › Gala) — here they are only counted.'
   },
   book: {
-    outTitle: 'KNJIGA IZLAZNIH RAČUNA', outSub: 'outgoing invoice book — FIRA izdaje, ovdje se evidentira',
-    inTitle: 'KNJIGA ULAZNIH RAČUNA', inSub: 'incoming invoice book — svaki trošak slijedi ovaj unos',
-    add: '+ UPIŠI RAČUN', addTitleOut: 'Evidentiraj račun izdan u FIRA-i (ili ručni nefiskalizirani unos) — portal ne izdaje račune',
-    addTitleIn: 'Upiši ulazni (dobavljačev) račun',
-    sums: { total: 'UKUPNO', settled: 'NAPLAĆENO', open: 'NENAPLAĆENO', fisk: 'FISKALIZIRANI', nefisk: 'NEFISKALIZIRANI', inSettled: 'PLAĆENO', inOpen: 'NEPLAĆENO' },
+    outTitle: 'OUTGOING INVOICE BOOK', outSub: 'knjiga izlaznih računa — FIRA issues, this records',
+    inTitle: 'INCOMING INVOICE BOOK', inSub: 'knjiga ulaznih računa — every cost follows this entry',
+    add: '+ RECORD AN INVOICE', addTitleOut: 'Record an invoice issued in FIRA (or a manual non-fiscal entry) — the portal never issues invoices',
+    addTitleIn: 'Record an incoming (supplier) invoice',
+    sums: { total: 'TOTAL', settled: 'SETTLED', open: 'UNSETTLED', fisk: 'FISCAL', nefisk: 'NON-FISCAL', inSettled: 'PAID', inOpen: 'UNPAID' },
     th: {
-      broj: 'BROJ RAČUNA', kupac: 'NAZIV KUPCA', dobavljac: 'NAZIV DOBAVLJAČA', oib: 'OIB', datum: 'DATUM RAČUNA',
-      iznos: 'IZNOS', knjizenje: 'DATUM KNJIŽENJA', vrsta: 'VRSTA', naplata: 'NAPLATA', placanje: 'PLAĆANJE',
-      jedinica: 'RADNA JEDINICA', projekt: 'PROJEKT', akcije: ''
+      broj: 'INVOICE NUMBER', kupac: 'CUSTOMER', dobavljac: 'SUPPLIER', oib: 'OIB', datum: 'INVOICE DATE',
+      iznos: 'AMOUNT', knjizenje: 'BOOKING DATE', vrsta: 'TYPE', naplata: 'SETTLED', placanje: 'PAID',
+      jedinica: 'WORK UNIT', projekt: 'PROJECT', akcije: ''
     },
-    vrste: [['fiskalizirani', 'FISK.'], ['nefiskalizirani', 'NEFISK.']],
-    firaPh: 'Broj računa iz FIRA-e — npr. 26-100-0042', brojPh: 'Broj računa', partyOutPh: 'Naziv kupca', partyInPh: 'Naziv dobavljača',
-    oibPh: 'OIB (11 znamenki)', amtPh: '€ iznos', notesPh: 'Napomena (neobavezno)',
-    lblDatum: 'Datum računa', lblKnjizenje: 'Datum knjiženja', lblNaplata: 'Datum naplate (ako je naplaćen)', lblPlacanje: 'Datum plaćanja (ako je plaćen)',
-    settleAct: 'NAPLAĆENO?', settleActIn: 'PLAĆENO?', settled: d => `✓ ${dmy(d)}`,
-    added: 'RAČUN UPISAN U KNJIGU', saved: 'REDAK SPREMLJEN', deleted: 'REDAK OBRISAN IZ KNJIGE',
-    settledToast: 'OZNAČENO NAPLAĆENO — ZBROJEVI OSVJEŽENI', settledToastIn: 'OZNAČENO PLAĆENO', settleUndone: 'VRAĆENO U NENAPLAĆENE',
-    confirmDelete: n => ({ title: `Obrisati račun ${n} iz knjige?`, body: 'Briše se samo evidencija u knjizi — račun u FIRA-i (ili kod dobavljača) time ne nestaje.', ok: 'OBRIŠI', cancel: 'OSTAVI' }),
-    emptyOut: 'Knjiga je prazna za ovaj filter — upiši prvi račun iz FIRA-e.', emptyIn: 'Nema ulaznih računa za ovaj filter.',
-    legacyTitle: n => `NASLIJEĐENI RAČUNI (stari sustav) · ${n}`, legacyNote: 'read-only — knjiže se u starom alatu, ovdje se samo vide',
-    firaFoot: 'Fiskalizirani računi nastaju isključivo u FIRA-i — ovdje se broj samo prepisuje. Portal nikada ne izdaje ni generira račun. Nefiskalizirani redovi su ručni unosi.',
-    inFoot: 'Ovaj unos je obrazac za svaki trošak — SPENT i radne jedinice čitaju upravo ovu knjigu (plus putne naloge).'
+    vrste: [['fiskalizirani', 'FISCAL'], ['nefiskalizirani', 'NON-FISCAL']],
+    firaPh: 'Invoice number from FIRA — e.g. 26-100-0042', brojPh: 'Invoice number', partyOutPh: 'Customer name', partyInPh: 'Supplier name',
+    oibPh: 'OIB (11 digits)', amtPh: '€ amount', notesPh: 'Note (optional)',
+    lblDatum: 'Invoice date', lblKnjizenje: 'Booking date', lblNaplata: 'Date settled (if it has been)', lblPlacanje: 'Date paid (if it has been)',
+    settleAct: 'SETTLED?', settleActIn: 'PAID?', settled: d => `✓ ${dmy(d)}`,
+    added: 'INVOICE RECORDED IN THE BOOK', saved: 'ROW SAVED', deleted: 'ROW DELETED FROM THE BOOK',
+    settledToast: 'MARKED SETTLED — TOTALS REFRESHED', settledToastIn: 'MARKED PAID', settleUndone: 'MOVED BACK TO UNSETTLED',
+    confirmDelete: n => ({ title: `Delete invoice ${n} from the book?`, body: 'Only the record here is deleted — the invoice in FIRA (or at the supplier) does not go away.', ok: 'DELETE', cancel: 'KEEP' }),
+    emptyOut: 'The book is empty for this filter — record the first invoice from FIRA.', emptyIn: 'No incoming invoices for this filter.',
+    legacyTitle: n => `LEGACY INVOICES (old system) · ${n}`, legacyNote: 'read-only — booked in the old tool, shown here only',
+    firaFoot: 'Fiscal invoices are created only in FIRA — the number is copied here. The portal never issues or generates an invoice. Non-fiscal rows are manual entries.',
+    inFoot: 'This entry is the form every cost follows — SPENT and the work units read this book (plus travel orders).'
   },
   travel: {
-    title: 'PUTNI NALOZI', sub: 'travel orders — odvojeni od naloga za plaćanje · bez e-potpisa',
-    add: '+ NOVI PUTNI NALOG', total: y => `UKUPAN TROŠAK ${y}`,
-    th: { broj: 'BROJ NALOGA', ime: 'IME I PREZIME', datum: 'DATUM PUTOVANJA', odrediste: 'ODREDIŠTE', svrha: 'SVRHA', trosak: 'UKUPAN TROŠAK', otvoren: 'DATUM OTVARANJA', jedinica: 'RADNA JEDINICA', projekt: 'PROJEKT', akcije: '' },
-    imePh: 'Ime i prezime', odredistePh: 'Odredište', svrhaPh: 'Svrha putovanja', amtPh: '€ trošak', brojPh: 'Broj naloga (prazno = automatski)',
-    lblDatum: 'Datum putovanja', lblOtvaranje: 'Datum otvaranja',
-    personPh: 'Filter: osoba…',
-    added: n => `PUTNI NALOG ${n} OTVOREN`, saved: 'PUTNI NALOG SPREMLJEN', deleted: 'PUTNI NALOG OBRISAN',
-    confirmDelete: n => ({ title: `Obrisati putni nalog ${n}?`, body: 'Trošak nestaje iz zbroja SPENT i iz radne jedinice.', ok: 'OBRIŠI', cancel: 'OSTAVI' }),
-    empty: 'Nema putnih naloga za ovaj filter.',
-    foot: 'Svaki nalog slijedi obrazac putnog naloga: broj, osoba, datum, odredište, svrha, trošak, datum otvaranja, radna jedinica, projekt.'
+    title: 'TRAVEL ORDERS', sub: 'putni nalozi — separate from payment orders · no e-signature',
+    add: '+ NEW TRAVEL ORDER', total: y => `TOTAL COST ${y}`,
+    th: { broj: 'ORDER NUMBER', ime: 'NAME', datum: 'TRAVEL DATE', odrediste: 'DESTINATION', svrha: 'PURPOSE', trosak: 'TOTAL COST', otvoren: 'DATE OPENED', jedinica: 'WORK UNIT', projekt: 'PROJECT', akcije: '' },
+    imePh: 'Full name', odredistePh: 'Destination', svrhaPh: 'Purpose of travel', amtPh: '€ cost', brojPh: 'Order number (blank = automatic)',
+    lblDatum: 'Travel date', lblOtvaranje: 'Date opened',
+    personPh: 'Filter: person…',
+    added: n => `TRAVEL ORDER ${n} OPENED`, saved: 'TRAVEL ORDER SAVED', deleted: 'TRAVEL ORDER DELETED',
+    confirmDelete: n => ({ title: `Delete travel order ${n}?`, body: 'The cost leaves the SPENT total and its work unit.', ok: 'DELETE', cancel: 'KEEP' }),
+    empty: 'No travel orders for this filter.',
+    foot: 'Every order follows the putni nalog form: number, person, date, destination, purpose, cost, date opened, work unit, project.'
   },
   pay: {
-    title: 'NALOZI ZA PLAĆANJE', sub: 'payment orders — vlastita lista, odvojena od putnih naloga',
-    add: '+ NOVI NALOG', total: y => `UKUPNO ${y}`,
-    th: { broj: 'BROJ NALOGA', primatelj: 'PRIMATELJ', opis: 'OPIS', iznos: 'IZNOS', datum: 'DATUM NALOGA', jedinica: 'RADNA JEDINICA', projekt: 'PROJEKT', akcije: '' },
-    primateljPh: 'Primatelj — tvrtka ili osoba', opisPh: 'Opis / svrha plaćanja', amtPh: '€ iznos', brojPh: 'Broj naloga (prazno = automatski)', lblDatum: 'Datum naloga',
-    added: n => `NALOG ${n} UPISAN`, saved: 'NALOG SPREMLJEN', deleted: 'NALOG OBRISAN',
-    confirmDelete: n => ({ title: `Obrisati nalog ${n}?`, body: 'Briše se evidencija naloga za plaćanje.', ok: 'OBRIŠI', cancel: 'OSTAVI' }),
-    empty: 'Nema naloga za plaćanje za ovaj filter.',
-    foot: 'Nalozi za plaćanje najčešće izvršavaju ulazni račun, pa se ne zbrajaju u SPENT dvaput — trošak nosi knjiga ulaznih računa.'
+    title: 'PAYMENT ORDERS', sub: 'nalozi za plaćanje — their own list, separate from travel orders',
+    add: '+ NEW ORDER', total: y => `TOTAL ${y}`,
+    th: { broj: 'ORDER NUMBER', primatelj: 'PAYEE', opis: 'DESCRIPTION', iznos: 'AMOUNT', datum: 'ORDER DATE', jedinica: 'WORK UNIT', projekt: 'PROJECT', akcije: '' },
+    primateljPh: 'Payee — company or person', opisPh: 'Description / purpose of payment', amtPh: '€ amount', brojPh: 'Order number (blank = automatic)', lblDatum: 'Order date',
+    added: n => `ORDER ${n} RECORDED`, saved: 'ORDER SAVED', deleted: 'ORDER DELETED',
+    confirmDelete: n => ({ title: `Delete order ${n}?`, body: 'Only the payment-order record is deleted.', ok: 'DELETE', cancel: 'KEEP' }),
+    empty: 'No payment orders for this filter.',
+    foot: 'A payment order usually settles an incoming invoice, so it is not counted into SPENT twice — the cost sits with the incoming invoice book.'
   },
   units: {
-    title: 'RADNE JEDINICE', sub: 'work units & grant budgets — svaka knjiga se veže na jedinicu i projekt',
-    add: '+ NOVA JEDINICA',
-    th: { sifra: 'ŠIFRA', naziv: 'NAZIV', opis: '(POD)OPIS', prihod: y => `PRIHOD ${y}`, rashod: y => `RASHOD ${y}`, preneseno: 'PRENESENO', konacno: 'KONAČNO STANJE', akcije: '' },
-    sifraPh: 'Šifra — npr. RJ-2026-001', nazivPh: 'Naziv radne jedinice', opisPh: '(Pod)opis — što se knjiži na ovu jedinicu', carryPh: '€ preneseno stanje iz prethodne godine',
-    added: 'RADNA JEDINICA DODANA', saved: 'JEDINICA SPREMLJENA', deleted: 'JEDINICA OBRISANA',
-    confirmDelete: c => ({ title: `Obrisati jedinicu ${c}?`, body: 'Ide samo ako ništa nije knjiženo na nju — inače je označi neaktivnom.', ok: 'OBRIŠI', cancel: 'OSTAVI' }),
-    empty: 'Nema radnih jedinica — dodaj prvu, pa se svaki redak knjige može vezati na nju.',
-    inactive: 'NEAKTIVNA',
-    foot: 'Prihod = izlazni računi knjiženi na jedinicu · rashod = ulazni računi + putni nalozi · konačno stanje = preneseno + prihod − rashod.'
+    title: 'WORK UNITS', sub: 'radne jedinice & grant budgets — every book row ties to a unit and a project',
+    add: '+ NEW WORK UNIT',
+    th: { sifra: 'CODE', naziv: 'NAME', opis: 'DESCRIPTION', prihod: y => `INCOME ${y}`, rashod: y => `EXPENSE ${y}`, preneseno: 'CARRIED OVER', konacno: 'CLOSING BALANCE', akcije: '' },
+    sifraPh: 'Code — e.g. RJ-2026-001', nazivPh: 'Name of the work unit', opisPh: 'Description — what is booked to this unit', carryPh: '€ balance carried over from last year',
+    added: 'WORK UNIT ADDED', saved: 'WORK UNIT SAVED', deleted: 'WORK UNIT DELETED',
+    confirmDelete: c => ({ title: `Delete work unit ${c}?`, body: 'Only possible while nothing is booked to it — otherwise mark it inactive.', ok: 'DELETE', cancel: 'KEEP' }),
+    empty: 'No work units yet — add the first one and every book row can tie to it.',
+    inactive: 'INACTIVE',
+    foot: 'Income = outgoing invoices booked to the unit · expense = incoming invoices + travel orders · closing balance = carried over + income − expense.'
   },
   reports: {
-    title: 'IZVJEŠTAJI', sub: 'reports — po projektu, po radnoj jedinici, po osobi, po razdoblju',
-    groups: [['project', 'Po projektu'], ['work_unit', 'Po radnoj jedinici'], ['person', 'Po osobi']],
-    run: 'PRIKAŽI', th: { grupa: { project: 'PROJEKT', work_unit: 'RADNA JEDINICA', person: 'OSOBA' }, prihod: 'PRIHOD', rashod: 'RASHOD', neto: 'NETO', stavki: 'STAVKI' },
-    total: 'UKUPNO', legacyChip: 'uklj. naslijeđeno',
-    empty: 'Nema stavki za ovaj presjek — promijeni grupu ili raspon datuma.',
-    csv: (g, y, n) => `CSV — ${({ project: 'PO PROJEKTU', work_unit: 'PO RADNOJ JEDINICI', person: 'PO OSOBI' })[g]} · ${y} · ${fmt.plural(n, 'redak', 'redaka')}`,
-    foot: 'Prihod = izlazni računi + primljene očekivane uplate · rashod = ulazni računi + putni nalozi. Izvještaj po projektu bez dodatnih filtera uključuje i naslijeđene knjižene uplate/troškove.'
+    title: 'REPORTS', sub: 'izvještaji — by project, by work unit, by person, by period',
+    groups: [['project', 'By project'], ['work_unit', 'By work unit'], ['person', 'By person']],
+    run: 'SHOW', th: { grupa: { project: 'PROJECT', work_unit: 'WORK UNIT', person: 'PERSON' }, prihod: 'INCOME', rashod: 'EXPENSE', neto: 'NET', stavki: 'ITEMS' },
+    total: 'TOTAL', legacyChip: 'incl. legacy',
+    empty: 'Nothing for this cut — change the group or the date range.',
+    csv: (g, y, n) => `CSV — ${({ project: 'BY PROJECT', work_unit: 'BY WORK UNIT', person: 'BY PERSON' })[g]} · ${y} · ${fmt.plural(n, 'row', 'rows')}`,
+    foot: 'Income = outgoing invoices + received receivables · expense = incoming invoices + travel orders. A by-project report with no further filters also includes the legacy booked income and costs.'
   },
-  csvBtn: (label, y, n, extra) => `CSV — ${label} · ${y}${extra ? ' · ' + extra : ''} · ${fmt.plural(n, 'redak', 'redaka')}`,
-  csvStarted: f => `PREUZIMANJE KRENULO — ${f}`,
-  filters: { project: '— svi projekti —', unit: '— sve jedinice —', from: 'od', to: 'do', clear: 'OČISTI FILTERE' },
+  csvBtn: (label, y, n, extra) => `CSV — ${label} · ${y}${extra ? ' · ' + extra : ''} · ${fmt.plural(n, 'row', 'rows')}`,
+  csvStarted: f => `DOWNLOAD STARTED — ${f}`,
+  filters: { project: '— all projects —', unit: '— all work units —', from: 'from', to: 'to', clear: 'CLEAR FILTERS' },
   noUnitShort: '—',
   projects: [['plexus', 'Plexus Week'], ['gala', 'Gala'], ['accelerator', 'Accelerator'], ['forum', 'Forum'], ['bridges', 'Bridges'], ['general', 'General']],
   tools: {
     heading: 'FINANCE TOOLS', foot: 'Each opens right here — the view appears under this card.',
     rows: [
-      { id: 'tx', name: 'All transactions', note: 'naslijeđena knjiga — every euro the old flows booked' },
+      { id: 'tx', name: 'All transactions', note: 'the legacy ledger — every euro the old flows booked' },
       { id: 'stripe', name: 'Stripe payments', note: 'read-only · recent card payments', v2: true },
       { id: 'close', name: 'Close fiscal year', note: 'end-of-year lock' }
     ],
     titles: { tx: 'ALL TRANSACTIONS (LEGACY LEDGER)', stripe: 'STRIPE — RECENT CARD PAYMENTS', close: y => `CLOSE FISCAL YEAR ${y}` },
     close: '✕ CLOSE'
   },
-  tx: { foot: 'Naslijeđena knjiga uplata i troškova (Stripe, bank, mark-paid) — nova knjiženja idu kroz knjige gore.', empty: 'Nothing in the legacy books for this year.' },
+  tx: { foot: 'The legacy book of payments and costs (Stripe, bank, mark-paid) — new entries go through the books above.', empty: 'Nothing in the legacy books for this year.' },
   stripe: { gate: 'STRIPE KEY NOT SET', matched: 'MATCHED ✓', unmatched: 'NO PORTAL RECORD', foot: at => `Read-only view of the Stripe account — refreshed ${at || 'just now'}, cached for a minute.` },
   close: {
-    body: 'Closing locks every {Y} number forever — knjige, nalozi and reports stay readable but nothing can change. It asks twice, and only works after December 31.',
+    body: 'Closing locks every {Y} number forever — the books, the orders and the reports stay readable but nothing can change. It asks twice, and only works after December 31.',
     notYet: y => `AVAILABLE AFTER DEC 31, ${y}`, closeBtn: y => `CLOSE ${y} FOR GOOD`, reopen: 'REOPEN THE YEAR',
     isClosed: y => `Fiscal year ${y} is closed — every number is locked. Reopen it only to correct a genuine error.`,
     confirm1: y => ({ title: `Close ${y}?`, body: 'Every book row, order and report for the year becomes read-only.', ok: 'CONTINUE', cancel: 'KEEP IT OPEN' }),
     confirm2: y => ({ title: 'Asking twice, as promised.', body: `This locks ${y} for good — reopening later is possible but audited.`, ok: `CLOSE ${y}`, cancel: 'CANCEL' }),
     closed: 'YEAR CLOSED — EVERY NUMBER IS NOW READ-ONLY', reopened: 'YEAR REOPENED'
   },
-  editEyebrow: 'UREDI REDAK', editSave: 'SPREMI', editCancel: 'ODUSTANI'
-};
-// (the MORNING-AFTER SURVEY card left this screen per audit #15 — it lives with the email
+  editEyebrow: 'EDIT ROW', editSave: 'SAVE', editCancel: 'CANCEL'
+};// (the MORNING-AFTER SURVEY card left this screen per audit #15 — it lives with the email
 // machinery it feeds; the /api/v2/money/survey* endpoints stay alive untouched)
 
 const HAIR = 'rgba(32,27,22,.14)', HAIR12 = 'rgba(32,27,22,.12)', HAIR08 = 'rgba(32,27,22,.08)', HAIR07 = 'rgba(32,27,22,.07)';
-const SRC_TAG = { CARD: ['#e4efe7', '#22563a'], BANK: ['#e4efe7', '#22563a'], GALA: ['#fdf3df', '#8a6116'], PLEXUS: ['#eee9df', '#4a4239'], 'RAČUN': ['#e8e4f0', '#4a3a6b'], GRANT: ['#e2ecf3', '#2b567a'], SPONSOR: ['#f3e6d8', '#7a5222'] };
+const SRC_TAG = { CARD: ['#e4efe7', '#22563a'], BANK: ['#e4efe7', '#22563a'], GALA: ['#fdf3df', '#8a6116'], PLEXUS: ['#eee9df', '#4a4239'], INVOICE: ['#e8e4f0', '#4a3a6b'], GRANT: ['#e2ecf3', '#2b567a'], SPONSOR: ['#f3e6d8', '#7a5222'] };
 const INPUT = 'border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16';
 const INPUT2 = 'border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16';
 const BTN_RED = 'padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap';
@@ -250,23 +252,23 @@ const td = (v, extra) => `<td style="font-size:12.5px;padding:9px 10px;border-bo
 const tdNum = v => td(`<span style="font-family:Fraunces,serif;font-size:14px;white-space:nowrap">${v}</span>`, 'text-align:right');
 const tdActs = acts => td(`<span style="display:flex;gap:6px;justify-content:flex-end">${acts}</span>`, 'text-align:right;white-space:nowrap');
 const actBtn = (act, id, label, title) => `<span data-act="${act}" data-id="${esc(id)}"${title ? ` title="${esc(title)}"` : ''} style="${BTN_GHOST}" data-hover="border-color:#201b16">${label}</span>`;
-const csvBtn = (act, label) => `<span data-act="${act}" style="${BTN_GHOST}" data-hover="border-color:#201b16" title="Izvozi točno ono što trenutačno vidiš — filtrirani skup">${label}</span>`;
+const csvBtn = (act, label) => `<span data-act="${act}" style="${BTN_GHOST}" data-hover="border-color:#201b16" title="Exports exactly what you are looking at — the filtered set">${label}</span>`;
 const addBtn = (act, label, title) => `<span data-act="${act}"${title ? ` title="${esc(title)}"` : ''} style="padding:7px 12px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${label}</span>`;
 function selProject(role, val, withAll) {
   const opts = (withAll ? [['', COPY.filters.project]] : []).concat(COPY.projects);
-  return `<select data-role="${role}" aria-label="Projekt" style="${INPUT}">${opts.map(([v, l]) => `<option value="${v}"${v === (val || (withAll ? '' : 'general')) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+  return `<select data-role="${role}" aria-label="Project" style="${INPUT}">${opts.map(([v, l]) => `<option value="${v}"${v === (val || (withAll ? '' : 'general')) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
 }
 function selUnit(role, val, withAll) {
   const opts = (withAll ? [['', COPY.filters.unit]] : [['', '— bez jedinice —']]).concat(D.units.map(u => [u.id, `${u.code} — ${u.name}`]));
-  return `<select data-role="${role}" aria-label="Radna jedinica" style="${INPUT}">${opts.map(([v, l]) => `<option value="${esc(v)}"${v === (val || '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  return `<select data-role="${role}" aria-label="Work unit" style="${INPUT}">${opts.map(([v, l]) => `<option value="${esc(v)}"${v === (val || '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
 }
 function filterRow(cardKey, f, withPerson) {
   return `<div class="mxm-form" style="display:flex;gap:8px;align-items:center;padding:10px 20px;flex-wrap:wrap;border-bottom:1px solid ${HAIR08}">
-    ${withPerson ? `<input data-change="filter" data-card="${cardKey}" data-field="person" value="${esc(f.person || '')}" placeholder="${esc(withPerson)}" aria-label="Filter po osobi" style="${INPUT};min-width:150px">` : ''}
-    <select data-change="filter" data-card="${cardKey}" data-field="project" aria-label="Filter po projektu" style="${INPUT}">${[['', COPY.filters.project]].concat(COPY.projects).map(([v, l]) => `<option value="${v}"${v === (f.project || '') ? ' selected' : ''}>${l}</option>`).join('')}</select>
-    <select data-change="filter" data-card="${cardKey}" data-field="work_unit" aria-label="Filter po radnoj jedinici" style="${INPUT}">${[['', COPY.filters.unit]].concat(D.units.map(u => [u.id, u.code])).map(([v, l]) => `<option value="${esc(v)}"${v === (f.work_unit || '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
-    <label style="${MICRO}">${COPY.filters.from} <input type="date" lang="hr" title="dd.mm.yyyy" data-change="filter" data-card="${cardKey}" data-field="from" value="${esc(f.from || '')}" aria-label="Od datuma" style="${INPUT}"></label>
-    <label style="${MICRO}">${COPY.filters.to} <input type="date" lang="hr" title="dd.mm.yyyy" data-change="filter" data-card="${cardKey}" data-field="to" value="${esc(f.to || '')}" aria-label="Do datuma" style="${INPUT}"></label>
+    ${withPerson ? `<input data-change="filter" data-card="${cardKey}" data-field="person" value="${esc(f.person || '')}" placeholder="${esc(withPerson)}" aria-label="Filter by person" style="${INPUT};min-width:150px">` : ''}
+    <select data-change="filter" data-card="${cardKey}" data-field="project" aria-label="Filter by project" style="${INPUT}">${[['', COPY.filters.project]].concat(COPY.projects).map(([v, l]) => `<option value="${v}"${v === (f.project || '') ? ' selected' : ''}>${l}</option>`).join('')}</select>
+    <select data-change="filter" data-card="${cardKey}" data-field="work_unit" aria-label="Filter by work unit" style="${INPUT}">${[['', COPY.filters.unit]].concat(D.units.map(u => [u.id, u.code])).map(([v, l]) => `<option value="${esc(v)}"${v === (f.work_unit || '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+    <label style="${MICRO}">${COPY.filters.from} <input type="date" lang="hr" title="dd.mm.yyyy" data-change="filter" data-card="${cardKey}" data-field="from" value="${esc(f.from || '')}" aria-label="From date" style="${INPUT}"></label>
+    <label style="${MICRO}">${COPY.filters.to} <input type="date" lang="hr" title="dd.mm.yyyy" data-change="filter" data-card="${cardKey}" data-field="to" value="${esc(f.to || '')}" aria-label="To date" style="${INPUT}"></label>
     ${(f.project || f.work_unit || f.from || f.to || f.person) ? `<span data-act="clearFilter" data-id="${cardKey}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer">${COPY.filters.clear}</span>` : ''}
   </div>`;
 }
@@ -365,13 +367,13 @@ function blockOwed() {
         <span style="font-family:Fraunces,serif;font-size:19px;color:#9b1b22;white-space:nowrap">${money(D.summary.owed.total)}</span>
         ${addBtn('exToggle', c.add, c.addTitle)}
       </div>
-      <div style="padding:6px 20px 4px">${sources.map(line).join('') || `<span style="display:block;padding:12px 0;font-size:12.5px;color:#6d6459">Ništa otvoreno — sve naplaćeno.</span>`}</div>
+      <div style="padding:6px 20px 4px">${sources.map(line).join('') || `<span style="display:block;padding:12px 0;font-size:12.5px;color:#6d6459">Nothing outstanding — everything is collected.</span>`}</div>
       ${st.exOpen ? `
       <div class="mxm-form" style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-top:1px solid ${HAIR08};flex-wrap:wrap;background:#fdfbf6">
-        <input data-role="exSrc" placeholder="${esc(c.srcPh)}" aria-label="Izvor potraživanja" style="flex:2;min-width:200px;${INPUT}">
-        <input data-role="exDesc" placeholder="${esc(c.descPh)}" aria-label="Opis" style="flex:1;min-width:140px;${INPUT}">
-        <input data-role="exAmt" placeholder="${esc(c.amtPh)}" aria-label="Iznos" style="width:90px;${INPUT}">
-        <label style="${MICRO}">${esc(c.datePh)} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="exDate" aria-label="Očekivani datum" style="${INPUT}"></label>
+        <input data-role="exSrc" placeholder="${esc(c.srcPh)}" aria-label="Source of the receivable" style="flex:2;min-width:200px;${INPUT}">
+        <input data-role="exDesc" placeholder="${esc(c.descPh)}" aria-label="Description" style="flex:1;min-width:140px;${INPUT}">
+        <input data-role="exAmt" placeholder="${esc(c.amtPh)}" aria-label="Amount" style="width:90px;${INPUT}">
+        <label style="${MICRO}">${esc(c.datePh)} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="exDate" aria-label="Expected date" style="${INPUT}"></label>
         ${selProject('exProj', 'general', false)}
         ${selUnit('exUnit', '', false)}
         <span data-act="exAdd" style="${BTN_RED}" data-hover="background:#7e151b">${c.save}</span>
@@ -381,13 +383,13 @@ function blockOwed() {
       <div data-row="${esc(x.id)}" class="mx-row" style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid ${HAIR07}">
         <span class="mx-row-text" style="flex:1;min-width:0">
           <span style="display:block;font-size:13px;font-weight:600">${esc(x.source)}</span>
-          <span style="display:block;font-size:11.5px;color:#6d6459;margin-top:1px">${esc([x.description, x.expected_date ? 'očekivano ' + dmy(x.expected_date) : '', x.received_date ? 'primljeno ' + dmy(x.received_date) : '', projLabel(x.project), x.work_unit_code || ''].filter(Boolean).join(' · '))}</span>
+          <span style="display:block;font-size:11.5px;color:#6d6459;margin-top:1px">${esc([x.description, x.expected_date ? 'expected ' + dmy(x.expected_date) : '', x.received_date ? 'received ' + dmy(x.received_date) : '', projLabel(x.project), x.work_unit_code || ''].filter(Boolean).join(' · '))}</span>
         </span>
         <span style="font-family:Fraunces,serif;font-size:15px;white-space:nowrap${x.status === 'received' ? ';color:#2f7d4f' : ''}">${money(x.amount)}</span>
         ${stChip(x)}
         ${x.status === 'open' ? `<span data-act="exReceive" data-id="${esc(x.id)}" style="${BTN_RED}" data-hover="background:#7e151b">${c.receiveBtn}</span>` : ''}
         ${actBtn('exEdit', x.id, '✎', 'Uredi')}
-        ${actBtn('exDelete', x.id, '✕', 'Obriši')}
+        ${actBtn('exDelete', x.id, '✕', 'Delete')}
       </div>`).join('')}
       ${!exp.length ? `<div style="padding:12px 20px;font-size:12.5px;color:#6d6459">${c.expEmpty}</div>` : ''}
       <div style="padding:11px 20px;font-size:11.5px;color:#6d6459">${c.foot}</div>
@@ -402,8 +404,8 @@ function bookTable(dir) {
     .concat(dir === 'out' ? [{ t: th.vrsta }] : [])
     .concat([{ t: dir === 'out' ? th.naplata : th.placanje }, { t: th.jedinica }, { t: th.projekt }, { t: th.akcije, r: 1 }]);
   const vrstaTag = v => v === 'fiskalizirani'
-    ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:#e4efe7;color:#22563a;white-space:nowrap">FISK.</span>`
-    : `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:#fdf3df;color:#8a6116;white-space:nowrap">NEFISK.</span>`;
+    ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:#e4efe7;color:#22563a;white-space:nowrap">FISCAL</span>`
+    : `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:#fdf3df;color:#8a6116;white-space:nowrap">NON-FISCAL</span>`;
   const rows = data.rows.map(r => `<tr data-row="${esc(r.id)}">
       ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(r.invoice_number)}</span>`)}
       ${td(esc(r.party_name) + (r.notes ? `<span style="display:block;font-size:11px;color:#6d6459">${esc(r.notes)}</span>` : ''))}
@@ -417,7 +419,7 @@ function bookTable(dir) {
         : `<span data-act="${dir === 'out' ? 'boSettle' : 'biSettle'}" data-id="${esc(r.id)}" style="${BTN_GHOST}" data-hover="border-color:#201b16">${dir === 'out' ? c.settleAct : c.settleActIn}</span>`)}
       ${td(`<span title="${esc(unitTitle(r))}">${esc(unitLabel(r))}</span>`)}
       ${td(esc(projLabel(r.project)))}
-      ${tdActs(actBtn(dir === 'out' ? 'boEdit' : 'biEdit', r.id, '✎', 'Uredi redak') + actBtn(dir === 'out' ? 'boDelete' : 'biDelete', r.id, '✕', 'Obriši redak'))}
+      ${tdActs(actBtn(dir === 'out' ? 'boEdit' : 'biEdit', r.id, '✎', 'Edit row') + actBtn(dir === 'out' ? 'boDelete' : 'biDelete', r.id, '✕', 'Delete row'))}
     </tr>`).join('');
   const legacyRows = data.legacy_rows.map(r => `<tr style="opacity:.66">
       ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(r.invoice_number || '—')}</span>`)}
@@ -436,7 +438,7 @@ function bookTable(dir) {
   const chips = dir === 'out'
     ? chip(c.sums.total, money(s.total)) + chip(c.sums.settled, money(s.settled_total), '#2f7d4f') + chip(c.sums.open, money(s.open_total), '#9b1b22') + chip(c.sums.fisk, money(s.fisk_total)) + chip(c.sums.nefisk, money(s.nefisk_total))
     : chip(c.sums.total, money(s.total)) + chip(c.sums.inSettled, money(s.settled_total), '#2f7d4f') + chip(c.sums.inOpen, money(s.open_total), '#9b1b22');
-  const csvLabel = COPY.csvBtn(dir === 'out' ? 'IZLAZNI RAČUNI' : 'ULAZNI RAČUNI', st.year, data.rows.length + data.legacy_rows.length, filterSuffix(f));
+  const csvLabel = COPY.csvBtn(dir === 'out' ? 'OUTGOING INVOICES' : 'INCOMING INVOICES', st.year, data.rows.length + data.legacy_rows.length, filterSuffix(f));
   return { headers, rows, legacyRows, chips, csvLabel };
 }
 function blockBook(dir) {
@@ -446,14 +448,14 @@ function blockBook(dir) {
   const pfx = dir === 'out' ? 'bo' : 'bi';
   const addForm = !addOpen ? '' : `
       <div class="mxm-form" style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid ${HAIR08};flex-wrap:wrap;background:#fdfbf6">
-        ${dir === 'out' ? `<select data-role="${pfx}Vrsta" aria-label="Vrsta računa" style="${INPUT}">${c.vrste.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>` : ''}
-        <input data-role="${pfx}Num" placeholder="${esc(dir === 'out' ? c.firaPh : c.brojPh)}" aria-label="Broj računa" style="flex:1;min-width:190px;${INPUT}">
-        <input data-role="${pfx}Party" placeholder="${esc(dir === 'out' ? c.partyOutPh : c.partyInPh)}" aria-label="${dir === 'out' ? 'Naziv kupca' : 'Naziv dobavljača'}" style="flex:1;min-width:160px;${INPUT}">
+        ${dir === 'out' ? `<select data-role="${pfx}Vrsta" aria-label="Invoice type" style="${INPUT}">${c.vrste.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>` : ''}
+        <input data-role="${pfx}Num" placeholder="${esc(dir === 'out' ? c.firaPh : c.brojPh)}" aria-label="Invoice number" style="flex:1;min-width:190px;${INPUT}">
+        <input data-role="${pfx}Party" placeholder="${esc(dir === 'out' ? c.partyOutPh : c.partyInPh)}" aria-label="${dir === 'out' ? 'Customer name' : 'Supplier name'}" style="flex:1;min-width:160px;${INPUT}">
         <input data-role="${pfx}Oib" placeholder="${esc(c.oibPh)}" aria-label="OIB" maxlength="11" style="width:120px;${INPUT}">
-        <input data-role="${pfx}Amt" placeholder="${esc(c.amtPh)}" aria-label="Iznos" style="width:90px;${INPUT}">
-        <label style="${MICRO}">${c.lblDatum} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="${pfx}Date" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum računa" style="${INPUT}"></label>
-        <label style="${MICRO}">${c.lblKnjizenje} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="${pfx}Book" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum knjiženja" style="${INPUT}"></label>
-        <label style="${MICRO}">${dir === 'out' ? c.lblNaplata : c.lblPlacanje} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="${pfx}Settled" aria-label="Datum naplate" style="${INPUT}"></label>
+        <input data-role="${pfx}Amt" placeholder="${esc(c.amtPh)}" aria-label="Amount" style="width:90px;${INPUT}">
+        <label style="${MICRO}">${c.lblDatum} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="${pfx}Date" value="${esc(fmt.ymd(new Date()))}" aria-label="Invoice date" style="${INPUT}"></label>
+        <label style="${MICRO}">${c.lblKnjizenje} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="${pfx}Book" value="${esc(fmt.ymd(new Date()))}" aria-label="Booking date" style="${INPUT}"></label>
+        <label style="${MICRO}">${dir === 'out' ? c.lblNaplata : c.lblPlacanje} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="${pfx}Settled" aria-label="Date settled" style="${INPUT}"></label>
         ${selUnit(pfx + 'Unit', '', false)}
         ${selProject(pfx + 'Proj', 'general', false)}
         <span data-act="${pfx}Add" style="${BTN_RED}" data-hover="background:#7e151b">${COPY.owed.save}</span>
@@ -488,17 +490,17 @@ function blockTravel() {
       ${td(esc(r.opened_date ? dmy(r.opened_date) : '—'))}
       ${td(`<span title="${esc(unitTitle(r))}">${esc(unitLabel(r))}</span>`)}
       ${td(esc(projLabel(r.project)))}
-      ${tdActs(actBtn('trEdit', r.id, '✎', 'Uredi nalog') + actBtn('trDelete', r.id, '✕', 'Obriši nalog'))}
+      ${tdActs(actBtn('trEdit', r.id, '✎', 'Edit order') + actBtn('trDelete', r.id, '✕', 'Delete order'))}
     </tr>`).join('');
   const addForm = !st.trOpen ? '' : `
       <div class="mxm-form" style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid ${HAIR08};flex-wrap:wrap;background:#fdfbf6">
         <input data-role="trNum" placeholder="${esc(c.brojPh)}" aria-label="Broj naloga" style="width:190px;${INPUT}">
-        <input data-role="trName" placeholder="${esc(c.imePh)}" aria-label="Ime i prezime" style="flex:1;min-width:150px;${INPUT}">
-        <label style="${MICRO}">${c.lblDatum} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="trDate" aria-label="Datum putovanja" style="${INPUT}"></label>
-        <input data-role="trDest" placeholder="${esc(c.odredistePh)}" aria-label="Odredište" style="flex:1;min-width:130px;${INPUT}">
-        <input data-role="trPurpose" placeholder="${esc(c.svrhaPh)}" aria-label="Svrha" style="flex:1;min-width:150px;${INPUT}">
-        <input data-role="trAmt" placeholder="${esc(c.amtPh)}" aria-label="Ukupan trošak" style="width:90px;${INPUT}">
-        <label style="${MICRO}">${c.lblOtvaranje} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="trOpened" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum otvaranja" style="${INPUT}"></label>
+        <input data-role="trName" placeholder="${esc(c.imePh)}" aria-label="Full name" style="flex:1;min-width:150px;${INPUT}">
+        <label style="${MICRO}">${c.lblDatum} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="trDate" aria-label="Travel date" style="${INPUT}"></label>
+        <input data-role="trDest" placeholder="${esc(c.odredistePh)}" aria-label="Destination" style="flex:1;min-width:130px;${INPUT}">
+        <input data-role="trPurpose" placeholder="${esc(c.svrhaPh)}" aria-label="Purpose" style="flex:1;min-width:150px;${INPUT}">
+        <input data-role="trAmt" placeholder="${esc(c.amtPh)}" aria-label="Total cost" style="width:90px;${INPUT}">
+        <label style="${MICRO}">${c.lblOtvaranje} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="trOpened" value="${esc(fmt.ymd(new Date()))}" aria-label="Date opened" style="${INPUT}"></label>
         ${selUnit('trUnit', '', false)}
         ${selProject('trProj', 'general', false)}
         <span data-act="trAdd" style="${BTN_RED}" data-hover="background:#7e151b">${COPY.owed.save}</span>
@@ -526,15 +528,15 @@ function blockPayment() {
       ${td(esc(dmy(r.order_date)))}
       ${td(`<span title="${esc(unitTitle(r))}">${esc(unitLabel(r))}</span>`)}
       ${td(esc(projLabel(r.project)))}
-      ${tdActs(actBtn('poEdit', r.id, '✎', 'Uredi nalog') + actBtn('poDelete', r.id, '✕', 'Obriši nalog'))}
+      ${tdActs(actBtn('poEdit', r.id, '✎', 'Edit order') + actBtn('poDelete', r.id, '✕', 'Delete order'))}
     </tr>`).join('');
   const addForm = !st.poOpen ? '' : `
       <div class="mxm-form" style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid ${HAIR08};flex-wrap:wrap;background:#fdfbf6">
         <input data-role="poNum" placeholder="${esc(c.brojPh)}" aria-label="Broj naloga" style="width:190px;${INPUT}">
-        <input data-role="poName" placeholder="${esc(c.primateljPh)}" aria-label="Primatelj" style="flex:1;min-width:170px;${INPUT}">
-        <input data-role="poDesc" placeholder="${esc(c.opisPh)}" aria-label="Opis" style="flex:1;min-width:170px;${INPUT}">
-        <input data-role="poAmt" placeholder="${esc(c.amtPh)}" aria-label="Iznos" style="width:90px;${INPUT}">
-        <label style="${MICRO}">${c.lblDatum} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="poDate" value="${esc(fmt.ymd(new Date()))}" aria-label="Datum naloga" style="${INPUT}"></label>
+        <input data-role="poName" placeholder="${esc(c.primateljPh)}" aria-label="Payee" style="flex:1;min-width:170px;${INPUT}">
+        <input data-role="poDesc" placeholder="${esc(c.opisPh)}" aria-label="Description" style="flex:1;min-width:170px;${INPUT}">
+        <input data-role="poAmt" placeholder="${esc(c.amtPh)}" aria-label="Amount" style="width:90px;${INPUT}">
+        <label style="${MICRO}">${c.lblDatum} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="poDate" value="${esc(fmt.ymd(new Date()))}" aria-label="Order date" style="${INPUT}"></label>
         ${selUnit('poUnit', '', false)}
         ${selProject('poProj', 'general', false)}
         <span data-act="poAdd" style="${BTN_RED}" data-hover="background:#7e151b">${COPY.owed.save}</span>
@@ -542,7 +544,7 @@ function blockPayment() {
   return `
     <!-- dc: Admin Money.dc.html › "PAYMENT & TRAVEL ORDERS" (rebuilt: NALOZI ZA PLAĆANJE — own list) -->
     ${card('payment', 'payment', c.title, c.sub,
-      csvBtn('poCsv', COPY.csvBtn('NALOZI ZA PLAĆANJE', st.year, D.pay.rows.length, filterSuffix(f))) + addBtn('poToggle', c.add),
+      csvBtn('poCsv', COPY.csvBtn('PAYMENT ORDERS', st.year, D.pay.rows.length, filterSuffix(f))) + addBtn('poToggle', c.add),
       chipRow(chip(c.total(st.year), money(D.pay.sums.total)) + chip('NALOGA', fmt.num(D.pay.sums.count)))
       + filterRow('pay', f, 'Filter: primatelj…') + addForm
       + tblWrap(headers, rows, 920)
@@ -562,20 +564,20 @@ function blockUnits() {
       ${tdNum(`<span style="color:#9b1b22">${money(u.rashod)}</span>`)}
       ${tdNum(money(u.carryover_prev))}
       ${tdNum(`<span style="font-weight:600;color:${(u.konacno || 0) >= 0 ? '#201b16' : '#9b1b22'}">${money(u.konacno)}</span>`)}
-      ${tdActs(actBtn('wuEdit', u.id, '✎', 'Uredi jedinicu') + actBtn('wuDelete', u.id, '✕', 'Obriši jedinicu'))}
+      ${tdActs(actBtn('wuEdit', u.id, '✎', 'Edit work unit') + actBtn('wuDelete', u.id, '✕', 'Delete work unit'))}
     </tr>`).join('');
   const addForm = !st.wuOpen ? '' : `
       <div class="mxm-form" style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid ${HAIR08};flex-wrap:wrap;background:#fdfbf6">
-        <input data-role="wuCode" placeholder="${esc(c.sifraPh)}" aria-label="Šifra" style="width:160px;${INPUT}">
-        <input data-role="wuName" placeholder="${esc(c.nazivPh)}" aria-label="Naziv" style="flex:1;min-width:170px;${INPUT}">
-        <input data-role="wuDesc" placeholder="${esc(c.opisPh)}" aria-label="Opis" style="flex:2;min-width:200px;${INPUT}">
-        <input data-role="wuCarry" placeholder="${esc(c.carryPh)}" aria-label="Preneseno stanje" style="width:220px;${INPUT}">
+        <input data-role="wuCode" placeholder="${esc(c.sifraPh)}" aria-label="Code" style="width:160px;${INPUT}">
+        <input data-role="wuName" placeholder="${esc(c.nazivPh)}" aria-label="Name" style="flex:1;min-width:170px;${INPUT}">
+        <input data-role="wuDesc" placeholder="${esc(c.opisPh)}" aria-label="Description" style="flex:2;min-width:200px;${INPUT}">
+        <input data-role="wuCarry" placeholder="${esc(c.carryPh)}" aria-label="Balance carried over" style="width:220px;${INPUT}">
         <span data-act="wuAdd" style="${BTN_RED}" data-hover="background:#7e151b">${COPY.owed.save}</span>
       </div>`;
   return `
     <!-- dc: Admin Money.dc.html › "WORK UNITS & GRANT BUDGETS" (rebuilt: popis radnih jedinica, full add/edit) -->
     ${card('units', 'units', c.title, c.sub,
-      csvBtn('wuCsv', COPY.csvBtn('RADNE JEDINICE', st.year, D.units.length)) + addBtn('wuToggle', c.add),
+      csvBtn('wuCsv', COPY.csvBtn('WORK UNITS', st.year, D.units.length)) + addBtn('wuToggle', c.add),
       addForm
       + tblWrap(headers, rows, 980)
       + (!D.units.length ? `<div style="padding:13px 20px;font-size:12.5px;color:#6d6459">${c.empty}</div>` : '')
@@ -605,9 +607,9 @@ function blockReports() {
     ${card('reports', 'reports', c.title, c.sub,
       data ? csvBtn('repCsv', c.csv(r.group, st.year, data.rows.length)) : '',
       `<div class="mxm-form" style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid ${HAIR08};flex-wrap:wrap">
-        <select data-role="repGroup" aria-label="Grupiranje izvještaja" style="${INPUT}">${c.groups.map(([v, l]) => `<option value="${v}"${v === r.group ? ' selected' : ''}>${l}</option>`).join('')}</select>
-        <label style="${MICRO}">${COPY.filters.from} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="repFrom" value="${esc(r.from || '')}" aria-label="Od datuma" style="${INPUT}"></label>
-        <label style="${MICRO}">${COPY.filters.to} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="repTo" value="${esc(r.to || '')}" aria-label="Do datuma" style="${INPUT}"></label>
+        <select data-role="repGroup" aria-label="Report grouping" style="${INPUT}">${c.groups.map(([v, l]) => `<option value="${v}"${v === r.group ? ' selected' : ''}>${l}</option>`).join('')}</select>
+        <label style="${MICRO}">${COPY.filters.from} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="repFrom" value="${esc(r.from || '')}" aria-label="From date" style="${INPUT}"></label>
+        <label style="${MICRO}">${COPY.filters.to} <input type="date" lang="hr" title="dd.mm.yyyy" data-role="repTo" value="${esc(r.to || '')}" aria-label="To date" style="${INPUT}"></label>
         <span data-act="repRun" style="${BTN_RED}" data-hover="background:#7e151b">${c.run}</span>
       </div>`
       + (data ? (data.rows.length ? tblWrap(headers, rows, 720) : `<div style="padding:13px 20px;font-size:12.5px;color:#6d6459">${c.empty}</div>`) : '')
@@ -860,14 +862,14 @@ const handlers = {
     const r = D.travel.rows.find(x => x.id === el.dataset.id); if (!r) return;
     editModal(`${r.order_number} — ${r.traveler_name}`, [
       { role: 'order_number', label: 'Broj naloga', value: r.order_number },
-      { role: 'traveler_name', label: 'Ime i prezime', value: r.traveler_name },
-      { role: 'travel_date', label: 'Datum putovanja', value: r.travel_date, type: 'date' },
-      { role: 'destination', label: 'Odredište', value: r.destination },
-      { role: 'purpose', label: 'Svrha', value: r.purpose },
-      { role: 'total_cost', label: 'Ukupan trošak (€)', value: r.total_cost },
-      { role: 'opened_date', label: 'Datum otvaranja', value: r.opened_date, type: 'date' },
-      { role: 'work_unit_id', label: 'Radna jedinica', value: r.work_unit_id || '', options: unitOptions() },
-      { role: 'project', label: 'Projekt', value: r.project || 'general', options: COPY.projects }
+      { role: 'traveler_name', label: 'Full name', value: r.traveler_name },
+      { role: 'travel_date', label: 'Travel date', value: r.travel_date, type: 'date' },
+      { role: 'destination', label: 'Destination', value: r.destination },
+      { role: 'purpose', label: 'Purpose', value: r.purpose },
+      { role: 'total_cost', label: 'Total cost (€)', value: r.total_cost },
+      { role: 'opened_date', label: 'Date opened', value: r.opened_date, type: 'date' },
+      { role: 'work_unit_id', label: 'Work unit', value: r.work_unit_id || '', options: unitOptions() },
+      { role: 'project', label: 'Project', value: r.project || 'general', options: COPY.projects }
     ], (v, err) => {
       v.total_cost = parseAmt(v.total_cost); v.work_unit_id = v.work_unit_id || null;
       return saveRow('/api/v2/money/travel-orders/' + encodeURIComponent(r.id), v,
@@ -899,12 +901,12 @@ const handlers = {
     const r = D.pay.rows.find(x => x.id === el.dataset.id); if (!r) return;
     editModal(`${r.order_number} — ${r.recipient_name}`, [
       { role: 'order_number', label: 'Broj naloga', value: r.order_number },
-      { role: 'recipient_name', label: 'Primatelj', value: r.recipient_name },
-      { role: 'description', label: 'Opis', value: r.description },
-      { role: 'amount', label: 'Iznos (€)', value: r.amount },
-      { role: 'order_date', label: 'Datum naloga', value: r.order_date, type: 'date' },
-      { role: 'work_unit_id', label: 'Radna jedinica', value: r.work_unit_id || '', options: unitOptions() },
-      { role: 'project', label: 'Projekt', value: r.project || 'general', options: COPY.projects }
+      { role: 'recipient_name', label: 'Payee', value: r.recipient_name },
+      { role: 'description', label: 'Description', value: r.description },
+      { role: 'amount', label: 'Amount (€)', value: r.amount },
+      { role: 'order_date', label: 'Order date', value: r.order_date, type: 'date' },
+      { role: 'work_unit_id', label: 'Work unit', value: r.work_unit_id || '', options: unitOptions() },
+      { role: 'project', label: 'Project', value: r.project || 'general', options: COPY.projects }
     ], (v, err) => {
       v.amount = parseAmt(v.amount); v.work_unit_id = v.work_unit_id || null;
       return saveRow('/api/v2/money/payment-orders/' + encodeURIComponent(r.id), v,
@@ -937,11 +939,11 @@ const handlers = {
   wuEdit: el => {
     const u = D.units.find(x => x.id === el.dataset.id); if (!u) return;
     editModal(`${u.code} — ${u.name}`, [
-      { role: 'code', label: 'Šifra', value: u.code },
-      { role: 'name', label: 'Naziv', value: u.name },
+      { role: 'code', label: 'Code', value: u.code },
+      { role: 'name', label: 'Name', value: u.name },
       { role: 'description', label: '(Pod)opis', value: u.description },
-      { role: 'carryover_prev', label: 'Preneseno stanje (€)', value: u.carryover_prev },
-      { role: 'active', label: 'Status', value: u.active ? '1' : '0', options: [['1', 'Aktivna'], ['0', 'Neaktivna']] }
+      { role: 'carryover_prev', label: 'Balance carried over (€)', value: u.carryover_prev },
+      { role: 'active', label: 'Status', value: u.active ? '1' : '0', options: [['1', 'Active'], ['0', 'Inactive']] }
     ], (v, err) => {
       v.carryover_prev = parseAmt(v.carryover_prev); v.active = v.active === '1';
       return saveRow('/api/v2/money/work-units/' + encodeURIComponent(u.id), v, refreshUnits, COPY.units.saved)
@@ -984,13 +986,13 @@ const handlers = {
   exEdit: el => {
     const x = D.expected.find(r => r.id === el.dataset.id); if (!x) return;
     editModal(x.source, [
-      { role: 'source', label: 'Izvor', value: x.source },
-      { role: 'description', label: 'Opis', value: x.description },
-      { role: 'amount', label: 'Iznos (€)', value: x.amount },
-      { role: 'expected_date', label: 'Očekivani datum', value: x.expected_date, type: 'date' },
-      { role: 'project', label: 'Projekt', value: x.project || 'general', options: COPY.projects },
-      { role: 'work_unit_id', label: 'Radna jedinica', value: x.work_unit_id || '', options: unitOptions() },
-      { role: 'status', label: 'Status', value: x.status, options: [['open', 'Otvoreno'], ['received', 'Primljeno'], ['cancelled', 'Otkazano']] }
+      { role: 'source', label: 'Source', value: x.source },
+      { role: 'description', label: 'Description', value: x.description },
+      { role: 'amount', label: 'Amount (€)', value: x.amount },
+      { role: 'expected_date', label: 'Expected date', value: x.expected_date, type: 'date' },
+      { role: 'project', label: 'Project', value: x.project || 'general', options: COPY.projects },
+      { role: 'work_unit_id', label: 'Work unit', value: x.work_unit_id || '', options: unitOptions() },
+      { role: 'status', label: 'Status', value: x.status, options: [['open', 'Open'], ['received', 'Received'], ['cancelled', 'Cancelled']] }
     ], (v, err) => {
       v.amount = parseAmt(v.amount); v.work_unit_id = v.work_unit_id || null;
       return saveRow('/api/v2/money/expected/' + encodeURIComponent(x.id), v,
@@ -1055,19 +1057,19 @@ function bookEdit(dir, id) {
   const data = dir === 'out' ? D.out : D.inb;
   const r = data.rows.find(x => x.id === id); if (!r) return;
   const fields = [
-    { role: 'invoice_number', label: 'Broj računa' + (dir === 'out' ? ' (iz FIRA-e za fiskalizirane)' : ''), value: r.invoice_number },
-    { role: 'party_name', label: dir === 'out' ? 'Naziv kupca' : 'Naziv dobavljača', value: r.party_name },
+    { role: 'invoice_number', label: 'Invoice number' + (dir === 'out' ? ' (from FIRA for fiscal invoices)' : ''), value: r.invoice_number },
+    { role: 'party_name', label: dir === 'out' ? 'Customer name' : 'Supplier name', value: r.party_name },
     { role: 'party_oib', label: 'OIB', value: r.party_oib },
-    { role: 'invoice_date', label: 'Datum računa', value: r.invoice_date, type: 'date' },
-    { role: 'amount', label: 'Iznos (€)', value: r.amount },
-    { role: 'booking_date', label: 'Datum knjiženja', value: r.booking_date, type: 'date' }
+    { role: 'invoice_date', label: 'Invoice date', value: r.invoice_date, type: 'date' },
+    { role: 'amount', label: 'Amount (€)', value: r.amount },
+    { role: 'booking_date', label: 'Booking date', value: r.booking_date, type: 'date' }
   ];
-  if (dir === 'out') fields.push({ role: 'vrsta', label: 'Vrsta', value: r.vrsta, options: COPY.book.vrste.map(([v]) => [v, v]) });
+  if (dir === 'out') fields.push({ role: 'vrsta', label: 'Type', value: r.vrsta, options: COPY.book.vrste });
   fields.push(
-    { role: 'settled_date', label: dir === 'out' ? 'Datum naplate' : 'Datum plaćanja', value: r.settled_date, type: 'date' },
-    { role: 'work_unit_id', label: 'Radna jedinica', value: r.work_unit_id || '', options: unitOptions() },
-    { role: 'project', label: 'Projekt', value: r.project || 'general', options: COPY.projects },
-    { role: 'notes', label: 'Napomena', value: r.notes }
+    { role: 'settled_date', label: dir === 'out' ? 'Date settled' : 'Date paid', value: r.settled_date, type: 'date' },
+    { role: 'work_unit_id', label: 'Work unit', value: r.work_unit_id || '', options: unitOptions() },
+    { role: 'project', label: 'Project', value: r.project || 'general', options: COPY.projects },
+    { role: 'notes', label: 'Note', value: r.notes }
   );
   editModal(`${r.invoice_number} — ${r.party_name}`, fields, (v, err) => {
     v.amount = parseAmt(v.amount); v.work_unit_id = v.work_unit_id || null; v.settled_date = v.settled_date || null;
@@ -1121,7 +1123,10 @@ function ensureCss() {
   document.head.appendChild(cssEl);
 }
 
-const TAB_TARGET = { izlazni: 'bookout', ulazni: 'bookin', putni: 'travel', nalozi: 'payment', jedinice: 'units', izvjestaji: 'reports', owed: 'owed', chase: 'owed', tools: 'tools' };
+// URL slugs: the Croatian ones are kept because they are already in links and bookmarks; the
+// English aliases are added so the screen's own (now English) vocabulary works in the address bar.
+const TAB_TARGET = { izlazni: 'bookout', ulazni: 'bookin', putni: 'travel', nalozi: 'payment', jedinice: 'units', izvjestaji: 'reports', owed: 'owed', chase: 'owed', tools: 'tools',
+  outgoing: 'bookout', incoming: 'bookin', travel: 'travel', payments: 'payment', units: 'units', reports: 'reports' };
 
 export default {
   title: 'Money',

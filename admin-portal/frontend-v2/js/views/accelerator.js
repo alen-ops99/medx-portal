@@ -21,7 +21,10 @@ export const COPY = {
   stats: {
     apps: 'APPLICATIONS', appsZero: 'LIVE COUNT ONCE OPEN · REVIEW ROOM →', appsSome: line => `${line} · REVIEW ROOM →`,
     hosts: 'HOST INSTITUTIONS', hostsSub: 'managed below',
-    fellows: 'PAST FELLOWS', fellowsSub: (from, to) => `cohorts placed · ${from}–${to}`, fellowsFallbackSub: 'three cohorts placed · 2024–2026'
+    // Audit W6: the fellows figure and its sub-line come from v2_accelerator_alumni only. The old
+    // fallbacks printed 18 fellows across "three cohorts" against an empty table, which is also
+    // what the member page was inventing.
+    fellows: 'PAST FELLOWS', fellowsSub: (from, to) => from === to ? `cohort placed · ${from}` : `cohorts placed · ${from}–${to}`, fellowsFallbackSub: 'none entered yet'
   },
   dates: {
     label: 'KEY DATES', open: 'applications open', edit: 'EDIT',
@@ -38,7 +41,8 @@ export const COPY = {
     edit: 'EDIT', save: 'SAVE', cancel: 'CANCEL', remove: 'REMOVE', removeSure: 'SURE? REMOVE',
     namePh: 'Institution', placePh: 'City · lab or clinic', spotsPh: 'e.g. 2',
     spots: n => n == null || n === '' ? 'SPOTS TBC' : `${n} ${Number(n) === 1 ? 'SPOT' : 'SPOTS'}`,
-    footer: "The current cycle's four hosts sync to the member page — adding or editing here updates it instantly.",
+    footer: 'This is the same list the member page shows — adding or editing here updates it instantly.',
+    fromInst: 'FROM THE INSTITUTION LIST', fromInstTitle: 'Entered as a host institution — edit it there, or add a site row here to give it a lab, a mentor and a cycle year.',
     emptyLine: 'No host sites entered yet.',
     emptyWhy: hosts => `The 2026 cycle hosts are ${hosts.slice(0, -1).join(', ')} and the ${hosts[hosts.length - 1]} — add them here and the member page follows.`,
     added: 'ADDED — FILL CITY & FIELD, IT SYNCS TO THE MEMBER PAGE',
@@ -63,7 +67,7 @@ export const COPY = {
     namePh: 'Name', placePh: 'Placement — e.g. Mayo Clinic', yearPh: 'Year',
     pub: 'PUBLISHED', hidden: 'HIDDEN',
     emptyLine: 'No fellows entered yet.',
-    emptyWhy: n => `The published record shows ${n} fellows across three cohorts (2024–2026) — enter them here and the member page rotator goes live.`,
+    emptyWhy: 'Enter the fellows here and the member page rotator goes live — until then the member page shows no names at all.',
     added: 'ADDED — SET PLACEMENT & YEAR, THEN IT ROTATES ON THE MEMBER PAGE', saved: 'SAVED — THE MEMBER ROTATOR FOLLOWS',
     removed: 'REMOVED FROM THE RECORD', puback: on => on ? 'PUBLISHED — VISIBLE TO MEMBERS' : 'HIDDEN FROM MEMBERS — THE ROW STAYS',
     needName: 'TYPE THE FELLOW’S NAME FIRST'
@@ -157,7 +161,7 @@ function blockStats() {
   const n = apps().length;
   const line = statusLine();
   const alu = alumniRows();
-  const fellows = alu.length || FACTS.accelerator.fellows;
+  const fellows = D.alumni ? alu.length : '—';
   const fellowsSub = alu.length && D.alumni.years ? COPY.stats.fellowsSub(D.alumni.years.from, D.alumni.years.to) : COPY.stats.fellowsFallbackSub;
   return `
     <!-- dc: Admin Accelerator Hub.dc.html › "Stats + key dates" -->
@@ -210,12 +214,18 @@ function blockInstitutions() {
         </div>
         ${rows.length ? rows.map(s => {
           const place = [s.city, s.lab_or_clinic].filter(Boolean).join(' · ');
-          const editing = st.instEdit === s.id;
+          // A row that comes from accelerator_institutions (no site row of its own) is shown here so
+          // the hub agrees with Today, Settings health and the member page, but it is edited in the
+          // institution list — editing it here would write to the wrong table.
+          const fromInst = s.source === 'institution';
+          const editing = !fromInst && st.instEdit === s.id;
           return `
           <div data-row="${esc(s.id)}" style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
             <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">${esc(s.institution)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(place) || '—'}</span></span>
             <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e4efe7;color:#22563a;padding:3px 7px;white-space:nowrap">${esc(COPY.inst.spots(s.spots))}</span>
-            <span data-act="instEdit" data-id="${esc(s.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.inst.edit}</span>
+            ${fromInst
+              ? `<span title="${esc(COPY.inst.fromInstTitle)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#9a9086;white-space:nowrap">${COPY.inst.fromInst}</span>`
+              : `<span data-act="instEdit" data-id="${esc(s.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.inst.edit}</span>`}
           </div>
           ${editing ? `
             <div style="display:flex;gap:8px;align-items:center;padding:10px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.07);flex-wrap:wrap">
@@ -273,7 +283,7 @@ function blockAlumni() {
           <div class="empty" style="padding:26px 20px">
             <span style="width:28px;height:1px;background:#c9a962"></span>
             <span class="empty-line">${COPY.alumni.emptyLine}</span>
-            <span class="empty-why">${esc(COPY.alumni.emptyWhy(FACTS.accelerator.fellows))}</span>
+            <span class="empty-why">${esc(COPY.alumni.emptyWhy)}</span>
           </div>`}
         <div style="display:flex;gap:10px;padding:14px 20px">
           <input data-role="aluDraft" placeholder="${COPY.alumni.placeholder}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-width:0">

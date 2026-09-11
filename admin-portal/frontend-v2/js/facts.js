@@ -24,7 +24,10 @@ export const FACTS = Object.freeze({
   }),
   accelerator: Object.freeze({
     name: 'The Accelerator', short: 'Accelerator', opens: '2026-11-15', opensLabel: 'November 15, 2026', opensShort: 'Nov 15, 2026',
-    hosts: Object.freeze(['Cleveland Clinic', 'Mayo Clinic', 'Columbia', 'University of Zurich']), fellows: 18
+    // hosts/fellows are WORDING REFERENCES ONLY (audit W5/W6): every screen counts the live
+    // accelerator_institutions + accelerator_sites union and the v2_accelerator_alumni table.
+    // Never print these as a figure — an empty table means "none entered yet", not 18.
+    hosts: Object.freeze(['Cleveland Clinic', 'Mayo Clinic', 'Columbia', 'University of Zurich'])
   }),
   forum: Object.freeze({
     name: 'Biomedical Forum', cap: 200, membership: 'annual, renewable',

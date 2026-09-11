@@ -2,9 +2,15 @@
 // A stub renders the screen title + an "in progress" note in the empty-state voice
 // (italic Fraunces line · one sentence · one CTA) so every route in js/routes.js resolves.
 // Replace the stub file with the real module (same file name, same default export shape).
+//
+// Audit C3: this used to print the caller's `source` — an internal build note such as
+// "(current-portal Mentorship page — no artboard; restyle at implementation)" — straight onto the
+// member's screen. Every word here is member-facing copy; build notes stay in the module comment.
+// `source` is still accepted so the stub modules keep their metadata export, but it is NEVER
+// rendered. Nothing else may be rendered from it either.
 import { esc } from '../ui.js';
 
-export function makeStub({ source, title, headline, tabs = [], eyebrow = 'IN PROGRESS' }) {
+export function makeStub({ source, title, headline, tabs = [], eyebrow = 'COMING SOON', note }) {
   return {
     title,
     render(root, ctx) {
@@ -22,7 +28,7 @@ export function makeStub({ source, title, headline, tabs = [], eyebrow = 'IN PRO
       <span style="width:28px;height:1px;background:#c9a962"></span>
     </div>
     <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:46px;line-height:1.08;max-width:720px">${headline}</div>
-    <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:460px;margin-top:14px">This screen is being built from <span style="font:600 12px ui-monospace,Menlo,monospace;color:#191512">${esc(source)}</span> — the design is final, the wiring is on its way.</div>
+    <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:460px;margin-top:14px">${esc(note || 'This part of your Med&X is on its way. We will let you know the moment it opens — and if you are looking for something in particular, tell us and we will point you to it.')}</div>
     <div style="display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;justify-content:center">
       <a href="/app/home" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#191512;text-decoration:none;white-space:nowrap" data-hover="border-color:#191512;color:#191512">BACK TO HOME</a>
       ${title === 'Messages' ? '' : `<a href="/app/messages" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#191512;text-decoration:none;white-space:nowrap" data-hover="border-color:#191512;color:#191512">MESSAGE US</a>`}

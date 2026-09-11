@@ -31,7 +31,17 @@ export const COPY = {
     pillOpen: placement => `APPLICATIONS OPEN NOW · ${placement} PLACEMENTS`,
     pillClosed: placement => `APPLICATIONS CLOSED · ${placement} PLACEMENTS`,
     title: 'The Med&amp;X <i style="color:#c9a962">Accelerator</i>',
-    sub: 'For Croatian medical and biomedical students, young researchers, and young physicians. Summer research internships at Cleveland Clinic, Mayo Clinic, Columbia, and the University of Zurich.',
+    // The intro named four institutions while the tiles below listed eight (audit C2). It now
+    // derives from the same host data the tiles render: a short list is named, a long one is
+    // counted — never a second, drifting copy of the roster.
+    who: 'For Croatian medical and biomedical students, young researchers, and young physicians.',
+    sub: names => {
+      const base = COPY.hero.who + ' Summer research internships at ';
+      if (!names.length) return COPY.hero.who + ' Summer research internships at our host institutions.';
+      if (names.length > 4) return base + names.length + ' host institutions — listed below.';
+      if (names.length === 1) return base + names[0] + '.';
+      return base + names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1] + '.';
+    },
     notify: 'GET NOTIFIED WHEN APPLICATIONS OPEN',
     notified: '✓ ON THE LIST — WE’LL EMAIL YOU AT OPENING',
     start: 'START YOUR APPLICATION →',
@@ -120,17 +130,15 @@ export const COPY = {
     // live-site mirror (acc_25_2 = MGH Boston arrival, acc_25 = lab day), recompressed ≤300KB.
     photo1: { src: '/assets/ax-cohort-arrival.jpg', alt: 'A fellow arriving at Massachusetts General Hospital, Boston' },
     photo2: { src: '/assets/ax-lab-day.jpg', alt: 'Two fellows in the lab at their host institution' },
+    // Shown only when v2_accelerator_alumni has rows — no names and no cohort size are ever
+    // invented here (audit W6). The years and the count come from the table itself.
+    subNoNames: 'Where our fellows have worked.',
     fellowsLabel: range => `FELLOWS ${range}`, range: '2024–2026',
-    foot: n => `${n} fellows across the 2024–2026 cohorts · placed at our host institutions.`,
-    classOf: y => `CLASS OF ${y}`,
-    // published 2024–25 alumni names (README note 15) — COPY fallback until the admin list
-    // (GET /api/v2/accelerator/alumni) has rows
-    fallback: [
-      { name: 'Stela Lara Tenšek', where: 'CLASS OF 2025' }, { name: 'Katarina Kordić', where: 'CLASS OF 2025' },
-      { name: 'Sara Bonet', where: 'CLASS OF 2025' }, { name: 'Dora Softić', where: 'CLASS OF 2025' },
-      { name: 'Filip Jakov Klisović', where: 'CLASS OF 2025' }, { name: 'Dejana Vujnović', where: 'CLASS OF 2025' },
-      { name: 'Gracia Grabarić', where: 'CLASS OF 2024' }, { name: 'Karlo Dužević', where: 'CLASS OF 2024' }
-    ]
+    foot: (n, years) => {
+      const span = years ? (years.from === years.to ? `the ${years.from} cohort` : `the ${years.from}–${years.to} cohorts`) : 'our cohorts';
+      return `${n} ${n === 1 ? 'fellow' : 'fellows'} across ${span} · placed at our host institutions.`;
+    },
+    classOf: y => `CLASS OF ${y}`
   },
   faq: {
     n: '06', title: 'FREQUENTLY ASKED',
@@ -278,14 +286,22 @@ async function load(force) {
     followed: !!(r.topics && (r.topics.projects || []).includes('accelerator')),
     mine: Array.isArray(r.mine) ? r.mine : [],
     faq: Array.isArray(r.faq) && r.faq.length ? r.faq.map(x => ({ q: x.title || '', a: x.content || '' })) : null,
-    alumni: r.alumni && Array.isArray(r.alumni.alumni) && r.alumni.alumni.length
+    // Empty stays EMPTY (never null): an empty alumni table means the block is hidden, not that a
+    // hardcoded list of names should stand in for it (audit W6).
+    alumni: r.alumni && Array.isArray(r.alumni.alumni)
       ? r.alumni.alumni.map(a => ({ name: a.name, where: a.year ? COPY.cohorts.classOf(a.year) : (a.placement_institution || '') }))
-      : null,
+      : [],
     alumniYears: r.alumni && r.alumni.years ? r.alumni.years : null
   };
   cache = { at: Date.now(), data };
   return data;
 }
+
+// The hero sentence and the host tiles read ONE list, so they can never name different
+// institutions (audit C2).
+function hostNames() { return ((D && D.hosts) || []).map(h => String(h.name || '').trim()).filter(Boolean); }
+// True only when the alumni table has rows — no hardcoded names stand in (audit W6).
+function hasAlumni() { return !!(D && Array.isArray(D.alumni) && D.alumni.length); }
 
 // Host cards: accelerator_sites (admin "Where you could go" board) merged with
 // accelerator_institutions (blurb/logo/website/positions) by name; institutions without a site
@@ -449,7 +465,7 @@ function blockHero() {
     <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${pill}</span>
       <div class="mx-ax-display-52" style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">${COPY.hero.title}</div>
-      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:560px">${COPY.hero.sub}</div>
+      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:560px">${esc(COPY.hero.sub(hostNames()))}</div>
       <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">${heroCta()}</div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
         <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Accelerator" style="width:34px;height:18px;flex:none;cursor:pointer;background:${st.follow ? '#9b1b22' : 'rgba(247,241,230,.3)'};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:${st.follow ? '18px' : '2px'}"></span></span>
@@ -652,8 +668,12 @@ function blockApplication() {
       <div data-block="application">${appSectionInner()}</div>
   <!-- /dc -->`;
 }
+// Fellows come from v2_accelerator_alumni and NOWHERE else. There used to be a COPY fallback list
+// of eight names plus a hardcoded "18 fellows" footer, so the member page named four real people
+// and claimed a cohort size while the admin's own list said "No fellows entered yet" (audit W6).
+// The block is hidden entirely when the table is empty — see blockTeam().
 function fellowsList() {
-  const list = D.alumni || COPY.cohorts.fallback;
+  const list = D.alumni || [];
   const pages = Math.max(1, Math.ceil(list.length / 4));
   const pg = st.cohortPage % pages;
   const slice = list.slice(pg * 4, pg * 4 + 4);
@@ -670,7 +690,7 @@ function fellowsList() {
                 <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:rgba(247,241,230,.6);white-space:nowrap">${esc(f.where)}</span>
               </div>`).join('')}
             </div>
-            <div style="margin-top:auto;font-size:10.5px;color:rgba(247,241,230,.5);padding-top:10px">${COPY.cohorts.foot(FACTS.accelerator.fellows)}</div>`;
+            <div style="margin-top:auto;font-size:10.5px;color:rgba(247,241,230,.5);padding-top:10px">${esc(COPY.cohorts.foot(list.length, D.alumniYears))}</div>`;
 }
 function blockTeam() {
   return `
@@ -686,16 +706,19 @@ function blockTeam() {
           <span style="flex:1"><span style="display:block;font-size:13.5px;font-weight:600">${esc(p.name)}</span><span style="display:block;font-size:11.5px;color:#4a4239">${p.role}</span></span>
         </div>`).join('')}
         <!-- dc: Accelerator.dc.html › "PREVIOUS COHORTS" -->
+        ${/* The fellows panel renders ONLY from v2_accelerator_alumni; with the table empty the
+              column is dropped and the two cohort photos take the full width (audit W6). */''}
         <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:20px 0 10px">
           <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.cohorts.title}</span>
-          <span style="font-size:12px;color:#4a4239">${COPY.cohorts.sub}</span>
+          <span style="font-size:12px;color:#4a4239">${hasAlumni() ? COPY.cohorts.sub : COPY.cohorts.subNoNames}</span>
         </div>
-        <div class="mx-ax-cohorts" style="display:grid;grid-template-columns:1fr 1fr 1.2fr;grid-auto-rows:220px;gap:12px;padding-bottom:24px">
+        <div class="mx-ax-cohorts" style="display:grid;grid-template-columns:${hasAlumni() ? '1fr 1fr 1.2fr' : '1fr 1fr'};grid-auto-rows:220px;gap:12px;padding-bottom:24px">
           <div style="position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px)"><img data-role="cohort-photo" src="${COPY.cohorts.photo1.src}" alt="${COPY.cohorts.photo1.alt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;display:block"></div>
           <div style="position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px)"><img data-role="cohort-photo" src="${COPY.cohorts.photo2.src}" alt="${COPY.cohorts.photo2.alt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;display:block"></div>
+          ${hasAlumni() ? `
           <div style="background:#191512;color:#f7f1e6;padding:18px 22px;display:flex;flex-direction:column">
             <div data-block="fellows" style="display:flex;flex-direction:column;flex:1;min-height:0">${fellowsList()}</div>
-          </div>
+          </div>` : ''}
         </div>
         <!-- /dc -->
       </div>
@@ -1394,7 +1417,7 @@ function startTimers(applyTab) {
         if (el) el.textContent = daysTo(cd.target);
       }, 60000));
     }
-    const list = D.alumni || COPY.cohorts.fallback;
+    const list = D.alumni || [];
     if (list.length > 4) {
       const id = setInterval(() => {
         st.cohortPage++;

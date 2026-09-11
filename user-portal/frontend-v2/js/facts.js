@@ -22,7 +22,9 @@ export const FACTS = Object.freeze({
   accelerator: Object.freeze({
     name: 'The Accelerator', opens: '2026-11-15', opensLabel: 'November 15, 2026', opensShort: 'Nov 15',
     hosts: Object.freeze(['Cleveland Clinic', 'Mayo Clinic', 'Columbia', 'University of Zurich']),
-    fellows: 18, codeFormat: /^AX26-[A-Z0-9]{4}$/
+    // No `fellows` count here (audit W6): the member page prints the size of
+    // v2_accelerator_alumni, and hides the block when that table is empty.
+    codeFormat: /^AX26-[A-Z0-9]{4}$/
   }),
   forum: Object.freeze({
     name: 'Biomedical Forum', cap: 200, membership: 'annual, renewable',

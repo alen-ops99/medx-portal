@@ -759,16 +759,16 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
         if (direction === 'out') out.vrsta = b.vrsta !== undefined ? String(b.vrsta || '') : (existing ? existing.vrsta : '');
         else out.vrsta = null;
 
-        if (!out.party_name) return { error: direction === 'out' ? 'Naziv kupca is required.' : 'Naziv dobavljača is required.' };
+        if (!out.party_name) return { error: direction === 'out' ? 'A customer name is required.' : 'A supplier name is required.' };
         if (!oibOk(out.party_oib)) return { error: 'OIB must be exactly 11 digits (or left empty).' };
-        if (!isYmd(out.invoice_date)) return { error: 'Datum računa must be a date (YYYY-MM-DD).' };
-        if (!isYmd(out.booking_date)) return { error: 'Datum knjiženja must be a date (YYYY-MM-DD) — it may differ from datum računa.' };
+        if (!isYmd(out.invoice_date)) return { error: 'The invoice date must be a date (YYYY-MM-DD).' };
+        if (!isYmd(out.booking_date)) return { error: 'The booking date must be a date (YYYY-MM-DD) — it may differ from the invoice date.' };
         if (!(out.amount > 0)) return { error: 'Iznos must be a positive amount.' };
         if (direction === 'out' && !VRSTE.includes(out.vrsta)) return { error: "Vrsta must be 'fiskalizirani' or 'nefiskalizirani'." };
         if (!out.invoice_number) {
             return { error: direction === 'out' && out.vrsta === 'fiskalizirani'
                 ? 'Type the FIRA invoice number — fiscal invoices are issued only in FIRA, the portal never creates one.'
-                : 'Broj računa is required.' };
+                : 'An invoice number is required.' };
         }
         if (!unitExists(out.work_unit_id)) return { error: 'That radna jedinica does not exist — add it in the registry first.' };
         return { value: out };
@@ -851,8 +851,8 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
         out.notes = b.notes !== undefined ? (clean(b.notes, 500) || null) : (existing ? existing.notes : null);
         if (!out.traveler_name) return { error: 'Ime i prezime is required.' };
         if (!isYmd(out.travel_date)) return { error: 'Datum putovanja must be a date (YYYY-MM-DD).' };
-        if (!out.destination) return { error: 'Odredište is required.' };
-        if (!(out.total_cost >= 0)) return { error: 'Ukupan trošak cannot be negative.' };
+        if (!out.destination) return { error: 'A destination is required.' };
+        if (!(out.total_cost >= 0)) return { error: 'The total cost cannot be negative.' };
         if (!unitExists(out.work_unit_id)) return { error: 'That radna jedinica does not exist — add it in the registry first.' };
         return { value: out };
     }
@@ -1007,10 +1007,10 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
         try {
             const b = req.body || {};
             const code = clean(b.code, 40), name = clean(b.name, 160);
-            if (!code) return res.status(400).json({ error: 'Šifra radne jedinice is required.' });
+            if (!code) return res.status(400).json({ error: 'A work-unit code is required.' });
             if (!name) return res.status(400).json({ error: 'Naziv radne jedinice is required.' });
             if (getRow('SELECT id FROM v2_money_work_units WHERE LOWER(code) = ?', [code.toLowerCase()]))
-                return res.status(409).json({ error: `A work unit with šifra ${code} already exists.` });
+                return res.status(409).json({ error: `A work unit with code ${code} already exists.` });
             const id = uuid();
             db().run(`INSERT INTO v2_money_work_units (id, code, name, description, carryover_prev, active, created_by, created_at, updated_at)
                       VALUES (?,?,?,?,?,1,?, datetime('now'), ?)`,
@@ -1027,9 +1027,9 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
             const b = req.body || {};
             const code = b.code !== undefined ? clean(b.code, 40) : row.code;
             const name = b.name !== undefined ? clean(b.name, 160) : row.name;
-            if (!code || !name) return res.status(400).json({ error: 'A work unit needs both šifra and naziv.' });
+            if (!code || !name) return res.status(400).json({ error: 'A work unit needs both a code and a name.' });
             const dup = getRow('SELECT id FROM v2_money_work_units WHERE LOWER(code) = ? AND id != ?', [code.toLowerCase(), row.id]);
-            if (dup) return res.status(409).json({ error: `A work unit with šifra ${code} already exists.` });
+            if (dup) return res.status(409).json({ error: `A work unit with code ${code} already exists.` });
             db().run(`UPDATE v2_money_work_units SET code=?, name=?, description=?, carryover_prev=?, active=?, updated_at=? WHERE id=?`,
                 [code, name,
                  b.description !== undefined ? (clean(b.description, 400) || null) : row.description,
@@ -1070,7 +1070,7 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
             const b = req.body || {};
             const source = clean(b.source, 200);
             const amount = num2(b.amount);
-            if (!source) return res.status(400).json({ error: 'Who owes us? Name the source (e.g. MZO — natječaj).' });
+            if (!source) return res.status(400).json({ error: 'Who owes us? Name the source (e.g. Ministry of Science — grant).' });
             if (!(amount > 0)) return res.status(400).json({ error: 'The expected amount must be positive.' });
             if (b.work_unit_id && !unitExists(clean(b.work_unit_id, 60))) return res.status(400).json({ error: 'That radna jedinica does not exist.' });
             const id = uuid();
@@ -1206,19 +1206,19 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
         const collectedSources = [
             src('legacy_tx', 'Booked income (ledger — Stripe, bank, mark-paid)', legIn.t, legIn.c),
             src('gala_unbooked', 'Gala seats paid, not yet in the ledger', galaUnbooked.t, galaUnbooked.c),
-            src('book_out', 'Izlazni računi — naplaćeni (book rows)', bookOutCollected.t, bookOutCollected.c),
+            src('book_out', 'Outgoing invoices — settled (book rows)', bookOutCollected.t, bookOutCollected.c),
             src('expected', 'Expected income received (MZO & friends)', expReceived.t, expReceived.c),
             src('sponsor_ledger', 'Sponsors & donors paid', ledgerPaid.t, ledgerPaid.c)
         ].filter(s => s.amount > 0 || s.key === 'legacy_tx');
         const spentSources = [
             src('legacy_tx', 'Booked expenses (ledger)', legEx.t, legEx.c),
-            src('book_in', 'Ulazni računi (book rows)', bookIn.t, bookIn.c),
-            src('travel', 'Putni nalozi', travel.t, travel.c)
+            src('book_in', 'Incoming invoices (book rows)', bookIn.t, bookIn.c),
+            src('travel', 'Travel orders', travel.t, travel.c)
         ].filter(s => s.amount > 0 || s.key === 'legacy_tx');
         const owedSources = [
             src('expected', 'Expected income — entered by hand', expOpen.t, expOpen.c),
-            src('gala_unpaid', `Neplaćena Gala mjesta × ${price} € · unpaid seats incl. plus-ones`, galaOwedEur, galaUnpaid.c),
-            src('book_out_open', 'Izlazni računi — nenaplaćeni', bookOutOpen.t, bookOutOpen.c),
+            src('gala_unpaid', `Unpaid Gala seats × ${price} € · plus-ones included`, galaOwedEur, galaUnpaid.c),
+            src('book_out_open', 'Outgoing invoices — unsettled', bookOutOpen.t, bookOutOpen.c),
             src('legacy_invoices', 'Legacy invoices still open', legacyInvOpen.t, legacyInvOpen.c),
             src('sponsor_ledger', 'Sponsor pledges at invoiced', ledgerInvoiced.t, ledgerInvoiced.c)
         ].filter(s => s.amount > 0);
@@ -1238,7 +1238,7 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
                 WHERE b.direction='out' AND b.settled_date IS NOT NULL AND substr(b.booking_date,1,4) = ?
                   AND b.invoice_number NOT IN (SELECT reference FROM finance_transactions WHERE reference IS NOT NULL)
                 ORDER BY b.settled_date DESC LIMIT 20`, [y])
-            .forEach(r => recent.push({ date: r.date, label: `${r.party_name} — račun ${r.invoice_number}`, amount: num2(r.amount), source: 'RAČUN' }));
+            .forEach(r => recent.push({ date: r.date, label: `${r.party_name} — invoice ${r.invoice_number}`, amount: num2(r.amount), source: 'INVOICE' }));
         try {
             getAll(`SELECT substr(g.created_at,1,10) AS date, g.first_name, g.last_name, g.amount_paid FROM gala_registrations g
                     WHERE g.payment_status = 'paid' AND COALESCE(g.amount_paid,0) > 0

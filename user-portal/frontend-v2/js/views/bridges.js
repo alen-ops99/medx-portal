@@ -76,8 +76,11 @@ export const COPY = {
     n: '03', title: "WHERE WE'VE BEEN",
     sub: n => `${NUM_WORDS[n] || n} evenings so far — each one, a room full of new collaborations.`,
     edition: (no, isLatest, isFirst) => `EDITION ${String(no).padStart(2, '0')}${isLatest ? ' · MOST RECENT' : isFirst ? ' · THE FIRST' : ''}`,
-    photoLabel: city => `PHOTO · ${city.toUpperCase()} EVENING`,
-    guests: 'GUESTS', conns: 'NEW CONNECTIONS', dash: '—',
+    // Audit C5: no invented figures and no placeholder captions on a member page. A missing
+    // guest/connection count hides its row instead of printing "— GUESTS", and an edition with no
+    // photo yet gets a plain city plate, not the literal "PHOTO · ZÜRICH EVENING".
+    photoLabel: city => String(city || '').toUpperCase(),
+    guests: 'GUESTS', conns: 'NEW CONNECTIONS',
     gallerySoon: city => `Photos from the ${city} evening are being added — check back soon.`,
     galleryEyebrow: city => `BUILDING BRIDGES · ${city.toUpperCase()}`,
     galleryTitle: city => `The ${city} evening`, close: 'CLOSE'
@@ -104,8 +107,10 @@ function ensureCss() {
 function factsEditions() {
   // last-resort fallback (canonical editions from FACTS) when GET /api/v2/bridges/editions fails
   return FACTS.bridges.editions.map(e => ({
+    // guests/connections stay null on purpose: the card now hides a figure nobody has entered
+    // rather than printing a dash beside its label (audit C5).
     id: 'facts-' + e.n, edition_no: Number(e.n), city: e.city, venue: e.host, note: null,
-    guests: null, connections: null, photos: [], photo_label: COPY.been.photoLabel(e.city)
+    guests: null, connections: null, photos: []
   })).reverse();
 }
 
@@ -298,8 +303,13 @@ function editionCard(e, isLatest) {
   const first = Number(e.edition_no) === Math.min(...D.editions.map(x => Number(x.edition_no)));
   const photo = (Array.isArray(e.photos) && e.photos[0] && e.photos[0].url)
     ? `<img src="${esc(api.url(e.photos[0].url))}" alt="" style="width:100%;height:130px;object-fit:cover;display:block">`
-    : `<div style="height:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239;text-align:center;padding:0 12px">${esc(e.photo_label || COPY.been.photoLabel(e.city))}</div>`;
-  const num = v => (v === null || v === undefined ? COPY.been.dash : esc(fmt.num(v)));
+    : `<div style="height:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 10px Inter,sans-serif;letter-spacing:.2em;color:#4a4239;text-align:center;padding:0 12px">${esc(COPY.been.photoLabel(e.city))}</div>`;
+  // A figure nobody has entered is left out — never shown as a dash beside its label.
+  const has = v => v !== null && v !== undefined && v !== '';
+  const stat = (v, label) => has(v)
+    ? `<span style="display:flex;align-items:baseline;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;color:#9b1b22">${esc(fmt.num(v))}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#4a4239">${label}</span></span>`
+    : '';
+  const stats = stat(e.guests, COPY.been.guests) + stat(e.connections, COPY.been.conns);
   return `
         <div data-act="gallery" data-id="${esc(e.id)}" aria-label="${esc(e.city)} photos" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;cursor:pointer;text-align:left">
           ${photo}
@@ -308,10 +318,7 @@ function editionCard(e, isLatest) {
             <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${esc(e.city)}</span>
             <span style="font-size:11.5px;color:#4a4239">${esc(e.venue || '')}</span>
             <span style="font-size:11.5px;color:#4a4239;line-height:1.5;font-style:italic">${esc(e.note || '')}</span>
-            <span style="display:flex;gap:14px;border-top:1px solid rgba(25,21,18,.1);padding-top:9px;margin-top:auto">
-              <span style="display:flex;align-items:baseline;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;color:#9b1b22">${num(e.guests)}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#4a4239">${COPY.been.guests}</span></span>
-              <span style="display:flex;align-items:baseline;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;color:#9b1b22">${num(e.connections)}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#4a4239">${COPY.been.conns}</span></span>
-            </span>
+            ${stats ? `<span style="display:flex;gap:14px;border-top:1px solid rgba(25,21,18,.1);padding-top:9px;margin-top:auto">${stats}</span>` : ''}
           </div>
         </div>`;
 }
