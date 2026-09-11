@@ -18083,7 +18083,7 @@ By applying to this program, I provide the following consents:
 
         const summary = {
             plexus: {
-                registrations: query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ?', [conf?.id])?.c || 0,
+                registrations: query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations WHERE conference_status IN ('pre-registered','confirmed','registered')")?.c || 0,   // Plexus conference = the /plexus form table, not the legacy paid-registrations table
                 speakers: query.get('SELECT COUNT(*) as c FROM speakers WHERE conference_id = ?', [conf?.id])?.c || 0,
                 pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE project = 'plexus' AND status != 'done'")?.c || 0
             },
@@ -18121,8 +18121,7 @@ By applying to this program, I provide the following consents:
 
         if (eventFilter === 'all' || eventFilter === 'plexus') {
             plexusTrends = query.all(
-                "SELECT date(created_at) as date, count(*) as count FROM registrations WHERE conference_id = ? AND created_at > datetime('now', '-30 days') GROUP BY date(created_at) ORDER BY date ASC",
-                [conf?.id]
+                "SELECT date(created_at) as date, count(*) as count FROM croatians_abroad_registrations WHERE conference_status IN ('pre-registered','confirmed','registered') AND created_at > datetime('now', '-30 days') GROUP BY date(created_at) ORDER BY date ASC"
             ) || [];
         }
 
@@ -18171,8 +18170,8 @@ By applying to this program, I provide the following consents:
         const thisWeekUsers = query.get("SELECT COUNT(*) as c FROM users WHERE created_at > date('now', '-7 days')")?.c || 0;
         const lastWeekUsers = query.get("SELECT COUNT(*) as c FROM users WHERE created_at > date('now', '-14 days') AND created_at <= date('now', '-7 days')")?.c || 0;
 
-        const thisWeekRegs = query.get("SELECT COUNT(*) as c FROM registrations WHERE conference_id = ? AND created_at > date('now', '-7 days')", [conf?.id])?.c || 0;
-        const lastWeekRegs = query.get("SELECT COUNT(*) as c FROM registrations WHERE conference_id = ? AND created_at > date('now', '-14 days') AND created_at <= date('now', '-7 days')", [conf?.id])?.c || 0;
+        const thisWeekRegs = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations WHERE conference_status IN ('pre-registered','confirmed','registered') AND created_at > date('now', '-7 days')")?.c || 0;
+        const lastWeekRegs = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations WHERE conference_status IN ('pre-registered','confirmed','registered') AND created_at > date('now', '-14 days') AND created_at <= date('now', '-7 days')")?.c || 0;
 
         const thisWeekApps = query.get("SELECT COUNT(*) as c FROM accelerator_applications WHERE program_id = ? AND created_at > date('now', '-7 days')", [program?.id])?.c || 0;
         const lastWeekApps = query.get("SELECT COUNT(*) as c FROM accelerator_applications WHERE program_id = ? AND created_at > date('now', '-14 days') AND created_at <= date('now', '-7 days')", [program?.id])?.c || 0;
