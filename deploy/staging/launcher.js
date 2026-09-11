@@ -41,11 +41,21 @@ const STARTED = Date.now();
 // Persistent mode: a dedicated STAGING Turso database (never the production one). The env
 // names are deliberately different from production's TURSO_DATABASE_URL/TURSO_AUTH_TOKEN so a
 // copy-pasted prod env can never leak in — those two are stripped from the children below.
-const TURSO_URL = (process.env.STAGING_TURSO_URL || '').trim();
-const TURSO_TOKEN = (process.env.STAGING_TURSO_TOKEN || '').trim();
+// LIVE-DATA mode (Alen's go-live sign-off 2026-09-11): LIVE_DATA=1 runs the redesign backends
+// against the PRODUCTION database with the full production environment (Stripe, Brevo, wallets,
+// sheets), so the v2 portals can be reviewed on real data before medx.hr is switched. In this
+// mode nothing is stripped, the prod-URL refusal is off, emails really send and cards really
+// charge — it IS production, just served from this host.
+const LIVE_DATA = String(process.env.LIVE_DATA || '') === '1';
+const TURSO_URL = (LIVE_DATA ? (process.env.TURSO_DATABASE_URL || '') : (process.env.STAGING_TURSO_URL || '')).trim();
+const TURSO_TOKEN = (LIVE_DATA ? (process.env.TURSO_AUTH_TOKEN || '') : (process.env.STAGING_TURSO_TOKEN || '')).trim();
 const USE_TURSO = !!(TURSO_URL && TURSO_TOKEN);
-if (USE_TURSO && /medx-portal-alen-ops99|medx-portal\./i.test(TURSO_URL)) {
+if (!LIVE_DATA && USE_TURSO && /medx-portal-alen-ops99|medx-portal\./i.test(TURSO_URL)) {
     console.error('[staging] FATAL: STAGING_TURSO_URL points at the PRODUCTION database — refusing to start');
+    process.exit(1);
+}
+if (LIVE_DATA && !USE_TURSO) {
+    console.error('[staging] FATAL: LIVE_DATA=1 but TURSO_DATABASE_URL/TURSO_AUTH_TOKEN are missing');
     process.exit(1);
 }
 
@@ -75,7 +85,7 @@ if (USE_TURSO) {
 // DB rows persist in Turso — so reviewers would see broken images after each sleep.
 // deploy/staging/uploads-seed/ is committed; copy it over the backend's uploads dir at boot.
 try {
-    const SEED_UPLOADS = path.join(__dirname, 'uploads-seed');
+    const SEED_UPLOADS = LIVE_DATA ? '/nonexistent' : path.join(__dirname, 'uploads-seed');
     const TARGET_UPLOADS = path.join(ROOT, 'user-portal', 'backend', 'uploads');
     if (fs.existsSync(SEED_UPLOADS)) {
         let n = 0;
@@ -102,12 +112,25 @@ const STRIP_PREFIXES = ['RENDER', 'TURSO_', 'STRIPE_', 'BREVO_', 'RESEND_', 'GOO
 function childEnv(name, extra) {
     const env = {};
     for (const [k, v] of Object.entries(process.env)) {
-        if (STRIP_PREFIXES.some(p => k.startsWith(p))) continue;
+        if (!LIVE_DATA && STRIP_PREFIXES.some(p => k.startsWith(p))) continue;
         env[k] = v;
     }
     if (USE_TURSO) {
         env.TURSO_DATABASE_URL = TURSO_URL;
         env.TURSO_AUTH_TOKEN = TURSO_TOKEN;
+    }
+    if (LIVE_DATA) {
+        // real production semantics: real email, real Stripe, prod JWT so every HMAC link/token
+        // (review gate, passes, admin key) is interchangeable with the current prod services.
+        Object.assign(env, {
+            NODE_ENV: 'production',
+            JWT_SECRET,
+            DATABASE_PATH: path.join(DATA_DIR, `${name}-replica.db`),
+            SITE_PUBLIC_URL: process.env.SITE_PUBLIC_URL || 'https://www.medx.hr',
+            KEEP_WARM: '0',
+        }, extra);
+        delete env.EMAIL_DUMP_DIR; delete env.MEDX_STAGING;
+        return env;
     }
     Object.assign(env, {
         NODE_ENV: 'staging',
@@ -226,7 +249,7 @@ const server = http.createServer((req, res) => {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Cache-Control', 'no-store');
         res.setHeader('Access-Control-Allow-Origin', '*'); // wake pages on the Netlify sites poll this
-        return res.end(JSON.stringify({ ok, mode: USE_TURSO ? 'turso' : 'file', seeded, ...wakingPayload() }));
+        return res.end(JSON.stringify({ ok, mode: LIVE_DATA ? 'live-data' : (USE_TURSO ? 'turso' : 'file'), seeded, ...wakingPayload() }));
     }
     if (url === '/__staging/emails' || url.startsWith('/__staging/emails/')) return serveEmails(url, res);
 
