@@ -6,7 +6,7 @@
 const fs = require('fs'), path = require('path');
 const dir = path.resolve(__dirname, '..');
 const env = process.argv[2];
-if (!['staging', 'production'].includes(env)) { console.error('usage: node scripts/apply-config.js <staging|production> [--host https://…]'); process.exit(2); }
+if (!['staging', 'production', 'livereview'].includes(env)) { console.error('usage: node scripts/apply-config.js <staging|production|livereview> [--host https://…]'); process.exit(2); }
 const hostIdx = process.argv.indexOf('--host');
 if (hostIdx > 0 && process.argv[hostIdx + 1]) {
   const host = process.argv[hostIdx + 1].replace(/\/+$/, '');
