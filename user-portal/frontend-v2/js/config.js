@@ -18,7 +18,12 @@ const cfg = {
   // '/meetups' is the backend's token surface (/meetups/manage/:t, /meetups/invite/:t/accept|decline,
   // /meetups/host/:t) — NOT the client route, which is '/app/plexus/meetups'.
   serverPaths: [
-    '/api', '/plexus', '/meetups', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success',
+    // '/awards' is the public Plexus Gala awards surface (design/AWARDS-SPEC.md): the landing
+    // page, the four criteria pages with their forms, the nominee's manage/withdraw page, the
+    // reviewer's reading room and a laureate's slides page. Every one of them must work with NO
+    // login, so they are server-rendered by user-portal/backend/v2/awards.js and the SPA router
+    // never intercepts them (a /awards link is a full page load, like /plexus and /meetups).
+    '/api', '/plexus', '/meetups', '/awards', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success',
     '/invite-cancelled', '/reset-password', '/qr', '/calendar', '/verify-certificate', '/verify', '/r',
     '/unsubscribe', '/email-prefs', '/donate', '/uploads', '/f', '/speaker', '/building-bridges',
     '/donor-night', '/terms', '/privacy', '/health', '/__staging', '/__admin'

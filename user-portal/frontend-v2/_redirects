@@ -8,6 +8,8 @@
 /plexus/*  https://medx-staging.onrender.com/plexus/:splat  200
 /meetups  https://medx-staging.onrender.com/meetups  200
 /meetups/*  https://medx-staging.onrender.com/meetups/:splat  200
+/awards  https://medx-staging.onrender.com/awards  200
+/awards/*  https://medx-staging.onrender.com/awards/:splat  200
 /forum  https://medx-staging.onrender.com/forum  200
 /forum/*  https://medx-staging.onrender.com/forum/:splat  200
 /apply  https://medx-staging.onrender.com/apply  200
