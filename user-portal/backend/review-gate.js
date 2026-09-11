@@ -332,7 +332,14 @@ const VERIFY_RESEND_MS = 10 * 60 * 1000;                                 // one 
 // ---------------------------------------------------------------- approve/reject tokens
 // token = HMAC-SHA256(JWT_SECRET, 'medxrev:' + table + ':' + id).hex.slice(0,32) + '.' + table + '.' + id
 // Possession = authorization (the token travels only inside Alen's review email).
-const REVIEW_TABLES = ['bridges_registrations', 'croatians_abroad_registrations'];
+// 'award_entries' joined the allowlist on 2026-09-11 (design/AWARDS-SPEC.md): the public
+// nomination / fellowship forms are public forms like any other, so a gibberish or
+// unsafe-country submission is HELD and decided from the same approve/reject email. Adding a
+// table is additive — the token grammar below is DERIVED from this list, so a new entry can
+// never drift out of step with the regex that has to parse it.
+const REVIEW_TABLES = ['bridges_registrations', 'croatians_abroad_registrations', 'award_entries'];
+const TABLE_RE = REVIEW_TABLES.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+const TOKEN_RE = new RegExp('^([0-9a-f]{32})\\.(' + TABLE_RE + ')\\.([0-9a-fA-F-]{16,64})$');
 
 const reviewSig = (secret, table, id) => crypto.createHmac('sha256', String(secret))
     .update('medxrev:' + String(table) + ':' + String(id)).digest('hex').slice(0, 32);
@@ -343,8 +350,7 @@ function reviewToken(secret, table, id) {
 }
 
 function verifyReviewToken(secret, token) {
-    const m = /^([0-9a-f]{32})\.(bridges_registrations|croatians_abroad_registrations)\.([0-9a-fA-F-]{16,64})$/
-        .exec(String(token || ''));
+    const m = TOKEN_RE.exec(String(token || ''));
     if (!m) return null;
     const expect = reviewSig(secret, m[2], m[3]);
     if (!crypto.timingSafeEqual(Buffer.from(m[1]), Buffer.from(expect))) return null;
@@ -375,8 +381,7 @@ function verifyPageToken(secret, table, id) {
 }
 
 function parseVerifyPageToken(secret, token) {
-    const m = /^([0-9a-f]{32})\.(bridges_registrations|croatians_abroad_registrations)\.([0-9a-fA-F-]{16,64})$/
-        .exec(String(token || ''));
+    const m = TOKEN_RE.exec(String(token || ''));
     if (!m) return null;
     const expect = verifySig(secret, m[2], m[3]);
     if (!crypto.timingSafeEqual(Buffer.from(m[1]), Buffer.from(expect))) return null;
@@ -1030,6 +1035,7 @@ function mountReviewRoutes(app, deps = {}) {
 
 module.exports = {
     REVIEW_TO,
+    REVIEW_TABLES,
     looksRandom,
     stripCredentials,
     suspicionScore,

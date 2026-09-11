@@ -1149,6 +1149,11 @@ module.exports = function mountBoston(app, deps) {
 // Test seam: the SigV4 helper — tests stub putObject (never the wire) and drive presignGet as-is
 // (pure computation) against AWS's published test vector.
 module.exports._s3 = s3;
+// The awards wing (v2/awards.js) stores its optional one-page PDFs in the SAME private bucket
+// under awards/<entry id>/ and vets them with the SAME magic-byte check — reusing these two
+// rather than keeping a second, quietly diverging copy of the signer and the sniffing rules.
+module.exports._magicOk = magicOk;
+module.exports._sanitizeFilename = sanitizeFilename;
 
 // ---------------------------------------------------------------- shared page chrome
 // Same premium ink/cream/crimson/gold language as the portal's public shells (premiumPage):
