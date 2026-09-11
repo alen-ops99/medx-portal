@@ -7,6 +7,10 @@
  *   PUT  /api/v2/plexus-hub/speakers/:id/meta               admin { institution_logo_url?, event_tag? ('plexus'|'gala'|'both'|null) }
  *   GET  /api/v2/plexus-hub/stats-overrides?scope=plexus    admin → { scope, overrides: { <figure_key>: { value, updated_at } } }
  *   PUT  /api/v2/plexus-hub/stats-overrides/:scope          admin { figure_key, value }  (null/'' clears the override)
+ *   GET  /api/v2/plexus-hub/editions                        admin → { active, editions[] }   (edition switcher)
+ *   POST /api/v2/plexus-hub/editions                        admin { year, label?, city?, starts_on?, ends_on?, status? }
+ *   PATCH/api/v2/plexus-hub/editions/:id                    admin { label?, city?, starts_on?, ends_on?, status? }
+ *   POST /api/v2/plexus-hub/editions/:id/activate           admin — makes this THE active edition
  *
  * Tables (both portals share ONE database — new tables prefixed v2_, nothing renamed):
  *   v2_speaker_meta — DDL copied VERBATIM from user-portal/backend/v2/plexus.js (the member-side
@@ -16,6 +20,8 @@
  *     widget (handoff README admin note 21): scoped live numbers, any figure manually overridable.
  */
 'use strict';
+
+const editionsLib = require('../../../shared/editions');
 
 const EVENT_TAGS = ['plexus', 'gala', 'both'];
 
@@ -149,5 +155,88 @@ module.exports = function mountPlexusHub(app, ctx) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    log('plexus-hub: speaker-meta (admin wrapper) · stats-overrides (note 21)');
+    // ================================================================ PLEXUS WEEK EDITIONS
+    // "in general Plexus Week and then we can choose 2026 and once it passes we archive it and
+    // then automatically we get 27." (Alen, design/MEETUPS-SPEC.md §1.) The table, the seed and
+    // the auto-rollover live in shared/editions.js — the member backend runs the identical code
+    // against the identical rows, so neither side can drift.
+    const eq = { run: (s, p) => q.run(s, p), get: (s, p) => safeGet(s, p), all: (s, p) => safeAll(s, p) };
+    try { editionsLib.bootstrap(eq); } catch (e) { log('editions bootstrap failed:', e.message); }
+    if (!process.env.MEETUPS_NO_TIMERS && process.env.NODE_ENV !== 'test') {
+        const roll = setInterval(() => { try { editionsLib.bootstrap(eq); } catch (e) {} }, 12 * 3600 * 1000);
+        if (roll.unref) roll.unref();
+    }
+
+    const isoDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+    const editionsPayload = () => ({
+        active: editionsLib.toJson(editionsLib.activeEdition(eq)),
+        editions: editionsLib.listEditions(eq).map(editionsLib.toJson)
+    });
+
+    app.get('/api/v2/plexus-hub/editions', auth, adminOnly, (req, res) => {
+        try { res.json(editionsPayload()); }
+        catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    app.post('/api/v2/plexus-hub/editions', auth, adminOnly, (req, res) => {
+        try {
+            const b = req.body || {};
+            const year = parseInt(b.year, 10);
+            if (!Number.isFinite(year) || year < 2015 || year > 2100) return res.status(400).json({ error: 'A four-digit year between 2015 and 2100 is needed.' });
+            if (editionsLib.getEditionByYear(eq, year)) return res.status(409).json({ error: `Plexus Week ${year} already exists.` });
+            const starts = b.starts_on == null || b.starts_on === '' ? null : String(b.starts_on).slice(0, 10);
+            const ends = b.ends_on == null || b.ends_on === '' ? null : String(b.ends_on).slice(0, 10);
+            if (starts && !isoDate(starts)) return res.status(400).json({ error: 'starts_on must be an ISO date (2027-12-03).' });
+            if (ends && !isoDate(ends)) return res.status(400).json({ error: 'ends_on must be an ISO date (2027-12-06).' });
+            if (starts && ends && ends < starts) return res.status(400).json({ error: 'ends_on cannot be before starts_on.' });
+            const status = editionsLib.STATUSES.includes(String(b.status)) ? String(b.status) : 'upcoming';
+            q.run(`INSERT INTO plexus_editions (id, year, label, city, starts_on, ends_on, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                ['plexus-' + year, year, clip(b.label, 120) || `Plexus Week ${year}`, clip(b.city, 80) || 'Zagreb', starts, ends, status === 'active' ? 'upcoming' : status]);
+            if (status === 'active') editionsLib.activate(eq, 'plexus-' + year);
+            if (ctx.saveDb) try { ctx.saveDb(); } catch (e) {}
+            res.json(Object.assign({ success: true }, editionsPayload()));
+        } catch (e) { log('edition create failed:', e.message); res.status(500).json({ error: 'Could not create that edition.' }); }
+    });
+
+    app.patch('/api/v2/plexus-hub/editions/:id', auth, adminOnly, (req, res) => {
+        try {
+            const row = editionsLib.getEdition(eq, req.params.id);
+            if (!row) return res.status(404).json({ error: 'Edition not found' });
+            const b = req.body || {};
+            const sets = []; const vals = [];
+            if (b.label !== undefined) { const v = clip(b.label, 120); if (!v) return res.status(400).json({ error: 'The label cannot be empty.' }); sets.push('label = ?'); vals.push(v); }
+            if (b.city !== undefined) { sets.push('city = ?'); vals.push(clip(b.city, 80) || 'Zagreb'); }
+            for (const k of ['starts_on', 'ends_on']) {
+                if (b[k] === undefined) continue;
+                const v = b[k] == null || b[k] === '' ? null : String(b[k]).slice(0, 10);
+                if (v && !isoDate(v)) return res.status(400).json({ error: `${k} must be an ISO date.` });
+                sets.push(`${k} = ?`); vals.push(v);
+            }
+            if (b.status !== undefined) {
+                const v = String(b.status);
+                if (!editionsLib.STATUSES.includes(v)) return res.status(400).json({ error: 'status must be upcoming, active or archived.' });
+                if (v === 'active') { editionsLib.activate(eq, row.id); }
+                else { sets.push('status = ?'); vals.push(v); if (v === 'archived') { sets.push('archived_at = ?'); vals.push(new Date().toISOString()); } }
+            }
+            if (sets.length) { vals.push(row.id); q.run(`UPDATE plexus_editions SET ${sets.join(', ')} WHERE id = ?`, vals); }
+            else if (b.status === undefined) return res.status(400).json({ error: 'Nothing to update.' });
+            const after = editionsLib.getEdition(eq, row.id);
+            if (after && after.starts_on && after.ends_on && after.ends_on < after.starts_on) {
+                q.run('UPDATE plexus_editions SET ends_on = starts_on WHERE id = ?', [row.id]);
+            }
+            if (ctx.saveDb) try { ctx.saveDb(); } catch (e) {}
+            res.json(Object.assign({ success: true, edition: editionsLib.toJson(editionsLib.getEdition(eq, row.id)) }, editionsPayload()));
+        } catch (e) { log('edition patch failed:', e.message); res.status(500).json({ error: 'Could not save that edition.' }); }
+    });
+
+    app.post('/api/v2/plexus-hub/editions/:id/activate', auth, adminOnly, (req, res) => {
+        try {
+            const row = editionsLib.activate(eq, req.params.id);
+            if (!row) return res.status(404).json({ error: 'Edition not found' });
+            if (ctx.saveDb) try { ctx.saveDb(); } catch (e) {}
+            res.json(Object.assign({ success: true, edition: editionsLib.toJson(row) }, editionsPayload()));
+        } catch (e) { log('edition activate failed:', e.message); res.status(500).json({ error: 'Could not activate that edition.' }); }
+    });
+
+    log('plexus-hub: speaker-meta (admin wrapper) · stats-overrides (note 21) · Plexus Week editions + rollover');
 };
