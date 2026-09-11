@@ -5,7 +5,7 @@
 //   redirect — instead of a view: replace the URL with this path (typed-path aliases)
 //   auth     — true → guests bounce to /app/auth/signin?next=…; guestTo overrides the bounce target
 //   layout   — 'portal' (chrome) | 'auth' (ink ground, no chrome) | 'bare' (cream, no chrome)
-//   active   — drawer highlight key: Home · Plexus · Gala · Accelerator · Forum · Bridges · Network · My Med&X
+//   active   — drawer highlight key: Home · Plexus · Meetups · Gala · Accelerator · Forum · Bridges · Network · My Med&X
 //   title    — document/mobile-bar title (a view may override with its own `title`)
 const home = () => import('./views/home.js');
 export const ROUTES = [
@@ -14,7 +14,11 @@ export const ROUTES = [
   { path: '/app/home',  view: home, auth: true, guestTo: '/app/auth/welcome', active: 'Home', title: 'Home' },
   { path: '/app/auth/:view?', view: () => import('./views/auth.js'), layout: 'auth', title: 'Member Portal' },   // welcome|signin|signup|verify|reset|forum-code
   { path: '/signin',    redirect: '/app/auth/signin' },   // typed-path alias (audit small notes) — /signin used to 404
-  { path: '/app/plexus/:tab?', view: () => import('./views/plexus.js'), auth: true, active: 'Plexus', title: 'Plexus Conference' }, // program|zagreb|mine
+  // ORDER MATTERS: '/app/plexus/:tab?' would swallow '/app/plexus/meetups' (tab='meetups'), so both
+  // meetup rows are declared ABOVE it. The host row is a third segment, which ':tab?' never matches.
+  { path: '/app/plexus/meetups/:id/host', view: () => import('./views/plexus-meetups.js'), auth: true, active: 'Meetups', title: 'Hosting a meetup' },
+  { path: '/app/plexus/meetups', view: () => import('./views/plexus-meetups.js'), auth: true, active: 'Meetups', title: 'Meetups' },
+  { path: '/app/plexus/:tab?', view: () => import('./views/plexus.js'), auth: true, active: 'Plexus', title: 'Plexus Week' }, // program|zagreb|mine
   { path: '/app/gala',  view: () => import('./views/gala.js'), auth: true, active: 'Gala', title: 'Gala Evening' },
   { path: '/app/accelerator/:tab?', view: () => import('./views/accelerator.js'), auth: true, active: 'Accelerator', title: 'The Accelerator' }, // apply
   { path: '/app/forum', view: () => import('./views/forum.js'), auth: true, active: 'Forum', title: 'Biomedical Forum' },

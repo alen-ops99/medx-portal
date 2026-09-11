@@ -78,7 +78,8 @@ node scripts/apply-config.js production                    # Render build for th
 `scripts/stamp-sw.sh` (repo root) rewrites `const CACHE_NAME = 'medx-portal-v2-1'` → `…-v2-1-<sha>`; keep that line shape.
 
 Server-rendered paths (never client routes; one list in `js/config.js › serverPaths`, mirrored in `sw.js`, `dev-server.js`, `_redirects`):
-`/api /plexus /forum /apply /evaluate /pay /pass /invite /invite-success /invite-cancelled /reset-password /qr /calendar /verify-certificate /verify /r /unsubscribe /email-prefs /donate /uploads /f /speaker /building-bridges /donor-night /terms /privacy /health /__staging /__admin`.
+`/api /plexus /meetups /forum /apply /evaluate /pay /pass /invite /invite-success /invite-cancelled /reset-password /qr /calendar /verify-certificate /verify /r /unsubscribe /email-prefs /donate /uploads /f /speaker /building-bridges /donor-night /terms /privacy /health /__staging /__admin`.
+(`/meetups` is the meetup token surface — `/meetups/manage/:t`, `/meetups/invite/:t/accept|decline`, `/meetups/host/:t`. The client route is `/app/plexus/meetups`.)
 All client routes live under **`/app/…`** (plus `/`).
 
 ---
@@ -98,11 +99,15 @@ cfg.serverPaths  // string[] of server-rendered prefixes
 ```js
 import { FACTS, galaPriceNow, routeFor, PROJECT_ROUTES } from './facts.js';
 FACTS.plexus.dateRange            // 'December 4–5, 2026'   FACTS.plexus.startAt → countdown target
-FACTS.gala.priceEarly / priceRegular / priceFlip   // 150 / 175 / '2026-09-01'
+FACTS.gala.priceEarly / priceRegular / priceFlip   // 150 / 175 / '2026-09-15'  (fallback only — see setLiveGalaPrice)
 FACTS.accelerator.opensLabel      // 'December 8, 2026'     FACTS.forum.gathering.label → 'May 28–29, 2027'
 FACTS.bridges.next.label          // 'September 18–21, 2026'
 FACTS.projectOrder                // ['plexus','gala','accelerator','forum','bridges'] (hub order = /api/public/status order)
-galaPriceNow()                    // 150 before Sep 1, 175 after (fallback only — prefer /api/public/site price.current)
+galaPriceNow()                    // the live price if a view has read one, else FACTS by the clock
+setLiveGalaPrice(priceBlock)      // hand the SERVER's price block to facts.js — home.js (/api/public/site),
+galaFlipLabel() / galaFlipDate()  // gala.js (/api/v2/gala/meta) and plexus.js (/api/v2/plexus-week/overview) all do.
+                                  // galaPriceNow, galaFlipLabel, trueDateFor and reconcileEarlyBird read it
+                                  // first, so no screen can print a deadline the /plexus form does not charge by.
 routeFor('gala')                  // '/app/gala'; accepts project keys, legacy section ids, 'app:'/'site:' tokens, absolute URLs
 ```
 Rule: dates, prices, venues and caps in copy come from FACTS (or the API). Never inline them in a view.
@@ -165,7 +170,7 @@ router.navigate('/app/plexus/mine');          // pushState + render
 router.replace('/app/home');                  // replaceState + render
 router.back();  router.path;  router.current  // { module, root, path }
 ```
-Route table rows (`js/routes.js`): `{ path, view: () => import('./views/x.js'), auth, guestTo, layout, active, title }`. `path` supports `:param` and `:param?`. Guards: `auth: true` → guests go to `/app/auth/signin?next=…` (or `guestTo`); a view can bounce signed-in users itself (auth.js does). `layout`: `portal` (chrome) · `auth` (ink ground, no chrome) · `bare` (cream, no chrome). `active` = drawer highlight key (`Home · Plexus · Gala · Accelerator · Forum · Bridges · Network · My Med&X`).
+Route table rows (`js/routes.js`): `{ path, view: () => import('./views/x.js'), auth, guestTo, layout, active, title }`. `path` supports `:param` and `:param?`. Guards: `auth: true` → guests go to `/app/auth/signin?next=…` (or `guestTo`); a view can bounce signed-in users itself (auth.js does). `layout`: `portal` (chrome) · `auth` (ink ground, no chrome) · `bare` (cream, no chrome). `active` = drawer highlight key (`Home · Plexus · Meetups · Gala · Accelerator · Forum · Bridges · Network · My Med&X`).
 Link handling is global: `<a href="/app/…">` and `[data-nav="/app/…"]` route client-side; server paths and external links fall through to a full load. Scroll: back/forward restores, forward navigation scrolls to top, `#hash` targets scroll into view.
 
 ### 3.7 `js/chrome.js`
@@ -254,7 +259,9 @@ Steps to add/replace a screen:
 |---|---|---|---|---|
 | `/`, `/app`, `/app/home` | home | yes (guest → welcome) | Home | |
 | `/app/auth/:view?` | auth | public | — | `welcome` · `signin` · `signup` · `verify` · `reset` · `forum-code`; signed-in users bounce from welcome/signin/signup |
-| `/app/plexus/:tab?` | plexus (stub) | yes | Plexus | `program` · `zagreb` · `mine` |
+| `/app/plexus/meetups/:id/host` | plexus-meetups | yes | Meetups | the logged-in host's own table (404 for anyone else) |
+| `/app/plexus/meetups` | plexus-meetups | yes | Meetups | **must stay above `/app/plexus/:tab?`**, which would otherwise match it as `tab='meetups'` |
+| `/app/plexus/:tab?` | plexus (stub) | yes | Plexus | `program` · `zagreb` · `mine`; `?edition=<id>` reads a past Plexus Week back, read-only |
 | `/app/gala` | gala (stub) | yes | Gala | |
 | `/app/accelerator/:tab?` | accelerator (stub) | yes | Accelerator | `apply` |
 | `/app/forum` · `/app/bridges` · `/app/network` · `/app/messages` · `/app/profile` | stubs | yes | Forum · Bridges · Network · Network · My Med&X | |

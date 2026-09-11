@@ -11,7 +11,7 @@ const SHELL = [
   '/assets/logo.png', '/assets/logo-white.png', '/assets/mark-x.png', '/assets/icons/icon-192.png'
 ];
 // Server-rendered paths (see js/config.js serverPaths) — network only, never cached, never shell-fallbacked.
-const SERVER_PREFIXES = ['/api', '/plexus', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success', '/invite-cancelled',
+const SERVER_PREFIXES = ['/api', '/plexus', '/meetups', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success', '/invite-cancelled',
   '/reset-password', '/qr', '/calendar', '/verify-certificate', '/verify', '/r', '/unsubscribe', '/email-prefs', '/donate', '/uploads', '/f',
   '/speaker', '/building-bridges', '/donor-night', '/terms', '/privacy', '/health', '/__staging', '/__admin'];
 const isServerPath = p => SERVER_PREFIXES.some(x => p === x || p.startsWith(x + '/'));

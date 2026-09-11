@@ -16,6 +16,10 @@
 /* QR pass image (My Plexus › "03 · MY PASS") */
 .mx-qr { width: 148px; height: 148px; object-fit: contain; background: #fff; border: 1px solid rgba(25,21,18,.16); padding: 8px; box-sizing: content-box; display: block; }
 
+@media (max-width: 1100px) {
+  /* Plexus Week band: four blocks across get cramped before the shared mx-grid-4 hook fires */
+  .mx-week-grid { grid-template-columns: 1fr 1fr !important; }
+}
 @media (max-width: 900px) {
   /* ink program section: text column + (200px photo | text) grid → single column */
   .mx-grid-photo { grid-template-columns: 1fr !important; }

@@ -11,7 +11,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const ROOT = __dirname;
 const PORT = parseInt(process.env.PORT || '8890', 10);
 const BACKEND = new URL(process.env.BACKEND || 'http://localhost:3941');
-const SERVER_PREFIXES = ['/api', '/plexus', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success', '/invite-cancelled',
+const SERVER_PREFIXES = ['/api', '/plexus', '/meetups', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success', '/invite-cancelled',
   '/reset-password', '/qr', '/calendar', '/verify-certificate', '/verify', '/r', '/unsubscribe', '/email-prefs', '/donate', '/uploads', '/f',
   '/speaker', '/building-bridges', '/donor-night', '/terms', '/privacy', '/health', '/__staging', '/__admin'];
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',

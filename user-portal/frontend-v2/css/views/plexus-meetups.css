@@ -1,0 +1,38 @@
+/* css/views/plexus-meetups.css — Plexus Week meetups (board + host page).
+   Injected once by js/views/plexus-meetups.js. Rules here carry NO look: only responsive overrides
+   for the inline layouts and the two fixed-size elements the markup cannot express inline
+   (ARCHITECTURE.md §4 — mx-* hooks never carry look). */
+
+/* the QR on a "My meetups" row: a fixed square the flex row never squeezes */
+.mx-meetup-qr { width: 104px; height: 104px; flex: none; object-fit: contain; background: #fff; border: 1px solid rgba(25,21,18,.16); padding: 6px; box-sizing: content-box; display: block; }
+
+/* the host composer's textarea inherits .input (tokens.css) — it only needs room to breathe */
+.mx-meetup-textarea { min-height: 110px; line-height: 1.6; resize: vertical; font-family: Inter, sans-serif; }
+
+/* filter strip scrolls sideways rather than pushing the page wide on a narrow screen */
+.mx-meetup-filters { max-width: 100%; }
+
+@media (max-width: 1100px) {
+  /* four Plexus Week blocks and three attendee cards → two across before they get cramped */
+  .mx-week-grid { grid-template-columns: 1fr 1fr !important; }
+  .mx-meetup-people { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 900px) {
+  .mx-meetup-mine { flex-wrap: wrap !important; }
+  .mx-meetup-people { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 700px) {
+  .mx-week-grid { grid-template-columns: 1fr !important; }
+  .mx-meetup-card { padding: 16px !important; }
+  /* the seats line and the join button stop sharing a row */
+  .mx-meetup-foot > div { display: none !important; }
+  .mx-meetup-foot { gap: 10px !important; }
+  /* "My meetups": the QR, the details and the action stack instead of sharing one cramped row
+     (flex:1 on the middle column shrinks past readable width before wrap would ever fire) */
+  .mx-meetup-mine { flex-direction: column !important; gap: 14px !important; }
+  .mx-meetup-mine > div { width: 100%; }
+  .mx-meetup-mine > div:last-child { align-items: center !important; flex-direction: row !important; flex-wrap: wrap; gap: 14px !important; }
+}
+@media (max-width: 500px) {
+  .mx-meetup-qr { width: 88px; height: 88px; }
+}

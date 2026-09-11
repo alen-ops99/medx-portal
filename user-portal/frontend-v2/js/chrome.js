@@ -32,7 +32,12 @@ export const COPY = {
 const NAV = [
   { key: 'Home', label: 'Home', to: '/app/home' },
   { label: COPY.drawer.projects, group: true },
-  { key: 'Plexus', label: 'Plexus Conference', to: '/app/plexus', sub: true },
+  // "Plexus Week" is the umbrella (conference · gala · Building Bridges Zagreb · meetups) —
+  // design/MEETUPS-SPEC.md §1. The key stays 'Plexus': it is the router's `active` value.
+  { key: 'Plexus', label: 'Plexus Week', to: '/app/plexus', sub: true },
+  // Meetups has its own key because the meetup routes carry active:'Meetups' — standing on the
+  // board lights this entry, the way a sub-entry should.
+  { key: 'Meetups', label: 'Meetups', to: '/app/plexus/meetups', sub: true, v2: true },
   { key: 'Gala', label: 'Gala Evening', to: '/app/gala', sub: true },
   { key: 'Accelerator', label: 'The Accelerator', to: '/app/accelerator', sub: true },
   { key: 'Forum', label: 'Biomedical Forum', to: '/app/forum', sub: true },
@@ -139,7 +144,7 @@ function drawer() {
     <div style="display:flex;flex-direction:column">
       ${NAV.map(n => n.group
         ? `<span style="display:block;padding:9px 26px;font-size:14px;color:rgba(247,241,230,.72)">${n.label}</span>`
-        : `<a href="${n.to}" style="${nav(n.key, n.sub)}" data-hover="color:#f7f1e6">${n.label}</a>`).join('\n      ')}
+        : `<a href="${n.to}" style="${nav(n.key, n.sub)}" data-hover="color:#f7f1e6"${n.v2 ? ' data-v2="nav entry not in Portal Chrome.dc.html"' : ''}>${n.label}</a>`).join('\n      ')}
     </div>
     <div style="height:1px;background:rgba(247,241,230,.14);margin:14px 26px"></div>
     <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin-bottom:8px">${COPY.drawer.quick}</div>

@@ -15,8 +15,10 @@ const cfg = {
   // Server-rendered paths that must NEVER be handled by the client router (they belong to
   // user-portal/backend/server.js: public forms, pay links, passes, reset pages…). Kept here so
   // router.js, dev-server.js and _redirects agree on one list.
+  // '/meetups' is the backend's token surface (/meetups/manage/:t, /meetups/invite/:t/accept|decline,
+  // /meetups/host/:t) — NOT the client route, which is '/app/plexus/meetups'.
   serverPaths: [
-    '/api', '/plexus', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success',
+    '/api', '/plexus', '/meetups', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success',
     '/invite-cancelled', '/reset-password', '/qr', '/calendar', '/verify-certificate', '/verify', '/r',
     '/unsubscribe', '/email-prefs', '/donate', '/uploads', '/f', '/speaker', '/building-bridges',
     '/donor-night', '/terms', '/privacy', '/health', '/__staging', '/__admin'

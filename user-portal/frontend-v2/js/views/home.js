@@ -7,7 +7,7 @@
 import { api } from '../api.js';
 import { session, state } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import { FACTS, routeFor, CTA, trueDateFor, reconcileEarlyBird, galaPriceNow } from '../facts.js';
+import { FACTS, routeFor, CTA, trueDateFor, reconcileEarlyBird, galaPriceNow, setLiveGalaPrice } from '../facts.js';
 import { chrome } from '../chrome.js';
 import { profileCompletion } from '../member.js';
 import router from '../router.js';
@@ -38,7 +38,7 @@ export const COPY = {
   projects: {
     n: '01', title: 'OUR PROJECTS', sub: 'Apply, register, and follow every Med&amp;X project from here.',
     cards: {
-      plexus: { title: 'Plexus Conference 2026', photo: 'photo-stage.jpg' },
+      plexus: { title: 'Plexus Week 2026', photo: 'photo-stage.jpg' },
       gala: { title: 'Gala <i style="color:#c9a962">Evening</i>', photo: 'photo-gala.jpg' },
       accelerator: { title: 'The Accelerator', photo: 'photo-candlelit.jpg' },
       forum: { title: 'Biomedical Forum', photo: 'photo-ballroom.jpg' },
@@ -140,6 +140,9 @@ async function load() {
   const feed = (r.feed && r.feed.items) || [];
   let keyDates = (r.plexus && Array.isArray(r.plexus.key_dates) && r.plexus.key_dates.length) ? r.plexus.key_dates : null;
   const directoryMembers = r.netSummary && Number.isFinite(Number(r.netSummary.members)) ? Number(r.netSummary.members) : null;
+  // The server's price block and early-bird deadline become the portal's truth for this session —
+  // the KEY DATES rail and every "€150 through …" line downstream read it (facts.js › setLiveGalaPrice).
+  if (r.site && r.site.price) setLiveGalaPrice(Object.assign({}, r.site.price, { flip_date: (r.site.deadline || {}).early_bird || null }));
   const sitePrice = r.site && r.site.price && Number(r.site.price.current);
   return {
     me, conf, projects, feed,

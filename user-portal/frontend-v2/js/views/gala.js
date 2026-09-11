@@ -9,7 +9,7 @@
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import { FACTS, galaPriceNow, CTA } from '../facts.js';
+import { FACTS, galaPriceNow, CTA, setLiveGalaPrice } from '../facts.js';
 import { chrome } from '../chrome.js';
 
 export const SOURCE = 'Gala Evening.dc.html';
@@ -145,6 +145,10 @@ async function load() {
   const time = (String(s.time || '').match(/\d{1,2}:\d{2}/) || [FACTS.gala.time])[0];
   const d = fmt.toDate(date);
   const venueLong = String(s.venue || `Grand Ballroom, ${FACTS.gala.venue} ${FACTS.gala.city}`).replace(/;\s*/g, ', ');
+  const price = resolvePrice(r.meta, s);
+  // This page holds the most authoritative price the portal can read. Hand it to facts.js so every
+  // other screen quotes the same number and the same deadline (never FACTS' hard-coded 15 Sep).
+  if ((r.meta && r.meta.price) || s.price_gala_early_bird != null || s.price_gala_regular != null) setLiveGalaPrice(price);
   return {
     s, date, time, d,
     startAt: `${date}T${time}:00+01:00`,                       // Zagreb is CET (+01:00) in December
@@ -154,7 +158,7 @@ async function load() {
     venueShort: FACTS.gala.venue.toUpperCase(),
     dress: String(s.dress_code || `${FACTS.gala.dress} / Formal attire`).toUpperCase(),
     open: s.is_registration_open === undefined ? true : !!Number(s.is_registration_open),
-    price: resolvePrice(r.meta, s),
+    price,
     speakers: Array.isArray(s.speakers) ? s.speakers.filter(x => x && x.name) : [],
     schedule: Array.isArray(s.schedule) ? s.schedule.filter(x => x && (x.title || x.time)) : [],
     performers: r.meta && r.meta.performers_announced && Array.isArray(r.meta.performers) && r.meta.performers.length

@@ -44,10 +44,59 @@ export const FACTS = Object.freeze({
   projectOrder: Object.freeze(['plexus', 'gala', 'accelerator', 'forum', 'bridges'])
 });
 
-// Gala price by the clock (flips on FACTS.gala.priceFlip). Production reads server config
-// (/api/public/site price.current) first; this is the fallback.
+// ---------------------------------------------------------------------------------------------
+// THE LIVE GALA PRICE (Plexus Week build, 2026-09-11).
+// FACTS is frozen and hand-written, so an early-bird date edited in the admin portal used to lose
+// to a constant compiled into this file — the portal printed "€150 through 1 Sep" while the
+// server-rendered /plexus form charged by 15 Sep. Every view that ALREADY fetches the server's
+// price block hands it to setLiveGalaPrice(); from then on galaPriceNow(), galaFlipLabel(),
+// trueDateFor() and reconcileEarlyBird() quote the SERVER's numbers, and FACTS is only the
+// cold-start fallback. FACTS itself is never written to — it stays frozen.
+//   js/views/home.js   → GET /api/public/site                  { price, deadline.early_bird }
+//   js/views/gala.js   → GET /api/v2/gala/meta                 { price }
+//   js/views/plexus.js → GET /api/v2/plexus-week/overview      { gala_price }
+const MON3_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function flipAt(iso) { return new Date(String(iso).slice(0, 10) + 'T00:00:00+02:00'); }
+function flipLabelFor(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${Number(m[3])} ${MON3_SHORT[Number(m[2]) - 1]}` : '';
+}
+function priceNum(v) { return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v); }
+
+let LIVE_GALA = null;                       // the server's price block, once any view has read one
+
+// Accepts every server price shape in play ({current,next,early,regular,flip_date,flip_label,…}
+// from the Plexus Week overview and /api/v2/gala/meta, {early_bird,regular,current} from
+// /api/public/site). Merges, so a partial block never erases what a fuller one already told us.
+export function setLiveGalaPrice(p) {
+  if (!p || typeof p !== 'object') return LIVE_GALA;
+  const next = Object.assign({}, LIVE_GALA);
+  const put = (k, v) => { if (v !== null && v !== undefined && v !== '') next[k] = v; };
+  put('current', priceNum(p.current));
+  put('next', priceNum(p.next));
+  put('early', priceNum(p.early !== undefined ? p.early : p.early_bird));
+  put('regular', priceNum(p.regular));
+  put('flip_date', p.flip_date ? String(p.flip_date).slice(0, 10) : null);
+  put('flip_label', p.flip_label || (p.flip_date ? flipLabelFor(p.flip_date) : null));
+  put('phase', p.phase);
+  put('currency', p.currency);
+  LIVE_GALA = next;
+  return LIVE_GALA;
+}
+export function liveGalaPrice() { return LIVE_GALA; }
+
+// The early-bird deadline as copy says it ("15 Sep") — the server's date first, FACTS as fallback.
+export function galaFlipLabel() { return (LIVE_GALA && LIVE_GALA.flip_label) || FACTS.gala.priceFlipLabel; }
+export function galaFlipDate() { return (LIVE_GALA && LIVE_GALA.flip_date) || FACTS.gala.priceFlip; }
+
+// Gala price by the clock (flips on the live deadline, FACTS.gala.priceFlip as the fallback).
 export function galaPriceNow(now = new Date()) {
-  return now < new Date(FACTS.gala.priceFlip + 'T00:00:00+02:00') ? FACTS.gala.priceEarly : FACTS.gala.priceRegular;
+  const L = LIVE_GALA;
+  if (L) {
+    if (L.flip_date && L.early != null && L.regular != null) return now < flipAt(L.flip_date) ? L.early : L.regular;
+    if (L.current != null) return L.current;
+  }
+  return now < flipAt(FACTS.gala.priceFlip) ? FACTS.gala.priceEarly : FACTS.gala.priceRegular;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -71,7 +120,7 @@ export const CTA = Object.freeze({
 // conference range, "Gala seats" is the gala night, and a row like "Donor Night — during Plexus
 // Week" names neither, so it keeps whatever date the admin gave it.
 const DATE_TRUTH = [
-  { test: /early.?bird|price\s*(flip|change)/i, date: () => `Until ${FACTS.gala.priceFlipLabel}` },
+  { test: /early.?bird|price\s*(flip|change)/i, date: () => `Until ${galaFlipLabel()}` },
   { test: /building bridges|boston/i, date: () => FACTS.bridges.next.label },
   { test: /accelerator/i, date: () => FACTS.accelerator.opensLabel },
   { test: /plexus conference|conference\s*(&|and)\s*gala|plexus\s*20\d{2}/i, date: () => FACTS.plexus.dateRange },
@@ -86,12 +135,13 @@ export function trueDateFor(label) {
 
 // Repairs a stale early-bird deadline inside admin prose ("€150 through 1 Sep", "until Sep 1").
 // Only fires on a sentence that is actually about the price, and only rewrites the date token that
-// follows through/until/till/before — everything else the admin wrote survives verbatim.
+// follows through/until/till/before — everything else the admin wrote survives verbatim. The date
+// it writes is the LIVE one (galaFlipLabel), so this can never invent a deadline of its own.
 const EB_DEADLINE = /\b(through|until|till|before)\s+((?:\d{1,2}\s*(?:st|nd|rd|th)?\s*)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:\s*\d{1,2})?)/i;
 export function reconcileEarlyBird(text) {
   const s = String(text == null ? '' : text);
   if (!s || !/early.?bird|€|\bEUR\b/i.test(s)) return s;
-  return s.replace(EB_DEADLINE, (_, lead) => `${lead} ${FACTS.gala.priceFlipLabel}`);
+  return s.replace(EB_DEADLINE, (_, lead) => `${lead} ${galaFlipLabel()}`);
 }
 
 // v2 client routes per project key (cta_target from /api/public/status → route)

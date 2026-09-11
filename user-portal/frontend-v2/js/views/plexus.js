@@ -7,14 +7,14 @@
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import { FACTS, galaPriceNow, CTA } from '../facts.js';
+import { FACTS, galaPriceNow, CTA, routeFor, setLiveGalaPrice } from '../facts.js';
 import { chrome } from '../chrome.js';
 import router from '../router.js';
 
 export const SOURCE = 'Plexus Conference.dc.html · Plexus Program.dc.html · Plexus Zagreb.dc.html · My Plexus.dc.html';
 
 const TABS = [
-  { key: '', label: 'OVERVIEW', to: '/app/plexus', title: 'Plexus Conference' },
+  { key: '', label: 'OVERVIEW', to: '/app/plexus', title: 'Plexus Week' },
   { key: 'mine', label: 'MY PLEXUS &amp; REGISTER', to: '/app/plexus/mine', title: 'My Plexus' },
   { key: 'program', label: 'PROGRAM &amp; SPEAKERS', to: '/app/plexus/program', title: 'Program & Speakers' },
   { key: 'zagreb', label: 'EXPLORE ZAGREB', to: '/app/plexus/zagreb', title: 'Explore Zagreb' }
@@ -27,7 +27,18 @@ const MON3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OC
 
 // ---- COPY: every string that may change in a revision (dates/prices/venues live via API + FACTS) --
 export const COPY = {
-  crumb: { projects: 'PROJECTS', plexus: 'PLEXUS CONFERENCE', program: 'PROGRAM &amp; SPEAKERS', zagreb: 'EXPLORE ZAGREB', mine: 'MY PLEXUS &amp; REGISTRATION' },
+  crumb: { projects: 'PROJECTS', plexus: 'PLEXUS WEEK', program: 'PROGRAM &amp; SPEAKERS', zagreb: 'EXPLORE ZAGREB', mine: 'MY PLEXUS &amp; REGISTRATION' },
+  // The four blocks of one edition (design/MEETUPS-SPEC.md §1) — fed by GET /api/v2/plexus-week/overview
+  week: {
+    n: '00', title: 'PLEXUS WEEK',
+    sub: 'One week in Zagreb, four ways in — the conference, the Gala Evening, Building Bridges, and the small tables in between.',
+    edition: year => `${year} ▾`, past: 'PAST EDITION',
+    archived: 'You are looking at a past edition — everything here is read-only.',
+    modalEyebrow: 'PLEXUS WEEK · EDITIONS', modalTitle: 'Past editions',
+    modalBody: 'Every Plexus Week is kept. Pick a year to read it back exactly as it stood.',
+    current: 'This year', close: 'CLOSE',
+    none: 'Only this year exists so far.', noneWhy: 'Each December, the week just gone is archived and the next one opens in its place.'
+  },
   hero: {
     eyebrow: (status, cap) => `${status || 'PRE-REGISTRATION OPEN'} · FREE · ${FACTS.plexus.edition}TH YEAR${cap ? ` · CAPPED AT ${cap} SEATS` : ''}`,
     title: 'Plexus Conference', line: (range, venue) => `${range} · ${venue} — keynotes, research, and the Gala Evening.`,
@@ -217,7 +228,7 @@ export const COPY = {
 };
 
 // ---------------------------------------------------------------- module state
-let D = null, st = null, rootEl = null, unbind = null, timers = [], tab = '';
+let D = null, st = null, rootEl = null, unbind = null, timers = [], tab = '', edition = null;
 const CACHE = new Map();                          // public reads, 60 s — snappy tab switches
 function cget(path, opts) {
   const hit = CACHE.get(path);
@@ -264,7 +275,14 @@ async function load(t) {
     next: api.get('/api/me/next-event')
   };
   if (t === '' || t === 'program') { want.mySched = api.get('/api/plexus/my-schedule'); }
-  if (t === '') { want.impact = cget('/api/public/impact', { noAuth: true }); want.photos = cget('/api/plexus/photos', { noAuth: true }); }
+  if (t === '') {
+    want.impact = cget('/api/public/impact', { noAuth: true }); want.photos = cget('/api/plexus/photos', { noAuth: true });
+    // The week itself: edition + the four blocks, member-scoped (it counts the meetups you hold), so
+    // never cached. ?edition=<id> reads a past one back, read-only.
+    want.week = edition
+      ? api.get(`/api/v2/plexus-week/overview?edition=${encodeURIComponent(edition)}`)
+      : api.get('/api/v2/plexus-week/overview');
+  }
   if (t === 'zagreb') { want.resources = cget('/api/plexus/resources', { noAuth: true }); }
   if (t === 'mine') {
     want.myReg = api.get('/api/plexus/my-registration');
@@ -273,6 +291,9 @@ async function load(t) {
     want.attendees = api.get('/api/plexus/attendees');
   }
   const r = await api.settle(want);
+  // One price truth for the whole portal: the week overview carries the gala block the /plexus form
+  // actually charges by, deadline included (facts.js › setLiveGalaPrice).
+  if (r.week && r.week.gala_price) setLiveGalaPrice(r.week.gala_price);
 
   const conf = (r.site && r.site.conference) || {};
   const confFull = r.conf || {};
@@ -295,6 +316,7 @@ async function load(t) {
   const end = conf.end_date || confFull.end_date || FACTS.plexus.end;
   return {
     tab: t,
+    week: r.week || null,
     conf: {
       name: conf.name || confFull.name || FACTS.plexus.name,
       year: conf.year || confFull.year || FACTS.year,
@@ -516,6 +538,58 @@ function speakerCard(sp, { program } = {}) {
         </div>
       </div>`;
 }
+// ---- PLEXUS WEEK: the four blocks of one edition (design/MEETUPS-SPEC.md §1) ----------------
+// No artboard — the card idiom is Med&X Home.dc.html › "01 · OUR PROJECTS" (status micro-label over
+// a Fraunces title, one detail line, the CTA on the bottom rule), scaled to four.
+const WEEK_ACCENT = { open: '#9b1b22', soon: '#6e5626', full: '#6e5626', closed: '#4a4239' };
+// Two verbs, everywhere (facts.js › CTA): the conference registers, the Gala reserves — whatever
+// wording the server's block carries. Every other block keeps the label the server gave it.
+function weekCta(b) {
+  if (b.key === 'conference') return CTA.register;
+  if (b.key === 'gala') {
+    const p = b.price && Number(b.price.current);
+    return CTA.reserve(fmt.eur(Number.isFinite(p) && p > 0 ? p : galaPriceNow()));
+  }
+  return fmt.upper(b.cta_label || 'Open');
+}
+function weekCard(b) {
+  const accent = WEEK_ACCENT[b.status_kind] || '#4a4239';
+  const to = routeFor(b.cta_target || 'plexus', '/app/plexus');
+  const detail = [b.date_label, b.venue, b.price_label].filter(Boolean).join(' · ');
+  return `
+      <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid ${accent};background:#fdfaf3;display:flex;flex-direction:column;gap:8px;padding:16px;box-sizing:border-box">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${accent}">${esc(fmt.upper(fmt.detail(b.status || '')))}</span>
+        <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${esc(b.title || '')}</span>
+        <span style="font-size:12px;color:#4a4239;line-height:1.5">${esc(fmt.detail(detail))}</span>
+        ${D.week.archived
+          ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b8f80;margin-top:auto;white-space:nowrap">${COPY.week.past}</span>`
+          : `<a href="${esc(to)}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto;white-space:nowrap">${esc(weekCta(b))} →</a>`}
+      </div>`;
+}
+function ovWeek() {
+  const w = D.week;
+  const blocks = w && Array.isArray(w.blocks) ? w.blocks : [];
+  if (!w || !blocks.length) return '';
+  const year = (w.edition && w.edition.year) || FACTS.year;
+  const line = [w.title, w.date_label].filter(Boolean).join(' · ');
+  return `
+    <!-- v2: Plexus Week — the four blocks of one edition (design/MEETUPS-SPEC.md §1) -->
+    <div data-block="week" data-v2="plexus-week band, no artboard counterpart">
+      <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 6px">
+        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.week.n}</span>
+        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.week.title}</span>
+        <span style="font-size:12.5px;color:#4a4239">${esc(fmt.detail(line))}</span>
+        <div style="flex:1"></div>
+        <span data-act="editions" aria-haspopup="dialog" style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${esc(COPY.week.edition(year))}</span>
+      </div>
+      <div style="font-size:13px;color:#4a4239;max-width:640px;line-height:1.55">${esc(COPY.week.sub)}</div>
+      ${w.archived ? `<div style="display:flex;align-items:center;gap:10px;border-left:3px solid #c9a962;background:#fdfaf3;padding:10px 14px;margin-top:12px"><span style="width:6px;height:6px;background:#c9a962;flex:none"></span><span style="font-size:12.5px;color:#4a4239">${esc(COPY.week.archived)}</span></div>` : ''}
+      <div class="mx-grid-4 mx-week-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:16px 0 26px">
+        ${blocks.map(weekCard).join('')}
+      </div>
+    </div>`;
+}
+
 // UX audit 2026-09-02 › item 9: the same four portraits stood here and again one click away on
 // Program & speakers, which is the tab that can also open a bio and add a session. That tab is the
 // canonical roster now; the overview names the room and points at it.
@@ -645,12 +719,13 @@ function ovPhotos() {
 }
 function overviewTpl() {
   return `
-<div data-screen-label="Plexus Conference" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Plexus Week" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
   ${crumb([{ label: COPY.crumb.projects }, { label: COPY.crumb.plexus, current: true }])}
   <div data-block="hero">${ovHero()}</div>
   ${ovBand()}
   ${tabStrip()}
   <div class="mx-gutter" style="padding:0 36px">
+    ${ovWeek()}
     <div data-block="stage">${ovStage()}</div>
     ${ovThreads()}
   </div>
@@ -1038,6 +1113,27 @@ const handlers = {
     ui.downloadIcs(COPY.band.icsFile, events);
     ui.toast(COPY.band.icsDone);
   },
+  // Editions: "in general Plexus Week and then we can choose 2026, and once it passes we archive it"
+  // (design/MEETUPS-SPEC.md §1). The chip lists every edition; picking one re-reads this page with
+  // ?edition=<id>, and an archived one comes back read-only.
+  editions: () => {
+    const w = D.week || {};
+    const list = Array.isArray(w.editions) ? w.editions : [];
+    const currentId = w.edition ? w.edition.id : null;
+    const activeId = (list.find(e => e.status === 'active') || {}).id || null;
+    const m = ui.modal({
+      eyebrow: COPY.week.modalEyebrow, title: COPY.week.modalTitle,
+      body: `<p style="margin:0 0 14px">${esc(COPY.week.modalBody)}</p>` + (list.length ? list.map(e => `
+        <div data-act="pickEdition" data-id="${esc(e.id)}" data-active="${e.id === activeId}" style="display:flex;gap:12px;align-items:baseline;padding:11px 0;border-bottom:1px solid rgba(25,21,18,.1);cursor:pointer" data-hover="color:#9b1b22">
+          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">${esc(e.label || String(e.year || ''))}</span>
+          <span style="font-size:11.5px;color:#4a4239;white-space:nowrap">${esc(fmt.longRange(e.starts_on, e.ends_on))}</span>
+          <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:${e.id === currentId ? '#9b1b22' : '#9b8f80'};white-space:nowrap">${esc(fmt.upper(e.status === 'active' ? COPY.week.current : e.status))}</span>
+        </div>`).join('') : `
+        <div class="empty" style="padding:10px 0 4px"><span class="rule-gold" style="margin-bottom:6px"></span><span class="empty-line">${esc(COPY.week.none)}</span><span class="empty-why">${esc(COPY.week.noneWhy)}</span></div>`),
+      actions: [{ label: COPY.week.close }]
+    });
+    ui.bind(m.el, { pickEdition: (el) => { m.close(); const id = el.dataset.id; router.navigate(el.dataset.active === 'true' ? '/app/plexus' : `/app/plexus?edition=${encodeURIComponent(id)}`); } });
+  },
   vb: (el) => { st.bio = el.dataset.id; rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); openBioFocus(); },
   bioClose: () => { st.bio = null; rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); },
   gallery: () => {
@@ -1176,6 +1272,7 @@ export default {
   async render(root, ctx) {
     ensureCss();
     tab = (ctx.params && ctx.params.tab) || '';
+    edition = (ctx.query && ctx.query.edition) || null;      // ?edition=<id> → read a past week back
     if (!TABS.some(t => t.key === tab)) { router.replace('/app/plexus'); return; }
     rootEl = root;
     D = await load(tab);
@@ -1189,6 +1286,6 @@ export default {
   destroy() {
     timers.forEach(stop => { try { stop(); } catch (e) {} }); timers = [];
     if (unbind) unbind(); unbind = null;
-    rootEl = null; D = null; st = null;
+    rootEl = null; D = null; st = null; edition = null;
   }
 };

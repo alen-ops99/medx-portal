@@ -10,7 +10,7 @@ export const COPY = {
   headline: 'One membership, <i style="color:#9b1b22">every project</i>.',
   sub: 'Apply, register, and follow everything from here.',
   cards: {
-    plexus: { name: 'Plexus Conference 2026', accent: '#9b1b22', img: 'photo-hall.jpg' },
+    plexus: { name: 'Plexus Week 2026', accent: '#9b1b22', img: 'photo-hall.jpg' },   // same card as Home › "01 · OUR PROJECTS"
     gala: { name: 'Gala Evening', accent: '#c9a962', img: 'photo-ballroom.jpg' },
     accelerator: { name: 'The Accelerator', accent: '#191512', img: 'photo-candlelit.jpg' },
     forum: { name: 'Biomedical Forum', accent: '#191512', img: 'photo-stage.jpg' },
