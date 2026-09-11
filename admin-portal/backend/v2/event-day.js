@@ -36,9 +36,16 @@
 'use strict';
 
 const crypto = require('crypto');
+const meetCore = require('../../../shared/meetups-core');
+const meetEditions = require('../../../shared/editions');
 
 const UUID_RE = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
-const GATE_KEYS = ['conference', 'gala', 'donor', 'bridges'];
+// 'meetup' (2026-09-11) is a door of a different shape: its list is ONE Plexus Week meetup picked
+// in the UI, its party is always one person, and its codes are 'm-<attendee id>' resolved against
+// plexus_meetup_attendees. It has no checkin_events row — gateFor() synthesizes it — so it never
+// becomes the default door and never appears in the four fixed gates' counters.
+const GATE_KEYS = ['conference', 'gala', 'donor', 'bridges', 'meetup'];
+const MEETUP_GATE = 'meetup';
 const MAX_ADMIT_PER_SCAN = 12;
 
 // Rehearsal practice guests (names from the Admin Event Day.dc.html door list — test data only).
@@ -58,6 +65,14 @@ module.exports = function mountEventDay(app, ctx) {
         get(sql, p = []) { const s = db().prepare(sql); if (p.length) s.bind(p); const r = s.step() ? s.getAsObject() : null; s.free(); return r; },
         all(sql, p = []) { const s = db().prepare(sql); if (p.length) s.bind(p); const rows = []; while (s.step()) rows.push(s.getAsObject()); s.free(); return rows; },
         run(sql, p = []) { db().run(sql, p); saveDb(); }
+    };
+    // Fault-tolerant bag for the shared meetup/edition modules: those run against tables this
+    // module does not own, so a checkout where they do not exist yet must degrade to "no meetups",
+    // never throw inside the scanner.
+    const mq = {
+        get(sql, p) { try { return q.get(sql, p || []); } catch (e) { return null; } },
+        all(sql, p) { try { return q.all(sql, p || []); } catch (e) { return []; } },
+        run(sql, p) { try { return q.run(sql, p || []); } catch (e) { return null; } }
     };
 
     // ctx carries auth + adminOnly only; scanner staff (is_staff) must reach the room like the
@@ -152,8 +167,53 @@ module.exports = function mountEventDay(app, ctx) {
         catch (e) { return []; }
     }
     function gateFor(key) {
+        // The meetup door is data, not a checkin_events row: its schedule lives on each meetup.
+        if (key === MEETUP_GATE) return { event_key: MEETUP_GATE, label: 'Meetups', is_active: 1, starts_at: null, ends_at: null, sort_order: 99 };
         try { return q.get('SELECT * FROM checkin_events WHERE event_key = ? AND is_active = 1', [key]); }
         catch (e) { return null; }
+    }
+
+    // ---------------------------------------------------------------- Plexus Week meetups (door)
+    // Read-only here except for the check-in itself, which goes through shared/meetups-core so a
+    // scan at this door and a scan on the host page write exactly the same row the member portal
+    // reads back. The picker lists the published meetups of the active edition.
+    function meetupPickerList() {
+        try {
+            const ed = meetEditions.activeEdition(mq);
+            if (!ed) return [];
+            return mq.all("SELECT id, title, starts_at, ends_at, venue_name, capacity, host_name FROM plexus_meetups WHERE edition_id = ? AND status = 'published' ORDER BY starts_at, title", [ed.id])
+                .map(m => {
+                    const live = meetCore.liveOf(mq, m.id);
+                    return {
+                        id: m.id, label: m.title,
+                        when: meetCore.whenLabel(m.starts_at, m.ends_at), starts_at: m.starts_at,
+                        venue: m.venue_name || null, host: m.host_name || null,
+                        expected: live.length, capacity: Number(m.capacity) || 0,
+                        admitted: live.filter(a => Number(a.checked_in) === 1).length
+                    };
+                });
+        } catch (e) { return []; }
+    }
+    function meetupById(id) { try { return meetCore.meetupById(mq, id); } catch (e) { return null; } }
+    function meetupExpected() { return meetupPickerList().reduce((n, m) => n + m.expected, 0); }
+    function meetupAdmitted() { return meetupPickerList().reduce((n, m) => n + m.admitted, 0); }
+    function meetupDoorRows(meetupId, qText) {
+        const m = meetupById(meetupId);
+        if (!m) return [];
+        const like = String(qText || '').toLowerCase();
+        return meetCore.liveOf(mq, m.id)
+            .map(a => {
+                const card = meetCore.personCard(a);
+                return {
+                    ref: a.id, table: 'plexus_meetup_attendees', name: card.name, email: card.email || '',
+                    meta: [card.position, card.institution].filter(Boolean).join(' · ') || 'Meetup guest',
+                    party_size: 1, admitted_count: card.checked_in ? 1 : 0, legacy_in: card.checked_in ? 1 : 0,
+                    unpaid: 0, last_scan_at: card.checked_in_at || null,
+                    position: card.position, institution: card.institution, bio: card.bio
+                };
+            })
+            .filter(r => !like || r.name.toLowerCase().includes(like) || String(r.email).toLowerCase().includes(like))
+            .sort((x, y) => (x.admitted_count === y.admitted_count) ? x.name.localeCompare(y.name) : (x.admitted_count ? 1 : -1));
     }
     // defaultGateKey replica (schedule-aware; see server.js — the one happening now, else next, else lowest sort).
     function defaultGateKey(list) {
@@ -421,6 +481,40 @@ module.exports = function mountEventDay(app, ctx) {
             return { status: 200, out: Object.assign({ ok: false, result, message, event: eventKey, event_label: gateLabel, rehearsal }, extra || {}) };
         };
 
+        // ---- MEETUP DOOR (spec §3 "Check-in"): one picked meetup, party of one, and a response
+        // that carries the profile snippet — the "oh, you're a sleep researcher at Harvard" moment.
+        // The check-in itself goes through shared/meetups-core, the same write the host page makes.
+        if (eventKey === MEETUP_GATE) {
+            const picked = String(b.meetup_id || b.meetup || '').trim();
+            const m = picked ? meetupById(picked) : null;
+            if (!m) return { status: 400, out: { ok: false, result: 'bad_event', message: 'Pick a meetup first — the meetup door needs to know which table.', event: eventKey, event_label: gateLabel } };
+            if (rehearsal) {
+                return { status: 200, out: { ok: false, result: 'not_found', message: 'Rehearsal mode does not cover meetups — switch rehearsal off to check a meetup guest in.', event: eventKey, event_label: gateLabel, rehearsal: true } };
+            }
+            const out = meetCore.checkInByCode({ q: mq, sign: () => '', actor: actorStr || 'door' }, m, String(codeRaw).trim());
+            const p = out.person || {};
+            logScan({ event_key: eventKey, registration_ref: p.id || null, code: codeRaw, result: out.result, admitted_count: out.ok ? 1 : 0, party_size: 1, method, actor: actorStr, device, rehearsal: false, is_override: override, override_reason: overrideReason });
+            if (!out.ok) {
+                return { status: 200, out: {
+                    ok: false, result: out.result, message: out.message, event: eventKey, event_label: m.title || gateLabel, rehearsal: false,
+                    meetup: { id: m.id, title: m.title },
+                    ticket: p.name ? { name: p.name, email: p.email || '', meta: [p.position, p.institution].filter(Boolean).join(' · ') || '' } : undefined
+                } };
+            }
+            saveDb();
+            const admittedNow = meetCore.liveOf(mq, m.id).filter(a => Number(a.checked_in) === 1).length;
+            return { status: 200, out: {
+                ok: true, result: out.result === 'already' ? 'party_complete' : 'admitted',
+                event: eventKey, event_label: m.title || gateLabel, rehearsal: false,
+                admitted_count: 1, party_size: 1, remaining: 0, admitted_delta: out.result === 'already' ? 0 : 1,
+                message: out.result === 'already' ? `${p.name} was already checked in.` : `${p.name} checked in.`,
+                meetup: { id: m.id, title: m.title, checked_in: admittedNow, expected: meetCore.liveOf(mq, m.id).length },
+                // the profile snippet the door staffer (or the host) reads out loud
+                person: { name: p.name, email: p.email, institution: p.institution, position: p.position, bio: p.bio },
+                ticket: { name: p.name, email: p.email || '', meta: [p.position, p.institution].filter(Boolean).join(' · ') || 'Meetup guest' }
+            } };
+        }
+
         // --- rehearsal TEST guests (never touch real tables) ---
         const codeStr = String(codeRaw).trim();
         let ticket = null, ref = null, regTable = null, partySize = 1;
@@ -542,6 +636,7 @@ module.exports = function mountEventDay(app, ctx) {
     }
 
     function expectedPeople(eventKey) {
+        if (eventKey === MEETUP_GATE) return meetupExpected();     // meetups keep their own ledger
         const donorId = donorEventId();
         const notTest = "AND (notes IS NULL OR (notes NOT LIKE '%SCANNER TEST%' AND notes NOT LIKE '%BUNDLE TEST%'))";
         try {
@@ -567,6 +662,7 @@ module.exports = function mountEventDay(app, ctx) {
         } catch (e) { return 0; }
     }
     function admittedPeople(eventKey) {
+        if (eventKey === MEETUP_GATE) return meetupAdmitted();     // plexus_meetup_attendees.checked_in
         let v2 = 0;
         try { v2 = (q.get('SELECT COALESCE(SUM(admitted_count),0) c FROM v2_checkin_admits WHERE event_key = ?', [eventKey]) || {}).c || 0; } catch (e) {}
         // Rows the OLD scanner admitted that v2 has never seen count as 1 person each — the two
@@ -741,7 +837,12 @@ module.exports = function mountEventDay(app, ctx) {
                 gates: gs.map(g => ({
                     event_key: g.event_key, label: g.label, starts_at: g.starts_at, ends_at: g.ends_at,
                     expected: expectedPeople(g.event_key), admitted: admittedPeople(g.event_key)
-                })),
+                })).concat(meetupPickerList().length ? [{
+                    // The meetup door is synthesized — it has no checkin_events row (see gateFor).
+                    event_key: MEETUP_GATE, label: 'Meetups', starts_at: null, ends_at: null,
+                    expected: meetupExpected(), admitted: meetupAdmitted(), needs_pick: true
+                }] : []),
+                meetups: meetupPickerList(),
                 bridges_events: bridgesEventList().map(ev => ({
                     id: ev.id, label: (ev.city || ev.name || 'Bridges'), date: ev.event_date || '', time: ev.event_time || '',
                     expected: bridgesExpected(ev.id), admitted: bridgesAdmitted(ev.id),
@@ -756,9 +857,23 @@ module.exports = function mountEventDay(app, ctx) {
             const rehearsal = String(req.query.rehearsal || '') === '1';
             if (rehearsal) return res.json({ rehearsal: true, rows: rehearsalDoor() });
             const eventKey = GATE_KEYS.includes(String(req.query.event)) ? String(req.query.event) : defaultGateKey(gates());
+            if (eventKey === MEETUP_GATE) {
+                const picked = String(req.query.meetup_id || '').trim() || null;
+                const list = meetupPickerList();
+                return res.json({
+                    rehearsal: false, event: eventKey, meetup_id: picked, meetups: list,
+                    rows: picked ? meetupDoorRows(picked, String(req.query.q || '').trim()) : []
+                });
+            }
             const bev = eventKey === 'bridges' ? String(req.query.bridges_event || '').trim() || null : null;
             res.json({ rehearsal: false, event: eventKey, bridges_event: bev, rows: doorRows(eventKey, String(req.query.q || '').trim(), 400, bev) });
         } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // The meetup picker behind the `meetup` door — published tables of the ACTIVE edition only.
+    app.get('/api/v2/eventday/meetups', auth, staffOrAdmin, (req, res) => {
+        try { res.json({ meetups: meetupPickerList() }); }
+        catch (e) { res.status(500).json({ error: e.message }); }
     });
 
     app.post('/api/v2/eventday/scan', auth, staffOrAdmin, (req, res) => {
@@ -780,7 +895,32 @@ module.exports = function mountEventDay(app, ctx) {
             const T = admitTableFor(!!b.rehearsal);
             let person = null;
             const doors = [];
+            // A meetup code ('m-<attendee id>') resolves nowhere else — answer it first, with the
+            // profile snippet the door reads out loud, and never write anything from a lookup.
+            const meetHit = (() => {
+                const mm = String(code).match(/m-([0-9a-fA-F-]{8,64})/);
+                if (!mm) return null;
+                return mq.get('SELECT * FROM plexus_meetup_attendees WHERE id = ?', [mm[1]]);
+            })();
+            if (meetHit) {
+                const card = meetCore.personCard(meetHit);
+                const m = meetupById(meetHit.meetup_id);
+                return res.json({
+                    ok: true,
+                    person: { name: card.name, email: card.email || '', institution: card.institution || '', country: '', position: card.position || '', bio: card.bio || '' },
+                    doors: [{
+                        event: MEETUP_GATE, label: m ? m.title : 'Meetups', registered: true,
+                        ok: meetCore.LIVE.includes(card.status),
+                        block: meetCore.LIVE.includes(card.status) ? undefined : 'not_registered_for_event',
+                        message: meetCore.LIVE.includes(card.status) ? undefined : `This place is ${card.status}, not confirmed.`,
+                        meta: [card.position, card.institution].filter(Boolean).join(' · ') || 'Meetup guest',
+                        meetup_id: meetHit.meetup_id, party_size: 1,
+                        admitted: card.checked_in ? 1 : 0, remaining: card.checked_in ? 0 : 1
+                    }]
+                });
+            }
             for (const k of GATE_KEYS) {
+                if (k === MEETUP_GATE) continue;                 // handled above; never resolvable here
                 let hit = null;
                 try { hit = resolveCode(code, k); } catch (e) {}
                 if (!hit) continue;
