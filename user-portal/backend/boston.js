@@ -996,6 +996,120 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ------------------------------------------------------------ GET /api/boston/presentations.zip?key=…
+    // One archive of every presenter's latest upload (fetched from S3 via presigned GET), named
+    // "<Last>_<First>__<original>". Stored (uncompressed) entries — decks are already compressed —
+    // built with node's zlib.crc32, so no zip dependency. Team use on event day.
+    app.get('/api/boston/presentations.zip', async (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            ensurePresentationsTable();
+            if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
+            const data = presentationAdminData();
+            const withFile = data.rows.filter(r => r.upload && r.upload.id);
+            if (!withFile.length) return res.status(404).json({ error: 'No presentations uploaded yet.' });
+            const entries = [];
+            for (const r of withFile) {
+                const p = query.get('SELECT * FROM bridges_presentations WHERE id = ?', [r.upload.id]);
+                if (!p) continue;
+                const url = s3.presignGet(p.stored_key, { expires: 300 });
+                const buf = await new Promise((resolve, reject) => {
+                    https.get(url, resp => {
+                        if (resp.statusCode !== 200) { resp.resume(); return reject(new Error('S3 ' + resp.statusCode + ' for ' + p.stored_key)); }
+                        const chunks = []; resp.on('data', c => chunks.push(c)); resp.on('end', () => resolve(Buffer.concat(chunks))); resp.on('error', reject);
+                    }).on('error', reject);
+                });
+                const safe = str => String(str || '').normalize('NFKD').replace(/[^\w.\- ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) || 'x';
+                const reg = query.get('SELECT first_name, last_name FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
+                entries.push({ name: `${safe(reg.last_name)}_${safe(reg.first_name)}__${safe(p.original_name)}`, data: buf });
+            }
+            // --- minimal ZIP writer (stored entries, UTF-8 names) ---
+            const zlib = require('zlib');
+            const parts = []; const central = []; let offset = 0;
+            const dosTime = (() => { const d = new Date(); return { t: ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xffff, d: (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xffff }; })();
+            for (const e of entries) {
+                const name = Buffer.from(e.name, 'utf8'); const crc = zlib.crc32(e.data) >>> 0;
+                const lh = Buffer.alloc(30);
+                lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0x0800, 6); lh.writeUInt16LE(0, 8);
+                lh.writeUInt16LE(dosTime.t, 10); lh.writeUInt16LE(dosTime.d, 12); lh.writeUInt32LE(crc, 14);
+                lh.writeUInt32LE(e.data.length, 18); lh.writeUInt32LE(e.data.length, 22); lh.writeUInt16LE(name.length, 26); lh.writeUInt16LE(0, 28);
+                const ch = Buffer.alloc(46);
+                ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0x0800, 8); ch.writeUInt16LE(0, 10);
+                ch.writeUInt16LE(dosTime.t, 12); ch.writeUInt16LE(dosTime.d, 14); ch.writeUInt32LE(crc, 16);
+                ch.writeUInt32LE(e.data.length, 20); ch.writeUInt32LE(e.data.length, 24); ch.writeUInt16LE(name.length, 28);
+                ch.writeUInt16LE(0, 30); ch.writeUInt16LE(0, 32); ch.writeUInt16LE(0, 34); ch.writeUInt16LE(0, 36); ch.writeUInt32LE(0, 38); ch.writeUInt32LE(offset, 42);
+                parts.push(lh, name, e.data); central.push(ch, name);
+                offset += lh.length + name.length + e.data.length;
+            }
+            const cdSize = central.reduce((n, b) => n + b.length, 0);
+            const eocd = Buffer.alloc(22);
+            eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(0, 4); eocd.writeUInt16LE(0, 6);
+            eocd.writeUInt16LE(entries.length, 8); eocd.writeUInt16LE(entries.length, 10); eocd.writeUInt32LE(cdSize, 12); eocd.writeUInt32LE(offset, 16); eocd.writeUInt16LE(0, 20);
+            const zip = Buffer.concat([...parts, ...central, eocd]);
+            res.set('Content-Type', 'application/zip');
+            res.set('Content-Disposition', `attachment; filename="BB-Boston-presentations-${new Date().toISOString().slice(0, 10)}.zip"`);
+            res.set('Cache-Control', 'private, no-store');
+            res.send(zip);
+        } catch (e) {
+            console.error('[Boston] zip-all failed:', e.message);
+            res.status(500).json({ error: 'Could not build the archive: ' + e.message });
+        }
+    });
+
+    // ------------------------------------------------------------ presenter upload-link email (deliberate send only)
+    // House-shell email with the presenter's PERSONAL upload link. Never automatic: POST
+    // /api/boston/presenters/send-links?key=… with {to:'preview'} mails ONE sample to REVIEW_TO;
+    // with {to:'all'} it mails every presenter who has not been invited yet (marker in notes);
+    // {to:'<registration id>'} re-sends one. Each send is stamped so nobody is invited twice.
+    function presenterInviteHtml(reg) {
+        const T = emailTemplates.T;
+        const link = `${baseUrl()}/boston/upload/${uploadToken(reg.id)}`;
+        const first = reg.first_name || 'there';
+        const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Your 5-minute presentation</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;color:#f2e7d6;margin-top:10px;">Upload your slides for Boston</div>
+      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:16px;">
+        <p style="margin:0 0 10px;">Dear ${esc(first)},</p>
+        <p style="margin:0 0 10px;">We are happy to have you presenting at <b style="color:#f2e7d6;">Building Bridges in Biomedicine — Boston</b> on ${DATE_LONG}, in the Waterhouse Room, Gordon Hall, Harvard Medical School.</p>
+        <p style="margin:0;">Please upload your slides through your <b style="color:#f2e7d6;">personal link</b> below — it is yours alone, and only the Med&amp;X team can see what you upload. You can replace the file any time before the event from the same link.</p>
+      </div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${emailTemplates.btn('Upload my presentation', link, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;background:#a8232b;')}</td></tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:#342718;border:1px solid rgba(240,228,210,.16);"><tr><td style="padding:12px 18px;font-family:${T.sans};font-size:12.5px;line-height:1.6;color:#d3c5b2;">
+        <b style="color:#f2e7d6;">Format:</b> PDF, PowerPoint (.ppt/.pptx) or Keynote, up to 25&nbsp;MB &middot; <b style="color:#f2e7d6;">5 minutes</b>, so 5–7 slides works best &middot; <b style="color:#f2e7d6;">Deadline:</b> please upload by Friday, 18 September so we can preload every deck.
+      </td></tr></table>
+      <div style="margin-top:24px;padding-top:14px;border-top:1px solid rgba(240,228,210,.18);font-family:${T.sans};font-size:11.5px;line-height:1.7;color:#d3c5b2;">Questions? Just reply to this email — or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
+    </td></tr></table>`;
+        return emailTemplates.shell({ tone: 'dark', title: 'Upload your presentation — Building Bridges Boston', preheader: 'Your personal upload link for the 5-minute presentation.', headerRightLabel: 'BUILDING BRIDGES · BOSTON', rule: 'crimson', bodyHtml: body });
+    }
+    app.post('/api/boston/presenters/send-links', async (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            const to = String((req.body || {}).to || '').trim();
+            const presenters = query.all(`SELECT * FROM bridges_registrations WHERE event_id = ? AND status IN ('registered','confirmed') AND notes LIKE '%5-minute presentation%' ORDER BY registered_at`, [EVENT_ID]);
+            const subject = 'Upload your 5-minute presentation — Building Bridges Boston';
+            if (to === 'preview') {
+                const sample = presenters[0] || { id: 'preview', first_name: 'Alen', email: reviewGate.REVIEW_TO };
+                await sendEmail(reviewGate.REVIEW_TO, '[PREVIEW] ' + subject, presenterInviteHtml(sample));
+                return res.json({ success: true, preview_to: reviewGate.REVIEW_TO, presenters: presenters.length });
+            }
+            const targets = to === 'all' ? presenters.filter(r => !/UPLOAD-LINK-SENT/.test(String(r.notes || ''))) : presenters.filter(r => r.id === to);
+            const sent = [];
+            for (const r of targets) {
+                const out = await sendEmail(r.email, subject, presenterInviteHtml(r));
+                if (out && out.success !== false) {
+                    query.run('UPDATE bridges_registrations SET notes = ? WHERE id = ?', [String(r.notes || '') + ' | UPLOAD-LINK-SENT ' + new Date().toISOString().slice(0, 10), r.id]);
+                    sent.push(r.email);
+                }
+            }
+            flushDb();
+            console.log(`[Boston] presenter upload links sent: ${sent.length}/${targets.length}`);
+            return res.json({ success: true, sent, skipped_already_sent: to === 'all' ? presenters.length - targets.length : 0 });
+        } catch (e) {
+            console.error('[Boston] send-links failed:', e.message);
+            res.status(500).json({ error: e.message });
+        }
+    });
+
     // ------------------------------------------------------------ GET /api/boston/presentations/:id/download
     app.get('/api/boston/presentations/:id/download', (req, res) => {
         try {
@@ -1499,13 +1613,14 @@ main{max-width:760px;}
   <p class="kicker">Building Bridges — Boston &middot; Team view</p>
   <h1>5-minute presentations</h1>
   <p class="statsline"><b>${data.uploaded}</b> uploaded &middot; <b>${data.requested}</b> requested &middot; ${data.rows.length} listed</p>
+  ${data.uploaded ? `<p style="margin:12px 0 0;"><a href="/api/boston/presentations.zip?key=${esc(key)}" style="display:inline-block;background:#9b1b22;color:#f7f1e6;padding:11px 20px;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;">Download all presentations (ZIP)</a></p>` : ''}
   ${data.s3_configured ? '' : '<p class="warn">S3 is not configured yet — links can be shared, uploads start working the moment BB_S3_* is set.</p>'}
 </div></header>
 <main>
   <section class="sheet" aria-label="Presenters">
     <p class="slabel">Who requested &middot; who uploaded</p><div class="rule"></div>
     ${rowsHtml || '<p class="notyet" style="padding:10px 0;">No presentation requests yet.</p>'}
-    <p class="jsonhint">Send each guest their personal link above (copy → email; nothing is emailed automatically).
+    <p class="jsonhint">Personal links are emailed only on the team's explicit go (POST /api/boston/presenters/send-links?key=… with {"to":"preview"|"all"|"&lt;id&gt;"}); rows marked UPLOAD-LINK-SENT in notes have been invited.
     JSON for the admin portal: <b>/api/boston/presentations?key=${esc(key)}</b> &middot; Registrant CSV: <b>/api/boston/registrations.csv?key=${esc(key)}</b></p>
   </section>
 </main>
