@@ -24,3 +24,9 @@
 @media (max-width: 480px) {
   .mx-ed-row .mx-row-text > span:first-child { max-width: 100% !important; }
 }
+
+/* v2 2026-09-11: the meetup picker rides in the door chip row (data-block="gateChips") — it wraps
+   like the bridges EDITION chips and never stretches the room sideways. */
+@media (max-width: 620px) {
+  [data-block="gateChips"] { row-gap: 8px; }
+}

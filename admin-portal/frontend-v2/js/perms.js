@@ -12,6 +12,10 @@ export const PERMISSION_SECTIONS = Object.freeze([
   { id: 'accelerator', label: 'Med&X Accelerator', group: 'Projects' },
   { id: 'forum', label: 'Biomedical Forum', group: 'Projects' },
   { id: 'bridges', label: 'Building Bridges', group: 'Projects' },
+  // Plexus Week MEETUPS (design/MEETUPS-SPEC.md §4) — server.js PERMISSION_SECTIONS carries the same
+  // id and SECTION_ROUTE_MAP maps /api/v2/meetups-ops → it. It MUST stay adjacent to the other
+  // Projects rows: js/views/settings.js derives the groups from consecutive runs of `group`.
+  { id: 'plexus-meetups', label: 'Plexus Meetups', group: 'Projects' },
   { id: 'gameday', label: 'Game Day', group: 'Events & access' },
   { id: 'conferences', label: 'Conferences', group: 'Events & access' },
   { id: 'editions', label: 'Editions', group: 'Events & access' },

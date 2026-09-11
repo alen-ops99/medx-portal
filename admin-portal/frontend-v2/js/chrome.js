@@ -28,7 +28,8 @@ export const COPY = {
   chat: { label: 'TEAM CHAT', title: 'Team chat — straight to the chat tab' },
   search: { placeholder: 'Search or type a task…', none: 'No matches — try a screen, a person, or a project.', hint: 'Type a name, a screen, or an instruction — Enter asks the assistant.', asking: 'Asking the assistant…', ask: 'ASK', confirm: 'CONFIRM', done: 'Done.', gated: 'The do-it-for-me assistant needs ANTHROPIC_API_KEY on the admin service — search and live numbers still work.' },
   menu: { displayName: 'DISPLAY NAME', save: 'SAVE', saved: '✓ SAVED', team: 'TEAM ACCESS →', signOut: 'SIGN OUT', profileTitle: 'Your profile', locked: 'Locked — ask Alen, he grants access per section' },
-  projects: { plexus: 'Plexus Week 2026', accelerator: 'Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges', review: 'Review Room', pages: 'What members see', eventDay: 'Event Day Room', links: 'Links', gala: 'Gala Evening' },
+  projects: { plexus: 'Plexus Week 2026', accelerator: 'Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges', review: 'Review Room', pages: 'What members see', eventDay: 'Event Day Room', links: 'Links', gala: 'Gala Evening', meetups: 'Plexus Meetups' },
+  meetups: { sub: 'coffee · lunch · tables', screen: 'Plexus Meetups — tables, hosts, waitlists', action: 'Create a meetup — coffee, lunch or a walk' },
   signedOut: 'Signed out.'
 };
 
@@ -52,6 +53,7 @@ const PROJECTS = [
   { divider: true },
   { k: 'ROOM', label: COPY.projects.review, to: '/accelerator-review', sub: 'applications', sections: ['accelerator'] },
   { k: 'GALA', label: COPY.projects.gala, to: '/gala', sub: 'seats · chase', sections: ['plexus'] },
+  { k: 'MEETUPS', label: COPY.projects.meetups, to: '/projects/plexus/meetups', sub: COPY.meetups.sub, sections: ['plexus-meetups'] },
   { k: 'PAGES', label: COPY.projects.pages, to: '/member-pages', sub: 'publish', sections: ['pr-media', 'plexus', 'accelerator'] },
   { k: 'LINKS', label: COPY.projects.links, to: '/links', sub: 'invitation links', sections: ['plexus', 'bridges'] },
   { k: 'LIVE', label: COPY.projects.eventDay, to: '/event-day', sub: 'always reachable', sections: ['gameday', 'plexus'] }
@@ -68,6 +70,8 @@ const PALETTE = [
   { kind: 'SCREEN', label: 'Biomedical Forum hub', href: '/projects/forum' },
   { kind: 'SCREEN', label: 'Building Bridges hub', href: '/projects/bridges' },
   { kind: 'SCREEN', label: 'Gala Evening — guests, seating, chase', syn: 'seating stol stolovi raspored sjedenja meal menu večera kitchen gosti naplata', href: '/gala' },
+  { kind: 'SCREEN', label: COPY.meetups.screen, syn: 'meetup meetups kava coffee ručak lunch dinner večera walk šetnja stol table host domaćin waitlist lista čekanja plexus week', href: '/projects/plexus/meetups' },
+  { kind: 'ACTION', label: COPY.meetups.action, syn: 'meetup meetups new napravi kava coffee ručak lunch stol table host domaćin capacity kapacitet waitlist lista čekanja invite pozovi', href: '/projects/plexus/meetups' },
   { kind: 'SCREEN', label: 'Inbox — email, outbox, chat', syn: 'poruke pošta mail', href: '/inbox' },
   { kind: 'SCREEN', label: 'People', syn: 'ljudi članovi members kontakti directory imenik', href: '/people' },
   { kind: 'SCREEN', label: 'Registrations — all events', syn: 'prijave registracije sign-ups sudionici attendees', href: '/registrations' },

@@ -1067,6 +1067,15 @@ const rowFor = (mid, email) => q.get('SELECT * FROM plexus_meetup_attendees WHER
         assert.strictEqual(r.body.doors[0].event, 'meetup');
         assert.strictEqual(Number(q.get('SELECT checked_in c FROM plexus_meetup_attendees WHERE id = ?', [a.id]).c), before, 'a lookup checked someone in');
     });
+    await t('EVENT DAY: a door-staff token is refused for the meetup door', async () => {
+        // A tokenized door page has no meetup picker, so a generic meetup token would land on a
+        // page that cannot scan. Each meetup's own host link is the door-staff link for a table.
+        const r = await app.call('POST', '/api/v2/eventday/door-tokens', { user: ADMIN, body: { event: 'meetup' } });
+        assert.strictEqual(r.status, 400);
+        assert.match(r.body.error, /host link/i);
+        const ok = await app.call('POST', '/api/v2/eventday/door-tokens', { user: ADMIN, body: { event: 'conference' } });
+        assert.strictEqual(ok.status, 200, 'the real doors must still mint tokens');
+    });
     await t('EVENT DAY: the four original doors are untouched', async () => {
         const r = await app.call('GET', '/api/v2/eventday/overview', { user: ADMIN });
         assert.strictEqual(r.status, 200);

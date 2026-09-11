@@ -29,3 +29,30 @@
 
 /* stats widget: figure value flashes never wrap awkwardly */
 .mxp-fig-input { width: 90px; font: 400 13px Inter, sans-serif; color: #201b16; background: #fff; border: 1px solid rgba(32, 27, 22, .25); padding: 5px 8px; box-sizing: border-box; }
+
+/* ---- v2 2026-09-11: edition switcher · tab strip · MEETUPS tab (behaviour + responsive only) ---- */
+
+/* the edition chip row and the tab strip wrap instead of pushing the page sideways */
+.mxp-edrow, .mxp-tabs { flex-wrap: wrap; }
+.mxp-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* the meetups table is wide on purpose (money.js rule): it scrolls inside its own card, never the page */
+.mxp-scroll { overscroll-behavior-x: contain; }
+
+/* drawer form fields focus like the inline manage panels do */
+.mxp-f input:focus, .mxp-f select:focus, .mxp-f textarea:focus,
+.mxp-host input:focus, .mxp-attadd input:focus { outline: 2px solid #9b1b22; outline-offset: -1px; }
+
+/* member pickers (host · manual add · invitations) keep their own scroll */
+.mxp-picker { overscroll-behavior: contain; }
+
+@media (max-width: 960px) {
+  .mxp-cardhead { align-items: flex-start; }
+}
+@media (max-width: 620px) {
+  /* two-column drawer grids stack; every field takes the full line */
+  .mxp-fgrid { grid-template-columns: 1fr !important; }
+  .mxp-fgrid > .mxp-f, .mxp-fgrid > label { grid-column: 1 / -1 !important; }
+  /* the stat strip already collapses through mx-kpi; the picker gets more room on a phone */
+  .mxp-picker { max-height: 150px !important; }
+}

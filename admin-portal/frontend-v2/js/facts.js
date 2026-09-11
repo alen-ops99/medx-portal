@@ -78,7 +78,10 @@ export function routeForSection(id, fallback = '/today') {
 // Nav destination → the permission sections that unlock it (ANY of). Unlisted = every signed-in
 // admin (unmapped routes on the server: tasks, chat, prefs, dashboard, notifications…).
 export const DEST_SECTIONS = Object.freeze({
-  plexus: ['plexus'], accelerator: ['accelerator'], forum: ['forum'], bridges: ['bridges'],
+  // 'plexus-meetups' unlocks the hub too: /projects/plexus/meetups is the MEETUPS tab's route, and an
+  // admin granted only meetups would otherwise hit the locked screen on the way in. The tab itself
+  // still checks perms.can('plexus-meetups') and every other block locks on its own 403.
+  plexus: ['plexus', 'plexus-meetups'], accelerator: ['accelerator'], forum: ['forum'], bridges: ['bridges'],
   inbox: ['member-ops', 'pr-media'], people: ['member-ops', 'guest-passes', 'team', 'contacts'], money: ['finances'],
   eventday: ['gameday', 'plexus'], studio: ['pr-media', 'plexus', 'signup-forms'], gala: ['plexus'],
   registrations: ['plexus', 'forum', 'bridges', 'signup-forms'], links: ['plexus', 'bridges', 'signup-forms'],

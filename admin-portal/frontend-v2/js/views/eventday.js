@@ -31,7 +31,18 @@ export const COPY = {
     why: 'This room activates automatically on December 4 — scanner, live headcount and the venue map all come alive. Flip <b>Rehearsal mode</b> above to practice today with test guests; nothing you do in rehearsal touches real data.',
     try: 'TRY THE REHEARSAL', back: 'BACK TO PLEXUS'
   },
-  doors: { label: 'DOOR', names: { conference: 'CONFERENCE', gala: 'GALA', donor: 'DONOR NIGHT', bridges: 'BRIDGES' } },
+  doors: { label: 'DOOR', names: { conference: 'CONFERENCE', gala: 'GALA', donor: 'DONOR NIGHT', bridges: 'BRIDGES', meetup: 'MEETUPS' } },
+  // v2 addition (2026-09-11, design/MEETUPS-SPEC.md §3 "Check-in"): the meetup door is one picked
+  // table at a time — the server answers 400 bad_event without a meetup_id, so the UI asks first.
+  meetup: {
+    label: 'MEETUP', pick: 'Pick the meetup first — this door checks one table in at a time.',
+    pickNone: 'No meetup is published yet for this edition — publish one in the Plexus hub and it appears here.',
+    pickHint: 'The host sees the same faces: name, what they do, where they work.',
+    seats: (taken, cap) => `${taken}/${cap}`,
+    hostLine: (host, venue) => [host, venue].filter(Boolean).join(' · '),
+    staffWhy: 'Meetup hosts get their own link from the Plexus hub — MEETUPS tab, COPY HOST LINK on the row. It opens that one table, scanner included.',
+    staffOpen: 'OPEN THE MEETUPS TAB →'
+  },
   counters: {
     checked: 'CHECKED IN', checkedSub: n => `of ${n} expected today`,
     room: 'IN THE ROOM NOW', roomSub: 'no one has left yet',
@@ -79,7 +90,9 @@ export const COPY = {
   results: {
     admitted: 'ADMITTED', party_complete: 'ALL IN', over_capacity: 'OVER CAPACITY', over_admitted: 'OVER CAPACITY — LOGGED',
     not_found: 'NOT FOUND', not_paid: 'NOT PAID', wrong_event: 'WRONG DOOR', revoked: 'REVOKED', cancelled: 'CANCELLED',
-    not_registered_for_event: 'NOT ON THIS LIST', queued: 'QUEUED OFFLINE', error: 'TRY AGAIN'
+    not_registered_for_event: 'NOT ON THIS LIST', queued: 'QUEUED OFFLINE', error: 'TRY AGAIN',
+    // meetup door (2026-09-11)
+    wrong_meetup: 'ANOTHER TABLE', not_confirmed: 'NOT CONFIRMED', bad_code: 'NOT A MEETUP CODE', bad_event: 'PICK A MEETUP'
   },
   // v2 addition (2026-08-31): HOST BRIEF — the old portal's "who is coming tonight" one-pager
   brief: {
@@ -101,7 +114,8 @@ export const COPY = {
   }
 };
 
-const GATE_ORDER = ['conference', 'gala', 'donor', 'bridges'];
+const GATE_ORDER = ['conference', 'gala', 'donor', 'bridges', 'meetup'];
+const MEETUP_GATE = 'meetup';
 const REH_KEY = 'medx_v2_rehearsal';
 const Q_KEY = () => 'medx_v2_scanq:' + ((session.user || {}).id || 'anon');
 
@@ -157,14 +171,29 @@ async function load() {
 }
 function gateInfo(key) { return (D.over.gates || []).find(g => g.event_key === key) || { event_key: key, label: key, expected: 0, admitted: 0 }; }
 function isLive() { return !!(D && D.over.is_event_day) || st.rehearsal || st.forced; }
+// ---- meetup door (2026-09-11) — the picker list rides on the overview payload
+const meetupList = () => (D && Array.isArray(D.over.meetups)) ? D.over.meetups : [];
+const meetupOn = () => st.gate === MEETUP_GATE && !st.rehearsal;
+const pickedMeetup = () => meetupList().find(m => String(m.id) === String(st.meetupId)) || null;
+// the server answers 400 bad_event without a meetup_id — never scan into that
+const meetupBlocked = () => meetupOn() && !st.meetupId;
 
 async function refreshCounts() {
-  try { const o = await api.get('/api/v2/eventday/overview'); if (D && rootEl) { D.over = o; paint('[data-block="counters"]', blockCounters()); } } catch (e) {}
+  try {
+    const o = await api.get('/api/v2/eventday/overview');
+    if (!D || !rootEl) return;
+    D.over = o;
+    paint('[data-block="counters"]', blockCounters());
+    // the meetup chips print live seats — repaint them with the fresh overview
+    if (meetupOn()) { paint('[data-block="gateChips"]', gateChips()); paintQueue(); }
+  } catch (e) {}
 }
 async function refreshDoor() {
   if (!rootEl) return;
   try {
-    const p = st.rehearsal ? 'rehearsal=1' : 'event=' + encodeURIComponent(st.gate) + (st.doorQ ? '&q=' + encodeURIComponent(st.doorQ) : '') + (st.gate === 'bridges' && st.bridgesEvent ? '&bridges_event=' + encodeURIComponent(st.bridgesEvent) : '');
+    const p = st.rehearsal ? 'rehearsal=1' : 'event=' + encodeURIComponent(st.gate) + (st.doorQ ? '&q=' + encodeURIComponent(st.doorQ) : '')
+      + (st.gate === 'bridges' && st.bridgesEvent ? '&bridges_event=' + encodeURIComponent(st.bridgesEvent) : '')
+      + (st.gate === MEETUP_GATE && st.meetupId ? '&meetup_id=' + encodeURIComponent(st.meetupId) : '');
     const d = await api.get('/api/v2/eventday/door?' + p);
     st.door = d.rows || [];
     paint('[data-block="doorRows"]', doorRowsHtml());
@@ -173,6 +202,7 @@ async function refreshDoor() {
 // v2 addition (2026-08-31): HOST BRIEF — reads /api/v2/host-brief for the selected door.
 async function refreshBrief() {
   if (!rootEl || !st) return;
+  if (st.gate === MEETUP_GATE) return;   // the brief has no meetup shape — the host page is that view
   const gate = st.gate;
   try {
     const b = await api.get('/api/v2/host-brief?event=' + encodeURIComponent(gate));
@@ -190,6 +220,8 @@ async function scan(code, opts = {}) {
   const body = {
     code, event: opts.event || st.gate, rehearsal: st.rehearsal,
     bridges_event: (opts.event || st.gate) === 'bridges' ? (st.bridgesEvent || undefined) : undefined,
+    // the meetup door checks ONE table in at a time — without it the server answers 400 bad_event
+    meetup_id: (opts.event || st.gate) === MEETUP_GATE ? (opts.meetup_id || st.meetupId || undefined) : undefined,
     admit: opts.admit || 1, method: opts.method || 'manual',
     override: !!opts.override, override_reason: opts.override_reason || undefined,
     device: 'admin-v2 ' + (navigator.platform || '')
@@ -253,11 +285,11 @@ function idCardHtml() {
           ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#7a6432">${COPY.door.of(d.admitted, d.party_size)} IN</span>`
           : `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#2f7d4f">REGISTERED ✓${d.party_size > 1 ? ' · PARTY OF ' + d.party_size : ''}</span>`;
     const btn = d.ok && d.remaining > 0
-      ? `<span data-act="idAdmit" data-key="${esc(d.event)}" data-code="${esc(c._code)}" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${COPY.scanner.admitAt(COPY.doors.names[d.event] || d.event.toUpperCase())}</span>`
+      ? `<span data-act="idAdmit" data-key="${esc(d.event)}"${d.meetup_id ? ` data-meetup="${esc(d.meetup_id)}"` : ''} data-code="${esc(c._code)}" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${COPY.scanner.admitAt(COPY.doors.names[d.event] || d.event.toUpperCase())}</span>`
       : '';
     return `
       <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid rgba(32,27,22,.1);width:100%">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;min-width:96px;text-align:left">${esc(COPY.doors.names[d.event] || d.event.toUpperCase())}</span>
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;min-width:96px;text-align:left">${esc(d.event === MEETUP_GATE && d.label ? String(d.label).toUpperCase() : (COPY.doors.names[d.event] || d.event.toUpperCase()))}</span>
         <span style="flex:1;text-align:left">${state}${!d.ok && d.message ? `<div style="font-size:10.5px;color:#9b1b22;margin-top:2px">${esc(d.message)}</div>` : ''}</span>
         ${btn}
       </div>`;
@@ -266,8 +298,9 @@ function idCardHtml() {
     <span data-role="scanResult" data-state="idcard" style="display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;border:1px solid rgba(32,27,22,.14);padding:12px 14px;box-sizing:border-box">
       <span style="display:flex;width:100%;align-items:center"><span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${COPY.scanner.idTitle}</span><span style="flex:1"></span><span data-act="idClear" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;text-decoration:underline">${COPY.scanner.idClear}</span></span>
       <span style="font-family:Fraunces,serif;font-size:21px;line-height:1.15;text-align:center">${esc(p.name || '')}</span>
-      ${p.institution ? `<span style="font-size:11.5px;color:#6d6459">${esc(p.institution)}${p.country ? ' · ' + esc(p.country) : ''}</span>` : (p.country ? `<span style="font-size:11.5px;color:#6d6459">${esc(p.country)}</span>` : '')}
+      ${(p.position || p.institution || p.country) ? `<span style="font-size:11.5px;color:#6d6459;text-align:center">${esc([p.position, p.institution, p.country].filter(Boolean).join(' · '))}</span>` : ''}
       ${p.email ? `<span style="font-size:11px;color:#6d6459">${esc(p.email)}</span>` : ''}
+      ${p.bio ? `<span data-v2="meetup bio snippet" style="font-size:11.5px;color:#6d6459;text-align:center;line-height:1.5;max-width:280px">${esc(String(p.bio).slice(0, 260))}</span>` : ''}
       <div style="width:100%;margin-top:8px">
         ${(c.doors && c.doors.length) ? c.doors.map(doorRow).join('') : `<div style="font-size:12px;color:#6d6459;padding:8px 0;border-top:1px solid rgba(32,27,22,.1)">${COPY.scanner.idNone}</div>`}
       </div>
@@ -384,10 +417,18 @@ function gateChips() {
   return `
     <div data-block="gateChips" data-v2="door picker — one scanner, four doors" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${COPY.doors.label}</span>
-      ${GATE_ORDER.map(k => {
+      ${GATE_ORDER.filter(k => k !== MEETUP_GATE || meetupList().length).map(k => {
         const g = gateInfo(k); const on = st.gate === k;
         return `<span data-act="gate" data-key="${k}" role="tab" aria-selected="${on}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;border:1px solid ${on ? '#201b16' : 'rgba(32,27,22,.25)'};background:${on ? '#201b16' : 'transparent'};color:${on ? '#f6f2ea' : '#6d6459'};white-space:nowrap">${COPY.doors.names[k] || k.toUpperCase()}${g.starts_at ? ' · ' + esc(fmt.dayLabel(g.starts_at)) : ''}</span>`;
       }).join('')}
+      ${meetupOn() ? `
+      <span style="flex-basis:100%;height:0"></span>
+      <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${COPY.meetup.label}</span>
+      ${meetupList().length ? meetupList().map(m => {
+        const on = String(st.meetupId) === String(m.id);
+        return `<span data-act="meetupPick" data-id="${esc(m.id)}" role="tab" aria-selected="${on}" title="${esc(COPY.meetup.hostLine(m.host, m.venue))}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;border:1px solid ${on ? '#7a6432' : 'rgba(32,27,22,.25)'};background:${on ? '#f8f1e2' : 'transparent'};color:${on ? '#7a6432' : '#6d6459'};white-space:nowrap">${esc(String(m.label || '').toUpperCase())}${m.starts_at ? ' · ' + esc(fmt.dayLabel(m.starts_at)) : ''} · ${esc(COPY.meetup.seats(m.expected, m.capacity))}</span>`;
+      }).join('') : `<span style="font-size:11.5px;color:#6d6459">${esc(COPY.meetup.pickNone)}</span>`}
+      ${meetupList().length && !st.meetupId ? `<span style="font-size:11.5px;color:#9b1b22">${esc(COPY.meetup.pick)}</span>` : ''}` : ''}
       ${st.gate === 'bridges' && D && (D.over.bridges_events || []).length > 1 ? `
       <span style="flex-basis:100%;height:0"></span>
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">EDITION</span>
@@ -414,6 +455,8 @@ function blockCounters() {
     const ev = (D.over.bridges_events || []).find(e => String(e.id) === String(st.bridgesEvent));
     if (ev) g = { expected: ev.expected, admitted: ev.admitted };
   }
+  // one picked table, not the whole meetup programme (2026-09-11)
+  if (meetupOn() && st.meetupId) { const m = pickedMeetup(); if (m) g = { expected: m.expected, admitted: m.admitted }; }
   const checked = Number(g.admitted) || 0;
   const expected = Number(g.expected) || 0;
   const still = Math.max(0, expected - checked);
@@ -428,12 +471,23 @@ function blockCounters() {
     </div>
     <!-- /dc -->`;
 }
+// The meetup door's whole point (spec §3): the scan prints WHO this is — position · institution and
+// a short bio — so the host can say "oh, you're a sleep researcher at Harvard".
+function personSnippetHtml(p) {
+  if (!p || !(p.position || p.institution || p.bio)) return '';
+  const line = [p.position, p.institution].filter(Boolean).join(' · ');
+  return `
+      <span data-v2="meetup profile snippet" style="display:flex;flex-direction:column;gap:3px;align-items:center;width:100%;margin-top:2px;padding-top:8px;border-top:1px solid rgba(32,27,22,.1)">
+        ${line ? `<span style="font-size:12px;color:#201b16;text-align:center;line-height:1.45">${esc(line)}</span>` : ''}
+        ${p.bio ? `<span style="font-size:11.5px;color:#6d6459;text-align:center;line-height:1.5">${esc(String(p.bio).slice(0, 260))}</span>` : ''}
+      </span>`;
+}
 function resultHtml() {
   if (st.idcard) return idCardHtml();
   const r = st.last;
   if (!r) return `<span data-role="scanResult"></span>`;
   const label = COPY.results[r.result] || String(r.result || '').replace(/_/g, ' ').toUpperCase();
-  const bad = ['over_capacity', 'not_paid', 'revoked', 'cancelled', 'not_found', 'wrong_event', 'not_registered_for_event', 'error'].includes(r.result);
+  const bad = ['over_capacity', 'not_paid', 'revoked', 'cancelled', 'not_found', 'wrong_event', 'not_registered_for_event', 'error', 'wrong_meetup', 'not_confirmed', 'bad_code', 'bad_event'].includes(r.result);
   const partial = r.ok && r.remaining > 0;
   const color = r.result === 'over_capacity' ? '#9b1b22' : bad ? '#9b1b22' : partial ? '#7a6432' : '#2f7d4f';
   const counts = r.party_size ? `<span style="font-family:Fraunces,serif;font-size:20px">${COPY.door.of(r.admitted_count, r.party_size)}<span style="font-size:13px;color:#6d6459"> admitted</span></span>` : '';
@@ -453,27 +507,33 @@ function resultHtml() {
       ${r.ticket && r.ticket.name ? `<span style="font-family:Fraunces,serif;font-size:19px;line-height:1.1;text-align:center">${esc(r.ticket.name)}</span>` : ''}
       ${r.ticket && r.ticket.meta ? `<span style="font-size:11px;color:#6d6459">${esc(r.ticket.meta)}</span>` : ''}
       ${counts}
+      ${r.meetup && r.meetup.title ? `<span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#7a6432;text-align:center">${esc(String(r.meetup.title).toUpperCase())}${r.meetup.expected != null ? ' · ' + esc(COPY.meetup.seats(r.meetup.checked_in || 0, r.meetup.expected)) + ' IN' : ''}</span>` : ''}
       <span style="font-size:12px;color:${bad ? '#9b1b22' : '#6d6459'};text-align:center;line-height:1.5">${esc(r.message || '')}</span>
+      ${personSnippetHtml(r.person)}
       ${moreUi}${overrideUi}
     </span>`;
 }
 function blockScanner() {
+  // the meetup door refuses to scan until a table is picked — the server answers 400 bad_event
+  const blocked = meetupBlocked();
   return `
     <!-- dc: Admin Event Day.dc.html › "SCANNER" -->
     <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:20px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center">
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;align-self:flex-start">${COPY.scanner.title}</span>
+      ${blocked ? `<span data-v2="meetup door needs a pick" style="width:100%;box-sizing:border-box;border:1px solid #c9a962;background:#f8f1e2;padding:10px 12px;font-size:12px;color:#7a6432;line-height:1.5">${esc(meetupList().length ? COPY.meetup.pick : COPY.meetup.pickNone)}</span>` : ''}
+      ${meetupOn() && st.meetupId ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#7a6432">${esc(String((pickedMeetup() || {}).label || '').toUpperCase())}</span><span style="font-size:11.5px;color:#6d6459;margin-top:-8px">${esc(COPY.meetup.pickHint)}</span>` : ''}
       <div data-role="camBox" class="mx-ed-cam" style="width:180px;height:180px;background:repeating-linear-gradient(45deg,#f6f2ea,#f6f2ea 8px,#efe9dc 8px,#efe9dc 16px);border:1px solid rgba(32,27,22,.15);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
         <span data-role="camHint" style="font:500 10px ui-monospace,monospace;color:#6d6459;max-width:120px">${COPY.scanner.camIdle}</span>
         <span style="position:absolute;left:14px;right:14px;top:50%;height:2px;background:rgba(155,27,34,.55);z-index:2"></span>
       </div>
       <span style="font-size:12px;color:#6d6459;line-height:1.55;max-width:260px">${COPY.scanner.hint}</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-        <span data-act="cam" style="padding:10px 16px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer" data-hover="background:#000">${st.camOn ? COPY.scanner.stop : COPY.scanner.start}</span>
+        <span data-act="cam"${blocked ? ' aria-disabled="true"' : ''} style="padding:10px 16px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;${blocked ? 'opacity:.45;' : ''}" data-hover="background:#000">${st.camOn ? COPY.scanner.stop : COPY.scanner.start}</span>
         ${st.rehearsal ? `<span data-act="rehSim" style="padding:10px 16px;border:1px solid #c9a962;background:#f8f1e2;color:#7a6432;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer">${COPY.scanner.simulate}</span>` : ''}
       </div>
       <form data-role="manualForm" data-v2="manual code entry — part of the scanner" style="display:flex;gap:8px;width:100%;max-width:280px">
-        <input data-role="scanCode" class="input" placeholder="${esc(COPY.scanner.manual)}" autocomplete="off" style="flex:1;min-width:0">
-        <button data-act="scanSubmit" type="submit" class="btn-primary" style="border:0">${st.instant ? COPY.scanner.admit : COPY.scanner.check}</button>
+        <input data-role="scanCode" class="input" placeholder="${esc(COPY.scanner.manual)}" autocomplete="off"${blocked ? ' disabled' : ''} style="flex:1;min-width:0">
+        <button data-act="scanSubmit" type="submit" class="btn-primary"${blocked ? ' aria-disabled="true" disabled' : ''} style="border:0">${st.instant ? COPY.scanner.admit : COPY.scanner.check}</button>
       </form>
       ${resultHtml()}
     </div>
@@ -524,6 +584,13 @@ function blockDoorList() {
     <!-- /dc -->`;
 }
 function staffCardBody() {
+  // A tokenized door page carries no meetup picker, so the meetup door hands the host their OWN
+  // link instead (minted per meetup in the Plexus hub's MEETUPS tab).
+  if (st.gate === MEETUP_GATE) return `
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <a href="/projects/plexus/meetups" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#7e151b">${COPY.meetup.staffOpen}</a>
+        <span style="font-size:11.5px;color:#6d6459;flex:1;min-width:180px;line-height:1.6">${esc(COPY.meetup.staffWhy)}</span>
+      </div>`;
   if (D.errors.tokens && D.errors.tokens.isLocked) return ui.lockedBlock(perms.label(D.errors.tokens.section));
   const alive = (D.tokens || []).filter(t => t.alive && t.event_key === st.gate);
   const t = alive[0];
@@ -698,7 +765,7 @@ function template() {
       ${blockMap()}
       ${blockQa()}
     </div>
-    ${blockHostBrief()}`}
+    ${st.gate === MEETUP_GATE ? '' : blockHostBrief()}`}
   </div>
 </div>`;
 }
@@ -743,15 +810,22 @@ const handlers = {
     paint('[data-block="counters"]', blockCounters());
     refreshDoor();
   },
+  // one picked table at a time (2026-09-11) — the door list and the counters follow it
+  meetupPick: (el) => {
+    st.meetupId = el.dataset.id; st.last = null; st.idcard = null; st.door = [];
+    rerenderAll();
+    refreshDoor();
+  },
   gate: async (el) => {
     st.gate = el.dataset.key; st.last = null; st.qrUrl = null; st.copiedDoor = false;
     st.brief = null; st.briefErr = null; st.briefCopied = false;   // v2 host brief follows the door
+    if (st.gate === MEETUP_GATE) { st.idcard = null; st.door = []; if (!pickedMeetup()) st.meetupId = meetupList().length === 1 ? meetupList()[0].id : null; }
     rerenderAll();
     refreshDoor();
     refreshBrief();
     try { D.notes = await api.get('/api/v2/eventday/notes?event=' + encodeURIComponent(st.gate)); const n = rootEl.querySelector('[data-role="notes"]'); if (n) n.value = D.notes.notes || ''; } catch (e) {}
   },
-  cam: () => { if (st.camOn) stopCam(); else startCam(); },
+  cam: () => { if (meetupBlocked()) { ui.toast(COPY.meetup.pick.toUpperCase()); return; } if (st.camOn) stopCam(); else startCam(); },
   rehSim: () => {
     // practice: admit the next test guest that still has room (TEST-5 demos the crimson unpaid state last)
     const rows = (st.door || []).filter(r => /^TEST-/.test(r.ref));
@@ -761,6 +835,7 @@ const handlers = {
     scan(next.ref, { method: 'manual', event: (next.event && GATE_ORDER.includes(next.event)) ? next.event : st.gate });
   },
   scanSubmit: () => {
+    if (meetupBlocked()) { ui.toast(COPY.meetup.pick.toUpperCase()); return; }
     const i = rootEl.querySelector('[data-role="scanCode"]');
     const v = i ? i.value.trim() : '';
     if (!v) { ui.toast('SCAN OR TYPE A CODE FIRST'); return; }
@@ -778,7 +853,8 @@ const handlers = {
   idAdmit: (el) => {
     const code = el.dataset.code, key = el.dataset.key;
     if (!code || !key) return;
-    scan(code, { method: 'manual', event: key }).then(out => {
+    // a meetup place belongs to ITS table, not to whatever the picker currently shows
+    scan(code, { method: 'manual', event: key, meetup_id: el.dataset.meetup || undefined }).then(out => {
       if (out && out.message) ui.toast(out.message.toUpperCase().slice(0, 80));
       // stay on the ID card — refresh its counts so the operator sees "2 of 3" live
       identify(code, { method: 'manual' });
@@ -910,11 +986,17 @@ export default {
     }
     let reh = false; try { reh = localStorage.getItem(REH_KEY) === '1'; } catch (e) {}
     let inst = false; try { inst = localStorage.getItem('medx_v2_instant') === '1'; } catch (e) {}
-    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, bridgesEvent: null, doorQ: '', door: [], last: null, idcard: null, instant: inst, camOn: false, qrUrl: null, copiedDoor: false, flushing: false,
+    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, bridgesEvent: null, meetupId: null, doorQ: '', door: [], last: null, idcard: null, instant: inst, camOn: false, qrUrl: null, copiedDoor: false, flushing: false,
            brief: null, briefErr: null, briefCopied: false /* v2 host brief (2026-08-31) */ };
     D = await load();
     if (rootEl !== root) return;
     st.gate = GATE_ORDER.includes(ctx.query.door) ? ctx.query.door : (D.over.default_event || 'conference');
+    // the meetup door only exists while a meetup is published for the active edition (2026-09-11)
+    if (st.gate === MEETUP_GATE && !meetupList().length) st.gate = D.over.default_event || 'conference';
+    if (st.gate === MEETUP_GATE) {
+      const wanted = meetupList().find(m => String(m.id) === String(ctx.query.meetup || ''));
+      st.meetupId = wanted ? wanted.id : (meetupList().length === 1 ? meetupList()[0].id : null);
+    }
     const bevs = (D.over.bridges_events || []);
     if (bevs.length) {
       const today = new Date().toISOString().slice(0, 10);

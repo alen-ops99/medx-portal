@@ -1019,6 +1019,12 @@ module.exports = function mountEventDay(app, ctx) {
             const key = GATE_KEYS.includes(String(b.event)) ? String(b.event) : defaultGateKey(gates());
             const gate = gateFor(key);
             if (!gate) return res.status(400).json({ error: 'Unknown door: ' + key });
+            // Meetups already have a door-staff link, and a better one: each meetup's own host link
+            // opens that one table, scanner included. A generic meetup token would land on a page
+            // with no way to pick a table, so it is refused rather than minted and left broken.
+            if (key === MEETUP_GATE) {
+                return res.status(400).json({ error: 'Meetups use their own host link — open the Plexus hub, MEETUPS tab, and copy the host link on the row. It opens that one table, scanner included.' });
+            }
             const token = crypto.randomBytes(18).toString('hex');
             const id = crypto.randomUUID();
             const expires = tokenExpiry(gate);

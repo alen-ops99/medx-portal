@@ -10,6 +10,16 @@
 //   · THE GALA EVENING "FULL VIEW →" goes to /gala (the seating board — the artboard pointed at
 //     Event Day, but the guest list + seating live at /gala; the ON THE DAY row still goes there);
 //   · sign-up forms render one row per form with a real OPEN/CLOSE control (screen spec).
+//
+// v2 additions 2026-09-11 (design/MEETUPS-SPEC.md §1 + §3 "Admin view"), all marked data-v2:
+//   · EDITION SWITCHER — the title row carries a "2026 ▾" chip reading /api/v2/plexus-hub/editions.
+//     The chosen edition rides in ?edition=<id>; an archived one opens READ ONLY (every write action
+//     is hidden AND every write handler is refused — see bindHandlers()).
+//   · TAB STRIP — /projects/plexus is the hub, /projects/plexus/meetups is the MEETUPS tab. The live
+//     deep links /projects/plexus/speakers|schedule|qa still open their inline hub panels, unchanged.
+//   · MEETUPS tab — stats strip · table · create/edit drawer · attendees drawer · invites drawer ·
+//     copy host link · CSV. Permission section `plexus-meetups` (server.js mirrors the id and maps
+//     /api/v2/meetups-ops to it); without it the tab renders the locked state.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -119,12 +129,163 @@ export const COPY = {
     line: f => `Plexus Week 2026 — ${f.registered} registered (cap ${f.cap}) · ${f.gala_paid} Gala seats paid · ${f.speakers_confirmed} speakers confirmed · ${f.days_to_go} days to go · ${f.range} · ${f.venue}, ${f.city}`
   },
   footer: { line: 'nothing is ever deleted — tickets &amp; receipts stay valid forever.', edition: '2026 edition', archive: d => `ARCHIVE · AFTER ${d.toUpperCase()}`, archiveTitle: 'Locks this edition read-only once the week is over' },
-  locked: sec => `${perms.label(sec) || 'That section'} is locked for you — ask Alen.`
+  locked: sec => `${perms.label(sec) || 'That section'} is locked for you — ask Alen.`,
+
+  // ---- v2 2026-09-11: tab strip ----------------------------------------------------------------
+  tabs: { hub: 'THE WEEK', meetups: 'MEETUPS', meetupsLocked: 'MEETUPS · LOCKED' },
+
+  // ---- v2 2026-09-11: edition switcher ---------------------------------------------------------
+  ed: {
+    title: 'Switch edition — archived years open read-only', label: 'EDITION',
+    status: { active: 'ACTIVE', upcoming: 'UPCOMING', archived: 'ARCHIVED' },
+    none: 'No editions on file yet — the 2026 week seeds itself on the next boot.',
+    roTag: 'READ ONLY',
+    roLine: y => `${y} is archived — everything on this screen is read-only.`,
+    roWhy: 'Nothing can be changed in a closed edition. Switch back to the active year to edit.',
+    roToast: 'THIS EDITION IS ARCHIVED — SWITCH TO THE ACTIVE YEAR TO CHANGE ANYTHING'
+  },
+
+  // ---- v2 2026-09-11: MEETUPS tab (design/MEETUPS-SPEC.md §3 "Admin view") ----------------------
+  meet: {
+    stats: {
+      meetups: 'MEETUPS', meetupsSub: (p, d) => `${p} published · ${d} draft${d === 1 ? '' : 's'}`,
+      seats: 'SEATS', seatsSub: (taken, left) => `${taken} taken · ${left} left`,
+      fill: 'FILL', fillSub: n => `${n} host${n === 1 ? '' : 's'} on the programme`,
+      wait: 'WAITLISTED', waitSub: 'people holding for a place'
+    },
+    table: {
+      title: 'MEETUPS', sub: 'coffee, lunch, a walk — one host, one small table',
+      add: '+ NEW MEETUP', addTitle: 'A table of 3–15: the host, the time, the place and who may come',
+      head: { title: 'MEETUP', host: 'HOST', when: 'WHEN', venue: 'WHERE', seats: 'SEATS', wait: 'WAIT', status: 'STATUS' },
+      seats: (a, b) => `${a}/${b}`, noHost: 'no host yet', noVenue: '—',
+      empty: 'No meetups yet — the first one is a coffee with 6 seats.',
+      emptyWhy: 'Create it as a draft, add the host, then publish when the time and place are set.',
+      kinds: { coffee: 'COFFEE', lunch: 'LUNCH', dinner: 'DINNER', walk: 'WALK', visit: 'VISIT', other: 'MEETUP' },
+      status: { draft: 'DRAFT', published: 'LIVE', cancelled: 'CANCELLED', completed: 'DONE' },
+      inviteOnly: 'INVITE ONLY', noWaitlist: 'NO WAITLIST', full: 'FULL'
+    },
+    acts: {
+      people: 'PEOPLE', peopleTitle: 'Attendees, waitlist, check-in',
+      invites: 'INVITE', invitesTitle: 'Invite members or paste emails — preview before anything sends',
+      link: 'HOST LINK', linkTitle: 'Copy the host’s own page link — no login needed',
+      csv: 'CSV', csvTitle: 'Download the attendee list',
+      edit: 'EDIT', publish: 'PUBLISH', unpublish: 'UNPUBLISH', cancel: 'CANCEL', del: '✕', delTitle: 'Delete this draft'
+    },
+    drawer: { close: 'CLOSE', newTitle: 'NEW MEETUP', editTitle: t => `EDIT · ${String(t || '').toUpperCase()}`, attTitle: t => `PEOPLE · ${String(t || '').toUpperCase()}`, invTitle: t => `INVITATIONS · ${String(t || '').toUpperCase()}` },
+    form: {
+      title: 'TITLE', titlePh: 'Coffee with the keynote', kind: 'KIND',
+      description: 'WHAT IT IS', descriptionPh: 'One short paragraph the member sees on the card.',
+      audience: 'WHO IT IS FOR', audiencePh: 'Students & residents in neuroscience',
+      tags: 'FIELD TAGS', tagsPh: 'neuroscience, sleep, research — comma separated',
+      venueName: 'VENUE', venueNamePh: 'Kavana Esplanade', venueAddress: 'ADDRESS', venueAddressPh: 'Mihanovićeva 1, Zagreb',
+      venueMap: 'MAP LINK', venueMapPh: 'https://maps.app.goo.gl/…',
+      starts: 'STARTS', ends: 'ENDS', capacity: 'SEATS', capacityWhy: '3–15 is the usual table (1–60 allowed)',
+      waitlist: 'Waitlist when it fills', visibility: 'WHO CAN SEE IT',
+      visOpts: [['open', 'Open — any member can join'], ['invite', 'Invite only — only the people you invite']],
+      host: 'HOST', hostMember: 'A MED&X MEMBER', hostFree: 'A NAME + EMAIL',
+      hostSearch: 'Search members — name, email or institution', hostSearchShort: 'Type at least two letters.',
+      hostNone: 'No member matches that.', hostClear: 'CLEAR', hostPicked: 'PICKED',
+      hostName: 'HOST NAME', hostNamePh: 'Prof. Ivana Kovač', hostEmail: 'HOST EMAIL', hostEmailPh: 'host@example.org',
+      hostTitle: 'ROLE & INSTITUTION', hostTitlePh: 'Professor of Neurology · KBC Zagreb',
+      save: 'SAVE', create: 'CREATE MEETUP', cancel: 'CANCEL',
+      needTitle: 'GIVE THE MEETUP A TITLE FIRST', needStart: 'SET THE START — DATE AND TIME',
+      created: 'MEETUP CREATED AS A DRAFT — PUBLISH IT WHEN THE PLACE IS SET', saved: 'MEETUP SAVED'
+    },
+    att: {
+      confirmed: 'COMING', waitlist: 'WAITLIST', invited: 'INVITED', declined: 'DECLINED', cancelled: 'CANCELLED',
+      countOf: (n, cap) => `${n} of ${cap}`, empty: 'Nobody here yet.',
+      add: 'ADD SOMEONE', addMember: 'A MEMBER', addEmail: 'AN EMAIL',
+      addEmailPh: 'name@example.org', addNamePh: 'Full name', addInstPh: 'Institution', addPosPh: 'Position / field',
+      addBtn: 'ADD', notify: 'Email them', addedIn: n => `${n.toUpperCase()} IS IN — THE PLACE IS CONFIRMED`,
+      addedWait: n => `${n.toUpperCase()} IS ON THE WAITLIST`, already: 'THAT PERSON ALREADY HAS A PLACE HERE',
+      needEmail: 'A VALID EMAIL ADDRESS IS NEEDED',
+      pos: n => `#${n}`, checkedIn: '✓ IN', checkIn: 'CHECK IN', undo: 'UNDO',
+      promote: 'PROMOTE', promoteTitle: 'Move this person up into the table now — they get the email',
+      cancelPlace: 'CANCEL', cancelTitle: 'Free this place — the first waitlisted person is promoted automatically',
+      remove: '✕', removeTitle: 'Remove the row entirely (a mistake, a duplicate)',
+      csv: 'EXPORT CSV', csvName: 'medx-meetup-attendees.csv', csvDone: 'ATTENDEE LIST DOWNLOADED',
+      checkedOn: n => `${n.toUpperCase()} CHECKED IN`, checkedOff: 'CHECK-IN UNDONE',
+      promoted: n => `${n.toUpperCase()} MOVED INTO THE TABLE — THEY GET THE EMAIL`,
+      cancelAsk: n => `Free ${n}’s place? They get a cancellation email and the first person on the waitlist moves up automatically.`,
+      cancelOk: 'FREE THE PLACE', cancelKeep: 'KEEP',
+      // NB: `cancelled` above is the BUCKET label — the toasts keep their own names on purpose
+      freed: 'PLACE FREED', freedUp: n => `PLACE FREED — ${n.toUpperCase()} MOVED UP`,
+      removeAsk: n => `Remove ${n} from this meetup completely? No email is sent — use CANCEL if they should hear about it.`,
+      removeOk: 'REMOVE', removeKeep: 'KEEP', removed: 'ROW REMOVED'
+    },
+    inv: {
+      summary: (i, a, d) => `${i} invited · ${a} accepted · ${d} declined`,
+      pick: 'PICK MEMBERS', pickPh: 'Search members — name, email or institution',
+      paste: 'OR PASTE EMAILS', pastePh: 'a@example.org, b@example.org',
+      preview: 'PREVIEW THE EMAIL', previewTitle: 'Renders the exact email and sends nothing',
+      previewHead: (n, s) => `${n} recipient${n === 1 ? '' : 's'} · ${s}`,
+      previewNone: 'Pick someone or paste an address first.',
+      invalid: list => `Not an email address: ${list}`,
+      send: 'SEND THE INVITATIONS', sendAsk: n => `Send the invitation to ${n} ${n === 1 ? 'person' : 'people'}? Each gets an Accept / Can’t make it email.`,
+      sendOk: 'SEND', sendKeep: 'NOT YET',
+      sent: (n, m) => `${n} INVITED · ${m} EMAIL${m === 1 ? '' : 'S'} SENT`,
+      skipped: n => `${n} already had a place — skipped`,
+      none: 'Nobody invited yet.', drop: '✕'
+    },
+    hostLink: { copied: 'HOST LINK COPIED — SEND IT TO THE HOST', failed: 'COPY FAILED — OPEN THE MEETUP AND COPY BY HAND', none: 'THIS MEETUP HAS NO HOST LINK YET — PUBLISH IT FIRST' },
+    publish: { needHost: 'ADD A HOST BEFORE PUBLISHING — THE MEETUP EMAIL NAMES THEM', on: t => `${String(t).toUpperCase()} IS LIVE — MEMBERS CAN JOIN NOW`, off: 'BACK TO DRAFT — OFF THE MEMBER PAGE' },
+    cancelM: {
+      eyebrow: 'CANCEL THIS MEETUP', title: t => `Cancel “${t}”?`,
+      warn: 'This emails EVERY person holding a place and everyone on the waitlist, at once. There is no undo.',
+      reason: 'WHY (goes into the email — optional)', reasonPh: 'The host had to travel — we are sorry.',
+      notify: 'Email everyone', go: 'CANCEL THE MEETUP', keep: 'KEEP IT',
+      done: n => n ? `MEETUP CANCELLED — ${n} PERSON${n === 1 ? '' : 'S'} EMAILED` : 'MEETUP CANCELLED'
+    },
+    del: { ask: t => `Delete the draft “${t}”? Nothing was published and nobody holds a place.`, ok: 'DELETE', keep: 'KEEP', done: 'DRAFT DELETED' },
+    locked: 'Meetups are locked for you.',
+    lockedWhy: 'Plexus Meetups needs access — ask Alen, he grants it per section.'
+  }
 };
 const FIG_KEYS = ['registered', 'gala_paid', 'speakers_confirmed', 'days_to_go'];
 
+// ---- v2 2026-09-11: tabs. `/projects/plexus/:tab?` still takes speakers|schedule|qa — those are
+// LIVE deep links (chrome PALETTE, facts.js SECTION_ROUTES, eventday.js) that pre-open an inline
+// hub panel, so they map to the hub tab and set openPanel exactly as before.
+const PANEL_SLUGS = ['speakers', 'schedule', 'qa'];
+const SLUG_TO_TAB = { '': 'hub', meetups: 'meetups', speakers: 'hub', schedule: 'hub', qa: 'hub' };
+const TAB_TO_SLUG = { hub: '', meetups: 'meetups' };
+const TAB_ORDER = ['hub', 'meetups'];
+const MEET_SECTION = 'plexus-meetups';
+const CAP_MIN = 1, CAP_MAX = 60;
+
+// ---- shared inline vocabulary (same values the other screens use; look stays inline) ----
+const HAIR = 'rgba(32,27,22,.14)', HAIR12 = 'rgba(32,27,22,.12)', HAIR08 = 'rgba(32,27,22,.08)', HAIR07 = 'rgba(32,27,22,.07)';
+const MICRO = 'font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459';
+const BTN_GHOST = 'padding:7px 11px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;color:#201b16;white-space:nowrap';
+const INPUT = 'border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16';
+const INPUT2 = 'border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16';
+
+// table helpers — the js/views/money.js vocabulary, verbatim
+function tblWrap(headers, bodyRows, minWidth) {
+  return `
+    <div class="mxp-scroll" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;min-width:${minWidth || 900}px">
+        <thead><tr>${headers.map(h => `<th style="text-align:${h.r ? 'right' : 'left'};padding:9px 10px;${MICRO};border-bottom:1px solid ${HAIR12};white-space:nowrap">${h.t}</th>`).join('')}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>`;
+}
+const td = (v, extra) => `<td style="font-size:12.5px;padding:9px 10px;border-bottom:1px solid ${HAIR07};vertical-align:top;${extra || ''}">${v}</td>`;
+const tdNum = v => td(`<span style="font-family:Fraunces,serif;font-size:14px;white-space:nowrap">${v}</span>`, 'text-align:right');
+const tdActs = acts => td(`<span style="display:flex;gap:6px;justify-content:flex-end">${acts}</span>`, 'text-align:right;white-space:nowrap');
+const actBtn = (act, id, label, title) => `<span data-act="${act}" data-id="${esc(id)}"${title ? ` title="${esc(title)}"` : ''} style="${BTN_GHOST}" data-hover="border-color:#201b16">${label}</span>`;
+
+// authed CSV download — the js/views/money.js fetchBlob/dl pair
+async function fetchBlob(path) {
+  const res = await fetch(api.url(path), { headers: { Authorization: 'Bearer ' + session.token } });
+  if (!res.ok) { let j = null; try { j = JSON.parse(await res.text()); } catch (e) {} throw new Error((j && (j.message || j.error)) || ('The export failed (HTTP ' + res.status + ').')); }
+  return res.blob();
+}
+const dl = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+
 // ---- view state ----
 let D = null, st = null, unbind = null, rootEl = null, onChangeBound = null, onInputBound = null;
+let hostTimer = null;
 
 function injectCss() {
   if (!document.querySelector('link[data-mxp-css]')) {
@@ -135,9 +296,20 @@ function injectCss() {
 }
 
 // ---------------------------------------------------------------- data
-async function load() {
-  const r = await api.settle({
+// The hub tab reads the whole week; the MEETUPS tab reads only what its own screen prints, so
+// switching tabs never fires twenty calls for blocks that are not on screen. Both need the
+// conference row (title facts), the member status label and the edition list (switcher + H1 year).
+async function load(tab, editionId) {
+  const want = {
     conf: api.get('/api/conferences/active', { noAuth: true }),
+    pstatus: api.get('/api/admin/project-status'),
+    eds: api.get('/api/v2/plexus-hub/editions')
+  };
+  if (tab === 'meetups') {
+    if (perms.can(MEET_SECTION)) want.meet = api.get('/api/v2/meetups-ops/overview' + (editionId ? '?edition=' + encodeURIComponent(editionId) : ''));
+    return shape(await api.settle(want));
+  }
+  Object.assign(want, {
     summary: api.get('/api/dashboard/summary'),
     pstats: api.get('/api/dashboard/portal-stats'),
     gala: api.get('/api/admin/gala/registrations'),
@@ -151,7 +323,6 @@ async function load() {
     qa: api.get('/api/admin/plexus/qa'),
     editions: api.get('/api/admin/editions'),
     pe: api.get('/api/admin/post-event/summary?event_key=plexus'),
-    pstatus: api.get('/api/admin/project-status'),
     cal: api.get('/api/admin/year-calendar'),
     outbox: api.get('/api/admin/outbox?status=pending_approval'),
     itins: api.get('/api/admin/speaker-itineraries'),
@@ -160,6 +331,9 @@ async function load() {
     croat: api.get('/api/admin/croatians-abroad/registrations'),
     ov: api.get('/api/v2/plexus-hub/stats-overrides?scope=' + STATS_SCOPE)
   });
+  return shape(await api.settle(want));
+}
+function shape(r) {
   const conf = r.conf || {};
   // Local fallback walk — same inactive list as gala-ops.js (declined/expired excluded too, audit #1)
   const galaRows = (Array.isArray(r.gala) ? r.gala : []).filter(g => !['rejected', 'cancelled', 'declined', 'expired'].includes(String(g.status || '').toLowerCase()));
@@ -197,7 +371,11 @@ async function load() {
     waitn: (Array.isArray(r.waitlist) ? r.waitlist : []).filter(w => (w.status || 'waiting') === 'waiting').length,
     croat: Array.isArray(r.croat) ? r.croat.length : 0,
     overrides: (r.ov && r.ov.overrides) || {},
-    days: Math.max(0, fmt.daysUntil(conf.start_date || FACTS.plexus.start) || 0)
+    days: Math.max(0, fmt.daysUntil(conf.start_date || FACTS.plexus.start) || 0),
+    // v2 2026-09-11 — edition switcher + MEETUPS tab
+    eds: (r.eds && Array.isArray(r.eds.editions)) ? r.eds.editions : [],
+    edActive: (r.eds && r.eds.active) || null,
+    meet: r.meet || null
   };
 }
 
@@ -207,6 +385,30 @@ const spLive = () => D.speakers.filter(s => Number(s.is_confirmed) && Number(s.i
 const ssPublished = () => D.sessions.filter(s => Number(s.is_published));
 const qaOpen = () => D.qa.filter(x => !x.is_answered && !x.is_hidden);
 const isLocked = key => !!(D.errors[key] && D.errors[key].isLocked);
+
+// ---- v2 2026-09-11: editions + tabs -------------------------------------------------------------
+const activeEdId = () => (D.edActive && D.edActive.id) || null;
+function chosenEd() {
+  if (!D.eds.length) return D.edActive || null;
+  return D.eds.find(e => e.id === st.editionId) || D.edActive || D.eds[0];
+}
+const edYear = () => { const e = chosenEd(); return e && e.year ? String(e.year) : String(FACTS.year); };
+const isArchived = () => { const e = chosenEd(); return !!(e && e.status === 'archived'); };
+// the query rides along only when the chosen edition is NOT the active one — the everyday URL stays clean
+const edQ = (id) => { const v = id === undefined ? (st.editionId || null) : id; return v && v !== activeEdId() ? '?edition=' + encodeURIComponent(v) : ''; };
+const tabPath = (tab) => '/projects/plexus' + (TAB_TO_SLUG[tab] ? '/' + TAB_TO_SLUG[tab] : '');
+const hrefTab = (tab) => tabPath(tab) + edQ();
+const hrefEd = (id) => tabPath(st.tab) + edQ(id);
+
+// ---- v2 2026-09-11: meetups ---------------------------------------------------------------------
+const canMeet = () => perms.can(MEET_SECTION);
+const meetRows = () => (D.meet && Array.isArray(D.meet.meetups)) ? D.meet.meetups : [];
+const meetStats = () => (D.meet && D.meet.stats) || { meetups: 0, published: 0, drafts: 0, cancelled: 0, seats: 0, taken: 0, seats_left: 0, fill_percent: 0, waitlisted: 0, hosts: 0 };
+const meetKinds = () => (D.meet && Array.isArray(D.meet.kinds) && D.meet.kinds.length) ? D.meet.kinds : ['coffee', 'lunch', 'dinner', 'walk', 'visit', 'other'];
+const meetById = (id) => meetRows().find(m => String(m.id) === String(id)) || null;
+// the meetups payload is edition-scoped server-side too; read_only mirrors the chosen edition
+const meetReadOnly = () => !!(D.meet && D.meet.read_only) || isArchived();
+
 function euRange(a, b) {
   const da = fmt.toDate(a), db = fmt.toDate(b);
   if (!da) return FACTS.plexus.dateRange;
@@ -268,17 +470,20 @@ function blockSubnav() {
 function blockTitle() {
   const h = COPY.head;
   const live = D.pstatus && D.pstatus.status_label;
+  const ro = isArchived();
   return `
     <!-- dc: Admin Plexus Hub.dc.html › "Title row" -->
     <div data-block="title" style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
-      <div>
+      <div style="min-width:0">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <span class="mx-display-34" style="font-family:Fraunces,serif;font-size:34px;white-space:nowrap">Plexus Week <i>2026</i></span>
+          <span class="mx-display-34" style="font-family:Fraunces,serif;font-size:34px;white-space:nowrap">Plexus Week <i>${esc(edYear())}</i></span>
+          ${edChip()}
           <span data-act="msFocus" title="${esc(h.liveTitle)}" style="background:${live ? '#1e6e42' : '#b07d10'};color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.14em;padding:4px 8px;cursor:pointer">${live ? h.live : h.hidden}</span>
+          ${ro ? `<span data-v2="read-only edition" style="background:#6d6459;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.14em;padding:4px 8px">${COPY.ed.roTag}</span>` : ''}
         </div>
         <div style="font-size:13px;color:#6d6459;margin-top:6px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
           <span>${esc(h.facts(D.cap, euRange(D.conf.start_date || FACTS.plexus.start, D.conf.end_date || FACTS.plexus.end), D.conf.venue_name || FACTS.plexus.venue, D.conf.venue_city || FACTS.plexus.city))}</span>
-          <span data-act="editConf" title="${esc(h.editTitle)}" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${h.edit}</span>
+          ${ro ? '' : `<span data-act="editConf" title="${esc(h.editTitle)}" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${h.edit}</span>`}
         </div>
       </div>
       <div class="mxp-title-actions" style="display:flex;gap:10px;flex-wrap:wrap">
@@ -286,7 +491,49 @@ function blockTitle() {
         <a href="/event-day" style="background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 16px;white-space:nowrap" data-hover="background:#9b1b22">${h.eventday}</a>
       </div>
     </div>
-    <!-- /dc -->`;
+    <!-- /dc -->
+    ${blockEditions()}
+    ${ro ? `
+    <!-- v2: archived edition banner -->
+    <div data-v2="read-only banner" style="border:1px solid ${HAIR};border-left:3px solid #6d6459;background:#fdfbf6;padding:11px 18px;margin-top:14px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;white-space:nowrap">${esc(COPY.ed.roLine(edYear()))}</span>
+      <span style="font-size:12px;color:#9a9086">${COPY.ed.roWhy}</span>
+    </div>
+    <!-- /v2 -->` : ''}`;
+}
+// The edition switcher chip — the eventday.js bridges EDITION chip idiom, one level up: the chip
+// prints the chosen year, clicking it opens the chip row of every edition on file (blockEditions).
+function edChip() {
+  return `<span data-act="edToggle" data-v2="edition switcher" role="button" aria-expanded="${!!st.edOpen}" title="${esc(COPY.ed.title)}" style="padding:5px 10px;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;border:1px solid ${st.edOpen ? '#201b16' : 'rgba(32,27,22,.25)'};background:${st.edOpen ? '#201b16' : 'transparent'};color:${st.edOpen ? '#f6f2ea' : '#6d6459'};white-space:nowrap" data-hover="border-color:#201b16">${esc(edYear())} ${st.edOpen ? '▴' : '▾'}</span>`;
+}
+function blockEditions() {
+  if (!st.edOpen) return `<div data-block="edPicker"></div>`;
+  const tone = { active: ['#1e6e42', '#fff'], upcoming: ['#f8f1e2', '#7a6432'], archived: ['transparent', '#6d6459'] };
+  return `
+    <!-- v2: "EDITION" chip row (design/MEETUPS-SPEC.md §1 — archived editions open read-only) -->
+    <div data-block="edPicker" class="mxp-edrow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px">
+      <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${COPY.ed.label}</span>
+      ${D.eds.length ? D.eds.map(e => {
+        const on = chosenEd() && chosenEd().id === e.id;
+        const [bg, fg] = tone[e.status] || tone.upcoming;
+        return `<a href="${esc(hrefEd(e.id))}" role="tab" aria-selected="${on}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;border:1px solid ${on ? '#201b16' : 'rgba(32,27,22,.25)'};background:${on ? '#201b16' : bg};color:${on ? '#f6f2ea' : fg};white-space:nowrap" data-hover="border-color:#201b16">${esc(e.label || ('Plexus Week ' + e.year))} · ${esc(COPY.ed.status[e.status] || String(e.status || '').toUpperCase())}${e.starts_on ? ' · ' + esc(fmt.rangeLabel(e.starts_on, e.ends_on)) : ''}</a>`;
+      }).join('') : `<span style="font-size:12px;color:#6d6459;font-style:italic">${COPY.ed.none}</span>`}
+    </div>
+    <!-- /v2 -->`;
+}
+function blockTabs() {
+  const meetLocked = !canMeet();
+  return `
+    <!-- v2: hub tab strip — /projects/plexus (the week) · /projects/plexus/meetups -->
+    <div data-block="tabs" class="mxp-tabs" data-v2="tab strip" style="display:flex;gap:0;border-bottom:1px solid rgba(32,27,22,.18);margin-top:20px">
+      ${TAB_ORDER.map(id => {
+        const on = st.tab === id;
+        const locked = id === 'meetups' && meetLocked;
+        const tip = locked ? ` title="${esc(COPY.meet.lockedWhy)}"` : '';
+        return `<a href="${esc(hrefTab(id))}"${tip} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};${locked ? 'opacity:.5;' : ''}border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${locked ? COPY.tabs.meetupsLocked : COPY.tabs[id]}</a>`;
+      }).join('\n      ')}
+    </div>
+    <!-- /v2 -->`;
 }
 function blockStats() {
   const s = COPY.stats;
@@ -599,6 +846,306 @@ function blockStatsWidget() {
         </div>
         <!-- /v2 -->`;
 }
+// ================================================================================================
+// v2 2026-09-11 — MEETUPS tab (design/MEETUPS-SPEC.md §3 "Admin view"). No artboard source; built
+// from the hub's own vocabulary: the blockStats() stat strip, the money.js table helpers and the
+// studio.js tool-drawer. Every write action disappears on an archived edition (meetReadOnly()).
+// ================================================================================================
+const localIso = v => String(v == null ? '' : v).replace(' ', 'T').slice(0, 16);
+const fLab = t => `<span style="${MICRO}">${t}</span>`;
+function fText(role, label, value, ph, opts = {}) {
+  return `<label class="mxp-f" style="display:flex;flex-direction:column;gap:5px;min-width:0${opts.span ? ';grid-column:1 / -1' : ''}">${fLab(esc(label))}<input data-role="${role}" type="${opts.type || 'text'}"${opts.min != null ? ` min="${opts.min}"` : ''}${opts.max != null ? ` max="${opts.max}"` : ''}${opts.step ? ` step="${opts.step}"` : ''} value="${esc(value == null ? '' : value)}" placeholder="${esc(ph || '')}" aria-label="${esc(label)}" style="width:100%;box-sizing:border-box;${INPUT2}"></label>`;
+}
+function fArea(role, label, value, ph, rows) {
+  return `<label class="mxp-f" style="display:flex;flex-direction:column;gap:5px;min-width:0;grid-column:1 / -1">${fLab(esc(label))}<textarea data-role="${role}" rows="${rows || 3}" placeholder="${esc(ph || '')}" aria-label="${esc(label)}" style="width:100%;box-sizing:border-box;resize:vertical;${INPUT2}">${esc(value == null ? '' : value)}</textarea></label>`;
+}
+function fSel(role, label, value, opts, span) {
+  return `<label class="mxp-f" style="display:flex;flex-direction:column;gap:5px;min-width:0${span ? ';grid-column:1 / -1' : ''}">${fLab(esc(label))}<select data-role="${role}" aria-label="${esc(label)}" style="width:100%;box-sizing:border-box;${INPUT2}">${opts.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(value == null ? '' : value) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
+}
+const pickerLine = t => `<span style="padding:9px 11px;font-size:12px;color:#6d6459;font-style:italic">${esc(t)}</span>`;
+// one member picker, three uses (host · manual add · invitations) — /api/v2/meetups-ops/members
+function memberResults(block, act, bag) {
+  const b = bag || {};
+  const q = String(b.q || '').trim();
+  const body = b.busy ? pickerLine('…')
+    : q.length < 2 ? pickerLine(COPY.meet.form.hostSearchShort)
+    : !(b.results || []).length ? pickerLine(COPY.meet.form.hostNone)
+    : b.results.map(m => `<span data-act="${act}" data-id="${esc(m.id)}" data-name="${esc(m.name || '')}" data-email="${esc(m.email || '')}" data-line="${esc(m.line || '')}" style="display:flex;align-items:baseline;gap:9px;padding:8px 11px;border-top:1px solid ${HAIR07};cursor:pointer" data-hover="background:#fdfbf6"><span style="font-size:12.5px;font-weight:600;white-space:nowrap">${esc(m.name || m.email)}</span><span style="font-size:11.5px;color:#6d6459;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.line || m.email || '')}</span></span>`).join('');
+  return `<div data-block="${block}" class="mxp-picker" style="display:flex;flex-direction:column;border:1px solid ${HAIR12};background:#fff;max-height:196px;overflow:auto">${body}</div>`;
+}
+
+function blockMeetStats() {
+  const s = meetStats(), c = COPY.meet.stats;
+  const cell = (k, v, sub, last) => `
+        <div style="padding:16px 20px;${last ? '' : 'border-right:1px solid rgba(32,27,22,.1)'}">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${k}</div>
+          <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${esc(v)}</div>
+          <div style="font-size:11px;color:#6d6459">${esc(sub)}</div>
+        </div>`;
+  return `
+    <!-- v2: "MEETUPS — stat strip" (the Plexus hub stat-strip markup, four cells) -->
+    <div data-block="meetStats" data-v2="meetups stats" style="border:1px solid ${HAIR};background:#fff;margin-top:22px">
+      <div class="mx-kpi" style="display:grid;grid-template-columns:repeat(4,1fr)">
+        ${cell(c.meetups, fmt.num(s.meetups), c.meetupsSub(s.published, s.drafts))}
+        ${cell(c.seats, fmt.num(s.seats), c.seatsSub(s.taken, s.seats_left))}
+        ${cell(c.fill, s.fill_percent + '%', c.fillSub(s.hosts))}
+        ${cell(c.wait, fmt.num(s.waitlisted), c.waitSub, true)}
+      </div>
+    </div>
+    <!-- /v2 -->`;
+}
+
+function meetRow(m) {
+  const t = COPY.meet.table, a = COPY.meet.acts;
+  const ro = meetReadOnly();
+  const tone = { draft: ['#f8f1e2', '#7a6432'], published: ['#1e6e42', '#fff'], cancelled: ['#9b1b22', '#fff'], completed: ['#f6f2ea', '#6d6459'] }[m.status] || ['#f6f2ea', '#6d6459'];
+  const chips = [
+    m.visibility === 'invite' ? t.inviteOnly : '',
+    m.waitlist_enabled ? '' : t.noWaitlist,
+    m.full ? t.full : ''
+  ].filter(Boolean).map(x => `<span style="${MICRO};color:#9a9086;white-space:nowrap">${esc(x)}</span>`).join('');
+  const canDelete = m.status === 'draft' && !m.confirmed && !m.waitlisted && !m.invited;
+  const acts = [
+    actBtn('mAtt', m.id, a.people, a.peopleTitle),
+    actBtn('mInv', m.id, a.invites, a.invitesTitle),
+    m.host_link ? actBtn('mHostLink', m.id, a.link, a.linkTitle) : '',
+    actBtn('mCsv', m.id, a.csv, a.csvTitle),
+    ro ? '' : actBtn('mEdit', m.id, a.edit),
+    ro || m.status === 'cancelled' ? '' : actBtn('mPublish', m.id, m.status === 'published' ? a.unpublish : a.publish),
+    ro || m.status === 'cancelled' ? '' : actBtn('mCancelMeetup', m.id, a.cancel),
+    ro || !canDelete ? '' : actBtn('mDelete', m.id, a.del, a.delTitle)
+  ].filter(Boolean).join('');
+  return `
+      <tr data-row="meet-${esc(m.id)}">
+        ${td(`<span style="display:flex;flex-direction:column;gap:2px;min-width:0">
+              <span style="font-size:13px;font-weight:600">${esc(m.title)}</span>
+              <span style="display:flex;gap:9px;flex-wrap:wrap;align-items:baseline"><span style="${MICRO};color:#c9a962;white-space:nowrap">${esc(t.kinds[m.kind] || t.kinds.other)}</span>${chips}</span>
+            </span>`, 'min-width:220px')}
+        ${td(m.host_line || m.host_name ? `<span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12.5px">${esc(m.host_name || '')}</span>${m.host_title ? `<span style="font-size:11px;color:#6d6459">${esc(m.host_title)}</span>` : ''}</span>` : `<span style="font-size:12px;color:#9b1b22">${esc(t.noHost)}</span>`)}
+        ${td(`<span style="white-space:nowrap">${esc(m.when_label || m.starts_at || '')}</span>`)}
+        ${td(m.venue_name ? `<span style="display:flex;flex-direction:column;gap:2px"><span>${esc(m.venue_name)}</span>${m.venue_address ? `<span style="font-size:11px;color:#6d6459">${esc(m.venue_address)}</span>` : ''}</span>` : `<span style="color:#9a9086">${t.noVenue}</span>`)}
+        ${tdNum(esc(t.seats(m.confirmed, m.capacity)))}
+        ${tdNum(m.waitlisted ? esc(String(m.waitlisted)) : '<span style="color:#9a9086">—</span>')}
+        ${td(`<span style="background:${tone[0]};color:${tone[1]};font:600 8.5px Inter,sans-serif;letter-spacing:.12em;padding:3px 7px;white-space:nowrap">${esc(t.status[m.status] || String(m.status || '').toUpperCase())}</span>`)}
+        ${tdActs(acts)}
+      </tr>`;
+}
+function blockMeetTable() {
+  const t = COPY.meet.table;
+  const ro = meetReadOnly();
+  if (!canMeet()) {
+    return `
+    <!-- v2: "MEETUPS" — locked state (permission section plexus-meetups) -->
+    <div data-block="meetTable" style="border:1px solid ${HAIR};background:#fff;margin-top:22px">
+      <div style="padding:14px 20px;border-bottom:1px solid ${HAIR12};display:flex;align-items:baseline;gap:10px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${t.title}</span><span style="font-size:11.5px;color:#9a9086">${t.sub}</span></div>
+      <div style="padding:10px 0">${ui.lockedBlock(perms.label(MEET_SECTION))}</div>
+    </div>
+    <!-- /v2 -->`;
+  }
+  if (D.errors.meet) {
+    const e = D.errors.meet;
+    return `
+    <!-- v2: "MEETUPS" — the overview call failed -->
+    <div data-block="meetTable" style="border:1px solid ${HAIR};background:#fff;margin-top:22px">
+      <div style="padding:14px 20px;border-bottom:1px solid ${HAIR12};display:flex;align-items:baseline;gap:10px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${t.title}</span></div>
+      <div style="padding:10px 0">${e.isLocked ? ui.lockedBlock(perms.label(e.section)) : `<div style="padding:16px 20px;font-size:12.5px;color:#9b1b22">${esc(e.message)}</div>`}</div>
+    </div>
+    <!-- /v2 -->`;
+  }
+  const rows = meetRows();
+  const headers = [{ t: t.head.title }, { t: t.head.host }, { t: t.head.when }, { t: t.head.venue }, { t: t.head.seats, r: 1 }, { t: t.head.wait, r: 1 }, { t: t.head.status }, { t: '', r: 1 }];
+  return `
+    <!-- v2: "MEETUPS" — the table (design/MEETUPS-SPEC.md §3 "Admin view") -->
+    <div data-block="meetTable" style="border:1px solid ${HAIR};background:#fff;margin-top:22px">
+      <div class="mxp-cardhead" style="padding:14px 20px;border-bottom:1px solid ${HAIR12};display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;white-space:nowrap">${t.title}</span>
+        <span style="font-size:11.5px;color:#9a9086">${t.sub}</span>
+        <div style="flex:1"></div>
+        ${ro ? `<span style="${MICRO};color:#9a9086;white-space:nowrap">${COPY.ed.roTag}</span>`
+             : `<span data-act="mNew" title="${esc(t.addTitle)}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${t.add}</span>`}
+      </div>
+      ${rows.length ? tblWrap(headers, rows.map(meetRow).join(''), 1120)
+        : `<div class="empty" style="padding:30px 20px"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">${t.empty}</span><span class="empty-why">${t.emptyWhy}</span></div>`}
+    </div>
+    <!-- /v2 -->`;
+}
+
+// ---- the drawer (the js/views/studio.js tool-drawer idiom: one slot, per-tool body) --------------
+function drawerForm() {
+  const c = COPY.meet.form, f = st.form;
+  const cap = Math.max(CAP_MIN, Math.min(CAP_MAX, Number(f.capacity) || 8));
+  const step = (act, label) => `<span data-act="${act}" style="width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(32,27,22,.25);font:600 14px Inter,sans-serif;cursor:pointer;background:#fff;box-sizing:border-box" data-hover="border-color:#201b16">${label}</span>`;
+  return `
+      <div class="mxp-fgrid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 20px">
+        ${fText('fTitle', c.title, f.title, c.titlePh)}
+        ${fSel('fKind', c.kind, f.kind, meetKinds().map(k => [k, COPY.meet.table.kinds[k] || k.toUpperCase()]))}
+        ${fArea('fDescription', c.description, f.description, c.descriptionPh, 3)}
+        ${fText('fAudience', c.audience, f.audience, c.audiencePh)}
+        ${fText('fTags', c.tags, f.tags, c.tagsPh)}
+        ${fText('fVenueName', c.venueName, f.venue_name, c.venueNamePh)}
+        ${fText('fVenueAddress', c.venueAddress, f.venue_address, c.venueAddressPh)}
+        ${fText('fVenueMap', c.venueMap, f.venue_map_url, c.venueMapPh, { span: true })}
+        ${fText('fStarts', c.starts, localIso(f.starts_at), '', { type: 'datetime-local' })}
+        ${fText('fEnds', c.ends, localIso(f.ends_at), '', { type: 'datetime-local' })}
+        <div class="mxp-f" style="display:flex;flex-direction:column;gap:5px;min-width:0">
+          ${fLab(c.capacity)}
+          <span style="display:flex;align-items:center;gap:0;flex-wrap:wrap">
+            ${step('mCapMinus', '−')}
+            <input data-role="fCapacity" type="number" min="${CAP_MIN}" max="${CAP_MAX}" step="1" value="${cap}" aria-label="${esc(c.capacity)}" style="width:64px;text-align:center;box-sizing:border-box;${INPUT2};border-left:0;border-right:0;height:34px">
+            ${step('mCapPlus', '+')}
+            <span style="font-size:11px;color:#9a9086;margin-left:10px">${c.capacityWhy}</span>
+          </span>
+        </div>
+        ${fSel('fVisibility', c.visibility, f.visibility, c.visOpts)}
+        <label class="mxp-f" style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:#4a4239;cursor:pointer;grid-column:1 / -1"><input type="checkbox" data-role="fWaitlist"${f.waitlist_enabled ? ' checked' : ''}> ${c.waitlist}</label>
+        ${hostPickerHtml()}
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;padding:0 20px 18px;flex-wrap:wrap">
+        <span data-act="mSave" style="padding:10px 16px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${f.id ? c.save : c.create}</span>
+        <span data-act="mDrawerClose" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${c.cancel}</span>
+      </div>`;
+}
+function hostPickerHtml() {
+  const c = COPY.meet.form, f = st.form;
+  const mode = (k, label) => `<span data-act="mHostMode" data-mode="${k}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;border:1px solid ${f.hostMode === k ? '#201b16' : 'rgba(32,27,22,.25)'};background:${f.hostMode === k ? '#201b16' : 'transparent'};color:${f.hostMode === k ? '#f6f2ea' : '#6d6459'};white-space:nowrap">${label}</span>`;
+  const picked = f.host_name || f.host_email;
+  return `
+        <div class="mxp-host" style="grid-column:1 / -1;display:flex;flex-direction:column;gap:9px;border-top:1px solid ${HAIR08};padding-top:13px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            ${fLab(c.host)}
+            ${mode('member', c.hostMember)}
+            ${mode('free', c.hostFree)}
+            ${picked ? `<span style="${MICRO};color:#1e6e42;white-space:nowrap">${c.hostPicked}: ${esc([f.host_name, f.host_email].filter(Boolean).join(' · '))}</span><span data-act="mHostClear" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer" data-hover="color:#9b1b22">${c.hostClear}</span>` : ''}
+          </div>
+          ${f.hostMode === 'member' ? `
+          <input data-role="fHostQ" value="${esc(f.hostQ || '')}" placeholder="${esc(c.hostSearch)}" aria-label="${esc(c.hostSearch)}" autocomplete="off" style="width:100%;box-sizing:border-box;${INPUT2}">
+          ${memberResults('hostResults', 'mHostPick', { q: f.hostQ, results: f.hostResults, busy: f.hostBusy })}` : `
+          <div class="mxp-fgrid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            ${fText('fHostName', c.hostName, f.host_name, c.hostNamePh)}
+            ${fText('fHostEmail', c.hostEmail, f.host_email, c.hostEmailPh, { type: 'email' })}
+            ${fText('fHostTitle', c.hostTitle, f.host_title, c.hostTitlePh, { span: true })}
+          </div>`}
+        </div>`;
+}
+
+function attCard(a, bucket) {
+  const c = COPY.meet.att;
+  const ro = meetReadOnly();
+  const line = [a.position, a.institution].filter(Boolean).join(' · ');
+  const acts = [];
+  if (!ro && bucket === 'waitlist') acts.push(actBtn('mPromote', a.id, c.promote, c.promoteTitle));
+  if (!ro && bucket === 'confirmed') acts.push(`<span data-act="mCheckin" data-id="${esc(a.id)}" data-on="${a.checked_in ? 1 : 0}" style="${BTN_GHOST}${a.checked_in ? ';border-color:#1e6e42;color:#1e6e42' : ''}" data-hover="border-color:#201b16">${a.checked_in ? c.undo : c.checkIn}</span>`);
+  if (!ro && (bucket === 'confirmed' || bucket === 'waitlist' || bucket === 'invited')) acts.push(actBtn('mAttCancel', a.id, c.cancelPlace, c.cancelTitle));
+  if (!ro) acts.push(actBtn('mAttRemove', a.id, c.remove, c.removeTitle));
+  return `
+        <div data-row="att-${esc(a.id)}" style="display:flex;align-items:center;gap:10px;padding:9px 20px;border-top:1px solid ${HAIR07}">
+          <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:13px;font-weight:600">${esc(a.name || a.email || '')}${a.checked_in ? ` <span style="${MICRO};color:#1e6e42">${c.checkedIn}</span>` : ''}${bucket === 'waitlist' && a.waitlist_pos ? ` <span style="${MICRO};color:#7a6432">${esc(c.pos(a.waitlist_pos))}</span>` : ''}</span>
+            <span style="font-size:11.5px;color:#6d6459;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(line || a.email || '—')}${line && a.email ? ' · ' + esc(a.email) : ''}</span>
+            ${a.bio ? `<span style="font-size:11px;color:#9a9086;line-height:1.5">${esc(String(a.bio).slice(0, 200))}</span>` : ''}
+          </span>
+          ${acts.join('')}
+        </div>`;
+}
+function drawerAtt() {
+  const c = COPY.meet.att, s = st.att;
+  const ro = meetReadOnly();
+  if (s.busy || !s.data) return `<div style="padding:20px;font-size:12.5px;color:#6d6459;font-style:italic">…</div>`;
+  const d = s.data, m = d.meetup || {};
+  const bucket = (key, label, list, extra) => `
+        <div data-block="att-${key}">
+          <div style="display:flex;align-items:baseline;gap:10px;padding:11px 20px;border-top:1px solid ${HAIR12};background:#fdfbf6">
+            <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em">${label}</span>
+            <span style="font-size:11.5px;color:#6d6459">${esc(extra || String(list.length))}</span>
+          </div>
+          ${list.length ? list.map(a => attCard(a, key)).join('') : `<div style="padding:11px 20px;font-size:12px;color:#9a9086;font-style:italic">${c.empty}</div>`}
+        </div>`;
+  const add = st.att.add || { mode: 'member', q: '', results: [], busy: false, notify: true };
+  const modeChip = (k, label) => `<span data-act="mAttMode" data-mode="${k}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;border:1px solid ${add.mode === k ? '#201b16' : 'rgba(32,27,22,.25)'};background:${add.mode === k ? '#201b16' : 'transparent'};color:${add.mode === k ? '#f6f2ea' : '#6d6459'};white-space:nowrap">${label}</span>`;
+  return `
+      ${ro ? '' : `
+      <div class="mxp-attadd" style="display:flex;flex-direction:column;gap:9px;padding:14px 20px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${fLab(c.add)}${modeChip('member', c.addMember)}${modeChip('email', c.addEmail)}
+          <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:#4a4239;cursor:pointer;margin-left:6px"><input type="checkbox" data-role="aNotify"${add.notify ? ' checked' : ''}> ${c.notify}</label>
+        </div>
+        ${add.mode === 'member' ? `
+        <input data-role="aQ" value="${esc(add.q || '')}" placeholder="${esc(COPY.meet.form.hostSearch)}" aria-label="${esc(COPY.meet.form.hostSearch)}" autocomplete="off" style="width:100%;box-sizing:border-box;${INPUT2}">
+        ${memberResults('attResults', 'mAttPick', add)}` : `
+        <div class="mxp-fgrid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <input data-role="aEmail" type="email" value="" placeholder="${esc(c.addEmailPh)}" aria-label="${esc(c.addEmailPh)}" style="width:100%;box-sizing:border-box;${INPUT2}">
+          <input data-role="aName" value="" placeholder="${esc(c.addNamePh)}" aria-label="${esc(c.addNamePh)}" style="width:100%;box-sizing:border-box;${INPUT2}">
+          <input data-role="aInst" value="" placeholder="${esc(c.addInstPh)}" aria-label="${esc(c.addInstPh)}" style="width:100%;box-sizing:border-box;${INPUT2}">
+          <input data-role="aPos" value="" placeholder="${esc(c.addPosPh)}" aria-label="${esc(c.addPosPh)}" style="width:100%;box-sizing:border-box;${INPUT2}">
+        </div>
+        <span data-act="mAttAdd" style="padding:9px 14px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;align-self:flex-start;white-space:nowrap">${c.addBtn}</span>`}
+      </div>`}
+      ${bucket('confirmed', c.confirmed, d.confirmed || [], c.countOf((d.confirmed || []).length, m.capacity || 0))}
+      ${bucket('waitlist', c.waitlist, d.waitlist || [])}
+      ${bucket('invited', c.invited, d.invited || [])}
+      ${bucket('declined', c.declined, d.declined || [])}
+      ${bucket('cancelled', c.cancelled, d.cancelled || [])}
+      <div style="display:flex;gap:10px;align-items:center;padding:13px 20px;border-top:1px solid ${HAIR12}">
+        <span data-act="mAttCsv" data-id="${esc(s.id)}" style="${BTN_GHOST}" data-hover="border-color:#201b16">${c.csv}</span>
+      </div>`;
+}
+
+function drawerInv() {
+  const c = COPY.meet.inv, s = st.inv;
+  const ro = meetReadOnly();
+  if (s.busy || !s.data) return `<div style="padding:20px;font-size:12.5px;color:#6d6459;font-style:italic">…</div>`;
+  const d = s.data, sum = d.summary || { invited: 0, accepted: 0, declined: 0 };
+  const list = (label, rows) => `
+        <div>
+          <div style="display:flex;align-items:baseline;gap:10px;padding:11px 20px;border-top:1px solid ${HAIR12};background:#fdfbf6"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em">${label}</span><span style="font-size:11.5px;color:#6d6459">${rows.length}</span></div>
+          ${rows.length ? rows.map(a => `<div style="display:flex;align-items:baseline;gap:10px;padding:8px 20px;border-top:1px solid ${HAIR07}"><span style="font-size:12.5px;font-weight:600;white-space:nowrap">${esc(a.name || a.email || '')}</span><span style="font-size:11.5px;color:#6d6459;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.email || '')}</span></div>`).join('') : `<div style="padding:10px 20px;font-size:12px;color:#9a9086;font-style:italic">${c.none}</div>`}
+        </div>`;
+  const pv = s.preview;
+  return `
+      ${ro ? '' : `
+      <div style="display:flex;flex-direction:column;gap:10px;padding:14px 20px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${fLab(c.pick)}
+          ${(s.picked || []).map((p, i) => `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:#f6f2ea;border:1px solid ${HAIR12};font-size:11.5px;white-space:nowrap">${esc(p.name || p.email)}<span data-act="mInvDrop" data-i="${i}" style="color:#9b1b22;cursor:pointer;font-weight:600">${c.drop}</span></span>`).join('')}
+        </div>
+        <input data-role="iQ" value="${esc(s.q || '')}" placeholder="${esc(c.pickPh)}" aria-label="${esc(c.pickPh)}" autocomplete="off" style="width:100%;box-sizing:border-box;${INPUT2}">
+        ${memberResults('invResults', 'mInvPick', s)}
+        <label style="display:flex;flex-direction:column;gap:5px">${fLab(c.paste)}<textarea data-role="iRaw" rows="2" placeholder="${esc(c.pastePh)}" aria-label="${esc(c.paste)}" style="width:100%;box-sizing:border-box;resize:vertical;${INPUT2}">${esc(s.raw || '')}</textarea></label>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span data-act="mInvPreview" title="${esc(c.previewTitle)}" style="${BTN_GHOST}" data-hover="border-color:#201b16">${c.preview}</span>
+          <span data-act="mInvSend" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.send}</span>
+        </div>
+        ${pv ? `
+        <div data-v2="invite email preview — sandboxed, nothing sent" style="display:flex;flex-direction:column;gap:6px">
+          <span style="${MICRO}">${esc(c.previewHead(pv.recipients, pv.subject))}</span>
+          ${(pv.invalid || []).length ? `<span style="font-size:11.5px;color:#9b1b22">${esc(c.invalid(pv.invalid.join(', ')))}</span>` : ''}
+          <iframe data-role="invPreview" sandbox="" title="${esc(pv.subject)}" srcdoc="${esc(pv.html || '')}" style="width:100%;height:340px;border:1px solid ${HAIR12};background:#fff"></iframe>
+        </div>` : ''}
+      </div>`}
+      <div style="padding:11px 20px;border-top:1px solid ${HAIR12};font-size:12px;color:#6d6459">${esc(c.summary(sum.invited, sum.accepted, sum.declined))}</div>
+      ${list(COPY.meet.att.invited, d.invited || [])}
+      ${list('ACCEPTED', d.accepted || [])}
+      ${list(COPY.meet.att.declined, d.declined || [])}`;
+}
+
+function blockMeetDrawer() {
+  if (!st.drawer) return `<div data-block="meetDrawer"></div>`;
+  const c = COPY.meet.drawer;
+  const m = st.drawer === 'form' ? (st.form.id ? meetById(st.form.id) : null)
+    : st.drawer === 'att' ? meetById(st.att.id) : meetById(st.inv.id);
+  const title = st.drawer === 'form' ? (st.form.id ? c.editTitle(m ? m.title : st.form.title) : c.newTitle)
+    : st.drawer === 'att' ? c.attTitle(m ? m.title : '') : c.invTitle(m ? m.title : '');
+  return `
+    <!-- v2: "MEETUP DRAWER" (the js/views/studio.js tool-drawer idiom) -->
+    <div data-block="meetDrawer" id="meetDrawer" style="border:1px solid ${HAIR};border-top:2px solid #9b1b22;background:#fff;margin-top:22px">
+      <div style="display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid ${HAIR12}">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</span>
+        <div style="flex:1"></div>
+        <span data-act="mDrawerClose" style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer" data-hover="color:#9b1b22">${c.close}</span>
+      </div>
+      ${st.drawer === 'form' ? drawerForm() : st.drawer === 'att' ? drawerAtt() : drawerInv()}
+    </div>
+    <!-- /v2 -->`;
+}
+
 function blockFooterEdition() {
   const c = COPY.footer;
   return `
@@ -609,12 +1156,8 @@ function blockFooterEdition() {
     </div>
     <!-- /dc -->`;
 }
-function template() {
+function blockHub() {
   return `
-<div data-screen-label="Admin Plexus Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
-  ${blockSubnav()}
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:34px 28px 60px">
-    ${blockTitle()}
     ${blockStats()}
     ${blockBefore()}
     <div class="mx-two" style="display:grid;grid-template-columns:1.55fr 1fr;gap:22px;margin-top:22px;align-items:start">
@@ -627,7 +1170,22 @@ function template() {
         ${blockCme()}
         ${blockStatsWidget()}
       </div>
-    </div>
+    </div>`;
+}
+function blockMeetups() {
+  return `
+    ${canMeet() && !D.errors.meet ? blockMeetStats() : ''}
+    ${blockMeetTable()}
+    ${blockMeetDrawer()}`;
+}
+function template() {
+  return `
+<div data-screen-label="Admin Plexus Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  ${blockSubnav()}
+  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:34px 28px 60px">
+    ${blockTitle()}
+    ${blockTabs()}
+    ${st.tab === 'meetups' ? blockMeetups() : blockHub()}
     ${blockFooterEdition()}
   </div>
 </div>`;
@@ -635,10 +1193,96 @@ function template() {
 
 // ---------------------------------------------------------------- behaviour
 function paint() { if (rootEl) { rootEl.innerHTML = template(); } }
+// surgical repaint of ONE block (the js/views/studio.js paint(sel, html) idiom) — used by the
+// meetups drawer so typing in a search field survives a result-list refresh
+function paintPart(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
 function val(role) { const el = rootEl.querySelector(`[data-role="${role}"]`); return el ? el.value.trim() : ''; }
+function raw(role) { const el = rootEl.querySelector(`[data-role="${role}"]`); return el ? el.value : ''; }
 function checked(role) { const el = rootEl.querySelector(`[data-role="${role}"]`); return !!(el && el.checked); }
 const blankSp = () => ({ name: '', title: '', institution: '', email: '', talk_title: '', is_keynote: false, logo: '', event_tag: '' });
 const blankSs = () => ({ title: '', day: 1, start_time: '', end_time: '', room: '', session_type: 'talk', is_published: false });
+
+// ---- v2 2026-09-11: meetups state helpers -------------------------------------------------------
+function blankForm() {
+  const day = (chosenEd() && chosenEd().starts_on) || D.conf.start_date || FACTS.plexus.start;
+  return {
+    id: null, title: '', kind: 'coffee', description: '', audience: '', tags: '',
+    venue_name: '', venue_address: '', venue_map_url: '',
+    starts_at: String(day).slice(0, 10) + 'T10:30', ends_at: '',
+    capacity: 8, waitlist_enabled: true, visibility: 'open',
+    hostMode: 'member', host_user_id: null, host_name: '', host_title: '', host_email: '',
+    hostQ: '', hostResults: [], hostBusy: false
+  };
+}
+function formFrom(m) {
+  return {
+    id: m.id, title: m.title || '', kind: m.kind || 'coffee', description: m.description || '', audience: m.audience || '',
+    tags: (m.tags || []).join(', '), venue_name: m.venue_name || '', venue_address: m.venue_address || '', venue_map_url: m.venue_map_url || '',
+    starts_at: m.starts_at || '', ends_at: m.ends_at || '',
+    capacity: Number(m.capacity) || 8, waitlist_enabled: !!m.waitlist_enabled, visibility: m.visibility || 'open',
+    hostMode: m.host_user_id ? 'member' : 'free', host_user_id: m.host_user_id || null,
+    host_name: m.host_name || '', host_title: m.host_title || '', host_email: m.host_email || '',
+    hostQ: '', hostResults: [], hostBusy: false
+  };
+}
+// merge whatever is currently typed back into st.form so a repaint never eats an edit
+function syncForm() {
+  if (!st.form || st.drawer !== 'form' || !rootEl.querySelector('[data-role="fTitle"]')) return;
+  const f = st.form;
+  f.title = val('fTitle'); f.kind = val('fKind'); f.description = raw('fDescription').trim(); f.audience = val('fAudience');
+  f.tags = val('fTags'); f.venue_name = val('fVenueName'); f.venue_address = val('fVenueAddress'); f.venue_map_url = val('fVenueMap');
+  f.starts_at = val('fStarts'); f.ends_at = val('fEnds');
+  const cap = parseInt(val('fCapacity'), 10);
+  if (Number.isFinite(cap)) f.capacity = Math.max(CAP_MIN, Math.min(CAP_MAX, cap));
+  f.waitlist_enabled = checked('fWaitlist'); f.visibility = val('fVisibility') || 'open';
+  if (f.hostMode === 'member') { const q = rootEl.querySelector('[data-role="fHostQ"]'); if (q) f.hostQ = q.value; }
+  else { f.host_name = val('fHostName'); f.host_email = val('fHostEmail'); f.host_title = val('fHostTitle'); f.host_user_id = null; }
+}
+const meetUrl = (id, tail) => '/api/v2/meetups-ops/meetups/' + encodeURIComponent(id) + (tail || '');
+// re-read the edition's meetups (the table + the stat strip) without redrawing the whole screen
+async function reloadMeet(full) {
+  try {
+    const v = await api.get('/api/v2/meetups-ops/overview' + (st.editionId ? '?edition=' + encodeURIComponent(st.editionId) : ''));
+    D.meet = v; delete D.errors.meet;
+  } catch (e) { D.errors.meet = e; }
+  if (!rootEl) return;
+  if (full) { paint(); return; }
+  paintPart('[data-block="meetStats"]', blockMeetStats());
+  paintPart('[data-block="meetTable"]', blockMeetTable());
+}
+async function searchMembers(term) {
+  if (String(term || '').trim().length < 2) return [];
+  try { const r = await api.get('/api/v2/meetups-ops/members?q=' + encodeURIComponent(String(term).trim())); return (r && r.members) || []; }
+  catch (e) { return []; }
+}
+async function openAtt(id) {
+  st.drawer = 'att';
+  st.att = { id, data: null, busy: true, add: { mode: 'member', q: '', results: [], busy: false, notify: true } };
+  paintPart('[data-block="meetDrawer"]', blockMeetDrawer());
+  try { st.att.data = await api.get(meetUrl(id, '/attendees')); } catch (e) { ui.toast(e.message, { kind: 'error' }); st.att.data = { confirmed: [], waitlist: [], invited: [], declined: [], cancelled: [] }; }
+  st.att.busy = false;
+  if (rootEl && st.drawer === 'att') { paintPart('[data-block="meetDrawer"]', blockMeetDrawer()); scrollDrawer(); }
+}
+async function openInv(id) {
+  st.drawer = 'inv';
+  st.inv = { id, data: null, busy: true, q: '', results: [], picked: [], raw: '', preview: null };
+  paintPart('[data-block="meetDrawer"]', blockMeetDrawer());
+  try { st.inv.data = await api.get(meetUrl(id, '/invites')); } catch (e) { ui.toast(e.message, { kind: 'error' }); st.inv.data = { invited: [], accepted: [], declined: [], summary: { invited: 0, accepted: 0, declined: 0 } }; }
+  st.inv.busy = false;
+  if (rootEl && st.drawer === 'inv') { paintPart('[data-block="meetDrawer"]', blockMeetDrawer()); scrollDrawer(); }
+}
+function scrollDrawer() { const d = rootEl && rootEl.querySelector('#meetDrawer'); if (d && d.scrollIntoView) d.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+// the people the invite drawer will actually mail: picked members + whatever was pasted
+function invPeople() {
+  const s = st.inv;
+  const out = (s.picked || []).map(p => ({ email: p.email, name: p.name || undefined }));
+  const seen = new Set(out.map(p => String(p.email).toLowerCase()));
+  String(s.raw || '').split(/[\s,;]+/).map(x => x.trim()).filter(Boolean).forEach(e => {
+    if (seen.has(e.toLowerCase())) return;
+    seen.add(e.toLowerCase()); out.push({ email: e });
+  });
+  return out;
+}
 
 async function reload(keys) {
   // partial refresh: re-run only the touched reads, then repaint
@@ -908,8 +1552,234 @@ const handlers = {
       paint();
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
-  copyStats: async () => { ui.toast((await copyText(statsLine())) ? COPY.widget.copied : COPY.widget.copyFail); }
+  copyStats: async () => { ui.toast((await copyText(statsLine())) ? COPY.widget.copied : COPY.widget.copyFail); },
+
+  // ================================ v2 2026-09-11: edition switcher ==============================
+  edToggle: () => { st.edOpen = !st.edOpen; paintPart('[data-block="title"]', blockTitle()); },
+
+  // ================================ v2 2026-09-11: MEETUPS =======================================
+  mNew: () => { st.drawer = 'form'; st.form = blankForm(); paintPart('[data-block="meetDrawer"]', blockMeetDrawer()); scrollDrawer(); const i = rootEl.querySelector('[data-role="fTitle"]'); if (i) i.focus(); },
+  mEdit: (el) => {
+    const m = meetById(el.dataset.id); if (!m) return;
+    st.drawer = 'form'; st.form = formFrom(m);
+    paintPart('[data-block="meetDrawer"]', blockMeetDrawer()); scrollDrawer();
+    const i = rootEl.querySelector('[data-role="fTitle"]'); if (i) i.focus();
+  },
+  mDrawerClose: () => { st.drawer = null; st.form = null; st.att = null; st.inv = null; paintPart('[data-block="meetDrawer"]', blockMeetDrawer()); },
+  mCapMinus: () => { syncForm(); st.form.capacity = Math.max(CAP_MIN, (Number(st.form.capacity) || 8) - 1); const i = rootEl.querySelector('[data-role="fCapacity"]'); if (i) i.value = st.form.capacity; },
+  mCapPlus: () => { syncForm(); st.form.capacity = Math.min(CAP_MAX, (Number(st.form.capacity) || 8) + 1); const i = rootEl.querySelector('[data-role="fCapacity"]'); if (i) i.value = st.form.capacity; },
+  mHostMode: (el) => {
+    syncForm();
+    st.form.hostMode = el.dataset.mode === 'free' ? 'free' : 'member';
+    if (st.form.hostMode === 'free') st.form.host_user_id = null; else { st.form.hostQ = ''; st.form.hostResults = []; }
+    paintPart('[data-block="meetDrawer"]', blockMeetDrawer());
+    const i = rootEl.querySelector(st.form.hostMode === 'free' ? '[data-role="fHostName"]' : '[data-role="fHostQ"]'); if (i) i.focus();
+  },
+  mHostPick: (el) => {
+    syncForm();
+    const f = st.form;
+    f.host_user_id = el.dataset.id; f.host_name = el.dataset.name || ''; f.host_email = el.dataset.email || ''; f.host_title = el.dataset.line || '';
+    f.hostQ = ''; f.hostResults = [];
+    paintPart('[data-block="meetDrawer"]', blockMeetDrawer());
+  },
+  mHostClear: () => {
+    syncForm();
+    const f = st.form;
+    f.host_user_id = null; f.host_name = ''; f.host_email = ''; f.host_title = ''; f.hostQ = ''; f.hostResults = [];
+    paintPart('[data-block="meetDrawer"]', blockMeetDrawer());
+  },
+  mSave: async (el) => {
+    syncForm();
+    const f = st.form;
+    if (!f.title) { ui.toast(COPY.meet.form.needTitle); return; }
+    if (!f.starts_at) { ui.toast(COPY.meet.form.needStart); return; }
+    const body = {
+      title: f.title, kind: f.kind, description: f.description || null, audience: f.audience || null,
+      tags: String(f.tags || '').split(',').map(s => s.trim()).filter(Boolean),
+      venue_name: f.venue_name || null, venue_address: f.venue_address || null, venue_map_url: f.venue_map_url || null,
+      starts_at: f.starts_at, ends_at: f.ends_at || null,
+      capacity: Math.max(CAP_MIN, Math.min(CAP_MAX, Number(f.capacity) || 8)),
+      waitlist_enabled: !!f.waitlist_enabled, visibility: f.visibility || 'open',
+      host_user_id: f.hostMode === 'member' ? (f.host_user_id || null) : null,
+      host_name: f.host_name || null, host_title: f.host_title || null, host_email: f.host_email || null
+    };
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      if (f.id) await api.put('/api/v2/meetups-ops/meetups/' + encodeURIComponent(f.id), body);
+      else await api.post('/api/v2/meetups-ops/meetups', Object.assign({ edition_id: st.editionId || undefined }, body));
+      ui.toast(f.id ? COPY.meet.form.saved : COPY.meet.form.created);
+      st.drawer = null; st.form = null;
+      await reloadMeet(true);
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
+  mPublish: async (el) => {
+    const m = meetById(el.dataset.id); if (!m) return;
+    const next = m.status !== 'published';
+    if (next && !m.host_name && !m.host_email) { ui.toast(COPY.meet.publish.needHost); return; }
+    el.setAttribute('aria-disabled', 'true');
+    try { await api.post(meetUrl(m.id, '/publish'), { published: next }); ui.toast(next ? COPY.meet.publish.on(m.title) : COPY.meet.publish.off); await reloadMeet(); }
+    catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
+  // cancelling emails EVERY holder and every waitlisted person — the modal says so in as many words
+  mCancelMeetup: (el) => {
+    const m = meetById(el.dataset.id); if (!m) return;
+    const c = COPY.meet.cancelM;
+    const mod = ui.modal({
+      eyebrow: c.eyebrow, title: c.title(m.title),
+      body: `
+        <div style="border:1px solid #9b1b22;background:#f8e9ea;padding:11px 13px;font-size:12.5px;color:#9b1b22;line-height:1.6">${esc(c.warn)}</div>
+        <div style="margin-top:12px">${fLab(c.reason)}<textarea data-role="cReason" rows="2" placeholder="${esc(c.reasonPh)}" aria-label="${esc(c.reason)}" style="width:100%;box-sizing:border-box;margin-top:5px;resize:vertical;${INPUT2}"></textarea></div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:#4a4239;margin-top:10px;cursor:pointer"><input type="checkbox" data-role="cNotify" checked> ${esc(c.notify)}</label>`,
+      actions: [
+        { label: c.keep },
+        { label: c.go, kind: 'primary', onClick: () => {
+          const reason = (mod.el.querySelector('[data-role="cReason"]') || {}).value || '';
+          const notify = !!(mod.el.querySelector('[data-role="cNotify"]') || {}).checked;
+          api.post('/api/v2/meetups-ops/meetups/' + encodeURIComponent(m.id) + '/cancel', { reason: reason.trim() || undefined, notify })
+            .then(r => { ui.toast(c.done(r && r.notified)); return reloadMeet(); })
+            .catch(e => ui.toast(e.message, { kind: 'error' }));
+        } }
+      ]
+    });
+  },
+  mDelete: async (el) => {
+    const m = meetById(el.dataset.id); if (!m) return;
+    const ok = await ui.confirm({ title: COPY.meet.del.ask(m.title), ok: COPY.meet.del.ok, cancel: COPY.meet.del.keep });
+    if (!ok) return;
+    try { await api.del('/api/v2/meetups-ops/meetups/' + encodeURIComponent(m.id)); ui.toast(COPY.meet.del.done); if (st.drawer && (st.form || st.att || st.inv)) { st.drawer = null; st.form = st.att = st.inv = null; } await reloadMeet(true); }
+    catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  mHostLink: async (el) => {
+    const m = meetById(el.dataset.id); if (!m) return;
+    try {
+      const r = await api.get('/api/v2/meetups-ops/meetups/' + encodeURIComponent(m.id) + '/host-link');
+      if (!r || !r.host_link) { ui.toast(COPY.meet.hostLink.none); return; }
+      ui.toast((await copyText(r.host_link)) ? COPY.meet.hostLink.copied : COPY.meet.hostLink.failed);
+    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  mCsv: async (el) => {
+    const m = meetById(el.dataset.id); if (!m) return;
+    try {
+      const blob = await fetchBlob('/api/v2/meetups-ops/meetups/' + encodeURIComponent(m.id) + '/attendees.csv');
+      dl(blob, 'medx-meetup-' + (String(m.title || 'meetup').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'meetup') + '.csv');
+      ui.toast(COPY.meet.att.csvDone);
+    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  // ---- attendees drawer
+  mAtt: (el) => openAtt(el.dataset.id),
+  mAttCsv: (el) => handlers.mCsv(el),
+  mAttMode: (el) => {
+    st.att.add.notify = checked('aNotify');   // keep the operator's choice across the repaint
+    st.att.add.mode = el.dataset.mode === 'email' ? 'email' : 'member';
+    st.att.add.q = ''; st.att.add.results = [];
+    paintPart('[data-block="meetDrawer"]', blockMeetDrawer());
+  },
+  mAttPick: (el) => addAttendee({ user_id: el.dataset.id }, el.dataset.name || el.dataset.email),
+  mAttAdd: () => {
+    const email = val('aEmail');
+    if (!email || email.indexOf('@') < 1) { ui.toast(COPY.meet.att.needEmail); return; }
+    addAttendee({ email, name: val('aName') || undefined, institution: val('aInst') || undefined, position: val('aPos') || undefined }, val('aName') || email);
+  },
+  mPromote: async (el) => {
+    try { const r = await api.post('/api/v2/meetups-ops/attendees/' + encodeURIComponent(el.dataset.id) + '/promote', {}); ui.toast(COPY.meet.att.promoted((r && r.attendee && r.attendee.name) || '')); await refreshAtt(); }
+    catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  mCheckin: async (el) => {
+    const on = el.dataset.on !== '1';
+    try { const r = await api.post('/api/v2/meetups-ops/attendees/' + encodeURIComponent(el.dataset.id) + '/checkin', { checked_in: on }); ui.toast(on ? COPY.meet.att.checkedOn((r && r.attendee && r.attendee.name) || '') : COPY.meet.att.checkedOff); await refreshAtt(); }
+    catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  mAttCancel: async (el) => {
+    const who = attById(el.dataset.id);
+    const ok = await ui.confirm({ title: COPY.meet.att.cancelAsk((who && who.name) || 'this person'), ok: COPY.meet.att.cancelOk, cancel: COPY.meet.att.cancelKeep });
+    if (!ok) return;
+    try { const r = await api.post('/api/v2/meetups-ops/attendees/' + encodeURIComponent(el.dataset.id) + '/cancel', {}); ui.toast(r && r.promoted ? COPY.meet.att.freedUp(r.promoted.name || '') : COPY.meet.att.freed); await refreshAtt(); }
+    catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  mAttRemove: async (el) => {
+    const who = attById(el.dataset.id);
+    const ok = await ui.confirm({ title: COPY.meet.att.removeAsk((who && who.name) || 'this person'), ok: COPY.meet.att.removeOk, cancel: COPY.meet.att.removeKeep });
+    if (!ok) return;
+    try { await api.del('/api/v2/meetups-ops/attendees/' + encodeURIComponent(el.dataset.id)); ui.toast(COPY.meet.att.removed); await refreshAtt(); }
+    catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  // ---- invites drawer
+  mInv: (el) => openInv(el.dataset.id),
+  mInvPick: (el) => {
+    const s = st.inv;
+    const email = el.dataset.email;
+    if (!email) return;
+    if (!s.picked.some(p => String(p.email).toLowerCase() === email.toLowerCase())) s.picked.push({ email, name: el.dataset.name || '' });
+    s.raw = raw('iRaw'); s.q = ''; s.results = []; s.preview = null;
+    paintPart('[data-block="meetDrawer"]', blockMeetDrawer());
+  },
+  mInvDrop: (el) => { const s = st.inv; s.raw = raw('iRaw'); s.picked.splice(Number(el.dataset.i), 1); s.preview = null; paintPart('[data-block="meetDrawer"]', blockMeetDrawer()); },
+  mInvPreview: async (el) => {
+    const s = st.inv;
+    s.raw = raw('iRaw');
+    const people = invPeople();
+    if (!people.length) { ui.toast(COPY.meet.inv.previewNone.toUpperCase()); return; }
+    el.setAttribute('aria-disabled', 'true');
+    try { s.preview = await api.post('/api/v2/meetups-ops/meetups/' + encodeURIComponent(s.id) + '/invites', { people, preview: true }); paintPart('[data-block="meetDrawer"]', blockMeetDrawer()); }
+    catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
+  mInvSend: async (el) => {
+    const s = st.inv;
+    s.raw = raw('iRaw');
+    const people = invPeople();
+    if (!people.length) { ui.toast(COPY.meet.inv.previewNone.toUpperCase()); return; }
+    const ok = await ui.confirm({ title: COPY.meet.inv.sendAsk(people.length), ok: COPY.meet.inv.sendOk, cancel: COPY.meet.inv.sendKeep });
+    if (!ok) return;
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      const r = await api.post('/api/v2/meetups-ops/meetups/' + encodeURIComponent(s.id) + '/invites', { people });
+      ui.toast(COPY.meet.inv.sent((r && r.invited) || 0, (r && r.mailed) || 0));
+      if (r && r.skipped && r.skipped.length) setTimeout(() => ui.toast(COPY.meet.inv.skipped(r.skipped.length)), 900);
+      s.picked = []; s.raw = ''; s.preview = null; s.q = ''; s.results = [];
+      try { s.data = await api.get('/api/v2/meetups-ops/meetups/' + encodeURIComponent(s.id) + '/invites'); } catch (e2) {}
+      paintPart('[data-block="meetDrawer"]', blockMeetDrawer());
+      await reloadMeet();
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  }
 };
+
+// ---- meetups helpers the handlers lean on ------------------------------------------------------
+function attById(id) {
+  const d = (st.att && st.att.data) || {};
+  return ['confirmed', 'waitlist', 'invited', 'declined', 'cancelled'].reduce((hit, k) => hit || (d[k] || []).find(a => String(a.id) === String(id)) || null, null);
+}
+async function refreshAtt() {
+  if (!st.att) return;
+  try { st.att.data = await api.get('/api/v2/meetups-ops/meetups/' + encodeURIComponent(st.att.id) + '/attendees'); } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  if (rootEl && st.drawer === 'att') paintPart('[data-block="meetDrawer"]', blockMeetDrawer());
+  await reloadMeet();
+}
+async function addAttendee(body, who) {
+  const notify = checked('aNotify');
+  try {
+    const r = await api.post('/api/v2/meetups-ops/meetups/' + encodeURIComponent(st.att.id) + '/attendees', Object.assign({ notify }, body));
+    if (r && r.already) ui.toast(COPY.meet.att.already);
+    else ui.toast(r && r.status === 'waitlisted' ? COPY.meet.att.addedWait(who || '') : COPY.meet.att.addedIn(who || ''));
+    st.att.add.q = ''; st.att.add.results = [];
+    await refreshAtt();
+  } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+}
+
+// An archived edition is READ ONLY (design/MEETUPS-SPEC.md §1): the write affordances are already
+// hidden in the markup — this refuses the handler too, so a stale button or a keyboard Enter on one
+// can never write into a closed year.
+const RO_SAFE = new Set(['edToggle', 'msFocus', 'openSpeakers', 'openSchedule', 'openQa', 'copyStats', 'peOpen', 'editionsOpen', 'cmeExport', 'editList', 'archiveNote', 'start2027',
+  'mAtt', 'mInv', 'mHostLink', 'mCsv', 'mAttCsv', 'mDrawerClose']);
+function bindHandlers(root) {
+  const wrapped = {};
+  Object.keys(handlers).forEach(k => {
+    wrapped[k] = (el, ev) => {
+      if (isArchived() && !RO_SAFE.has(k)) { ui.toast(COPY.ed.roToast); return; }
+      return handlers[k](el, ev);
+    };
+  });
+  return ui.bind(root, wrapped);
+}
 
 // photo upload (delegated change event — survives repaints)
 async function onChange(e) {
@@ -926,10 +1796,50 @@ async function onChange(e) {
     await reload(['speakers']);
   } catch (err) { ui.toast(err.message, { kind: 'error' }); }
 }
+// v2 2026-09-11 — the three member pickers (host · manual add · invitations) share one debounce and
+// repaint ONLY their own result list, so the search field never loses focus mid-word.
+function pickerFor(t) {
+  if (t.matches('[data-role="fHostQ"]')) return {
+    block: 'hostResults', act: 'mHostPick', alive: () => !!st.form,
+    set: (q, results, busy) => { if (!st.form) return; st.form.hostQ = q; if (results !== undefined) st.form.hostResults = results; if (busy !== undefined) st.form.hostBusy = busy; },
+    read: () => st.form ? { q: st.form.hostQ, results: st.form.hostResults, busy: st.form.hostBusy } : null
+  };
+  if (t.matches('[data-role="aQ"]')) return {
+    block: 'attResults', act: 'mAttPick', alive: () => !!(st.att && st.att.add),
+    set: (q, results, busy) => { if (!(st.att && st.att.add)) return; st.att.add.q = q; if (results !== undefined) st.att.add.results = results; if (busy !== undefined) st.att.add.busy = busy; },
+    read: () => (st.att && st.att.add) || null
+  };
+  if (t.matches('[data-role="iQ"]')) return {
+    block: 'invResults', act: 'mInvPick', alive: () => !!st.inv,
+    set: (q, results, busy) => { if (!st.inv) return; st.inv.q = q; if (results !== undefined) st.inv.results = results; if (busy !== undefined) st.inv.busy = busy; },
+    read: () => st.inv || null
+  };
+  return null;
+}
+function paintPicker(p) { const bag = p.read(); if (bag) paintPart(`[data-block="${p.block}"]`, memberResults(p.block, p.act, bag)); }
 // typing into the member card resets the ✓ SAVED state (artboard behaviour) without a repaint
 function onInput(e) {
   const t = e.target;
-  if (!t || !t.matches || !(t.matches('[data-role="msLabel"]') || t.matches('[data-role="msDetail"]'))) return;
+  if (!t || !t.matches) return;
+  const p = pickerFor(t);
+  if (p) {
+    if (!p.alive()) return;
+    const q = t.value;
+    clearTimeout(hostTimer);
+    if (String(q).trim().length < 2) { p.set(q, [], false); paintPicker(p); return; }
+    p.set(q, undefined, true);
+    paintPicker(p);
+    hostTimer = setTimeout(async () => {
+      const rows = await searchMembers(q);
+      if (!rootEl || !p.alive()) return;
+      const bag = p.read();
+      if (!bag || String(bag.q || '') !== q) return;   // the operator kept typing — a fresher call is coming
+      p.set(q, rows, false);
+      paintPicker(p);
+    }, 250);
+    return;
+  }
+  if (!(t.matches('[data-role="msLabel"]') || t.matches('[data-role="msDetail"]'))) return;
   if (!st.msSaved) return;
   st.msSaved = false;
   const b = rootEl.querySelector('[data-role="msSaveBtn"]');
@@ -941,21 +1851,32 @@ export default {
   async render(root, ctx) {
     rootEl = root;
     injectCss();
-    const tab = ctx.params && ctx.params.tab;
+    // `:tab?` still carries the live panel deep links (speakers|schedule|qa) — they stay on the hub
+    // tab and pre-open their inline panel exactly as before; 'meetups' is the only new tab slug.
+    const slug = String((ctx.params && ctx.params.tab) || '').toLowerCase();
+    const tab = SLUG_TO_TAB[slug] || 'hub';
     st = {
-      openPanel: ['speakers', 'schedule', 'qa'].includes(tab) ? tab : null,
+      tab,
+      openPanel: PANEL_SLUGS.includes(slug) ? slug : null,
+      editionId: (ctx.query && ctx.query.edition) ? String(ctx.query.edition) : null,
+      edOpen: false,
       spEdit: null, spDraft: blankSp(), ssEdit: null, ssDraft: blankSs(),
-      msSaved: false, ovEdit: null
+      msSaved: false, ovEdit: null,
+      drawer: null, form: null, att: null, inv: null
     };
-    D = await load();
+    D = await load(tab, st.editionId);
     if (rootEl !== root) return; // navigated away while loading
+    // an unknown ?edition= falls back to the active year (the server resolves the same way)
+    if (st.editionId && !D.eds.some(e => e.id === st.editionId)) st.editionId = null;
+    if (!st.editionId && D.edActive) st.editionId = D.edActive.id;
     root.innerHTML = template();
-    unbind = ui.bind(root, handlers);
+    unbind = bindHandlers(root);
     onChangeBound = onChange; root.addEventListener('change', onChangeBound);
     onInputBound = onInput; root.addEventListener('input', onInputBound);
   },
   destroy() {
     if (unbind) unbind(); unbind = null;
+    clearTimeout(hostTimer); hostTimer = null;
     if (rootEl && onChangeBound) rootEl.removeEventListener('change', onChangeBound);
     if (rootEl && onInputBound) rootEl.removeEventListener('input', onInputBound);
     onChangeBound = null; onInputBound = null; rootEl = null; D = null; st = null;
