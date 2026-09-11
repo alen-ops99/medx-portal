@@ -11,6 +11,7 @@
     "test:wallet": "node tests/wallet-checkin.test.js",
     "test:wallet-ui": "python3 tests/wallet-checkin-ui.py",
     "test:gala-ticket": "node tests/gala-ticket-scan.test.js",
-    "test:meetups": "node tests/meetups.test.js"
+    "test:meetups": "node tests/meetups.test.js",
+    "test:awards": "node tests/awards.test.js"
   }
 }
