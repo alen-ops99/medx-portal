@@ -1168,6 +1168,7 @@ const PERMISSION_SECTIONS = [
     { id: 'forum',         label: 'Biomedical Forum',      group: 'Projects',        desc: 'Members, events, mentorship, council' },
     { id: 'bridges',       label: 'Building Bridges',      group: 'Projects',        desc: 'Events, speakers, Croatians abroad' },
     { id: 'plexus-meetups',label: 'Plexus Meetups',        group: 'Projects',        desc: 'Plexus Week meetups: tables, hosts, attendees, waitlists, invitations' },
+    { id: 'plexus-awards', label: 'Plexus Awards',         group: 'Projects',        desc: 'The four Gala awards: nominations, the reading panel, shortlists, laureates' },
     { id: 'gameday',       label: 'Game Day',              group: 'Events & access', desc: 'Event-day staff console & tracking' },
     { id: 'conferences',   label: 'Conferences',           group: 'Events & access', desc: 'Conference & ticket-type management' },
     { id: 'editions',      label: 'Editions',              group: 'Events & access', desc: 'Past & future editions' },
@@ -1199,6 +1200,9 @@ const SECTION_ROUTE_MAP = [
     //   drawer without handing over the whole Plexus project. Admins with full access
     //   (allowed_sections NULL) keep it automatically; a scoped admin needs the grant.
     ['/api/v2/meetups-ops', 'plexus-meetups'],
+    // — Plexus Gala AWARDS (2026-09-11, design/AWARDS-SPEC.md): its own section, for the same
+    //   reason — a reading panel's administrator does not need the whole Plexus project.
+    ['/api/v2/awards-ops', 'plexus-awards'],
     // — Plexus Week (incl. Gala, ticketing, check-in, sponsors, volunteers, auctions, event ops) —
     ['/api/plexus', 'plexus'], ['/api/admin/plexus', 'plexus'], ['/api/admin/plexus-experience', 'plexus'],
     ['/api/gala', 'plexus'], ['/api/admin/gala', 'plexus'],
