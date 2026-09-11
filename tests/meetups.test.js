@@ -726,6 +726,12 @@ const rowFor = (mid, email) => q.get('SELECT * FROM plexus_meetup_attendees WHER
         assert.ok(!r.body.includes('Lunch with the cardiology group'), 'another meetup leaked onto the host page');
         assert.match(r.body, /COMING/);
         assert.match(r.body, /YOUR TABLE/);
+        // the camera scanner, gated by the host token, with a manual box that always works
+        assert.ok(r.body.includes('/vendor/jsqr/jsQR.min.js'), 'the host page needs the vendored decoder');
+        assert.ok(r.body.includes("'/api/v2/meetups/host/'"), 'the scanner posts to the host-scan route');
+        assert.ok(r.body.includes(JSON.stringify(tok)), 'the scanner is bound to THIS page\'s token');
+        assert.match(r.body, /type the code/, 'a manual fallback must always be there');
+        assert.match(r.body, /entirely optional/, 'check-in is optional in practice — say so');
     });
     await t('a forged host token 404s', async () => {
         const r = await app.call('GET', '/meetups/host/:token', { params: { token: crypto.randomBytes(16).toString('hex') } });

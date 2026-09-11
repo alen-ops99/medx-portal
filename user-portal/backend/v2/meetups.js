@@ -661,6 +661,86 @@ module.exports = function mountMeetups(app, ctx) {
         } catch (e) { log('invite decline:', e.message); notFoundPage(res); }
     });
 
+    // ---- the host page's scanner (spec §3 "Check-in": the host page gets the same camera
+    // scanner, gated by host_token). Self-contained and OPTIONAL by design — no camera, or a
+    // refused permission, simply leaves the manual code box, because check-in is optional in
+    // practice and a host who cannot scan must never be stuck. jsQR is the same vendored decoder
+    // the member SPA precaches, served from this origin (CSP 'self').
+    function hostScannerHtml(token) {
+        const t = esc(token);
+        return `
+      <div style="margin-top:26px;padding-top:18px;border-top:1px solid rgba(25,21,18,.12);">
+        <div style="font-weight:600;font-size:10px;letter-spacing:.16em;color:#6e5626;">CHECK SOMEONE IN <span style="color:#4a4239;font-weight:400;letter-spacing:0;text-transform:none;">— entirely optional</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px;">
+          <button class="mx" type="button" id="mxCam" style="margin-top:0;">Open the camera</button>
+          <input id="mxCode" placeholder="…or type the code" style="flex:1;min-width:180px;padding:12px 14px;border:1px solid rgba(25,21,18,.25);background:#fff;font-family:inherit;font-size:13px;">
+          <button class="mx" type="button" id="mxGo" style="margin-top:0;">Check in</button>
+        </div>
+        <video id="mxVid" playsinline muted style="display:none;width:100%;max-width:340px;margin-top:12px;background:#191512;"></video>
+        <div id="mxOut" style="margin-top:14px;"></div>
+      </div>
+      <script src="/vendor/jsqr/jsQR.min.js"></script>
+      <script>
+      (function () {
+        var TOKEN = ${JSON.stringify(String(token))};
+        var out = document.getElementById('mxOut');
+        var vid = document.getElementById('mxVid');
+        var stream = null, raf = null, busy = false, last = '';
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+        function card(r) {
+          var p = r.person || {};
+          var good = !!r.ok;
+          var line = [p.position, p.institution].filter(Boolean).join(' \\u00b7 ');
+          out.innerHTML = '<div style="border-left:3px solid ' + (good ? '#1e6e42' : '#9b1b22') + ';padding:10px 14px;background:#fdfaf3;">'
+            + '<div style="font-weight:600;font-size:10px;letter-spacing:.14em;color:' + (good ? '#1e6e42' : '#9b1b22') + ';">' + esc((r.message || '').toUpperCase()) + '</div>'
+            + (p.name ? '<div style="font-family:Fraunces,Georgia,serif;font-size:20px;margin-top:4px;">' + esc(p.name) + '</div>' : '')
+            + (line ? '<div style="font-size:12px;color:#4a4239;margin-top:2px;">' + esc(line) + '</div>' : '')
+            + (p.bio ? '<div style="font-size:12px;color:#4a4239;margin-top:6px;line-height:1.6;">' + esc(String(p.bio).slice(0, 240)) + '</div>' : '')
+            + '</div>';
+        }
+        function send(code) {
+          if (busy || !code) return;
+          busy = true;
+          fetch('/api/v2/meetups/host/' + TOKEN + '/scan', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code })
+          }).then(function (r) { return r.json(); })
+            .then(function (r) { card(r); if (r.ok) setTimeout(function () { location.reload(); }, 1600); })
+            .catch(function () { out.textContent = 'No connection — try again in a moment.'; })
+            .then(function () { setTimeout(function () { busy = false; }, 900); });
+        }
+        document.getElementById('mxGo').addEventListener('click', function () { send(document.getElementById('mxCode').value.trim()); });
+        document.getElementById('mxCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); send(this.value.trim()); } });
+        document.getElementById('mxCam').addEventListener('click', function () {
+          if (stream) { stop(); return; }
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof jsQR !== 'function') {
+            out.textContent = 'This device cannot scan — type the code instead.'; return;
+          }
+          navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function (s) {
+            stream = s; vid.srcObject = s; vid.style.display = 'block'; vid.play();
+            this && 0; document.getElementById('mxCam').textContent = 'Close the camera';
+            var cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+            (function tick() {
+              raf = requestAnimationFrame(tick);
+              if (vid.readyState !== vid.HAVE_ENOUGH_DATA) return;
+              cv.width = vid.videoWidth; cv.height = vid.videoHeight;
+              cx.drawImage(vid, 0, 0, cv.width, cv.height);
+              var img = cx.getImageData(0, 0, cv.width, cv.height);
+              var hit = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+              if (hit && hit.data && hit.data !== last) { last = hit.data; send(hit.data); }
+            })();
+          }).catch(function () { out.textContent = 'The camera was not allowed — type the code instead.'; });
+        });
+        function stop() {
+          if (raf) cancelAnimationFrame(raf); raf = null;
+          if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+          stream = null; vid.style.display = 'none';
+          document.getElementById('mxCam').textContent = 'Open the camera';
+        }
+        window.addEventListener('pagehide', stop);
+      })();
+      </script>`;
+    }
+
     // ---- host page without a login
     app.get('/meetups/host/:token', (req, res) => {
         try {
@@ -688,6 +768,7 @@ module.exports = function mountMeetups(app, ctx) {
         <div style="margin-top:18px;font-weight:600;font-size:10px;letter-spacing:.16em;color:#6e5626;">YOUR TABLE</div>
         ${d.attendees.length ? d.attendees.map(card).join('') : '<p style="font-size:13px;color:#4a4239;font-style:italic;margin-top:10px;">Nobody has joined yet — the invitations are out.</p>'}
         ${d.waitlist.length ? `<div style="margin-top:22px;font-weight:600;font-size:10px;letter-spacing:.16em;color:#6e5626;">WAITLIST</div>${d.waitlist.map(card).join('')}` : ''}
+        ${m.status === 'cancelled' ? '' : hostScannerHtml(req.params.token)}
         <p style="font-size:12px;color:#4a4239;margin-top:24px;">This page is yours alone — the link is the key, so please keep it to yourself. Check-in is entirely optional: scanning a guest&#39;s code simply tells you who is in front of you.</p>`
             }));
         } catch (e) { log('host page:', e.message); notFoundPage(res); }
