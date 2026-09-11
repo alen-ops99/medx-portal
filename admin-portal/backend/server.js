@@ -12177,6 +12177,32 @@ async function initializeApp() {
         const notes = (b && b.notes != null) ? String(b.notes).trim() : null;
         return { title, project, starts_on, ends_on, status, color, notes };
     }
+    // The Plexus conference week is stored TWICE: as a planning row here, and as the active
+    // `conferences` row that the member "days to Plexus" countdown reads (user server.js
+    // /api/conferences/active -> member home countdownTo). Editing the board alone left the two
+    // free to drift, and the member countdown would keep counting to the old date. Saving the
+    // conference-week entry therefore writes the dates through to the active conference.
+    // Only that one entry qualifies: project 'plexus' AND a title naming the conference, never the
+    // early-bird deadline, Donor Night, the Gala or an abstract date.
+    const ycIsConferenceWeek = e => String(e.project || '').toLowerCase() === 'plexus'
+        && /\bconference\b/i.test(String(e.title || ''))
+        && !/(early[-\s]?bird|deadline|donor|gala|abstract)/i.test(String(e.title || ''));
+    function ycSyncConference(entry, req) {
+        try {
+            if (!ycIsConferenceWeek(entry)) return null;
+            const conf = query.get('SELECT id, start_date, end_date FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1');
+            if (!conf) return null;
+            const start = entry.starts_on;
+            const end = entry.ends_on || entry.starts_on;
+            if (!start) return null;
+            if (String(conf.start_date || '').slice(0, 10) === start && String(conf.end_date || '').slice(0, 10) === end) return null;
+            db.run('UPDATE conferences SET start_date = ?, end_date = ? WHERE id = ?', [start, end, conf.id]);
+            saveDb();
+            logAudit(req, 'conference.dates_synced', `${conf.id}: ${start} → ${end} (from the year calendar)`);
+            return { id: conf.id, start_date: start, end_date: end };
+        } catch (e) { console.error('[year-calendar] conference sync', e.message); return null; }
+    }
+
     app.get('/api/admin/year-calendar', auth, adminOnly, (req, res) => {
         res.json(query.all('SELECT * FROM year_calendar_entries ORDER BY (starts_on IS NULL), starts_on, title'));
     });
@@ -12198,7 +12224,7 @@ async function initializeApp() {
             [id, c.title, c.project || null, c.starts_on, c.ends_on, c.status, c.color, c.notes]);
         saveDb();
         logAudit(req, 'year_calendar.create', c.title);
-        res.json({ success: true, id });
+        res.json({ success: true, id, conference_synced: ycSyncConference(c, req) });
     });
     app.put('/api/admin/year-calendar/:id', auth, adminOnly, (req, res) => {
         const existing = query.get('SELECT * FROM year_calendar_entries WHERE id = ?', [req.params.id]);
@@ -12211,7 +12237,7 @@ async function initializeApp() {
             [c.title, c.project || null, c.starts_on, c.ends_on, c.status, c.color, c.notes, req.params.id]);
         saveDb();
         logAudit(req, 'year_calendar.update', c.title);
-        res.json({ success: true });
+        res.json({ success: true, conference_synced: ycSyncConference(c, req) });
     });
     app.delete('/api/admin/year-calendar/:id', auth, adminOnly, (req, res) => {
         const existing = query.get('SELECT title FROM year_calendar_entries WHERE id = ?', [req.params.id]);
@@ -22447,7 +22473,8 @@ By applying to this program, I provide the following consents:
     app.get('/api/admin/guest-pass-events', auth, adminOnly, asyncHandler(async (req, res) => {
         const out = [];
         try { const g = query.get("SELECT title, date FROM gala_settings WHERE id = 'default'"); out.push({ key: 'gala', name: (g && g.title) || 'Gala Evening', date: (g && g.date) || '' }); } catch (e) {}
-        try { query.all('SELECT id, name, event_date FROM bridges_events ORDER BY event_date').forEach(b => out.push({ key: b.id, name: b.name, date: b.event_date || '' })); } catch (e) {}
+        // Cancelled editions stay out of the picker — a superseded row listed the same city twice.
+        try { query.all("SELECT id, name, event_date FROM bridges_events WHERE lower(COALESCE(status, 'upcoming')) != 'cancelled' ORDER BY event_date").forEach(b => out.push({ key: b.id, name: b.name, date: b.event_date || '' })); } catch (e) {}
         try { query.all('SELECT id, slug, name, start_date FROM conferences ORDER BY start_date DESC').forEach(c => out.push({ key: c.slug || c.id, name: c.name, date: c.start_date || '' })); } catch (e) {}
         res.json({ events: out });
     }));
@@ -30742,11 +30769,44 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         return lines.map(sfIcsFold).join('\r\n') + '\r\n';
     }
 
-    function signupFormCounts(formId) {
-        return {
+    // A Building Bridges sign-up form is superseded the moment that city's event wing goes live:
+    // guests then register through the wing, which writes bridges_registrations, and the form's own
+    // signup_form_responses stays at zero forever. The hub printed that zero next to a sold-out
+    // evening. Resolve the real source by DATA (the bridges event whose city the form names), never
+    // by a hardcoded form id, so the next city needs no code change.
+    function signupFormLiveSource(form) {
+        try {
+            const title = String((form && form.title) || '').toLowerCase();
+            const isBridges = String((form && form.project_tag) || '').toLowerCase() === 'bridges' || title.includes('building bridges');
+            if (!isBridges) return null;
+            const events = query.all(
+                "SELECT id, city, event_date FROM bridges_events WHERE city IS NOT NULL AND TRIM(city) <> '' " +
+                "AND lower(COALESCE(status, 'upcoming')) != 'cancelled' ORDER BY event_date ASC");
+            const inCity = (events || []).filter(e => title.includes(String(e.city).toLowerCase()));
+            if (!inCity.length) return null;
+            // Same city can hold more than one edition: the form's own event_date decides, and
+            // failing that the soonest one still to come (the list is date-ascending).
+            const formDay = String((form && form.event_date) || '').slice(0, 10);
+            const today = new Date().toISOString().slice(0, 10);
+            const match = (formDay && inCity.find(e => String(e.event_date || '').slice(0, 10) === formDay))
+                || inCity.find(e => String(e.event_date || '').slice(0, 10) >= today)
+                || inCity[inCity.length - 1];
+            const n = query.get(
+                "SELECT COUNT(*) AS n FROM bridges_registrations WHERE event_id = ? AND LOWER(COALESCE(status,'registered')) IN ('registered','confirmed')",
+                [match.id])?.n || 0;
+            return { count: n, event_id: match.id, event_city: match.city, label: 'Building Bridges ' + match.city };
+        } catch (e) { return null; }
+    }
+
+    function signupFormCounts(form) {
+        const formId = (form && typeof form === 'object') ? form.id : form;
+        const counts = {
             response_count: query.get('SELECT COUNT(*) AS n FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 0', [formId])?.n || 0,
             waitlist_count: query.get('SELECT COUNT(*) AS n FROM signup_form_responses WHERE form_id = ? AND is_waitlisted = 1', [formId])?.n || 0
         };
+        const live = (form && typeof form === 'object') ? signupFormLiveSource(form) : null;
+        if (live) { counts.live_count = live.count; counts.live_label = live.label; counts.live_event_id = live.event_id; }
+        return counts;
     }
 
     // ===== "Vec imate racun?" member-card toggles for the FIXED (non-builder) surfaces =====
@@ -30786,7 +30846,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
 
     app.get('/api/admin/signup-forms', auth, adminOnly, (req, res) => {
         const forms = query.all('SELECT * FROM signup_forms ORDER BY created_at DESC');
-        res.json(forms.map(f => ({ ...f, url: signupFormPublicUrl(f.slug), ...signupFormCounts(f.id) })));
+        res.json(forms.map(f => ({ ...f, url: signupFormPublicUrl(f.slug), ...signupFormCounts(f) })));
     });
 
     app.post('/api/admin/signup-forms', auth, adminOnly, (req, res) => {
@@ -30809,7 +30869,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         if (!form) return res.status(404).json({ error: 'Form not found' });
         let fields = [];
         try { fields = JSON.parse(form.fields_json || '[]'); } catch(e) {}
-        res.json({ ...form, fields, url: signupFormPublicUrl(form.slug), ...signupFormCounts(form.id) });
+        res.json({ ...form, fields, url: signupFormPublicUrl(form.slug), ...signupFormCounts(form) });
     });
 
     app.put('/api/admin/signup-forms/:id', auth, adminOnly, async (req, res) => {
@@ -30911,7 +30971,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             try { answers = JSON.parse(r.answers_json || '{}'); } catch(e) {}
             return { ...r, answers };
         });
-        const counts = signupFormCounts(form.id);
+        const counts = signupFormCounts(form);
         res.json({
             form: { ...form, url: signupFormPublicUrl(form.slug) },
             responses,

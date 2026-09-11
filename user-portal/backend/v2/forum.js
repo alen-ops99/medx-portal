@@ -412,7 +412,12 @@ module.exports = function mountForum(app, ctx) {
         let news = [];
         try { news = q.all(`SELECT id, title, body, date, created_at FROM forum_news WHERE status = 'published' ORDER BY date DESC, sort ASC LIMIT 20`).map(r => ({ id: 'news-' + r.id, source: 'forum_news', kind: 'news', tag: 'FORUM NEWS', name: null, role: null, init: null, title: r.title, body: r.body || '', published: true, published_at: (r.date || String(r.created_at || '').slice(0, 10)) + 'T09:00:00.000Z' })); } catch (e) { /* legacy table optional */ }
         const ts = v => new Date(String(v || '').replace(' ', 'T')).getTime() || 0;
-        return v2.concat(news).sort((a, b) => ts(b.published_at) - ts(a.published_at)).slice(0, limit);
+        // A future publish date is a SCHEDULED post, not a live one — an item dated 15 October must
+        // not sit at the top of the member feed in September. The admin preview (?all=1) still sees
+        // it. 60 s of grace so clock skew can never hide a post published this second.
+        const cutoff = Date.now() + 60 * 1000;
+        const live = all ? v2.concat(news) : v2.concat(news).filter(i => ts(i.published_at) <= cutoff);
+        return live.sort((a, b) => ts(b.published_at) - ts(a.published_at)).slice(0, limit);
     }
     const defaultTag = k => ({ spotlight: 'MEMBER SPOTLIGHT', news: 'FORUM NEWS', note: 'WORTH READING' }[String(k || '').toLowerCase()] || 'FROM THE FORUM');
     const initials = n => { const p = String(n || '').replace(/^(prof|dr|sc|med|mr|mrs|ms)\.?\s+/gi, '').trim().split(/\s+/).filter(Boolean); return ((p[0] || '')[0] || '') + ((p[p.length - 1] || '')[0] || ''); };

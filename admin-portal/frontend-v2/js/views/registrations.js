@@ -27,7 +27,9 @@ export const COPY = {
   sub: 'Every sign-up across every event — filter, open the file, act. New submissions appear here the second the form is sent.',
   emailSel: n => `EMAIL SELECTED · ${n}`, exportCsv: n => `EXPORT CSV · ${n}`,
   inclCancelled: n => `incl. ${n} cancelled`,
-  stats: { all: 'ALL REGISTRATIONS', conference: 'CONFERENCE', gala: 'GALA', boston: 'BOSTON', of: n => `of ${n}`, unpaid: n => `${n} unpaid`, cancelled: n => `+ ${n} cancelled` },
+  // Audit W11: name the unit. This counts gala REGISTRATION ROWS (bookings) — not seats, which
+  // include plus-ones (Gala screen), and not distinct guests (People).
+  stats: { all: 'ALL REGISTRATIONS', conference: 'CONFERENCE', gala: 'GALA REGISTRATIONS', boston: 'BOSTON', of: n => `of ${n}`, unpaid: n => `${n} unpaid`, cancelled: n => `+ ${n} cancelled` },
   searchPh: 'Name, email, note — e.g. “vegan”, “pending”, “kbc”',
   events: [['all', 'ALL EVENTS'], ['conference', 'PLEXUS CONFERENCE'], ['gala', 'GALA EVENING'], ['boston', 'BOSTON'], ['donor', 'DONOR NIGHT'], ['bridges', 'BUILDING BRIDGES'], ['forum', 'FORUM'], ['signup', 'SIGN-UP FORMS']],   // first five per the artboard; the rest are live data (v2)
   chips: ['ALL', 'PAID', 'PENDING', 'FREE'],

@@ -192,7 +192,10 @@ module.exports = function mountBridgesOps(app, ctx) {
                            count(`SELECT COUNT(*) AS c FROM bridges_registrations WHERE COALESCE(status,'registered') <> 'cancelled'`) +
                            count(`SELECT COUNT(*) AS c FROM forum_event_registrations WHERE COALESCE(status,'registered') <> 'cancelled'`)),
             cities: String(cities.size), countries: String(countries.size),
-            speakers: String(count(`SELECT COUNT(*) AS c FROM bridges_speakers`) + count(`SELECT COUNT(*) AS c FROM forum_event_speakers`) + count(`SELECT COUNT(*) AS c FROM conference_speakers`))
+            // The conference roster lives in `speakers` (GET /api/admin/plexus/speakers reads it);
+            // `conference_speakers` never existed, so count() swallowed the error and the
+            // all-projects press line under-reported every Plexus speaker as zero.
+            speakers: String(count(`SELECT COUNT(*) AS c FROM bridges_speakers`) + count(`SELECT COUNT(*) AS c FROM forum_event_speakers`) + count(`SELECT COUNT(*) AS c FROM speakers`))
         };
     }
     function statsPayload() {

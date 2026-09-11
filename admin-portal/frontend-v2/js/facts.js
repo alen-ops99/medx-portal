@@ -9,6 +9,9 @@ export const FACTS = Object.freeze({
     name: 'Plexus Conference 2026', week: 'Plexus Week 2026', short: 'Plexus 2026', edition: 9, slug: 'plexus-2026',
     start: '2026-12-04', end: '2026-12-05', startAt: '2026-12-04T09:00:00+01:00',
     dateRange: 'December 4–5, 2026', dateShort: 'Dec 4–5',
+    // FALLBACK ONLY (audit W7). Every screen that prints the venue reads the live conference row
+    // first — `conf.venue_name || FACTS.plexus.venue` — so a venue change in Plexus settings
+    // reaches the whole admin without a deploy. Never print this constant on its own.
     venue: 'Novinarski dom', city: 'Zagreb', country: 'Croatia',
     free: true, cap: 100, abstracts: false,
     parts: 'Conference + Gala + Donor Night'

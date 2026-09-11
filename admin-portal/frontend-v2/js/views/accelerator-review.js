@@ -101,7 +101,10 @@ async function load() {
 
 // ---- derived ----
 const apps = () => ((D && D.apps) || []).filter(a => a.status !== 'draft');
-const crits = () => (D && D.criteria) || [];
+// A criterion with no name renders as an empty field plus a bare ✕ (and an unlabelled 0–5 box on
+// every applicant row), so unnamed rows are dropped here — the one chokepoint the card, the score
+// grid and the CSV header all read.
+const crits = () => ((D && D.criteria) || []).filter(c => c && String(c.name || '').trim());
 const interviewers = () => ((D && D.interviewers) || []).filter(i => i.is_active !== 0);
 const invites = () => (D && D.invites && D.invites.invites) || [];
 const inviteFor = id => invites().find(v => v.application_id === id && (v.status === 'queued' || v.status === 'booked'));

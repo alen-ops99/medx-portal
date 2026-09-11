@@ -33,9 +33,11 @@ export const COPY = {
   addedMember: 'ADDED — INVITATION QUEUED IN THE OUTBOX', added: 'ADDED TO PEOPLE',
   nameFirst: 'THE NAME IS THE ONE THING I NEED',
   searchPh: 'Type a name, email or country — e.g. “Ivana”, “Ireland”, “not paid”',
+  // Audit W11: GALA here is distinct PEOPLE (one per email — plus-ones are not separate people),
+  // which is a smaller number than the Gala screen's seats and the Registrations row count.
   segs: {
     ALL: 'EVERYONE', MEMBERS: 'MED&X MEMBERS', FORUM: 'FORUM MEMBERS', REGISTRANTS: 'PLEXUS',
-    GALA: 'GALA', BOSTON: FACTS.bridges.next.city.toUpperCase(), TEAM: 'YOUR TEAM'
+    GALA: 'GALA GUESTS (PEOPLE)', BOSTON: FACTS.bridges.next.city.toUpperCase(), TEAM: 'YOUR TEAM'
   },
   segsNote: 'Chips combine — pick several and the list shows anyone in any of them.',
   dividers: { MEMBERS: 'CIRCLES', REGISTRANTS: 'REGISTRANTS', TEAM: 'STAFF' },

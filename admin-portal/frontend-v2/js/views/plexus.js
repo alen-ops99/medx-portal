@@ -60,7 +60,10 @@ export const COPY = {
     title: 'BEFORE THE WEEK', sub: 'in priority order — what is not done yet',
     editList: '✎ EDIT LIST', editListTitle: 'Reorder, rename or add rows — this list is shared by the whole team', editListToast: 'THE LIST FOLLOWS THE LIVE DATA — EDIT THE THING ITSELF VIA ITS ROW',
     regs: { name: 'Registrations', open: 'OPEN NOW', closed: 'CLOSED', status: (n, cap) => `${n} of ${cap} signed up · form live`, action: 'OPEN LIST' },
-    forms: { none: 'Sign-up Forms', noneStatus: 'No sign-up form pages yet — create one from Links', noneAction: 'CREATE', status: (r, w, d) => `${r} response${r === 1 ? '' : 's'}${w ? ` · ${w} waitlisted` : ''}${d ? ` · ${d}` : ''}`, open: 'OPEN', close: 'CLOSE', responses: 'RESPONSES', toggled: s => s === 'open' ? 'FORM IS LIVE — SIGN-UPS FLOW IN AGAIN' : 'FORM CLOSED — THE PAGE STOPS TAKING SIGN-UPS' },
+    forms: { none: 'Sign-up Forms', noneStatus: 'No sign-up form pages yet — create one from Links', noneAction: 'CREATE', status: (r, w, d) => `${r} response${r === 1 ? '' : 's'}${w ? ` · ${w} waitlisted` : ''}${d ? ` · ${d}` : ''}`, open: 'OPEN', close: 'CLOSE', responses: 'RESPONSES', toggled: s => s === 'open' ? 'FORM IS LIVE — SIGN-UPS FLOW IN AGAIN' : 'FORM CLOSED — THE PAGE STOPS TAKING SIGN-UPS',
+      // A form whose city now has its own event wing: guests register there, so the live count and
+      // the list both come from Bridges, not from this form's own (permanently empty) responses.
+      liveStatus: (n, label, d) => `${n} registered via ${label}${d ? ` · ${d}` : ''}`, liveList: 'GUEST LIST' },
     speakers: { name: 'Speakers', tag: n => `${n} CONFIRMED`, none: '0 CONFIRMED', status: (t, l) => `${t} on file · ${l} live on the member page`, action: 'MANAGE' },
     schedule: { name: 'Schedule & program', tag: n => `${n} PUBLISHED`, draft: 'IN DRAFT', status: t => `${t} session${t === 1 ? '' : 's'} · the member Program page renders the published rows`, none: 'No sessions yet — members see “Program in preparation”', action: 'BUILD' },
     travel: { tag: 'TRAVEL', name: 'Speaker itineraries', status: n => n ? `${n} itinerar${n === 1 ? 'y' : 'ies'} filed · flights, hotel nights & pickups per speaker` : 'Flights, hotel nights & airport pickups per speaker — nothing filed yet', action: 'MANAGE' },
@@ -380,7 +383,11 @@ function shape(r) {
 }
 
 // ---------------------------------------------------------------- derived
-const spConfirmed = () => D.speakers.filter(s => String(s.confirmation_status || '') === 'confirmed');
+// The page's own speaker tally reads is_confirmed ("SPEAKERS 4 · 4 live for members");
+// confirmation_status is a newer optional workflow column most rows never got, so keying the press
+// stat on it alone printed "Speakers confirmed 0" beside a published roster. Count a speaker as
+// confirmed when EITHER column says so — one source for the tally, the row tag and the press line.
+const spConfirmed = () => D.speakers.filter(s => String(s.confirmation_status || '').toLowerCase() === 'confirmed' || Number(s.is_confirmed));
 const spLive = () => D.speakers.filter(s => Number(s.is_confirmed) && Number(s.is_published));
 const ssPublished = () => D.sessions.filter(s => Number(s.is_published));
 const qaOpen = () => D.qa.filter(x => !x.is_answered && !x.is_hidden);
@@ -699,13 +706,17 @@ function blockBefore() {
   const confirmedN = spConfirmed().length;
   const pubN = ssPublished().length;
   const openQ = qaOpen().length;
-  const formRow = f => `
+  const formRow = f => {
+    const live = f.live_count != null;                          // superseded by a Bridges event wing
+    const day = f.event_date ? fmt.dayShort(f.event_date) : '';
+    return `
           <div class="mx-row" data-row="form-${esc(f.id)}" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.08)">
             <span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${f.status === 'open' ? '#1e6e42' : f.status === 'draft' ? '#b07d10' : '#6d6459'}">${esc(String(f.status || 'draft').toUpperCase())}</span>
-            <span class="mx-row-text" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px">${esc(f.title)}</span><span style="font-size:12px;color:#6d6459;min-width:0">${esc(c.forms.status(Number(f.response_count) || 0, Number(f.waitlist_count) || 0, f.event_date ? fmt.dayShort(f.event_date) : ''))}</span></span>
+            <span class="mx-row-text" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px">${esc(f.title)}</span><span style="font-size:12px;color:#6d6459;min-width:0">${esc(live ? c.forms.liveStatus(Number(f.live_count) || 0, f.live_label || 'the event page', day) : c.forms.status(Number(f.response_count) || 0, Number(f.waitlist_count) || 0, day))}</span></span>
             <span data-act="formToggle" data-id="${esc(f.id)}" data-status="${esc(f.status || 'draft')}" data-v2="open-close" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;border:1px solid rgba(32,27,22,.2);padding:5px 9px;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16;color:#201b16">${f.status === 'open' ? c.forms.close : c.forms.open}</span>
-            <a href="/links" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${c.forms.responses} →</a>
+            <a href="${live ? '/projects/bridges' : '/links'}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${live ? c.forms.liveList : c.forms.responses} →</a>
           </div>`;
+  };
   return `
     <!-- dc: Admin Plexus Hub.dc.html › "BEFORE THE WEEK" -->
     <div data-block="before" style="background:#fff;border:1px solid rgba(32,27,22,.14);margin-top:22px">

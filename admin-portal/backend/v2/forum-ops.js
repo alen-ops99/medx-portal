@@ -141,9 +141,27 @@ module.exports = function mountForumOps(app, ctx) {
         q.all(`SELECT choice, COUNT(*) AS c FROM v2_forum_votes WHERE poll = ? GROUP BY choice`, [POLL]).forEach(r => { if (r.choice in counts) counts[r.choice] = r.c; });
         return { poll: POLL, choices: CHOICES, counts, total: counts.split + counts.zagreb };
     }
+    // The admin list must show EXACTLY what members can see, so it reads both sources the member
+    // module unions (v2/forum.js feedItems): the v2 composer table AND the legacy forum_news rows.
+    // Legacy rows keep the same 'news-' id prefix the member feed uses, so unpublish/republish and
+    // edits route back to the right table in PUT /api/v2/forum/feed/:id.
+    function legacyNewsItems() {
+        try {
+            return q.all(`SELECT id, title, body, date, status, created_at FROM forum_news ORDER BY date DESC, sort ASC LIMIT 30`)
+                .map(r => ({
+                    id: 'news-' + r.id, source: 'forum_news', kind: 'news', tag: 'FORUM NEWS',
+                    name: null, role: null, init: null, title: r.title || null, body: r.body || '',
+                    published: String(r.status || 'published') === 'published',
+                    published_at: (r.date || String(r.created_at || '').slice(0, 10)) + 'T09:00:00.000Z',
+                    created_by: null
+                }));
+        } catch (e) { return []; /* legacy table optional */ }
+    }
     function feedItems() {
-        return q.all(`SELECT id, kind, tag, name, role, init, title, body, published, published_at, created_by FROM v2_forum_feed ORDER BY datetime(published_at) DESC LIMIT 60`)
-            .map(r => ({ id: r.id, kind: r.kind || 'news', tag: r.tag || defaultTag(r.kind), name: r.name || null, role: r.role || null, init: r.init || (r.name ? initials(r.name) : null), title: r.title || null, body: r.body || '', published: !!r.published, published_at: r.published_at, created_by: r.created_by || null }));
+        const v2 = q.all(`SELECT id, kind, tag, name, role, init, title, body, published, published_at, created_by FROM v2_forum_feed ORDER BY datetime(published_at) DESC LIMIT 60`)
+            .map(r => ({ id: r.id, source: 'v2', kind: r.kind || 'news', tag: r.tag || defaultTag(r.kind), name: r.name || null, role: r.role || null, init: r.init || (r.name ? initials(r.name) : null), title: r.title || null, body: r.body || '', published: !!r.published, published_at: r.published_at, created_by: r.created_by || null }));
+        const ts = v => new Date(String(v || '').replace(' ', 'T')).getTime() || 0;
+        return v2.concat(legacyNewsItems()).sort((a, b) => ts(b.published_at) - ts(a.published_at)).slice(0, 60);
     }
     function gatheringRow() {
         const e = q.get(`SELECT * FROM forum_events WHERE slug = ?`, [GATHERING.slug])
@@ -283,8 +301,23 @@ module.exports = function mountForumOps(app, ctx) {
     });
 
     // PUT /api/v2/forum/feed/:id — edit / unpublish (hides from members, never deletes) / republish
+    // A 'news-<id>' id addresses a legacy forum_news row (the member feed reads those too), so the
+    // same unpublish/republish/edit actions reach them instead of 404-ing.
     app.put('/api/v2/forum/feed/:id', auth, adminOnly, (req, res) => {
         try {
+            const legacyId = /^news-(.+)$/.exec(String(req.params.id || ''));
+            if (legacyId) {
+                const row = q.get(`SELECT * FROM forum_news WHERE id = ?`, [legacyId[1]]);
+                if (!row) return res.status(404).json({ error: 'Post not found.', code: 'unknown' });
+                const b = req.body || {}; const sets = []; const vals = [];
+                for (const k of ['title', 'body']) if (k in b) { sets.push(k + ' = ?'); vals.push(clean(b[k], k === 'body' ? 2000 : 200) || null); }
+                if ('published_at' in b) { sets.push('date = ?'); vals.push(String(b.published_at || '').slice(0, 10) || null); }
+                if ('published' in b) { sets.push('status = ?'); vals.push(b.published ? 'published' : 'hidden'); }
+                if (!sets.length) return res.status(400).json({ error: 'Nothing to change.', code: 'empty' });
+                vals.push(row.id);
+                q.run(`UPDATE forum_news SET ${sets.join(', ')} WHERE id = ?`, vals); persist();
+                return res.json({ ok: true, item: feedItems().find(i => i.id === req.params.id) || null });
+            }
             const row = q.get(`SELECT * FROM v2_forum_feed WHERE id = ?`, [req.params.id]);
             if (!row) return res.status(404).json({ error: 'Post not found.', code: 'unknown' });
             const b = req.body || {}; const sets = []; const vals = [];

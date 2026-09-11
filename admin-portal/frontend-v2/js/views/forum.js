@@ -52,6 +52,8 @@ export const COPY = {
     queued: 'CODE QUEUED — APPROVE IT IN THE OUTBOX', added: 'CANDIDATE ADDED TO THE PIPELINE',
     needEmail: 'ADD AN EMAIL FOR THIS CANDIDATE FIRST — EDIT THE ROW IN PEOPLE',
     showAll: n => `SHOW ALL ${n} →`, showFewer: 'SHOW FEWER', empty: 'The pipeline is clear.', emptyWhy: 'Add a candidate below or wait for the public form — requests land here.',
+    waitingOnly: n => `${n === 1 ? 'One request' : n + ' requests'} from the public form, and nobody in the pipeline yet.`,
+    waitingOnlyWhy: 'Open Considerations to read them, or add a candidate below.',
     nomWaiting: n => `${n} member nomination${n === 1 ? '' : 's'} waiting`,
     nomBy: who => `put forward by ${who}`,
     nomStage: 'NOMINATED',
@@ -312,7 +314,11 @@ function blockPipeline() {
             <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 8px;background:${s.bg};color:${s.fg};white-space:nowrap">${stage}</span>
             ${canInvite ? `<span data-act="sendCode" data-id="${esc(cd.id)}" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.sendCode}</span>` : ''}
           </div>`; }).join('')}
-          ${!D.cands.length && !noms.length ? `<div class="empty" style="padding:22px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:15px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
+          ${/* "The pipeline is clear." cannot sit under a "1 form request waiting" chip: the chip
+                counts pending forum_considerations, the rows count candidates and nominations, and
+                the empty state ignored the third table entirely. */''}
+          ${!D.cands.length && !noms.length && !pending ? `<div class="empty" style="padding:22px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:15px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
+          ${!D.cands.length && !noms.length && pending ? `<div class="empty" style="padding:22px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:15px">${esc(c.waitingOnly(pending))}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.waitingOnlyWhy}</span></div>` : ''}
           ${D.cands.length > TOP_ROWS ? `<div style="padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.07)"><span data-act="candsAll" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${st.candsAll ? c.showFewer : c.showAll(D.cands.length)}</span></div>` : ''}
           <div style="display:flex;gap:10px;padding:14px 20px 6px">
             <input data-role="candDraft" value="${esc(st.candDraft)}" placeholder="${esc(c.addPh)}" aria-label="Add a candidate" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-width:0">

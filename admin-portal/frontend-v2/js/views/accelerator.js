@@ -298,7 +298,9 @@ function blockReviewCard() {
 }
 
 function blockCriteria() {
-  const crits = (D && D.criteria) || [];
+  // Unnamed rows would render as an empty field plus a bare ✕ — skip them (same rule as the
+  // Review room's crits()).
+  const crits = ((D && D.criteria) || []).filter(c => c && String(c.name || '').trim());
   return `
         <div data-block="crit" data-v2="criteria-card" style="border:1px solid rgba(32,27,22,.14);background:#fff">
           <!-- v2: EVALUATION CRITERIA — note 0c row; vocabulary from Admin Accelerator Review.dc.html › "SCORING CRITERIA" -->

@@ -242,8 +242,13 @@ ${paragraphs(body)}
         // Building Bridges — one group per upcoming event
         const bridgeGroups = [];
         try {
+            // A cancelled edition must never appear as an audience — a superseded Boston row put
+            // "Building Bridges Boston" in the dropdown twice, and picking the wrong one emails a
+            // dead guest list. Same rule the Event Day door picker already uses.
             const events = all(`SELECT id, city, event_date FROM bridges_events
-                                 WHERE event_date IS NOT NULL AND event_date >= date('now') ORDER BY event_date ASC`);
+                                 WHERE event_date IS NOT NULL AND event_date >= date('now')
+                                   AND lower(COALESCE(status, 'upcoming')) != 'cancelled'
+                                 ORDER BY event_date ASC`);
             events.forEach(ev => {
                 const people = all(
                     `SELECT first_name, last_name, email, payment_status, checked_in FROM bridges_registrations

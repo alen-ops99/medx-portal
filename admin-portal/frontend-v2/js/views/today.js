@@ -27,14 +27,24 @@ export const COPY = {
     // UXFIX closing (2026-09-02, audit #1): the card counted registration ROWS and called them
     // seats. It now reads the canonical /api/v2/gala-ops/summary (seats incl. plus-ones); on an
     // older backend it falls back to the local row walk and says BOOKINGS, which is what rows are.
+    // Audit W11: every gala figure names its unit. SEATS include plus-ones; a "registration" is one
+    // booking row, which is a different number, and People counts distinct guests — three units,
+    // never interchangeable.
     kGala: {
-      k: 'GALA SEATS PAID', kFallback: 'GALA BOOKINGS PAID', label: 'Gala seats paid',
+      k: 'GALA SEATS PAID (INCL. GUESTS)', kFallback: 'GALA BOOKINGS PAID', label: 'Gala seats paid',
       chase: (n, eur, tail) => `${n} seat${n === 1 ? '' : 's'} unpaid · ${eur} outstanding · ${tail}`,
       chaseBookings: (n, tail) => `${n} payment${n === 1 ? '' : 's'} to chase · ${tail}`,
       clear: tail => `all seats paid · ${tail}`,
       ebEnds: eb => `early bird ends ${eb}`, after: 'regular price now'
     },
-    kMoney: { k: 'COLLECTED THIS YEAR', label: 'Collected this year', sub: n => `${n} Gala payment${n === 1 ? '' : 's'} · all of Money →` },
+    // Audit W9: this total is gala money PLUS paid conference registrations, so the sub-line names
+    // both halves — Money's own "collected" has no conference source, and the gap used to look like
+    // one of the two screens being wrong.
+    kMoney: {
+      k: 'COLLECTED THIS YEAR', label: 'Collected this year',
+      sub: n => `${n} paid Gala registration${n === 1 ? '' : 's'} · all of Money →`,
+      subWithConf: (n, confEur) => `${n} paid Gala registration${n === 1 ? '' : 's'} + ${confEur} conference · all of Money →`
+    },
     locked: 'locked for you · ask Alen'
   },
   trends: { title: 'REGISTRATIONS — LAST 30 DAYS', scope: 'ALL EVENTS · CONFERENCE + GALA + BRIDGES + FORUM' },
@@ -180,12 +190,15 @@ function kpiDefs() {
   const galaPaid = ops ? ops.seats.paid : g.paid.length;               // seats when canonical, bookings on the fallback
   const galaPayments = ops ? ops.bookings.paid : g.paid.length;        // payments = registration rows, both paths
   const galaCollected = ops ? ops.eur.collected : g.collected;
-  const collected = isLocked('finance') && isLocked('gala') ? null : galaCollected + (D.pstats && D.pstats.plexus ? Number(D.pstats.plexus.revenue || 0) : 0);
+  const confRevenue = D.pstats && D.pstats.plexus ? Number(D.pstats.plexus.revenue || 0) : 0;
+  const collected = isLocked('finance') && isLocked('gala') ? null : galaCollected + confRevenue;
   return [
-    { on: p.kDays, k: c.kDays.k, v: String(D.plexusDays), sub: `${fmt.longRange(conf.start_date || FACTS.plexus.start, conf.end_date || FACTS.plexus.end)} · ${FACTS.plexus.venue}, ${conf.venue_city || FACTS.plexus.city}`, subColor: '#6d6459', href: '/projects/plexus' },
+    // Venue comes from the live conference row like the dates and the city beside it; FACTS is only
+    // the fallback for a backend that has no conference yet (audit W7).
+    { on: p.kDays, k: c.kDays.k, v: String(D.plexusDays), sub: `${fmt.longRange(conf.start_date || FACTS.plexus.start, conf.end_date || FACTS.plexus.end)} · ${conf.venue_name || FACTS.plexus.venue}, ${conf.venue_city || FACTS.plexus.city}`, subColor: '#6d6459', href: '/projects/plexus' },
     { on: p.kConf, k: c.kConf.k, v: regs == null ? '—' : String(regs), sub: c.kConf.sub(D.cap), subColor: '#6d6459', href: '/registrations' },
     { on: p.kGala, k: ops ? c.kGala.k : c.kGala.kFallback, v: galaLocked ? '—' : String(galaPaid), sub: galaSub, subColor: !galaLocked && chasing ? '#9b1b22' : '#6d6459', href: '/gala' },
-    { on: p.kMoney, k: c.kMoney.k, v: collected == null ? '—' : fmt.eur(collected), sub: collected == null ? c.locked : c.kMoney.sub(galaPayments), subColor: '#6d6459', href: '/money' }
+    { on: p.kMoney, k: c.kMoney.k, v: collected == null ? '—' : fmt.eur(collected), sub: collected == null ? c.locked : (confRevenue ? c.kMoney.subWithConf(galaPayments, fmt.eur(confRevenue)) : c.kMoney.sub(galaPayments)), subColor: '#6d6459', href: '/money' }
   ].filter(k => k.on);
 }
 function shortcutDefs() {
