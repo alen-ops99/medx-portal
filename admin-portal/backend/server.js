@@ -6355,6 +6355,21 @@ async function initializeApp() {
     // ALTER so whichever boots first adds the column to the shared DB.
     try { db.run('ALTER TABLE member_announcements ADD COLUMN audience_scope TEXT'); } catch (e) {}
 
+    // SHOW UNTIL for member announcements (additive, same rules as audience_scope above). The
+    // composer already offered "show until", but only the bell copy of an announcement honoured it
+    // — the member_announcements row itself had nowhere to keep the date, so the home feed and the
+    // notification centre kept showing an item long after it was meant to drop off. NULL = forever.
+    try { db.run('ALTER TABLE member_announcements ADD COLUMN expires_at TEXT'); } catch (e) {}
+
+    // The bell copy of an announcement now records WHICH announcement it mirrors, so editing or
+    // removing the announcement can reach its bell row instead of orphaning it. NULL on every row
+    // written by anything other than the announcement composer.
+    try { db.run('ALTER TABLE user_notifications ADD COLUMN announcement_id TEXT'); } catch (e) {}
+    // …and WHO it was addressed to, so a project-scoped bell item stops ringing every member.
+    // NULL = the legacy broadcast behaviour (see the member portal's notifAudienceSql).
+    try { db.run('ALTER TABLE user_notifications ADD COLUMN audience_scope TEXT'); } catch (e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_user_notif_ann ON user_notifications (announcement_id)'); } catch (e) {}
+
     // One-time heal for existing DBs (local + shared Turso): purge the placeholder demo speakers that
     // early builds seeded with real institution names (Harvard / MD Anderson / Novartis). They must
     // never surface publicly as "confirmed 2026" speakers. Idempotent and tightly scoped by exact
@@ -11702,7 +11717,11 @@ async function initializeApp() {
                 // Member announcements (admin composer) also surface on the site bell so publishing once
                 // reaches BOTH the member portal center (/api/announcements) and the website bell. Same
                 // audience gating: audience_scope + notify_topics (interested) + registration-by-email.
-                const mAnns = query.all('SELECT * FROM member_announcements ORDER BY created_at DESC LIMIT ?', [limit]);
+                // …and the composer's SHOW UNTIL, so an expired item drops off this bell too.
+                const mAnns = query.all(
+                    `SELECT * FROM member_announcements
+                      WHERE (expires_at IS NULL OR TRIM(expires_at) = '' OR datetime(expires_at) > datetime('now'))
+                      ORDER BY created_at DESC LIMIT ?`, [limit]);
                 const subs = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]).map(r => r.project_key);
                 const regProjects = (typeof memberRegisteredProjects === 'function') ? memberRegisteredProjects(req.user && req.user.email) : [];
                 mItems = (mAnns || []).filter(a => {
@@ -12025,6 +12044,45 @@ async function initializeApp() {
     // flag here; the USER portal (which holds the VAPID keys + subscriptions) drains push=1
     // rows through the shared push_outbox and does the actual delivery. This endpoint never
     // sends anything itself. project_key NULL = everyone.
+    //
+    // Publishing writes TWO rows — the member_announcements row here, and a mirrored
+    // user_notifications row (the in-portal bell) posted by the composer to
+    // POST /api/admin/notifications/send carrying `announcement_id`. Edit and delete below act on
+    // BOTH, so the bell can never keep the old wording or outlive the announcement.
+
+    // 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS' (what the composer's SHOW UNTIL emits); anything else
+    // becomes NULL = show forever. A bare date is widened to the end of that day.
+    function cleanExpiry(v) {
+        const s = String(v == null ? '' : v).trim();
+        if (!s) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s + ' 23:59:59';
+        if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(s)) return s.replace('T', ' ').length === 16 ? s.replace('T', ' ') + ':00' : s.replace('T', ' ');
+        return null;
+    }
+
+    // Every user_notifications row that mirrors one announcement: by the stored announcement_id,
+    // and — for rows published before that column existed — by the title the announcement carried
+    // at the time, inside a two-minute window around when it was created. Both writes happen in
+    // the same composer click, so that window is generous and still cannot catch a later, unrelated
+    // notification that happens to share a title.
+    function mirroredNotificationIds(ann, originalTitle) {
+        const ids = [];
+        try {
+            query.all('SELECT id FROM user_notifications WHERE announcement_id = ?', [ann.id]).forEach(r => ids.push(r.id));
+        } catch (e) { /* pre-migration DB */ }
+        if (!ids.length && ann.created_at) {
+            try {
+                query.all(
+                    `SELECT id FROM user_notifications
+                      WHERE category = 'announcement' AND title = ?
+                        AND datetime(created_at) BETWEEN datetime(?, '-2 minutes') AND datetime(?, '+2 minutes')`,
+                    [String(originalTitle == null ? ann.title : originalTitle), ann.created_at, ann.created_at]
+                ).forEach(r => ids.push(r.id));
+            } catch (e) { /* best effort */ }
+        }
+        return ids;
+    }
+
     app.get('/api/admin/member-announcements', auth, adminOnly, (req, res) => {
         const rows = query.all('SELECT * FROM member_announcements ORDER BY datetime(created_at) DESC LIMIT 100');
         const counts = query.all('SELECT project_key, COUNT(*) AS waiting FROM notify_topics GROUP BY project_key');
@@ -12044,10 +12102,11 @@ async function initializeApp() {
         const ALLOWED_SCOPE = ['everyone', 'interested', 'registered', 'interested_not_registered'];
         let audience_scope = ALLOWED_SCOPE.includes(b.audience_scope) ? b.audience_scope : (project_key ? 'interested' : 'everyone');
         if (!project_key) audience_scope = 'everyone';
+        const expires_at = cleanExpiry(b.expires_at);
         const id = uuidv4();
-        db.run(`INSERT INTO member_announcements (id, project_key, title, body, link_section, push, push_fanned, audience_scope)
-            VALUES (?,?,?,?,?,?,0,?)`,
-            [id, project_key, title, b.body || null, b.link_section || null, b.push ? 1 : 0, audience_scope]);
+        db.run(`INSERT INTO member_announcements (id, project_key, title, body, link_section, push, push_fanned, audience_scope, expires_at)
+            VALUES (?,?,?,?,?,?,0,?,?)`,
+            [id, project_key, title, b.body || null, b.link_section || null, b.push ? 1 : 0, audience_scope, expires_at]);
         saveDb();
         logAudit(req, 'announcement.publish', title);
         res.json({ success: true, id });
@@ -12081,7 +12140,23 @@ async function initializeApp() {
         const interested = interestedEmails.length;
         const registered = registeredEmails.length;
         const interested_not_registered = interestedEmails.filter(e => !regSet.has(e)).length;
-        res.json({ project, interested, registered, interested_not_registered });
+        // An announcement is a BELL/HOME item: only a portal member can ever see one. Registrants
+        // are counted by email off the registration table and many of them have no account, so the
+        // composer needs the member-only figure beside the raw one or "48 gala guests" reads as a
+        // promise the portal cannot keep. (This does NOT send anything to the non-members.)
+        let memberEmails = new Set();
+        try {
+            memberEmails = new Set(query.all("SELECT DISTINCT LOWER(TRIM(email)) AS email FROM users WHERE email IS NOT NULL AND TRIM(email) <> ''").map(r => r.email));
+        } catch (e) { memberEmails = new Set(); }
+        const members_registered = registeredEmails.filter(e => memberEmails.has(e)).length;
+        res.json({
+            project, interested, registered, interested_not_registered,
+            // interested + interested_not_registered come from notify_topics JOIN users, so every
+            // one of those IS a member already.
+            members_interested: interested,
+            members_registered,
+            members_interested_not_registered: interested_not_registered
+        });
     });
 
     // Edit a published announcement in place. Members read member_announcements live (member home
@@ -12103,20 +12178,38 @@ async function initializeApp() {
         if (b.audience_scope !== undefined && ALLOWED_SCOPE.includes(b.audience_scope)) audience_scope = b.audience_scope;
         if (!project_key) audience_scope = 'everyone';
         else if (!ALLOWED_SCOPE.includes(audience_scope)) audience_scope = 'interested';
-        db.run(`UPDATE member_announcements SET title = ?, body = ?, link_section = ?, project_key = ?, audience_scope = ? WHERE id = ?`,
-            [title, body, link_section, project_key, audience_scope, req.params.id]);
+        const expires_at = b.expires_at === undefined ? (existing.expires_at || null) : cleanExpiry(b.expires_at);
+        db.run(`UPDATE member_announcements SET title = ?, body = ?, link_section = ?, project_key = ?, audience_scope = ?, expires_at = ? WHERE id = ?`,
+            [title, body, link_section, project_key, audience_scope, expires_at, req.params.id]);
+        // The bell copy is a SECOND row in a second table. Editing only the announcement left the
+        // bell reading the old title and body forever — the member saw two different versions of
+        // the same message depending on where they looked.
+        let mirrored = 0;
+        mirroredNotificationIds(existing, existing.title).forEach(nid => {
+            try {
+                db.run(`UPDATE user_notifications
+                           SET title = ?, message = ?, link = ?, project = ?, audience_scope = ?, expires_at = ?, announcement_id = ?
+                         WHERE id = ?`,
+                    [title, body || '', link_section || null, project_key || null, audience_scope, expires_at, existing.id, nid]);
+                mirrored++;
+            } catch (e) { /* pre-migration column set — the announcement edit still stands */ }
+        });
         saveDb();
         logAudit(req, 'announcement.edit', title);
-        res.json({ success: true, id: req.params.id });
+        res.json({ success: true, id: req.params.id, bell_updated: mirrored });
     });
 
     app.delete('/api/admin/member-announcements/:id', auth, adminOnly, (req, res) => {
-        const existing = query.get('SELECT id FROM member_announcements WHERE id = ?', [req.params.id]);
+        const existing = query.get('SELECT * FROM member_announcements WHERE id = ?', [req.params.id]);
         if (!existing) return res.status(404).json({ error: 'Announcement not found' });
+        // Take the bell copy with it. Deleting only member_announcements left an orphan
+        // user_notifications row ringing forever with no announcement behind it.
+        const ids = mirroredNotificationIds(existing, existing.title);
+        ids.forEach(nid => { try { db.run('DELETE FROM user_notifications WHERE id = ?', [nid]); } catch (e) {} });
         db.run('DELETE FROM member_announcements WHERE id = ?', [req.params.id]);
         saveDb();
         logAudit(req, 'announcement.delete', req.params.id);
-        res.json({ success: true });
+        res.json({ success: true, bell_removed: ids.length });
     });
 
     // ================= ADMIN OPS: accelerator sites (member board) =================
@@ -23053,12 +23146,12 @@ By applying to this program, I provide the following consents:
     // ========== USER NOTIFICATIONS (Admin → User Portal) ==========
 
     // Helper: create a user notification (reusable from any admin action)
-    function createUserNotification({ userId, userGroup, category, project, title, message, link, icon, iconClass, createdBy, notificationType, targetTier, expiresAt, placement }) {
+    function createUserNotification({ userId, userGroup, category, project, title, message, link, icon, iconClass, createdBy, notificationType, targetTier, expiresAt, placement, announcementId, audienceScope }) {
         const id = uuidv4();
         db.run(
-            `INSERT INTO user_notifications (id, user_id, user_group, category, project, title, message, link, icon, icon_class, created_by, created_at, notification_type, target_tier, expires_at, placement)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)`,
-            [id, userId || null, userGroup || 'all', category || 'system', project || null, title, message || '', link || null, icon || 'fa-bell', iconClass || 'system', createdBy || null, notificationType || 'info', targetTier || 'all', expiresAt || null, placement || 'panel']
+            `INSERT INTO user_notifications (id, user_id, user_group, category, project, title, message, link, icon, icon_class, created_by, created_at, notification_type, target_tier, expires_at, placement, announcement_id, audience_scope)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?)`,
+            [id, userId || null, userGroup || 'all', category || 'system', project || null, title, message || '', link || null, icon || 'fa-bell', iconClass || 'system', createdBy || null, notificationType || 'info', targetTier || 'all', expiresAt || null, placement || 'panel', announcementId || null, audienceScope || null]
         );
         saveDb();
         return id;
@@ -23081,8 +23174,9 @@ By applying to this program, I provide the following consents:
     // Send a user notification from admin
     app.post('/api/admin/notifications/send', auth, adminOnly, (req, res) => {
         try {
-            const { user_id, user_group, category, project, title, message, link, icon, icon_class, notification_type, target_tier, expires_at, placement, send_push } = req.body;
+            const { user_id, user_group, category, project, title, message, link, icon, icon_class, notification_type, target_tier, expires_at, placement, send_push, announcement_id, audience_scope } = req.body;
             if (!title) return res.status(400).json({ error: 'Title is required' });
+            const ALLOWED_SCOPE = ['everyone', 'interested', 'registered', 'interested_not_registered'];
             const id = createUserNotification({
                 userId: user_id, userGroup: user_group || 'all',
                 category: category || 'announcement', project,
@@ -23092,7 +23186,12 @@ By applying to this program, I provide the following consents:
                 notificationType: notification_type || 'info',
                 targetTier: target_tier || 'all',
                 expiresAt: expires_at || null,
-                placement: placement || 'panel'
+                placement: placement || 'panel',
+                // Set by the announcement composer: which member_announcements row this bell copy
+                // mirrors, and who it is addressed to. Without the scope a project-scoped bell item
+                // falls back to the legacy behaviour and reaches everyone.
+                announcementId: announcement_id || null,
+                audienceScope: ALLOWED_SCOPE.includes(audience_scope) ? audience_scope : null
             });
             // Optionally enqueue a web-push broadcast. Both portals share one DB; the user
             // portal (which holds VAPID + subscriptions) drains push_outbox and sends.
@@ -23280,7 +23379,7 @@ By applying to this program, I provide the following consents:
     function assembleDigestModel() {
         const model = { announcements: [], events: [], feed: [] };
         try {
-            const anns = query.all("SELECT title, body, link_section, project_key FROM member_announcements WHERE datetime(created_at) >= datetime('now','-45 days') ORDER BY datetime(created_at) DESC LIMIT 6");
+            const anns = query.all("SELECT title, body, link_section, project_key FROM member_announcements WHERE datetime(created_at) >= datetime('now','-45 days') AND (expires_at IS NULL OR TRIM(expires_at) = '' OR datetime(expires_at) > datetime('now')) ORDER BY datetime(created_at) DESC LIMIT 6");
             model.announcements = anns.map((a) => ({ title: a.title || '', body: String(a.body || '').slice(0, 220), url: digestPortalLink(a.link_section || a.project_key || 'dashboard') }));
         } catch (e) {}
         try {

@@ -249,6 +249,58 @@ function memberRegisteredProjects(email) {
     return out;
 }
 
+// SQL that selects the user_notifications rows ONE member is entitled to see, with its params.
+//
+// The clause it replaces was `user_id = ? OR user_id IS NULL OR user_group = 'all'`. The middle
+// term made EVERY row with no user_id global, so the bell copy of a project-scoped announcement
+// (user_group = 'gala', user_id NULL) rang for every member in the portal — the announcement's own
+// audience was written on the member_announcements row and nowhere else. A row now reaches a
+// member when:
+//   • it names them            — user_id = me
+//   • it is a real broadcast   — no user_id and no group (or 'all')
+//   • it is addressed to a project audience they belong to — user_group is one of the project
+//     keys and audience_scope matches how they relate to that project (followed via notify_topics
+//     / registered by email / both / neither)
+// BACKWARDS COMPATIBILITY: audience_scope NULL means 'everyone', exactly as the member_announcements
+// feed filters read it, so every row published before this column existed still reaches whoever it
+// reached before; and any user_group token that is NOT a project key (e.g. the 1:1 'targeted' rows)
+// keeps the old broadcast behaviour untouched.
+function notifAudienceSql(user) {
+    const uid = (user && user.id) || null;
+    let followed = [];
+    try {
+        followed = query.all('SELECT DISTINCT project_key FROM notify_topics WHERE user_id = ?', [uid])
+            .map(r => r.project_key).filter(Boolean);
+    } catch (e) { followed = []; }
+    const registered = new Set(memberRegisteredProjects(user && user.email));
+    const projects = Object.keys(AUDIENCE_REG_TABLE);
+    const mine = {
+        everyone: projects.slice(),
+        interested: projects.filter(p => followed.indexOf(p) >= 0),
+        registered: projects.filter(p => registered.has(p)),
+        interested_not_registered: projects.filter(p => followed.indexOf(p) >= 0 && !registered.has(p))
+    };
+    const ph = (n) => new Array(n).fill('?').join(',');
+    const parts = ['user_id = ?'];
+    const params = [uid];
+    parts.push(`(user_id IS NULL AND (user_group IS NULL OR TRIM(user_group) = '' OR user_group = 'all'))`);
+    parts.push(`(user_id IS NULL AND user_group NOT IN (${ph(projects.length)}))`);
+    projects.forEach(p => params.push(p));
+    Object.keys(mine).forEach(scope => {
+        const list = mine[scope];
+        if (!list.length) return;
+        parts.push(`(user_id IS NULL AND COALESCE(audience_scope, 'everyone') = ? AND user_group IN (${ph(list.length)}))`);
+        params.push(scope);
+        list.forEach(p => params.push(p));
+    });
+    return { sql: '(' + parts.join(' OR ') + ')', params };
+}
+
+// A member_announcements row is live until its SHOW UNTIL passes. Used everywhere the member side
+// lists announcements, so one composer setting governs the home feed, the notification centre and
+// both bells instead of only the bell copy.
+const ANN_LIVE_SQL = `(expires_at IS NULL OR TRIM(expires_at) = '' OR datetime(expires_at) > datetime('now'))`;
+
 // Fan a push=1 member announcement out to the shared push_outbox: one row per member in the
 // announcement's chosen audience (see audience_scope), or every user for a global item.
 // This ENQUEUES only — the actual web-push send happens later in drainPushOutbox, which no-ops
@@ -260,7 +312,7 @@ function fanoutAnnouncements() {
     _annFanBusy = true;
     try {
         let anns = [];
-        try { anns = query.all('SELECT * FROM member_announcements WHERE COALESCE(push,0) = 1 AND COALESCE(push_fanned,0) = 0'); }
+        try { anns = query.all(`SELECT * FROM member_announcements WHERE COALESCE(push,0) = 1 AND COALESCE(push_fanned,0) = 0 AND ${ANN_LIVE_SQL}`); }
         catch (e) { return; }
         for (const a of anns) {
             let emails = [];
@@ -10419,6 +10471,21 @@ async function initializeApp() {
     // ALTER so whichever boots first adds the column to the shared DB.
     try { db.run('ALTER TABLE member_announcements ADD COLUMN audience_scope TEXT'); } catch (e) {}
 
+    // SHOW UNTIL for member announcements (additive, same rules as audience_scope above). The
+    // composer already offered "show until", but only the bell copy of an announcement honoured it
+    // — the member_announcements row itself had nowhere to keep the date, so the home feed and the
+    // notification centre kept showing an item long after it was meant to drop off. NULL = forever.
+    try { db.run('ALTER TABLE member_announcements ADD COLUMN expires_at TEXT'); } catch (e) {}
+
+    // The bell copy of an announcement now records WHICH announcement it mirrors, so editing or
+    // removing the announcement can reach its bell row instead of orphaning it. NULL on every row
+    // written by anything other than the announcement composer.
+    try { db.run('ALTER TABLE user_notifications ADD COLUMN announcement_id TEXT'); } catch (e) {}
+    // …and WHO it was addressed to, so a project-scoped bell item stops ringing every member.
+    // NULL = the legacy broadcast behaviour (see notifAudienceSql below).
+    try { db.run('ALTER TABLE user_notifications ADD COLUMN audience_scope TEXT'); } catch (e) {}
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_user_notif_ann ON user_notifications (announcement_id)'); } catch (e) {}
+
     // One-time heal for existing DBs (local + shared Turso): purge the placeholder demo speakers that
     // early builds seeded with real institution names (Harvard / MD Anderson / Novartis). They must
     // never surface publicly as "confirmed 2026" speakers. Idempotent and tightly scoped by exact
@@ -13986,7 +14053,7 @@ async function submitReset(e){
                 const subs = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]).map(r => r.project_key);
                 const regProjects = (typeof memberRegisteredProjects === 'function') ? memberRegisteredProjects(req.user && req.user.email) : [];
                 const anns = query.all(`SELECT id, project_key, title, body, link_section, audience_scope, created_at
-                    FROM member_announcements ORDER BY datetime(created_at) DESC LIMIT 12`);
+                    FROM member_announcements WHERE ${ANN_LIVE_SQL} ORDER BY datetime(created_at) DESC LIMIT 12`);
                 anns.filter(a => {
                     if (!a.project_key) return true;
                     const scope = a.audience_scope || 'everyone';
@@ -23175,12 +23242,14 @@ By applying to this program, I provide the following consents:
 
     // ========== USER NOTIFICATIONS (from Admin Portal via shared DB) ==========
 
-    // Get notifications for current user (both targeted and broadcast)
+    // Get notifications for current user (addressed, broadcast, or addressed to an audience they
+    // are in — see notifAudienceSql)
     app.get('/api/user-notifications', auth, (req, res) => {
         try {
             const { limit = 50, offset = 0, category, placement } = req.query;
-            let sql = `SELECT * FROM user_notifications WHERE (user_id = ? OR user_id IS NULL OR user_group = 'all')`;
-            const params = [req.user.id];
+            const aud = notifAudienceSql(req.user);
+            let sql = `SELECT * FROM user_notifications WHERE ${aud.sql}`;
+            const params = aud.params.slice();
             // Exclude expired notifications
             sql += ` AND (expires_at IS NULL OR expires_at = '' OR expires_at > datetime('now'))`;
             if (category && category !== 'all') { sql += ' AND category = ?'; params.push(category); }
@@ -23189,8 +23258,8 @@ By applying to this program, I provide the following consents:
             params.push(parseInt(limit), parseInt(offset));
             const notifications = query.all(sql, params);
             const unreadCount = query.get(
-                `SELECT COUNT(*) as count FROM user_notifications WHERE (user_id = ? OR user_id IS NULL OR user_group = 'all') AND is_read = 0 AND (expires_at IS NULL OR expires_at = '' OR expires_at > datetime('now'))`,
-                [req.user.id]
+                `SELECT COUNT(*) as count FROM user_notifications WHERE ${aud.sql} AND is_read = 0 AND (expires_at IS NULL OR expires_at = '' OR expires_at > datetime('now'))`,
+                aud.params.slice()
             );
             res.json({ notifications: notifications || [], unreadCount: unreadCount?.count || 0 });
         } catch (err) {
@@ -23201,14 +23270,16 @@ By applying to this program, I provide the following consents:
     // Mark user notification as read — scoped to the caller so one member can never mark another
     // member's row read (the site now calls this on read, so the scoping had to land first).
     app.put('/api/user-notifications/:id/read', auth, (req, res) => {
-        db.run(`UPDATE user_notifications SET is_read = 1 WHERE id = ? AND (user_id = ? OR user_id IS NULL OR user_group = 'all')`, [req.params.id, req.user.id]);
+        const aud = notifAudienceSql(req.user);
+        db.run(`UPDATE user_notifications SET is_read = 1 WHERE id = ? AND ${aud.sql}`, [req.params.id].concat(aud.params));
         saveDb();
         res.json({ success: true });
     });
 
     // Mark all user notifications as read
     app.put('/api/user-notifications/mark-all-read', auth, (req, res) => {
-        db.run(`UPDATE user_notifications SET is_read = 1 WHERE (user_id = ? OR user_id IS NULL OR user_group = 'all')`, [req.user.id]);
+        const aud = notifAudienceSql(req.user);
+        db.run(`UPDATE user_notifications SET is_read = 1 WHERE ${aud.sql}`, aud.params);
         saveDb();
         res.json({ success: true });
     });
@@ -23225,11 +23296,12 @@ By applying to this program, I provide the following consents:
         try {
             const limit = Math.min(parseInt(req.query.limit) || 30, 60);
             const tokenish = v => (v && /^(https?:\/\/|site:|app:)/i.test(String(v))) ? String(v) : null;
+            const aud = notifAudienceSql(req.user);
             const notifs = query.all(
                 `SELECT * FROM user_notifications
-                 WHERE (user_id = ? OR user_id IS NULL OR user_group = 'all')
+                 WHERE ${aud.sql}
                    AND (expires_at IS NULL OR expires_at = '' OR expires_at > datetime('now'))
-                 ORDER BY created_at DESC LIMIT ?`, [req.user.id, limit]);
+                 ORDER BY created_at DESC LIMIT ?`, aud.params.concat([limit]));
             const nItems = (notifs || []).map(n => ({
                 id: String(n.id), source: 'notification',
                 title: n.title || 'Update', message: n.message || '',
@@ -23256,7 +23328,7 @@ By applying to this program, I provide the following consents:
                 // Member announcements (admin composer) also surface on the site bell so publishing once
                 // reaches BOTH the member portal center (/api/announcements) and the website bell. Same
                 // audience gating: audience_scope + notify_topics (interested) + registration-by-email.
-                const mAnns = query.all('SELECT * FROM member_announcements ORDER BY created_at DESC LIMIT ?', [limit]);
+                const mAnns = query.all(`SELECT * FROM member_announcements WHERE ${ANN_LIVE_SQL} ORDER BY created_at DESC LIMIT ?`, [limit]);
                 const subs = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]).map(r => r.project_key);
                 const regProjects = (typeof memberRegisteredProjects === 'function') ? memberRegisteredProjects(req.user && req.user.email) : [];
                 mItems = (mAnns || []).filter(a => {
@@ -23343,7 +23415,7 @@ By applying to this program, I provide the following consents:
     app.get('/api/announcements', auth, (req, res) => {
         try {
             try { fanoutAnnouncements(); } catch (e) {}
-            const rows = query.all('SELECT * FROM member_announcements ORDER BY created_at DESC LIMIT 30');
+            const rows = query.all(`SELECT * FROM member_announcements WHERE ${ANN_LIVE_SQL} ORDER BY created_at DESC LIMIT 30`);
             const subs = query.all('SELECT project_key FROM notify_topics WHERE user_id = ?', [req.user.id]).map(r => r.project_key);
             // Audience gating: a project-scoped item only reaches the audience the admin picked.
             //   everyone (or NULL legacy)  -> every member

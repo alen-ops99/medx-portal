@@ -103,7 +103,25 @@ export const COPY = {
   },
   announce: {
     title: 'POST TO MEMBERS’ NOTIFICATION BELL', who: 'WHO SHOULD SEE THIS?',
-    audiences: [['all', 'Everyone'], ['plexus', 'Plexus followers'], ['gala', 'Gala guests'], ['accelerator', 'Accelerator followers'], ['forum', 'Forum members'], ['bridges', 'Building Bridges followers']],
+    // Values are the project_key the backend stores — never rename them. The labels are the
+    // PROJECT only; which people inside it (followers / registrants) is the second question below,
+    // because "Gala guests" used to resolve to notify_topics followers and reach nobody while
+    // gala_registrations held 48 names.
+    audiences: [['all', 'Everyone'], ['plexus', 'Plexus'], ['gala', 'Gala Evening'], ['accelerator', 'Accelerator'], ['forum', 'Biomedical Forum'], ['bridges', 'Building Bridges']],
+    scope: 'WHICH OF THEM?',
+    scopes: [
+      ['interested', 'Following it in the portal'],
+      ['registered', 'Registered for it'],
+      ['interested_not_registered', 'Following it but not registered']
+    ],
+    scopeCounting: 'Counting…',
+    scopeCount: (n) => `${n} member${n === 1 ? '' : 's'} will get this.`,
+    // Registrants are counted off the registration table by email; the ones with no portal account
+    // can never see a bell item, so say so rather than quietly over-promising.
+    scopeCountReg: (m, all) => all === m
+      ? `${m} member${m === 1 ? '' : 's'} will get this.`
+      : `${all} registered · ${m} of them ${m === 1 ? 'has' : 'have'} a portal account and will get this. A bell item only reaches members — the other ${all - m} need an email.`,
+    scopeErr: 'Could not size that audience just now — the announcement still publishes.',
     t: 'TITLE', tPh: 'e.g. Gala early-bird ends September 15', m: 'MESSAGE', mPh: 'Write the details members should read.',
     link: 'LINK (OPTIONAL)', linkPh: 'e.g. the Gala page', until: 'SHOW UNTIL',
     untils: [['', 'Removed by hand'], ['7', 'One week'], ['14', 'Two weeks'], ['event', 'The event date']],
@@ -116,10 +134,18 @@ export const COPY = {
     // member_announcements (member home "LATEST FROM MED&X" + the notification centre + the
     // medx.hr bell) plus a user_notifications row for the portal bell.
     alsoInbox: 'It also shows on the member home feed under “Latest from Med&X”, and on the medx.hr bell.',
-    recent: 'PUBLISHED ANNOUNCEMENTS', remove: 'REMOVE', sureRemove: 'SURE? REMOVE', removed: 'ANNOUNCEMENT REMOVED — BELL AND MEMBER HOME',
+    recent: 'PUBLISHED ANNOUNCEMENTS', remove: 'REMOVE', sureRemove: 'SURE? REMOVE',
+    // The toast says what the DELETE actually did: member home + notification centre + medx.hr bell
+    // (member_announcements) AND the in-portal bell copy (user_notifications), when there was one.
+    removed: (bell) => bell
+      ? 'ANNOUNCEMENT REMOVED — MEMBER HOME AND THE BELL'
+      : 'ANNOUNCEMENT REMOVED FROM MEMBER HOME — NO BELL COPY TO REMOVE',
     recentEmpty: 'Nothing published yet — the first announcement shows here.',
-    edit: 'EDIT', save: 'SAVE', cancel: 'CANCEL', saved: 'ANNOUNCEMENT UPDATED', editTitle: 'TITLE', editBody: 'MESSAGE', editLink: 'LINK (OPTIONAL)',
-    everyone: 'Everyone'
+    edit: 'EDIT', save: 'SAVE', cancel: 'CANCEL',
+    saved: (bell) => bell ? 'ANNOUNCEMENT UPDATED — MEMBER HOME AND THE BELL' : 'ANNOUNCEMENT UPDATED',
+    editTitle: 'TITLE', editBody: 'MESSAGE', editLink: 'LINK (OPTIONAL)',
+    everyone: 'Everyone',
+    showsUntil: (d) => `shows until ${d}`, showsForever: 'no end date'
   },
   news: {
     subs: 'SUBSCRIBERS', subsSub: 'people pick topics when they subscribe',
@@ -522,8 +548,31 @@ function tabMessages() {
 
 // ---------------------------------------------------------------- ANNOUNCEMENTS
 function annAudienceLabel() {
-  const found = COPY.announce.audiences.find(a => a[0] === st.annWho);
-  return found ? found[1] : 'Everyone';
+  const a = COPY.announce;
+  const found = a.audiences.find(x => x[0] === st.annWho);
+  if (!found || st.annWho === 'all') return found ? found[1] : 'Everyone';
+  const scope = a.scopes.find(s => s[0] === st.annScope);
+  return found[1] + ' · ' + (scope ? scope[1].toLowerCase() : 'following it in the portal');
+}
+// The composer's audience sizing comes from the server (GET /api/admin/audiences/:project), never
+// from a label. Cached per project for the life of the view; null while in flight.
+function annAudienceNote() {
+  const a = COPY.announce;
+  if (st.annWho === 'all') return '';
+  const d = st.annAud[st.annWho];
+  if (d === undefined) return a.scopeCounting;   // in flight (or not asked for yet)
+  if (d === null) return a.scopeErr;
+  if (st.annScope === 'registered') return a.scopeCountReg(Number(d.members_registered) || 0, Number(d.registered) || 0);
+  if (st.annScope === 'interested_not_registered') return a.scopeCount(Number(d.members_interested_not_registered != null ? d.members_interested_not_registered : d.interested_not_registered) || 0);
+  return a.scopeCount(Number(d.members_interested != null ? d.members_interested : d.interested) || 0);
+}
+async function loadAnnAudience(project) {
+  if (!project || project === 'all') return;
+  if (Object.prototype.hasOwnProperty.call(st.annAud, project)) return;   // loaded, failed, or in flight
+  st.annAud[project] = undefined;                                          // in flight
+  try { st.annAud[project] = await api.get('/api/admin/audiences/' + encodeURIComponent(project)); }
+  catch (e) { st.annAud[project] = null; }
+  if (st.tab === 'announce' && st.annWho === project) rerender('[data-block="announcer"]', blockAnnouncer());
 }
 function blockAnnouncer() {
   const a = COPY.announce;
@@ -532,7 +581,11 @@ function blockAnnouncer() {
     <div class="mx-inbox-split" data-block="announcer" style="display:grid;grid-template-columns:1fr 380px;gap:22px;align-items:start">
       <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
         <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${a.title}</span>
-        <label style="display:flex;flex-direction:column;gap:5px"><span style="${LABEL}">${a.who}</span><select data-role="annWho" style="${INPUT}">${a.audiences.map(x => `<option value="${x[0]}"${st.annWho === x[0] ? ' selected' : ''}>${esc(x[1])}</option>`).join('')}</select></label>
+        <div class="mx-inbox-split" style="display:grid;grid-template-columns:${st.annWho === 'all' ? '1fr' : '1fr 1fr'};gap:12px">
+          <label style="display:flex;flex-direction:column;gap:5px"><span style="${LABEL}">${a.who}</span><select data-role="annWho" style="${INPUT}">${a.audiences.map(x => `<option value="${x[0]}"${st.annWho === x[0] ? ' selected' : ''}>${esc(x[1])}</option>`).join('')}</select></label>
+          ${st.annWho === 'all' ? '' : `<label style="display:flex;flex-direction:column;gap:5px"><span style="${LABEL}">${a.scope}</span><select data-role="annScope" style="${INPUT}">${a.scopes.map(x => `<option value="${x[0]}"${st.annScope === x[0] ? ' selected' : ''}>${esc(x[1])}</option>`).join('')}</select></label>`}
+        </div>
+        ${st.annWho === 'all' ? '' : `<span data-role="annAudNote" style="font-size:11.5px;color:#6d6459;line-height:1.5;margin-top:-4px">${esc(annAudienceNote())}</span>`}
         <label style="display:flex;flex-direction:column;gap:5px"><span style="${LABEL}">${a.t}</span><input data-role="annTitle" value="${esc(st.annTitle)}" placeholder="${esc(a.tPh)}" style="${INPUT}"></label>
         <label style="display:flex;flex-direction:column;gap:5px"><span style="${LABEL}">${a.m}</span><textarea data-role="annBody" rows="4" placeholder="${esc(a.mPh)}" style="${INPUT};resize:vertical">${esc(st.annBody)}</textarea></label>
         <div class="mx-inbox-split" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -568,7 +621,17 @@ function blockAnnouncer() {
 function blockRecentAnn() {
   const a = COPY.announce;
   const rows = D.memberAnns.slice(0, 12);
-  const meta = r => esc([cap(r.project_key || a.everyone), fmt.dayShort(r.created_at)].filter(Boolean).join(' · '));
+  // SHOW UNTIL is now stored on the announcement itself, so the list can say when each one drops
+  // off — the admin could set it and never see it again.
+  const scopeLabel = r => {
+    if (!r.project_key) return '';
+    const s = a.scopes.find(x => x[0] === (r.audience_scope || 'interested'));
+    return (r.audience_scope === 'everyone' || !s) ? '' : s[1].toLowerCase();
+  };
+  const meta = r => esc([
+    cap(r.project_key || a.everyone), scopeLabel(r), fmt.dayShort(r.created_at),
+    r.expires_at ? a.showsUntil(fmt.dayShort(r.expires_at)) : a.showsForever
+  ].filter(Boolean).join(' · '));
   const editor = r => `
       <div style="padding:12px 18px;border-bottom:1px solid rgba(32,27,22,.08);display:flex;flex-direction:column;gap:8px;background:#fdfbf6">
         <label style="display:flex;flex-direction:column;gap:4px"><span style="${LABEL}">${a.editTitle}</span><input data-role="annEdTitle" value="${esc(r.title || '')}" style="${INPUT}"></label>
@@ -796,7 +859,18 @@ function wire() {
   // live bell preview
   on('annTitle', 'input', e => { st.annTitle = e.target.value; const p = rootEl.querySelector('[data-role="annPrevTitle"]'); if (p) p.textContent = st.annTitle.trim() || COPY.announce.prevTitle; });
   on('annBody', 'input', e => { st.annBody = e.target.value; const p = rootEl.querySelector('[data-role="annPrevBody"]'); if (p) p.textContent = st.annBody.trim() || COPY.announce.prevBody; });
-  on('annWho', 'change', e => { st.annWho = e.target.value; const p = rootEl.querySelector('[data-role="annPrevMeta"]'); if (p) p.textContent = COPY.announce.justNow(annAudienceLabel()); });
+  on('annWho', 'change', e => {
+    st.annWho = e.target.value;
+    // The scope picker appears/disappears with the project, so repaint the composer rather than
+    // patching one node, then ask the server what that audience actually holds.
+    rerender('[data-block="announcer"]', blockAnnouncer());
+    loadAnnAudience(st.annWho);
+  });
+  on('annScope', 'change', e => {
+    st.annScope = e.target.value;
+    const n = rootEl.querySelector('[data-role="annAudNote"]'); if (n) n.textContent = annAudienceNote();
+    const p = rootEl.querySelector('[data-role="annPrevMeta"]'); if (p) p.textContent = COPY.announce.justNow(annAudienceLabel());
+  });
   on('annLink', 'input', e => { st.annLink = e.target.value; });
   on('annUntil', 'change', e => { st.annUntil = e.target.value; });
   on('nlSubject', 'input', e => { st.nlSubject = e.target.value; });
@@ -1087,7 +1161,7 @@ const handlers = {
   pickTg: (el) => {
     const k = el.dataset.key;
     if (st.picked.has(k)) st.picked.delete(k); else st.picked.add(k);
-    el.checked = st.picked.has(k);          // ui.bind preventDefault()s the click — reflect the tick by hand
+    el.checked = st.picked.has(k);          // ui.bind lets the box toggle itself now — keep the two in lockstep
     const n = rootEl.querySelector('[data-role="audienceNote"]'); if (n) n.textContent = COPY.compose.noteManual(pickCount());
     const chipNote = rootEl.querySelector('[data-block="compose"] [data-act="manualTg"] + span'); if (chipNote) chipNote.textContent = COPY.compose.manualOn(pickCount(), rootEl.querySelectorAll('[data-act="pickTg"]').length);
   },
@@ -1189,6 +1263,7 @@ const handlers = {
   annPublish: async (el) => {
     st.annTitle = readRole('annTitle').trim(); st.annBody = readRole('annBody').trim();
     st.annLink = readRole('annLink').trim(); st.annWho = readRole('annWho') || 'all'; st.annUntil = readRole('annUntil');
+    st.annScope = readRole('annScope') || st.annScope || 'interested';
     st.annPush = isChecked('annPush');
     if (!st.annTitle) { ui.toast(COPY.announce.titleFirst); return; }
     let expires = null;
@@ -1202,18 +1277,24 @@ const handlers = {
     //   2. user_notifications  — the in-portal bell (GET /api/user-notifications). Additive; the
     //      announcement still reaches members if this one fails.
     // Writing only #2 is exactly the bug this fixes (audit B3).
+    // The bell copy carries announcement_id (so EDIT and REMOVE can reach it instead of orphaning
+    // it) and audience_scope (so a project item stops ringing every member's bell), and SHOW UNTIL
+    // now goes on BOTH rows — the announcement used to outlive its own expiry everywhere except
+    // the bell.
     const project = st.annWho === 'all' ? null : st.annWho;
+    const scope = project ? st.annScope : 'everyone';
     try {
-      await api.post('/api/admin/member-announcements', {
+      const created = await api.post('/api/admin/member-announcements', {
         project_key: project, title: st.annTitle, body: st.annBody || null,
         link_section: st.annLink || null, push: st.annPush ? 1 : 0,
-        audience_scope: project ? 'interested' : 'everyone'
+        audience_scope: scope, expires_at: expires
       });
       try {
         await api.post('/api/admin/notifications/send', {
           user_group: st.annWho, category: 'announcement',
           project, title: st.annTitle, message: st.annBody, link: st.annLink || null,
-          expires_at: expires, send_push: false, icon: 'fa-bullhorn'
+          expires_at: expires, send_push: false, icon: 'fa-bullhorn',
+          announcement_id: (created && created.id) || null, audience_scope: scope
         });
       } catch (e) { /* bell mirror is best-effort — the member-facing row is already in */ }
       st.annTitle = ''; st.annBody = ''; st.annLink = ''; st.annPush = false; st.annEditId = null;
@@ -1230,11 +1311,12 @@ const handlers = {
     const title = readRole('annEdTitle').trim();
     if (!title) { ui.toast(COPY.announce.titleFirst); return; }
     try {
-      await api.put('/api/admin/member-announcements/' + encodeURIComponent(id), {
+      // The PUT rewrites the bell copy too and reports how many rows it reached.
+      const r = await api.put('/api/admin/member-announcements/' + encodeURIComponent(id), {
         title, body: readRole('annEdBody').trim() || null, link_section: readRole('annEdLink').trim() || null
       });
       st.annEditId = null;
-      ui.toast(COPY.announce.saved);
+      ui.toast(COPY.announce.saved(!!(r && r.bell_updated)));
       await reloadAnnouncements();
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
@@ -1242,10 +1324,10 @@ const handlers = {
     const id = el.dataset.id;
     if (st.annConfirm !== id) { st.annConfirm = id; rerender('[data-block="recentAnn"]', blockRecentAnn()); return; }
     try {
-      await api.del('/api/admin/member-announcements/' + encodeURIComponent(id));
+      const r = await api.del('/api/admin/member-announcements/' + encodeURIComponent(id));
       st.annConfirm = null;
-      D.memberAnns = D.memberAnns.filter(r => r.id !== id);
-      ui.toast(COPY.announce.removed);
+      D.memberAnns = D.memberAnns.filter(x => x.id !== id);
+      ui.toast(COPY.announce.removed(!!(r && r.bell_removed)));
       rerender('[data-block="recentAnn"]', blockRecentAnn());
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
@@ -1384,7 +1466,7 @@ export default {
       tab, focusCompose: String((ctx.params && ctx.params.tab) || '') === 'email',
       audience: 'everyone', filter: '', manual: false, picked: new Set(), subject: '', body: '',
       msgFilter: 'needs', openKey: null, thread: [], replyDraft: '', msgAttach: null, replySending: false, canned: null,
-      annWho: 'all', annTitle: '', annBody: '', annLink: '', annUntil: '', annPush: false, annConfirm: null, annEditId: null,
+      annWho: 'all', annScope: 'interested', annAud: {}, annTitle: '', annBody: '', annLink: '', annUntil: '', annPush: false, annConfirm: null, annEditId: null,
       nlCompose: false, nlSubject: '', nlBody: '', nlTopic: 'all', nlEmail: true, nlPortal: true, nlReplace: null,
       chOpen: null, chAdding: false, chNew: '', chDraft: '', chMsgs: [], replyTo: null, chDelConfirm: null,
       previewBatch: null, previewData: null, editOpen: false, editSubject: '', editBody: '', discardConfirm: null
