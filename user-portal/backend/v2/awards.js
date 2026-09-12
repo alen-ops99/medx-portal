@@ -171,14 +171,19 @@ module.exports = function mountAwards(app, ctx) {
     // ---------------------------------------------------------------- copy (EN + HR)
     const L = (lang) => (String(lang) === 'hr' ? 'hr' : 'en');
     const langOf = (req) => L(req && req.query && req.query.lang);
+    // A Croatian date already ENDS in a period ("5. prosinca 2026."), so a sentence closing on one
+    // printed "…2026..". Close every such sentence through this instead of typing the full stop.
+    const stop = (s) => String(s == null ? '' : s).replace(/\.\s*$/, '') + '.';
+    // The Fellowship's intake is 'application', not 'nomination' — the four public copy lines that
+    // name the act take the intake so the student award never says "Nominations open".
     const C = {
         en: {
             eyebrow: 'PLEXUS WEEK · THE AWARDS',
             title: 'The Plexus Awards.',
             lede: 'Four awards, presented at the Gala Evening on Saturday 5 December 2026 at the Esplanade in Zagreb. Two of them are open to anyone who wants to put a name forward — including their own. One is a student fellowship. One is chosen quietly, by us.',
-            opensBanner: (d) => `Nominations open ${d}.`,
-            openBanner: (d) => `Nominations are open until ${d}.`,
-            closedBanner: 'Thank you — nominations are closed. Decisions come in November.',
+            opensBanner: (d, app) => stop(`${app ? 'Applications' : 'Nominations'} open ${d}`),
+            openBanner: (d, app) => stop(`${app ? 'Applications' : 'Nominations'} are open until ${d}`),
+            closedBanner: (app) => `Thank you — ${app ? 'applications' : 'nominations'} are closed. Decisions come in November.`,
             noneBanner: 'Chosen by the organizers — there is no public call for this one.',
             read: 'READ THE CRITERIA →',
             nominate: 'NOMINATE SOMEONE', nominateSelf: 'NOMINATE YOURSELF', apply: 'APPLY',
@@ -205,19 +210,20 @@ module.exports = function mountAwards(app, ctx) {
             submit: 'SEND IT', sending: 'SENDING…',
             thanksTitle: 'Thank you — we have it.',
             thanks: 'A confirmation is on its way to your inbox, with a link you can use to check where it stands or withdraw it.',
-            closedTitle: 'Nominations are closed.',
-            closedBody: 'Thank you to everyone who wrote in. Decisions are made in November, and the awards are presented at the Gala Evening on 5 December.',
+            closedTitle: (app) => `${app ? 'Applications' : 'Nominations'} are closed.`,
+            closedBody: (app) => `Thank you to everyone who ${app ? 'applied' : 'wrote in'}. Decisions are made in November, and the awards are presented at the Gala Evening on 5 December.`,
             beforeTitle: 'Not open yet.',
-            beforeBody: (d) => `Nominations open ${d}. Come back then — or write to us in the meantime and we will remind you.`,
+            beforeBody: (d, app) => `${stop(`${app ? 'Applications' : 'Nominations'} open ${d}`)} Come back then — or write to us in the meantime and we will remind you.`,
+            refuseNone: 'This award has no public call — the organizers choose its laureates.',
             lang: 'HRVATSKI'
         },
         hr: {
             eyebrow: 'PLEXUS TJEDAN · NAGRADE',
             title: 'Plexus nagrade.',
             lede: 'Četiri nagrade, uručuju se na Gala večeri u subotu 5. prosinca 2026. u Esplanadi u Zagrebu. Dvije su otvorene svima koji žele predložiti ime — uključujući i vlastito. Jedna je studentska stipendija. Jednu biramo mi, u tišini.',
-            opensBanner: (d) => `Nominacije se otvaraju ${d}.`,
-            openBanner: (d) => `Nominacije su otvorene do ${d}.`,
-            closedBanner: 'Hvala — nominacije su zatvorene. Odluke stižu u studenome.',
+            opensBanner: (d, app) => stop(`${app ? 'Prijave' : 'Nominacije'} se otvaraju ${d}`),
+            openBanner: (d, app) => stop(`${app ? 'Prijave' : 'Nominacije'} su otvorene do ${d}`),
+            closedBanner: (app) => `Hvala — ${app ? 'prijave' : 'nominacije'} su zatvorene. Odluke stižu u studenome.`,
             noneBanner: 'Biraju organizatori — za ovu nagradu nema javnog poziva.',
             read: 'PROČITAJ KRITERIJE →',
             nominate: 'NOMINIRAJ NEKOGA', nominateSelf: 'NOMINIRAJ SEBE', apply: 'PRIJAVI SE',
@@ -244,10 +250,11 @@ module.exports = function mountAwards(app, ctx) {
             submit: 'POŠALJI', sending: 'ŠALJEM…',
             thanksTitle: 'Hvala — zaprimljeno je.',
             thanks: 'Potvrda je na putu u vaš inbox, s poveznicom na kojoj možete vidjeti status ili povući prijavu.',
-            closedTitle: 'Nominacije su zatvorene.',
-            closedBody: 'Hvala svima koji su pisali. Odluke se donose u studenome, a nagrade se uručuju na Gala večeri 5. prosinca.',
+            closedTitle: (app) => `${app ? 'Prijave' : 'Nominacije'} su zatvorene.`,
+            closedBody: (app) => `Hvala svima koji su se ${app ? 'prijavili' : 'javili'}. Odluke se donose u studenome, a nagrade se uručuju na Gala večeri 5. prosinca.`,
             beforeTitle: 'Još nije otvoreno.',
-            beforeBody: (d) => `Nominacije se otvaraju ${d}. Vratite se tada — ili nam se javite pa ćemo vas podsjetiti.`,
+            beforeBody: (d, app) => `${stop(`${app ? 'Prijave' : 'Nominacije'} se otvaraju ${d}`)} Vratite se tada — ili nam se javite pa ćemo vas podsjetiti.`,
+            refuseNone: 'Za ovu nagradu nema javnog poziva — laureate biraju organizatori.',
             lang: 'ENGLISH'
         }
     };
@@ -327,10 +334,11 @@ module.exports = function mountAwards(app, ctx) {
             const other = lang === 'hr' ? 'en' : 'hr';
             const cards = list.map(cat => {
                 const w = core.windowState(cat);
+                const app = String(cat.intake) === 'application';
                 const banner = w === 'none' ? c.noneBanner
-                    : w === 'before' ? c.opensBanner(dateLabel(cat.opens_at, lang))
-                        : w === 'open' ? c.openBanner(dateLabel(cat.closes_at, lang))
-                            : c.closedBanner;
+                    : w === 'before' ? c.opensBanner(dateLabel(cat.opens_at, lang), app)
+                        : w === 'open' ? c.openBanner(dateLabel(cat.closes_at, lang), app)
+                            : c.closedBanner(app);
                 return `
         <a class="awcard" href="/awards/${esc(cat.key)}${lang === 'hr' ? '?lang=hr' : ''}">
           <div style="font-family:Fraunces,Georgia,serif;font-size:21px;line-height:1.25;">${esc(catName(cat, lang))}</div>
@@ -402,18 +410,18 @@ module.exports = function mountAwards(app, ctx) {
 
     function formSection(cat, w, lang) {
         const c = C[L(lang)];
+        const isApp = String(cat.intake) === 'application';
         if (w === 'none') {
             return `<div class="awbanner">${esc(c.noneBanner)}</div>`;
         }
         if (w === 'before') {
             return `<div class="sec"><div class="sech">${esc(c.beforeTitle)}</div>
-              <p class="hint" style="margin-top:8px;font-size:13.5px;">${esc(c.beforeBody(dateLabel(cat.opens_at, lang)))}</p></div>`;
+              <p class="hint" style="margin-top:8px;font-size:13.5px;">${esc(c.beforeBody(dateLabel(cat.opens_at, lang), isApp))}</p></div>`;
         }
         if (w === 'closed') {
-            return `<div class="sec"><div class="sech">${esc(c.closedTitle)}</div>
-              <p class="hint" style="margin-top:8px;font-size:13.5px;">${esc(c.closedBody)}</p></div>`;
+            return `<div class="sec"><div class="sech">${esc(c.closedTitle(isApp))}</div>
+              <p class="hint" style="margin-top:8px;font-size:13.5px;">${esc(c.closedBody(isApp))}</p></div>`;
         }
-        const isApp = String(cat.intake) === 'application';
         const allowSelf = Number(cat.allow_self) === 1;
         const F = c.fields;
         const body = isApp ? `
@@ -660,10 +668,15 @@ module.exports = function mountAwards(app, ctx) {
             const lang = core.LANGS.includes(String(b.language)) ? String(b.language) : 'en';
             const cat = catByKey(String(b.category || ''));
             if (!cat) return res.status(404).json({ error: 'That award does not exist.' });
-            if (String(cat.intake) === 'none') return res.status(400).json({ error: 'This award has no public call — the organizers choose its laureates.' });
+            // Refusals answer in the language the form was filled in, and in the intake's own words
+            // — a Croatian applicant to the student fellowship used to be told, in English, that
+            // "Nominations" were closed.
+            const rc = C[L(lang)];
+            const isApp = String(cat.intake) === 'application';
+            if (String(cat.intake) === 'none') return res.status(400).json({ error: rc.refuseNone });
             const w = core.windowState(cat);
-            if (w === 'before') return res.status(400).json({ error: `Nominations open ${dateLabel(cat.opens_at, lang)}.` });
-            if (w === 'closed') return res.status(400).json({ error: 'Nominations are closed. Thank you — decisions come in November.' });
+            if (w === 'before') return res.status(400).json({ error: rc.opensBanner(dateLabel(cat.opens_at, lang), isApp) });
+            if (w === 'closed') return res.status(400).json({ error: rc.closedBanner(isApp) });
 
             const { errors, fields } = core.validateEntry(cat, b);
             if (errors.length) return res.status(400).json({ error: errors[0], errors });
