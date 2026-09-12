@@ -1228,6 +1228,10 @@ const SECTION_ROUTE_MAP = [
     ['/api/forum', 'forum'], ['/api/admin/forum', 'forum'], ['/api/admin/council', 'forum'],
     // — Bridges —
     ['/api/bridges', 'bridges'], ['/api/admin/bridges', 'bridges'], ['/api/admin/croatians-abroad', 'bridges'],
+    // The Boston 5-minute-presentations panel (2026-09-12, admin-portal/backend/v2/boston-ops.js) —
+    // the organizer's door to the member portal's presentation wing. Same section as the rest of
+    // Building Bridges: whoever runs the evenings runs this.
+    ['/api/v2/boston', 'bridges'],
     // — Events & access —
     ['/api/gameday', 'gameday'], ['/api/admin/gameday', 'gameday'], ['/api/staff-tracking', 'gameday'], ['/api/admin/staff-tracking', 'gameday'],
     ['/api/admin/conferences', 'conferences'],

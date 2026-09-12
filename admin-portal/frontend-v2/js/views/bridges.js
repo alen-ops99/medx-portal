@@ -65,6 +65,35 @@ export const COPY = {
     body: 'Upload a few photos, type the guest count, press publish — the city card on the member page updates itself. Thank-you notes go out the next morning.',
     cta: 'PREPARE THANK-YOU EMAIL →', queueThanks: city => `QUEUE THANK-YOUS · ${city.toUpperCase()}`
   },
+  // Boston's 5-minute presentations (2026-09-12). The member portal owns the upload links, the
+  // files and the invite email (user-portal/backend/boston.js); this card is the organizer's door
+  // to them — /api/v2/boston/presenters and friends.
+  boston: {
+    title: 'BOSTON · 5-MINUTE PRESENTATIONS', sub: 'each presenter gets a personal upload link — send it, then collect the decks',
+    sendAll: n => `SEND TO EVERYONE NOT YET INVITED (${n})`, allInvited: 'EVERYONE HAS THEIR LINK',
+    zip: n => `DOWNLOAD ALL DECKS (ZIP · ${n})`, zipNone: 'NO DECKS UPLOADED YET',
+    add: '+ ADD A PRESENTER', addClose: 'CLOSE',
+    phName: 'Full name — e.g. Dr. Ivana Kovač', phEmail: 'Email address', addSend: 'ADD & SEND THE LINK',
+    cWho: 'PRESENTER', cInst: 'INSTITUTION', cDeck: 'DECK', cSent: 'LINK SENT',
+    send: 'SEND LINK', resend: 'RESEND', busy: 'SENDING…',
+    deckYes: 'UPLOADED', deckNo: '–', notSent: 'not sent', byTeam: 'ADDED BY TEAM',
+    counts: (r, u, i) => `${r} presenting · ${u} uploaded · ${i} invited`,
+    empty: 'Nobody has asked to present yet.',
+    emptyWhy: 'Everyone who ticks the 5-minute-presentation box on the Boston form lands here — and you can add someone by hand.',
+    down: 'The member portal did not answer, so the presenter list is unavailable right now. Nothing is lost — reload in a minute.',
+    cOneTitle: 'Send the upload link?', cOneAgain: 'Send the upload link again?',
+    cOneBody: (who, mail) => `<p style="margin:0 0 8px">${who} gets their personal upload page at <b>${mail}</b>, right now.</p><p style="margin:0;color:#6d6459">One email, sent immediately — this is not the Outbox.</p>`,
+    cAllTitle: n => `Send ${n} upload link${n === 1 ? '' : 's'}?`,
+    cAllBody: n => `<p style="margin:0 0 8px">${n} presenter${n === 1 ? '' : 's'} who ${n === 1 ? 'has' : 'have'} not been invited yet get their personal upload page, right now.</p><p style="margin:0;color:#6d6459">Anyone already invited is skipped. One email each, sent immediately — this is not the Outbox.</p>`,
+    cAddTitle: 'Add this presenter and send the link?',
+    cAddBody: (who, mail) => `<p style="margin:0 0 8px"><b>${who}</b> is added to the Boston list as a presenter and <b>${mail}</b> gets the upload link, right now.</p><p style="margin:0;color:#6d6459">No ticket, no confirmation email — only the upload link.</p>`,
+    goSend: 'SEND IT', goAdd: 'ADD & SEND', keep: 'NOT NOW',
+    sent: mail => `UPLOAD LINK SENT TO ${String(mail).toUpperCase()}`,
+    sentAll: n => n ? `${n} UPLOAD LINK${n === 1 ? '' : 'S'} SENT` : 'EVERYONE ALREADY HAD THEIR LINK',
+    added: mail => `PRESENTER ADDED — LINK SENT TO ${String(mail).toUpperCase()}`,
+    addedPending: 'PRESENTER ADDED — THE LINK GOES OUT WITHIN A MINUTE',
+    needBoth: 'TYPE A NAME AND AN EMAIL FIRST'
+  },
   stats: {
     title: 'STATS FOR MEDIA & SPONSORS', sub: 'pick a scope, type over any number — then copy the line for a press kit or sponsor deck',
     scopes: { bridges: 'BUILDING BRIDGES', all: 'ALL MED&X', y2026: '2026 ONLY' },
@@ -106,10 +135,11 @@ function nextRange(n) {
 
 // ---------------------------------------------------------------- data
 async function load() {
-  const r = await api.settle({ hub: api.get('/api/v2/bridges/hub') });
+  const r = await api.settle({ hub: api.get('/api/v2/bridges/hub'), pres: api.get('/api/v2/boston/presenters') });
   return {
     errors: r.$errors,
-    hub: r.hub || { events: [], editions: [], followups: [], stats: null, canonical_guests: FACTS.bridges.guests }
+    hub: r.hub || { events: [], editions: [], followups: [], stats: null, canonical_guests: FACTS.bridges.guests },
+    pres: r.pres && r.pres.ok ? r.pres : null
   };
 }
 
@@ -325,6 +355,64 @@ function blockAfter() {
         </div>
         <!-- /dc -->`;
 }
+// The Boston presentations card — the whole 5-minute-talk workflow in one table: who is presenting,
+// who has a deck, who has been sent their personal link, and the three things the organizer does
+// (send one, send the rest, add someone who never filled the form).
+function blockBoston() {
+  const c = COPY.boston;
+  const P = D.pres;
+  const lockErr = D.errors && D.errors.pres;
+  const rows = P ? (P.rows || []) : [];
+  const notInvited = P ? Number(P.not_invited) || 0 : 0;
+  const uploaded = P ? Number(P.uploaded) || 0 : 0;
+  const btn = (act, label, on, extra) => `<span data-act="${act}" ${extra || ''} style="padding:8px 13px;${on ? 'background:#9b1b22;color:#fff;' : 'border:1px solid rgba(32,27,22,.25);background:#fff;color:#6d6459;'}font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap;${on ? 'cursor:pointer' : 'cursor:default'}" ${on ? `data-hover="background:#7e151b"` : 'aria-disabled="true"'}>${esc(label)}</span>`;
+  const cell = 'padding:9px 12px;border-bottom:1px solid rgba(32,27,22,.07);vertical-align:middle';
+  const head = 'padding:8px 12px;text-align:left;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;border-bottom:1px solid rgba(32,27,22,.12);white-space:nowrap';
+  return `
+    <!-- v2: BOSTON — 5-minute presentations (member portal owns the links, files and the email) -->
+    <div data-block="boston" id="boston-presentations" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;margin-top:22px">
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
+        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
+        <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
+        <div style="flex:1"></div>
+        ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.counts(P.requested || 0, uploaded, P.invited || 0))}</span>` : ''}
+        ${P ? btn('bpSendAll', notInvited ? c.sendAll(notInvited) : c.allInvited, notInvited > 0) : ''}
+        ${P && uploaded ? `<a href="${esc(P.zip_url)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.zip(uploaded))}</a>`
+        : P ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.zipNone}</span>` : ''}
+        ${P ? `<span data-act="bpAddToggle" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.bpOpen ? c.addClose : c.add}</span>` : ''}
+      </div>
+      ${st.bpOpen && P ? `
+        <div style="display:flex;gap:8px;align-items:center;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);flex-wrap:wrap">
+          <input data-role="bpName" value="${esc(st.bpName)}" placeholder="${esc(c.phName)}" aria-label="Presenter name" style="flex:1;min-width:160px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
+          <input data-role="bpEmail" value="${esc(st.bpEmail)}" type="email" placeholder="${esc(c.phEmail)}" aria-label="Presenter email" style="flex:1;min-width:170px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
+          ${btn('bpAdd', st.bpBusy ? c.busy : c.addSend, !st.bpBusy)}
+        </div>` : ''}
+      ${lockErr && lockErr.status === 403 ? ui.lockedBlock('Building Bridges') : ''}
+      ${!P && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
+      ${P && !rows.length ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
+      ${P && rows.length ? `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px">
+          <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cDeck}</th><th style="${head}">${c.cSent}</th><th style="${head}"></th></tr></thead>
+          <tbody>
+          ${rows.map(r => {
+            const busy = st.bpSending === r.registration_id;
+            return `
+            <tr data-row="${esc(r.registration_id)}">
+              <td style="${cell}"><span style="display:block;font-weight:600">${esc(r.name || r.email)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.email)}${r.added_by_team ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">${c.byTeam}</span>` : ''}</span></td>
+              <td style="${cell};color:#6d6459">${esc(r.institution || '—')}</td>
+              <td style="${cell};white-space:nowrap">${r.upload
+                ? `<a href="${esc(r.upload.download_url)}" title="${esc(r.upload.filename || '')}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px" data-hover="background:#1e6e42;color:#fff">✓ ${c.deckYes}</a>`
+                : `<span style="color:#9a9086">${c.deckNo}</span>`}</td>
+              <td style="${cell};white-space:nowrap;color:${r.invited_at == null ? '#b7791f' : '#6d6459'}">${r.invited_at == null ? c.notSent : esc(r.invited_at || '✓')}</td>
+              <td style="${cell};text-align:right;white-space:nowrap">${btn('bpSendOne', busy ? c.busy : (r.invited_at == null ? c.send : c.resend), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}</td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+    </div>`;
+}
 function blockStats() {
   const c = COPY.stats;
   const s = D.hub.stats;
@@ -375,6 +463,7 @@ function template() {
         ${blockAfter()}
       </div>
     </div>
+    ${blockBoston()}
     ${blockStats()}
   </div>
 </div>`;
@@ -393,7 +482,17 @@ function rerenderAll() {
   rerender('[data-block="ready"]', blockReady());
   rerender('[data-block="fu"]', blockFollowups());
   rerender('[data-block="after"]', blockAfter());
+  rerender('[data-block="boston"]', blockBoston());
   rerender('[data-block="stats"]', blockStats());
+}
+// The presenter list is the member portal's own answer — always re-read it after a send rather
+// than patching a row locally, so the invited date on screen is the date in the notes.
+async function refreshBoston() {
+  try {
+    const p = await api.get('/api/v2/boston/presenters');
+    if (p && p.ok) { D.pres = p; if (D.errors) delete D.errors.pres; }
+  } catch (e) { /* keep the last read on screen */ }
+  rerender('[data-block="boston"]', blockBoston());
 }
 function copyText(t) { try { navigator.clipboard.writeText(t); } catch (e) { /* clipboard blocked — the toast still confirms intent */ } }
 async function queueKind(el, id, kind) {
@@ -528,6 +627,48 @@ const handlers = {
       ui.toast(COPY.fu.added);
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
+  // ---- Boston · 5-minute presentations (every send is confirmed first — these are real emails
+  // that leave immediately, not Outbox batches) ----
+  bpAddToggle: () => { st.bpOpen = !st.bpOpen; st.bpName = val('bpName'); st.bpEmail = val('bpEmail'); rerender('[data-block="boston"]', blockBoston()); },
+  bpSendOne: async (el) => {
+    const c = COPY.boston;
+    const id = el.dataset.id, who = el.dataset.who || '', mail = el.dataset.mail || '';
+    const again = ((D.pres && D.pres.rows) || []).some(r => r.registration_id === id && r.invited_at != null);
+    if (!await ui.confirm({ title: again ? c.cOneAgain : c.cOneTitle, body: c.cOneBody(esc(who), esc(mail)), ok: c.goSend, cancel: c.keep })) return;
+    st.bpSending = id; rerender('[data-block="boston"]', blockBoston());
+    try {
+      const r = await api.post('/api/v2/boston/presenters/' + encodeURIComponent(id) + '/send-link', {});
+      st.bpSending = null;
+      await refreshBoston();
+      ui.toast(c.sent((r && r.sent && r.sent[0]) || mail));
+    } catch (e) { st.bpSending = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
+  },
+  bpSendAll: async (el) => {
+    const c = COPY.boston;
+    const n = (D.pres && Number(D.pres.not_invited)) || 0;
+    if (!n) return;
+    if (!await ui.confirm({ title: c.cAllTitle(n), body: c.cAllBody(n), ok: c.goSend, cancel: c.keep })) return;
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      const r = await api.post('/api/v2/boston/presenters/send-all', {});
+      await refreshBoston();
+      ui.toast(c.sentAll((r && r.sent && r.sent.length) || 0));
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
+  bpAdd: async () => {
+    const c = COPY.boston;
+    const name = val('bpName'), email = val('bpEmail');
+    if (!name || !email) { ui.toast(c.needBoth); return; }
+    if (!await ui.confirm({ title: c.cAddTitle, body: c.cAddBody(esc(name), esc(email)), ok: c.goAdd, cancel: c.keep })) return;
+    st.bpName = name; st.bpEmail = email; st.bpBusy = true;
+    rerender('[data-block="boston"]', blockBoston());
+    try {
+      const r = await api.post('/api/v2/boston/presenters/add', { name, email });
+      st.bpBusy = false; st.bpOpen = false; st.bpName = ''; st.bpEmail = '';
+      await refreshBoston();
+      ui.toast(r && r.pending ? c.addedPending : c.added(email));
+    } catch (e) { st.bpBusy = false; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
+  },
   scBridges: () => { st.scope = 'bridges'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
   scAll: () => { st.scope = 'all'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
   scYear: () => { st.scope = 'y2026'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
@@ -545,7 +686,8 @@ export default {
   async render(root) {
     ensureCss();
     rootEl = root;
-    st = { scope: 'bridges', copied: false, newCityOpen: false, ncCity: '', ncWhen: '', editEvent: null, recapEdit: null, fuName: '', fuWhy: '', uploading: null };
+    st = { scope: 'bridges', copied: false, newCityOpen: false, ncCity: '', ncWhen: '', editEvent: null, recapEdit: null, fuName: '', fuWhy: '', uploading: null,
+           bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();
