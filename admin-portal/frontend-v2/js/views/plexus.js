@@ -179,7 +179,8 @@ export const COPY = {
       invites: 'INVITE', invitesTitle: 'Invite members or paste emails — preview before anything sends',
       link: 'HOST LINK', linkTitle: 'Copy the host’s own page link — no login needed',
       csv: 'CSV', csvTitle: 'Download the attendee list',
-      edit: 'EDIT', publish: 'PUBLISH', unpublish: 'UNPUBLISH', cancel: 'CANCEL', del: '✕', delTitle: 'Delete this draft'
+      edit: 'EDIT', publish: 'PUBLISH', unpublish: 'UNPUBLISH', cancel: 'CANCEL', del: '✕', delTitle: 'Delete this draft',
+      delCancelledTitle: 'Remove this cancelled meetup from the list — everyone on it has already been told'
     },
     drawer: { close: 'CLOSE', newTitle: 'NEW MEETUP', editTitle: t => `EDIT · ${String(t || '').toUpperCase()}`, attTitle: t => `PEOPLE · ${String(t || '').toUpperCase()}`, invTitle: t => `INVITATIONS · ${String(t || '').toUpperCase()}` },
     form: {
@@ -241,12 +242,16 @@ export const COPY = {
     publish: { needHost: 'ADD A HOST BEFORE PUBLISHING — THE MEETUP EMAIL NAMES THEM', on: t => `${String(t).toUpperCase()} IS LIVE — MEMBERS CAN JOIN NOW`, off: 'BACK TO DRAFT — OFF THE MEMBER PAGE' },
     cancelM: {
       eyebrow: 'CANCEL THIS MEETUP', title: t => `Cancel “${t}”?`,
-      warn: 'This emails EVERY person holding a place and everyone on the waitlist, at once. There is no undo.',
+      warn: 'This emails EVERY person holding a place and everyone on the waitlist, at once, and it cannot be undone — a cancelled meetup cannot be reopened or published again. The only thing left to do with it afterwards is delete it from the list.',
       reason: 'WHY (goes into the email — optional)', reasonPh: 'The host had to travel — we are sorry.',
       notify: 'Email everyone', go: 'CANCEL THE MEETUP', keep: 'KEEP IT',
       done: n => n ? `MEETUP CANCELLED — ${n} PERSON${n === 1 ? '' : 'S'} EMAILED` : 'MEETUP CANCELLED'
     },
-    del: { ask: t => `Delete the draft “${t}”? Nothing was published and nobody holds a place.`, ok: 'DELETE', keep: 'KEEP', done: 'DRAFT DELETED' },
+    del: {
+      ask: t => `Delete the draft “${t}”? Nothing was published and nobody holds a place.`,
+      askCancelled: (t, n) => `Delete the cancelled meetup “${t}”? It disappears from this list for good, along with ${n ? `its ${n} attendee record${n === 1 ? '' : 's'} and ` : ''}its history. Everyone on it was already emailed when it was cancelled — nobody is contacted again.`,
+      ok: 'DELETE', keep: 'KEEP', done: 'DRAFT DELETED', doneCancelled: 'CANCELLED MEETUP DELETED'
+    },
     locked: 'Meetups are locked for you.',
     lockedWhy: 'Plexus Meetups needs access — ask Alen, he grants it per section.'
   }
@@ -933,16 +938,19 @@ function meetRow(m) {
     m.waitlist_enabled ? '' : t.noWaitlist,
     m.full ? t.full : ''
   ].filter(Boolean).map(x => `<span style="${MICRO};color:#9a9086;white-space:nowrap">${esc(x)}</span>`).join('');
-  const canDelete = m.status === 'draft' && !m.confirmed && !m.waitlisted && !m.invited;
+  // Deletable: an untouched draft, or a meetup already cancelled (everyone on it has been told —
+  // without this a cancelled table sat in the list forever with no way to clear it).
+  const isCancelled = m.status === 'cancelled';
+  const canDelete = isCancelled || (m.status === 'draft' && !m.confirmed && !m.waitlisted && !m.invited);
   const acts = [
     actBtn('mAtt', m.id, a.people, a.peopleTitle),
     actBtn('mInv', m.id, a.invites, a.invitesTitle),
     m.host_link ? actBtn('mHostLink', m.id, a.link, a.linkTitle) : '',
     actBtn('mCsv', m.id, a.csv, a.csvTitle),
     ro ? '' : actBtn('mEdit', m.id, a.edit),
-    ro || m.status === 'cancelled' ? '' : actBtn('mPublish', m.id, m.status === 'published' ? a.unpublish : a.publish),
-    ro || m.status === 'cancelled' ? '' : actBtn('mCancelMeetup', m.id, a.cancel),
-    ro || !canDelete ? '' : actBtn('mDelete', m.id, a.del, a.delTitle)
+    ro || isCancelled ? '' : actBtn('mPublish', m.id, m.status === 'published' ? a.unpublish : a.publish),
+    ro || isCancelled ? '' : actBtn('mCancelMeetup', m.id, a.cancel),
+    ro || !canDelete ? '' : actBtn('mDelete', m.id, a.del, isCancelled ? a.delCancelledTitle : a.delTitle)
   ].filter(Boolean).join('');
   return `
       <tr data-row="meet-${esc(m.id)}">
@@ -1673,9 +1681,14 @@ const handlers = {
   },
   mDelete: async (el) => {
     const m = meetById(el.dataset.id); if (!m) return;
-    const ok = await ui.confirm({ title: COPY.meet.del.ask(m.title), ok: COPY.meet.del.ok, cancel: COPY.meet.del.keep });
+    const cancelled = m.status === 'cancelled';
+    const heads = (Number(m.confirmed) || 0) + (Number(m.waitlisted) || 0) + (Number(m.invited) || 0);
+    const ok = await ui.confirm({
+      title: cancelled ? COPY.meet.del.askCancelled(m.title, heads) : COPY.meet.del.ask(m.title),
+      ok: COPY.meet.del.ok, cancel: COPY.meet.del.keep
+    });
     if (!ok) return;
-    try { await api.del('/api/v2/meetups-ops/meetups/' + encodeURIComponent(m.id)); ui.toast(COPY.meet.del.done); if (st.drawer && (st.form || st.att || st.inv)) { st.drawer = null; st.form = st.att = st.inv = null; } await reloadMeet(true); }
+    try { await api.del('/api/v2/meetups-ops/meetups/' + encodeURIComponent(m.id)); ui.toast(cancelled ? COPY.meet.del.doneCancelled : COPY.meet.del.done); if (st.drawer && (st.form || st.att || st.inv)) { st.drawer = null; st.form = st.att = st.inv = null; } await reloadMeet(true); }
     catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
   mHostLink: async (el) => {

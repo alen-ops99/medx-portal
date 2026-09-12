@@ -9,7 +9,9 @@
  *   PUT    /api/v2/meetups-ops/meetups/:id                edit every field
  *   POST   /api/v2/meetups-ops/meetups/:id/publish        draft → published (mints the host token)
  *   POST   /api/v2/meetups-ops/meetups/:id/cancel         cancel + email everyone holding a place
- *   DELETE /api/v2/meetups-ops/meetups/:id                delete — DRAFTS ONLY, never a live table
+ *   DELETE /api/v2/meetups-ops/meetups/:id                delete — an untouched DRAFT, or a meetup
+ *                                                          already CANCELLED (attendees + audit
+ *                                                          cascade); never a live table
  *   GET    /api/v2/meetups-ops/meetups/:id/attendees      the drawer: confirmed · waitlist · invited
  *   POST   /api/v2/meetups-ops/meetups/:id/attendees      manual add (member or raw email)
  *   GET    /api/v2/meetups-ops/meetups/:id/attendees.csv  export (UTF-8 BOM, every field quoted)
@@ -385,17 +387,31 @@ module.exports = function mountMeetupsOps(app, ctx) {
         } catch (e) { log('cancel meetup:', e.message); res.status(500).json({ error: 'Could not cancel that meetup.' }); }
     });
 
+    // Two things can be deleted, and only two: an untouched DRAFT, and a meetup that has already
+    // been CANCELLED. Cancel stays the guest-facing action — it is what emails everyone — but a
+    // cancelled table used to be undeletable forever, so the list carried dead rows nobody could
+    // clear. Deleting a cancelled meetup takes its attendee and audit rows with it (cascade), since
+    // the people on it were already told the table is off.
     app.delete('/api/v2/meetups-ops/meetups/:id', auth, adminOnly, (req, res) => {
         try {
             const m = core.meetupById(q, req.params.id);
             if (!m) return res.status(404).json({ error: 'Meetup not found' });
-            if (m.status !== 'draft') return res.status(400).json({ error: 'Only a draft can be deleted — cancel the meetup instead, so everyone is told.' });
-            if (core.attendeesOf(q, m.id).length) return res.status(400).json({ error: 'This draft already has people on it — cancel it instead.' });
+            const cancelled = m.status === 'cancelled';
+            if (m.status !== 'draft' && !cancelled) {
+                return res.status(400).json({ error: 'A live meetup cannot be deleted — cancel it first, so everyone is told.' });
+            }
+            if (!cancelled && core.attendeesOf(q, m.id).length) {
+                return res.status(400).json({ error: 'This draft already has people on it — cancel it instead.' });
+            }
+            if (cancelled) {
+                try { q.run('DELETE FROM plexus_meetup_attendees WHERE meetup_id = ?', [m.id]); } catch (e) {}
+                try { q.run('DELETE FROM plexus_meetup_audit WHERE meetup_id = ?', [m.id]); } catch (e) {}
+            }
             q.run('DELETE FROM plexus_meetups WHERE id = ?', [m.id]);
-            auditAdmin(req, 'meetups.delete_draft', m.title);
+            auditAdmin(req, cancelled ? 'meetups.delete_cancelled' : 'meetups.delete_draft', m.title);
             persist();
-            res.json({ success: true });
-        } catch (e) { log('delete:', e.message); res.status(500).json({ error: 'Could not delete that draft.' }); }
+            res.json({ success: true, deleted: cancelled ? 'cancelled' : 'draft' });
+        } catch (e) { log('delete:', e.message); res.status(500).json({ error: 'Could not delete that meetup.' }); }
     });
 
     app.get('/api/v2/meetups-ops/meetups/:id/host-link', auth, adminOnly, (req, res) => {

@@ -976,6 +976,29 @@ const rowFor = (mid, email) => q.get('SELECT * FROM plexus_meetup_attendees WHER
         assert.strictEqual(gone.status, 200);
         assert.strictEqual(core.meetupById(q, d.id), null);
     });
+    // Cancel stays the guest-facing action, but a CANCELLED meetup used to be undeletable forever:
+    // it was not a draft, so DELETE refused, and the list carried a dead row nobody could clear.
+    await t('a CANCELLED meetup can be deleted, and takes its attendees and audit trail with it', async () => {
+        const X = await createMeetup({ title: 'Table that got called off', capacity: 2, starts_at: '2026-12-06T20:00' });
+        await publish(X.id);
+        await join('u-ana', X.id);
+        clearMail();
+        const cancelled = await app.call('POST', '/api/v2/meetups-ops/meetups/:id/cancel', { user: ADMIN, params: { id: X.id }, body: { notify: false } });
+        assert.strictEqual(cancelled.status, 200);
+        assert.strictEqual(cancelled.body.meetup.status, 'cancelled');
+        assert.ok(core.attendeesOf(q, X.id).length, 'the attendee row is still there before the delete');
+
+        const gone = await app.call('DELETE', '/api/v2/meetups-ops/meetups/:id', { user: ADMIN, params: { id: X.id } });
+        assert.strictEqual(gone.status, 200);
+        assert.strictEqual(gone.body.deleted, 'cancelled');
+        assert.strictEqual(core.meetupById(q, X.id), null, 'the meetup row survived');
+        assert.strictEqual(core.attendeesOf(q, X.id).length, 0, 'attendee rows were left behind');
+        assert.strictEqual((q.all('SELECT id FROM plexus_meetup_audit WHERE meetup_id = ?', [X.id]) || []).length, 0, 'audit rows were left behind');
+        assert.strictEqual(sent.length, 0, 'deleting a cancelled meetup must email nobody — they were told at cancel time');
+
+        const board = await app.call('GET', '/api/v2/meetups', { user: asUser('u-ana') });
+        assert.ok(!board.body.meetups.some(m => m.id === X.id), 'the deleted meetup is still on the member board');
+    });
     await t('CSV export carries a BOM, quotes every field and defuses formulas', async () => {
         q.run("UPDATE plexus_meetup_attendees SET first_name = ? WHERE meetup_id = ? AND lower(email) = ?", ['=CMD()', A.id, 'luka@example.hr']);
         const r = await app.call('GET', '/api/v2/meetups-ops/meetups/:id/attendees.csv', { user: ADMIN, params: { id: A.id } });
