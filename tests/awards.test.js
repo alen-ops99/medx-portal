@@ -608,7 +608,11 @@ const reviewerRow = (email) => q.get('SELECT * FROM award_reviewers WHERE lower(
         const b = await app.call('GET', '/api/v2/awards/review/:token/data', { params: { token: revB.token } });
         assert.deepStrictEqual(b.body.groups.map(g => g.category.key), ['fellowship']);
         // A forged or unknown token is a 404, not an empty room.
-        for (const bad of ['f'.repeat(32), revA.token.slice(0, 31) + '0', 'x']) {
+        // FLIP the last character (as line ~525 does) — appending a literal '0' produced the REAL
+        // token whenever it already ended in '0', so this assertion failed about one run in
+        // sixteen. Nothing to do with the routes; the "forged" token simply was not forged.
+        const forged = revA.token.slice(0, 31) + (revA.token[31] === '0' ? '1' : '0');
+        for (const bad of ['f'.repeat(32), forged, 'x']) {
             const r = await app.call('GET', '/api/v2/awards/review/:token/data', { params: { token: bad } });
             assert.strictEqual(r.status, 404);
         }
