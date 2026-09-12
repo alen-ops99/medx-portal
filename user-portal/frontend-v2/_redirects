@@ -44,6 +44,12 @@
 /f/*  https://medx-staging.onrender.com/f/:splat  200
 /speaker  https://medx-staging.onrender.com/speaker  200
 /speaker/*  https://medx-staging.onrender.com/speaker/:splat  200
+# Building Bridges Boston: the public event page, the hero/HMPA images it references, the speaker
+# upload link (/boston/upload/:token, sent by email) and the admin presentations list. Without
+# these rows the SPA fallback below swallowed every one of them on the Netlify host.
+/boston  https://medx-staging.onrender.com/boston  200
+/boston/*  https://medx-staging.onrender.com/boston/:splat  200
+/boston.ics  https://medx-staging.onrender.com/boston.ics  200
 /__staging  https://medx-staging.onrender.com/__staging  200
 /__staging/*  https://medx-staging.onrender.com/__staging/:splat  200
 /__admin  https://medx-staging.onrender.com/__admin  200

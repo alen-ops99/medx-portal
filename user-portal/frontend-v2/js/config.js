@@ -23,9 +23,12 @@ const cfg = {
     // reviewer's reading room and a laureate's slides page. Every one of them must work with NO
     // login, so they are server-rendered by user-portal/backend/v2/awards.js and the SPA router
     // never intercepts them (a /awards link is a full page load, like /plexus and /meetups).
+    // '/boston' is the Building Bridges Boston event page plus the emailed speaker upload link
+    // (/boston/upload/:token) and the admin presentations list — all server-rendered, so the SPA
+    // router must let them through as full page loads (matching _redirects on the Netlify host).
     '/api', '/plexus', '/meetups', '/awards', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success',
     '/invite-cancelled', '/reset-password', '/qr', '/calendar', '/verify-certificate', '/verify', '/r',
-    '/unsubscribe', '/email-prefs', '/donate', '/uploads', '/f', '/speaker', '/building-bridges',
+    '/unsubscribe', '/email-prefs', '/donate', '/uploads', '/f', '/speaker', '/boston', '/building-bridges',
     '/donor-night', '/terms', '/privacy', '/health', '/__staging', '/__admin'
   ]
 };
