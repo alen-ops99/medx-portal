@@ -29,6 +29,16 @@ function isServerPath(pathname) {
   return cfg.serverPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
 
+// The element a '#…' points at, or null. Never throws: the hash arrives from emails, medx.hr and
+// pasted URLs ('#mymedx', but also '#2026' or '#gala:seating'), and a hash that is not a valid
+// CSS selector used to throw a SyntaxError out of resolve(). Mirrors the admin router.
+function hashTarget(hash) {
+  const id = String(hash || '').replace(/^#/, '');
+  if (!id) return null;
+  try { return document.getElementById(decodeURIComponent(id)) || document.querySelector('#' + CSS.escape(id)); }
+  catch (e) { try { return document.getElementById(id); } catch (e2) { return null; } }
+}
+
 export const router = {
   add(def) { const c = compile(def.path); routes.push(Object.assign({}, def, c)); return this; },
   addAll(list) { list.forEach(d => this.add(d)); return this; },
@@ -96,7 +106,8 @@ export const router = {
     if (hooks.afterRender) hooks.afterRender({ route, params, query, layout, active, view, title });
     // scroll: restore on back/forward, top on forward navigation, hash targets when present
     const st = history.state || {};
-    if (location.hash && document.querySelector(location.hash)) { document.querySelector(location.hash).scrollIntoView(); }
+    const target = hashTarget(location.hash);
+    if (target) target.scrollIntoView();
     else window.scrollTo(0, popped ? (st.scrollY || 0) : 0);
   },
   start() {

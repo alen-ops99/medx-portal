@@ -27,6 +27,16 @@ function compile(path) {
 export function parseQuery(search) { const q = {}; new URLSearchParams(search || '').forEach((v, k) => { q[k] = v; }); return q; }
 function isServerPath(pathname) { return cfg.serverPaths.some(p => pathname === p || pathname.startsWith(p + '/')); }
 
+// The element a '#…' points at, or null. Never throws: a hash is free text (an email deep link,
+// a pasted URL, '#2026'), and CSS.escape + try/catch is what stands between that and a
+// SyntaxError that aborts the rest of resolve().
+function hashTarget(hash) {
+  const id = String(hash || '').replace(/^#/, '');
+  if (!id) return null;
+  try { return document.getElementById(decodeURIComponent(id)) || document.querySelector('#' + CSS.escape(id)); }
+  catch (e) { try { return document.getElementById(id); } catch (e2) { return null; } }
+}
+
 export const router = {
   add(def) { const c = compile(def.path); routes.push(Object.assign({}, def, c)); return this; },
   addAll(list) { list.forEach(d => this.add(d)); return this; },
@@ -90,7 +100,11 @@ export const router = {
     if (seq !== this._seq) return;
     if (hooks.afterRender) hooks.afterRender({ route, params, query, layout, active, view, title });
     const st = history.state || {};
-    if (location.hash && document.querySelector(location.hash)) { document.querySelector(location.hash).scrollIntoView(); }
+    // A hash is arbitrary user text, not a selector: '#2026', '#a b', '#gala:seating' all throw
+    // out of querySelector and killed the scroll restore (and everything after it). Escape the
+    // id and swallow anything the engine still refuses.
+    const target = hashTarget(location.hash);
+    if (target) target.scrollIntoView();
     else window.scrollTo(0, popped ? (st.scrollY || 0) : 0);
   },
   start() {
