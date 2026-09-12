@@ -686,7 +686,7 @@ function formatRichText(str) {
 const GALA_KEYNOTES_2026 = [
     { name: 'Lord Smith of Finsbury (Chris Smith)', role: 'Chancellor, University of Cambridge', place: 'United Kingdom', img: '/assets/gala/kn512_smith_finsbury.jpg' },
     { name: 'Marcela del Carmen, MD', role: 'President, Massachusetts General Hospital', place: 'United States', img: '/assets/gala/kn512_delcarmen.jpg' },
-    { name: 'Johnese Spisso, MPA', role: 'President, UCLA Health · CEO, UCLA Hospital System', place: 'United States', img: '/assets/gala/kn512_spisso.jpg' },
+    { name: 'Chris Coburn', role: 'Chief Innovation Officer, Mass General Brigham', place: 'United States', img: '/assets/gala/kn512_coburn.jpg' },
     { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada', img: '/assets/gala/kn512_kevin_smith.jpg' }
 ];
 // Fully self-contained (inline styles only) so it renders identically on every public
@@ -1648,7 +1648,7 @@ const PUBLIC_EVENT_PAGES = {
         accent: '#c9a962',
         pageTitle: 'Plexus Donor Night — Plexus Week 2026',
         heading: 'Plexus Donor Night',
-        framing: 'An evening of giving for the future of Croatian biomedicine. An invitation-only supper with the leadership of Cambridge, Massachusetts General Hospital, University Health Network Toronto, UCLA Health and Mass General Brigham. What gathers around this table advances the Plexus Fellowship, the Accelerator, the Plexus Conference and Building Bridges in Biomedicine.',
+        framing: 'An evening of giving for the future of Croatian biomedicine. An invitation-only supper with the leadership of Cambridge, Massachusetts General Hospital, University Health Network Toronto and Mass General Brigham. What gathers around this table advances the Plexus Fellowship, the Accelerator, the Plexus Conference and Building Bridges in Biomedicine.',
         // Standing rule: the Donor Night date/time/venue are NEVER printed publicly —
         // they follow personally with the invitation (same pattern as Building Bridges above).
         facts: ['December 2026', 'Zagreb', 'Invitation only'],
@@ -9150,7 +9150,7 @@ async function initializeApp() {
     if (!query.get("SELECT id FROM bridges_events WHERE slug = 'donor-night'")) {
         db.run(`INSERT INTO bridges_events (id, slug, name, city, venue_name, venue_address, event_date, event_time, end_time, description, capacity, registration_open, status, price, is_published, created_by)
             VALUES (?, 'donor-night', 'Plexus Donor Night', 'Zagreb', 'Esplanade Zagreb', 'Esplanade Zagreb, private salon', '2026-12-04', '19:30', '22:30', ?, 40, 1, 'upcoming', 0, 0, 'seed')`,
-            [uuidv4(), 'An invitation-only supper with the leadership of Cambridge, Massachusetts General Hospital, University Health Network Toronto and UCLA Health, advancing the Plexus Fellowship and the 2027 Accelerator.']);
+            [uuidv4(), 'An invitation-only supper with the leadership of Cambridge, Massachusetts General Hospital, University Health Network Toronto and Mass General Brigham, advancing the Plexus Fellowship and the 2027 Accelerator.']);
     }
     // Normalize: invitation-only events must never surface in the member portal's published list
     // (re-asserted every boot, like the forum free-pricing normalization above — this flag is not
