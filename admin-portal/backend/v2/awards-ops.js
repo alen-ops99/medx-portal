@@ -18,6 +18,9 @@
  *   POST   /api/v2/awards-ops/entries/:id/status           eligible · ineligible · shortlist · winner · decline
  *   POST   /api/v2/awards-ops/entries/:id/notes            the organizer's own note on a row
  *   GET    /api/v2/awards-ops/entries/:id/attachment       302 → a 15-minute presigned S3 GET
+ *                                                          (?json=1 → { url, name } instead, so a
+ *                                                          Bearer-authenticated SPA can hand the
+ *                                                          browser the signed link to download)
  *   GET    /api/v2/awards-ops/reviewers[?edition=]         the panel + how far each reader has got
  *   POST   /api/v2/awards-ops/reviewers                    add + send the invitation (sends at once)
  *   POST   /api/v2/awards-ops/reviewers/:id/resend         same link, sent again
@@ -279,6 +282,10 @@ module.exports = function mountAwardsOps(app, ctx) {
             const signer = s3();
             const url = signer && signer.presignGet(entry.attachment_key, { expires: 900, filename: entry.attachment_name || 'entry.pdf' });
             if (!url) return res.status(503).json({ error: 'Attachments are not available on this server yet.' });
+            // The SPA cannot follow the 302 with window.open (no Bearer header → 401) and cannot
+            // fetch through it either (the redirect lands cross-origin on S3). ?json=1 hands it
+            // the signed link, which already carries Content-Disposition: attachment.
+            if (String(req.query.json || '') === '1') return res.json({ url, name: entry.attachment_name || 'entry.pdf' });
             res.redirect(302, url);
         } catch (e) { res.status(500).json({ error: 'Unavailable' }); }
     });

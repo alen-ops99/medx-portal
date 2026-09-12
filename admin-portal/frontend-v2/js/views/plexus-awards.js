@@ -62,7 +62,8 @@ export const COPY_AW = {
     mean: (m, n) => m == null ? 'not scored' : `${m} mean · ${n} reader${n === 1 ? '' : 's'}`,
     spread: s => s == null ? '' : `spread ${s}`,
     saved: 'NOTE SAVED', statusDone: s => `MOVED TO ${s}`, mergeAsk: (a, b) => `Merge “${a}” into “${b}”? Their nominations become nominations of the surviving name — nothing is deleted.`,
-    mergeOk: 'MERGE', mergeKeep: 'KEEP BOTH', mergePick: 'PICK THE SURVIVING CANDIDATE FIRST'
+    mergeOk: 'MERGE', mergeKeep: 'KEEP BOTH', mergePick: 'PICK THE SURVIVING CANDIDATE FIRST',
+    pdfMissing: 'That attachment is not on file storage — nothing to download.'
   },
   rank: {
     title: 'RANKING', sub: 'mean of every score, conflicts excluded',
@@ -149,6 +150,9 @@ async function fetchBlob(path) {
   return res.blob();
 }
 const dl = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+// Same anchor trick for a URL the server already signed. The presigned S3 link carries
+// Content-Disposition: attachment, so this downloads instead of navigating away.
+const dlHref = (href, name) => { const a = document.createElement('a'); a.href = href; if (name) a.download = name; a.rel = 'noopener'; a.click(); };
 
 // ---- state --------------------------------------------------------------------------------------
 // H is the host contract js/views/plexus.js hands us once per render: how to repaint, which
@@ -617,7 +621,15 @@ export const awardsHandlers = {
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
 
-  awPdf: (el) => { window.open(api.url(opsUrl('/entries/' + encodeURIComponent(el.dataset.id) + '/attachment')), '_blank', 'noopener'); },
+  // window.open cannot carry the Bearer header, so it answered 401 and opened a blank tab of JSON
+  // error. Ask the route for the signed link instead (?json=1) and hand THAT to the browser.
+  awPdf: async (el) => {
+    try {
+      const r = await api.get(opsUrl('/entries/' + encodeURIComponent(el.dataset.id) + '/attachment') + '?json=1');
+      if (!r || !r.url) throw new Error(COPY_AW.drawer.pdfMissing);
+      dlHref(r.url, r.name || 'entry.pdf');
+    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
 
   awMerge: async (el) => {
     const key = el.dataset.id;
@@ -724,7 +736,13 @@ export const awardsHandlers = {
     try { dl(await fetchBlob(opsUrl('/roster.csv') + edQ()), 'medx-awards-gala-roster.csv'); }
     catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
-  awOnePager: () => { window.open(api.url(opsUrl('/one-pager') + edQ()), '_blank', 'noopener'); }
+  // Same 401 as awPdf: window.open sends no Authorization header, so the MC's sheet opened as a
+  // blank tab. Fetch it WITH the header and save the page — it prints from disk with the same
+  // PRINT button, and the file is what the MC actually wants to carry.
+  awOnePager: async () => {
+    try { dl(await fetchBlob(opsUrl('/one-pager') + edQ()), 'medx-awards-running-order.html'); }
+    catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  }
 };
 
 async function stageNotify(catId, preview) {
