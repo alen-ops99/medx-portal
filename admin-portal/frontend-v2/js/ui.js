@@ -141,8 +141,12 @@ function bind(root, handlers) {
     if (!el || !root.contains(el) || el.getAttribute('aria-disabled') === 'true') return;
     const h = handlers[el.dataset.act];
     if (!h) return;
-    // never cancel a file input's default — preventDefault here closed the OS file picker
-    if (!(e.target && e.target.type === 'file')) e.preventDefault();
+    // Never cancel a native control's OWN activation behaviour. On a file input preventDefault
+    // closed the OS file picker; on a checkbox/radio it runs the "canceled activation steps",
+    // which restore the pre-click checkedness AFTER dispatch — so the box silently un-ticked
+    // itself again however hard the handler set el.checked (admin Inbox "pick people by hand").
+    const nativeType = e.target && e.target.type;
+    if (nativeType !== 'file' && nativeType !== 'checkbox' && nativeType !== 'radio') e.preventDefault();
     h(el, e);
   };
   root.addEventListener('click', onClick);
