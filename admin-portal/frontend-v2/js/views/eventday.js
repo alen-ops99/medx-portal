@@ -417,7 +417,7 @@ function gateChips() {
   return `
     <div data-block="gateChips" data-v2="door picker — one scanner, four doors" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${COPY.doors.label}</span>
-      ${GATE_ORDER.filter(k => k !== MEETUP_GATE || meetupList().length).map(k => {
+      ${GATE_ORDER.map(k => {
         const g = gateInfo(k); const on = st.gate === k;
         return `<span data-act="gate" data-key="${k}" role="tab" aria-selected="${on}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;border:1px solid ${on ? '#201b16' : 'rgba(32,27,22,.25)'};background:${on ? '#201b16' : 'transparent'};color:${on ? '#f6f2ea' : '#6d6459'};white-space:nowrap">${COPY.doors.names[k] || k.toUpperCase()}${g.starts_at ? ' · ' + esc(fmt.dayLabel(g.starts_at)) : ''}</span>`;
       }).join('')}
@@ -991,8 +991,9 @@ export default {
     D = await load();
     if (rootEl !== root) return;
     st.gate = GATE_ORDER.includes(ctx.query.door) ? ctx.query.door : (D.over.default_event || 'conference');
-    // the meetup door only exists while a meetup is published for the active edition (2026-09-11)
-    if (st.gate === MEETUP_GATE && !meetupList().length) st.gate = D.over.default_event || 'conference';
+    // The meetup door is ALWAYS offered, published meetups or not — hiding it hid the whole
+    // feature from anyone who had not already used it. With none published the door opens on its
+    // empty state (COPY.meetup.pickNone) instead of vanishing.
     if (st.gate === MEETUP_GATE) {
       const wanted = meetupList().find(m => String(m.id) === String(ctx.query.meetup || ''));
       st.meetupId = wanted ? wanted.id : (meetupList().length === 1 ? meetupList()[0].id : null);
