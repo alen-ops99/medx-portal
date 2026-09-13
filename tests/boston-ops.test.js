@@ -132,7 +132,19 @@ const adminEmails = [];                                 // must stay EMPTY — t
 
 const mountBoston = require(path.join(ROOT, 'user-portal/backend/boston.js'));
 mountBoston(app, { query, saveDb: () => {}, flushDb: () => {}, JWT_SECRET,
-    sendEmail: async (to, subject, html) => { sentEmails.push({ to, subject, html }); return { success: true }; } });
+    sendEmail: async (to, subject, html, attachments) => { sentEmails.push({ to, subject, html, attachments: attachments || null }); return { success: true }; } });
+
+// The program PDF gates every real send on the member side (a send without it would leave the
+// room without the program), so give this test one — FAKE credentials, and every S3 read is a
+// stub, so nothing can reach AWS.
+process.env.BB_S3_BUCKET = 'medx-bb-ops-test';
+process.env.BB_S3_REGION = 'us-east-1';
+process.env.BB_S3_KEY = 'AKIATESTTESTTESTTEST';
+process.env.BB_S3_SECRET = 'test-secret-not-real';
+const PROGRAM_BYTES = Buffer.from('%PDF-1.7\nBuilding Bridges Boston — program\n%%EOF');
+mountBoston._s3.putObject = async () => ({ etag: '"stub-etag"' });
+mountBoston._s3.getObject = async () => PROGRAM_BYTES;
+mountBoston._s3.headObject = async () => ({ size: PROGRAM_BYTES.length, lastModified: '2026-09-13T09:00:00.000Z' });
 
 // The admin module talks to the member over HTTP — dispatch that back into these same handlers.
 const fetchLog = [];
@@ -147,10 +159,12 @@ global.fetch = async (url, init = {}) => {
 };
 
 const mountBostonOps = require(path.join(ROOT, 'admin-portal/backend/v2/boston-ops.js'));
+const auth = (req, res, next) => (req.user ? next() : res.status(401).json({ error: 'no' }));
+const adminOnly = (req, res, next) => next();
 mountBostonOps(app, {
     db: () => db,
-    auth: (req, res, next) => (req.user ? next() : res.status(401).json({ error: 'no' })),
-    adminOnly: (req, res, next) => next(),
+    auth,
+    adminOnly,
     sendEmail: async (to, subject, html) => { adminEmails.push({ to, subject, html }); return { success: true }; },
     saveDb: () => {}, JWT_SECRET, ROOT, log: () => {}
 });
@@ -183,8 +197,13 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
     });
 
     await t('every route is behind auth + adminOnly', () => {
+        // [auth, adminOnly, handler] — the program upload adds its multipart parser between
+        // adminOnly and the handler, so the rule is "the first two are the gate", not "length 3".
         for (const k of Object.keys(app.routes).filter(k => k.includes('/api/v2/boston'))) {
-            assert.equal(app.routes[k].length, 3, k + ' should be [auth, adminOnly, handler]');
+            const chain = app.routes[k];
+            assert.ok(chain.length >= 3, k + ' should be [auth, adminOnly, …, handler]');
+            assert.strictEqual(chain[0], auth, k + ' must start with auth');
+            assert.strictEqual(chain[1], adminOnly, k + ' must be adminOnly');
         }
     });
 
@@ -423,6 +442,49 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         const r = await app.call('GET', '/api/v2/boston/catering.csv', {});
         assert.equal(r.status, 302);
         assert.equal(r.headers.location, MEMBER + '/api/boston/catering.csv?key=' + ADMIN_KEY);
+    });
+
+    // -------- one-pagers, the program PDF, and the owner's two previews
+    await t('the one-pager list and archive come through the same keyed hop', async () => {
+        const r = await app.call('GET', '/api/v2/boston/onepagers', {});
+        assert.equal(r.status, 200);
+        assert.equal(r.body.ok, true);
+        assert.equal(r.body.total, r.body.rows.length, 'every active guest is a row');
+        assert.ok(r.body.rows.some(x => x.registration_id === 'reg-mia'), 'a non-presenter is on the booklet list too');
+        assert.ok(String(r.body.zip_url).includes('key=' + ADMIN_KEY), 'the archive link is keyed');
+        const zip = await app.call('GET', '/api/v2/boston/onepagers.zip', {});
+        assert.equal(zip.status, 302);
+        assert.equal(zip.headers.location, MEMBER + '/api/boston/onepagers.zip?key=' + ADMIN_KEY);
+    });
+
+    await t('the catering read carries the program status and the one-pager archive link', async () => {
+        const r = await app.call('GET', '/api/v2/boston/catering', {});
+        assert.equal(r.status, 200);
+        assert.ok(r.body.program, 'the card needs to know whether the PDF is there');
+        assert.equal(r.body.program.present, true, 'this test has one');
+        assert.ok(String(r.body.onepagers_zip_url).includes('key=' + ADMIN_KEY));
+        assert.equal(typeof r.body.onepagers_received, 'number', 'the counts strip needs the number');
+    });
+
+    await t('the program status is read through the member portal', async () => {
+        const r = await app.call('GET', '/api/v2/boston/program', {});
+        assert.equal(r.status, 200);
+        assert.equal(r.body.present, true);
+        assert.equal(r.body.key, 'boston/program/program.pdf');
+    });
+
+    await t('a preview goes to the reviewer only — both shapes, or one on request', async () => {
+        const before = sentEmails.length;
+        const both = await app.call('POST', '/api/v2/boston/reminders/preview', { body: {} });
+        assert.equal(both.status, 200);
+        assert.deepEqual(both.body.variants, ['presenter', 'attendee']);
+        assert.equal(sentEmails.length, before + 2);
+        for (const m of sentEmails.slice(-2)) assert.equal(m.to, 'juginovic.alen@gmail.com', 'previews go to the reviewer and nobody else');
+        const one = await app.call('POST', '/api/v2/boston/reminders/preview', { body: { variant: 'attendee' } });
+        assert.deepEqual(one.body.variants, ['attendee']);
+        assert.equal(sentEmails.length, before + 3);
+        const bad = await app.call('POST', '/api/v2/boston/reminders/preview', { body: { variant: 'everybody' } });
+        assert.equal(bad.status, 400, 'an invented variant is refused here too');
     });
 
     // -------- the two standing guarantees

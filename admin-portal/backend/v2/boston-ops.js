@@ -22,10 +22,16 @@
  *        presenter if it was not one, and the link goes to it.
  *   GET  /api/v2/boston/presentations.zip         auth+adminOnly  302 → the member ZIP with the key.
  *   GET  /api/v2/boston/catering                  auth+adminOnly  the catering summary + one row per
- *        registrant (preference, allergies, answered, reminder state) + the CSV url.
- *   POST /api/v2/boston/reminders/:id/send        auth+adminOnly  send / re-send ONE reminder.
- *   POST /api/v2/boston/reminders/send-all        auth+adminOnly  everyone not yet reminded.
+ *        registrant (preference, allergies, one-pager, answered, reminder state) + the CSV url.
+ *   POST /api/v2/boston/reminders/:id/send        auth+adminOnly  send / re-send THE Boston email to one.
+ *   POST /api/v2/boston/reminders/send-all        auth+adminOnly  everyone not yet sent.
+ *   POST /api/v2/boston/reminders/preview         auth+adminOnly  { variant } → the owner's inbox only.
  *   GET  /api/v2/boston/catering.csv              auth+adminOnly  302 → the member CSV with the key.
+ *   GET  /api/v2/boston/onepagers                 auth+adminOnly  who sent a one-pager, with headlines.
+ *   GET  /api/v2/boston/onepagers.zip             auth+adminOnly  302 → the member archive with the key.
+ *   GET  /api/v2/boston/program                   auth+adminOnly  the program PDF's status.
+ *   POST /api/v2/boston/program                   auth+adminOnly  multipart PDF → forwarded to the member
+ *        portal, which owns the S3 write. The browser never sees the team key on this path.
  *
  * THE KEY. The member wing authorizes those routes with a derived team key —
  * HMAC-SHA256(JWT_SECRET, 'boston-admin').slice(0, 40) — and both portals run on ONE JWT_SECRET
@@ -59,8 +65,14 @@ const PRESENTER_MARK = '5-minute presentation';
 const PRESENTER_NOTE = '5-minute presentation requested';
 const ADDED_NOTE = 'added by team';
 const SENT_MARK = 'UPLOAD-LINK-SENT';
-const REMINDER_MARK = 'REMINDER-SENT';                 // the member wing's stamp for the reminder
+const REMINDER_MARK = 'REMINDER-SENT';                 // the member wing's stamp for the Boston email
 const SENDABLE = ['registered', 'confirmed'];          // the member route's own status filter
+const MAX_PROGRAM_BYTES = 10 * 1024 * 1024;            // same cap the member wing enforces
+
+// multer parses the program PDF here before it is forwarded; try/require so a dependency-free
+// checkout (the hermetic test suite) still loads the module — the upload route then answers 503.
+function tryRequire(name) { try { return require(name); } catch (e) { return null; } }
+const multerLib = tryRequire('multer');
 
 // Retry budget for the member send after an insert (see REPLICA LAG above). Under test both
 // portals run in one process against one database, so there is never anything to wait for.
@@ -113,9 +125,10 @@ module.exports = function mountBostonOps(app, ctx) {
     const adminKey = () => crypto.createHmac('sha256', String(JWT_SECRET)).update('boston-admin').digest('hex').slice(0, 40);
     const keyed = (path) => memberBase() + path + (path.includes('?') ? '&' : '?') + 'key=' + adminKey();
 
-    async function memberCall(method, path, body) {
+    async function memberCall(method, path, body, raw) {
         const init = { method, headers: { Accept: 'application/json' } };
-        if (body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
+        if (raw) { init.headers['Content-Type'] = raw.contentType; init.body = raw.body; }
+        else if (body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
         const res = await fetch(keyed(path), init);
         const text = await res.text();
         let data = null;
@@ -126,6 +139,16 @@ module.exports = function mountBostonOps(app, ctx) {
             throw err;
         }
         return data || {};
+    }
+    // One file, hand-rolled as a multipart body — no FormData/Blob assumptions, no new dependency,
+    // and the exact field name ('file') the member wing's multer expects.
+    function multipartFile(filename, buf, mime) {
+        const boundary = '----medx' + crypto.randomBytes(16).toString('hex');
+        const safe = String(filename || 'file.pdf').replace(/[""\\\r\n]/g, '_');
+        const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safe}"\r\n`
+            + `Content-Type: ${mime || 'application/octet-stream'}\r\n\r\n`, 'utf8');
+        const tail = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
+        return { body: Buffer.concat([head, buf, tail]), contentType: 'multipart/form-data; boundary=' + boundary };
     }
 
     // ---------------------------------------------------------------- the shared registration rows
@@ -296,11 +319,93 @@ module.exports = function mountBostonOps(app, ctx) {
     app.get('/api/v2/boston/catering', auth, adminOnly, async (req, res) => {
         try {
             const data = await memberCall('GET', '/api/boston/catering');
+            // The program PDF gates every real send, so the card must know about it in the same
+            // read that draws the send button — a missing PDF is a disabled button, not a 400.
+            let program = { present: false };
+            try { program = await memberCall('GET', '/api/boston/program'); } catch (e) { /* card still renders */ }
             res.set('Cache-Control', 'private, no-store');
-            res.json(Object.assign({ ok: true }, data, { csv_url: keyed('/api/boston/catering.csv') }));
+            res.json(Object.assign({ ok: true }, data, {
+                csv_url: keyed('/api/boston/catering.csv'),
+                onepagers_zip_url: keyed('/api/boston/onepagers.zip'),
+                program
+            }));
         } catch (e) {
             log('catering list failed:', e.message);
             res.status(502).json({ error: 'Could not reach the member portal for the catering list.' });
+        }
+    });
+
+    // The owner's two previews — the presenter shape and the attendee shape of the one email.
+    // Both land in the reviewer's inbox and nobody else's; the member wing enforces that.
+    app.post('/api/v2/boston/reminders/preview', auth, adminOnly, async (req, res) => {
+        try {
+            const variant = cleanStr((req.body || {}).variant, 20).toLowerCase();
+            if (variant && variant !== 'presenter' && variant !== 'attendee') {
+                return res.status(400).json({ error: 'Preview as "presenter" or as "attendee".' });
+            }
+            const out = await memberCall('POST', '/api/boston/reminders/send', variant ? { to: 'preview', variant } : { to: 'preview' });
+            audit(req, 'boston.email_preview', (out.variants || []).join(' + ') + ' → ' + (out.preview_to || 'reviewer'));
+            res.json({ success: true, preview_to: out.preview_to || null, variants: out.variants || [], program_attached: !!out.program_attached });
+        } catch (e) {
+            log('preview failed:', e.message);
+            res.status(502).json({ error: e.message || 'The preview could not be sent.' });
+        }
+    });
+
+    // ---------------------------------------------------------------- one-pagers (every guest)
+    app.get('/api/v2/boston/onepagers', auth, adminOnly, async (req, res) => {
+        try {
+            const data = await memberCall('GET', '/api/boston/onepagers');
+            res.set('Cache-Control', 'private, no-store');
+            res.json(Object.assign({ ok: true }, data, { zip_url: keyed('/api/boston/onepagers.zip') }));
+        } catch (e) {
+            log('one-pager list failed:', e.message);
+            res.status(502).json({ error: 'Could not reach the member portal for the one-pagers.' });
+        }
+    });
+    app.get('/api/v2/boston/onepagers.zip', auth, adminOnly, (req, res) => {
+        res.redirect(302, keyed('/api/boston/onepagers.zip'));
+    });
+
+    // ---------------------------------------------------------------- the program PDF
+    // The one attachment on the one email. Read here, written through here: the file arrives as
+    // multipart from the admin SPA and is forwarded to the member portal, which owns the S3 write.
+    const programUpload = multerLib
+        ? multerLib({ storage: multerLib.memoryStorage(), limits: { fileSize: MAX_PROGRAM_BYTES, files: 1 } }).single('file')
+        : (req, res, next) => next();
+    function programParser(req, res, next) {
+        if (!multerLib) return res.status(503).json({ error: 'Uploads are momentarily unavailable on this server.' });
+        programUpload(req, res, err => {
+            if (!err) return next();
+            if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'That file is over the 10 MB limit. Please compress the PDF and try again.' });
+            return res.status(400).json({ error: 'We could not read that upload. Please try again with a PDF.' });
+        });
+    }
+
+    app.get('/api/v2/boston/program', auth, adminOnly, async (req, res) => {
+        try {
+            const st = await memberCall('GET', '/api/boston/program');
+            res.set('Cache-Control', 'private, no-store');
+            res.json(Object.assign({ ok: true }, st));
+        } catch (e) {
+            log('program status failed:', e.message);
+            res.status(502).json({ error: 'Could not read the program status from the member portal.' });
+        }
+    });
+
+    app.post('/api/v2/boston/program', auth, adminOnly, programParser, async (req, res) => {
+        try {
+            const f = req.file;
+            if (!f || !f.buffer || !f.buffer.length) return res.status(400).json({ error: 'Choose the program PDF first.' });
+            if (f.buffer.length > MAX_PROGRAM_BYTES) return res.status(413).json({ error: 'That file is over the 10 MB limit.' });
+            if (!/\.pdf$/i.test(String(f.originalname || ''))) return res.status(400).json({ error: 'PDF only, please.' });
+            const raw = multipartFile(f.originalname || 'program.pdf', f.buffer, 'application/pdf');
+            const out = await memberCall('POST', '/api/boston/program', undefined, raw);
+            audit(req, 'boston.program_uploaded', (f.originalname || 'program.pdf') + ' · ' + f.buffer.length + ' bytes');
+            res.json({ success: true, size: Number(out.size) || f.buffer.length, uploaded_at: out.uploaded_at || new Date().toISOString() });
+        } catch (e) {
+            log('program upload failed:', e.message);
+            res.status(502).json({ error: e.message || 'The program PDF could not be saved.' });
         }
     });
 

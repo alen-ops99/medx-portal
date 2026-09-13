@@ -71,8 +71,8 @@ export const COPY = {
   // files and the invite email (user-portal/backend/boston.js); this card is the organizer's door
   // to them — /api/v2/boston/presenters and friends.
   boston: {
-    title: 'BOSTON · 5-MINUTE PRESENTATIONS', sub: 'each presenter gets a personal upload link — send it, then collect the decks',
-    sendAll: n => `SEND TO EVERYONE NOT YET INVITED (${n})`, allInvited: 'EVERYONE HAS THEIR LINK',
+    title: 'BOSTON · 5-MINUTE PRESENTATIONS', sub: 'the slides link is already inside the Boston email — this is the separate, presenters-only send',
+    sendAll: n => `SLIDES LINK ONLY (PRESENTERS · ${n})`, allInvited: 'EVERYONE HAS THEIR LINK',
     zip: n => `DOWNLOAD ALL DECKS (ZIP · ${n})`, zipNone: 'NO DECKS UPLOADED YET',
     add: '+ ADD A PRESENTER', addClose: 'CLOSE',
     phName: 'Full name — e.g. Dr. Ivana Kovač', phEmail: 'Email address', addSend: 'ADD & SEND THE LINK',
@@ -96,25 +96,39 @@ export const COPY = {
     addedPending: 'PRESENTER ADDED — THE LINK GOES OUT WITHIN A MINUTE',
     needBoth: 'TYPE A NAME AND AN EMAIL FIRST'
   },
-  // The see-you-next-week reminder and what comes back from it (2026-09-13). Same card, second
-  // table: everyone holding a seat, their two catering answers, and the reminder button per row.
+  // THE Boston email (2026-09-13, reworked from the see-you-next-week reminder). One personalized
+  // email per guest: the program PDF attached, their ticket, the two catering questions, the
+  // one-pager upload — and, for presenters only, the slides upload. Same card, second table:
+  // everyone holding a seat, what has come back from them, and the send button per row.
   cat: {
-    title: 'REMINDER & CATERING', sub: 'one email a week out — the food answers come back as one-tap links',
-    sendAll: n => `SEND REMINDER TO EVERYONE (${n} NOT YET SENT)`, allSent: 'EVERYONE HAS THEIR REMINDER',
-    csv: 'CATERING LIST (CSV)',
+    title: 'THE BOSTON EMAIL', sub: 'one personalized email per guest — program PDF, ticket, catering, one-pager',
+    sendAll: n => `SEND THE BOSTON EMAIL TO EVERYONE (${n} NOT YET SENT)`, allSent: 'EVERYONE HAS THEIR EMAIL',
+    csv: 'CATERING LIST (CSV)', opZip: n => `DOWNLOAD ALL ONE-PAGERS (ZIP · ${n})`, opZipNone: 'NO ONE-PAGERS YET',
     strip: (a, t, al, na) => `${a} of ${t} answered · ${al} with allergies · ${na} still to answer`,
-    cWho: 'GUEST', cInst: 'INSTITUTION', cPref: 'PREFERENCE', cAllergy: 'ALLERGIES', cAnswered: 'ANSWERED', cRem: 'REMINDER',
+    stripOp: (n, t) => `one-pagers received ${n}/${t}`,
+    cWho: 'GUEST', cInst: 'INSTITUTION', cPref: 'PREFERENCE', cAllergy: 'ALLERGIES', cOnePager: 'ONE-PAGER', cAnswered: 'ANSWERED', cRem: 'EMAIL SENT',
     send: 'SEND', resend: 'RESEND', busy: 'SENDING…',
     noPref: 'not set', noAllergy: 'not set', allergyNone: 'none', notSent: 'not sent',
+    opYes: '✓', opNo: '–',
     empty: 'Nobody is registered yet.',
-    emptyWhy: 'Everyone who registers on the Boston form lands here — the reminder and the catering answers follow.',
-    down: 'The member portal did not answer, so the catering list is unavailable right now. Nothing is lost — reload in a minute.',
-    cOneTitle: 'Send the reminder?', cOneAgain: 'Send the reminder again?',
-    cOneBody: (who, mail) => `<p style="margin:0 0 8px">${who} gets the see-you-next-week email at <b>${mail}</b> — their ticket and the two catering questions, right now.</p><p style="margin:0;color:#6d6459">One email, sent immediately — this is not the Outbox.</p>`,
-    cAllTitle: n => `Send ${n} reminder${n === 1 ? '' : 's'}?`,
-    cAllBody: n => `<p style="margin:0 0 8px">${n} guest${n === 1 ? '' : 's'} who ${n === 1 ? 'has' : 'have'} not had a reminder get${n === 1 ? 's' : ''} it now — their ticket and the two catering questions.</p><p style="margin:0;color:#6d6459">Anyone already reminded is skipped. One email each, sent immediately — this is not the Outbox.</p>`,
-    sent: mail => `REMINDER SENT TO ${String(mail).toUpperCase()}`,
-    sentAll: n => n ? `${n} REMINDER${n === 1 ? '' : 'S'} SENT` : 'EVERYONE ALREADY HAD THEIR REMINDER'
+    emptyWhy: 'Everyone who registers on the Boston form lands here — the email and everything it collects back follow.',
+    down: 'The member portal did not answer, so the guest list is unavailable right now. Nothing is lost — reload in a minute.',
+    cOneTitle: 'Send the Boston email?', cOneAgain: 'Send the Boston email again?',
+    cOneBody: (who, mail) => `<p style="margin:0 0 8px">${who} gets the whole evening in one email at <b>${mail}</b> — the program PDF, their ticket, the two catering questions and the one-pager page, right now.</p><p style="margin:0;color:#6d6459">One email, sent immediately — this is not the Outbox.</p>`,
+    cAllTitle: n => `Send the Boston email to ${n} guest${n === 1 ? '' : 's'}?`,
+    cAllBody: n => `<p style="margin:0 0 8px">${n} guest${n === 1 ? '' : 's'} who ${n === 1 ? 'has' : 'have'} not had it get${n === 1 ? 's' : ''} the one email now — the program PDF, their ticket, the catering questions and the one-pager page.</p><p style="margin:0;color:#6d6459">Anyone already sent is skipped. One email each, sent immediately — this is not the Outbox.</p>`,
+    sent: mail => `THE BOSTON EMAIL WENT TO ${String(mail).toUpperCase()}`,
+    sentAll: n => n ? `${n} EMAIL${n === 1 ? '' : 'S'} SENT` : 'EVERYONE ALREADY HAD THE EMAIL',
+    // the program PDF — the one attachment, and the gate on every real send
+    progTitle: 'PROGRAM PDF', progNone: 'not uploaded yet — the email cannot go out without it',
+    progOn: (kb, when) => `on file · ${kb} · ${when}`, progEnv: 'set by BB_PROGRAM_PDF_KEY',
+    progUpload: 'UPLOAD THE PROGRAM PDF', progReplace: 'REPLACE', progBusy: 'UPLOADING…',
+    progSaved: 'PROGRAM PDF SAVED — THE EMAIL CAN GO OUT',
+    progBad: 'PDF ONLY, UP TO 10 MB',
+    needProgram: 'UPLOAD THE PROGRAM PDF FIRST',
+    // the owner's two previews
+    prevTitle: 'PREVIEW', prevPresenter: 'PREVIEW AS PRESENTER', prevAttendee: 'PREVIEW AS ATTENDEE', prevBusy: 'SENDING…',
+    prevSent: v => `${String(v).toUpperCase()} PREVIEW SENT TO YOUR INBOX`
   },
   stats: {
     title: 'STATS FOR MEDIA & SPONSORS', sub: 'pick a scope, type over any number — then copy the line for a press kit or sponsor deck',
@@ -388,7 +402,11 @@ function blockBoston() {
   const rows = P ? (P.rows || []) : [];
   const notInvited = P ? Number(P.not_invited) || 0 : 0;
   const uploaded = P ? Number(P.uploaded) || 0 : 0;
-  const btn = (act, label, on, extra) => `<span data-act="${act}" ${extra || ''} style="padding:8px 13px;${on ? 'background:#9b1b22;color:#fff;' : 'border:1px solid rgba(32,27,22,.25);background:#fff;color:#6d6459;'}font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap;${on ? 'cursor:pointer' : 'cursor:default'}" ${on ? `data-hover="background:#7e151b"` : 'aria-disabled="true"'}>${esc(label)}</span>`;
+  // kind 'ghost' = a secondary action: bordered even when it is live, so the primary send on the
+  // card stays the only crimson button (the Boston email is the send that matters).
+  const btn = (act, label, on, extra, kind) => kind === 'ghost'
+    ? `<span data-act="${act}" ${extra || ''} style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:${on ? '#201b16' : '#9a9086'};font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap;${on ? 'cursor:pointer' : 'cursor:default'}" ${on ? `data-hover="border-color:#201b16"` : 'aria-disabled="true"'}>${esc(label)}</span>`
+    : `<span data-act="${act}" ${extra || ''} style="padding:8px 13px;${on ? 'background:#9b1b22;color:#fff;' : 'border:1px solid rgba(32,27,22,.25);background:#fff;color:#6d6459;'}font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap;${on ? 'cursor:pointer' : 'cursor:default'}" ${on ? `data-hover="background:#7e151b"` : 'aria-disabled="true"'}>${esc(label)}</span>`;
   const cell = 'padding:9px 12px;border-bottom:1px solid rgba(32,27,22,.07);vertical-align:middle';
   const head = 'padding:8px 12px;text-align:left;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;border-bottom:1px solid rgba(32,27,22,.12);white-space:nowrap';
   return `
@@ -399,7 +417,7 @@ function blockBoston() {
         <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
         <div style="flex:1"></div>
         ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.counts(P.requested || 0, uploaded, P.invited || 0))}</span>` : ''}
-        ${P ? btn('bpSendAll', notInvited ? c.sendAll(notInvited) : c.allInvited, notInvited > 0) : ''}
+        ${P ? btn('bpSendAll', notInvited ? c.sendAll(notInvited) : c.allInvited, notInvited > 0, '', 'ghost') : ''}
         ${P && uploaded ? `<a href="${esc(P.zip_url)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.zip(uploaded))}</a>`
         : P ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.zipNone}</span>` : ''}
         ${P ? `<span data-act="bpAddToggle" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.bpOpen ? c.addClose : c.add}</span>` : ''}
@@ -437,8 +455,9 @@ function blockBoston() {
       ${sectionCatering(btn, cell, head)}
     </div>`;
 }
-// Second section of the same card: the see-you-next-week reminder and what it brings back. Every
-// guest is here (presenters included) because the reminder — and the food — is for everyone.
+// Second section of the same card: THE Boston email and everything it brings back. Every guest is
+// here (presenters included) because the email — the program, the food, the booklet — is for
+// everyone. The program PDF sits at the top because no real send can happen without it.
 function sectionCatering(btn, cell, head) {
   const c = COPY.cat;
   const C = D.cat;
@@ -446,37 +465,65 @@ function sectionCatering(btn, cell, head) {
   if (lockErr && lockErr.status === 403) return '';           // the presenters block already shows the lock
   const rows = C ? (C.rows || []) : [];
   const pending = C ? Number(C.reminders_pending) || 0 : 0;
+  const opGot = C ? Number(C.onepagers_received) || 0 : 0;
   const prefLine = C ? (C.preferences || []).filter(p => p.count).map(p => `${esc(p.label)} ${p.count}`).join(' · ') : '';
+  const prog = (C && C.program) || null;
+  const progOn = !!(prog && prog.present);
+  const progLine = progOn
+    ? c.progOn(Math.max(1, Math.round(Number(prog.size || 0) / 1024)) + ' KB', String(prog.uploaded_at || '').slice(0, 10) || '—')
+      + (prog.source === 'env' ? ' · ' + c.progEnv : '')
+    : c.progNone;
+  const ghostLink = (href, label) => `<a href="${esc(href)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(label)}</a>`;
   return `
       <div style="border-top:1px solid rgba(32,27,22,.14)">
         <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
           <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
           <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
           <div style="flex:1"></div>
-          ${C ? btn('bpRemindAll', pending ? c.sendAll(pending) : c.allSent, pending > 0) : ''}
-          ${C ? `<a href="${esc(C.csv_url || '/api/v2/boston/catering.csv')}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${c.csv}</a>` : ''}
+          ${C ? btn('bpRemindAll', !progOn ? c.needProgram : pending ? c.sendAll(pending) : c.allSent, progOn && pending > 0) : ''}
+          ${C ? ghostLink(C.csv_url || '/api/v2/boston/catering.csv', c.csv) : ''}
+          ${C && opGot ? ghostLink(C.onepagers_zip_url || '/api/v2/boston/onepagers.zip', c.opZip(opGot))
+            : C ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.opZipNone}</span>` : ''}
         </div>
+        ${C ? `
+        <!-- v2: the program PDF — the one attachment, and the gate on every real send -->
+        <div style="display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08)">
+          <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${c.progTitle}</span>
+          <span style="font-size:11.5px;color:${progOn ? '#1e6e42' : '#b7791f'}">${progOn ? '✓ ' : ''}${esc(progLine)}</span>
+          <label style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap;cursor:pointer" data-hover="border-color:#201b16">${st.bpProgramBusy ? c.progBusy : progOn ? c.progReplace : c.progUpload}<input data-role="bbProgramFile" type="file" accept="application/pdf,.pdf" style="display:none"></label>
+          <div style="flex:1"></div>
+          <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${c.prevTitle}</span>
+          ${btn('bpPreview', st.bpPreviewing === 'presenter' ? c.prevBusy : c.prevPresenter, !st.bpPreviewing, 'data-variant="presenter"', 'ghost')}
+          ${btn('bpPreview', st.bpPreviewing === 'attendee' ? c.prevBusy : c.prevAttendee, !st.bpPreviewing, 'data-variant="attendee"', 'ghost')}
+        </div>` : ''}
         ${C ? `<div style="display:flex;gap:8px 20px;flex-wrap:wrap;padding:11px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);font-size:11.5px;color:#6d6459">
           <span><b style="color:#201b16">${esc(c.strip(C.answered || 0, C.total || 0, C.with_allergies || 0, C.not_answered || 0))}</b></span>
+          <span><b style="color:#201b16">${esc(c.stripOp(opGot, C.total || 0))}</b></span>
           ${prefLine ? `<span>${prefLine}</span>` : ''}
         </div>` : ''}
         ${!C && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
         ${C && !rows.length ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
         ${C && rows.length ? `
         <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:760px">
-            <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPref}</th><th style="${head}">${c.cAllergy}</th><th style="${head}">${c.cAnswered}</th><th style="${head}">${c.cRem}</th><th style="${head}"></th></tr></thead>
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px">
+            <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPref}</th><th style="${head}">${c.cAllergy}</th><th style="${head}">${c.cOnePager}</th><th style="${head}">${c.cAnswered}</th><th style="${head}">${c.cRem}</th><th style="${head}"></th></tr></thead>
             <tbody>
             ${rows.map(r => {
               const busy = st.bpReminding === r.registration_id;
               const allergy = r.allergy_state === 'yes' ? esc(r.allergies || 'yes')
                 : r.allergy_state === 'none' ? c.allergyNone : c.noAllergy;
+              const opMark = r.onepager
+                ? (r.onepager_download_url
+                  ? `<a href="${esc(r.onepager_download_url)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px;white-space:nowrap" data-hover="background:#1e6e42;color:#fff">${c.opYes} PDF</a>`
+                  : `<span style="color:#1e6e42">${c.opYes}</span>`)
+                : `<span style="color:#9a9086">${c.opNo}</span>`;
               return `
               <tr data-row="${esc(r.registration_id)}">
                 <td style="${cell}"><span style="display:block;font-weight:600">${esc(r.name || r.email)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.email)}${r.presenter ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">PRESENTING</span>` : ''}</span></td>
                 <td style="${cell};color:#6d6459">${esc(r.institution || '—')}</td>
                 <td style="${cell};white-space:nowrap;color:${r.preference ? '#201b16' : '#9a9086'}">${r.preference ? esc(r.preference) : c.noPref}</td>
                 <td style="${cell};color:${r.allergy_state === 'yes' ? '#9b1b22' : r.allergy_state === 'none' ? '#6d6459' : '#9a9086'}">${allergy}</td>
+                <td style="${cell}">${opMark}${r.onepager_headline ? `<span style="display:block;font-size:11px;color:#6d6459;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.onepager_headline)}">${esc(r.onepager_headline)}</span>` : ''}</td>
                 <td style="${cell};white-space:nowrap;color:${r.answered ? '#1e6e42' : '#b7791f'}">${r.answered ? '✓' + (r.answered_at ? ' ' + esc(String(r.answered_at).slice(0, 10)) : '') : '—'}</td>
                 <td style="${cell};white-space:nowrap;color:${r.reminder_sent ? '#6d6459' : '#b7791f'}">${r.reminder_sent ? esc(r.reminder_sent_at || '✓') : c.notSent}</td>
                 <td style="${cell};text-align:right;white-space:nowrap">${btn('bpRemindOne', busy ? c.busy : (r.reminder_sent ? c.resend : c.send), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}</td>
@@ -620,6 +667,29 @@ async function uploadPhoto(input) {
   } catch (e) {
     st.uploading = null; rerender('[data-block="events"]', blockEvents());
     ui.toast(e.message || COPY.events.rc.uploadFail, { kind: 'error' });
+  }
+}
+
+// The program PDF — the one attachment on the Boston email. It goes to the admin backend, which
+// forwards it to the member portal (the team key never reaches this browser on the write path).
+async function uploadProgram(input) {
+  const c = COPY.cat;
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!/\.pdf$/i.test(file.name) || file.size > 10 * 1024 * 1024) { input.value = ''; ui.toast(c.progBad, { kind: 'error' }); return; }
+  st.bpProgramBusy = true; rerender('[data-block="boston"]', blockBoston());
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/v2/boston/program', { method: 'POST', headers: { Authorization: 'Bearer ' + (localStorage.getItem('medx_token') || '') }, body: fd });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.success) throw new Error(j.error || c.progBad);
+    st.bpProgramBusy = false;
+    await refreshCatering();
+    ui.toast(c.progSaved);
+  } catch (e) {
+    st.bpProgramBusy = false; rerender('[data-block="boston"]', blockBoston());
+    ui.toast(e.message || c.progBad, { kind: 'error' });
   }
 }
 
@@ -769,6 +839,7 @@ const handlers = {
   bpRemindAll: async (el) => {
     const c = COPY.cat;
     const n = (D.cat && Number(D.cat.reminders_pending)) || 0;
+    if (!(D.cat && D.cat.program && D.cat.program.present)) { ui.toast(c.needProgram, { kind: 'error' }); return; }
     if (!n) return;
     if (!await ui.confirm({ title: c.cAllTitle(n), body: c.cAllBody(n), ok: COPY.boston.goSend, cancel: COPY.boston.keep })) return;
     el.setAttribute('aria-disabled', 'true');
@@ -777,6 +848,19 @@ const handlers = {
       await refreshCatering();
       ui.toast(c.sentAll((r && r.sent && r.sent.length) || 0));
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
+  // The owner's own read-through: the two shapes of the one email, to his inbox and nowhere else.
+  // No confirm — nothing reaches a guest — but only one at a time so a double click cannot double-send.
+  bpPreview: async (el) => {
+    const c = COPY.cat;
+    const variant = el.dataset.variant === 'presenter' ? 'presenter' : 'attendee';
+    if (st.bpPreviewing) return;
+    st.bpPreviewing = variant; rerender('[data-block="boston"]', blockBoston());
+    try {
+      await api.post('/api/v2/boston/reminders/preview', { variant });
+      st.bpPreviewing = null; rerender('[data-block="boston"]', blockBoston());
+      ui.toast(c.prevSent(variant));
+    } catch (e) { st.bpPreviewing = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
   },
   scBridges: () => { st.scope = 'bridges'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
   scAll: () => { st.scope = 'all'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
@@ -796,7 +880,8 @@ export default {
     ensureCss();
     rootEl = root;
     st = { scope: 'bridges', copied: false, newCityOpen: false, ncCity: '', ncWhen: '', editEvent: null, recapEdit: null, fuName: '', fuWhy: '', uploading: null,
-           bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null, bpReminding: null };
+           bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null, bpReminding: null,
+           bpProgramBusy: false, bpPreviewing: null };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();
@@ -805,6 +890,7 @@ export default {
       const t = e.target;
       if (t && t.matches && t.matches('input[data-stat]')) saveStat(t);
       if (t && t.matches && t.matches('input[data-role="rcPhotoFile"]')) uploadPhoto(t);
+      if (t && t.matches && t.matches('input[data-role="bbProgramFile"]')) uploadProgram(t);
     };
     root.addEventListener('change', changeHandler);
   },

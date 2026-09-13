@@ -23,6 +23,11 @@
  *                                               same payload as the prod /qr/:id.png bridges branch
  *   GET  /boston/upload/:token                — personal 5-minute-presentation upload page (no login)
  *   POST /api/boston/upload/:token            — multipart upload → S3 (25 MB cap, magic-byte checked)
+ *   GET  /boston/onepager/:token              — personal one-pager page — EVERY guest (no login)
+ *   POST /api/boston/onepager/:token          — multipart upload → S3 (PDF only, 5 MB) + headline
+ *   GET  /api/boston/onepagers?key=…          — team JSON: who sent a one-pager, headline, download
+ *   GET  /api/boston/onepagers.zip?key=…      — every latest one-pager in one archive
+ *   GET  /api/boston/onepagers/:id/download?key=… — 302 → 15-minute presigned S3 GET
  *   GET  /boston/presentations?key=…          — team page: who requested / who uploaded, links, downloads
  *   GET  /api/boston/presentations?key=…      — the same data as JSON (for the v2 admin portal later)
  *   GET  /api/boston/presentations/:id/download?key=… — 302 → 15-minute presigned S3 GET
@@ -30,13 +35,16 @@
  *   GET  /boston/rsvp/:token/:answer          — one-tap catering answer (no login, HMAC token);
  *                                               records it, then offers the other question inline
  *   POST /api/boston/rsvp/:token/allergies    — the single "what to avoid" box behind that page
- *   POST /api/boston/reminders/send?key=…     — the see-you-next-week reminder: {to:'preview'|'all'|'<id>'}
+ *   GET  /api/boston/program?key=…            — the program PDF's status (present / size / uploaded)
+ *   POST /api/boston/program?key=…            — replace the program PDF (multipart, ≤10 MB)
+ *   POST /api/boston/reminders/send?key=…     — THE Boston email: {to:'preview'|'all'|'<id>'}
  *   GET  /api/boston/catering?key=…           — catering summary + one row per registrant (JSON)
  *   GET  /api/boston/catering.csv?key=…       — the caterer's list (name, institution, preference,
  *                                               allergies, answered at, presenter)
  *
  * Storage: the existing bridges_events / bridges_registrations tables (event row find-or-created with
- * the FIXED id below), plus bridges_presentations (created lazily here) for uploaded talk files.
+ * the FIXED id below), plus bridges_presentations and bridges_onepagers (both created lazily here)
+ * for uploaded talk files and participant one-pagers.
  * Presentation files live in the private S3 bucket BB_S3_BUCKET under
  * boston-2026/<registrationId>/<presentationId>.<ext> — every upload is a new key + a new history row;
  * the NEWEST row per registrant is authoritative. S3 access is a ~90-line SigV4 signer over plain
@@ -91,6 +99,23 @@ const UPLOAD_TYPES = {                                  // accepted extensions �
     key:  { mime: 'application/vnd.apple.keynote' }
 };
 const ACCEPT_ATTR = '.pdf,.ppt,.pptx,.key';
+
+// ---------------------------------------------------------------- one-pager constants (EVERYONE)
+// One page per guest — who they are, what they work on, what they are looking for. Every one-pager
+// is compiled into a participant booklet shared with all attendees after the evening, so this is a
+// PDF-only lane (a booklet cannot be assembled from four different deck formats) with a small cap.
+const MAX_ONEPAGER_BYTES = 5 * 1024 * 1024;            // 5 MB
+const ONEPAGER_PREFIX = 'boston/onepagers';            // S3: boston/onepagers/<registration id>/<id>.pdf
+const MAX_HEADLINE_CHARS = 120;                        // "Sleep neuroscientist · looking for clinical collaborators"
+
+// ---------------------------------------------------------------- the program PDF (the ONE attachment)
+// The evening's program travels as an attachment on the one email. Two ways to provide it, checked
+// in this order: BB_PROGRAM_PDF_KEY (an S3 key set in the env) or the admin-uploaded file at the
+// fixed key below. Nothing is generated here — the owner's PDF is the program.
+const MAX_PROGRAM_BYTES = 10 * 1024 * 1024;            // 10 MB
+const PROGRAM_UPLOAD_KEY = 'boston/program/program.pdf';
+const PROGRAM_FILENAME = 'Building-Bridges-Boston-program.pdf';
+const programKey = () => String(process.env.BB_PROGRAM_PDF_KEY || '').trim() || PROGRAM_UPLOAD_KEY;
 
 // ---------------------------------------------------------------- catering (one-tap answers)
 // Two questions, both critical for the caterer, both answerable from the reminder email without a
@@ -182,6 +207,36 @@ function magicOk(ext, buf) {
     return starts([0x50, 0x4b, 0x03, 0x04]);                          // pptx / key — zip containers
 }
 
+// ---- minimal ZIP writer (stored entries, UTF-8 names) -----------------------------------------
+// Decks and PDFs are already compressed, so entries go in STORED and the whole archive is plain
+// buffer arithmetic over node's zlib.crc32 — no zip dependency. One writer, two archives (every
+// presentation, every one-pager): the naming rule is the caller's, the bytes are identical.
+const zipSafe = str => String(str || '').normalize('NFKD').replace(/[^\w.\- ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) || 'x';
+function buildZip(entries) {
+    const zlib = require('zlib');
+    const parts = []; const central = []; let offset = 0;
+    const dosTime = (() => { const d = new Date(); return { t: ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xffff, d: (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xffff }; })();
+    for (const e of entries) {
+        const name = Buffer.from(e.name, 'utf8'); const crc = zlib.crc32(e.data) >>> 0;
+        const lh = Buffer.alloc(30);
+        lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0x0800, 6); lh.writeUInt16LE(0, 8);
+        lh.writeUInt16LE(dosTime.t, 10); lh.writeUInt16LE(dosTime.d, 12); lh.writeUInt32LE(crc, 14);
+        lh.writeUInt32LE(e.data.length, 18); lh.writeUInt32LE(e.data.length, 22); lh.writeUInt16LE(name.length, 26); lh.writeUInt16LE(0, 28);
+        const ch = Buffer.alloc(46);
+        ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0x0800, 8); ch.writeUInt16LE(0, 10);
+        ch.writeUInt16LE(dosTime.t, 12); ch.writeUInt16LE(dosTime.d, 14); ch.writeUInt32LE(crc, 16);
+        ch.writeUInt32LE(e.data.length, 20); ch.writeUInt32LE(e.data.length, 24); ch.writeUInt16LE(name.length, 28);
+        ch.writeUInt16LE(0, 30); ch.writeUInt16LE(0, 32); ch.writeUInt16LE(0, 34); ch.writeUInt16LE(0, 36); ch.writeUInt32LE(0, 38); ch.writeUInt32LE(offset, 42);
+        parts.push(lh, name, e.data); central.push(ch, name);
+        offset += lh.length + name.length + e.data.length;
+    }
+    const cdSize = central.reduce((n, b) => n + b.length, 0);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(0, 4); eocd.writeUInt16LE(0, 6);
+    eocd.writeUInt16LE(entries.length, 8); eocd.writeUInt16LE(entries.length, 10); eocd.writeUInt32LE(cdSize, 12); eocd.writeUInt32LE(offset, 16); eocd.writeUInt16LE(0, 20);
+    return Buffer.concat([...parts, ...central, eocd]);
+}
+
 const RESEND_AT = new Map(); // email -> last re-send ms (per process; resets on deploy — fine)
 
 // ---- bot gate (Alen 2026-09-06: gibberish registrations got wallet passes) -----------------
@@ -220,7 +275,9 @@ const s3 = (() => {
         return { scope, kSigning };
     }
 
-    return {
+    // Named so the read helpers below can go through S.presignGet — a test that stubs one method
+    // is then honored by every other method that leans on it.
+    const S = {
         isConfigured: () => !!config(),
 
         /** Header-signed single-chunk PUT of a Buffer. Resolves { etag } on 200, rejects otherwise. */
@@ -289,8 +346,48 @@ const s3 = (() => {
             const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256hex(canonicalRequest)].join('\n');
             const signature = hmac(kSigning, stringToSign).toString('hex');
             return `https://${cfg.host}${canonicalPath}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+        },
+
+        /** An object's bytes, pulled through a short-lived presigned GET. Rejects on anything but 200. */
+        getObject(objectKey, { expires = 300 } = {}) {
+            return new Promise((resolve, reject) => {
+                const url = S.presignGet(objectKey, { expires });
+                if (!url) return reject(new Error('BB_S3_* env not configured'));
+                const req = https.get(url, resp => {
+                    if (resp.statusCode !== 200) { resp.resume(); return reject(new Error('S3 GET ' + resp.statusCode + ' for ' + objectKey)); }
+                    const chunks = [];
+                    resp.on('data', c => chunks.push(c));
+                    resp.on('end', () => resolve(Buffer.concat(chunks)));
+                    resp.on('error', reject);
+                });
+                req.setTimeout(60000, () => req.destroy(new Error('S3 GET timed out')));
+                req.on('error', reject);
+            });
+        },
+
+        /** Size + last-modified without pulling the body: a presigned GET, abandoned at the headers.
+         *  Answers null for "not there" (and for every failure) — callers treat both the same. */
+        headObject(objectKey) {
+            return new Promise(resolve => {
+                let url = null;
+                try { url = S.presignGet(objectKey, { expires: 300 }); } catch (e) { url = null; }
+                if (!url) return resolve(null);
+                let done = false;
+                const finish = v => { if (!done) { done = true; resolve(v); } };
+                const req = https.get(url, resp => {
+                    const out = resp.statusCode === 200 ? {
+                        size: Number(resp.headers['content-length'] || 0),
+                        lastModified: resp.headers['last-modified'] ? new Date(resp.headers['last-modified']).toISOString() : null
+                    } : null;
+                    resp.destroy();
+                    finish(out);
+                });
+                req.setTimeout(20000, () => { req.destroy(); finish(null); });
+                req.on('error', () => finish(null));
+            });
         }
     };
+    return S;
 })();
 
 // ---------------------------------------------------------------- branded entry QR (plate overlay)
@@ -347,6 +444,32 @@ module.exports = function mountBoston(app, deps) {
             ORDER BY uploaded_at DESC, rowid DESC LIMIT 1`, [regId]);
     }
 
+    // ------------------------------------------------------------ bridges_onepagers (lazy)
+    // The participant booklet's raw material — one page per GUEST, not per presenter. Mirrors
+    // bridges_presentations exactly (every upload inserts, the newest row per registrant wins)
+    // plus one column the decks do not need: the optional single-line headline that goes under
+    // the name in the booklet's index. stored_key = boston/onepagers/<regId>/<onepagerId>.pdf.
+    let onePagerTableReady = false;
+    function ensureOnepagersTable() {
+        if (onePagerTableReady) return;
+        query.run(`CREATE TABLE IF NOT EXISTS bridges_onepagers (
+            id TEXT PRIMARY KEY,
+            registration_id TEXT NOT NULL,
+            original_name TEXT NOT NULL,
+            stored_key TEXT NOT NULL,
+            mime TEXT,
+            size INTEGER NOT NULL,
+            headline TEXT,
+            uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )`);
+        onePagerTableReady = true;
+    }
+    function latestOnepager(regId) {
+        ensureOnepagersTable();
+        return query.get(`SELECT * FROM bridges_onepagers WHERE registration_id = ?
+            ORDER BY uploaded_at DESC, rowid DESC LIMIT 1`, [regId]);
+    }
+
     // ------------------------------------------------------------ no-login tokens
     // Apple-pass download token: hex HMAC-SHA256(JWT_SECRET,'boston:'+id).slice(0,32) + '.' + id —
     // possession = authorization (travels only inside the guest's own confirmation email).
@@ -380,6 +503,18 @@ module.exports = function mountBoston(app, deps) {
         const m = /^([0-9a-f]{32})\.([0-9a-fA-F-]{16,64})$/.exec(String(token || ''));
         if (!m) return null;
         const expect = dietSig(m[2]);
+        if (!crypto.timingSafeEqual(Buffer.from(m[1]), Buffer.from(expect))) return null;
+        return m[2];
+    }
+    // One-pager token — the FOURTH distinct HMAC context. A pass, an upload, a diet and a one-pager
+    // link are four different keys over the same id: replaying any one of them at another route is
+    // a 404, so the booklet lane cannot be opened with a slides link (or the other way round).
+    const onepagerSig = id => crypto.createHmac('sha256', String(JWT_SECRET)).update('boston:onepager:' + String(id)).digest('hex').slice(0, 32);
+    const onepagerToken = id => onepagerSig(id) + '.' + String(id);
+    function verifyOnepagerToken(token) {
+        const m = /^([0-9a-f]{32})\.([0-9a-fA-F-]{16,64})$/.exec(String(token || ''));
+        if (!m) return null;
+        const expect = onepagerSig(m[2]);
         if (!crypto.timingSafeEqual(Buffer.from(m[1]), Buffer.from(expect))) return null;
         return m[2];
     }
@@ -997,6 +1132,244 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ============================================================ ONE-PAGERS (every guest)
+    // "Introduce yourself to the room." One PDF page per guest, compiled into a participant booklet
+    // after the evening. Same machinery as the decks — memory multer → magic-byte check → S3 →
+    // a history row, newest wins — with three deliberate differences: it is open to EVERYONE (not
+    // only presenters), PDF only (a booklet needs one format), and it carries an optional one-line
+    // headline for the booklet's index.
+    const onepagerMulter = multerLib
+        ? multerLib({ storage: multerLib.memoryStorage(), limits: { fileSize: MAX_ONEPAGER_BYTES, files: 1 } }).single('file')
+        : null;
+    function onepagerParser(req, res, next) {
+        if (!onepagerMulter) return res.status(503).json({ error: 'Uploads are momentarily unavailable. Please try again shortly.' });
+        onepagerMulter(req, res, err => {
+            if (!err) return next();
+            if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'That file is over the 5 MB limit. One page is all we need — export it again and try.' });
+            return res.status(400).json({ error: 'We could not read that upload. Please try again with a PDF.' });
+        });
+    }
+    const cleanHeadline = v => String(v == null ? '' : v).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, MAX_HEADLINE_CHARS);
+
+    // ------------------------------------------------------------ GET /boston/onepager/:token
+    app.get('/boston/onepager/:token', (req, res) => {
+        res.set('X-Robots-Tag', 'noindex, nofollow');
+        res.set('Cache-Control', 'private, no-store');
+        try {
+            const id = verifyOnepagerToken(req.params.token);
+            const reg = id ? query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
+            if (!reg) return res.status(404).send(onepagerNotFoundPage());
+            res.send(onepagerPage(reg, latestOnepager(reg.id), s3.isConfigured(), String(req.params.token)));
+        } catch (e) {
+            console.error('[Boston] one-pager page error:', e.message);
+            res.status(500).send(simplePage('Something went wrong', 'One moment, please.',
+                `We could not open your page just now. Please try the link again in a minute, or write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>).`));
+        }
+    });
+
+    // ------------------------------------------------------------ POST /api/boston/onepager/:token
+    app.post('/api/boston/onepager/:token', onepagerParser, async (req, res) => {
+        try {
+            const id = verifyOnepagerToken(req.params.token);
+            if (!id) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
+            if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (!s3.isConfigured()) return res.status(503).json({ error: 'Uploads open soon — this same link will work shortly. Nothing else is needed from you.' });
+            const f = req.file;
+            if (!f || !f.buffer || !f.buffer.length) return res.status(400).json({ error: 'Choose your one-pager first — a PDF, up to 5 MB.' });
+            const name = sanitizeFilename(f.originalname || 'one-pager.pdf');
+            if (!/\.pdf$/i.test(name)) return res.status(400).json({ error: 'PDF only, please — export your page as a PDF and try again.' });
+            if (f.buffer.length > MAX_ONEPAGER_BYTES) {  // belt — multer already aborts the stream at the cap
+                return res.status(413).json({ error: 'That file is over the 5 MB limit. One page is all we need — export it again and try.' });
+            }
+            if (!magicOk('pdf', f.buffer)) {
+                return res.status(400).json({ error: 'That file does not look like a real PDF inside. Please re-export it and try again.' });
+            }
+            ensureOnepagersTable();
+            const headline = cleanHeadline((req.body || {}).headline);
+            const docId = crypto.randomUUID();
+            const storedKey = `${ONEPAGER_PREFIX}/${id}/${docId}.pdf`;
+            await s3.putObject(storedKey, f.buffer, 'application/pdf');   // S3 first — a row only for a stored file
+            const uploadedAt = new Date().toISOString();
+            query.run(`INSERT INTO bridges_onepagers (id, registration_id, original_name, stored_key, mime, size, headline, uploaded_at)
+                VALUES (?,?,?,?,?,?,?,?)`, [docId, id, name, storedKey, 'application/pdf', f.buffer.length, headline || null, uploadedAt]);
+            flushDb();
+            res.json({ success: true, filename: name, size: f.buffer.length, headline: headline || null, uploaded_at: uploadedAt });
+        } catch (e) {
+            console.error('[Boston] one-pager upload failed:', e.message);
+            res.status(502).json({ error: 'The upload did not go through. Please try again — this same link keeps working.' });
+        }
+    });
+
+    // ------------------------------------------------------------ team data (one-pagers)
+    // EVERY guest holding a seat is a row here (the booklet is for the whole room), with their
+    // personal link so the team can re-send one by hand, and the latest file when there is one.
+    function onepagerAdminData() {
+        ensureOnepagersTable();
+        const regs = query.all(`SELECT * FROM bridges_registrations
+            WHERE event_id = ? AND status IN ('registered','confirmed')
+            ORDER BY registered_at, rowid`, [EVENT_ID]);
+        const base = baseUrl();
+        const rows = regs.map(r => {
+            const latest = latestOnepager(r.id);
+            const versions = latest
+                ? Number((query.get('SELECT COUNT(*) AS n FROM bridges_onepagers WHERE registration_id = ?', [r.id]) || {}).n || 0)
+                : 0;
+            return {
+                registration_id: r.id,
+                name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+                institution: r.institution || '',
+                email: r.email,
+                presenter: isPresenterRow(r),
+                upload_url: `${base}/boston/onepager/${onepagerToken(r.id)}`,
+                headline: latest && latest.headline ? String(latest.headline) : null,
+                onepager: latest ? {
+                    id: latest.id,
+                    filename: latest.original_name,
+                    size: Number(latest.size),
+                    headline: latest.headline || null,
+                    uploaded_at: latest.uploaded_at,
+                    versions,
+                    download_url: `${base}/api/boston/onepagers/${latest.id}/download?key=${adminKey()}`
+                } : null
+            };
+        });
+        return {
+            event: EVENT_ID, event_name: EVENT_NAME,
+            generated_at: new Date().toISOString(),
+            s3_configured: s3.isConfigured(),
+            total: rows.length,
+            received: rows.filter(r => r.onepager).length,
+            rows
+        };
+    }
+
+    // ------------------------------------------------------------ GET /api/boston/onepagers (JSON)
+    app.get('/api/boston/onepagers', (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            res.set('Cache-Control', 'private, no-store');
+            res.json(onepagerAdminData());
+        } catch (e) {
+            console.error('[Boston] one-pagers JSON error:', e.message);
+            res.status(500).json({ error: 'Could not assemble the list.' });
+        }
+    });
+
+    // ------------------------------------------------------------ GET /api/boston/onepagers.zip?key=…
+    // The booklet's raw material in one archive — "<Last>_<First>__<original>.pdf", same writer
+    // and the same naming rule as the presentations archive.
+    app.get('/api/boston/onepagers.zip', async (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            ensureOnepagersTable();
+            if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
+            const data = onepagerAdminData();
+            const withFile = data.rows.filter(r => r.onepager && r.onepager.id);
+            if (!withFile.length) return res.status(404).json({ error: 'No one-pagers uploaded yet.' });
+            const entries = [];
+            for (const r of withFile) {
+                const p = query.get('SELECT * FROM bridges_onepagers WHERE id = ?', [r.onepager.id]);
+                if (!p) continue;
+                const buf = await s3.getObject(p.stored_key);
+                const reg = query.get('SELECT first_name, last_name FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
+                entries.push({ name: `${zipSafe(reg.last_name)}_${zipSafe(reg.first_name)}__${zipSafe(p.original_name)}`, data: buf });
+            }
+            const zip = buildZip(entries);
+            res.set('Content-Type', 'application/zip');
+            res.set('Content-Disposition', `attachment; filename="BB-Boston-one-pagers-${new Date().toISOString().slice(0, 10)}.zip"`);
+            res.set('Cache-Control', 'private, no-store');
+            res.send(zip);
+        } catch (e) {
+            console.error('[Boston] one-pager zip failed:', e.message);
+            res.status(500).json({ error: 'Could not build the archive: ' + e.message });
+        }
+    });
+
+    // ------------------------------------------------------------ GET /api/boston/onepagers/:id/download
+    app.get('/api/boston/onepagers/:id/download', (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            ensureOnepagersTable();
+            const p = query.get('SELECT * FROM bridges_onepagers WHERE id = ?', [String(req.params.id || '')]);
+            if (!p) return res.status(404).json({ error: 'Not found' });
+            if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
+            const url = s3.presignGet(p.stored_key, { expires: 900, filename: p.original_name });   // 15 minutes
+            res.set('Cache-Control', 'private, no-store');
+            res.redirect(302, url);
+        } catch (e) {
+            console.error('[Boston] one-pager download redirect failed:', e.message);
+            res.status(500).json({ error: 'Could not build the download link.' });
+        }
+    });
+
+    // ============================================================ THE PROGRAM PDF (one attachment)
+    // Uploaded once by the team, attached to every copy of the one email. Read back from S3 per
+    // batch (not per recipient), so a 300-guest send pulls the file exactly once.
+    const programMulter = multerLib
+        ? multerLib({ storage: multerLib.memoryStorage(), limits: { fileSize: MAX_PROGRAM_BYTES, files: 1 } }).single('file')
+        : null;
+    function programParser(req, res, next) {
+        if (!programMulter) return res.status(503).json({ error: 'Uploads are momentarily unavailable. Please try again shortly.' });
+        programMulter(req, res, err => {
+            if (!err) return next();
+            if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'That file is over the 10 MB limit. Please compress the PDF and try again.' });
+            return res.status(400).json({ error: 'We could not read that upload. Please try again with a PDF.' });
+        });
+    }
+    async function programStatus() {
+        const key = programKey();
+        if (!s3.isConfigured()) return { present: false, configured: false, key, source: key === PROGRAM_UPLOAD_KEY ? 'upload' : 'env' };
+        const head = await s3.headObject(key);
+        return {
+            present: !!head, configured: true, key,
+            source: key === PROGRAM_UPLOAD_KEY ? 'upload' : 'env',
+            size: head ? head.size : null,
+            uploaded_at: head ? head.lastModified : null
+        };
+    }
+    /** The attachment, in sendEmail's own shape — or null when there is no program PDF to attach. */
+    async function loadProgramAttachment() {
+        if (!s3.isConfigured()) return null;
+        try {
+            const buf = await s3.getObject(programKey());
+            if (!buf || !buf.length) return null;
+            return { filename: PROGRAM_FILENAME, content: buf, type: 'application/pdf' };
+        } catch (e) {
+            console.warn('[Boston] program PDF unavailable:', e.message);
+            return null;
+        }
+    }
+
+    app.get('/api/boston/program', async (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            res.set('Cache-Control', 'private, no-store');
+            res.json(await programStatus());
+        } catch (e) {
+            console.error('[Boston] program status failed:', e.message);
+            res.status(500).json({ error: 'Could not read the program status.' });
+        }
+    });
+
+    app.post('/api/boston/program', programParser, async (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
+            const f = req.file;
+            if (!f || !f.buffer || !f.buffer.length) return res.status(400).json({ error: 'Choose the program PDF first.' });
+            if (f.buffer.length > MAX_PROGRAM_BYTES) return res.status(413).json({ error: 'That file is over the 10 MB limit. Please compress the PDF and try again.' });
+            if (!/\.pdf$/i.test(String(f.originalname || ''))) return res.status(400).json({ error: 'PDF only, please.' });
+            if (!magicOk('pdf', f.buffer)) return res.status(400).json({ error: 'That file does not look like a real PDF inside. Please re-export it and try again.' });
+            await s3.putObject(PROGRAM_UPLOAD_KEY, f.buffer, 'application/pdf');   // one key — a new upload replaces
+            console.log(`[Boston] program PDF replaced (${f.buffer.length} bytes)`);
+            res.json({ success: true, size: f.buffer.length, key: PROGRAM_UPLOAD_KEY, uploaded_at: new Date().toISOString() });
+        } catch (e) {
+            console.error('[Boston] program upload failed:', e.message);
+            res.status(502).json({ error: 'The upload did not go through. Please try again.' });
+        }
+    });
+
     // ------------------------------------------------------------ team data (page + JSON share it)
     function presentationAdminData() {
         ensurePresentationsTable();
@@ -1082,40 +1455,11 @@ module.exports = function mountBoston(app, deps) {
             for (const r of withFile) {
                 const p = query.get('SELECT * FROM bridges_presentations WHERE id = ?', [r.upload.id]);
                 if (!p) continue;
-                const url = s3.presignGet(p.stored_key, { expires: 300 });
-                const buf = await new Promise((resolve, reject) => {
-                    https.get(url, resp => {
-                        if (resp.statusCode !== 200) { resp.resume(); return reject(new Error('S3 ' + resp.statusCode + ' for ' + p.stored_key)); }
-                        const chunks = []; resp.on('data', c => chunks.push(c)); resp.on('end', () => resolve(Buffer.concat(chunks))); resp.on('error', reject);
-                    }).on('error', reject);
-                });
-                const safe = str => String(str || '').normalize('NFKD').replace(/[^\w.\- ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) || 'x';
+                const buf = await s3.getObject(p.stored_key);
                 const reg = query.get('SELECT first_name, last_name FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
-                entries.push({ name: `${safe(reg.last_name)}_${safe(reg.first_name)}__${safe(p.original_name)}`, data: buf });
+                entries.push({ name: `${zipSafe(reg.last_name)}_${zipSafe(reg.first_name)}__${zipSafe(p.original_name)}`, data: buf });
             }
-            // --- minimal ZIP writer (stored entries, UTF-8 names) ---
-            const zlib = require('zlib');
-            const parts = []; const central = []; let offset = 0;
-            const dosTime = (() => { const d = new Date(); return { t: ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xffff, d: (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xffff }; })();
-            for (const e of entries) {
-                const name = Buffer.from(e.name, 'utf8'); const crc = zlib.crc32(e.data) >>> 0;
-                const lh = Buffer.alloc(30);
-                lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0x0800, 6); lh.writeUInt16LE(0, 8);
-                lh.writeUInt16LE(dosTime.t, 10); lh.writeUInt16LE(dosTime.d, 12); lh.writeUInt32LE(crc, 14);
-                lh.writeUInt32LE(e.data.length, 18); lh.writeUInt32LE(e.data.length, 22); lh.writeUInt16LE(name.length, 26); lh.writeUInt16LE(0, 28);
-                const ch = Buffer.alloc(46);
-                ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0x0800, 8); ch.writeUInt16LE(0, 10);
-                ch.writeUInt16LE(dosTime.t, 12); ch.writeUInt16LE(dosTime.d, 14); ch.writeUInt32LE(crc, 16);
-                ch.writeUInt32LE(e.data.length, 20); ch.writeUInt32LE(e.data.length, 24); ch.writeUInt16LE(name.length, 28);
-                ch.writeUInt16LE(0, 30); ch.writeUInt16LE(0, 32); ch.writeUInt16LE(0, 34); ch.writeUInt16LE(0, 36); ch.writeUInt32LE(0, 38); ch.writeUInt32LE(offset, 42);
-                parts.push(lh, name, e.data); central.push(ch, name);
-                offset += lh.length + name.length + e.data.length;
-            }
-            const cdSize = central.reduce((n, b) => n + b.length, 0);
-            const eocd = Buffer.alloc(22);
-            eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(0, 4); eocd.writeUInt16LE(0, 6);
-            eocd.writeUInt16LE(entries.length, 8); eocd.writeUInt16LE(entries.length, 10); eocd.writeUInt32LE(cdSize, 12); eocd.writeUInt32LE(offset, 16); eocd.writeUInt16LE(0, 20);
-            const zip = Buffer.concat([...parts, ...central, eocd]);
+            const zip = buildZip(entries);
             res.set('Content-Type', 'application/zip');
             res.set('Content-Disposition', `attachment; filename="BB-Boston-presentations-${new Date().toISOString().slice(0, 10)}.zip"`);
             res.set('Cache-Control', 'private, no-store');
@@ -1180,11 +1524,16 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
-    // ============================================================ SEE-YOU-NEXT-WEEK REMINDER
-    // One email a week before the evening, to everyone holding a seat (presenters included), with
-    // the ticket they already have — same QR, same wallet passes, same .ics, nothing re-minted —
-    // and the two catering questions the caterer needs. Every answer is a LINK: one tap records it
-    // and lands on a page that offers the other question. Two taps and the guest is done.
+    // ============================================================ THE ONE BOSTON EMAIL
+    // Alen 2026-09-13: "people receive ONLY ONE email, personalized". So this is not a reminder
+    // beside four other sends — it is the whole evening in one message, in a fixed module order:
+    //   (a) see you on Monday — date, venue, doors, dress
+    //   (b) your program      — the attached PDF
+    //   (c) your ticket       — the entry QR they already have + wallet passes + calendar
+    //   (d) two quick questions for the catering — one-tap links, no login, no re-typing
+    //   (e) introduce yourself — the one-pager upload, EVERY guest
+    //   (f) you're presenting  — the slides upload, presenters ONLY
+    //   (g) reply-to / Laura
     // Nothing here sends by itself: the route is keyed, and 'all' only ever arrives from an
     // explicit admin click behind a confirm.
 
@@ -1218,10 +1567,31 @@ module.exports = function mountBoston(app, deps) {
             ? `<div style="font-family:${T.sans};font-size:11.5px;line-height:1.6;color:#c9b89f;margin-top:2px;">You already told us${state.prefLabel ? ' <b style="color:#f2e7d6;">' + esc(state.prefLabel) + '</b>' : ''}${state.allergyState === 'none' ? ' and <b style="color:#f2e7d6;">no allergies</b>' : state.allergyState === 'yes' ? ' and <b style="color:#f2e7d6;">' + esc(state.allergyText) + '</b>' : ''} — tap anything above to change it.</div>`
             : '';
 
-        const presenterLine = o.presenter && !o.uploaded
-            ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:#342718;border:1px solid rgba(240,228,210,.16);"><tr><td style="padding:13px 18px;font-family:${T.sans};font-size:12.5px;line-height:1.6;color:#d3c5b2;">
-        <b style="color:#f2e7d6;">You&rsquo;re presenting</b> &mdash; <a href="${esc(base + '/boston/upload/' + uploadToken(id))}" style="color:#e6c37f;font-weight:600;">upload your slides here</a>.
-      </td></tr></table>` : '';
+        // ---- the module chrome every block below shares ----
+        const label = t => `<div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">${t}</div>`;
+        const para = (html, mt) => `<div style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:#d3c5b2;margin-top:${mt == null ? 8 : mt}px;">${html}</div>`;
+        const module = inner => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">${inner}</td></tr></table>`;
+        const wideBtn = (text, href) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:16px;">${emailTemplates.btn(text, href, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;background:#a8232b;')}</td></tr></table>`;
+        const onFile = (verb, filename) => `<div style="font-family:${T.sans};font-size:12px;line-height:1.6;color:#c9b89f;margin-top:12px;text-align:center;">${verb} &#10003;${filename ? ' <b style="color:#f2e7d6;">' + esc(filename) + '</b>' : ''} &mdash; open the same link to replace it.</div>`;
+
+        // ---- (b) your program — the PDF attached to this very email ----
+        const programBlock = module(`${label('Your program')}
+        ${para(`The full program of the evening &mdash; who speaks, when, and what follows &mdash; is <b style="color:#f2e7d6;">attached to this email as a PDF</b>.${o.programMissing
+            ? ' <b style="color:#e8b45c;">(program PDF not uploaded yet)</b>' : ''}`)}`);
+
+        // ---- (e) introduce yourself — the one-pager, for EVERY guest ----
+        const onepagerBlock = module(`${label('Introduce yourself')}
+        ${para('One page about you &mdash; who you are, what you work on, and what collaborators or opportunities you are looking for. We compile every one-pager into a <b style="color:#f2e7d6;">participant booklet</b> and share it with all attendees after the evening.')}
+        ${para('<span style="color:#c9b89f;font-size:12px;">PDF, up to 5&nbsp;MB. Your link is personal &mdash; you can replace the file any time before the evening.</span>', 6)}
+        ${wideBtn(o.onepager ? 'Replace my one-pager' : 'Upload my one-pager', base + '/boston/onepager/' + onepagerToken(id))}
+        ${o.onepager ? onFile('Already received', o.onepager.original_name) : ''}`);
+
+        // ---- (f) you're presenting — the slides, presenters ONLY ----
+        const presenterBlock = o.presenter ? module(`${label("You're presenting")}
+        ${para('Your <b style="color:#f2e7d6;">5-minute presentation</b> is part of the evening. Please upload your slides from your personal link so we can preload every deck before the doors open.')}
+        ${para('<span style="color:#c9b89f;font-size:12px;">PDF, PowerPoint (.ppt/.pptx) or Keynote, up to 25&nbsp;MB &middot; 5&ndash;7 slides works best for five minutes.</span>', 6)}
+        ${wideBtn(o.uploaded ? 'Replace my slides' : 'Upload my slides', base + '/boston/upload/' + uploadToken(id))}
+        ${o.uploaded ? onFile('Already received', o.uploaded && o.uploaded.original_name) : ''}`) : '';
 
         const walletStack = (links.apple || links.google || links.calendar) ? `
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px auto 0;">
@@ -1235,7 +1605,7 @@ module.exports = function mountBoston(app, deps) {
       <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;color:#f2e7d6;margin-top:10px;">See you on ${esc(DATE_LONG.replace(/,\s*\d{4}$/, ''))}, <i>${esc(first)}</i>.</div>
       <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:16px;">
         <p style="margin:0 0 10px;">Dear ${esc(first)}, see you on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b> &mdash; Waterhouse Room, Gordon Hall, Harvard Medical School. Doors open at <b style="color:#f2e7d6;">5:30&nbsp;PM</b>, the program runs <b style="color:#f2e7d6;">6:00&ndash;9:00&nbsp;PM</b>, business attire.</p>
-        <p style="margin:0;">Your ticket is below &mdash; the same QR and wallet passes you already have. Nothing new to collect.</p>
+        <p style="margin:0;">Everything you need is below &mdash; the program, your ticket, two quick questions for the caterer, and a page to introduce yourself to the room. <b style="color:#f2e7d6;">This is the only email we will send you before the evening.</b></p>
       </div>
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td style="padding:18px 20px;">
@@ -1245,7 +1615,13 @@ module.exports = function mountBoston(app, deps) {
           ${fact('DRESS', esc(DRESS))}
           ${fact('GUEST', `${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))}`)}
         </table>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-top:1px solid rgba(240,228,210,.16);"><tr><td align="center" style="padding-top:16px;">
+      </td></tr></table>
+
+      ${programBlock}
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
+        ${label('Your ticket')}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td align="center" style="padding:18px 20px;">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid rgba(240,228,210,.2);padding:8px;">
             <a href="${esc(base + '/api/boston/qr/' + id + '.png')}" style="display:block;text-decoration:none;"><img src="${esc(base + '/api/boston/qr/' + id + '.png')}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;"></a>
           </td></tr></table>
@@ -1254,11 +1630,9 @@ module.exports = function mountBoston(app, deps) {
         </td></tr></table>
       </td></tr></table>
 
-      ${presenterLine}
-
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
-        <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Two quick questions for the catering</div>
-        <div style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:#d3c5b2;margin-top:8px;">One tap each &mdash; no form, no login, your name is already on it.</div>
+        ${label('Two quick questions for the catering')}
+        ${para('One tap each &mdash; no form, no login, your name is already on it.')}
         <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:18px;">1 &middot; What should we put on your plate?</div>
         <div style="margin-top:10px;">${prefChips}</div>
         <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:12px;">2 &middot; Any food allergies?</div>
@@ -1266,13 +1640,16 @@ module.exports = function mountBoston(app, deps) {
         ${answeredNote}
       </td></tr></table>
 
+      ${onepagerBlock}
+      ${presenterBlock}
+
       <div style="margin-top:24px;padding-top:14px;border-top:1px solid rgba(240,228,210,.18);font-family:${T.sans};font-size:11.5px;line-height:1.7;color:#d3c5b2;">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
     </td></tr></table>`;
 
         return emailTemplates.shell({
             tone: 'dark',
             title: 'See you on ' + DATE_LONG.replace(/\s*\d{4}$/, '') + ' — Building Bridges Boston',
-            preheader: 'Doors 5:30 PM · Waterhouse Room, Gordon Hall · two quick questions for the catering.',
+            preheader: 'Your program, your ticket, two quick questions for the catering, and a page to introduce yourself.',
             headerRightLabel: 'BUILDING BRIDGES · BOSTON',
             rule: 'crimson',
             bodyHtml: body
@@ -1354,7 +1731,7 @@ module.exports = function mountBoston(app, deps) {
         const regs = cateringRows();
         const preferences = PREF_KEYS.map(k => ({ key: k, label: DIET_PREFS[k], count: 0 }));
         const byKey = new Map(preferences.map(p => [p.key, p]));
-        let withAllergies = 0, noAllergies = 0, notAnswered = 0, remindersSent = 0;
+        let withAllergies = 0, noAllergies = 0, notAnswered = 0, remindersSent = 0, onepagers = 0;
         const rows = regs.map(r => {
             const st = cateringStateOf(r);
             if (st.prefKey && byKey.has(st.prefKey)) byKey.get(st.prefKey).count++;
@@ -1363,6 +1740,8 @@ module.exports = function mountBoston(app, deps) {
             if (!st.answered) notAnswered++;
             if (wasReminded(r)) remindersSent++;
             const presenter = isPresenterRow(r);
+            const onePager = latestOnepager(r.id);
+            if (onePager) onepagers++;
             return {
                 registration_id: r.id,
                 name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
@@ -1377,6 +1756,10 @@ module.exports = function mountBoston(app, deps) {
                 answered_at: st.answeredAt,
                 presenter,
                 uploaded: presenter ? !!latestPresentation(r.id) : false,
+                onepager: !!onePager,
+                onepager_headline: onePager && onePager.headline ? String(onePager.headline) : null,
+                onepager_at: onePager ? onePager.uploaded_at : null,
+                onepager_download_url: onePager ? `${baseUrl()}/api/boston/onepagers/${onePager.id}/download?key=${adminKey()}` : null,
                 reminder_sent: wasReminded(r),
                 reminder_sent_at: remindedOn(r)
             };
@@ -1394,6 +1777,8 @@ module.exports = function mountBoston(app, deps) {
             no_allergies: noAllergies,
             allergies_unanswered: rows.length - withAllergies - noAllergies,
             presenters: rows.filter(r => r.presenter).length,
+            onepagers_received: onepagers,
+            onepagers_pending: rows.length - onepagers,
             reminders_sent: remindersSent,
             reminders_pending: rows.length - remindersSent,
             rows
@@ -1401,31 +1786,66 @@ module.exports = function mountBoston(app, deps) {
     }
 
     // ------------------------------------------------------------ POST /api/boston/reminders/send
-    // {to:'preview'} → ONE sample to the reviewer, nothing stamped.
-    // {to:'all'}     → everyone not yet reminded (already-sent rows are skipped).
-    // {to:'<id>'}    → that one registrant, always (this is the Resend button).
+    // {to:'preview'}                       → BOTH shapes of the email to the reviewer, nothing stamped.
+    // {to:'preview', variant:'presenter'}  → just that shape (the other is 'attendee').
+    // {to:'all'}                           → everyone not yet reminded (already-sent rows are skipped).
+    // {to:'<id>'}                          → that one registrant, always (this is the Resend button).
+    //
+    // The program PDF is the one attachment, fetched from S3 ONCE per batch and reused for every
+    // recipient. A real send without it would leave the whole room without the program, so 'all'
+    // and single sends refuse; only the preview goes out marked "(program PDF not uploaded yet)"
+    // so the owner can read the email before the PDF exists.
+    const perRegistrantOpts = (r, programMissing) => {
+        const presenter = isPresenterRow(r);
+        return {
+            presenter,
+            uploaded: presenter ? (latestPresentation(r.id) || null) : null,
+            onepager: latestOnepager(r.id) || null,
+            programMissing: !!programMissing
+        };
+    };
+
     app.post('/api/boston/reminders/send', async (req, res) => {
         try {
             if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
-            const to = String((req.body || {}).to || '').trim();
+            const body = req.body || {};
+            const to = String(body.to || '').trim();
             const everyone = cateringRows();
+            const program = await loadProgramAttachment();
 
             if (to === 'preview') {
-                const sample = everyone[0] || { id: 'preview', first_name: 'Alen', last_name: '', email: reviewGate.REVIEW_TO, institution: '' };
-                const presenter = isPresenterRow(sample);
-                await sendEmail(reviewGate.REVIEW_TO, '[PREVIEW] ' + REMINDER_SUBJECT,
-                    reminderEmailHtml(sample, { presenter, uploaded: presenter ? !!latestPresentation(sample.id) : false }));
-                return res.json({ success: true, preview_to: reviewGate.REVIEW_TO, registrants: everyone.length });
+                const wanted = String(body.variant || '').trim().toLowerCase();
+                if (wanted && wanted !== 'presenter' && wanted !== 'attendee') {
+                    return res.status(400).json({ error: 'variant must be "presenter" or "attendee".' });
+                }
+                // Each variant is built from a REAL row of that shape, so the preview shows the
+                // links, the ticket and the answers the owner would actually see.
+                const fallback = (extraNotes) => ({ id: 'preview', first_name: 'Alen', last_name: '', email: reviewGate.REVIEW_TO, institution: '', notes: extraNotes || null });
+                const pick = {
+                    presenter: everyone.find(isPresenterRow) || fallback('5-minute presentation requested'),
+                    attendee: everyone.find(r => !isPresenterRow(r)) || fallback(null)
+                };
+                const variants = wanted ? [wanted] : ['presenter', 'attendee'];
+                for (const v of variants) {
+                    const sample = pick[v];
+                    await sendEmail(reviewGate.REVIEW_TO, `[PREVIEW · ${v}] ` + REMINDER_SUBJECT,
+                        reminderEmailHtml(sample, perRegistrantOpts(sample, !program)),
+                        program ? [program] : undefined);
+                }
+                return res.json({
+                    success: true, preview_to: reviewGate.REVIEW_TO, variants,
+                    program_attached: !!program, registrants: everyone.length
+                });
             }
             if (to !== 'all' && !to) return res.status(400).json({ error: 'Say who: "preview", "all", or a registration id.' });
+            if (!program) return res.status(400).json({ error: 'Upload the program PDF first' });
 
             const targets = to === 'all' ? everyone.filter(r => !wasReminded(r)) : everyone.filter(r => String(r.id) === to);
             const today = new Date().toISOString().slice(0, 10);
             const sent = [];
             for (const r of targets) {
-                const presenter = isPresenterRow(r);
                 const out = await sendEmail(r.email, REMINDER_SUBJECT,
-                    reminderEmailHtml(r, { presenter, uploaded: presenter ? !!latestPresentation(r.id) : false }));
+                    reminderEmailHtml(r, perRegistrantOpts(r, false)), [program]);
                 if (out && out.success !== false) {
                     const notes = String(r.notes || '');
                     const stamped = new RegExp(REMINDER_MARK).test(notes) ? notes
@@ -1435,9 +1855,9 @@ module.exports = function mountBoston(app, deps) {
                 }
             }
             flushDb();
-            console.log(`[Boston] reminders sent: ${sent.length}/${targets.length}`);
+            console.log(`[Boston] Boston emails sent: ${sent.length}/${targets.length}`);
             return res.json({
-                success: true, sent,
+                success: true, sent, program_attached: true,
                 skipped_already_sent: to === 'all' ? everyone.length - targets.length : 0,
                 not_found: to !== 'all' && !targets.length
             });
@@ -1529,7 +1949,7 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
-    console.log('[Boston] Building Bridges Boston wing mounted (/boston + presentation uploads + catering reminder)');
+    console.log('[Boston] Building Bridges Boston wing mounted (/boston + presentation & one-pager uploads + the one Boston email)');
 };
 
 // Test seam: the SigV4 helper — tests stub putObject (never the wire) and drive presignGet as-is
@@ -1899,6 +2319,178 @@ ${FOOTER_HTML}
 </body></html>`;
 }
 
+// ---------------------------------------------------------------- personal one-pager page
+// The same chrome as the presentation page, one lane narrower: PDF only, 5 MB, plus the optional
+// single line that goes under the guest's name in the participant booklet's index.
+function onepagerPage(reg, current, s3ok, token) {
+    const first = reg.first_name || 'there';
+    const fullName = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Med&X Guest';
+    const currentCard = current ? `
+      <div class="onfile" id="onfile">
+        <p class="slabel" style="margin-bottom:8px;">On file with us</p>
+        <p class="fname" id="of_name">${esc(current.original_name)}</p>
+        <p class="fmeta" id="of_meta">${esc(prettySize(Number(current.size)))} &middot; uploaded ${esc(fmtWhen(current.uploaded_at))}</p>
+        ${current.headline ? `<p class="fmeta">&ldquo;${esc(current.headline)}&rdquo;</p>` : ''}
+        <p class="fnote">Uploading a new file from this page replaces it for the booklet.</p>
+      </div>` : '';
+    const headlineField = `
+        <div class="hl">
+          <label for="hl_text">One line about you <span style="text-transform:none;letter-spacing:.2px;font-weight:500;color:#a89a86;">(optional)</span></label>
+          <input type="text" id="hl_text" maxlength="${MAX_HEADLINE_CHARS}" placeholder="e.g. Sleep neuroscientist &middot; looking for clinical collaborators" value="${esc(current && current.headline ? current.headline : '')}" autocomplete="off">
+          <p class="reqs" style="margin-top:7px;">This is the line printed under your name in the booklet&rsquo;s index.</p>
+        </div>`;
+    const uploader = s3ok ? `
+      ${currentCard}
+      <div id="upwrap">
+        ${headlineField}
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose your one-pager PDF">
+          <div class="dtitle">${current ? 'Replace it &mdash; drag &amp; drop the new PDF here' : 'Drag &amp; drop your one-page PDF here'}</div>
+          <div class="dor">or</div>
+          <button type="button" class="pick" id="pickbtn">${current ? 'Choose a replacement PDF' : 'Browse for the PDF'}</button>
+          <input type="file" id="fileinput" accept=".pdf" hidden>
+        </div>
+        <p class="reqs">Accepted: <b>.pdf</b> &mdash; up to <b>5 MB</b>. One page is all we need.</p>
+        <div class="picked" id="picked" style="display:none;">
+          <span class="pname" id="pname"></span><span class="psize" id="psize"></span>
+          <button type="button" class="btn" id="upbtn">Upload</button>
+        </div>
+        <div class="prog" id="prog" style="display:none;"><div class="bar" id="bar"></div></div>
+        <div class="err" id="errbox"></div>
+      </div>
+      <div id="donebox" style="display:none;">
+        <p class="slabel" style="text-align:center;">Received</p>
+        <p class="headline">Got it.</p>
+        <p class="lede"><b id="donefile"></b> is with us and goes into the participant booklet. You can replace it any time from this same link.</p>
+      </div>` : `
+      ${currentCard}
+      <div class="soon">
+        <p class="slabel" style="margin-bottom:8px;">Uploads open soon</p>
+        <p class="lede" style="text-align:left;max-width:none;">This personal link is yours and will be ready shortly &mdash; keep it. Nothing else is needed from you for now. Questions? Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>).</p>
+      </div>`;
+
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Introduce yourself — Building Bridges Boston · Med&amp;X</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="/assets/favicon-x.png">
+${FONTS_HTML}
+<style>${BASE_CSS}
+.who{margin-top:18px;font-size:13px;color:rgba(243,236,224,.85);line-height:1.7;}
+.who b{color:#fff;font-weight:600;}
+.who .attr{display:block;font-size:11.5px;color:rgba(243,236,224,.55);}
+.brief{font-size:15px;line-height:1.72;color:#4a4139;margin-bottom:20px;}
+.brief b{color:#241d18;font-weight:600;}
+.onfile{border:1px solid rgba(176,137,59,.28);background:#f4eede;border-radius:14px;padding:18px 20px;margin-bottom:20px;}
+.fname{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:17px;color:#241d18;word-break:break-word;}
+.fmeta{margin-top:4px;font-size:12.5px;color:var(--muted);}
+.fnote{margin-top:10px;font-size:12px;color:#8a7d70;line-height:1.6;}
+.hl{margin-bottom:18px;}
+.hl label{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.hl input{width:100%;padding:13px 14px;border:1px solid rgba(43,33,25,.18);border-radius:11px;background:#fff;color:#241d18;font-size:16px;font-family:inherit;}
+.hl input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,137,59,.14);}
+.drop{border:1.5px dashed rgba(176,137,59,.55);border-radius:16px;background:#fdfbf5;padding:34px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;}
+.drop.over{border-color:var(--crimson);background:#faf3ec;}
+.dtitle{font-family:'Fraunces',Georgia,serif;font-size:16.5px;color:#3a322b;}
+.dor{margin:10px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#a89a86;}
+.pick{padding:11px 22px;border-radius:10px;border:1px solid rgba(43,33,25,.22);background:#fff;font-family:inherit;font-size:13.5px;font-weight:600;color:#4a3f36;cursor:pointer;}
+.pick:hover{background:rgba(43,33,25,.045);}
+.reqs{margin:12px 2px 0;font-size:12px;color:var(--muted);line-height:1.6;}
+.reqs b{color:#4a4139;font-weight:600;}
+.picked{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:16px;padding:14px 16px;border:1px solid rgba(43,33,25,.12);border-radius:12px;background:#fff;}
+.pname{font-weight:600;font-size:14px;color:#241d18;word-break:break-word;flex:1 1 100%;}
+.psize{font-size:12px;color:var(--muted);}
+.btn{padding:13px 30px;border:none;border-radius:11px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;color:#fbf3e6;margin-left:auto;
+  background:linear-gradient(180deg,#a03330,var(--crimson));box-shadow:0 12px 26px -12px rgba(143,45,42,.7);}
+.btn:disabled{opacity:.55;cursor:not-allowed;}
+.prog{margin-top:14px;height:7px;border-radius:5px;background:rgba(43,33,25,.1);overflow:hidden;}
+.bar{height:100%;width:0%;background:linear-gradient(90deg,var(--gold),#c79a4d);transition:width .2s;}
+.err{display:none;margin-top:14px;padding:12px 14px;border-radius:10px;background:rgba(143,45,42,.08);border:1px solid rgba(143,45,42,.3);color:#7c2320;font-size:13.5px;line-height:1.55;}
+.headline{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:clamp(26px,6vw,34px);line-height:1.1;letter-spacing:-.4px;color:#241d18;margin:6px 0 14px;text-align:center;}
+.lede{font-size:15px;line-height:1.7;color:var(--muted);max-width:440px;margin:0 auto;text-align:center;}
+.lede b{color:#2c2521;word-break:break-word;}
+.soon{border:1px solid rgba(176,137,59,.28);background:#f4eede;border-radius:14px;padding:20px 22px;}
+</style></head><body>
+
+<header class="miniband">
+  <div class="inner">
+    <div class="orgs">
+      <img class="medx" src="${LOGO_URL}" alt="Med&amp;X">
+      <span class="x">&times;</span>
+      <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
+    </div>
+    <p class="kicker">Building Bridges — Boston &middot; Participant booklet</p>
+    <h1>Hi ${esc(first)} — introduce yourself to the room</h1>
+    <p class="who"><b>${esc(fullName)}</b> &middot; ${esc(reg.institution || '')}<span class="attr">Files uploaded from this page are attributed to this registration.</span></p>
+  </div>
+</header>
+
+<main>
+  <section class="sheet" aria-label="Your one-pager">
+    <p class="brief">Introduce yourself to the room &mdash; one page: who you are, what you work on, what collaborators or opportunities you are looking for. <b>PDF, up to 5 MB.</b> We compile every one-pager into a participant booklet shared with all attendees after the evening.</p>
+    ${uploader}
+  </section>
+</main>
+
+${FOOTER_HTML}
+
+<script>
+(function(){
+  var API='/api/boston/onepager/${token}';
+  var MAX=${MAX_ONEPAGER_BYTES};
+  var input=document.getElementById('fileinput');
+  if(!input) return;                                    /* uploads-open-soon page has no uploader */
+  var drop=document.getElementById('drop'),pick=document.getElementById('pickbtn'),
+      picked=document.getElementById('picked'),pname=document.getElementById('pname'),psize=document.getElementById('psize'),
+      upbtn=document.getElementById('upbtn'),errbox=document.getElementById('errbox'),
+      prog=document.getElementById('prog'),bar=document.getElementById('bar'),
+      hl=document.getElementById('hl_text'),file=null;
+  function human(n){return n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';}
+  function err(m){errbox.textContent=m;errbox.style.display='block';}
+  function take(f){
+    errbox.style.display='none';
+    if(!f)return;
+    if(!/\\.pdf$/i.test(f.name)){err('PDF only, please — export your page as a PDF and try again.');return;}
+    if(f.size>MAX){err('That file is over the 5 MB limit ('+human(f.size)+'). One page is all we need — export it again and try.');return;}
+    file=f;pname.textContent=f.name;psize.textContent=human(f.size);picked.style.display='flex';
+  }
+  pick.addEventListener('click',function(){input.click();});
+  drop.addEventListener('click',function(e){if(e.target!==pick)input.click();});
+  drop.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();input.click();}});
+  input.addEventListener('change',function(){take(input.files[0]);});
+  ;['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('over');});});
+  ;['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('over');});});
+  drop.addEventListener('drop',function(e){take(e.dataTransfer.files&&e.dataTransfer.files[0]);});
+  upbtn.addEventListener('click',function(){
+    if(!file)return;
+    errbox.style.display='none';upbtn.disabled=true;upbtn.textContent='Uploading\\u2026';
+    prog.style.display='block';bar.style.width='0%';
+    var fd=new FormData();
+    if(hl&&hl.value.trim())fd.append('headline',hl.value.trim());
+    fd.append('file',file,file.name);
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST',API);
+    xhr.upload.onprogress=function(e){if(e.lengthComputable)bar.style.width=Math.round(100*e.loaded/e.total)+'%';};
+    xhr.onload=function(){
+      var j=null;try{j=JSON.parse(xhr.responseText);}catch(e){}
+      if(xhr.status===200&&j&&j.success){
+        bar.style.width='100%';
+        document.getElementById('donefile').textContent=j.filename||file.name;
+        document.getElementById('upwrap').style.display='none';
+        var of=document.getElementById('onfile');if(of)of.style.display='none';
+        document.getElementById('donebox').style.display='block';
+        window.scrollTo({top:0,behavior:'smooth'});
+      }else{
+        err((j&&j.error)||'The upload did not go through. Please try again.');
+        upbtn.disabled=false;upbtn.textContent='Upload';prog.style.display='none';
+      }
+    };
+    xhr.onerror=function(){err('We could not reach the server. Please check your connection and try again.');upbtn.disabled=false;upbtn.textContent='Upload';prog.style.display='none';};
+    xhr.send(fd);
+  });
+})();
+</script>
+</body></html>`;
+}
+
 // ---------------------------------------------------------------- friendly 404 / notice pages
 function simplePage(title, headline, proseHtml) {
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2061,6 +2653,11 @@ function rsvpNotFoundPage() {
 function uploadNotFoundPage() {
     return simplePage('This link is not quite right', 'This link is not quite right.',
         `The upload link you opened is incomplete or has been mistyped — links are personal, so every character matters. Please open the exact link you were sent (copy &amp; paste is safest). If it still does not work, write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>) and we will sort it out.`);
+}
+
+function onepagerNotFoundPage() {
+    return simplePage('This link is not quite right', 'This link is not quite right.',
+        `The link you opened is incomplete or has been mistyped — links are personal, so every character matters. Please open the exact link from your Boston email (copy &amp; paste is safest). If it still does not work, write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>) and we will add your page by hand.`);
 }
 
 // ---------------------------------------------------------------- team page
