@@ -1,0 +1,550 @@
+/**
+ * tests/boston-reminder.test.js — the Boston "see you next week" reminder and the one-tap
+ * catering answers it collects back (user-portal/backend/boston.js).
+ *
+ * Hermetic, and shaped exactly like tests/boston.test.js: a stub express app collects the routes,
+ * a scratch in-memory sqlite (node:sqlite — no npm install needed) carries the REAL
+ * bridges_events / bridges_registrations schema INCLUDING the columns this feature writes
+ * (dietary_requirements, special_requests, reminder_sent, notes, custom_answers), sendEmail is a
+ * capturing stub and global.fetch throws. A REAL EMAIL SEND OR ANY NETWORK CALL IS IMPOSSIBLE HERE.
+ *
+ * Run:  node tests/boston-reminder.test.js      (exit code = number of FAILs)
+ */
+'use strict';
+
+const assert = require('node:assert');
+const crypto = require('node:crypto');
+const { DatabaseSync } = require('node:sqlite');
+
+// ---------------------------------------------------------------- hermetic env
+delete process.env.BREVO_API_KEY;
+delete process.env.GOOGLE_SHEETS_WEBHOOK;
+delete process.env.BB_SHEET_ID;                          // belt: no sheet write can even be attempted
+delete process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+delete process.env.RENDER_EXTERNAL_URL;
+delete process.env.PUBLIC_BASE_URL;
+for (const k of Object.keys(process.env)) if (k.startsWith('APPLE_WALLET_') || k.startsWith('BB_S3_')) delete process.env[k];
+delete process.env.GOOGLE_WALLET_ISSUER_ID;              // wallet off — the email degrades to QR + calendar
+delete process.env.GOOGLE_WALLET_SA_KEY;
+
+global.fetch = () => { throw new Error('NETWORK DISABLED IN TESTS'); };
+
+const wallet = require('../shared/wallet.js');
+wallet.ensureEventClass = async () => ({ created: false });
+wallet.ensureEventObject = async () => ({ created: false });
+
+const mountBoston = require('../user-portal/backend/boston.js');
+mountBoston._s3.putObject = async () => ({ etag: '"stub-etag"' });   // never the wire
+
+// ---------------------------------------------------------------- scratch sqlite (real schema)
+const raw = new DatabaseSync(':memory:');
+raw.exec(`CREATE TABLE bridges_events (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, city TEXT NOT NULL, venue_name TEXT, venue_address TEXT,
+    event_date TEXT NOT NULL, event_time TEXT, end_time TEXT, description TEXT, capacity INTEGER DEFAULT 50,
+    registration_open INTEGER DEFAULT 1, registration_deadline TEXT, status TEXT DEFAULT 'upcoming',
+    contact_email TEXT, contact_phone TEXT, notes TEXT, price REAL DEFAULT 0, created_by TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP, is_published INTEGER DEFAULT 0, slug TEXT)`);
+raw.exec(`CREATE TABLE bridges_registrations (
+    id TEXT PRIMARY KEY, event_id TEXT NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL,
+    email TEXT NOT NULL, phone TEXT, institution TEXT, position TEXT,
+    dietary_requirements TEXT, special_requests TEXT,
+    status TEXT DEFAULT 'registered', payment_status TEXT DEFAULT 'n/a', amount_paid REAL,
+    confirmation_sent INTEGER DEFAULT 0, reminder_sent INTEGER DEFAULT 0, checked_in INTEGER DEFAULT 0,
+    checked_in_at TEXT, notes TEXT, registered_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    user_id TEXT, qr_code TEXT, custom_answers TEXT)`);
+
+const query = {
+    run: (sql, params = []) => { params.length ? raw.prepare(sql).run(...params) : raw.exec(sql); },
+    get: (sql, params = []) => { const r = raw.prepare(sql).get(...params); return r === undefined ? null : r; },
+    all: (sql, params = []) => raw.prepare(sql).all(...params)
+};
+
+// ---------------------------------------------------------------- stub express + email
+function makeApp() {
+    const routes = {};
+    const reg = m => (p, ...handlers) => { routes[m + ' ' + p] = handlers[handlers.length - 1]; };
+    return { get: reg('GET'), post: reg('POST'), routes };
+}
+function makeRes() {
+    const r = { statusCode: 200, headers: {}, body: undefined };
+    const res = {
+        status(c) { r.statusCode = c; return res; },
+        json(o) { r.body = o; return res; },
+        send(x) { r.body = x; return res; },
+        set(k, v) { if (typeof k === 'object') { for (const [a, b] of Object.entries(k)) r.headers[a.toLowerCase()] = b; } else r.headers[String(k).toLowerCase()] = v; return res; },
+        setHeader(k, v) { r.headers[String(k).toLowerCase()] = v; },
+        redirect(code, url) { r.statusCode = code; r.headers.location = url; },
+        sendFile(p) { r.body = '[sendFile] ' + p; },
+        get headersSent() { return false; },
+        _r: r
+    };
+    return res;
+}
+async function call(app, method, path, { body, params, query: qs } = {}) {
+    const h = app.routes[method + ' ' + path];
+    if (!h) throw new Error('route not mounted: ' + method + ' ' + path);
+    const res = makeRes();
+    await h({ body: body || {}, params: params || {}, query: qs || {}, get: () => '' }, res);
+    return res._r;
+}
+
+const sentEmails = [];
+const sendEmailStub = async (to, subject, html) => { sentEmails.push({ to, subject, html }); return { success: true }; };
+
+const JWT_SECRET = 'test-secret-boston-reminder';
+const app = makeApp();
+mountBoston(app, { query, saveDb: () => {}, sendEmail: sendEmailStub, flushDb: () => {}, JWT_SECRET });
+
+const reviewGate = require('../user-portal/backend/review-gate.js');
+const REVIEW_TO = reviewGate.REVIEW_TO;
+
+const EVENT_ID = 'bb-boston-2026-09-21';
+const BASE = 'https://medx-user-portal.onrender.com';
+const ADMIN_KEY = crypto.createHmac('sha256', JWT_SECRET).update('boston-admin').digest('hex').slice(0, 40);
+const dietToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:diet:' + id).digest('hex').slice(0, 32) + '.' + id;
+const uploadToken = id => crypto.createHmac('sha256', JWT_SECRET).update('bostonup:' + id).digest('hex').slice(0, 32) + '.' + id;
+
+// ---------------------------------------------------------------- seed
+// Registration ids are UUIDs in production (crypto.randomUUID) and the token grammar says so —
+// fixed UUIDs here keep every assertion readable.
+const ANA = '11111111-1111-4111-8111-111111111111';
+const LUKA = '22222222-2222-4222-8222-222222222222';
+const MIA = '33333333-3333-4333-8333-333333333333';
+const HELD = '44444444-4444-4444-8444-444444444444';
+const GONE = '55555555-5555-4555-8555-555555555555';
+const QUIET = '66666666-6666-4666-8666-666666666666';
+const OTHER = '77777777-7777-4777-8777-777777777777';
+const NOBODY = '88888888-8888-4888-8888-888888888888';
+const UNKNOWN = '99999999-9999-4999-8999-999999999999';
+query.run(`INSERT INTO bridges_events (id, slug, name, city, venue_name, event_date, status, capacity, registration_open)
+    VALUES (?, 'boston-2026', 'Building Bridges in Biomedicine — Boston', 'Boston', 'Waterhouse Room, Gordon Hall', '2026-09-21', 'upcoming', 60, 1)`, [EVENT_ID]);
+function seed(id, first, last, email, notes, status) {
+    query.run(`INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, institution, notes, status, payment_status, confirmation_sent)
+        VALUES (?,?,?,?,?,?,?,?,'n/a',1)`, [id, EVENT_ID, first, last, email, first + ' Institute', notes, status || 'registered']);
+}
+seed(ANA, 'Ana', 'Horvat', 'ana@example.com', null);
+seed(LUKA, 'Luka', 'Babic', 'luka@example.com', '5-minute presentation requested');       // presenter, no deck
+seed(MIA, 'Mia', 'Novak', 'mia@example.com', '5-minute presentation requested');          // presenter, deck below
+seed(HELD, 'Bot', 'Held', 'bot@example.com', 'HELD — review', 'pending-review');          // never reminded
+seed(GONE, 'Old', 'Cancel', 'gone@example.com', null, 'cancelled');                       // never reminded
+
+const rowOf = id => query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]);
+const caOf = id => { try { return JSON.parse(rowOf(id).custom_answers || 'null'); } catch (e) { return null; } };
+const rsvp = (id, answer) => call(app, 'GET', '/boston/rsvp/:token/:answer', { params: { token: dietToken(id), answer } });
+
+// ---------------------------------------------------------------- tiny harness
+let passed = 0, failed = 0;
+async function t(name, fn) {
+    try { await fn(); passed++; console.log('  ok    ' + name); }
+    catch (e) { failed++; console.error('  FAIL  ' + name + '\n        ' + (e && e.message)); }
+}
+
+(async () => {
+    console.log('boston-reminder.test.js — hermetic (stub express, node:sqlite scratch DB, captured emails)\n');
+
+    // ================================================================ routes
+    await t('the five new routes are mounted', () => {
+        for (const k of ['GET /boston/rsvp/:token/:answer', 'POST /api/boston/rsvp/:token/allergies',
+            'POST /api/boston/reminders/send', 'GET /api/boston/catering', 'GET /api/boston/catering.csv']) {
+            assert.ok(app.routes[k], 'missing ' + k);
+        }
+    });
+
+    // ================================================================ token forgery
+    await t('a forged diet token is a 404 — and writes nothing', async () => {
+        const forged = 'f'.repeat(32) + '.reg-ana';
+        const r = await call(app, 'GET', '/boston/rsvp/:token/:answer', { params: { token: forged, answer: 'vegan' } });
+        assert.strictEqual(r.statusCode, 404);
+        assert.strictEqual(rowOf(ANA).dietary_requirements, null, 'a forged link must not record an answer');
+    });
+    await t('a pass token and an upload token are not diet tokens', async () => {
+        const passTok = crypto.createHmac('sha256', JWT_SECRET).update('boston:reg-ana').digest('hex').slice(0, 32) + '.reg-ana';
+        for (const tok of [passTok, uploadToken(ANA)]) {
+            const r = await call(app, 'GET', '/boston/rsvp/:token/:answer', { params: { token: tok, answer: 'vegan' } });
+            assert.strictEqual(r.statusCode, 404, 'context-separated HMAC must reject ' + tok.slice(0, 8));
+        }
+        assert.strictEqual(rowOf(ANA).dietary_requirements, null);
+    });
+    await t('a malformed token, an unknown id and an uppercase signature are all 404', async () => {
+        for (const tok of ['', 'nope', 'abc.reg-ana', dietToken(ANA).toUpperCase(), dietToken(UNKNOWN)]) {
+            const r = await call(app, 'GET', '/boston/rsvp/:token/:answer', { params: { token: tok, answer: 'vegan' } });
+            assert.strictEqual(r.statusCode, 404, 'expected 404 for ' + JSON.stringify(tok.slice(0, 20)));
+        }
+    });
+    await t('a valid token for a row belonging to another event is a 404', async () => {
+        query.run(`INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, status, payment_status)
+            VALUES (?,'other-event','Ivan','Ivic','ivan@example.com','registered','n/a')`, [OTHER]);
+        const r = await rsvp(OTHER, 'vegan');
+        assert.strictEqual(r.statusCode, 404);
+    });
+
+    // ================================================================ the answer whitelist
+    await t('every whitelisted preference records its own label, and nothing else is accepted', async () => {
+        const expect = { none: 'No restrictions', vegetarian: 'Vegetarian', vegan: 'Vegan',
+                         halal: 'Halal', kosher: 'Kosher', 'gluten-free': 'Gluten-free' };
+        for (const [key, label] of Object.entries(expect)) {
+            const r = await rsvp(ANA, key);
+            assert.strictEqual(r.statusCode, 200, key + ' should be accepted');
+            assert.strictEqual(rowOf(ANA).dietary_requirements, label, key + ' -> ' + label);
+            assert.strictEqual(caOf(ANA).diet_pref, key, 'custom_answers.diet_pref');
+        }
+        for (const bad of ['pescatarian', 'VEGAN;DROP', 'no-restrictions', 'paleo', '../../etc', 'diet_pref', '']) {
+            const r = await rsvp(ANA, bad);
+            assert.strictEqual(r.statusCode, 404, JSON.stringify(bad) + ' must be refused');
+        }
+        assert.strictEqual(rowOf(ANA).dietary_requirements, 'Gluten-free', 'a refused answer must not overwrite the last good one');
+    });
+    await t('"open" shows the page and records nothing', async () => {
+        const before = rowOf(ANA);
+        const r = await rsvp(ANA, 'open');
+        assert.strictEqual(r.statusCode, 200);
+        const after = rowOf(ANA);
+        assert.strictEqual(after.dietary_requirements, before.dietary_requirements);
+        assert.strictEqual(after.special_requests, before.special_requests);
+        assert.strictEqual(after.custom_answers, before.custom_answers);
+    });
+
+    // ================================================================ idempotency
+    await t('re-clicking the same answer is idempotent; a different one simply replaces it', async () => {
+        await rsvp(LUKA, 'vegetarian');
+        await rsvp(LUKA, 'vegetarian');
+        assert.strictEqual(rowOf(LUKA).dietary_requirements, 'Vegetarian');
+        assert.strictEqual(query.all('SELECT id FROM bridges_registrations WHERE id = ?', [LUKA]).length, 1, 'no second row');
+        await rsvp(LUKA, 'vegan');
+        assert.strictEqual(rowOf(LUKA).dietary_requirements, 'Vegan');
+        assert.strictEqual(caOf(LUKA).diet_pref, 'vegan');
+        assert.ok(/^\d{4}-\d{2}-\d{2}T/.test(caOf(LUKA).answered_at), 'answered_at moves with the latest tap');
+    });
+    await t('the two answers are independent — recording one never clears the other', async () => {
+        await rsvp(LUKA, 'no-allergies');
+        assert.strictEqual(rowOf(LUKA).dietary_requirements, 'Vegan', 'the preference survives the allergy answer');
+        assert.strictEqual(rowOf(LUKA).special_requests, 'Allergies: none');
+        await rsvp(LUKA, 'halal');
+        assert.strictEqual(rowOf(LUKA).special_requests, 'Allergies: none', 'the allergy answer survives the preference answer');
+        const ca = caOf(LUKA);
+        assert.strictEqual(ca.diet_pref, 'halal');
+        assert.strictEqual(ca.allergies, 'none');
+        assert.ok(/^\d{4}-\d{2}-\d{2}T/.test(ca.answered_at), 'answered_at is an ISO timestamp');
+    });
+    await t('custom_answers is merged, never replaced — a pre-existing key survives', async () => {
+        query.run(`UPDATE bridges_registrations SET custom_answers = ? WHERE id = ?`,
+            [JSON.stringify({ how_did_you_hear: 'A colleague' }), MIA]);
+        await rsvp(MIA, 'kosher');
+        const ca = caOf(MIA);
+        assert.strictEqual(ca.how_did_you_hear, 'A colleague', 'the existing answer must survive');
+        assert.strictEqual(ca.diet_pref, 'kosher');
+    });
+    await t('a corrupt custom_answers blob is replaced, not crashed on', async () => {
+        query.run(`UPDATE bridges_registrations SET custom_answers = 'not json at all' WHERE id = ?`, [MIA]);
+        const r = await rsvp(MIA, 'vegan');
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(caOf(MIA).diet_pref, 'vegan');
+    });
+
+    // ================================================================ the allergy text box
+    await t('"I have allergies" opens the box without recording anything yet', async () => {
+        const before = rowOf(ANA).special_requests;
+        const r = await rsvp(ANA, 'allergies');
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(rowOf(ANA).special_requests, before, 'opening the box writes nothing');
+        assert.ok(/id="a_text"/.test(r.body), 'the page must carry the single text box');
+        assert.ok(/e\.g\. nuts, shellfish/.test(r.body), 'the placeholder the owner asked for');
+        assert.ok(/id="a_save"/.test(r.body), 'and a Save button');
+    });
+    await t('the allergy text is stored into special_requests, prefixed "Allergies: "', async () => {
+        const r = await call(app, 'POST', '/api/boston/rsvp/:token/allergies',
+            { params: { token: dietToken(ANA) }, body: { text: '  peanuts and\n shellfish  ' } });
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(r.body.success, true);
+        assert.strictEqual(rowOf(ANA).special_requests, 'Allergies: peanuts and shellfish', 'whitespace collapsed, prefix applied');
+        assert.strictEqual(caOf(ANA).allergies, 'peanuts and shellfish');
+    });
+    await t('saving the allergy text again replaces it — one Allergies: segment, ever', async () => {
+        await call(app, 'POST', '/api/boston/rsvp/:token/allergies', { params: { token: dietToken(ANA) }, body: { text: 'sesame' } });
+        const sr = rowOf(ANA).special_requests;
+        assert.strictEqual(sr, 'Allergies: sesame');
+        assert.strictEqual(sr.split('Allergies:').length - 1, 1, 'exactly one Allergies: segment');
+    });
+    await t('a pre-existing special_requests note is preserved beside the allergy answer', async () => {
+        query.run(`UPDATE bridges_registrations SET special_requests = 'Wheelchair access' WHERE id = ?`, [MIA]);
+        await call(app, 'POST', '/api/boston/rsvp/:token/allergies', { params: { token: dietToken(MIA) }, body: { text: 'lactose' } });
+        const sr = rowOf(MIA).special_requests;
+        assert.ok(sr.includes('Allergies: lactose'), 'the answer is there');
+        assert.ok(sr.includes('Wheelchair access'), 'and the older note was not eaten');
+    });
+    await t('an empty allergy text is refused, a forged token is a 404, and the text is capped', async () => {
+        const empty = await call(app, 'POST', '/api/boston/rsvp/:token/allergies', { params: { token: dietToken(ANA) }, body: { text: '   ' } });
+        assert.strictEqual(empty.statusCode, 400);
+        const forged = await call(app, 'POST', '/api/boston/rsvp/:token/allergies', { params: { token: 'a'.repeat(32) + '.reg-ana' }, body: { text: 'nuts' } });
+        assert.strictEqual(forged.statusCode, 404);
+        await call(app, 'POST', '/api/boston/rsvp/:token/allergies', { params: { token: dietToken(ANA) }, body: { text: 'x'.repeat(900) } });
+        assert.strictEqual(rowOf(ANA).special_requests.length, 'Allergies: '.length + 300, 'capped at 300 characters');
+        await call(app, 'POST', '/api/boston/rsvp/:token/allergies', { params: { token: dietToken(ANA) }, body: { text: 'sesame' } });   // restore
+    });
+    await t('allergy text is stored raw but ESCAPED on the page — no HTML can be injected', async () => {
+        const nasty = '<script>alert(1)</script> & "nuts"';
+        await call(app, 'POST', '/api/boston/rsvp/:token/allergies', { params: { token: dietToken(ANA) }, body: { text: nasty } });
+        assert.strictEqual(rowOf(ANA).special_requests, 'Allergies: ' + nasty, 'stored verbatim');
+        const page = (await rsvp(ANA, 'open')).body;
+        assert.ok(!page.includes('<script>alert(1)</script>'), 'raw script tag leaked into the page');
+        assert.ok(page.includes('&lt;script&gt;alert(1)&lt;/script&gt;'), 'the text should appear escaped');
+        assert.ok(page.includes('&quot;nuts&quot;'), 'quotes escaped inside the input value');
+        await call(app, 'POST', '/api/boston/rsvp/:token/allergies', { params: { token: dietToken(ANA) }, body: { text: 'sesame' } });   // restore
+    });
+
+    // ================================================================ the page itself
+    await t('the page is personal, mobile-ready, and offers the other question inline', async () => {
+        const page = (await rsvp(ANA, 'vegetarian')).body;
+        assert.ok(page.includes('Hi Ana'), "the guest's first name");
+        assert.ok(/Noted &mdash; vegetarian\./.test(page), 'the "Noted — vegetarian." confirmation');
+        assert.ok(page.includes('width=device-width'), 'phone viewport');
+        assert.ok(page.includes('noindex'), 'never indexed');
+        assert.ok(page.includes('/boston/rsvp/' + dietToken(ANA) + '/no-allergies'), 'the allergy row stays answerable inline');
+        assert.ok(page.includes('/boston/rsvp/' + dietToken(ANA) + '/open'), 'a "change" link');
+        assert.ok(page.includes('>change</a>'), 'labelled "change"');
+        assert.ok(!page.includes('undefined') && !page.includes('NaN'), 'no leaked placeholders');
+        assert.ok(!/Building Bridges evening/.test(page), 'never the "Building Bridges evening" phrasing');
+    });
+    await t('the page shows both answers back once they are in', async () => {
+        const page = (await rsvp(LUKA, 'open')).body;
+        assert.ok(page.includes('Halal'), 'the preference reads back');
+        assert.ok(page.includes('no allergies'), 'the allergy answer reads back');
+        assert.ok(page.includes('chip on'), 'the chosen chips render as chosen');
+    });
+
+    // ================================================================ the reminder email
+    await t('the reminder route is keyed — a wrong key is a 404 and sends nothing', async () => {
+        const before = sentEmails.length;
+        for (const key of [undefined, '', 'nope', ADMIN_KEY.slice(0, 39), ADMIN_KEY + 'x']) {
+            const r = await call(app, 'POST', '/api/boston/reminders/send', { query: key === undefined ? {} : { key }, body: { to: 'all' } });
+            assert.strictEqual(r.statusCode, 404);
+        }
+        assert.strictEqual(sentEmails.length, before, 'no email escaped an unauthorized call');
+    });
+
+    await t('preview goes ONLY to the reviewer, and stamps nothing', async () => {
+        const before = sentEmails.length;
+        const beforeRows = query.all(`SELECT id, reminder_sent, notes FROM bridges_registrations WHERE event_id = ?`, [EVENT_ID]);
+        const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview' } });
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(r.body.preview_to, REVIEW_TO);
+        assert.strictEqual(sentEmails.length, before + 1, 'exactly one email');
+        const mail = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(mail.to, REVIEW_TO, 'the preview must go to the reviewer and nobody else');
+        assert.strictEqual(mail.to, 'juginovic.alen@gmail.com');
+        assert.ok(mail.subject.startsWith('[PREVIEW] '), 'marked as a preview');
+        for (const row of beforeRows) {
+            const now = rowOf(row.id);
+            assert.strictEqual(Number(now.reminder_sent), Number(row.reminder_sent), row.id + ' reminder_sent untouched');
+            assert.strictEqual(String(now.notes || ''), String(row.notes || ''), row.id + ' notes untouched');
+        }
+    });
+
+    await t('the preview is built from the first registrant', () => {
+        const html = sentEmails[sentEmails.length - 1].html;
+        assert.ok(html.includes('Dear Ana'), 'built from the first registrant (Ana)');
+        assert.ok(html.includes(BASE + `/api/boston/qr/${ANA}.png`), 'carries that row\'s own ticket QR');
+    });
+
+    await t('the reminder email says the date, venue, doors, time and dress — and never "evening" phrasing', () => {
+        const html = sentEmails[sentEmails.length - 1].html;
+        assert.ok(html.includes('Monday, 21 September 2026'), 'the date');
+        assert.ok(html.includes('Waterhouse Room, Gordon Hall'), 'the room');
+        assert.ok(html.includes('Harvard Medical School'), 'the school');
+        assert.ok(html.includes('5:30'), 'doors');
+        assert.ok(html.includes('6:00') && html.includes('9:00'), 'the program window');
+        assert.ok(/[Bb]usiness attire/.test(html), 'the dress code');
+        assert.ok(html.includes('laura.rodman@medx.hr'), 'the reply-to / Laura footer');
+        assert.ok(!/Building Bridges evening/.test(html), 'never the "Building Bridges evening" phrasing');
+        assert.ok(!html.includes('undefined') && !html.includes('NaN'), 'no leaked placeholders');
+    });
+
+    await t('the reminder carries the ticket it already has — QR, calendar, no new mint', () => {
+        const html = sentEmails[sentEmails.length - 1].html;
+        assert.ok(html.includes(BASE + `/api/boston/qr/${ANA}.png`), 'the branded entry QR');
+        assert.ok(html.includes(BASE + '/boston.ics'), 'the calendar link');
+        assert.ok(html.includes('BB-BOS-' + ANA.slice(0, 8).toUpperCase()), 'the same ticket number');
+    });
+
+    await t('the reminder carries all eight one-tap answer links, all HMAC-tokened', () => {
+        const html = sentEmails[sentEmails.length - 1].html;
+        const tok = dietToken(ANA);
+        for (const a of ['none', 'vegetarian', 'vegan', 'halal', 'kosher', 'gluten-free', 'no-allergies', 'allergies']) {
+            assert.ok(html.includes(`${BASE}/boston/rsvp/${tok}/${a}`), 'missing one-tap link: ' + a);
+        }
+        assert.ok(/Two quick questions for the catering/.test(html), 'the catering block heading');
+        assert.ok(!html.includes(`/boston/rsvp/${ANA}/`), 'a bare id must never appear in a link');
+    });
+
+    await t('the presenter line appears ONLY for a presenter with no deck yet', async () => {
+        // Ana is not a presenter — the preview above must not carry the upload line.
+        assert.ok(!sentEmails[sentEmails.length - 1].html.includes('upload your slides here'),
+            'a non-presenter must not be told to upload slides');
+
+        // Luka is a presenter and has uploaded nothing.
+        await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: LUKA } });
+        const luka = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(luka.to, 'luka@example.com');
+        assert.ok(luka.html.includes('upload your slides here'), 'the presenter line');
+        assert.ok(luka.html.includes(BASE + '/boston/upload/' + uploadToken(LUKA)), 'their personal upload link');
+
+        // Mia is a presenter WITH a deck on file — no upload line.
+        query.run(`CREATE TABLE IF NOT EXISTS bridges_presentations (id TEXT PRIMARY KEY, registration_id TEXT NOT NULL,
+            original_name TEXT NOT NULL, stored_key TEXT NOT NULL, mime TEXT, size INTEGER NOT NULL, uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
+        query.run(`INSERT INTO bridges_presentations (id, registration_id, original_name, stored_key, mime, size, uploaded_at)
+            VALUES ('pres-1','${MIA}','mia.pdf','boston-2026/${MIA}/pres-1.pdf','application/pdf',4096,'2026-09-12T10:00:00.000Z')`);
+        await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: MIA } });
+        const mia = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(mia.to, 'mia@example.com');
+        assert.ok(!mia.html.includes('upload your slides here'), 'a presenter who already uploaded is not nagged');
+    });
+
+    // ================================================================ send bookkeeping
+    await t('a send stamps reminder_sent = 1 and a dated REMINDER-SENT marker in notes', () => {
+        const luka = rowOf(LUKA);
+        assert.strictEqual(Number(luka.reminder_sent), 1);
+        assert.ok(/REMINDER-SENT \d{4}-\d{2}-\d{2}/.test(String(luka.notes)), 'dated marker: ' + luka.notes);
+        assert.ok(String(luka.notes).includes('5-minute presentation requested'), 'the existing notes survive');
+    });
+
+    await t('"all" skips everyone already reminded, and never touches held or cancelled rows', async () => {
+        const before = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'all' } });
+        assert.strictEqual(r.statusCode, 200);
+        assert.deepStrictEqual(r.body.sent.sort(), ['ana@example.com'], 'only the one who had not been reminded');
+        assert.strictEqual(r.body.skipped_already_sent, 2, 'Luka and Mia were skipped');
+        assert.strictEqual(sentEmails.length, before + 1, 'exactly one email left the building');
+        assert.strictEqual(Number(rowOf(HELD).reminder_sent), 0, 'a held registration is never reminded');
+        assert.strictEqual(Number(rowOf(GONE).reminder_sent), 0, 'a cancelled registration is never reminded');
+        for (const bad of [HELD, GONE]) {
+            assert.ok(!/REMINDER-SENT/.test(String(rowOf(bad).notes || '')), bad + ' must carry no marker');
+        }
+    });
+
+    await t('a second "all" sends nothing at all', async () => {
+        const before = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'all' } });
+        assert.deepStrictEqual(r.body.sent, []);
+        assert.strictEqual(r.body.skipped_already_sent, 3);
+        assert.strictEqual(sentEmails.length, before, 'no email');
+    });
+
+    await t('a resend to one id always sends, and the marker is not duplicated', async () => {
+        const before = sentEmails.length;
+        const notesBefore = String(rowOf(LUKA).notes);
+        const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: LUKA } });
+        assert.deepStrictEqual(r.body.sent, ['luka@example.com']);
+        assert.strictEqual(sentEmails.length, before + 1);
+        const notesAfter = String(rowOf(LUKA).notes);
+        assert.strictEqual(notesAfter, notesBefore, 'the marker is stamped once, not appended again');
+        assert.strictEqual(notesAfter.split('REMINDER-SENT').length - 1, 1, 'exactly one marker');
+    });
+
+    await t('an unknown id sends nothing and says so', async () => {
+        const before = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: NOBODY } });
+        assert.strictEqual(r.statusCode, 200);
+        assert.deepStrictEqual(r.body.sent, []);
+        assert.strictEqual(r.body.not_found, true);
+        assert.strictEqual(sentEmails.length, before);
+    });
+    await t('an empty {to} is refused rather than guessed', async () => {
+        const before = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: {} });
+        assert.strictEqual(r.statusCode, 400);
+        assert.strictEqual(sentEmails.length, before);
+    });
+
+    // ================================================================ catering summary + CSV
+    await t('the catering routes are keyed', async () => {
+        assert.strictEqual((await call(app, 'GET', '/api/boston/catering', { query: { key: 'nope' } })).statusCode, 404);
+        assert.strictEqual((await call(app, 'GET', '/api/boston/catering.csv', { query: {} })).statusCode, 403);
+    });
+
+    await t('the summary math adds up', async () => {
+        const d = (await call(app, 'GET', '/api/boston/catering', { query: { key: ADMIN_KEY } })).body;
+        assert.strictEqual(d.total, 3, 'only the three active seats — held and cancelled are out');
+        assert.strictEqual(d.rows.length, 3);
+        const prefTotal = d.preferences.reduce((n, p) => n + p.count, 0);
+        assert.strictEqual(prefTotal + d.preference_unanswered, d.total, 'preference buckets + unanswered = total');
+        assert.strictEqual(d.answered + d.not_answered, d.total, 'answered + not answered = total');
+        assert.strictEqual(d.with_allergies + d.no_allergies + d.allergies_unanswered, d.total, 'allergy buckets = total');
+        assert.strictEqual(d.reminders_sent + d.reminders_pending, d.total, 'reminder buckets = total');
+        assert.strictEqual(d.reminders_sent, 3, 'everyone active has been reminded by now');
+        assert.strictEqual(d.presenters, 2);
+        assert.deepStrictEqual(d.preferences.map(p => p.key),
+            ['none', 'vegetarian', 'vegan', 'halal', 'kosher', 'gluten-free'], 'the six buckets, in order');
+        const byKey = Object.fromEntries(d.preferences.map(p => [p.key, p.count]));
+        assert.strictEqual(byKey.vegetarian, 1, 'Ana');          // last answer above was 'vegetarian'
+        assert.strictEqual(byKey.halal, 1, 'Luka');
+        assert.strictEqual(byKey.vegan, 1, 'Mia');
+        assert.strictEqual(d.with_allergies, 2, 'Ana (sesame) and Mia (lactose)');
+        assert.strictEqual(d.no_allergies, 1, 'Luka');
+        assert.strictEqual(d.not_answered, 0);
+    });
+
+    await t('an unanswered guest counts as unanswered in every bucket', async () => {
+        seed(QUIET, 'Quiet', 'Guest', 'quiet@example.com', null);
+        const d = (await call(app, 'GET', '/api/boston/catering', { query: { key: ADMIN_KEY } })).body;
+        assert.strictEqual(d.total, 4);
+        assert.strictEqual(d.not_answered, 1);
+        assert.strictEqual(d.preference_unanswered, 1);
+        assert.strictEqual(d.allergies_unanswered, 1);
+        assert.strictEqual(d.reminders_pending, 1);
+        const quiet = d.rows.find(r => r.registration_id === QUIET);
+        assert.strictEqual(quiet.preference, null);
+        assert.strictEqual(quiet.allergy_state, null);
+        assert.strictEqual(quiet.answered, false);
+        assert.strictEqual(quiet.reminder_sent, false);
+    });
+
+    await t('the CSV has the six columns the caterer asked for, quoted, BOM, CRLF', async () => {
+        const r = await call(app, 'GET', '/api/boston/catering.csv', { query: { key: ADMIN_KEY } });
+        assert.strictEqual(r.statusCode, 200);
+        assert.ok(String(r.headers['content-type']).includes('text/csv'));
+        assert.ok(r.body.startsWith('﻿'), 'UTF-8 BOM so Excel reads the encoding');
+        const lines = r.body.slice(1).trim().split('\r\n');
+        assert.strictEqual(lines[0], '"Name","Institution","Preference","Allergies","Answered at","Presenter"');
+        assert.strictEqual(lines.length, 5, 'header + four active guests');
+        const ana = lines.find(l => l.startsWith('"Ana Horvat"'));
+        assert.ok(ana, 'Ana is in the export');
+        assert.ok(ana.includes('"Vegetarian"'), 'her preference');
+        assert.ok(ana.includes('"sesame"'), 'her allergies');
+        assert.ok(ana.endsWith('"No"'), 'presenter column: No');
+        const mia = lines.find(l => l.startsWith('"Mia Novak"'));
+        assert.ok(mia.endsWith('"Yes"'), 'Mia is presenting');
+        const luka = lines.find(l => l.startsWith('"Luka Babic"'));
+        assert.ok(luka.includes('"None"'), 'a "no allergies" answer reads as None, not blank');
+        const quiet = lines.find(l => l.startsWith('"Quiet Guest"'));
+        assert.ok(quiet.includes('"","",""'), 'an unanswered guest exports empty cells, never "null"');
+        assert.ok(!r.body.includes('undefined') && !r.body.includes('null'), 'no leaked placeholders');
+    });
+
+    await t('a quote in an answer is escaped CSV-style, never breaks a row', async () => {
+        await call(app, 'POST', '/api/boston/rsvp/:token/allergies',
+            { params: { token: dietToken(QUIET) }, body: { text: 'anything with "quotes", really' } });
+        const r = await call(app, 'GET', '/api/boston/catering.csv', { query: { key: ADMIN_KEY } });
+        const lines = r.body.slice(1).trim().split('\r\n');
+        assert.strictEqual(lines.length, 5, 'still one line per guest');
+        assert.ok(lines.some(l => l.includes('""quotes""')), 'the quote is doubled, RFC 4180 style');
+    });
+
+    // ================================================================ the sheet is not ours
+    await t('nothing in this feature touches the Google sheet', () => {
+        const src = require('node:fs').readFileSync(require.resolve('../user-portal/backend/boston.js'), 'utf8');
+        const feature = src.slice(src.indexOf('SEE-YOU-NEXT-WEEK REMINDER'), src.indexOf('GET /api/boston/presentations/:id/download'));
+        assert.ok(feature.length > 2000, 'found the feature block');
+        assert.ok(!/pushToBostonSheet|updateBostonSheetStatus|sheetsToken/.test(feature),
+            'the reminder and the catering answers must leave the owner\'s sheet alone');
+    });
+
+    await t('no email went anywhere except the four seats and the reviewer', () => {
+        const allowed = new Set(['ana@example.com', 'luka@example.com', 'mia@example.com', 'quiet@example.com', REVIEW_TO]);
+        for (const m of sentEmails) assert.ok(allowed.has(m.to), 'unexpected recipient: ' + m.to);
+        assert.ok(!sentEmails.some(m => m.to === 'bot@example.com' || m.to === 'gone@example.com'),
+            'a held or cancelled registration must never be emailed');
+    });
+
+    console.log(`\n${passed} passed, ${failed} failed`);
+    process.exit(failed ? 1 : 0);
+})();

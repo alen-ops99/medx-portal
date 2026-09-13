@@ -13,6 +13,7 @@
     "test:gala-ticket": "node tests/gala-ticket-scan.test.js",
     "test:meetups": "node tests/meetups.test.js",
     "test:awards": "node tests/awards.test.js",
-    "test:boston-ops": "node tests/boston-ops.test.js"
+    "test:boston-ops": "node tests/boston-ops.test.js",
+    "test:boston-reminder": "node tests/boston-reminder.test.js"
   }
 }

@@ -21,6 +21,11 @@
  *        An email that already has a row is never duplicated: the existing row is marked as a
  *        presenter if it was not one, and the link goes to it.
  *   GET  /api/v2/boston/presentations.zip         auth+adminOnly  302 → the member ZIP with the key.
+ *   GET  /api/v2/boston/catering                  auth+adminOnly  the catering summary + one row per
+ *        registrant (preference, allergies, answered, reminder state) + the CSV url.
+ *   POST /api/v2/boston/reminders/:id/send        auth+adminOnly  send / re-send ONE reminder.
+ *   POST /api/v2/boston/reminders/send-all        auth+adminOnly  everyone not yet reminded.
+ *   GET  /api/v2/boston/catering.csv              auth+adminOnly  302 → the member CSV with the key.
  *
  * THE KEY. The member wing authorizes those routes with a derived team key —
  * HMAC-SHA256(JWT_SECRET, 'boston-admin').slice(0, 40) — and both portals run on ONE JWT_SECRET
@@ -54,6 +59,7 @@ const PRESENTER_MARK = '5-minute presentation';
 const PRESENTER_NOTE = '5-minute presentation requested';
 const ADDED_NOTE = 'added by team';
 const SENT_MARK = 'UPLOAD-LINK-SENT';
+const REMINDER_MARK = 'REMINDER-SENT';                 // the member wing's stamp for the reminder
 const SENDABLE = ['registered', 'confirmed'];          // the member route's own status filter
 
 // Retry budget for the member send after an insert (see REPLICA LAG above). Under test both
@@ -281,6 +287,58 @@ module.exports = function mountBostonOps(app, ctx) {
             log('add presenter failed:', e.message);
             res.status(502).json({ error: e.message || 'Could not add the presenter.' });
         }
+    });
+
+    // ---------------------------------------------------------------- catering + the reminder
+    // Same doctrine as the upload links: the member wing owns the email, the token, the answer
+    // pages and the bookkeeping (reminder_sent + the REMINDER-SENT marker in notes). This side is
+    // the button. Nothing is ever sent from here on a timer — only from an explicit admin click.
+    app.get('/api/v2/boston/catering', auth, adminOnly, async (req, res) => {
+        try {
+            const data = await memberCall('GET', '/api/boston/catering');
+            res.set('Cache-Control', 'private, no-store');
+            res.json(Object.assign({ ok: true }, data, { csv_url: keyed('/api/boston/catering.csv') }));
+        } catch (e) {
+            log('catering list failed:', e.message);
+            res.status(502).json({ error: 'Could not reach the member portal for the catering list.' });
+        }
+    });
+
+    // Send / re-send ONE reminder. Unlike the upload links this always sends — the button is
+    // literally labelled Resend once a reminder has gone out.
+    app.post('/api/v2/boston/reminders/:id/send', auth, adminOnly, async (req, res) => {
+        try {
+            const id = cleanStr(req.params.id, 64);
+            const reg = id ? q.get('SELECT id, email, status, notes, reminder_sent FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
+            if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
+            const again = Number(reg.reminder_sent) === 1 || new RegExp(REMINDER_MARK).test(String(reg.notes || ''));
+            const out = await memberCall('POST', '/api/boston/reminders/send', { to: String(id) });
+            const sent = Array.isArray(out.sent) ? out.sent : [];
+            if (!sent.length) return res.status(409).json({ error: 'The member portal did not send it — check that the registration is still active.' });
+            audit(req, 'boston.reminder_sent', (again ? 're-sent to ' : 'sent to ') + sent.join(', '));
+            res.json({ success: true, sent, resent: again });
+        } catch (e) {
+            log('reminder send failed:', e.message);
+            res.status(502).json({ error: e.message || 'The reminder could not be sent.' });
+        }
+    });
+
+    // Everyone who has not had one yet. Already-reminded rows are skipped by the member route.
+    app.post('/api/v2/boston/reminders/send-all', auth, adminOnly, async (req, res) => {
+        try {
+            const out = await memberCall('POST', '/api/boston/reminders/send', { to: 'all' });
+            const sent = Array.isArray(out.sent) ? out.sent : [];
+            audit(req, 'boston.reminders_sent_all', sent.length + ' sent, ' + (Number(out.skipped_already_sent) || 0) + ' already reminded');
+            res.json({ success: true, sent, skipped_already_sent: Number(out.skipped_already_sent) || 0 });
+        } catch (e) {
+            log('reminder send-all failed:', e.message);
+            res.status(502).json({ error: e.message || 'The reminders could not be sent.' });
+        }
+    });
+
+    // The caterer's list, as a file. 302 with the key in the URL, exactly like the deck archive.
+    app.get('/api/v2/boston/catering.csv', auth, adminOnly, (req, res) => {
+        res.redirect(302, keyed('/api/boston/catering.csv'));
     });
 
     // ---------------------------------------------------------------- every deck, one archive

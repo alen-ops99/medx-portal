@@ -2,6 +2,8 @@
 // Blocks (artboard order): "Projects sub-nav" › "Title row" › "Stat band" › "EVENTS" (one row per
 // city — upcoming bridges_events + past v2_bridges_editions recaps) › "BOSTON — READY TO RUN" ›
 // "FOLLOW-UPS" › "AFTER EACH EVENING" › "STATS FOR MEDIA & SPONSORS" (note 21 — the reusable widget).
+// The Boston card carries two sections: the 5-minute presentations, and (2026-09-13) the
+// see-you-next-week reminder with the catering answers it collects back.
 // Data: /api/v2/bridges/hub (admin v2 — v2_bridges_editions is SHARED with the member portal's
 // /app/bridges recap cards) + legacy /api/bridges/events CRUD + POST /api/upload/photos for galleries.
 // Invitations · reminders · thank-yous queue as approval-gated batches in the Outbox — nothing sends
@@ -94,6 +96,26 @@ export const COPY = {
     addedPending: 'PRESENTER ADDED — THE LINK GOES OUT WITHIN A MINUTE',
     needBoth: 'TYPE A NAME AND AN EMAIL FIRST'
   },
+  // The see-you-next-week reminder and what comes back from it (2026-09-13). Same card, second
+  // table: everyone holding a seat, their two catering answers, and the reminder button per row.
+  cat: {
+    title: 'REMINDER & CATERING', sub: 'one email a week out — the food answers come back as one-tap links',
+    sendAll: n => `SEND REMINDER TO EVERYONE (${n} NOT YET SENT)`, allSent: 'EVERYONE HAS THEIR REMINDER',
+    csv: 'CATERING LIST (CSV)',
+    strip: (a, t, al, na) => `${a} of ${t} answered · ${al} with allergies · ${na} still to answer`,
+    cWho: 'GUEST', cInst: 'INSTITUTION', cPref: 'PREFERENCE', cAllergy: 'ALLERGIES', cAnswered: 'ANSWERED', cRem: 'REMINDER',
+    send: 'SEND', resend: 'RESEND', busy: 'SENDING…',
+    noPref: 'not set', noAllergy: 'not set', allergyNone: 'none', notSent: 'not sent',
+    empty: 'Nobody is registered yet.',
+    emptyWhy: 'Everyone who registers on the Boston form lands here — the reminder and the catering answers follow.',
+    down: 'The member portal did not answer, so the catering list is unavailable right now. Nothing is lost — reload in a minute.',
+    cOneTitle: 'Send the reminder?', cOneAgain: 'Send the reminder again?',
+    cOneBody: (who, mail) => `<p style="margin:0 0 8px">${who} gets the see-you-next-week email at <b>${mail}</b> — their ticket and the two catering questions, right now.</p><p style="margin:0;color:#6d6459">One email, sent immediately — this is not the Outbox.</p>`,
+    cAllTitle: n => `Send ${n} reminder${n === 1 ? '' : 's'}?`,
+    cAllBody: n => `<p style="margin:0 0 8px">${n} guest${n === 1 ? '' : 's'} who ${n === 1 ? 'has' : 'have'} not had a reminder get${n === 1 ? 's' : ''} it now — their ticket and the two catering questions.</p><p style="margin:0;color:#6d6459">Anyone already reminded is skipped. One email each, sent immediately — this is not the Outbox.</p>`,
+    sent: mail => `REMINDER SENT TO ${String(mail).toUpperCase()}`,
+    sentAll: n => n ? `${n} REMINDER${n === 1 ? '' : 'S'} SENT` : 'EVERYONE ALREADY HAD THEIR REMINDER'
+  },
   stats: {
     title: 'STATS FOR MEDIA & SPONSORS', sub: 'pick a scope, type over any number — then copy the line for a press kit or sponsor deck',
     scopes: { bridges: 'BUILDING BRIDGES', all: 'ALL MED&X', y2026: '2026 ONLY' },
@@ -135,11 +157,12 @@ function nextRange(n) {
 
 // ---------------------------------------------------------------- data
 async function load() {
-  const r = await api.settle({ hub: api.get('/api/v2/bridges/hub'), pres: api.get('/api/v2/boston/presenters') });
+  const r = await api.settle({ hub: api.get('/api/v2/bridges/hub'), pres: api.get('/api/v2/boston/presenters'), cat: api.get('/api/v2/boston/catering') });
   return {
     errors: r.$errors,
     hub: r.hub || { events: [], editions: [], followups: [], stats: null, canonical_guests: FACTS.bridges.guests },
-    pres: r.pres && r.pres.ok ? r.pres : null
+    pres: r.pres && r.pres.ok ? r.pres : null,
+    cat: r.cat && r.cat.ok ? r.cat : null
   };
 }
 
@@ -411,7 +434,58 @@ function blockBoston() {
           </tbody>
         </table>
       </div>` : ''}
+      ${sectionCatering(btn, cell, head)}
     </div>`;
+}
+// Second section of the same card: the see-you-next-week reminder and what it brings back. Every
+// guest is here (presenters included) because the reminder — and the food — is for everyone.
+function sectionCatering(btn, cell, head) {
+  const c = COPY.cat;
+  const C = D.cat;
+  const lockErr = D.errors && D.errors.cat;
+  if (lockErr && lockErr.status === 403) return '';           // the presenters block already shows the lock
+  const rows = C ? (C.rows || []) : [];
+  const pending = C ? Number(C.reminders_pending) || 0 : 0;
+  const prefLine = C ? (C.preferences || []).filter(p => p.count).map(p => `${esc(p.label)} ${p.count}`).join(' · ') : '';
+  return `
+      <div style="border-top:1px solid rgba(32,27,22,.14)">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
+          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
+          <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
+          <div style="flex:1"></div>
+          ${C ? btn('bpRemindAll', pending ? c.sendAll(pending) : c.allSent, pending > 0) : ''}
+          ${C ? `<a href="${esc(C.csv_url || '/api/v2/boston/catering.csv')}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${c.csv}</a>` : ''}
+        </div>
+        ${C ? `<div style="display:flex;gap:8px 20px;flex-wrap:wrap;padding:11px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);font-size:11.5px;color:#6d6459">
+          <span><b style="color:#201b16">${esc(c.strip(C.answered || 0, C.total || 0, C.with_allergies || 0, C.not_answered || 0))}</b></span>
+          ${prefLine ? `<span>${prefLine}</span>` : ''}
+        </div>` : ''}
+        ${!C && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
+        ${C && !rows.length ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
+        ${C && rows.length ? `
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:760px">
+            <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPref}</th><th style="${head}">${c.cAllergy}</th><th style="${head}">${c.cAnswered}</th><th style="${head}">${c.cRem}</th><th style="${head}"></th></tr></thead>
+            <tbody>
+            ${rows.map(r => {
+              const busy = st.bpReminding === r.registration_id;
+              const allergy = r.allergy_state === 'yes' ? esc(r.allergies || 'yes')
+                : r.allergy_state === 'none' ? c.allergyNone : c.noAllergy;
+              return `
+              <tr data-row="${esc(r.registration_id)}">
+                <td style="${cell}"><span style="display:block;font-weight:600">${esc(r.name || r.email)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.email)}${r.presenter ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">PRESENTING</span>` : ''}</span></td>
+                <td style="${cell};color:#6d6459">${esc(r.institution || '—')}</td>
+                <td style="${cell};white-space:nowrap;color:${r.preference ? '#201b16' : '#9a9086'}">${r.preference ? esc(r.preference) : c.noPref}</td>
+                <td style="${cell};color:${r.allergy_state === 'yes' ? '#9b1b22' : r.allergy_state === 'none' ? '#6d6459' : '#9a9086'}">${allergy}</td>
+                <td style="${cell};white-space:nowrap;color:${r.answered ? '#1e6e42' : '#b7791f'}">${r.answered ? '✓' + (r.answered_at ? ' ' + esc(String(r.answered_at).slice(0, 10)) : '') : '—'}</td>
+                <td style="${cell};white-space:nowrap;color:${r.reminder_sent ? '#6d6459' : '#b7791f'}">${r.reminder_sent ? esc(r.reminder_sent_at || '✓') : c.notSent}</td>
+                <td style="${cell};text-align:right;white-space:nowrap">${btn('bpRemindOne', busy ? c.busy : (r.reminder_sent ? c.resend : c.send), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}</td>
+              </tr>`;
+            }).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+      </div>`;
 }
 function blockStats() {
   const c = COPY.stats;
@@ -491,6 +565,15 @@ async function refreshBoston() {
   try {
     const p = await api.get('/api/v2/boston/presenters');
     if (p && p.ok) { D.pres = p; if (D.errors) delete D.errors.pres; }
+  } catch (e) { /* keep the last read on screen */ }
+  rerender('[data-block="boston"]', blockBoston());
+}
+// The catering answers live on the member side too — re-read rather than patch, so the reminder
+// date and the two food answers on screen are the ones in the database.
+async function refreshCatering() {
+  try {
+    const c = await api.get('/api/v2/boston/catering');
+    if (c && c.ok) { D.cat = c; if (D.errors) delete D.errors.cat; }
   } catch (e) { /* keep the last read on screen */ }
   rerender('[data-block="boston"]', blockBoston());
 }
@@ -669,6 +752,32 @@ const handlers = {
       ui.toast(r && r.pending ? c.addedPending : c.added(email));
     } catch (e) { st.bpBusy = false; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
   },
+  // ---- Boston · the see-you-next-week reminder (same rule: confirmed first, sent immediately) ----
+  bpRemindOne: async (el) => {
+    const c = COPY.cat;
+    const id = el.dataset.id, who = el.dataset.who || '', mail = el.dataset.mail || '';
+    const again = ((D.cat && D.cat.rows) || []).some(r => r.registration_id === id && r.reminder_sent);
+    if (!await ui.confirm({ title: again ? c.cOneAgain : c.cOneTitle, body: c.cOneBody(esc(who), esc(mail)), ok: COPY.boston.goSend, cancel: COPY.boston.keep })) return;
+    st.bpReminding = id; rerender('[data-block="boston"]', blockBoston());
+    try {
+      const r = await api.post('/api/v2/boston/reminders/' + encodeURIComponent(id) + '/send', {});
+      st.bpReminding = null;
+      await refreshCatering();
+      ui.toast(c.sent((r && r.sent && r.sent[0]) || mail));
+    } catch (e) { st.bpReminding = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
+  },
+  bpRemindAll: async (el) => {
+    const c = COPY.cat;
+    const n = (D.cat && Number(D.cat.reminders_pending)) || 0;
+    if (!n) return;
+    if (!await ui.confirm({ title: c.cAllTitle(n), body: c.cAllBody(n), ok: COPY.boston.goSend, cancel: COPY.boston.keep })) return;
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      const r = await api.post('/api/v2/boston/reminders/send-all', {});
+      await refreshCatering();
+      ui.toast(c.sentAll((r && r.sent && r.sent.length) || 0));
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
   scBridges: () => { st.scope = 'bridges'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
   scAll: () => { st.scope = 'all'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
   scYear: () => { st.scope = 'y2026'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
@@ -687,7 +796,7 @@ export default {
     ensureCss();
     rootEl = root;
     st = { scope: 'bridges', copied: false, newCityOpen: false, ncCity: '', ncWhen: '', editEvent: null, recapEdit: null, fuName: '', fuWhy: '', uploading: null,
-           bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null };
+           bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null, bpReminding: null };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();

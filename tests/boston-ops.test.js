@@ -366,6 +366,65 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         assert.equal(r.headers.location, MEMBER + '/api/boston/presentations.zip?key=' + ADMIN_KEY);
     });
 
+    // -------- the see-you-next-week reminder (the same doctrine: the member wing does the send)
+    await t('the four reminder / catering routes are mounted behind auth + adminOnly', () => {
+        for (const k of ['GET /api/v2/boston/catering', 'POST /api/v2/boston/reminders/:id/send',
+            'POST /api/v2/boston/reminders/send-all', 'GET /api/v2/boston/catering.csv']) {
+            assert.ok(app.routes[k], 'missing route: ' + k);
+            assert.equal(app.routes[k].length, 3, k + ' should be [auth, adminOnly, handler]');
+        }
+    });
+
+    await t('the catering list comes through with the summary and a keyed CSV url', async () => {
+        const r = await app.call('GET', '/api/v2/boston/catering', {});
+        assert.equal(r.status, 200);
+        assert.equal(r.body.ok, true);
+        assert.equal(r.body.total, r.body.rows.length);
+        assert.equal(r.body.answered + r.body.not_answered, r.body.total, 'summary math');
+        assert.ok(String(r.body.csv_url).includes('key=' + ADMIN_KEY), 'the CSV link is not keyed');
+        assert.ok(r.body.rows.some(x => x.registration_id === 'reg-mia'), 'a non-presenter guest is on the reminder list too');
+    });
+
+    await t('sending ONE reminder goes out from the member wing and stamps the row', async () => {
+        const before = sentEmails.length;
+        const r = await app.call('POST', '/api/v2/boston/reminders/:id/send', { params: { id: 'reg-mia' } });
+        assert.equal(r.status, 200);
+        assert.deepEqual(r.body.sent, ['mia@example.com']);
+        assert.equal(r.body.resent, false);
+        assert.equal(sentEmails.length, before + 1, 'exactly one email');
+        assert.match(sentEmails[sentEmails.length - 1].subject, /See you on Monday, 21 September/);
+        assert.match(notesOf('reg-mia'), /REMINDER-SENT \d{4}-\d{2}-\d{2}/);
+        assert.equal(adminEmails.length, 0, 'still nothing sent from the admin side');
+    });
+
+    await t('a resend is reported as a resend', async () => {
+        const r = await app.call('POST', '/api/v2/boston/reminders/:id/send', { params: { id: 'reg-mia' } });
+        assert.equal(r.status, 200);
+        assert.equal(r.body.resent, true);
+    });
+
+    await t('a guest who is not on the Boston list is a 404, and sends nothing', async () => {
+        const before = sentEmails.length;
+        const r = await app.call('POST', '/api/v2/boston/reminders/:id/send', { params: { id: 'nobody-at-all' } });
+        assert.equal(r.status, 404);
+        assert.equal(sentEmails.length, before);
+    });
+
+    await t('send-all reminds everyone left and skips the ones already reminded', async () => {
+        const r = await app.call('POST', '/api/v2/boston/reminders/send-all', {});
+        assert.equal(r.status, 200);
+        assert.ok(!r.body.sent.includes('mia@example.com'), 'Mia already had hers');
+        assert.ok(r.body.skipped_already_sent >= 1, 'the skip is reported');
+        const again = await app.call('POST', '/api/v2/boston/reminders/send-all', {});
+        assert.deepEqual(again.body.sent, [], 'a second click sends nothing');
+    });
+
+    await t('the catering CSV route 302s to the member export with the key', async () => {
+        const r = await app.call('GET', '/api/v2/boston/catering.csv', {});
+        assert.equal(r.status, 302);
+        assert.equal(r.headers.location, MEMBER + '/api/boston/catering.csv?key=' + ADMIN_KEY);
+    });
+
     // -------- the two standing guarantees
     await t('the admin module never sends an email itself', () => {
         assert.equal(adminEmails.length, 0, 'boston-ops called sendEmail — every send belongs to the member wing');
@@ -384,6 +443,8 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         assert.ok(rows.some(r => r.action === 'boston.upload_link_sent'));
         assert.ok(rows.some(r => r.action === 'boston.upload_links_sent_all'));
         assert.ok(rows.some(r => r.action === 'boston.presenter_added'));
+        assert.ok(rows.some(r => r.action === 'boston.reminder_sent'));
+        assert.ok(rows.some(r => r.action === 'boston.reminders_sent_all'));
     });
 
     console.log(`\n${passed} passed, ${failed} failed`);

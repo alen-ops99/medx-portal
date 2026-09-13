@@ -27,6 +27,13 @@
  *   GET  /api/boston/presentations?key=…      — the same data as JSON (for the v2 admin portal later)
  *   GET  /api/boston/presentations/:id/download?key=… — 302 → 15-minute presigned S3 GET
  *   GET  /api/boston/registrations.csv?key=…  — full registrant export (UTF-8 BOM, quoted, CRLF)
+ *   GET  /boston/rsvp/:token/:answer          — one-tap catering answer (no login, HMAC token);
+ *                                               records it, then offers the other question inline
+ *   POST /api/boston/rsvp/:token/allergies    — the single "what to avoid" box behind that page
+ *   POST /api/boston/reminders/send?key=…     — the see-you-next-week reminder: {to:'preview'|'all'|'<id>'}
+ *   GET  /api/boston/catering?key=…           — catering summary + one row per registrant (JSON)
+ *   GET  /api/boston/catering.csv?key=…       — the caterer's list (name, institution, preference,
+ *                                               allergies, answered at, presenter)
  *
  * Storage: the existing bridges_events / bridges_registrations tables (event row find-or-created with
  * the FIXED id below), plus bridges_presentations (created lazily here) for uploaded talk files.
@@ -85,6 +92,29 @@ const UPLOAD_TYPES = {                                  // accepted extensions �
 };
 const ACCEPT_ATTR = '.pdf,.ppt,.pptx,.key';
 
+// ---------------------------------------------------------------- catering (one-tap answers)
+// Two questions, both critical for the caterer, both answerable from the reminder email without a
+// login and without re-typing a name: every button in that email is a link carrying the guest's
+// own HMAC token. The keys below are the ONLY answers the route accepts; the labels are what lands
+// in bridges_registrations.dietary_requirements (so the CSV and the sheet read as written).
+const DIET_PREFS = {
+    'none':        'No restrictions',
+    'vegetarian':  'Vegetarian',
+    'vegan':       'Vegan',
+    'halal':       'Halal',
+    'kosher':      'Kosher',
+    'gluten-free': 'Gluten-free'
+};
+const PREF_KEYS = Object.keys(DIET_PREFS);
+const ALLERGY_NONE = 'no-allergies';        // one tap — "no allergies"
+const ALLERGY_TELL = 'allergies';           // one tap — opens the single text box
+const RSVP_OPEN = 'open';                   // the "change" link — shows the page, writes nothing
+const RSVP_ANSWERS = PREF_KEYS.concat([ALLERGY_NONE, ALLERGY_TELL, RSVP_OPEN]);
+const ALLERGY_PREFIX = 'Allergies: ';       // how the answer lives inside special_requests
+const ALLERGY_NONE_VALUE = 'none';
+const MAX_ALLERGY_CHARS = 300;
+const REMINDER_MARK = 'REMINDER-SENT';
+
 const LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/images/medx-logo.png';
 const baseUrl = () => String(process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -98,6 +128,49 @@ const fmtWhen = iso => {
     return s.slice(0, 10) + ' · ' + s.slice(11, 16) + ' UTC';
 };
 const sanitizeFilename = n => String(n || 'presentation').replace(/[\/\\]/g, ' ').replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 180) || 'presentation';
+
+// ---- catering answers, read and written inside the two existing free-text columns -------------
+// special_requests is a ' | '-joined list; the allergy answer owns the segment that starts with
+// "Allergies:" and nothing else in that column is ever disturbed.
+function allergyPart(specialRequests) {
+    for (const p of String(specialRequests || '').split(' | ')) {
+        const s = p.trim();
+        if (/^allergies:/i.test(s)) return s.slice(s.indexOf(':') + 1).trim() || ALLERGY_NONE_VALUE;
+    }
+    return null;                                        // never answered
+}
+function withAllergyPart(specialRequests, value) {
+    const keep = String(specialRequests || '').split(' | ').map(s => s.trim())
+        .filter(s => s && !/^allergies:/i.test(s));
+    return [ALLERGY_PREFIX + value].concat(keep).join(' | ');
+}
+const prefKeyOf = label => {
+    const want = String(label || '').trim().toLowerCase();
+    return want ? (PREF_KEYS.find(k => DIET_PREFS[k].toLowerCase() === want) || null) : null;
+};
+// One row's catering answers, as the page, the email, the CSV and the admin card all read them.
+function cateringStateOf(reg) {
+    const prefLabelRaw = String(reg.dietary_requirements || '').trim();
+    const prefKey = prefKeyOf(prefLabelRaw);
+    const allergy = allergyPart(reg.special_requests);
+    let ca = {};
+    try { ca = JSON.parse(reg.custom_answers || '{}') || {}; } catch (e) { ca = {}; }
+    if (!ca || typeof ca !== 'object' || Array.isArray(ca)) ca = {};
+    return {
+        prefKey,
+        prefLabel: prefKey ? DIET_PREFS[prefKey] : (prefLabelRaw || null),
+        allergyState: allergy == null ? null : (allergy === ALLERGY_NONE_VALUE ? 'none' : 'yes'),
+        allergyText: allergy && allergy !== ALLERGY_NONE_VALUE ? allergy : '',
+        answeredAt: ca.answered_at ? String(ca.answered_at) : null,
+        answered: !!(prefKey || prefLabelRaw || allergy != null)
+    };
+}
+const isPresenterRow = r => /5-minute presentation/.test(String((r && r.notes) || ''));
+const wasReminded = r => Number((r && r.reminder_sent) || 0) === 1 || new RegExp(REMINDER_MARK).test(String((r && r.notes) || ''));
+const remindedOn = r => {
+    const m = new RegExp(REMINDER_MARK + '\\s+(\\d{4}-\\d{2}-\\d{2})').exec(String((r && r.notes) || ''));
+    return m ? m[1] : (wasReminded(r) ? '' : null);
+};
 
 // Magic-byte check — the extension must match what the bytes actually are.
 function magicOk(ext, buf) {
@@ -294,6 +367,19 @@ module.exports = function mountBoston(app, deps) {
         const m = /^([0-9a-f]{32})\.([0-9a-fA-F-]{16,64})$/.exec(String(token || ''));
         if (!m) return null;
         const expect = uploadSig(m[2]);
+        if (!crypto.timingSafeEqual(Buffer.from(m[1]), Buffer.from(expect))) return null;
+        return m[2];
+    }
+    // Catering-answer token — same scheme again, third distinct HMAC context, so a diet link can
+    // never be replayed as a pass or an upload link (and vice versa). This one travels inside the
+    // reminder email and is what makes every answer button a one-tap link: possession identifies
+    // the guest, so nobody logs in and nobody re-types their name.
+    const dietSig = id => crypto.createHmac('sha256', String(JWT_SECRET)).update('boston:diet:' + String(id)).digest('hex').slice(0, 32);
+    const dietToken = id => dietSig(id) + '.' + String(id);
+    function verifyDietToken(token) {
+        const m = /^([0-9a-f]{32})\.([0-9a-fA-F-]{16,64})$/.exec(String(token || ''));
+        if (!m) return null;
+        const expect = dietSig(m[2]);
         if (!crypto.timingSafeEqual(Buffer.from(m[1]), Buffer.from(expect))) return null;
         return m[2];
     }
@@ -1094,6 +1180,306 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ============================================================ SEE-YOU-NEXT-WEEK REMINDER
+    // One email a week before the evening, to everyone holding a seat (presenters included), with
+    // the ticket they already have — same QR, same wallet passes, same .ics, nothing re-minted —
+    // and the two catering questions the caterer needs. Every answer is a LINK: one tap records it
+    // and lands on a page that offers the other question. Two taps and the guest is done.
+    // Nothing here sends by itself: the route is keyed, and 'all' only ever arrives from an
+    // explicit admin click behind a confirm.
+
+    const REMINDER_SUBJECT = 'See you on ' + DATE_LONG.replace(/\s*\d{4}$/, '') + ' — Building Bridges Boston';
+
+    function reminderEmailHtml(reg, opts) {
+        const o = opts || {};
+        const T = emailTemplates.T;
+        const base = baseUrl();
+        const id = String(reg.id);
+        const first = reg.first_name || 'there';
+        const fullName = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Med&X Guest';
+        const links = walletLinks(reg);
+        const tok = dietToken(id);
+        const rsvp = a => `${base}/boston/rsvp/${tok}/${a}`;
+        const state = cateringStateOf(reg);
+
+        const fact = (label, valueHtml) => `<tr>
+        <td style="padding:5px 0;vertical-align:baseline;width:86px;font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#d7b56c;">${label}</td>
+        <td style="padding:5px 0 5px 10px;vertical-align:baseline;font-family:${T.sans};font-size:13px;line-height:1.55;color:#f2e7d6;">${valueHtml}</td></tr>`;
+        // A one-tap answer: a real link styled as a chip. The chosen one reads back filled.
+        const chip = (label, href, chosen) => `<a href="${esc(href)}" style="display:inline-block;margin:0 8px 9px 0;padding:12px 17px;${chosen
+            ? 'background:#a8232b;border:1px solid #a8232b;color:#fff3e2;'
+            : 'background:#3b2c1c;border:1px solid rgba(215,181,108,.5);color:#f2e7d6;'}font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;">${chosen ? '&#10003; ' : ''}${label}</a>`;
+
+        const prefChips = PREF_KEYS.map(k => chip(esc(DIET_PREFS[k]), rsvp(k), state.prefKey === k)).join('');
+        const allergyChips = chip('No allergies', rsvp(ALLERGY_NONE), state.allergyState === 'none')
+            + chip('I have allergies &rarr; tell us', rsvp(ALLERGY_TELL), state.allergyState === 'yes');
+
+        const answeredNote = state.answered
+            ? `<div style="font-family:${T.sans};font-size:11.5px;line-height:1.6;color:#c9b89f;margin-top:2px;">You already told us${state.prefLabel ? ' <b style="color:#f2e7d6;">' + esc(state.prefLabel) + '</b>' : ''}${state.allergyState === 'none' ? ' and <b style="color:#f2e7d6;">no allergies</b>' : state.allergyState === 'yes' ? ' and <b style="color:#f2e7d6;">' + esc(state.allergyText) + '</b>' : ''} — tap anything above to change it.</div>`
+            : '';
+
+        const presenterLine = o.presenter && !o.uploaded
+            ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:#342718;border:1px solid rgba(240,228,210,.16);"><tr><td style="padding:13px 18px;font-family:${T.sans};font-size:12.5px;line-height:1.6;color:#d3c5b2;">
+        <b style="color:#f2e7d6;">You&rsquo;re presenting</b> &mdash; <a href="${esc(base + '/boston/upload/' + uploadToken(id))}" style="color:#e6c37f;font-weight:600;">upload your slides here</a>.
+      </td></tr></table>` : '';
+
+        const walletStack = (links.apple || links.google || links.calendar) ? `
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px auto 0;">
+                ${links.apple ? `<tr><td align="center" style="padding:0 0 10px;">${emailTemplates.btn('ADD TO APPLE WALLET →', links.apple, 'ink', 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr>` : ''}
+                ${links.google ? `<tr><td align="center" style="padding:0 0 10px;">${emailTemplates.btn('ADD TO GOOGLE WALLET →', links.google, 'gold', 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr>` : ''}
+                ${links.calendar ? `<tr><td align="center" style="padding:0 0 10px;">${emailTemplates.btn('ADD TO CALENDAR →', links.calendar, 'ghost', 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;color:#f2e7d6;border-color:rgba(240,228,210,.5);')}</td></tr>` : ''}
+              </table>` : '';
+
+        const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">One week to go</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;color:#f2e7d6;margin-top:10px;">See you on ${esc(DATE_LONG.replace(/,\s*\d{4}$/, ''))}, <i>${esc(first)}</i>.</div>
+      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:16px;">
+        <p style="margin:0 0 10px;">Dear ${esc(first)}, see you on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b> &mdash; Waterhouse Room, Gordon Hall, Harvard Medical School. Doors open at <b style="color:#f2e7d6;">5:30&nbsp;PM</b>, the program runs <b style="color:#f2e7d6;">6:00&ndash;9:00&nbsp;PM</b>, business attire.</p>
+        <p style="margin:0;">Your ticket is below &mdash; the same QR and wallet passes you already have. Nothing new to collect.</p>
+      </div>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td style="padding:18px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          ${fact('WHEN', `<b>${esc(DATE_LONG)}</b> &middot; 6:00&ndash;9:00 PM &middot; doors from 5:30 PM`)}
+          ${fact('WHERE', esc(VENUE_FULL))}
+          ${fact('DRESS', esc(DRESS))}
+          ${fact('GUEST', `${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))}`)}
+        </table>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-top:1px solid rgba(240,228,210,.16);"><tr><td align="center" style="padding-top:16px;">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid rgba(240,228,210,.2);padding:8px;">
+            <a href="${esc(base + '/api/boston/qr/' + id + '.png')}" style="display:block;text-decoration:none;"><img src="${esc(base + '/api/boston/qr/' + id + '.png')}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;"></a>
+          </td></tr></table>
+          <div style="font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#c9b89f;margin-top:8px;">Your entry QR &middot; show at the door</div>
+          <div style="font-family:${T.sans};font-size:11px;color:#c9b89f;margin-top:4px;">Tap the QR to enlarge it &mdash; then save it to your photos.</div>${walletStack}
+        </td></tr></table>
+      </td></tr></table>
+
+      ${presenterLine}
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
+        <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Two quick questions for the catering</div>
+        <div style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:#d3c5b2;margin-top:8px;">One tap each &mdash; no form, no login, your name is already on it.</div>
+        <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:18px;">1 &middot; What should we put on your plate?</div>
+        <div style="margin-top:10px;">${prefChips}</div>
+        <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:12px;">2 &middot; Any food allergies?</div>
+        <div style="margin-top:10px;">${allergyChips}</div>
+        ${answeredNote}
+      </td></tr></table>
+
+      <div style="margin-top:24px;padding-top:14px;border-top:1px solid rgba(240,228,210,.18);font-family:${T.sans};font-size:11.5px;line-height:1.7;color:#d3c5b2;">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
+    </td></tr></table>`;
+
+        return emailTemplates.shell({
+            tone: 'dark',
+            title: 'See you on ' + DATE_LONG.replace(/\s*\d{4}$/, '') + ' — Building Bridges Boston',
+            preheader: 'Doors 5:30 PM · Waterhouse Room, Gordon Hall · two quick questions for the catering.',
+            headerRightLabel: 'BUILDING BRIDGES · BOSTON',
+            rule: 'crimson',
+            bodyHtml: body
+        });
+    }
+
+    // ------------------------------------------------------------ GET /boston/rsvp/:token/:answer
+    // The one-tap answer page. A forged token or an answer outside the whitelist is a 404 — the
+    // page never says which. Every write is idempotent: re-clicking simply overwrites.
+    app.get('/boston/rsvp/:token/:answer', (req, res) => {
+        res.set('X-Robots-Tag', 'noindex, nofollow');
+        res.set('Cache-Control', 'private, no-store');
+        try {
+            const id = verifyDietToken(req.params.token);
+            const answer = String(req.params.answer || '').toLowerCase();
+            const reg = id ? query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
+            if (!reg || !RSVP_ANSWERS.includes(answer)) return res.status(404).send(rsvpNotFoundPage());
+
+            if (DIET_PREFS[answer]) {
+                query.run('UPDATE bridges_registrations SET dietary_requirements = ? WHERE id = ?', [DIET_PREFS[answer], reg.id]);
+                stampCateringAnswers(reg, { diet_pref: answer });
+                flushDb();
+            } else if (answer === ALLERGY_NONE) {
+                query.run('UPDATE bridges_registrations SET special_requests = ? WHERE id = ?',
+                    [withAllergyPart(reg.special_requests, ALLERGY_NONE_VALUE), reg.id]);
+                stampCateringAnswers(reg, { allergies: ALLERGY_NONE_VALUE });
+                flushDb();
+            }
+            // ALLERGY_TELL and RSVP_OPEN write nothing — they only open the page.
+            const fresh = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [reg.id]) || reg;
+            res.send(rsvpPage(fresh, dietToken(reg.id), answer));
+        } catch (e) {
+            console.error('[Boston] rsvp page error:', e.message);
+            res.status(500).send(simplePage('Something went wrong', 'One moment, please.',
+                `We could not record that just now. Please try the link again in a minute, or write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>).`));
+        }
+    });
+
+    // ------------------------------------------------------------ POST /api/boston/rsvp/:token/allergies
+    // The one text box behind "I have allergies". Stored into special_requests, prefixed
+    // "Allergies: ", and mirrored into custom_answers. Idempotent — saving again replaces it.
+    app.post('/api/boston/rsvp/:token/allergies', (req, res) => {
+        try {
+            const id = verifyDietToken(req.params.token);
+            const reg = id ? query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
+            if (!reg) return res.status(404).json({ error: 'Not found' });
+            const text = String((req.body || {}).text == null ? '' : (req.body || {}).text)
+                .replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, MAX_ALLERGY_CHARS);
+            if (!text) return res.status(400).json({ error: 'Tell us what to avoid — or tap “No allergies”.' });
+            query.run('UPDATE bridges_registrations SET special_requests = ? WHERE id = ?',
+                [withAllergyPart(reg.special_requests, text), reg.id]);
+            stampCateringAnswers(reg, { allergies: text });
+            flushDb();
+            res.json({ success: true, allergies: text });
+        } catch (e) {
+            console.error('[Boston] rsvp allergies save failed:', e.message);
+            res.status(500).json({ error: 'We could not save that just now. Please try again.' });
+        }
+    });
+
+    // custom_answers is a shared JSON blob on the registration row — merge into it, never replace.
+    function stampCateringAnswers(reg, patch) {
+        let ca = {};
+        try { ca = JSON.parse(reg.custom_answers || '{}') || {}; } catch (e) { ca = {}; }
+        if (!ca || typeof ca !== 'object' || Array.isArray(ca)) ca = {};
+        Object.assign(ca, patch, { answered_at: new Date().toISOString() });
+        query.run('UPDATE bridges_registrations SET custom_answers = ? WHERE id = ?', [JSON.stringify(ca), reg.id]);
+        return ca;
+    }
+
+    // ------------------------------------------------------------ catering data (JSON + CSV share it)
+    // Everyone holding a seat — the same population the reminder goes to.
+    function cateringRows() {
+        return query.all(`SELECT * FROM bridges_registrations
+            WHERE event_id = ? AND status IN ('registered','confirmed')
+            ORDER BY registered_at, rowid`, [EVENT_ID]);
+    }
+    function cateringData() {
+        const regs = cateringRows();
+        const preferences = PREF_KEYS.map(k => ({ key: k, label: DIET_PREFS[k], count: 0 }));
+        const byKey = new Map(preferences.map(p => [p.key, p]));
+        let withAllergies = 0, noAllergies = 0, notAnswered = 0, remindersSent = 0;
+        const rows = regs.map(r => {
+            const st = cateringStateOf(r);
+            if (st.prefKey && byKey.has(st.prefKey)) byKey.get(st.prefKey).count++;
+            if (st.allergyState === 'yes') withAllergies++;
+            if (st.allergyState === 'none') noAllergies++;
+            if (!st.answered) notAnswered++;
+            if (wasReminded(r)) remindersSent++;
+            const presenter = isPresenterRow(r);
+            return {
+                registration_id: r.id,
+                name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+                first_name: r.first_name || '',
+                email: r.email,
+                institution: r.institution || '',
+                preference: st.prefLabel,
+                preference_key: st.prefKey,
+                allergy_state: st.allergyState,
+                allergies: st.allergyText,
+                answered: st.answered,
+                answered_at: st.answeredAt,
+                presenter,
+                uploaded: presenter ? !!latestPresentation(r.id) : false,
+                reminder_sent: wasReminded(r),
+                reminder_sent_at: remindedOn(r)
+            };
+        });
+        const preferenceUnanswered = rows.filter(r => !r.preference_key).length;
+        return {
+            event: EVENT_ID, event_name: EVENT_NAME,
+            generated_at: new Date().toISOString(),
+            total: rows.length,
+            answered: rows.length - notAnswered,
+            not_answered: notAnswered,
+            preferences,
+            preference_unanswered: preferenceUnanswered,
+            with_allergies: withAllergies,
+            no_allergies: noAllergies,
+            allergies_unanswered: rows.length - withAllergies - noAllergies,
+            presenters: rows.filter(r => r.presenter).length,
+            reminders_sent: remindersSent,
+            reminders_pending: rows.length - remindersSent,
+            rows
+        };
+    }
+
+    // ------------------------------------------------------------ POST /api/boston/reminders/send
+    // {to:'preview'} → ONE sample to the reviewer, nothing stamped.
+    // {to:'all'}     → everyone not yet reminded (already-sent rows are skipped).
+    // {to:'<id>'}    → that one registrant, always (this is the Resend button).
+    app.post('/api/boston/reminders/send', async (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            const to = String((req.body || {}).to || '').trim();
+            const everyone = cateringRows();
+
+            if (to === 'preview') {
+                const sample = everyone[0] || { id: 'preview', first_name: 'Alen', last_name: '', email: reviewGate.REVIEW_TO, institution: '' };
+                const presenter = isPresenterRow(sample);
+                await sendEmail(reviewGate.REVIEW_TO, '[PREVIEW] ' + REMINDER_SUBJECT,
+                    reminderEmailHtml(sample, { presenter, uploaded: presenter ? !!latestPresentation(sample.id) : false }));
+                return res.json({ success: true, preview_to: reviewGate.REVIEW_TO, registrants: everyone.length });
+            }
+            if (to !== 'all' && !to) return res.status(400).json({ error: 'Say who: "preview", "all", or a registration id.' });
+
+            const targets = to === 'all' ? everyone.filter(r => !wasReminded(r)) : everyone.filter(r => String(r.id) === to);
+            const today = new Date().toISOString().slice(0, 10);
+            const sent = [];
+            for (const r of targets) {
+                const presenter = isPresenterRow(r);
+                const out = await sendEmail(r.email, REMINDER_SUBJECT,
+                    reminderEmailHtml(r, { presenter, uploaded: presenter ? !!latestPresentation(r.id) : false }));
+                if (out && out.success !== false) {
+                    const notes = String(r.notes || '');
+                    const stamped = new RegExp(REMINDER_MARK).test(notes) ? notes
+                        : (notes ? notes + ' | ' : '') + REMINDER_MARK + ' ' + today;
+                    query.run('UPDATE bridges_registrations SET reminder_sent = 1, notes = ? WHERE id = ?', [stamped, r.id]);
+                    sent.push(r.email);
+                }
+            }
+            flushDb();
+            console.log(`[Boston] reminders sent: ${sent.length}/${targets.length}`);
+            return res.json({
+                success: true, sent,
+                skipped_already_sent: to === 'all' ? everyone.length - targets.length : 0,
+                not_found: to !== 'all' && !targets.length
+            });
+        } catch (e) {
+            console.error('[Boston] reminder send failed:', e.message);
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // ------------------------------------------------------------ GET /api/boston/catering(.csv)
+    app.get('/api/boston/catering', (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            res.set('Cache-Control', 'private, no-store');
+            res.json(cateringData());
+        } catch (e) {
+            console.error('[Boston] catering JSON error:', e.message);
+            res.status(500).json({ error: 'Could not assemble the catering list.' });
+        }
+    });
+    app.get('/api/boston/catering.csv', (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(403).json({ error: 'Forbidden' });
+            const data = cateringData();
+            const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+            const lines = [['Name', 'Institution', 'Preference', 'Allergies', 'Answered at', 'Presenter'].map(q).join(',')];
+            for (const r of data.rows) {
+                lines.push([r.name, r.institution, r.preference || '',
+                    r.allergy_state === 'none' ? 'None' : (r.allergies || ''),
+                    r.answered_at ? fmtWhen(r.answered_at) : '',
+                    r.presenter ? 'Yes' : 'No'].map(q).join(','));
+            }
+            res.set('Content-Type', 'text/csv; charset=utf-8');
+            res.set('Content-Disposition', 'attachment; filename="building-bridges-boston-catering.csv"');
+            res.set('Cache-Control', 'private, no-store');
+            res.send('\ufeff' + lines.join('\r\n') + '\r\n');
+        } catch (e) {
+            console.error('[Boston] catering CSV failed:', e.message);
+            res.status(500).json({ error: 'Export failed.' });
+        }
+    });
+
     // ------------------------------------------------------------ GET /api/boston/presentations/:id/download
     app.get('/api/boston/presentations/:id/download', (req, res) => {
         try {
@@ -1143,7 +1529,7 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
-    console.log('[Boston] Building Bridges Boston wing mounted (/boston + presentation uploads)');
+    console.log('[Boston] Building Bridges Boston wing mounted (/boston + presentation uploads + catering reminder)');
 };
 
 // Test seam: the SigV4 helper — tests stub putObject (never the wire) and drive presignGet as-is
@@ -1538,6 +1924,140 @@ ${FONTS_HTML}
 ${FOOTER_HTML}
 </body></html>`;
 }
+// ---------------------------------------------------------------- one-tap catering page
+// What the guest lands on after tapping an answer in the reminder email: their first name, the
+// answer just recorded, and the OTHER question still answerable right there — so preference plus
+// allergies is two taps in total. Built for a phone first.
+function rsvpPage(reg, token, answer) {
+    const st = cateringStateOf(reg);
+    const first = reg.first_name || 'there';
+    const url = a => `/boston/rsvp/${encodeURIComponent(token)}/${a}`;
+    const showBox = answer === ALLERGY_TELL || st.allergyState === 'yes';
+
+    const headline = answer === ALLERGY_TELL
+        ? 'What should we keep away from you?'
+        : st.prefKey && DIET_PREFS[answer]
+            ? `Noted &mdash; ${esc(DIET_PREFS[answer].toLowerCase())}.`
+            : answer === ALLERGY_NONE
+                ? 'Noted &mdash; no allergies.'
+                : st.prefKey || st.allergyState
+                    ? 'Here is what we have.'
+                    : 'Two quick questions.';
+    const lede = st.prefKey && st.allergyState
+        ? 'That is everything the caterer needs &mdash; thank you. Tap anything below if it changes.'
+        : st.prefKey
+            ? 'One left: any food allergies?'
+            : st.allergyState
+                ? 'One left: what should we put on your plate?'
+                : 'One tap each. Nothing to fill in, nothing to sign in to.';
+
+    const chip = (label, href, chosen) => `<a class="chip${chosen ? ' on' : ''}" href="${esc(href)}">${chosen ? '<b>&#10003;</b> ' : ''}${label}</a>`;
+    const prefChips = PREF_KEYS.map(k => chip(esc(DIET_PREFS[k]), url(k), st.prefKey === k)).join('');
+    const allergyChips = chip('No allergies', url(ALLERGY_NONE), st.allergyState === 'none')
+        + chip('I have allergies', url(ALLERGY_TELL), st.allergyState === 'yes');
+
+    const box = `
+      <div class="abox" id="abox"${showBox ? '' : ' hidden'}>
+        <label for="a_text">Tell us what to avoid</label>
+        <input type="text" id="a_text" maxlength="${MAX_ALLERGY_CHARS}" placeholder="e.g. nuts, shellfish" value="${esc(st.allergyText)}" autocomplete="off">
+        <button type="button" class="save" id="a_save">Save</button>
+        <p class="aerr" id="a_err"></p>
+        <p class="aok" id="a_ok"${st.allergyState === 'yes' ? '' : ' hidden'}>Saved &mdash; <b id="a_val">${esc(st.allergyText)}</b>. The kitchen has it.</p>
+      </div>`;
+
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Two quick questions — Building Bridges Boston · Med&amp;X</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="/assets/favicon-x.png">
+${FONTS_HTML}
+<style>${BASE_CSS}
+main{max-width:600px;}
+.headline{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:clamp(24px,5.8vw,32px);line-height:1.14;letter-spacing:-.4px;color:#241d18;margin:2px 0 10px;}
+.lede{font-size:14.5px;line-height:1.7;color:#4a4139;}
+.qlabel{margin-top:24px;font-size:10.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);}
+.chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:11px;}
+.chip{display:inline-block;padding:12px 16px;border-radius:11px;border:1px solid rgba(43,33,25,.2);background:#fff;color:#3a322b;font-size:14px;font-weight:600;text-decoration:none;line-height:1.2;}
+.chip:hover{border-color:var(--gold);background:#fdfbf5;}
+.chip.on{background:linear-gradient(180deg,#a03330,var(--crimson));border-color:var(--crimson);color:#fbf3e6;box-shadow:0 10px 22px -14px rgba(143,45,42,.8);}
+.chip.on b{font-weight:700;}
+.abox{margin-top:14px;padding:16px 17px;border:1px solid rgba(176,137,59,.3);background:#f4eede;border-radius:13px;}
+.abox label{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.abox input{width:100%;padding:13px 14px;border:1px solid rgba(43,33,25,.18);border-radius:11px;background:#fff;color:#241d18;font-size:16px;font-family:inherit;}
+.abox input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,137,59,.14);}
+.save{margin-top:11px;padding:13px 28px;border:none;border-radius:11px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;color:#fbf3e6;background:linear-gradient(180deg,#a03330,var(--crimson));}
+.save:disabled{opacity:.55;cursor:not-allowed;}
+.aerr{display:none;margin-top:10px;font-size:13px;color:#7c2320;line-height:1.5;}
+.aok{margin-top:10px;font-size:13px;color:#2f6e3a;line-height:1.5;}
+.aok b{color:#245c2e;}
+.sofar{margin-top:22px;padding-top:15px;border-top:1px solid rgba(43,33,25,.1);font-size:13px;line-height:1.75;color:var(--muted);}
+.sofar b{color:#2c2521;}
+.sofar a{color:var(--crimson);font-weight:600;text-decoration:none;}
+.evline{margin-top:14px;font-size:12.5px;line-height:1.7;color:#8a7d70;}
+@media(max-width:430px){.chip{flex:1 1 auto;text-align:center;}}
+</style></head><body>
+
+<header class="miniband"><div class="inner">
+  <div class="orgs">
+    <img class="medx" src="${LOGO_URL}" alt="Med&amp;X">
+    <span class="x">&times;</span>
+    <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
+  </div>
+  <p class="kicker">Building Bridges — Boston &middot; Catering</p>
+  <h1>Hi ${esc(first)}</h1>
+</div></header>
+
+<main>
+  <section class="sheet" aria-label="Your catering answers">
+    <p class="headline">${headline}</p>
+    <p class="lede">${lede}</p>
+
+    <p class="qlabel">1 &middot; What should we put on your plate?</p>
+    <div class="chips">${prefChips}</div>
+
+    <p class="qlabel">2 &middot; Any food allergies?</p>
+    <div class="chips">${allergyChips}</div>
+    ${box}
+
+    <p class="sofar">So far: <b>${st.prefLabel ? esc(st.prefLabel) : 'preference not set'}</b> &middot; <b>${st.allergyState === 'none' ? 'no allergies' : st.allergyState === 'yes' ? esc(st.allergyText) : 'allergies not set'}</b> &mdash; <a href="${esc(url(RSVP_OPEN))}">change</a></p>
+    <p class="evline">${esc(DATE_LONG)} &middot; 6:00&ndash;9:00 PM (doors 5:30 PM) &middot; ${esc(VENUE_FULL)} &middot; ${esc(DRESS)}</p>
+  </section>
+</main>
+
+${FOOTER_HTML}
+
+<script>
+(function(){
+  var API='/api/boston/rsvp/${token}/allergies';
+  var box=document.getElementById('abox');
+  if(!box) return;
+  var input=document.getElementById('a_text'),btn=document.getElementById('a_save'),
+      err=document.getElementById('a_err'),ok=document.getElementById('a_ok'),val=document.getElementById('a_val');
+  if(!box.hasAttribute('hidden')&&input&&!input.value) setTimeout(function(){try{input.focus();}catch(e){}},60);
+  function save(){
+    var t=(input.value||'').trim();
+    err.style.display='none';
+    if(!t){err.textContent='Tell us what to avoid — or tap “No allergies” above.';err.style.display='block';return;}
+    btn.disabled=true;btn.textContent='Saving…';
+    fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})})
+      .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+      .then(function(res){
+        btn.disabled=false;btn.textContent='Save';
+        if(res.ok&&res.j.success){val.textContent=res.j.allergies;ok.removeAttribute('hidden');}
+        else{err.textContent=(res.j&&res.j.error)||'We could not save that. Please try again.';err.style.display='block';}
+      })
+      .catch(function(){btn.disabled=false;btn.textContent='Save';err.textContent='We could not reach the server. Please try again.';err.style.display='block';});
+  }
+  btn.addEventListener('click',save);
+  input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();save();}});
+})();
+</script>
+</body></html>`;
+}
+function rsvpNotFoundPage() {
+    return simplePage('This link is not quite right', 'This link is not quite right.',
+        `The link you opened is incomplete or has been mistyped &mdash; links are personal, so every character matters. Please open the exact link from your reminder email (copy &amp; paste is safest). If it still does not work, write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>) and we will note your answers by hand.`);
+}
+
 function uploadNotFoundPage() {
     return simplePage('This link is not quite right', 'This link is not quite right.',
         `The upload link you opened is incomplete or has been mistyped — links are personal, so every character matters. Please open the exact link you were sent (copy &amp; paste is safest). If it still does not work, write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>) and we will sort it out.`);
