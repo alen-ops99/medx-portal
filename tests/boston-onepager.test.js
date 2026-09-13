@@ -1,6 +1,8 @@
 /**
- * tests/boston-onepager.test.js — the participant one-pagers (every guest) and the program PDF
- * that rides along on the one Boston email (user-portal/backend/boston.js).
+ * tests/boston-onepager.test.js — the participant ONE-SLIDE SUMMARIES (every guest, PDF or
+ * PowerPoint, with the share-with-participants consent) and the program PDF that rides along on
+ * the one Boston email (user-portal/backend/boston.js). The route, the table and this file's name
+ * keep the older "onepager" spelling; everything a guest reads says one-slide summary.
  *
  * Hermetic, and shaped exactly like tests/boston.test.js: a stub express app collects the routes
  * (only the FINAL handler, so multer never runs — the test injects req.file itself), a scratch
@@ -126,8 +128,15 @@ const uploadToken = id => sigOf('bostonup:', id);
 const passToken = id => sigOf('boston:', id);
 const dietToken = id => sigOf('boston:diet:', id);
 
-const pdfBuf = (extra = 64) => Buffer.concat([Buffer.from('%PDF-1.7\n% Building Bridges Boston one-pager\n'), Buffer.alloc(extra, 0x20)]);
-const zipBuf = () => Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(96, 0)]);
+const pdfBuf = (extra = 64) => Buffer.concat([Buffer.from('%PDF-1.7\n% Building Bridges Boston one-slide summary\n'), Buffer.alloc(extra, 0x20)]);
+const zipBuf = () => Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(96, 0)]);   // .pptx / .key
+const oleBuf = () => Buffer.concat([Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), Buffer.alloc(96, 0)]);   // legacy .ppt
+const jpgBuf = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]), Buffer.alloc(96, 0)]);
+
+// The two facts the owner's program PDF fixes — asserted as literals here on purpose, so a change
+// of date or format has to be a deliberate edit in the test as well as in the wing.
+const DEADLINE = 'Saturday, 19 September 2026';
+const FORMAT_LINE = '5 minutes · 5 to 8 slides · PowerPoint 16:9, in English (PDF also accepted) · up to 25 MB · all talks run from one laptop';
 
 // ---------------------------------------------------------------- seed
 const ANA = '11111111-1111-4111-8111-111111111111';
@@ -204,17 +213,29 @@ async function t(name, fn) {
         const r = await call(app, 'GET', '/boston/onepager/:token', { params: { token: onepagerToken(ANA) } });
         assert.strictEqual(r.statusCode, 200);
         const html = String(r.body);
-        assert.ok(html.includes('Hi Ana — introduce yourself to the room'), 'personal greeting');
+        assert.ok(html.includes('Hi Ana — your one-slide summary'), 'personal greeting');
         assert.ok(html.includes('Ana Horvat'), 'attributed to the registration');
-        assert.ok(/Introduce yourself to the room &mdash; one page: who you are, what you work on, what collaborators or opportunities you are looking for\./.test(html), 'the brief, verbatim');
-        assert.ok(/PDF, up to 5 MB\./.test(html), 'the limit, verbatim');
-        assert.ok(/We compile every one-pager into a participant booklet shared with all attendees after the evening\./.test(html), 'the promise, verbatim');
+        assert.ok(/One slide that introduces you to the room/.test(html), 'the brief');
+        assert.ok(/who you are, what you do, and what you are looking for in a collaborator &mdash; with your contact details/.test(html), "the PDF's own words for what goes on the slide");
+        assert.ok(/PDF or PowerPoint \(\.ppt\/\.pptx\), up to 10 MB\./.test(html), 'the format and the limit, verbatim');
+        assert.ok(html.includes(DEADLINE), 'the deadline the program PDF fixes');
+        assert.ok(!/18 September/.test(html), 'and never the superseded deadline');
+        assert.ok(/If you are happy to share it, we send the summaries to all participants after the event\./.test(html), 'the promise, in the owner\'s conditional');
         assert.ok(html.includes('noindex'), 'never indexed');
         assert.ok(html.includes('width=device-width'), 'phone viewport');
         assert.ok(html.includes(`/api/boston/onepager/${onepagerToken(ANA)}`), 'the page posts to its own token API');
         assert.ok(html.includes('id="hl_text"'), 'the optional headline field');
-        assert.ok(html.includes('accept=".pdf"'), 'PDF only in the picker');
+        assert.ok(html.includes('accept=".pdf,.ppt,.pptx"'), 'PDF or PowerPoint in the picker');
+        assert.ok(html.includes('Upload my one-slide summary'), 'the button says what it sends');
+        assert.ok(!/one-pager/i.test(html), 'the guest never reads the internal name');
         assert.ok(!html.includes('undefined') && !html.includes('NaN'), 'no leaked placeholders');
+    });
+
+    await t('the sharing consent is a real checkbox, ticked by default, in the guest\'s own words', async () => {
+        const html = String((await call(app, 'GET', '/boston/onepager/:token', { params: { token: onepagerToken(ANA) } })).body);
+        assert.ok(/<input type="checkbox" id="share_ok" checked>/.test(html), 'ticked by default');
+        assert.ok(html.includes('Yes, share my summary with all participants after the event'), 'the label, verbatim');
+        assert.ok(/fd\.append\('share_ok'/.test(html), 'and the page always states the answer it posts');
     });
 
     // ================================================================ the upload itself
@@ -237,13 +258,13 @@ async function t(name, fn) {
         assert.ok(/^\d{4}-\d{2}-\d{2}T/.test(rows[0].uploaded_at), 'uploaded_at is ISO');
     });
 
-    await t('PDF only — a deck, a zip, an image or a text file is refused, and nothing is stored', async () => {
+    await t('a slide, not a photo: an image, a Keynote or a text file is refused, nothing is stored', async () => {
         const puts = s3Puts.length, rows = opRows(ANA).length;
         const bad = [
-            { originalname: 'slides.pptx', buffer: zipBuf() },
             { originalname: 'notes.txt', buffer: Buffer.from('hello world padding........') },
             { originalname: 'photo.png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]) },
-            { originalname: 'deck.key', buffer: zipBuf() }
+            { originalname: 'deck.key', buffer: zipBuf() },
+            { originalname: 'scan.doc', buffer: oleBuf() }
         ];
         for (const f of bad) {
             const r = await upload(onepagerToken(ANA), f);
@@ -252,19 +273,36 @@ async function t(name, fn) {
         // a .pdf name over something that is not a PDF inside is refused by the magic bytes
         const liar = await upload(onepagerToken(ANA), { originalname: 'liar.pdf', buffer: zipBuf() });
         assert.strictEqual(liar.statusCode, 400);
-        assert.ok(/does not look like a real PDF/.test(liar.body.error));
+        assert.ok(/does not look like a real \.pdf file inside/.test(liar.body.error));
         const empty = await upload(onepagerToken(ANA), undefined);
         assert.strictEqual(empty.statusCode, 400);
         assert.strictEqual(s3Puts.length, puts, 'no S3 write');
         assert.strictEqual(opRows(ANA).length, rows, 'no row');
     });
 
-    await t('over 5 MB is a 413 — no S3 write, no row', async () => {
+    await t('a JPEG is refused by its name AND by its bytes — a photo is never a summary', async () => {
         const puts = s3Puts.length, rows = opRows(ANA).length;
-        const big = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(5 * 1024 * 1024 + 1, 0x20)]);
+        const byName = await upload(onepagerToken(ANA), { originalname: 'poster.jpg', buffer: jpgBuf() });
+        assert.strictEqual(byName.statusCode, 400, '.jpg is not an accepted extension');
+        assert.ok(/PDF or PowerPoint/.test(byName.body.error), 'and the message says what is: ' + byName.body.error);
+        const alsoByName = await upload(onepagerToken(ANA), { originalname: 'poster.jpeg', buffer: jpgBuf() });
+        assert.strictEqual(alsoByName.statusCode, 400, '.jpeg either');
+        // renamed to get past the extension gate — the magic bytes still say JPEG
+        for (const name of ['poster.pdf', 'poster.pptx', 'poster.ppt']) {
+            const r = await upload(onepagerToken(ANA), { originalname: name, buffer: jpgBuf() });
+            assert.strictEqual(r.statusCode, 400, 'a JPEG renamed to ' + name + ' must still be refused');
+            assert.ok(/does not look like a real/.test(r.body.error));
+        }
+        assert.strictEqual(s3Puts.length, puts, 'no S3 write');
+        assert.strictEqual(opRows(ANA).length, rows, 'no row');
+    });
+
+    await t('over 10 MB is a 413 — no S3 write, no row', async () => {
+        const puts = s3Puts.length, rows = opRows(ANA).length;
+        const big = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(10 * 1024 * 1024 + 1, 0x20)]);
         const r = await upload(onepagerToken(ANA), { originalname: 'huge.pdf', buffer: big, size: big.length });
         assert.strictEqual(r.statusCode, 413);
-        assert.ok(/5 MB/.test(r.body.error), 'the message names the limit');
+        assert.ok(/10 MB/.test(r.body.error), 'the message names the limit');
         assert.strictEqual(s3Puts.length, puts);
         assert.strictEqual(opRows(ANA).length, rows);
     });
@@ -365,21 +403,98 @@ async function t(name, fn) {
         assert.strictEqual(missing.statusCode, 404);
     });
 
-    await t('the ZIP names every entry Last_First__file.pdf and holds one file per guest', async () => {
+    await t('the ZIP names every entry Last_First__file and holds one file per guest', async () => {
         const r = await call(app, 'GET', '/api/boston/onepagers.zip', { query: { key: ADMIN_KEY } });
         assert.strictEqual(r.statusCode, 200);
         assert.strictEqual(r.headers['content-type'], 'application/zip');
-        assert.ok(/BB-Boston-one-pagers-\d{4}-\d{2}-\d{2}\.zip/.test(String(r.headers['content-disposition'])), 'a dated filename');
+        assert.ok(/BB-Boston-one-slide-summaries-\d{4}-\d{2}-\d{2}\.zip/.test(String(r.headers['content-disposition'])), 'a dated filename');
         const zip = r.body;
         assert.ok(Buffer.isBuffer(zip) && zip.slice(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])), 'a real zip');
         const text = zip.toString('latin1');
         assert.ok(text.includes('Horvat_Ana__Ana_v2.pdf'), 'Ana, newest file: ' + text.slice(0, 120));
         assert.ok(text.includes('Babic_Luka__luka4.pdf'), 'Luka, newest file');
-        assert.ok(!text.includes('luka.pdf"'), 'older versions stay out of the booklet archive');
+        assert.ok(!text.includes('luka.pdf"'), 'older versions stay out of the archive');
         // one local header per guest with a file — two guests, two entries
         let entries = 0, at = 0;
         while ((at = text.indexOf('PK', at)) !== -1) { entries++; at += 4; }
         assert.strictEqual(entries, 2, 'exactly one entry per guest');
+    });
+
+    // ================================================================ PowerPoint + the consent
+    await t('a PowerPoint is accepted for the summary and keeps its own extension and type', async () => {
+        const QUIET = '44444444-4444-4444-8444-444444444444';           // seeded two tests up
+        const r = await upload(onepagerToken(QUIET), { originalname: 'Quiet Guest summary.pptx', buffer: zipBuf() });
+        assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+        const put = s3Puts[s3Puts.length - 1];
+        assert.ok(put.key.endsWith('.pptx'), 'stored as .pptx, not forced to .pdf: ' + put.key);
+        assert.strictEqual(put.contentType, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+        assert.strictEqual(opRows(QUIET)[0].mime, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+        // and the legacy OLE .ppt travels the same lane
+        const legacy = await upload(onepagerToken(QUIET), { originalname: 'old.ppt', buffer: oleBuf() });
+        assert.strictEqual(legacy.statusCode, 200, JSON.stringify(legacy.body));
+        assert.ok(s3Puts[s3Puts.length - 1].key.endsWith('.ppt'));
+    });
+
+    await t('consent defaults to shared — an upload that says nothing is share_ok = 1', async () => {
+        const QUIET = '44444444-4444-4444-8444-444444444444';
+        assert.strictEqual(Number(opRows(QUIET)[0].share_ok), 1, 'stored as shared');
+        const d = (await call(app, 'GET', '/api/boston/onepagers', { query: { key: ADMIN_KEY } })).body;
+        const quiet = d.rows.find(r => r.registration_id === QUIET);
+        assert.strictEqual(quiet.onepager.share_ok, true, 'and the team JSON reads it back as shared');
+        assert.strictEqual(quiet.share_ok, true);
+        assert.strictEqual(d.received, 3);
+        assert.strictEqual(d.shared, 3, 'everyone so far said yes');
+        assert.strictEqual(d.private, 0);
+        assert.strictEqual(d.zip_excluded, 0, 'so nothing is held back from the archive');
+    });
+
+    await t('unticking the box stores a private summary — kept for the team, out of the archive', async () => {
+        const r = await upload(onepagerToken(LUKA), { originalname: 'luka-private.pdf', buffer: pdfBuf(120) }, { share_ok: '0' });
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(r.body.share_ok, false, 'the answer comes straight back');
+        const rows = opRows(LUKA);
+        assert.strictEqual(Number(rows[rows.length - 1].share_ok), 0, 'stored as private');
+
+        const d = (await call(app, 'GET', '/api/boston/onepagers', { query: { key: ADMIN_KEY } })).body;
+        const luka = d.rows.find(x => x.registration_id === LUKA);
+        assert.strictEqual(luka.onepager.share_ok, false, 'the newest answer wins over the older shared ones');
+        assert.strictEqual(luka.onepager.filename, 'luka-private.pdf');
+        assert.strictEqual(d.received, 3);
+        assert.strictEqual(d.shared, 2);
+        assert.strictEqual(d.private, 1);
+        assert.strictEqual(d.zip_excluded, 1, 'the JSON says how many the archive leaves out');
+
+        // the team can still open it one at a time — private means "not distributed", not "hidden"
+        const dl = await call(app, 'GET', '/api/boston/onepagers/:id/download', { params: { id: luka.onepager.id }, query: { key: ADMIN_KEY } });
+        assert.strictEqual(dl.statusCode, 302);
+
+        const zip = await call(app, 'GET', '/api/boston/onepagers.zip', { query: { key: ADMIN_KEY } });
+        assert.strictEqual(zip.statusCode, 200);
+        assert.strictEqual(String(zip.headers['x-summaries-excluded-private']), '1', 'the archive says what it left out');
+        const text = zip.body.toString('latin1');
+        assert.ok(!text.includes('Babic_Luka'), 'not one byte of the private summary is in the archive');
+        assert.ok(text.includes('Horvat_Ana__Ana_v2.pdf') && text.includes('Guest_Quiet'), 'the shared ones are all there');
+        let entries = 0, at = 0;
+        while ((at = text.indexOf('PK', at)) !== -1) { entries++; at += 4; }
+        assert.strictEqual(entries, 2, 'two shared summaries, two entries');
+    });
+
+    await t('the page reads a private answer back — the box comes up unticked, and says so', async () => {
+        const html = String((await call(app, 'GET', '/boston/onepager/:token', { params: { token: onepagerToken(LUKA) } })).body);
+        assert.ok(/<input type="checkbox" id="share_ok">/.test(html), 'unticked, because that is what they chose');
+        assert.ok(html.includes('Kept private'), 'and the on-file card says which way it stands');
+    });
+
+    await t('a re-upload with the box ticked again puts the summary back into the archive', async () => {
+        const r = await upload(onepagerToken(LUKA), { originalname: 'luka-shared-again.pdf', buffer: pdfBuf(140) }, { share_ok: '1' });
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(r.body.share_ok, true);
+        const d = (await call(app, 'GET', '/api/boston/onepagers', { query: { key: ADMIN_KEY } })).body;
+        assert.strictEqual(d.private, 0);
+        assert.strictEqual(d.zip_excluded, 0);
+        const zip = await call(app, 'GET', '/api/boston/onepagers.zip', { query: { key: ADMIN_KEY } });
+        assert.ok(zip.body.toString('latin1').includes('Babic_Luka__luka-shared-again.pdf'), 'back in');
+        assert.strictEqual(String(zip.headers['x-summaries-excluded-private']), '0');
     });
 
     // ================================================================ the program PDF
@@ -426,11 +541,27 @@ async function t(name, fn) {
 
     // ================================================================ nothing leaked
     await t('no email was sent by any of this, and the Google sheet was never touched', () => {
-        assert.strictEqual(sentEmails.length, 0, 'the one-pager lane sends nothing by itself');
+        assert.strictEqual(sentEmails.length, 0, 'the summary lane sends nothing by itself');
         const src = require('node:fs').readFileSync(require.resolve('../user-portal/backend/boston.js'), 'utf8');
-        const feature = src.slice(src.indexOf('ONE-PAGERS (every guest)'), src.indexOf('team data (page + JSON share it)'));
+        const feature = src.slice(src.indexOf('ONE-SLIDE SUMMARIES (every guest)'), src.indexOf('team data (page + JSON share it)'));
         assert.ok(feature.length > 2000, 'found the feature block');
-        assert.ok(!/pushToBostonSheet|updateBostonSheetStatus|sheetsToken/.test(feature), 'the one-pagers leave the owner\'s sheet alone');
+        assert.ok(!/pushToBostonSheet|updateBostonSheetStatus|sheetsToken/.test(feature), 'the summaries leave the owner\'s sheet alone');
+    });
+
+    // ================================================================ the deadline and the format
+    // Both come from the owner's program PDF. The presenter page states them, and the superseded
+    // "Friday, 18 September" must not survive anywhere in the wing's source.
+    await t('the presenter upload page states the format and the 19 September deadline', async () => {
+        const html = String((await call(app, 'GET', '/boston/upload/:token', { params: { token: uploadToken(LUKA) } })).body);
+        assert.ok(html.includes(FORMAT_LINE), 'the format line, verbatim');
+        assert.ok(html.includes('Deadline ' + DEADLINE), 'the deadline, verbatim');
+        assert.ok(!/18 September|Friday, 18/.test(html), 'the old deadline is gone');
+    });
+
+    await t('no page or email in the wing still says Friday, 18 September', () => {
+        const src = require('node:fs').readFileSync(require.resolve('../user-portal/backend/boston.js'), 'utf8');
+        assert.ok(!/18 September|Friday, 18/.test(src), 'the superseded deadline is nowhere in boston.js');
+        assert.ok(src.includes(DEADLINE), 'and the one from the program PDF is');
     });
 
     console.log(`\n${passed} passed, ${failed} failed`);

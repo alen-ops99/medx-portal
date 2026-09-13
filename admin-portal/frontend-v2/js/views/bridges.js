@@ -98,25 +98,28 @@ export const COPY = {
   },
   // THE Boston email (2026-09-13, reworked from the see-you-next-week reminder). One personalized
   // email per guest: the program PDF attached, their ticket, the two catering questions, the
-  // one-pager upload — and, for presenters only, the slides upload. Same card, second table:
-  // everyone holding a seat, what has come back from them, and the send button per row.
+  // one-slide-summary upload — and, for presenters only, the slides upload. Same card, second
+  // table: everyone holding a seat, what has come back from them, and the send button per row.
   cat: {
-    title: 'THE BOSTON EMAIL', sub: 'one personalized email per guest — program PDF, ticket, catering, one-pager',
+    title: 'THE BOSTON EMAIL', sub: 'one personalized email per guest — program PDF, ticket, catering, one-slide summary',
     sendAll: n => `SEND THE BOSTON EMAIL TO EVERYONE (${n} NOT YET SENT)`, allSent: 'EVERYONE HAS THEIR EMAIL',
-    csv: 'CATERING LIST (CSV)', opZip: n => `DOWNLOAD ALL ONE-PAGERS (ZIP · ${n})`, opZipNone: 'NO ONE-PAGERS YET',
+    csv: 'CATERING LIST (CSV)',
+    // The archive holds only the summaries whose owner ticked "share with all participants", so
+    // the button counts THOSE — a label reading higher than the file would be a small lie.
+    opZip: n => `DOWNLOAD SHARED SUMMARIES (ZIP · ${n})`, opZipNone: 'NO SHARED SUMMARIES YET',
     strip: (a, t, al, na) => `${a} of ${t} answered · ${al} with allergies · ${na} still to answer`,
-    stripOp: (n, t) => `one-pagers received ${n}/${t}`,
-    cWho: 'GUEST', cInst: 'INSTITUTION', cPref: 'PREFERENCE', cAllergy: 'ALLERGIES', cOnePager: 'ONE-PAGER', cAnswered: 'ANSWERED', cRem: 'EMAIL SENT',
+    stripOp: (n, t, priv) => `one-slide summaries received ${n}/${t}` + (priv ? ` · ${priv} private` : ''),
+    cWho: 'GUEST', cInst: 'INSTITUTION', cPref: 'PREFERENCE', cAllergy: 'ALLERGIES', cOnePager: 'ONE-SLIDE SUMMARY', cAnswered: 'ANSWERED', cRem: 'EMAIL SENT',
     send: 'SEND', resend: 'RESEND', busy: 'SENDING…',
     noPref: 'not set', noAllergy: 'not set', allergyNone: 'none', notSent: 'not sent',
-    opYes: '✓', opNo: '–',
+    opShared: 'SHARED ✓', opPrivate: 'PRIVATE', opNo: '–',
     empty: 'Nobody is registered yet.',
     emptyWhy: 'Everyone who registers on the Boston form lands here — the email and everything it collects back follow.',
     down: 'The member portal did not answer, so the guest list is unavailable right now. Nothing is lost — reload in a minute.',
     cOneTitle: 'Send the Boston email?', cOneAgain: 'Send the Boston email again?',
-    cOneBody: (who, mail) => `<p style="margin:0 0 8px">${who} gets the whole evening in one email at <b>${mail}</b> — the program PDF, their ticket, the two catering questions and the one-pager page, right now.</p><p style="margin:0;color:#6d6459">One email, sent immediately — this is not the Outbox.</p>`,
+    cOneBody: (who, mail) => `<p style="margin:0 0 8px">${who} gets the whole evening in one email at <b>${mail}</b> — the program PDF, their ticket, the two catering questions and their one-slide summary page, right now.</p><p style="margin:0;color:#6d6459">One email, sent immediately — this is not the Outbox.</p>`,
     cAllTitle: n => `Send the Boston email to ${n} guest${n === 1 ? '' : 's'}?`,
-    cAllBody: n => `<p style="margin:0 0 8px">${n} guest${n === 1 ? '' : 's'} who ${n === 1 ? 'has' : 'have'} not had it get${n === 1 ? 's' : ''} the one email now — the program PDF, their ticket, the catering questions and the one-pager page.</p><p style="margin:0;color:#6d6459">Anyone already sent is skipped. One email each, sent immediately — this is not the Outbox.</p>`,
+    cAllBody: n => `<p style="margin:0 0 8px">${n} guest${n === 1 ? '' : 's'} who ${n === 1 ? 'has' : 'have'} not had it get${n === 1 ? 's' : ''} the one email now — the program PDF, their ticket, the catering questions and their one-slide summary page.</p><p style="margin:0;color:#6d6459">Anyone already sent is skipped. One email each, sent immediately — this is not the Outbox.</p>`,
     sent: mail => `THE BOSTON EMAIL WENT TO ${String(mail).toUpperCase()}`,
     sentAll: n => n ? `${n} EMAIL${n === 1 ? '' : 'S'} SENT` : 'EVERYONE ALREADY HAD THE EMAIL',
     // the program PDF — the one attachment, and the gate on every real send
@@ -466,6 +469,8 @@ function sectionCatering(btn, cell, head) {
   const rows = C ? (C.rows || []) : [];
   const pending = C ? Number(C.reminders_pending) || 0 : 0;
   const opGot = C ? Number(C.onepagers_received) || 0 : 0;
+  const opPriv = C ? Number(C.onepagers_private) || 0 : 0;
+  const opShareable = C ? Math.max(0, opGot - opPriv) : 0;
   const prefLine = C ? (C.preferences || []).filter(p => p.count).map(p => `${esc(p.label)} ${p.count}`).join(' · ') : '';
   const prog = (C && C.program) || null;
   const progOn = !!(prog && prog.present);
@@ -482,7 +487,7 @@ function sectionCatering(btn, cell, head) {
           <div style="flex:1"></div>
           ${C ? btn('bpRemindAll', !progOn ? c.needProgram : pending ? c.sendAll(pending) : c.allSent, progOn && pending > 0) : ''}
           ${C ? ghostLink(C.csv_url || '/api/v2/boston/catering.csv', c.csv) : ''}
-          ${C && opGot ? ghostLink(C.onepagers_zip_url || '/api/v2/boston/onepagers.zip', c.opZip(opGot))
+          ${C && opShareable ? ghostLink(C.onepagers_zip_url || '/api/v2/boston/onepagers.zip', c.opZip(opShareable))
             : C ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.opZipNone}</span>` : ''}
         </div>
         ${C ? `
@@ -498,7 +503,7 @@ function sectionCatering(btn, cell, head) {
         </div>` : ''}
         ${C ? `<div style="display:flex;gap:8px 20px;flex-wrap:wrap;padding:11px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);font-size:11.5px;color:#6d6459">
           <span><b style="color:#201b16">${esc(c.strip(C.answered || 0, C.total || 0, C.with_allergies || 0, C.not_answered || 0))}</b></span>
-          <span><b style="color:#201b16">${esc(c.stripOp(opGot, C.total || 0))}</b></span>
+          <span><b style="color:#201b16">${esc(c.stripOp(opGot, C.total || 0, opPriv))}</b></span>
           ${prefLine ? `<span>${prefLine}</span>` : ''}
         </div>` : ''}
         ${!C && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
@@ -512,10 +517,16 @@ function sectionCatering(btn, cell, head) {
               const busy = st.bpReminding === r.registration_id;
               const allergy = r.allergy_state === 'yes' ? esc(r.allergies || 'yes')
                 : r.allergy_state === 'none' ? c.allergyNone : c.noAllergy;
+              // The guest's own answer to "share it with all participants?" is what the chip
+              // reports — a private summary is on file for the team but never in the archive.
+              const opShared = r.onepager_share_ok !== false;
+              const opLabel = opShared ? c.opShared : c.opPrivate;
+              const opSkin = opShared ? 'background:#e6efe8;color:#1e6e42' : 'background:#fdf1dc;color:#8a5a12';
+              const opHover = opShared ? 'background:#1e6e42;color:#fff' : 'background:#8a5a12;color:#fff';
               const opMark = r.onepager
                 ? (r.onepager_download_url
-                  ? `<a href="${esc(r.onepager_download_url)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px;white-space:nowrap" data-hover="background:#1e6e42;color:#fff">${c.opYes} PDF</a>`
-                  : `<span style="color:#1e6e42">${c.opYes}</span>`)
+                  ? `<a href="${esc(r.onepager_download_url)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;${opSkin};padding:3px 8px;white-space:nowrap" data-hover="${opHover}">${opLabel}</a>`
+                  : `<span style="color:${opShared ? '#1e6e42' : '#8a5a12'}">${opLabel}</span>`)
                 : `<span style="color:#9a9086">${c.opNo}</span>`;
               return `
               <tr data-row="${esc(r.registration_id)}">

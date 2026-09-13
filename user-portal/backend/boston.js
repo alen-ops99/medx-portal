@@ -23,10 +23,11 @@
  *                                               same payload as the prod /qr/:id.png bridges branch
  *   GET  /boston/upload/:token                — personal 5-minute-presentation upload page (no login)
  *   POST /api/boston/upload/:token            — multipart upload → S3 (25 MB cap, magic-byte checked)
- *   GET  /boston/onepager/:token              — personal one-pager page — EVERY guest (no login)
- *   POST /api/boston/onepager/:token          — multipart upload → S3 (PDF only, 5 MB) + headline
- *   GET  /api/boston/onepagers?key=…          — team JSON: who sent a one-pager, headline, download
- *   GET  /api/boston/onepagers.zip?key=…      — every latest one-pager in one archive
+ *   GET  /boston/onepager/:token              — personal one-slide-summary page — EVERY guest (no login)
+ *   POST /api/boston/onepager/:token          — multipart upload → S3 (PDF or .ppt/.pptx, 10 MB)
+ *                                               + headline + the share-with-participants consent
+ *   GET  /api/boston/onepagers?key=…          — team JSON: who sent a summary, headline, consent, download
+ *   GET  /api/boston/onepagers.zip?key=…      — the SHARED summaries in one archive (private ones left out)
  *   GET  /api/boston/onepagers/:id/download?key=… — 302 → 15-minute presigned S3 GET
  *   GET  /boston/presentations?key=…          — team page: who requested / who uploaded, links, downloads
  *   GET  /api/boston/presentations?key=…      — the same data as JSON (for the v2 admin portal later)
@@ -44,7 +45,7 @@
  *
  * Storage: the existing bridges_events / bridges_registrations tables (event row find-or-created with
  * the FIXED id below), plus bridges_presentations and bridges_onepagers (both created lazily here)
- * for uploaded talk files and participant one-pagers.
+ * for uploaded talk files and participant one-slide summaries.
  * Presentation files live in the private S3 bucket BB_S3_BUCKET under
  * boston-2026/<registrationId>/<presentationId>.<ext> — every upload is a new key + a new history row;
  * the NEWEST row per registrant is authoritative. S3 access is a ~90-line SigV4 signer over plain
@@ -99,14 +100,29 @@ const UPLOAD_TYPES = {                                  // accepted extensions �
     key:  { mime: 'application/vnd.apple.keynote' }
 };
 const ACCEPT_ATTR = '.pdf,.ppt,.pptx,.key';
+// The owner's program PDF (BB_Boston_Event_Info_and_Presentation_Instructions, 2026-09-13) is the
+// source of truth for the two facts a presenter needs, so both live here once and every email and
+// page reads them from this one place. Real UTF-8 punctuation — the same as the rest of the wing.
+const SLIDES_DEADLINE = 'Saturday, 19 September 2026';
+const SLIDES_FORMAT_LINE = '5 minutes · 5 to 8 slides · PowerPoint 16:9, in English (PDF also accepted) · up to 25 MB · all talks run from one laptop';
 
-// ---------------------------------------------------------------- one-pager constants (EVERYONE)
-// One page per guest — who they are, what they work on, what they are looking for. Every one-pager
-// is compiled into a participant booklet shared with all attendees after the evening, so this is a
-// PDF-only lane (a booklet cannot be assembled from four different deck formats) with a small cap.
-const MAX_ONEPAGER_BYTES = 5 * 1024 * 1024;            // 5 MB
-const ONEPAGER_PREFIX = 'boston/onepagers';            // S3: boston/onepagers/<registration id>/<id>.pdf
+// ------------------------------------------------------- one-slide summary constants (EVERYONE)
+// The PDF calls it a ONE-SLIDE SUMMARY: "who you are, what you do, and what you are looking for in
+// a collaborator, with your contact details". Every guest is encouraged to send one, presenter or
+// not, and the summaries go to all participants after the event — but only "if you are happy to
+// share it", which is the consent checkbox below (ticked by default, stored per upload).
+// Internally the table, the routes and the S3 prefix keep the older "onepager" name.
+const MAX_ONEPAGER_BYTES = 10 * 1024 * 1024;           // 10 MB
+const ONEPAGER_PREFIX = 'boston/onepagers';            // S3: boston/onepagers/<registration id>/<id>.<ext>
 const MAX_HEADLINE_CHARS = 120;                        // "Sleep neuroscientist · looking for clinical collaborators"
+const SUMMARY_TYPES = {                                 // a slide is a slide — PDF or PowerPoint
+    pdf:  { mime: 'application/pdf' },
+    ppt:  { mime: 'application/vnd.ms-powerpoint' },
+    pptx: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }
+};
+const SUMMARY_ACCEPT_ATTR = '.pdf,.ppt,.pptx';
+const SUMMARY_BRIEF = 'who you are, what you do, and what you are looking for in a collaborator &mdash; with your contact details';
+const SUMMARY_SHARE_LABEL = 'Yes, share my summary with all participants after the event';
 
 // ---------------------------------------------------------------- the program PDF (the ONE attachment)
 // The evening's program travels as an attachment on the one email. Two ways to provide it, checked
@@ -114,7 +130,7 @@ const MAX_HEADLINE_CHARS = 120;                        // "Sleep neuroscientist 
 // fixed key below. Nothing is generated here — the owner's PDF is the program.
 const MAX_PROGRAM_BYTES = 10 * 1024 * 1024;            // 10 MB
 const PROGRAM_UPLOAD_KEY = 'boston/program/program.pdf';
-const PROGRAM_FILENAME = 'Building-Bridges-Boston-program.pdf';
+const PROGRAM_FILENAME = 'Building-Bridges-Boston-Program.pdf';
 const programKey = () => String(process.env.BB_PROGRAM_PDF_KEY || '').trim() || PROGRAM_UPLOAD_KEY;
 
 // ---------------------------------------------------------------- catering (one-tap answers)
@@ -445,10 +461,11 @@ module.exports = function mountBoston(app, deps) {
     }
 
     // ------------------------------------------------------------ bridges_onepagers (lazy)
-    // The participant booklet's raw material — one page per GUEST, not per presenter. Mirrors
+    // The one-slide summaries — one slide per GUEST, not per presenter. Mirrors
     // bridges_presentations exactly (every upload inserts, the newest row per registrant wins)
-    // plus one column the decks do not need: the optional single-line headline that goes under
-    // the name in the booklet's index. stored_key = boston/onepagers/<regId>/<onepagerId>.pdf.
+    // plus two columns the decks do not need: the optional single-line headline that goes under
+    // the name in the index, and share_ok — the guest's own answer to the PDF's "if you are happy
+    // to share it". stored_key = boston/onepagers/<regId>/<onepagerId>.<ext>.
     let onePagerTableReady = false;
     function ensureOnepagersTable() {
         if (onePagerTableReady) return;
@@ -460,10 +477,23 @@ module.exports = function mountBoston(app, deps) {
             mime TEXT,
             size INTEGER NOT NULL,
             headline TEXT,
+            share_ok INTEGER DEFAULT 1,
             uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`);
+        // Additive migration for a table created before the consent question existed. Nullable,
+        // defaulting to 1: a row uploaded when sharing was the stated promise keeps that promise,
+        // and readers treat NULL as shared (shareOkOf below) so nothing depends on a backfill.
+        try {
+            const cols = query.all('PRAGMA table_info(bridges_onepagers)') || [];
+            if (!cols.some(c => String(c.name) === 'share_ok')) {
+                query.run('ALTER TABLE bridges_onepagers ADD COLUMN share_ok INTEGER DEFAULT 1');
+            }
+        } catch (e) { console.warn('[Boston] share_ok migration skipped:', e.message); }
         onePagerTableReady = true;
     }
+    // The consent, read the same way everywhere: absent/NULL (pre-consent rows, or an upload that
+    // never carried the field) means shared, only an explicit 0 keeps a summary private.
+    const shareOkOf = row => Number(row && row.share_ok != null ? row.share_ok : 1) !== 0;
     function latestOnepager(regId) {
         ensureOnepagersTable();
         return query.get(`SELECT * FROM bridges_onepagers WHERE registration_id = ?
@@ -1132,12 +1162,12 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
-    // ============================================================ ONE-PAGERS (every guest)
-    // "Introduce yourself to the room." One PDF page per guest, compiled into a participant booklet
-    // after the evening. Same machinery as the decks — memory multer → magic-byte check → S3 →
-    // a history row, newest wins — with three deliberate differences: it is open to EVERYONE (not
-    // only presenters), PDF only (a booklet needs one format), and it carries an optional one-line
-    // headline for the booklet's index.
+    // ============================================================ ONE-SLIDE SUMMARIES (every guest)
+    // "Introduce yourself to the room." One slide per guest, sent to all participants after the
+    // event. Same machinery as the decks — memory multer → magic-byte check → S3 → a history row,
+    // newest wins — with three deliberate differences: it is open to EVERYONE (not only
+    // presenters), it carries an optional one-line headline for the index, and it carries the
+    // guest's own sharing consent, which is what the archive filters on.
     const onepagerMulter = multerLib
         ? multerLib({ storage: multerLib.memoryStorage(), limits: { fileSize: MAX_ONEPAGER_BYTES, files: 1 } }).single('file')
         : null;
@@ -1145,11 +1175,17 @@ module.exports = function mountBoston(app, deps) {
         if (!onepagerMulter) return res.status(503).json({ error: 'Uploads are momentarily unavailable. Please try again shortly.' });
         onepagerMulter(req, res, err => {
             if (!err) return next();
-            if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'That file is over the 5 MB limit. One page is all we need — export it again and try.' });
-            return res.status(400).json({ error: 'We could not read that upload. Please try again with a PDF.' });
+            if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'That file is over the 10 MB limit. One slide is all we need — export it again and try.' });
+            return res.status(400).json({ error: 'We could not read that upload. Please try again with a PDF or a PowerPoint file.' });
         });
     }
     const cleanHeadline = v => String(v == null ? '' : v).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, MAX_HEADLINE_CHARS);
+    // The checkbox is ticked by default and the page always posts its state, so a missing field is
+    // somebody using the link by hand — and the default the guest would have seen is "share".
+    const readShareOk = v => {
+        if (v == null || String(v).trim() === '') return 1;
+        return ['0', 'false', 'no', 'off', 'unchecked'].includes(String(v).trim().toLowerCase()) ? 0 : 1;
+    };
 
     // ------------------------------------------------------------ GET /boston/onepager/:token
     app.get('/boston/onepager/:token', (req, res) => {
@@ -1161,7 +1197,7 @@ module.exports = function mountBoston(app, deps) {
             if (!reg) return res.status(404).send(onepagerNotFoundPage());
             res.send(onepagerPage(reg, latestOnepager(reg.id), s3.isConfigured(), String(req.params.token)));
         } catch (e) {
-            console.error('[Boston] one-pager page error:', e.message);
+            console.error('[Boston] one-slide summary page error:', e.message);
             res.status(500).send(simplePage('Something went wrong', 'One moment, please.',
                 `We could not open your page just now. Please try the link again in a minute, or write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>).`));
         }
@@ -1176,33 +1212,37 @@ module.exports = function mountBoston(app, deps) {
             if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
             if (!s3.isConfigured()) return res.status(503).json({ error: 'Uploads open soon — this same link will work shortly. Nothing else is needed from you.' });
             const f = req.file;
-            if (!f || !f.buffer || !f.buffer.length) return res.status(400).json({ error: 'Choose your one-pager first — a PDF, up to 5 MB.' });
-            const name = sanitizeFilename(f.originalname || 'one-pager.pdf');
-            if (!/\.pdf$/i.test(name)) return res.status(400).json({ error: 'PDF only, please — export your page as a PDF and try again.' });
+            if (!f || !f.buffer || !f.buffer.length) return res.status(400).json({ error: 'Choose your one-slide summary first — a PDF or a PowerPoint, up to 10 MB.' });
+            const name = sanitizeFilename(f.originalname || 'one-slide-summary.pdf');
+            const m = /\.([A-Za-z0-9]{1,10})$/.exec(name);
+            const ext = m ? m[1].toLowerCase() : '';
+            const type = SUMMARY_TYPES[ext];
+            if (!type) return res.status(400).json({ error: 'PDF or PowerPoint (.ppt/.pptx), please — export your slide and try again.' });
             if (f.buffer.length > MAX_ONEPAGER_BYTES) {  // belt — multer already aborts the stream at the cap
-                return res.status(413).json({ error: 'That file is over the 5 MB limit. One page is all we need — export it again and try.' });
+                return res.status(413).json({ error: 'That file is over the 10 MB limit. One slide is all we need — export it again and try.' });
             }
-            if (!magicOk('pdf', f.buffer)) {
-                return res.status(400).json({ error: 'That file does not look like a real PDF inside. Please re-export it and try again.' });
+            if (!magicOk(ext, f.buffer)) {
+                return res.status(400).json({ error: `That file does not look like a real .${ext} file inside. Please re-export it and try again.` });
             }
             ensureOnepagersTable();
             const headline = cleanHeadline((req.body || {}).headline);
+            const shareOk = readShareOk((req.body || {}).share_ok);
             const docId = crypto.randomUUID();
-            const storedKey = `${ONEPAGER_PREFIX}/${id}/${docId}.pdf`;
-            await s3.putObject(storedKey, f.buffer, 'application/pdf');   // S3 first — a row only for a stored file
+            const storedKey = `${ONEPAGER_PREFIX}/${id}/${docId}.${ext}`;
+            await s3.putObject(storedKey, f.buffer, type.mime);   // S3 first — a row only for a stored file
             const uploadedAt = new Date().toISOString();
-            query.run(`INSERT INTO bridges_onepagers (id, registration_id, original_name, stored_key, mime, size, headline, uploaded_at)
-                VALUES (?,?,?,?,?,?,?,?)`, [docId, id, name, storedKey, 'application/pdf', f.buffer.length, headline || null, uploadedAt]);
+            query.run(`INSERT INTO bridges_onepagers (id, registration_id, original_name, stored_key, mime, size, headline, share_ok, uploaded_at)
+                VALUES (?,?,?,?,?,?,?,?,?)`, [docId, id, name, storedKey, type.mime, f.buffer.length, headline || null, shareOk, uploadedAt]);
             flushDb();
-            res.json({ success: true, filename: name, size: f.buffer.length, headline: headline || null, uploaded_at: uploadedAt });
+            res.json({ success: true, filename: name, size: f.buffer.length, headline: headline || null, share_ok: shareOk === 1, uploaded_at: uploadedAt });
         } catch (e) {
-            console.error('[Boston] one-pager upload failed:', e.message);
+            console.error('[Boston] one-slide summary upload failed:', e.message);
             res.status(502).json({ error: 'The upload did not go through. Please try again — this same link keeps working.' });
         }
     });
 
-    // ------------------------------------------------------------ team data (one-pagers)
-    // EVERY guest holding a seat is a row here (the booklet is for the whole room), with their
+    // ------------------------------------------------------------ team data (one-slide summaries)
+    // EVERY guest holding a seat is a row here (the ask is for the whole room), with their
     // personal link so the team can re-send one by hand, and the latest file when there is one.
     function onepagerAdminData() {
         ensureOnepagersTable();
@@ -1223,23 +1263,33 @@ module.exports = function mountBoston(app, deps) {
                 presenter: isPresenterRow(r),
                 upload_url: `${base}/boston/onepager/${onepagerToken(r.id)}`,
                 headline: latest && latest.headline ? String(latest.headline) : null,
+                share_ok: latest ? shareOkOf(latest) : null,
                 onepager: latest ? {
                     id: latest.id,
                     filename: latest.original_name,
                     size: Number(latest.size),
+                    mime: latest.mime || null,
                     headline: latest.headline || null,
+                    share_ok: shareOkOf(latest),
                     uploaded_at: latest.uploaded_at,
                     versions,
                     download_url: `${base}/api/boston/onepagers/${latest.id}/download?key=${adminKey()}`
                 } : null
             };
         });
+        const received = rows.filter(r => r.onepager);
+        const shared = received.filter(r => r.onepager.share_ok).length;
         return {
             event: EVENT_ID, event_name: EVENT_NAME,
             generated_at: new Date().toISOString(),
             s3_configured: s3.isConfigured(),
             total: rows.length,
-            received: rows.filter(r => r.onepager).length,
+            received: received.length,
+            // What the archive will and will not contain: a guest who unticked the box is counted
+            // here and nowhere else, so the team can see the gap without opening the file.
+            shared,
+            private: received.length - shared,
+            zip_excluded: received.length - shared,
             rows
         };
     }
@@ -1251,14 +1301,16 @@ module.exports = function mountBoston(app, deps) {
             res.set('Cache-Control', 'private, no-store');
             res.json(onepagerAdminData());
         } catch (e) {
-            console.error('[Boston] one-pagers JSON error:', e.message);
+            console.error('[Boston] one-slide summaries JSON error:', e.message);
             res.status(500).json({ error: 'Could not assemble the list.' });
         }
     });
 
     // ------------------------------------------------------------ GET /api/boston/onepagers.zip?key=…
-    // The booklet's raw material in one archive — "<Last>_<First>__<original>.pdf", same writer
-    // and the same naming rule as the presentations archive.
+    // What goes to all participants: "<Last>_<First>__<original>", same writer and the same naming
+    // rule as the presentations archive — and ONLY the summaries whose owner ticked the box. A
+    // private one is not in the file at all; the count that was left out rides on a header and in
+    // the JSON list beside it, so nobody has to infer it from the entry count.
     app.get('/api/boston/onepagers.zip', async (req, res) => {
         try {
             if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
@@ -1266,9 +1318,18 @@ module.exports = function mountBoston(app, deps) {
             if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
             const data = onepagerAdminData();
             const withFile = data.rows.filter(r => r.onepager && r.onepager.id);
-            if (!withFile.length) return res.status(404).json({ error: 'No one-pagers uploaded yet.' });
+            const shareable = withFile.filter(r => r.onepager.share_ok);
+            const excluded = withFile.length - shareable.length;
+            if (!shareable.length) {
+                return res.status(404).json({
+                    error: excluded
+                        ? `No shareable one-slide summaries yet — ${excluded} on file ${excluded === 1 ? 'is' : 'are'} marked private.`
+                        : 'No one-slide summaries uploaded yet.',
+                    received: withFile.length, shared: 0, excluded_private: excluded
+                });
+            }
             const entries = [];
-            for (const r of withFile) {
+            for (const r of shareable) {
                 const p = query.get('SELECT * FROM bridges_onepagers WHERE id = ?', [r.onepager.id]);
                 if (!p) continue;
                 const buf = await s3.getObject(p.stored_key);
@@ -1277,11 +1338,12 @@ module.exports = function mountBoston(app, deps) {
             }
             const zip = buildZip(entries);
             res.set('Content-Type', 'application/zip');
-            res.set('Content-Disposition', `attachment; filename="BB-Boston-one-pagers-${new Date().toISOString().slice(0, 10)}.zip"`);
+            res.set('Content-Disposition', `attachment; filename="BB-Boston-one-slide-summaries-${new Date().toISOString().slice(0, 10)}.zip"`);
+            res.set('X-Summaries-Excluded-Private', String(excluded));
             res.set('Cache-Control', 'private, no-store');
             res.send(zip);
         } catch (e) {
-            console.error('[Boston] one-pager zip failed:', e.message);
+            console.error('[Boston] one-slide summary zip failed:', e.message);
             res.status(500).json({ error: 'Could not build the archive: ' + e.message });
         }
     });
@@ -1298,7 +1360,7 @@ module.exports = function mountBoston(app, deps) {
             res.set('Cache-Control', 'private, no-store');
             res.redirect(302, url);
         } catch (e) {
-            console.error('[Boston] one-pager download redirect failed:', e.message);
+            console.error('[Boston] one-slide summary download redirect failed:', e.message);
             res.status(500).json({ error: 'Could not build the download link.' });
         }
     });
@@ -1489,7 +1551,7 @@ module.exports = function mountBoston(app, deps) {
       </div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${emailTemplates.btn('Upload my presentation', link, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;background:#a8232b;')}</td></tr></table>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:#342718;border:1px solid rgba(240,228,210,.16);"><tr><td style="padding:12px 18px;font-family:${T.sans};font-size:12.5px;line-height:1.6;color:#d3c5b2;">
-        <b style="color:#f2e7d6;">Format:</b> PDF, PowerPoint (.ppt/.pptx) or Keynote, up to 25&nbsp;MB &middot; <b style="color:#f2e7d6;">5 minutes</b>, so 5–7 slides works best &middot; <b style="color:#f2e7d6;">Deadline:</b> please upload by Friday, 18 September so we can preload every deck.
+        <b style="color:#f2e7d6;">Format:</b> ${SLIDES_FORMAT_LINE} &middot; <b style="color:#f2e7d6;">Deadline:</b> please upload by ${SLIDES_DEADLINE} so we can preload every deck.
       </td></tr></table>
       <div style="margin-top:24px;padding-top:14px;border-top:1px solid rgba(240,228,210,.18);font-family:${T.sans};font-size:11.5px;line-height:1.7;color:#d3c5b2;">Questions? Just reply to this email — or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
     </td></tr></table>`;
@@ -1531,7 +1593,7 @@ module.exports = function mountBoston(app, deps) {
     //   (b) your program      — the attached PDF
     //   (c) your ticket       — the entry QR they already have + wallet passes + calendar
     //   (d) two quick questions for the catering — one-tap links, no login, no re-typing
-    //   (e) introduce yourself — the one-pager upload, EVERY guest
+    //   (e) your one-slide summary — the introduce-yourself upload, EVERY guest
     //   (f) you're presenting  — the slides upload, presenters ONLY
     //   (g) reply-to / Laura
     // Nothing here sends by itself: the route is keyed, and 'all' only ever arrives from an
@@ -1576,20 +1638,21 @@ module.exports = function mountBoston(app, deps) {
 
         // ---- (b) your program — the PDF attached to this very email ----
         const programBlock = module(`${label('Your program')}
-        ${para(`The full program of the evening &mdash; who speaks, when, and what follows &mdash; is <b style="color:#f2e7d6;">attached to this email as a PDF</b>.${o.programMissing
+        ${para(`<b style="color:#f2e7d6;">Attached: program, presentation instructions and good-to-know</b> &mdash; one PDF with the running order of the evening, how the five-minute talks work, and the practical notes.${o.programMissing
             ? ' <b style="color:#e8b45c;">(program PDF not uploaded yet)</b>' : ''}`)}`);
 
-        // ---- (e) introduce yourself — the one-pager, for EVERY guest ----
-        const onepagerBlock = module(`${label('Introduce yourself')}
-        ${para('One page about you &mdash; who you are, what you work on, and what collaborators or opportunities you are looking for. We compile every one-pager into a <b style="color:#f2e7d6;">participant booklet</b> and share it with all attendees after the evening.')}
-        ${para('<span style="color:#c9b89f;font-size:12px;">PDF, up to 5&nbsp;MB. Your link is personal &mdash; you can replace the file any time before the evening.</span>', 6)}
-        ${wideBtn(o.onepager ? 'Replace my one-pager' : 'Upload my one-pager', base + '/boston/onepager/' + onepagerToken(id))}
+        // ---- (e) introduce yourself — the one-slide summary, for EVERY guest ----
+        const onepagerBlock = module(`${label('Your one-slide summary')}
+        ${para(`One slide that introduces you to the room &mdash; ${SUMMARY_BRIEF}. Presenter or not, we encourage everyone to send one.`)}
+        ${para(`<span style="color:#c9b89f;font-size:12px;">PDF or PowerPoint (.ppt/.pptx), up to 10&nbsp;MB &middot; by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>. Your link is personal &mdash; you can replace the file any time before the evening.</span>`, 6)}
+        ${para('<span style="color:#c9b89f;font-size:12px;">If you are happy to share it, we send the summaries to all participants after the event &mdash; there is a tick box on the page, and it is yours to untick.</span>', 6)}
+        ${wideBtn(o.onepager ? 'Replace my one-slide summary' : 'Upload my one-slide summary', base + '/boston/onepager/' + onepagerToken(id))}
         ${o.onepager ? onFile('Already received', o.onepager.original_name) : ''}`);
 
         // ---- (f) you're presenting — the slides, presenters ONLY ----
         const presenterBlock = o.presenter ? module(`${label("You're presenting")}
         ${para('Your <b style="color:#f2e7d6;">5-minute presentation</b> is part of the evening. Please upload your slides from your personal link so we can preload every deck before the doors open.')}
-        ${para('<span style="color:#c9b89f;font-size:12px;">PDF, PowerPoint (.ppt/.pptx) or Keynote, up to 25&nbsp;MB &middot; 5&ndash;7 slides works best for five minutes.</span>', 6)}
+        ${para(`<span style="color:#c9b89f;font-size:12px;">${SLIDES_FORMAT_LINE} &middot; by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>.</span>`, 6)}
         ${wideBtn(o.uploaded ? 'Replace my slides' : 'Upload my slides', base + '/boston/upload/' + uploadToken(id))}
         ${o.uploaded ? onFile('Already received', o.uploaded && o.uploaded.original_name) : ''}`) : '';
 
@@ -1605,7 +1668,7 @@ module.exports = function mountBoston(app, deps) {
       <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;color:#f2e7d6;margin-top:10px;">See you on ${esc(DATE_LONG.replace(/,\s*\d{4}$/, ''))}, <i>${esc(first)}</i>.</div>
       <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:16px;">
         <p style="margin:0 0 10px;">Dear ${esc(first)}, see you on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b> &mdash; Waterhouse Room, Gordon Hall, Harvard Medical School. Doors open at <b style="color:#f2e7d6;">5:30&nbsp;PM</b>, the program runs <b style="color:#f2e7d6;">6:00&ndash;9:00&nbsp;PM</b>, business attire.</p>
-        <p style="margin:0;">Everything you need is below &mdash; the program, your ticket, two quick questions for the caterer, and a page to introduce yourself to the room. <b style="color:#f2e7d6;">This is the only email we will send you before the evening.</b></p>
+        <p style="margin:0;">Everything you need is below &mdash; the program, your ticket, two quick questions for the caterer, and your one-slide summary to introduce yourself to the room. <b style="color:#f2e7d6;">This is the only email we will send you before the evening.</b></p>
       </div>
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td style="padding:18px 20px;">
@@ -1649,7 +1712,7 @@ module.exports = function mountBoston(app, deps) {
         return emailTemplates.shell({
             tone: 'dark',
             title: 'See you on ' + DATE_LONG.replace(/\s*\d{4}$/, '') + ' — Building Bridges Boston',
-            preheader: 'Your program, your ticket, two quick questions for the catering, and a page to introduce yourself.',
+            preheader: 'Your program, your ticket, two quick questions for the catering, and your one-slide summary.',
             headerRightLabel: 'BUILDING BRIDGES · BOSTON',
             rule: 'crimson',
             bodyHtml: body
@@ -1758,6 +1821,7 @@ module.exports = function mountBoston(app, deps) {
                 uploaded: presenter ? !!latestPresentation(r.id) : false,
                 onepager: !!onePager,
                 onepager_headline: onePager && onePager.headline ? String(onePager.headline) : null,
+                onepager_share_ok: onePager ? shareOkOf(onePager) : null,
                 onepager_at: onePager ? onePager.uploaded_at : null,
                 onepager_download_url: onePager ? `${baseUrl()}/api/boston/onepagers/${onePager.id}/download?key=${adminKey()}` : null,
                 reminder_sent: wasReminded(r),
@@ -1779,6 +1843,8 @@ module.exports = function mountBoston(app, deps) {
             presenters: rows.filter(r => r.presenter).length,
             onepagers_received: onepagers,
             onepagers_pending: rows.length - onepagers,
+            onepagers_shared: rows.filter(r => r.onepager_share_ok === true).length,
+            onepagers_private: rows.filter(r => r.onepager_share_ok === false).length,
             reminders_sent: remindersSent,
             reminders_pending: rows.length - remindersSent,
             rows
@@ -1883,12 +1949,16 @@ module.exports = function mountBoston(app, deps) {
             if (!checkAdminKey(req.query && req.query.key)) return res.status(403).json({ error: 'Forbidden' });
             const data = cateringData();
             const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-            const lines = [['Name', 'Institution', 'Preference', 'Allergies', 'Answered at', 'Presenter'].map(q).join(',')];
+            const lines = [['Name', 'Institution', 'Preference', 'Allergies', 'Answered at', 'Presenter',
+                'One-slide summary'].map(q).join(',')];
             for (const r of data.rows) {
                 lines.push([r.name, r.institution, r.preference || '',
                     r.allergy_state === 'none' ? 'None' : (r.allergies || ''),
                     r.answered_at ? fmtWhen(r.answered_at) : '',
-                    r.presenter ? 'Yes' : 'No'].map(q).join(','));
+                    r.presenter ? 'Yes' : 'No',
+                    // the guest's own sharing answer, so the list that leaves the building and the
+                    // archive that goes to participants can never disagree
+                    r.onepager ? (r.onepager_share_ok ? 'Shared' : 'Private') : ''].map(q).join(','));
             }
             res.set('Content-Type', 'text/csv; charset=utf-8');
             res.set('Content-Disposition', 'attachment; filename="building-bridges-boston-catering.csv"');
@@ -1949,7 +2019,7 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
-    console.log('[Boston] Building Bridges Boston wing mounted (/boston + presentation & one-pager uploads + the one Boston email)');
+    console.log('[Boston] Building Bridges Boston wing mounted (/boston + presentation & one-slide-summary uploads + the one Boston email)');
 };
 
 // Test seam: the SigV4 helper — tests stub putObject (never the wire) and drive presignGet as-is
@@ -2187,7 +2257,7 @@ function uploadPage(reg, current, s3ok, token) {
           <button type="button" class="pick" id="pickbtn">${current ? 'Choose a replacement file' : 'Browse for the file'}</button>
           <input type="file" id="fileinput" accept="${ACCEPT_ATTR}" hidden>
         </div>
-        <p class="reqs">Accepted: <b>.pdf &middot; .ppt &middot; .pptx &middot; .key</b> — up to <b>25 MB</b>.</p>
+        <p class="reqs">Accepted: <b>.pdf &middot; .ppt &middot; .pptx &middot; .key</b> &mdash; up to <b>25 MB</b>.</p>
         <div class="picked" id="picked" style="display:none;">
           <span class="pname" id="pname"></span><span class="psize" id="psize"></span>
           <button type="button" class="btn" id="upbtn">Upload</button>
@@ -2215,6 +2285,8 @@ ${FONTS_HTML}
 .who{margin-top:18px;font-size:13px;color:rgba(243,236,224,.85);line-height:1.7;}
 .who b{color:#fff;font-weight:600;}
 .who .attr{display:block;font-size:11.5px;color:rgba(243,236,224,.55);}
+.brief{font-size:15px;line-height:1.72;color:#4a4139;margin-bottom:20px;}
+.brief b{color:#241d18;font-weight:600;}
 .onfile{border:1px solid rgba(176,137,59,.28);background:#f4eede;border-radius:14px;padding:18px 20px;margin-bottom:20px;}
 .fname{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:17px;color:#241d18;word-break:break-word;}
 .fmeta{margin-top:4px;font-size:12.5px;color:var(--muted);}
@@ -2257,6 +2329,7 @@ ${FONTS_HTML}
 
 <main>
   <section class="sheet" aria-label="Upload">
+    <p class="brief">${SLIDES_FORMAT_LINE}. <b>Deadline ${SLIDES_DEADLINE}.</b></p>
     ${uploader}
   </section>
 </main>
@@ -2319,40 +2392,49 @@ ${FOOTER_HTML}
 </body></html>`;
 }
 
-// ---------------------------------------------------------------- personal one-pager page
-// The same chrome as the presentation page, one lane narrower: PDF only, 5 MB, plus the optional
-// single line that goes under the guest's name in the participant booklet's index.
+// ---------------------------------------------------------------- personal one-slide summary page
+// The same chrome as the presentation page, one lane narrower: a single slide, PDF or PowerPoint,
+// 10 MB — plus the optional line that goes under the guest's name in the index, and the sharing
+// tick box, which is the owner's "if you are happy to share it" made into an answer we can store.
 function onepagerPage(reg, current, s3ok, token) {
     const first = reg.first_name || 'there';
     const fullName = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Med&X Guest';
+    const currentShared = !current || current.share_ok == null || Number(current.share_ok) !== 0;
     const currentCard = current ? `
       <div class="onfile" id="onfile">
         <p class="slabel" style="margin-bottom:8px;">On file with us</p>
         <p class="fname" id="of_name">${esc(current.original_name)}</p>
         <p class="fmeta" id="of_meta">${esc(prettySize(Number(current.size)))} &middot; uploaded ${esc(fmtWhen(current.uploaded_at))}</p>
         ${current.headline ? `<p class="fmeta">&ldquo;${esc(current.headline)}&rdquo;</p>` : ''}
-        <p class="fnote">Uploading a new file from this page replaces it for the booklet.</p>
+        <p class="fmeta">${currentShared ? 'Shared with all participants after the event.' : 'Kept private &mdash; only the Med&amp;X team sees it.'}</p>
+        <p class="fnote">Uploading a new file from this page replaces it, together with the answer below.</p>
       </div>` : '';
     const headlineField = `
         <div class="hl">
           <label for="hl_text">One line about you <span style="text-transform:none;letter-spacing:.2px;font-weight:500;color:#a89a86;">(optional)</span></label>
           <input type="text" id="hl_text" maxlength="${MAX_HEADLINE_CHARS}" placeholder="e.g. Sleep neuroscientist &middot; looking for clinical collaborators" value="${esc(current && current.headline ? current.headline : '')}" autocomplete="off">
-          <p class="reqs" style="margin-top:7px;">This is the line printed under your name in the booklet&rsquo;s index.</p>
+          <p class="reqs" style="margin-top:7px;">This is the line printed under your name in the index.</p>
+        </div>`;
+    const shareField = `
+        <div class="share">
+          <label class="sharebox" for="share_ok"><input type="checkbox" id="share_ok"${currentShared ? ' checked' : ''}><span>${SUMMARY_SHARE_LABEL}</span></label>
+          <p class="reqs" style="margin-top:7px;">Leave it ticked and your slide goes to everyone who was in the room. Untick it and only the Med&amp;X team sees it.</p>
         </div>`;
     const uploader = s3ok ? `
       ${currentCard}
       <div id="upwrap">
         ${headlineField}
-        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose your one-pager PDF">
-          <div class="dtitle">${current ? 'Replace it &mdash; drag &amp; drop the new PDF here' : 'Drag &amp; drop your one-page PDF here'}</div>
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose your one-slide summary">
+          <div class="dtitle">${current ? 'Replace it &mdash; drag &amp; drop the new file here' : 'Drag &amp; drop your one-slide summary here'}</div>
           <div class="dor">or</div>
-          <button type="button" class="pick" id="pickbtn">${current ? 'Choose a replacement PDF' : 'Browse for the PDF'}</button>
-          <input type="file" id="fileinput" accept=".pdf" hidden>
+          <button type="button" class="pick" id="pickbtn">${current ? 'Choose a replacement file' : 'Browse for the file'}</button>
+          <input type="file" id="fileinput" accept="${SUMMARY_ACCEPT_ATTR}" hidden>
         </div>
-        <p class="reqs">Accepted: <b>.pdf</b> &mdash; up to <b>5 MB</b>. One page is all we need.</p>
+        <p class="reqs">Accepted: <b>.pdf &middot; .ppt &middot; .pptx</b> &mdash; up to <b>10 MB</b>. One slide is all we need.</p>
+        ${shareField}
         <div class="picked" id="picked" style="display:none;">
           <span class="pname" id="pname"></span><span class="psize" id="psize"></span>
-          <button type="button" class="btn" id="upbtn">Upload</button>
+          <button type="button" class="btn" id="upbtn">Upload my one-slide summary</button>
         </div>
         <div class="prog" id="prog" style="display:none;"><div class="bar" id="bar"></div></div>
         <div class="err" id="errbox"></div>
@@ -2360,7 +2442,7 @@ function onepagerPage(reg, current, s3ok, token) {
       <div id="donebox" style="display:none;">
         <p class="slabel" style="text-align:center;">Received</p>
         <p class="headline">Got it.</p>
-        <p class="lede"><b id="donefile"></b> is with us and goes into the participant booklet. You can replace it any time from this same link.</p>
+        <p class="lede"><b id="donefile"></b> is with us. You can replace it any time from this same link.</p>
       </div>` : `
       ${currentCard}
       <div class="soon">
@@ -2369,7 +2451,7 @@ function onepagerPage(reg, current, s3ok, token) {
       </div>`;
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Introduce yourself — Building Bridges Boston · Med&amp;X</title>
+<title>Your one-slide summary — Building Bridges Boston · Med&amp;X</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/png" href="/assets/favicon-x.png">
 ${FONTS_HTML}
@@ -2387,6 +2469,9 @@ ${FONTS_HTML}
 .hl label{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
 .hl input{width:100%;padding:13px 14px;border:1px solid rgba(43,33,25,.18);border-radius:11px;background:#fff;color:#241d18;font-size:16px;font-family:inherit;}
 .hl input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,137,59,.14);}
+.share{margin-top:16px;padding:14px 16px;border:1px solid rgba(176,137,59,.34);border-radius:12px;background:#fdfbf5;}
+.sharebox{display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:14px;line-height:1.55;color:#241d18;font-weight:600;}
+.sharebox input{flex:0 0 auto;width:18px;height:18px;margin-top:1px;accent-color:var(--crimson);cursor:pointer;}
 .drop{border:1.5px dashed rgba(176,137,59,.55);border-radius:16px;background:#fdfbf5;padding:34px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;}
 .drop.over{border-color:var(--crimson);background:#faf3ec;}
 .dtitle{font-family:'Fraunces',Georgia,serif;font-size:16.5px;color:#3a322b;}
@@ -2417,15 +2502,15 @@ ${FONTS_HTML}
       <span class="x">&times;</span>
       <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
     </div>
-    <p class="kicker">Building Bridges — Boston &middot; Participant booklet</p>
-    <h1>Hi ${esc(first)} — introduce yourself to the room</h1>
+    <p class="kicker">Building Bridges — Boston &middot; One-slide summary</p>
+    <h1>Hi ${esc(first)} — your one-slide summary</h1>
     <p class="who"><b>${esc(fullName)}</b> &middot; ${esc(reg.institution || '')}<span class="attr">Files uploaded from this page are attributed to this registration.</span></p>
   </div>
 </header>
 
 <main>
-  <section class="sheet" aria-label="Your one-pager">
-    <p class="brief">Introduce yourself to the room &mdash; one page: who you are, what you work on, what collaborators or opportunities you are looking for. <b>PDF, up to 5 MB.</b> We compile every one-pager into a participant booklet shared with all attendees after the evening.</p>
+  <section class="sheet" aria-label="Your one-slide summary">
+    <p class="brief">One slide that introduces you to the room &mdash; ${SUMMARY_BRIEF}. <b>PDF or PowerPoint (.ppt/.pptx), up to 10 MB.</b> Deadline <b>${SLIDES_DEADLINE}</b>. If you are happy to share it, we send the summaries to all participants after the event.</p>
     ${uploader}
   </section>
 </main>
@@ -2442,14 +2527,14 @@ ${FOOTER_HTML}
       picked=document.getElementById('picked'),pname=document.getElementById('pname'),psize=document.getElementById('psize'),
       upbtn=document.getElementById('upbtn'),errbox=document.getElementById('errbox'),
       prog=document.getElementById('prog'),bar=document.getElementById('bar'),
-      hl=document.getElementById('hl_text'),file=null;
+      hl=document.getElementById('hl_text'),share=document.getElementById('share_ok'),file=null;
   function human(n){return n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';}
   function err(m){errbox.textContent=m;errbox.style.display='block';}
   function take(f){
     errbox.style.display='none';
     if(!f)return;
-    if(!/\\.pdf$/i.test(f.name)){err('PDF only, please — export your page as a PDF and try again.');return;}
-    if(f.size>MAX){err('That file is over the 5 MB limit ('+human(f.size)+'). One page is all we need — export it again and try.');return;}
+    if(!/\\.(pdf|ppt|pptx)$/i.test(f.name)){err('PDF or PowerPoint (.ppt/.pptx), please — export your slide and try again.');return;}
+    if(f.size>MAX){err('That file is over the 10 MB limit ('+human(f.size)+'). One slide is all we need — export it again and try.');return;}
     file=f;pname.textContent=f.name;psize.textContent=human(f.size);picked.style.display='flex';
   }
   pick.addEventListener('click',function(){input.click();});
@@ -2465,6 +2550,7 @@ ${FOOTER_HTML}
     prog.style.display='block';bar.style.width='0%';
     var fd=new FormData();
     if(hl&&hl.value.trim())fd.append('headline',hl.value.trim());
+    fd.append('share_ok',(!share||share.checked)?'1':'0');   /* always stated, never inferred */
     fd.append('file',file,file.name);
     var xhr=new XMLHttpRequest();
     xhr.open('POST',API);
@@ -2480,10 +2566,10 @@ ${FOOTER_HTML}
         window.scrollTo({top:0,behavior:'smooth'});
       }else{
         err((j&&j.error)||'The upload did not go through. Please try again.');
-        upbtn.disabled=false;upbtn.textContent='Upload';prog.style.display='none';
+        upbtn.disabled=false;upbtn.textContent='Upload my one-slide summary';prog.style.display='none';
       }
     };
-    xhr.onerror=function(){err('We could not reach the server. Please check your connection and try again.');upbtn.disabled=false;upbtn.textContent='Upload';prog.style.display='none';};
+    xhr.onerror=function(){err('We could not reach the server. Please check your connection and try again.');upbtn.disabled=false;upbtn.textContent='Upload my one-slide summary';prog.style.display='none';};
     xhr.send(fd);
   });
 })();

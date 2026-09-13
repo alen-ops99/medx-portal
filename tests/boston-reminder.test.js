@@ -119,6 +119,11 @@ const dietToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:d
 const uploadToken = id => crypto.createHmac('sha256', JWT_SECRET).update('bostonup:' + id).digest('hex').slice(0, 32) + '.' + id;
 const onepagerToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:onepager:' + id).digest('hex').slice(0, 32) + '.' + id;
 
+// The two facts the owner's program PDF fixes (2026-09-13). Literals on purpose: moving the date
+// or the format has to be a deliberate edit here as well as in the wing.
+const DEADLINE = 'Saturday, 19 September 2026';
+const FORMAT_LINE = '5 minutes · 5 to 8 slides · PowerPoint 16:9, in English (PDF also accepted) · up to 25 MB · all talks run from one laptop';
+
 // ---------------------------------------------------------------- seed
 // Registration ids are UUIDs in production (crypto.randomUUID) and the token grammar says so —
 // fixed UUIDs here keep every assertion readable.
@@ -416,7 +421,7 @@ async function t(name, fn) {
         await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant: 'attendee' } });
         const mail = sentEmails[sentEmails.length - 1];
         assert.ok(Array.isArray(mail.attachments) && mail.attachments.length === 1, 'exactly one attachment');
-        assert.strictEqual(mail.attachments[0].filename, 'Building-Bridges-Boston-program.pdf');
+        assert.strictEqual(mail.attachments[0].filename, 'Building-Bridges-Boston-Program.pdf');
         assert.strictEqual(mail.attachments[0].type, 'application/pdf');
         assert.ok(Buffer.from(mail.attachments[0].content).equals(PROGRAM_BYTES), 'the program bytes themselves');
         assert.strictEqual(s3Reads.length, readsBefore + 1, 'the PDF is read from S3 once for the whole batch');
@@ -443,7 +448,7 @@ async function t(name, fn) {
         const program = at('Your program');
         const ticket = at('Your ticket');
         const catering = at('Two quick questions for the catering');
-        const intro = at('Introduce yourself');
+        const intro = at('Your one-slide summary');
         const laura = html.lastIndexOf('laura.rodman@medx.hr');
         assert.ok(seeYou < program, '(a) header before (b) program');
         assert.ok(program < ticket, '(b) program before (c) ticket');
@@ -452,19 +457,27 @@ async function t(name, fn) {
         assert.ok(intro < laura, '(e) introduce yourself before (g) the footer');
     });
 
-    await t('the program line points at the attached PDF', () => {
+    await t('the program line names what is attached, in the owner\'s words', () => {
         const html = sentEmails[sentEmails.length - 1].html;
-        assert.ok(/attached to this email as a PDF/.test(html), 'the program is announced as an attachment');
+        assert.ok(html.includes('Attached: program, presentation instructions and good-to-know'),
+            'the line the owner asked for, verbatim');
         assert.ok(!html.includes('(program PDF not uploaded yet)'), 'and not marked as missing');
     });
 
-    await t('EVERY guest is asked for a one-pager, on their own personal link', () => {
+    await t('EVERY guest is asked for a one-slide summary, on their own personal link', () => {
         const html = sentEmails[sentEmails.length - 1].html;   // Ana — not a presenter
-        assert.ok(html.includes('Introduce yourself'), 'the one-pager block');
-        assert.ok(/participant booklet/.test(html), 'and why we ask for it');
-        assert.ok(html.includes(BASE + '/boston/onepager/' + onepagerToken(ANA)), 'her own one-pager link');
+        assert.ok(html.includes('Your one-slide summary'), 'the summary block');
+        assert.ok(html.includes('Upload my one-slide summary'), 'and the button says what it sends');
+        assert.ok(html.includes('who you are, what you do, and what you are looking for in a collaborator'),
+            "the PDF's own words for what goes on the slide");
+        assert.ok(html.includes('PDF or PowerPoint (.ppt/.pptx), up to 10&nbsp;MB'), 'the format it accepts');
+        assert.ok(html.includes(DEADLINE), 'the same deadline as the slides');
+        assert.ok(/If you are happy to share it, we send the summaries to all participants after the event/.test(html),
+            "the sharing promise, in the owner's conditional");
+        assert.ok(html.includes(BASE + '/boston/onepager/' + onepagerToken(ANA)), 'her own summary link');
         assert.ok(!html.includes('/boston/onepager/' + ANA), 'a bare id must never appear in a link');
         assert.ok(!html.includes(onepagerToken(LUKA)), "and never somebody else's token");
+        assert.ok(!/one-pager/i.test(html), 'a guest never reads the internal name');
     });
 
     await t('the reminder carries the ticket it already has — QR, calendar, no new mint', () => {
@@ -497,7 +510,7 @@ async function t(name, fn) {
         assert.ok(luka.html.includes('Upload my slides'), 'and the upload button');
         assert.ok(!luka.html.includes('Already received'), 'nothing on file yet');
         assert.ok(luka.html.includes(BASE + '/boston/upload/' + uploadToken(LUKA)), 'their personal upload link');
-        assert.ok(luka.html.includes(BASE + '/boston/onepager/' + onepagerToken(LUKA)), 'a presenter is asked for a one-pager too');
+        assert.ok(luka.html.includes(BASE + '/boston/onepager/' + onepagerToken(LUKA)), 'a presenter is asked for a summary too');
 
         // Mia is a presenter WITH a deck on file — the block turns into "already received, replace".
         query.run(`CREATE TABLE IF NOT EXISTS bridges_presentations (id TEXT PRIMARY KEY, registration_id TEXT NOT NULL,
@@ -514,7 +527,7 @@ async function t(name, fn) {
         assert.ok(!mia.html.includes('Upload my slides'), 'never "upload" once a deck is in');
     });
 
-    await t('a one-pager already on file reads back the same way', async () => {
+    await t('a one-slide summary already on file reads back the same way', async () => {
         query.run(`CREATE TABLE IF NOT EXISTS bridges_onepagers (id TEXT PRIMARY KEY, registration_id TEXT NOT NULL,
             original_name TEXT NOT NULL, stored_key TEXT NOT NULL, mime TEXT, size INTEGER NOT NULL, headline TEXT, uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
         query.run(`INSERT INTO bridges_onepagers (id, registration_id, original_name, stored_key, mime, size, headline, uploaded_at)
@@ -522,9 +535,41 @@ async function t(name, fn) {
         await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: MIA } });
         const mia = sentEmails[sentEmails.length - 1];
         assert.strictEqual(mia.to, 'mia@example.com');
-        assert.ok(mia.html.includes('Replace my one-pager'), 'the button says replace');
+        assert.ok(mia.html.includes('Replace my one-slide summary'), 'the button says replace');
         assert.ok(mia.html.includes('mia-novak.pdf'), 'her page is acknowledged by name');
-        assert.ok(!mia.html.includes('Upload my one-pager'), 'never "upload" once a page is in');
+        assert.ok(!mia.html.includes('Upload my one-slide summary'), 'never "upload" once a slide is in');
+    });
+
+    // ================================================================ the format and the deadline
+    // Straight from the owner's program PDF — the email is where most people will read them.
+    await t('the presenter block states the format and the 19 September deadline, verbatim', async () => {
+        await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant: 'presenter' } });
+        const html = sentEmails[sentEmails.length - 1].html;
+        assert.ok(html.includes("You're presenting"), 'the presenter block is there to carry them');
+        assert.ok(html.includes(FORMAT_LINE), 'the format line, verbatim');
+        assert.ok(html.includes(DEADLINE), 'the deadline, verbatim');
+        assert.ok(!/5&ndash;7 slides|5–7 slides|Keynote/.test(html), 'and none of the superseded format copy');
+    });
+
+    await t('no shape of the Boston email says Friday, 18 September any more', async () => {
+        for (const variant of ['presenter', 'attendee']) {
+            await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant } });
+            const html = sentEmails[sentEmails.length - 1].html;
+            assert.ok(!/18 September|Friday, 18/.test(html), variant + ' still carries the old deadline');
+            assert.ok(html.includes(DEADLINE), variant + ' must carry the new one');
+        }
+    });
+
+    await t('the presenter upload-link email carries the same format and deadline', async () => {
+        const before = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/presenters/send-links', { query: { key: ADMIN_KEY }, body: { to: 'preview' } });
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(sentEmails.length, before + 1, 'one preview, to the reviewer only');
+        const mail = sentEmails[sentEmails.length - 1];
+        assert.strictEqual(mail.to, REVIEW_TO);
+        assert.ok(mail.html.includes(FORMAT_LINE), 'the format line, verbatim');
+        assert.ok(mail.html.includes('please upload by ' + DEADLINE), 'the deadline, verbatim');
+        assert.ok(!/18 September|Friday, 18/.test(mail.html), 'and never the superseded one');
     });
 
     // ================================================================ send bookkeeping
@@ -626,21 +671,23 @@ async function t(name, fn) {
         assert.strictEqual(quiet.reminder_sent, false);
     });
 
-    await t('the CSV has the six columns the caterer asked for, quoted, BOM, CRLF', async () => {
+    await t('the CSV has the caterer\'s columns plus the sharing answer, quoted, BOM, CRLF', async () => {
         const r = await call(app, 'GET', '/api/boston/catering.csv', { query: { key: ADMIN_KEY } });
         assert.strictEqual(r.statusCode, 200);
         assert.ok(String(r.headers['content-type']).includes('text/csv'));
         assert.ok(r.body.startsWith('﻿'), 'UTF-8 BOM so Excel reads the encoding');
         const lines = r.body.slice(1).trim().split('\r\n');
-        assert.strictEqual(lines[0], '"Name","Institution","Preference","Allergies","Answered at","Presenter"');
+        assert.strictEqual(lines[0], '"Name","Institution","Preference","Allergies","Answered at","Presenter","One-slide summary"');
         assert.strictEqual(lines.length, 5, 'header + four active guests');
         const ana = lines.find(l => l.startsWith('"Ana Horvat"'));
         assert.ok(ana, 'Ana is in the export');
         assert.ok(ana.includes('"Vegetarian"'), 'her preference');
         assert.ok(ana.includes('"sesame"'), 'her allergies');
-        assert.ok(ana.endsWith('"No"'), 'presenter column: No');
+        assert.ok(ana.includes('"No","'), 'presenter column: No');
+        assert.ok(ana.endsWith('""'), 'and no summary from her yet, so the last cell is empty');
         const mia = lines.find(l => l.startsWith('"Mia Novak"'));
-        assert.ok(mia.endsWith('"Yes"'), 'Mia is presenting');
+        assert.ok(mia.includes('"Yes","'), 'Mia is presenting');
+        assert.ok(mia.endsWith('"Shared"'), 'and her summary may go to all participants');
         const luka = lines.find(l => l.startsWith('"Luka Babic"'));
         assert.ok(luka.includes('"None"'), 'a "no allergies" answer reads as None, not blank');
         const quiet = lines.find(l => l.startsWith('"Quiet Guest"'));

@@ -22,13 +22,16 @@
  *        presenter if it was not one, and the link goes to it.
  *   GET  /api/v2/boston/presentations.zip         auth+adminOnly  302 → the member ZIP with the key.
  *   GET  /api/v2/boston/catering                  auth+adminOnly  the catering summary + one row per
- *        registrant (preference, allergies, one-pager, answered, reminder state) + the CSV url.
+ *        registrant (preference, allergies, one-slide summary + its sharing consent, answered,
+ *        reminder state) + the CSV url.
  *   POST /api/v2/boston/reminders/:id/send        auth+adminOnly  send / re-send THE Boston email to one.
  *   POST /api/v2/boston/reminders/send-all        auth+adminOnly  everyone not yet sent.
  *   POST /api/v2/boston/reminders/preview         auth+adminOnly  { variant } → the owner's inbox only.
  *   GET  /api/v2/boston/catering.csv              auth+adminOnly  302 → the member CSV with the key.
- *   GET  /api/v2/boston/onepagers                 auth+adminOnly  who sent a one-pager, with headlines.
- *   GET  /api/v2/boston/onepagers.zip             auth+adminOnly  302 → the member archive with the key.
+ *   GET  /api/v2/boston/onepagers                 auth+adminOnly  who sent a one-slide summary, with
+ *        headlines and whether each one may be shared with all participants.
+ *   GET  /api/v2/boston/onepagers.zip             auth+adminOnly  302 → the member archive with the key
+ *        (the member wing leaves every summary marked private out of that archive).
  *   GET  /api/v2/boston/program                   auth+adminOnly  the program PDF's status.
  *   POST /api/v2/boston/program                   auth+adminOnly  multipart PDF → forwarded to the member
  *        portal, which owns the S3 write. The browser never sees the team key on this path.
@@ -352,15 +355,15 @@ module.exports = function mountBostonOps(app, ctx) {
         }
     });
 
-    // ---------------------------------------------------------------- one-pagers (every guest)
+    // ------------------------------------------------------- one-slide summaries (every guest)
     app.get('/api/v2/boston/onepagers', auth, adminOnly, async (req, res) => {
         try {
             const data = await memberCall('GET', '/api/boston/onepagers');
             res.set('Cache-Control', 'private, no-store');
             res.json(Object.assign({ ok: true }, data, { zip_url: keyed('/api/boston/onepagers.zip') }));
         } catch (e) {
-            log('one-pager list failed:', e.message);
-            res.status(502).json({ error: 'Could not reach the member portal for the one-pagers.' });
+            log('one-slide summary list failed:', e.message);
+            res.status(502).json({ error: 'Could not reach the member portal for the one-slide summaries.' });
         }
     });
     app.get('/api/v2/boston/onepagers.zip', auth, adminOnly, (req, res) => {

@@ -470,6 +470,11 @@ async function t(name, fn) {
         assert.ok(html.includes('Ana Horvat') && html.includes('Massachusetts General Hospital'), 'attribution (name + institution) missing');
         assert.ok(html.includes('accept=".pdf,.ppt,.pptx,.key"'), 'accept attr missing');
         assert.ok(html.includes('25 MB'), 'size limit note missing');
+        // straight from the owner's program PDF (2026-09-13)
+        assert.ok(html.includes('5 minutes · 5 to 8 slides · PowerPoint 16:9, in English (PDF also accepted) · up to 25 MB · all talks run from one laptop'),
+            'the format line, verbatim');
+        assert.ok(html.includes('Deadline Saturday, 19 September 2026'), 'the deadline, verbatim');
+        assert.ok(!/18 September|Friday, 18/.test(html), 'the superseded deadline must be gone');
         assert.ok(html.includes(`/api/boston/upload/${mintUploadToken(anaId)}`), 'page must POST to its own token API');
         assert.ok(html.includes('is safely with us. You can replace it any time from this same link'), 'success copy missing');
         assert.ok(String(r.headers['x-robots-tag']).includes('noindex'), 'X-Robots-Tag noindex missing');
