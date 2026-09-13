@@ -107,7 +107,7 @@ db.run(`CREATE TABLE bridges_registrations (
     phone TEXT, institution TEXT, position TEXT, dietary_requirements TEXT, special_requests TEXT,
     status TEXT DEFAULT 'registered', payment_status TEXT DEFAULT 'n/a', amount_paid REAL,
     confirmation_sent INTEGER DEFAULT 0, reminder_sent INTEGER DEFAULT 0, checked_in INTEGER DEFAULT 0,
-    checked_in_at TEXT, notes TEXT, registered_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
+    checked_in_at TEXT, notes TEXT, registered_at TEXT DEFAULT CURRENT_TIMESTAMP, custom_answers TEXT)`);
 db.run(`CREATE TABLE audit_log (id TEXT PRIMARY KEY, actor_id TEXT, actor_email TEXT, action TEXT, detail TEXT, created_at TEXT)`);
 
 // server.js-shaped { run, get, all } over the same wrapper — what the member wing expects.
@@ -147,13 +147,33 @@ mountBoston._s3.getObject = async () => PROGRAM_BYTES;
 mountBoston._s3.headObject = async () => ({ size: PROGRAM_BYTES.length, lastModified: '2026-09-13T09:00:00.000Z' });
 
 // The admin module talks to the member over HTTP — dispatch that back into these same handlers.
+// A real URL carries values where the mounted route carries `:name`, so resolve the pattern and
+// hand the handler its params: without this every member route with a path parameter is a 404 here
+// and the test would be proving nothing.
+function resolveRoute(method, pathname) {
+    if (app.routes[method + ' ' + pathname]) return { path: pathname, params: {} };
+    const want = pathname.split('/');
+    for (const key of Object.keys(app.routes)) {
+        const [m, p] = [key.slice(0, key.indexOf(' ')), key.slice(key.indexOf(' ') + 1)];
+        if (m !== method || !p.includes(':')) continue;
+        const got = p.split('/');
+        if (got.length !== want.length) continue;
+        const params = {};
+        if (got.every((seg, i) => seg.startsWith(':') ? (params[seg.slice(1)] = decodeURIComponent(want[i]), true) : seg === want[i])) {
+            return { path: p, params };
+        }
+    }
+    return null;
+}
 const fetchLog = [];
 global.fetch = async (url, init = {}) => {
     const u = new URL(String(url));
     if (u.origin !== MEMBER) throw new Error('NETWORK DISABLED IN TESTS: ' + u.origin);
     const q = Object.fromEntries(u.searchParams.entries());
     fetchLog.push({ method: init.method || 'GET', path: u.pathname, key: q.key, body: init.body ? JSON.parse(init.body) : undefined });
-    const r = await app.call(init.method || 'GET', u.pathname, { query: q, body: init.body ? JSON.parse(init.body) : {}, user: null });
+    const hit = resolveRoute(init.method || 'GET', u.pathname);
+    if (!hit) return { ok: false, status: 404, text: async () => JSON.stringify({ error: 'Not found' }) };
+    const r = await app.call(init.method || 'GET', hit.path, { query: q, params: hit.params, body: init.body ? JSON.parse(init.body) : {}, user: null });
     const text = typeof r.body === 'string' ? r.body : JSON.stringify(r.body === undefined ? {} : r.body);
     return { ok: r.status >= 200 && r.status < 300, status: r.status, text: async () => text };
 };
@@ -487,6 +507,55 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         assert.equal(bad.status, 400, 'an invented variant is refused here too');
     });
 
+    // -------- released seats, and the team's undo
+    // A guest hands the seat back from the one email; the card offers Restore. Both writes belong
+    // to the member wing, so the panel is only proving that the door and the bookkeeping line up.
+    // Registration ids are UUIDs in production and the diet-token grammar says so — this guest is
+    // seeded with one because she is the only row here that has to mint a real one-tap token.
+    const REL = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    await t('a seat released from the one email shows up in the catering read, out of the count', async () => {
+        seedReg(REL, 'Petra', 'Maric', 'petra@example.com', null);
+        const before = await app.call('GET', '/api/v2/boston/catering', {});
+        const heldBefore = Number(before.body.total) || 0;
+        assert.ok(heldBefore > 0 && (before.body.released_count || 0) === 0, 'nobody has released a seat yet');
+
+        const dietToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:diet:' + id).digest('hex').slice(0, 32) + '.' + id;
+        const out = await app.call('POST', '/api/boston/rsvp/:token/cannot-attend',
+            { params: { token: dietToken(REL) }, user: null });
+        assert.equal(out.status, 200);
+        assert.equal(out.body.success, true);
+
+        const after = await app.call('GET', '/api/v2/boston/catering', {});
+        assert.equal(after.body.total, heldBefore - 1, 'the seat left the count');
+        assert.equal(after.body.registered, heldBefore - 1, 'and "registered N" agrees');
+        assert.equal(after.body.released_count, 1, 'the released list has her');
+        assert.equal((after.body.released[0] || {}).name, 'Petra Maric');
+        assert.match(String((after.body.released[0] || {}).released_on), /^\d{4}-\d{2}-\d{2}$/);
+        assert.ok(!(after.body.rows || []).some(r => r.registration_id === REL), 'and she is out of the guest rows');
+    });
+
+    await t('Restore puts the seat back, through the member wing, and is auditable', async () => {
+        const r = await app.call('POST', '/api/v2/boston/registrations/:id/restore', { params: { id: REL } });
+        assert.equal(r.status, 200);
+        assert.equal(r.body.success, true);
+        assert.equal(r.body.status, 'registered');
+        assert.equal(String((query.get('SELECT status FROM bridges_registrations WHERE id = ?', [REL]) || {}).status), 'registered');
+        assert.match(notesOf(REL), /RESTORED-BY-TEAM \d{4}-\d{2}-\d{2}/, 'the dated marker');
+        assert.match(notesOf(REL), /CANCELLED-BY-GUEST/, 'the history is kept');
+        const hop = fetchLog[fetchLog.length - 1];
+        assert.equal(hop.path, '/api/boston/registrations/' + REL + '/restore', 'the member wing did the deed');
+        assert.equal(hop.key, ADMIN_KEY, 'behind the same derived key');
+        const after = await app.call('GET', '/api/v2/boston/catering', {});
+        assert.equal(after.body.released_count, 0, 'nothing left in the released list');
+    });
+
+    await t('restore refuses a stranger and a signed-out caller', async () => {
+        const nobody = await app.call('POST', '/api/v2/boston/registrations/:id/restore', { params: { id: 'reg-nobody' } });
+        assert.equal(nobody.status, 404);
+        const out = await app.call('POST', '/api/v2/boston/registrations/:id/restore', { params: { id: REL }, user: null });
+        assert.equal(out.status, 401);
+    });
+
     // -------- the two standing guarantees
     await t('the admin module never sends an email itself', () => {
         assert.equal(adminEmails.length, 0, 'boston-ops called sendEmail — every send belongs to the member wing');
@@ -507,6 +576,7 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         assert.ok(rows.some(r => r.action === 'boston.presenter_added'));
         assert.ok(rows.some(r => r.action === 'boston.reminder_sent'));
         assert.ok(rows.some(r => r.action === 'boston.reminders_sent_all'));
+        assert.ok(rows.some(r => r.action === 'boston.seat_restored'));
     });
 
     console.log(`\n${passed} passed, ${failed} failed`);

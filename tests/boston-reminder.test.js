@@ -23,6 +23,7 @@ delete process.env.BB_SHEET_ID;                          // belt: no sheet write
 delete process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
 delete process.env.RENDER_EXTERNAL_URL;
 delete process.env.PUBLIC_BASE_URL;
+delete process.env.CONFIRMATION_CC;                      // so the released-seat FYI proves its DEFAULT recipient
 for (const k of Object.keys(process.env)) if (k.startsWith('APPLE_WALLET_') || k.startsWith('BB_S3_')) delete process.env[k];
 delete process.env.GOOGLE_WALLET_ISSUER_ID;              // wallet off — the email degrades to QR + calendar
 delete process.env.GOOGLE_WALLET_SA_KEY;
@@ -114,6 +115,7 @@ const REVIEW_TO = reviewGate.REVIEW_TO;
 
 const EVENT_ID = 'bb-boston-2026-09-21';
 const BASE = 'https://medx-user-portal.onrender.com';
+const SUPPORT_EMAIL = 'laura.rodman@medx.hr';            // the released-seat FYI's default recipient
 const ADMIN_KEY = crypto.createHmac('sha256', JWT_SECRET).update('boston-admin').digest('hex').slice(0, 40);
 const dietToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:diet:' + id).digest('hex').slice(0, 32) + '.' + id;
 const uploadToken = id => crypto.createHmac('sha256', JWT_SECRET).update('bostonup:' + id).digest('hex').slice(0, 32) + '.' + id;
@@ -677,22 +679,24 @@ async function t(name, fn) {
         assert.ok(String(r.headers['content-type']).includes('text/csv'));
         assert.ok(r.body.startsWith('﻿'), 'UTF-8 BOM so Excel reads the encoding');
         const lines = r.body.slice(1).trim().split('\r\n');
-        assert.strictEqual(lines[0], '"Name","Institution","Preference","Allergies","Answered at","Presenter","One-slide summary"');
+        assert.strictEqual(lines[0], '"Name","Institution","Preference","Allergies","Answered at","Presenter","One-slide summary","Seat"');
         assert.strictEqual(lines.length, 5, 'header + four active guests');
         const ana = lines.find(l => l.startsWith('"Ana Horvat"'));
         assert.ok(ana, 'Ana is in the export');
         assert.ok(ana.includes('"Vegetarian"'), 'her preference');
         assert.ok(ana.includes('"sesame"'), 'her allergies');
         assert.ok(ana.includes('"No","'), 'presenter column: No');
-        assert.ok(ana.endsWith('""'), 'and no summary from her yet, so the last cell is empty');
+        assert.ok(ana.endsWith('"","Coming"'), 'no summary from her yet, and the seat is hers');
         const mia = lines.find(l => l.startsWith('"Mia Novak"'));
         assert.ok(mia.includes('"Yes","'), 'Mia is presenting');
-        assert.ok(mia.endsWith('"Shared"'), 'and her summary may go to all participants');
+        assert.ok(mia.endsWith('"Shared","Coming"'), 'and her summary may go to all participants');
         const luka = lines.find(l => l.startsWith('"Luka Babic"'));
         assert.ok(luka.includes('"None"'), 'a "no allergies" answer reads as None, not blank');
         const quiet = lines.find(l => l.startsWith('"Quiet Guest"'));
         assert.ok(quiet.includes('"","",""'), 'an unanswered guest exports empty cells, never "null"');
         assert.ok(!r.body.includes('undefined') && !r.body.includes('null'), 'no leaked placeholders');
+        assert.ok(lines.every(l => l.endsWith('"Coming"') || l.endsWith('"Seat"')),
+            'nobody has released a seat yet, so every guest row reads Coming');
     });
 
     await t('a quote in an answer is escaped CSV-style, never breaks a row', async () => {
@@ -704,17 +708,238 @@ async function t(name, fn) {
         assert.ok(lines.some(l => l.includes('""quotes""')), 'the quote is doubled, RFC 4180 style');
     });
 
+    // ================================================================ "I can't make it" (one tap)
+    // The whole point of the confirm step: the GET is inert. A mail scanner, a link preview or a
+    // prefetching inbox walks every link in an email — if the GET released the seat, the first
+    // corporate spam filter to open the message would cancel its own user.
+    const LEAVE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const cannotAttend = id => call(app, 'GET', '/boston/rsvp/:token/:answer',
+        { params: { token: dietToken(id), answer: 'cannot-attend' } });
+    const releaseSeat = id => call(app, 'POST', '/api/boston/rsvp/:token/cannot-attend',
+        { params: { token: dietToken(id) } });
+
+    await t('the one email carries the quiet way out, on the guest\'s own token', async () => {
+        await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant: 'attendee' } });
+        const html = sentEmails[sentEmails.length - 1].html;
+        assert.ok(html.includes(`${BASE}/boston/rsvp/${dietToken(ANA)}/cannot-attend`), 'her own one-tap link');
+        assert.ok(/Can&rsquo;t make it after all\?/.test(html), 'the line the owner asked for');
+        assert.ok(/Let us know with one tap/.test(html), 'the link text');
+        assert.ok(/it frees your seat/.test(html), 'and why it matters');
+        // under the catering block, before the one-slide summary
+        assert.ok(html.indexOf('Two quick questions for the catering') < html.indexOf('Can&rsquo;t make it after all?'),
+            'it sits under the catering block');
+        assert.ok(html.indexOf('Can&rsquo;t make it after all?') < html.indexOf('Your one-slide summary'),
+            'and before the summary block');
+    });
+
+    await t('the GET only asks — it releases nothing', async () => {
+        seed(LEAVE, 'Petra', 'Maric', 'petra@example.com', '5-minute presentation requested');
+        const before = { ...rowOf(LEAVE) };
+        const mailsBefore = sentEmails.length;
+        const r = await cannotAttend(LEAVE);
+        assert.strictEqual(r.statusCode, 200);
+        assert.ok(/Sorry you can&rsquo;t join us, Petra\./.test(r.body), 'the confirm headline, personally');
+        assert.ok(/Yes, release my seat/.test(r.body), 'one button');
+        assert.ok(/Keep my seat/.test(r.body), 'and a way back');
+        assert.ok(r.body.includes('/boston/rsvp/' + dietToken(LEAVE) + '/open'), 'the "keep" link goes to the noted page');
+        assert.ok(r.body.includes('noindex'), 'never indexed');
+        assert.strictEqual(rowOf(LEAVE).status, before.status, 'the GET must not cancel anybody');
+        assert.strictEqual(rowOf(LEAVE).notes, before.notes, 'and must not stamp the notes');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'and must not email the team');
+    });
+
+    await t('the POST releases the seat, stamps the notes and custom_answers, keeps everything else', async () => {
+        await rsvp(LEAVE, 'vegan');                          // she had answered the food questions
+        const answeredAtBefore = caOf(LEAVE).answered_at;
+        const r = await releaseSeat(LEAVE);
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(r.body.success, true);
+        const row = rowOf(LEAVE);
+        assert.strictEqual(row.status, 'cancelled', 'the seat is released');
+        assert.ok(/CANCELLED-BY-GUEST \d{4}-\d{2}-\d{2}/.test(String(row.notes)), 'dated marker: ' + row.notes);
+        assert.ok(String(row.notes).includes('5-minute presentation requested'), 'the older notes survive');
+        const ca = caOf(LEAVE);
+        assert.ok(/^\d{4}-\d{2}-\d{2}T/.test(ca.cannot_attend_at), 'custom_answers.cannot_attend_at is an ISO stamp');
+        assert.strictEqual(ca.diet_pref, 'vegan', 'her catering answer is kept, not erased');
+        assert.strictEqual(ca.answered_at, answeredAtBefore, 'releasing a seat is not a catering answer');
+        assert.strictEqual(row.dietary_requirements, 'Vegan', 'and the row keeps every other field');
+        assert.strictEqual(row.email, 'petra@example.com');
+    });
+
+    await t('the team hears about it once — Laura and the reviewer, nobody else', () => {
+        const fyis = sentEmails.filter(m => /Seat released/.test(m.subject));
+        assert.strictEqual(fyis.length, 2, 'exactly two FYIs');
+        assert.deepStrictEqual(fyis.map(m => m.to).sort(), ['juginovic.alen@gmail.com', 'laura.rodman@medx.hr'],
+            'the two people who run the room, and nobody else');
+        for (const m of fyis) {
+            assert.ok(m.subject.includes('Petra Maric'), 'the subject names her: ' + m.subject);
+            assert.ok(/can&rsquo;t attend Boston/.test(m.html), 'the one line, in the owner\'s words');
+            assert.ok(/seat released/.test(m.html), 'and what happened to the seat');
+            assert.ok(m.html.includes('Petra Institute'), 'her institution');
+            assert.ok(/<b style="color:#f2e7d6;">4<\/b> registered now/.test(m.html), 'the new head count (5 seats − hers)');
+            assert.ok(m.html.includes('background:#291e14'), 'the dark house shell, like every other FYI');
+            assert.ok(m.html.includes('BUILDING BRIDGES · BOSTON'), 'labelled as this evening');
+            assert.strictEqual(m.attachments, null, 'an FYI carries no attachment');
+            assert.ok(!m.html.includes('undefined') && !m.html.includes('NaN'), 'no leaked placeholders');
+        }
+    });
+
+    await t('confirming twice is idempotent — same page, no second email, no second stamp', async () => {
+        const mailsBefore = sentEmails.length;
+        const notesBefore = String(rowOf(LEAVE).notes);
+        const stampBefore = caOf(LEAVE).cannot_attend_at;
+        const again = await releaseSeat(LEAVE);
+        assert.strictEqual(again.statusCode, 200);
+        assert.strictEqual(again.body.success, true);
+        assert.strictEqual(again.body.already, true, 'the second confirm says so');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'the team is not told twice');
+        assert.strictEqual(String(rowOf(LEAVE).notes), notesBefore, 'the marker is stamped once');
+        assert.strictEqual(String(rowOf(LEAVE).notes).split('CANCELLED-BY-GUEST').length - 1, 1, 'exactly one marker');
+        assert.strictEqual(caOf(LEAVE).cannot_attend_at, stampBefore, 'and the stamp does not move');
+        const page = await cannotAttend(LEAVE);
+        assert.ok(/Seat released &mdash; thank you for telling us\./.test(page.body), 'the same receipt page');
+        assert.ok(page.body.includes(SUPPORT_EMAIL), 'with Laura on it');
+    });
+
+    await t('her other one-tap links still resolve — with a notice instead of a form', async () => {
+        const notesBefore = String(rowOf(LEAVE).notes);
+        const prefBefore = rowOf(LEAVE).dietary_requirements;
+        for (const [label, r] of [
+            ['diet', await rsvp(LEAVE, 'halal')],
+            ['change', await rsvp(LEAVE, 'open')],
+            ['allergies', await rsvp(LEAVE, 'no-allergies')],
+            ['slides', await call(app, 'GET', '/boston/upload/:token', { params: { token: uploadToken(LEAVE) } })],
+            ['summary', await call(app, 'GET', '/boston/onepager/:token', { params: { token: onepagerToken(LEAVE) } })]
+        ]) {
+            assert.strictEqual(r.statusCode, 200, label + ' must still resolve');
+            assert.ok(/Your seat was released on \d{4}-\d{2}-\d{2} &mdash; write to Laura if plans change\./.test(r.body),
+                label + ' must carry the released notice');
+            assert.ok(!/id="a_save"|id="c_go"|type="file"/.test(r.body), label + ' must not offer a form');
+        }
+        assert.strictEqual(rowOf(LEAVE).dietary_requirements, prefBefore, 'and none of those taps wrote anything');
+        assert.strictEqual(String(rowOf(LEAVE).notes), notesBefore);
+    });
+
+    await t('the write APIs behind those pages refuse a released seat too', async () => {
+        const r = await call(app, 'POST', '/api/boston/rsvp/:token/allergies',
+            { params: { token: dietToken(LEAVE) }, body: { text: 'nuts' } });
+        assert.strictEqual(r.statusCode, 409);
+        assert.ok(/Your seat was released/.test(r.body.error));
+        assert.ok(!String(rowOf(LEAVE).special_requests || '').includes('nuts'), 'nothing was written');
+    });
+
+    await t('the whitelist did not widen — only cannot-attend was added', async () => {
+        for (const bad of ['cannot_attend', 'cancel', 'cannot-attend-now', 'CANNOT-ATTEND ', 'release', 'unregister']) {
+            const r = await call(app, 'GET', '/boston/rsvp/:token/:answer', { params: { token: dietToken(ANA), answer: bad } });
+            assert.strictEqual(r.statusCode, 404, JSON.stringify(bad) + ' must be refused');
+        }
+        assert.strictEqual(rowOf(ANA).status, 'registered', 'and Ana still holds her seat');
+    });
+
+    await t('a released seat is out of every count and out of the Boston email', async () => {
+        const d = (await call(app, 'GET', '/api/boston/catering', { query: { key: ADMIN_KEY } })).body;
+        assert.strictEqual(d.total, 4, 'four seats held — Petra is not one of them');
+        assert.strictEqual(d.registered, 4, 'the card\'s "registered N" reads the same number');
+        assert.ok(!d.rows.some(r => r.registration_id === LEAVE), 'she is not in the guest rows');
+        assert.strictEqual(d.released_count, 1);
+        assert.strictEqual(d.released.length, 1);
+        assert.strictEqual(d.released[0].name, 'Petra Maric');
+        assert.strictEqual(d.released[0].presenter, true, 'she was going to present');
+        assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(d.released[0].released_on), 'with the day she told us');
+        const before = sentEmails.length;
+        const send = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: LEAVE } });
+        assert.deepStrictEqual(send.body.sent, [], 'a released seat is never emailed');
+        assert.strictEqual(sentEmails.length, before);
+    });
+
+    await t('the caterer\'s CSV lists her after everyone coming, marked as released', async () => {
+        const r = await call(app, 'GET', '/api/boston/catering.csv', { query: { key: ADMIN_KEY } });
+        const lines = r.body.slice(1).trim().split('\r\n');
+        assert.strictEqual(lines.length, 6, 'header + four coming + one released');
+        const petra = lines[lines.length - 1];
+        assert.ok(petra.startsWith('"Petra Maric"'), 'released rows come last: ' + petra);
+        assert.ok(/"Released seat \d{4}-\d{2}-\d{2}"$/.test(petra), 'and say so in the Seat column');
+        assert.ok(petra.includes('"Yes"'), 'she is still marked as a presenter, for the record');
+        assert.ok(!petra.includes('"Vegan"'), 'but her food answer is not carried into the caterer\'s count');
+        assert.strictEqual(lines.slice(1, 5).filter(l => l.endsWith('"Coming"')).length, 4, 'the four coming read Coming');
+        assert.ok(!r.body.includes('undefined') && !r.body.includes('null'), 'no leaked placeholders');
+    });
+
+    await t('the presenter list marks her released rather than hiding a deck', async () => {
+        const d = (await call(app, 'GET', '/api/boston/presentations', { query: { key: ADMIN_KEY } })).body;
+        const petra = d.rows.find(r => r.registration_id === LEAVE);
+        assert.ok(petra, 'she is still on the presenter list');
+        assert.strictEqual(petra.released, true);
+        assert.strictEqual(petra.status, 'cancelled');
+        assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(petra.released_on));
+    });
+
+    // ---------------------------------------------------------------- the team's undo
+    await t('restore is keyed, and puts the seat back with its own dated marker', async () => {
+        for (const key of [undefined, '', 'nope', ADMIN_KEY.slice(0, 39)]) {
+            const r = await call(app, 'POST', '/api/boston/registrations/:id/restore',
+                { params: { id: LEAVE }, query: key === undefined ? {} : { key } });
+            assert.strictEqual(r.statusCode, 404, 'a wrong key is a 404');
+        }
+        assert.strictEqual(rowOf(LEAVE).status, 'cancelled', 'and nothing moved');
+
+        const mailsBefore = sentEmails.length;
+        const r = await call(app, 'POST', '/api/boston/registrations/:id/restore',
+            { params: { id: LEAVE }, query: { key: ADMIN_KEY } });
+        assert.strictEqual(r.statusCode, 200);
+        assert.strictEqual(r.body.success, true);
+        assert.strictEqual(r.body.status, 'registered');
+        const row = rowOf(LEAVE);
+        assert.strictEqual(row.status, 'registered', 'she holds a seat again');
+        assert.ok(/RESTORED-BY-TEAM \d{4}-\d{2}-\d{2}/.test(String(row.notes)), 'dated marker: ' + row.notes);
+        assert.ok(String(row.notes).includes('CANCELLED-BY-GUEST'), 'the history is kept, not rewritten');
+        assert.strictEqual(row.dietary_requirements, 'Vegan', 'and her answers were waiting for her');
+        assert.strictEqual(sentEmails.length, mailsBefore, 'a restore emails nobody');
+
+        const again = await call(app, 'POST', '/api/boston/registrations/:id/restore',
+            { params: { id: LEAVE }, query: { key: ADMIN_KEY } });
+        assert.strictEqual(again.body.already, true, 'restoring twice is idempotent');
+        assert.strictEqual(String(rowOf(LEAVE).notes).split('RESTORED-BY-TEAM').length - 1, 1, 'one marker only');
+
+        const unknown = await call(app, 'POST', '/api/boston/registrations/:id/restore',
+            { params: { id: NOBODY }, query: { key: ADMIN_KEY } });
+        assert.strictEqual(unknown.statusCode, 404, 'an unknown id is a 404');
+    });
+
+    await t('with the seat back, her links work again and she is counted again', async () => {
+        const page = await rsvp(LEAVE, 'open');
+        assert.ok(!/Your seat was released/.test(page.body), 'no stale notice');
+        assert.ok(/Hi Petra/.test(page.body), 'the catering page is hers again');
+        const d = (await call(app, 'GET', '/api/boston/catering', { query: { key: ADMIN_KEY } })).body;
+        assert.strictEqual(d.total, 5, 'five seats held again');
+        assert.strictEqual(d.released_count, 0, 'and nothing in the released list');
+    });
+
     // ================================================================ the sheet is not ours
-    await t('nothing in this feature touches the Google sheet', () => {
+    // The email, the catering answers and the exports never touch the owner's sheet. The two
+    // seat-STATE changes do — a released seat that still reads "Confirmed" in the sheet is how a
+    // room gets over-catered — so they are named here one by one. Anything else is a regression.
+    await t('nothing in this feature touches the Google sheet except the two seat-state writes', () => {
         const src = require('node:fs').readFileSync(require.resolve('../user-portal/backend/boston.js'), 'utf8');
         const feature = src.slice(src.indexOf('THE ONE BOSTON EMAIL'), src.indexOf('GET /api/boston/presentations/:id/download'));
         assert.ok(feature.length > 2000, 'found the feature block');
-        assert.ok(!/pushToBostonSheet|updateBostonSheetStatus|sheetsToken/.test(feature),
-            'the reminder and the catering answers must leave the owner\'s sheet alone');
+        const allowed = [
+            "updateBostonSheetStatus(reg.id, 'Cancelled by guest');",   // the guest released the seat
+            "updateBostonSheetStatus(reg.id, 'Confirmed');"             // the team put it back
+        ];
+        let rest = feature;
+        for (const line of allowed) {
+            assert.ok(rest.includes(line), 'the allowed sheet write is gone: ' + line);
+            assert.strictEqual(rest.split(line).length - 1, 1, 'exactly one of: ' + line);
+            rest = rest.split(line).join('');
+        }
+        assert.ok(!/pushToBostonSheet|updateBostonSheetStatus|sheetsToken/.test(rest),
+            'the reminder, the catering answers and the exports must leave the owner\'s sheet alone');
     });
 
-    await t('no email went anywhere except the four seats and the reviewer', () => {
-        const allowed = new Set(['ana@example.com', 'luka@example.com', 'mia@example.com', 'quiet@example.com', REVIEW_TO]);
+    await t('no email went anywhere except the seats, Laura and the reviewer', () => {
+        const allowed = new Set(['ana@example.com', 'luka@example.com', 'mia@example.com', 'quiet@example.com',
+            SUPPORT_EMAIL, REVIEW_TO]);
         for (const m of sentEmails) assert.ok(allowed.has(m.to), 'unexpected recipient: ' + m.to);
         assert.ok(!sentEmails.some(m => m.to === 'bot@example.com' || m.to === 'gone@example.com'),
             'a held or cancelled registration must never be emailed');

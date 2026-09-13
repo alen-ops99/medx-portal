@@ -28,6 +28,8 @@
  *   POST /api/v2/boston/reminders/send-all        auth+adminOnly  everyone not yet sent.
  *   POST /api/v2/boston/reminders/preview         auth+adminOnly  { variant } → the owner's inbox only.
  *   GET  /api/v2/boston/catering.csv              auth+adminOnly  302 → the member CSV with the key.
+ *   POST /api/v2/boston/registrations/:id/restore auth+adminOnly  put back a seat a guest released
+ *        from the one email — the member wing flips the status and stamps the notes and the sheet.
  *   GET  /api/v2/boston/onepagers                 auth+adminOnly  who sent a one-slide summary, with
  *        headlines and whether each one may be shared with all participants.
  *   GET  /api/v2/boston/onepagers.zip             auth+adminOnly  302 → the member archive with the key
@@ -441,6 +443,25 @@ module.exports = function mountBostonOps(app, ctx) {
         } catch (e) {
             log('reminder send-all failed:', e.message);
             res.status(502).json({ error: e.message || 'The reminders could not be sent.' });
+        }
+    });
+
+    // ---------------------------------------------------------------- put a released seat back
+    // A guest can hand their seat back from the one email (member wing: POST
+    // /api/boston/rsvp/:token/cannot-attend). Plans change back, so the card offers the undo — and
+    // like every other write in this panel the deed happens on the member side, behind the same
+    // derived key, so the notes marker and the sheet status are stamped in exactly one place.
+    app.post('/api/v2/boston/registrations/:id/restore', auth, adminOnly, async (req, res) => {
+        try {
+            const id = cleanStr(req.params.id, 64);
+            const reg = id ? q.get('SELECT id, email, status FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
+            if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
+            const out = await memberCall('POST', '/api/boston/registrations/' + encodeURIComponent(id) + '/restore');
+            audit(req, 'boston.seat_restored', (out.already ? 'already active — ' : 'restored ') + (reg.email || id));
+            res.json({ success: true, already: !!out.already, email: reg.email || null, status: out.status || 'registered' });
+        } catch (e) {
+            log('restore failed:', e.message);
+            res.status(502).json({ error: e.message || 'The seat could not be restored.' });
         }
     });
 

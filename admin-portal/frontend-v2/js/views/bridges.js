@@ -107,8 +107,20 @@ export const COPY = {
     // The archive holds only the summaries whose owner ticked "share with all participants", so
     // the button counts THOSE — a label reading higher than the file would be a small lie.
     opZip: n => `DOWNLOAD SHARED SUMMARIES (ZIP · ${n})`, opZipNone: 'NO SHARED SUMMARIES YET',
+    // "registered N" counts seats actually held — a guest who tapped "I can't make it" in the one
+    // email is out of it, and shows in the released list below instead.
+    stripReg: n => `registered ${n}`,
     strip: (a, t, al, na) => `${a} of ${t} answered · ${al} with allergies · ${na} still to answer`,
     stripOp: (n, t, priv) => `one-slide summaries received ${n}/${t}` + (priv ? ` · ${priv} private` : ''),
+    // released seats — collapsed, because on a good week the section is empty and silent
+    relTitle: n => `RELEASED SEATS (${n})`, relOpen: 'SHOW', relClose: 'HIDE',
+    relWhen: d => d ? `released ${d}` : 'released',
+    relWhy: 'They tapped “I can’t make it” in the Boston email. Everything they told us is still on the row — restoring a seat brings it all back.',
+    restore: 'RESTORE SEAT', restoreBusy: 'RESTORING…',
+    cRestoreTitle: 'Put this seat back?',
+    cRestoreBody: (who, mail) => `<p style="margin:0 0 8px"><b>${who}</b> goes back on the Boston list as registered, and the sheet row returns to Confirmed.</p><p style="margin:0;color:#6d6459">No email is sent to <b>${mail}</b> — tell them yourself, or send the Boston email again from the row.</p>`,
+    goRestore: 'RESTORE IT',
+    restored: mail => `SEAT RESTORED FOR ${String(mail).toUpperCase()}`,
     cWho: 'GUEST', cInst: 'INSTITUTION', cPref: 'PREFERENCE', cAllergy: 'ALLERGIES', cOnePager: 'ONE-SLIDE SUMMARY', cAnswered: 'ANSWERED', cRem: 'EMAIL SENT',
     send: 'SEND', resend: 'RESEND', busy: 'SENDING…',
     noPref: 'not set', noAllergy: 'not set', allergyNone: 'none', notSent: 'not sent',
@@ -502,10 +514,12 @@ function sectionCatering(btn, cell, head) {
           ${btn('bpPreview', st.bpPreviewing === 'attendee' ? c.prevBusy : c.prevAttendee, !st.bpPreviewing, 'data-variant="attendee"', 'ghost')}
         </div>` : ''}
         ${C ? `<div style="display:flex;gap:8px 20px;flex-wrap:wrap;padding:11px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);font-size:11.5px;color:#6d6459">
+          <span><b style="color:#201b16">${esc(c.stripReg(C.total || 0))}</b></span>
           <span><b style="color:#201b16">${esc(c.strip(C.answered || 0, C.total || 0, C.with_allergies || 0, C.not_answered || 0))}</b></span>
           <span><b style="color:#201b16">${esc(c.stripOp(opGot, C.total || 0, opPriv))}</b></span>
           ${prefLine ? `<span>${prefLine}</span>` : ''}
         </div>` : ''}
+        ${sectionReleased(btn)}
         ${!C && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
         ${C && !rows.length ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
         ${C && rows.length ? `
@@ -544,6 +558,39 @@ function sectionCatering(btn, cell, head) {
           </table>
         </div>` : ''}
       </div>`;
+}
+// Seats handed back from the one email. Collapsed by default and absent entirely when nobody has
+// released one — the good state is silence. Open, it is the shortest possible list (who, when) plus
+// the undo, because that is all the team ever wants from it.
+function sectionReleased(btn) {
+  const c = COPY.cat;
+  const C = D.cat;
+  const rel = C ? (C.released || []) : [];
+  if (!rel.length) return '';
+  const open = !!st.bpRelOpen;
+  return `
+        <div data-v2="boston-released" style="border-bottom:1px solid rgba(32,27,22,.08);background:#fdf7f2">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 20px;flex-wrap:wrap">
+            <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#8a5a12">${esc(c.relTitle(rel.length))}</span>
+            <div style="flex:1"></div>
+            <span data-act="bpRelToggle" role="button" aria-expanded="${open}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${open ? c.relClose : c.relOpen}</span>
+          </div>
+          ${open ? `
+          <div style="padding:0 20px 14px">
+            <div style="font-size:11.5px;color:#6d6459;margin-bottom:10px">${esc(c.relWhy)}</div>
+            ${rel.map(r => {
+              const busy = st.bpRestoring === r.registration_id;
+              return `
+              <div data-row="${esc(r.registration_id)}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid rgba(32,27,22,.07)">
+                <span style="font-weight:600;font-size:12.5px">${esc(r.name || r.email)}</span>
+                <span style="font-size:11px;color:#6d6459">${esc(r.email)}${r.institution ? ' · ' + esc(r.institution) : ''}${r.presenter ? ' · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">WAS PRESENTING</span>' : ''}</span>
+                <div style="flex:1"></div>
+                <span style="font-size:11px;color:#8a5a12;white-space:nowrap">${esc(c.relWhen(r.released_on))}</span>
+                ${btn('bpRestore', busy ? c.restoreBusy : c.restore, !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`, 'ghost')}
+              </div>`;
+            }).join('')}
+          </div>` : ''}
+        </div>`;
 }
 function blockStats() {
   const c = COPY.stats;
@@ -873,6 +920,21 @@ const handlers = {
       ui.toast(c.prevSent(variant));
     } catch (e) { st.bpPreviewing = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
   },
+  // ---- Boston · released seats (the guest tapped "I can't make it" in the one email) ----
+  bpRelToggle: () => { st.bpRelOpen = !st.bpRelOpen; rerender('[data-block="boston"]', blockBoston()); },
+  bpRestore: async (el) => {
+    const c = COPY.cat;
+    const id = el.dataset.id, who = el.dataset.who || '', mail = el.dataset.mail || '';
+    if (st.bpRestoring) return;
+    if (!await ui.confirm({ title: c.cRestoreTitle, body: c.cRestoreBody(esc(who), esc(mail)), ok: c.goRestore, cancel: COPY.boston.keep })) return;
+    st.bpRestoring = id; rerender('[data-block="boston"]', blockBoston());
+    try {
+      await api.post('/api/v2/boston/registrations/' + encodeURIComponent(id) + '/restore', {});
+      st.bpRestoring = null;
+      await refreshCatering();
+      ui.toast(c.restored(mail));
+    } catch (e) { st.bpRestoring = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
+  },
   scBridges: () => { st.scope = 'bridges'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
   scAll: () => { st.scope = 'all'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
   scYear: () => { st.scope = 'y2026'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
@@ -892,7 +954,7 @@ export default {
     rootEl = root;
     st = { scope: 'bridges', copied: false, newCityOpen: false, ncCity: '', ncWhen: '', editEvent: null, recapEdit: null, fuName: '', fuWhy: '', uploading: null,
            bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null, bpReminding: null,
-           bpProgramBusy: false, bpPreviewing: null };
+           bpProgramBusy: false, bpPreviewing: null, bpRelOpen: false, bpRestoring: null };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();

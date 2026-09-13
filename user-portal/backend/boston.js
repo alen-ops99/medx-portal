@@ -34,8 +34,15 @@
  *   GET  /api/boston/presentations/:id/download?key=… — 302 → 15-minute presigned S3 GET
  *   GET  /api/boston/registrations.csv?key=…  — full registrant export (UTF-8 BOM, quoted, CRLF)
  *   GET  /boston/rsvp/:token/:answer          — one-tap catering answer (no login, HMAC token);
- *                                               records it, then offers the other question inline
+ *                                               records it, then offers the other question inline.
+ *                                               answer 'cannot-attend' draws a CONFIRM page and
+ *                                               writes nothing (a mail scanner must not cancel a seat)
  *   POST /api/boston/rsvp/:token/allergies    — the single "what to avoid" box behind that page
+ *   POST /api/boston/rsvp/:token/cannot-attend— releases the seat (status cancelled + dated notes
+ *                                               marker + custom_answers.cannot_attend_at); every
+ *                                               other answer the guest gave is kept, so a restore
+ *                                               is one field away. Idempotent; FYIs the two organizers
+ *   POST /api/boston/registrations/:id/restore?key=… — the team's undo: back to 'registered'
  *   GET  /api/boston/program?key=…            — the program PDF's status (present / size / uploaded)
  *   POST /api/boston/program?key=…            — replace the program PDF (multipart, ≤10 MB)
  *   POST /api/boston/reminders/send?key=…     — THE Boston email: {to:'preview'|'all'|'<id>'}
@@ -150,11 +157,26 @@ const PREF_KEYS = Object.keys(DIET_PREFS);
 const ALLERGY_NONE = 'no-allergies';        // one tap — "no allergies"
 const ALLERGY_TELL = 'allergies';           // one tap — opens the single text box
 const RSVP_OPEN = 'open';                   // the "change" link — shows the page, writes nothing
-const RSVP_ANSWERS = PREF_KEYS.concat([ALLERGY_NONE, ALLERGY_TELL, RSVP_OPEN]);
+// "I can't make it after all" — the same diet token, a seventh whitelisted answer, so the email
+// needs no new token type. Deliberately NOT a write: the GET only draws a confirm page, because a
+// mail scanner that follows every link in an email must never be able to cancel somebody's seat.
+// The release itself is the POST below, from that page.
+const CANNOT_ATTEND = 'cannot-attend';
+const RSVP_ANSWERS = PREF_KEYS.concat([ALLERGY_NONE, ALLERGY_TELL, RSVP_OPEN, CANNOT_ATTEND]);
 const ALLERGY_PREFIX = 'Allergies: ';       // how the answer lives inside special_requests
 const ALLERGY_NONE_VALUE = 'none';
 const MAX_ALLERGY_CHARS = 300;
 const REMINDER_MARK = 'REMINDER-SENT';
+// A seat given back by the guest, and a seat put back by the team. Both live as dated markers in
+// notes (the same restart-safe bookkeeping the reminder and the review gate use), so the history
+// of a row reads in one column and nothing new has to be migrated into the schema.
+const CANCELLED_MARK = 'CANCELLED-BY-GUEST';
+const RESTORED_MARK = 'RESTORED-BY-TEAM';
+// The one sentence every released-seat surface says — page notice and API refusal alike, so a
+// guest who taps an old link and a guest who forces the form behind it read the same thing.
+const RELEASED_LINE = when => `Your seat was released${when ? ' on ' + when : ''} — write to Laura if plans change.`;
+// The same sentence for a page: one source, so the notice and the refusal can never drift apart.
+const RELEASED_LINE_HTML = when => esc(RELEASED_LINE(when)).replace('—', '&mdash;');
 
 const LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/images/medx-logo.png';
 const baseUrl = () => String(process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
@@ -207,6 +229,18 @@ function cateringStateOf(reg) {
     };
 }
 const isPresenterRow = r => /5-minute presentation/.test(String((r && r.notes) || ''));
+// A released seat: the row is cancelled. `releasedOn` prefers the dated notes marker, falls back to
+// the custom_answers stamp, and answers '' when a row is cancelled without either (a review-gate
+// rejection) — so every reader can say "released" without ever printing "undefined".
+const isReleasedRow = r => String((r && r.status) || '').toLowerCase() === 'cancelled';
+const releasedByGuest = r => new RegExp(CANCELLED_MARK).test(String((r && r.notes) || ''));
+function releasedOn(reg) {
+    const m = new RegExp(CANCELLED_MARK + '\\s+(\\d{4}-\\d{2}-\\d{2})').exec(String((reg && reg.notes) || ''));
+    if (m) return m[1];
+    let ca = {};
+    try { ca = JSON.parse((reg && reg.custom_answers) || '{}') || {}; } catch (e) { ca = {}; }
+    return ca && ca.cannot_attend_at ? String(ca.cannot_attend_at).slice(0, 10) : '';
+}
 const wasReminded = r => Number((r && r.reminder_sent) || 0) === 1 || new RegExp(REMINDER_MARK).test(String((r && r.notes) || ''));
 const remindedOn = r => {
     const m = new RegExp(REMINDER_MARK + '\\s+(\\d{4}-\\d{2}-\\d{2})').exec(String((r && r.notes) || ''));
@@ -1117,6 +1151,7 @@ module.exports = function mountBoston(app, deps) {
             const id = verifyUploadToken(req.params.token);
             const reg = id ? query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
             if (!reg) return res.status(404).send(uploadNotFoundPage());
+            if (isReleasedRow(reg)) return res.send(releasedPage(reg));   // a released seat gets the notice, not the form
             const current = latestPresentation(reg.id);
             res.send(uploadPage(reg, current, s3.isConfigured(), String(req.params.token)));
         } catch (e) {
@@ -1133,6 +1168,7 @@ module.exports = function mountBoston(app, deps) {
             if (!id) return res.status(404).json({ error: 'This upload link is not valid. Please use the exact link you were sent.' });
             const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
             if (!reg) return res.status(404).json({ error: 'This upload link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
             if (!s3.isConfigured()) return res.status(503).json({ error: 'Uploads open soon — this same link will work shortly. Nothing else is needed from you.' });
             const f = req.file;
             if (!f || !f.buffer || !f.buffer.length) return res.status(400).json({ error: 'Choose a file first — .pdf, .ppt, .pptx or .key, up to 25 MB.' });
@@ -1195,6 +1231,7 @@ module.exports = function mountBoston(app, deps) {
             const id = verifyOnepagerToken(req.params.token);
             const reg = id ? query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
             if (!reg) return res.status(404).send(onepagerNotFoundPage());
+            if (isReleasedRow(reg)) return res.send(releasedPage(reg));   // a released seat gets the notice, not the form
             res.send(onepagerPage(reg, latestOnepager(reg.id), s3.isConfigured(), String(req.params.token)));
         } catch (e) {
             console.error('[Boston] one-slide summary page error:', e.message);
@@ -1210,6 +1247,7 @@ module.exports = function mountBoston(app, deps) {
             if (!id) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
             const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
             if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
             if (!s3.isConfigured()) return res.status(503).json({ error: 'Uploads open soon — this same link will work shortly. Nothing else is needed from you.' });
             const f = req.file;
             if (!f || !f.buffer || !f.buffer.length) return res.status(400).json({ error: 'Choose your one-slide summary first — a PDF or a PowerPoint, up to 10 MB.' });
@@ -1451,6 +1489,11 @@ module.exports = function mountBoston(app, deps) {
                 institution: r.institution || '',
                 email: r.email,
                 requested: /5-minute presentation/.test(String(r.notes || '')),
+                // A presenter who gave the seat back stays visible here (their deck is still on
+                // file) but is marked, so nobody sends slides chasers to somebody who is not coming.
+                status: r.status || null,
+                released: isReleasedRow(r),
+                released_on: isReleasedRow(r) ? releasedOn(r) : null,
                 upload_url: `${base}/boston/upload/${uploadToken(r.id)}`,
                 upload: latest ? {
                     id: latest.id,
@@ -1629,6 +1672,12 @@ module.exports = function mountBoston(app, deps) {
             ? `<div style="font-family:${T.sans};font-size:11.5px;line-height:1.6;color:#c9b89f;margin-top:2px;">You already told us${state.prefLabel ? ' <b style="color:#f2e7d6;">' + esc(state.prefLabel) + '</b>' : ''}${state.allergyState === 'none' ? ' and <b style="color:#f2e7d6;">no allergies</b>' : state.allergyState === 'yes' ? ' and <b style="color:#f2e7d6;">' + esc(state.allergyText) + '</b>' : ''} — tap anything above to change it.</div>`
             : '';
 
+        // ---- the quiet way out, one line, under the catering block ----
+        // A guest who cannot come should be able to say so in one tap instead of composing an
+        // email — the room is 60 seats and a freed one goes to somebody else. Deliberately small
+        // and last in this block: it is the footnote to the food questions, not a sixth module.
+        const cannotAttendLine = `<div style="font-family:${T.sans};font-size:11.5px;line-height:1.7;color:#a8998a;margin-top:16px;">Can&rsquo;t make it after all? <a href="${esc(rsvp(CANNOT_ATTEND))}" style="color:#d7b56c;text-decoration:underline;">Let us know with one tap</a> &mdash; it frees your seat.</div>`;
+
         // ---- the module chrome every block below shares ----
         const label = t => `<div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">${t}</div>`;
         const para = (html, mt) => `<div style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:#d3c5b2;margin-top:${mt == null ? 8 : mt}px;">${html}</div>`;
@@ -1701,6 +1750,7 @@ module.exports = function mountBoston(app, deps) {
         <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:12px;">2 &middot; Any food allergies?</div>
         <div style="margin-top:10px;">${allergyChips}</div>
         ${answeredNote}
+        ${cannotAttendLine}
       </td></tr></table>
 
       ${onepagerBlock}
@@ -1731,6 +1781,13 @@ module.exports = function mountBoston(app, deps) {
             const reg = id ? query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
             if (!reg || !RSVP_ANSWERS.includes(answer)) return res.status(404).send(rsvpNotFoundPage());
 
+            // "I can't make it" — the confirm page, never the deed. The POST behind its one button
+            // is what releases the seat, so a mail scanner walking this link changes nothing.
+            if (answer === CANNOT_ATTEND) return res.send(cannotAttendPage(reg, dietToken(reg.id)));
+            // A guest who already gave the seat back still holds working links — they just meet a
+            // notice instead of a form. Placed BEFORE every write: a released row records nothing.
+            if (isReleasedRow(reg)) return res.send(releasedPage(reg));
+
             if (DIET_PREFS[answer]) {
                 query.run('UPDATE bridges_registrations SET dietary_requirements = ? WHERE id = ?', [DIET_PREFS[answer], reg.id]);
                 stampCateringAnswers(reg, { diet_pref: answer });
@@ -1759,6 +1816,7 @@ module.exports = function mountBoston(app, deps) {
             const id = verifyDietToken(req.params.token);
             const reg = id ? query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
             if (!reg) return res.status(404).json({ error: 'Not found' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
             const text = String((req.body || {}).text == null ? '' : (req.body || {}).text)
                 .replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, MAX_ALLERGY_CHARS);
             if (!text) return res.status(400).json({ error: 'Tell us what to avoid — or tap “No allergies”.' });
@@ -1773,12 +1831,85 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ------------------------------------------------------------ POST /api/boston/rsvp/:token/cannot-attend
+    // The deed behind the confirm page's one button. Everything the guest gave us stays on the row
+    // — the seat is what is released, not the record — so a restore is one field away and the
+    // catering history, the summary and the deck are all still there if plans change back.
+    // Idempotent: a second confirm re-reads as released, sends nothing and writes nothing.
+    app.post('/api/boston/rsvp/:token/cannot-attend', async (req, res) => {
+        try {
+            const id = verifyDietToken(req.params.token);
+            const reg = id ? query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
+            if (!reg) return res.status(404).json({ error: 'Not found' });
+            if (isReleasedRow(reg)) {
+                return res.json({ success: true, already: true, released_on: releasedOn(reg) });
+            }
+            const today = new Date().toISOString().slice(0, 10);
+            const notes = String(reg.notes || '');
+            const stamped = new RegExp(CANCELLED_MARK).test(notes) ? notes
+                : (notes ? notes + ' | ' : '') + CANCELLED_MARK + ' ' + today;
+            query.run(`UPDATE bridges_registrations SET status = 'cancelled', notes = ? WHERE id = ?`, [stamped, reg.id]);
+            // Not a catering answer — so this stamp deliberately leaves answered_at alone; the row
+            // must not start reading as "they answered the food questions today".
+            stampCateringAnswers(reg, { cannot_attend_at: new Date().toISOString() }, { touchAnsweredAt: false });
+            flushDb();
+
+            // The sheet is the team's live view of the room, so the released seat has to show there
+            // too — the one status write this flow makes, through the helper the review gate uses.
+            updateBostonSheetStatus(reg.id, 'Cancelled by guest');
+
+            const stillHeld = Number((query.get(`SELECT COUNT(*) AS n FROM bridges_registrations
+                WHERE event_id = ? AND status IN ('registered','confirmed')`, [EVENT_ID]) || {}).n || 0);
+            const who = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || reg.email;
+            const fyi = releasedFyiHtml(who, reg.institution || '', stillHeld);
+            const subject = `Seat released — ${who} cannot attend Boston`;
+            for (const to of [process.env.CONFIRMATION_CC || SUPPORT_EMAIL, reviewGate.REVIEW_TO]) {
+                try { await sendEmail(to, subject, fyi); }
+                catch (e) { console.warn('[Boston] cannot-attend FYI failed for ' + to + ':', e.message); }
+            }
+            console.log(`[Boston] seat released by guest: ${reg.id} (${reg.email}) — ${stillHeld} registered now`);
+            res.json({ success: true, released_on: today, registered_now: stillHeld });
+        } catch (e) {
+            console.error('[Boston] cannot-attend failed:', e.message);
+            res.status(500).json({ error: 'We could not record that just now. Please try again in a minute.' });
+        }
+    });
+
+    // ------------------------------------------------------------ POST /api/boston/registrations/:id/restore
+    // The team's undo, behind the same derived key as every other organizer route. Plans change
+    // back more often than one would think, and the row still holds everything — so a restore is a
+    // status flip plus a dated marker, and the sheet returns to 'Confirmed'.
+    app.post('/api/boston/registrations/:id/restore', (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?',
+                [String(req.params.id || ''), EVENT_ID]);
+            if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
+            if (!isReleasedRow(reg)) return res.json({ success: true, already: true, status: reg.status || 'registered' });
+            const today = new Date().toISOString().slice(0, 10);
+            const notes = String(reg.notes || '');
+            const stamped = new RegExp(RESTORED_MARK).test(notes) ? notes
+                : (notes ? notes + ' | ' : '') + RESTORED_MARK + ' ' + today;
+            query.run(`UPDATE bridges_registrations SET status = 'registered', notes = ? WHERE id = ?`, [stamped, reg.id]);
+            flushDb();
+            updateBostonSheetStatus(reg.id, 'Confirmed');
+            console.log(`[Boston] seat restored by the team: ${reg.id} (${reg.email})`);
+            res.json({ success: true, status: 'registered', restored_on: today, email: reg.email });
+        } catch (e) {
+            console.error('[Boston] restore failed:', e.message);
+            res.status(500).json({ error: 'Could not restore that seat just now.' });
+        }
+    });
+
     // custom_answers is a shared JSON blob on the registration row — merge into it, never replace.
-    function stampCateringAnswers(reg, patch) {
+    // opts.touchAnsweredAt === false is for stamps that are not a catering answer (the released
+    // seat), so answered_at keeps meaning what the CSV column says it means.
+    function stampCateringAnswers(reg, patch, opts) {
         let ca = {};
         try { ca = JSON.parse(reg.custom_answers || '{}') || {}; } catch (e) { ca = {}; }
         if (!ca || typeof ca !== 'object' || Array.isArray(ca)) ca = {};
-        Object.assign(ca, patch, { answered_at: new Date().toISOString() });
+        Object.assign(ca, patch);
+        if (!opts || opts.touchAnsweredAt !== false) ca.answered_at = new Date().toISOString();
         query.run('UPDATE bridges_registrations SET custom_answers = ? WHERE id = ?', [JSON.stringify(ca), reg.id]);
         return ca;
     }
@@ -1789,6 +1920,15 @@ module.exports = function mountBoston(app, deps) {
         return query.all(`SELECT * FROM bridges_registrations
             WHERE event_id = ? AND status IN ('registered','confirmed')
             ORDER BY registered_at, rowid`, [EVENT_ID]);
+    }
+    // Seats given back by their guest. Deliberately a SECOND list, never mixed into the one above:
+    // every count on the card and every head the caterer cooks for comes from cateringRows(), and
+    // a released seat must not be in any of them. A review-gate rejection is cancelled too but was
+    // never a seat, so only rows carrying the guest's own marker appear here.
+    function releasedSeatRows() {
+        return query.all(`SELECT * FROM bridges_registrations
+            WHERE event_id = ? AND status = 'cancelled'
+            ORDER BY registered_at, rowid`, [EVENT_ID]).filter(releasedByGuest);
     }
     function cateringData() {
         const regs = cateringRows();
@@ -1829,10 +1969,23 @@ module.exports = function mountBoston(app, deps) {
             };
         });
         const preferenceUnanswered = rows.filter(r => !r.preference_key).length;
+        const released = releasedSeatRows().map(r => ({
+            registration_id: r.id,
+            name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+            email: r.email,
+            institution: r.institution || '',
+            presenter: isPresenterRow(r),
+            released_on: releasedOn(r)
+        }));
         return {
             event: EVENT_ID, event_name: EVENT_NAME,
             generated_at: new Date().toISOString(),
+            // `total` is and stays the number of seats actually held — the released list rides
+            // beside it so the card can show both without either number lying about the other.
             total: rows.length,
+            registered: rows.length,
+            released,
+            released_count: released.length,
             answered: rows.length - notAnswered,
             not_answered: notAnswered,
             preferences,
@@ -1949,8 +2102,11 @@ module.exports = function mountBoston(app, deps) {
             if (!checkAdminKey(req.query && req.query.key)) return res.status(403).json({ error: 'Forbidden' });
             const data = cateringData();
             const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+            // The last column is the caterer's head count in one word. Guests who gave their seat
+            // back are listed AFTER everyone coming, marked and with no food answers carried over —
+            // a released seat that reads like an order is exactly how a room gets over-catered.
             const lines = [['Name', 'Institution', 'Preference', 'Allergies', 'Answered at', 'Presenter',
-                'One-slide summary'].map(q).join(',')];
+                'One-slide summary', 'Seat'].map(q).join(',')];
             for (const r of data.rows) {
                 lines.push([r.name, r.institution, r.preference || '',
                     r.allergy_state === 'none' ? 'None' : (r.allergies || ''),
@@ -1958,7 +2114,12 @@ module.exports = function mountBoston(app, deps) {
                     r.presenter ? 'Yes' : 'No',
                     // the guest's own sharing answer, so the list that leaves the building and the
                     // archive that goes to participants can never disagree
-                    r.onepager ? (r.onepager_share_ok ? 'Shared' : 'Private') : ''].map(q).join(','));
+                    r.onepager ? (r.onepager_share_ok ? 'Shared' : 'Private') : '',
+                    'Coming'].map(q).join(','));
+            }
+            for (const r of data.released) {
+                lines.push([r.name, r.institution, '', '', '', r.presenter ? 'Yes' : 'No', '',
+                    'Released seat' + (r.released_on ? ' ' + r.released_on : '')].map(q).join(','));
             }
             res.set('Content-Type', 'text/csv; charset=utf-8');
             res.set('Content-Disposition', 'attachment; filename="building-bridges-boston-catering.csv"');
@@ -2731,6 +2892,112 @@ ${FOOTER_HTML}
 </script>
 </body></html>`;
 }
+// ---------------------------------------------------------------- "I can't make it" — confirm, then done
+// TWO states in one page, because they are the same address: before, a single button that releases
+// the seat; after, the receipt. The GET never writes — a mail scanner, a link preview or a
+// prefetching inbox must not be able to cancel a guest — so the button posts, and the same page
+// re-rendered later (or on a second tap of the email link) simply opens in the released state.
+function cannotAttendPage(reg, token) {
+    const first = reg.first_name || 'there';
+    const released = String(reg.status || '').toLowerCase() === 'cancelled';
+    const when = released ? releasedOn(reg) : '';
+    const back = `/boston/rsvp/${encodeURIComponent(token)}/${RSVP_OPEN}`;
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Can you still join us? — Building Bridges Boston · Med&amp;X</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="/assets/favicon-x.png">
+${FONTS_HTML}
+<style>${BASE_CSS}
+main{max-width:600px;}
+.headline{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:clamp(24px,5.8vw,32px);line-height:1.14;letter-spacing:-.4px;color:#241d18;margin:2px 0 12px;}
+.lede{font-size:14.5px;line-height:1.72;color:#4a4139;}
+.lede a{color:var(--crimson);font-weight:600;text-decoration:none;}
+.go{margin-top:22px;padding:15px 30px;border:none;border-radius:12px;cursor:pointer;font-family:inherit;font-size:15px;font-weight:600;color:#fbf3e6;
+  background:linear-gradient(180deg,#a03330,var(--crimson));box-shadow:0 12px 26px -14px rgba(143,45,42,.7);}
+.go:disabled{opacity:.55;cursor:not-allowed;}
+.keep{display:block;margin-top:16px;font-size:13.5px;color:var(--muted);text-decoration:none;}
+.keep b{color:var(--crimson);font-weight:600;}
+.cerr{display:none;margin-top:12px;font-size:13px;color:#7c2320;line-height:1.55;}
+.evline{margin-top:22px;padding-top:15px;border-top:1px solid rgba(43,33,25,.1);font-size:12.5px;line-height:1.7;color:#8a7d70;}
+</style></head><body>
+
+<header class="miniband"><div class="inner">
+  <div class="orgs">
+    <img class="medx" src="${LOGO_URL}" alt="Med&amp;X">
+    <span class="x">&times;</span>
+    <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
+  </div>
+  <p class="kicker">Building Bridges — Boston</p>
+  <h1>Hi ${esc(first)}</h1>
+</div></header>
+
+<main>
+  <section class="sheet" aria-label="Release your seat">
+    <div id="ask"${released ? ' hidden' : ''}>
+      <p class="headline">Sorry you can&rsquo;t join us, ${esc(first)}.</p>
+      <p class="lede">Confirm below and we&rsquo;ll release your seat. The room holds sixty, so somebody on the list can take it.</p>
+      <button type="button" class="go" id="c_go">Yes, release my seat</button>
+      <p class="cerr" id="c_err"></p>
+      <a class="keep" href="${esc(back)}"><b>Keep my seat</b> &mdash; I tapped this by mistake</a>
+    </div>
+    <div id="done"${released ? '' : ' hidden'}>
+      <p class="headline">Seat released &mdash; thank you for telling us.</p>
+      <p class="lede">If plans change, write to <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.${when ? ` <span style="color:#8a7d70;">Released on ${esc(when)}.</span>` : ''}</p>
+    </div>
+    <p class="evline">${esc(DATE_LONG)} &middot; 6:00&ndash;9:00 PM (doors 5:30 PM) &middot; ${esc(VENUE_FULL)}</p>
+  </section>
+</main>
+
+${FOOTER_HTML}
+
+<script>
+(function(){
+  var API='/api/boston/rsvp/${token}/cannot-attend';
+  var go=document.getElementById('c_go'),err=document.getElementById('c_err'),
+      ask=document.getElementById('ask'),done=document.getElementById('done');
+  if(!go) return;
+  go.addEventListener('click',function(){
+    err.style.display='none';go.disabled=true;go.textContent='One moment…';
+    fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+      .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+      .then(function(res){
+        if(res.ok&&res.j.success){ask.setAttribute('hidden','');done.removeAttribute('hidden');window.scrollTo(0,0);}
+        else{go.disabled=false;go.textContent='Yes, release my seat';err.textContent=(res.j&&res.j.error)||'We could not record that. Please try again.';err.style.display='block';}
+      })
+      .catch(function(){go.disabled=false;go.textContent='Yes, release my seat';err.textContent='We could not reach the server. Please try again.';err.style.display='block';});
+  });
+})();
+</script>
+</body></html>`;
+}
+
+// ---------------------------------------------------------------- the released-seat notice
+// What every OTHER personal link shows once the seat is gone: the links still resolve (they are in
+// an email somebody may open next week), they just carry a small notice instead of a form.
+function releasedPage(reg) {
+    return simplePage('Your seat was released', 'Your seat was released.',
+        `${RELEASED_LINE_HTML(releasedOn(reg))} Write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>) and we will put you back on the list.`);
+}
+
+// One line to the two people who run the room. Same dark house shell as every other FYI.
+function releasedFyiHtml(who, institution, registeredNow) {
+    const T = emailTemplates.T;
+    const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">For your information</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:#f2e7d6;margin-top:10px;">Seat released</div>
+      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:14px;"><b style="color:#f2e7d6;">${esc(who)}</b>${institution ? ` (${esc(institution)})` : ''} can&rsquo;t attend Boston &mdash; seat released. <b style="color:#f2e7d6;">${registeredNow}</b> registered now.</div>
+    </td></tr></table>`;
+    return emailTemplates.shell({
+        tone: 'dark',
+        title: 'Seat released — Building Bridges Boston',
+        preheader: `${who} can’t attend — ${registeredNow} registered now.`,
+        headerRightLabel: 'BUILDING BRIDGES · BOSTON',
+        rule: 'gold',
+        bodyHtml: body,
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Sent only to the Boston team']
+    });
+}
+
 function rsvpNotFoundPage() {
     return simplePage('This link is not quite right', 'This link is not quite right.',
         `The link you opened is incomplete or has been mistyped &mdash; links are personal, so every character matters. Please open the exact link from your reminder email (copy &amp; paste is safest). If it still does not work, write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>) and we will note your answers by hand.`);

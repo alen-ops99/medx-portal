@@ -33986,6 +33986,16 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         const checkinFor = (table, lookupSql, lookupParams, eventName) => {
             const record = query.get(lookupSql, lookupParams);
             if (!record) return false;
+            // A cancelled seat never opens a door. /api/admin/checkin/verify and .../ticket have
+            // always refused these; this universal cascade did not, so a guest who released their
+            // Boston seat from the one email — or a registration the review gate rejected — could
+            // still be checked in here. Refuse, and say so in the door's own words.
+            if (String(record.status || '').toLowerCase() === 'cancelled') {
+                res.status(409).json({ success: false, cancelled: true, event: eventName,
+                    error: 'This registration was cancelled. Do NOT admit.',
+                    attendee: record, qr_info: qrInfo });
+                return true;
+            }
             if (record.checked_in) { res.json({ success: true, already_checked_in: true, attendee: record, event: eventName, qr_info: qrInfo }); return true; }
             db.run(`UPDATE ${table} SET checked_in = 1, checked_in_at = datetime('now') WHERE id = ?`, [record.id]);
             saveDb();
