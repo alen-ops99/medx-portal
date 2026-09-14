@@ -450,7 +450,7 @@ async function t(name, fn) {
     await t('the email opens with the to-do list, then the tasks in list order, and the ticket last', () => {
         const html = sentEmails[sentEmails.length - 1].html;
         const at = s => { const i = html.indexOf(s); assert.ok(i > -1, 'missing module: ' + s); return i; };
-        const seeYou = at('A few things before Monday');
+        const seeYou = at('Your details for Monday, 21 September');
         const todo = at('we would ask you to do the following');
         const catering = at('Tell us your dietary preference and any food allergies');
         const intro = at('Send us a one-slide summary of your work');

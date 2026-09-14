@@ -1893,7 +1893,7 @@ module.exports = function mountBoston(app, deps) {
 
     const REMINDER_SUBJECT = 'See you on ' + DATE_LONG.replace(/\s*\d{4}$/, '') + ' — Building Bridges Boston';
     // The real subject asks for something — a guest must not file this as a pleasantry.
-    const ACTION_SUBJECT = r => `${r && r.first_name ? String(r.first_name).trim() + ', a' : 'A'} few things before Monday — Building Bridges Boston, 21 September`;
+    const ACTION_SUBJECT = r => `${r && r.first_name ? String(r.first_name).trim() + ', your' : 'Your'} Building Bridges Boston details — action needed before 21 September`;
 
     function reminderEmailHtml(reg, opts) {
         const o = opts || {};
@@ -2061,7 +2061,7 @@ module.exports = function mountBoston(app, deps) {
 
         const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:34px 40px 30px;">
       <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${gold};">Building Bridges in Biomedicine &middot; Croatia &amp; the US</div>
-      <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${ink};margin-top:8px;">Monday, 21 September &mdash; a few things before we meet</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${ink};margin-top:8px;">Your details for Monday, 21 September</div>
       <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:16px;">
         <p style="margin:0 0 10px;">Dear ${esc(first)},</p>
         <p style="margin:0;">We look forward to welcoming you to <b>Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b>${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
@@ -2069,7 +2069,7 @@ module.exports = function mountBoston(app, deps) {
       ${declinedNoteLight}
       <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:18px;">Before then, we would ask you to do the following <b>by clicking the button below</b>:</div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;">${asks.join('')}</table>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:18px;">${emailTemplates.btn('Open my personal page', me, 'solid', 'padding:16px 34px;font-size:12.5px;')}</td></tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:26px 0 0;">${emailTemplates.btn('Open my personal page', me, 'solid', 'padding:18px 44px;font-size:13.5px;letter-spacing:.14em;')}</td></tr></table>
       <div style="font-family:${T.sans};font-size:12.5px;line-height:1.6;color:${soft};margin-top:8px;text-align:center;">This is your personal link.</div>
       <div style="font-family:${T.sans};font-size:15px;line-height:1.7;color:${ink};margin-top:20px;text-align:center;">See you soon! <span style="font-size:18px;vertical-align:-2px;">\uD83C\uDDED\uD83C\uDDF7 \uD83C\uDDFA\uD83C\uDDF8</span></div>
       ${ticketLight}
@@ -2078,7 +2078,7 @@ module.exports = function mountBoston(app, deps) {
     </td></tr></table>`;
 
         return emailTemplates.shell({
-            title: 'A few things before Monday — Building Bridges Boston',
+            title: 'Your Building Bridges Boston details — action needed before 21 September',
             preheader: 'Your food preferences, your one-slide summary, the program — and your ticket for the door.',
             headerRightLabel: 'BUILDING BRIDGES · BOSTON',
             rule: 'crimson',
