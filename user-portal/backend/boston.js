@@ -228,7 +228,30 @@ function cateringStateOf(reg) {
         answered: !!(prefKey || prefLabelRaw || allergy != null)
     };
 }
-const isPresenterRow = r => /5-minute presentation/.test(String((r && r.notes) || ''));
+// ---- who actually presents ---------------------------------------------------------------------
+// Alen 2026-09-14: about thirty people ticked "5-minute presentation" and the evening has room for
+// far fewer, so he picks. That makes two different facts, and they must never be conflated:
+//   · requestedPresentation(r) — they OFFERED. Written at registration, never changed afterwards.
+//   · presenterStatusOf(r)     — HIS decision: 'confirmed', 'declined', or null while he decides.
+// isPresenterRow keeps its old name and its old meaning — "is on the running order" — so every
+// existing reader (the email shape, the hub, the slides lane, the admin lists) stays correct. Until
+// a row is decided it falls back to the offer, which is exactly the behaviour before he chose.
+const PRESENTER_CONFIRMED = 'confirmed';
+const PRESENTER_DECLINED = 'declined';
+const requestedPresentation = r => /5-minute presentation/.test(String((r && r.notes) || ''));
+const presenterStatusOf = r => {
+    const v = String((r && r.presenter_status) || '').trim().toLowerCase();
+    return v === PRESENTER_CONFIRMED || v === PRESENTER_DECLINED ? v : null;
+};
+const isPresenterRow = r => {
+    const s = presenterStatusOf(r);
+    if (s === PRESENTER_CONFIRMED) return true;
+    if (s === PRESENTER_DECLINED) return false;
+    return requestedPresentation(r);
+};
+// The one shape that earns the warm note: they offered, and he could not fit them in. A row marked
+// declined that never offered is a data slip, not a disappointment — it gets the plain guest email.
+const wasDeclinedPresenter = r => presenterStatusOf(r) === PRESENTER_DECLINED && requestedPresentation(r);
 // A released seat: the row is cancelled. `releasedOn` prefers the dated notes marker, falls back to
 // the custom_answers stamp, and answers '' when a row is cancelled without either (a review-gate
 // rejection) — so every reader can say "released" without ever printing "undefined".
@@ -471,6 +494,23 @@ module.exports = function mountBoston(app, deps) {
         return query.get('SELECT * FROM bridges_events WHERE id = ?', [EVENT_ID]);
     }
 
+    // ------------------------------------------------------------ presenter_status (lazy, additive)
+    // The owner's pick, one nullable column on the registration row — no new table, nothing to
+    // backfill, and every reader already treats NULL as "not decided yet" (see isPresenterRow).
+    // Guarded by PRAGMA so a redeploy over an already-migrated database is a no-op.
+    let presenterStatusReady = false;
+    function ensurePresenterStatusColumn() {
+        if (presenterStatusReady) return;
+        try {
+            const cols = query.all('PRAGMA table_info(bridges_registrations)') || [];
+            if (!cols.some(c => String(c.name) === 'presenter_status')) {
+                query.run('ALTER TABLE bridges_registrations ADD COLUMN presenter_status TEXT');
+                console.log('[Boston] presenter_status column added to bridges_registrations');
+            }
+            presenterStatusReady = true;
+        } catch (e) { console.warn('[Boston] presenter_status migration skipped:', e.message); }
+    }
+
     // ------------------------------------------------------------ bridges_presentations (lazy)
     // Uploaded 5-minute talk files. Multiple rows per registrant are HISTORY (every upload inserts);
     // the newest row is the authoritative file. stored_key = boston-2026/<regId>/<presId>.<ext>.
@@ -579,6 +619,19 @@ module.exports = function mountBoston(app, deps) {
         const m = /^([0-9a-f]{32})\.([0-9a-fA-F-]{16,64})$/.exec(String(token || ''));
         if (!m) return null;
         const expect = onepagerSig(m[2]);
+        if (!crypto.timingSafeEqual(Buffer.from(m[1]), Buffer.from(expect))) return null;
+        return m[2];
+    }
+    // Hub token — the FIFTH distinct HMAC context, and the only link a guest now needs. It opens
+    // the one personal page that carries all three asks; the four older contexts keep working
+    // untouched, so links already in somebody's inbox still resolve. Replaying a hub token at any
+    // older route (or any older token here) is a 404, exactly as the other four are to each other.
+    const meSig = id => crypto.createHmac('sha256', String(JWT_SECRET)).update('boston:me:' + String(id)).digest('hex').slice(0, 32);
+    const meToken = id => meSig(id) + '.' + String(id);
+    function verifyMeToken(token) {
+        const m = /^([0-9a-f]{32})\.([0-9a-fA-F-]{16,64})$/.exec(String(token || ''));
+        if (!m) return null;
+        const expect = meSig(m[2]);
         if (!crypto.timingSafeEqual(Buffer.from(m[1]), Buffer.from(expect))) return null;
         return m[2];
     }
@@ -1161,6 +1214,36 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ---- the ONE storage path for a presentation deck ------------------------------------------
+    // Two front doors now reach it — the original personal /boston/upload link and step 3 of the
+    // hub — so the rules (extension whitelist, 25 MB cap, magic bytes, S3 key shape, history row)
+    // live here once. A second copy of this is how the two doors would quietly drift apart.
+    // Answers {status, body} rather than writing the response, so each route owns its own framing.
+    async function storeSlides(reg, file) {
+        if (!s3.isConfigured()) return { status: 503, body: { error: 'Uploads open soon — this same link will work shortly. Nothing else is needed from you.' } };
+        if (!file || !file.buffer || !file.buffer.length) return { status: 400, body: { error: 'Choose a file first — .pdf, .ppt, .pptx or .key, up to 25 MB.' } };
+        const name = sanitizeFilename(file.originalname);
+        const m = /\.([A-Za-z0-9]{1,10})$/.exec(name);
+        const ext = m ? m[1].toLowerCase() : '';
+        const type = UPLOAD_TYPES[ext];
+        if (!type) return { status: 400, body: { error: 'That file type is not accepted. Please upload a .pdf, .ppt, .pptx or .key file.' } };
+        if (file.buffer.length > MAX_UPLOAD_BYTES) {   // belt — multer already aborts the stream at the cap
+            return { status: 413, body: { error: 'That file is over the 25 MB limit. Please compress it (or export a PDF) and try again.' } };
+        }
+        if (!magicOk(ext, file.buffer)) {
+            return { status: 400, body: { error: `That file does not look like a real .${ext} file inside. Please re-export it and try again.` } };
+        }
+        ensurePresentationsTable();
+        const presId = crypto.randomUUID();
+        const storedKey = `${EVENT_SLUG}/${reg.id}/${presId}.${ext}`;
+        await s3.putObject(storedKey, file.buffer, type.mime);   // S3 first — a DB row only for a stored file
+        const uploadedAt = new Date().toISOString();
+        query.run(`INSERT INTO bridges_presentations (id, registration_id, original_name, stored_key, mime, size, uploaded_at)
+            VALUES (?,?,?,?,?,?,?)`, [presId, reg.id, name, storedKey, type.mime, file.buffer.length, uploadedAt]);
+        flushDb();
+        return { status: 200, body: { success: true, filename: name, size: file.buffer.length, uploaded_at: uploadedAt } };
+    }
+
     // ------------------------------------------------------------ POST /api/boston/upload/:token
     app.post('/api/boston/upload/:token', uploadParser, async (req, res) => {
         try {
@@ -1169,29 +1252,8 @@ module.exports = function mountBoston(app, deps) {
             const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
             if (!reg) return res.status(404).json({ error: 'This upload link is not valid. Please use the exact link you were sent.' });
             if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
-            if (!s3.isConfigured()) return res.status(503).json({ error: 'Uploads open soon — this same link will work shortly. Nothing else is needed from you.' });
-            const f = req.file;
-            if (!f || !f.buffer || !f.buffer.length) return res.status(400).json({ error: 'Choose a file first — .pdf, .ppt, .pptx or .key, up to 25 MB.' });
-            const name = sanitizeFilename(f.originalname);
-            const m = /\.([A-Za-z0-9]{1,10})$/.exec(name);
-            const ext = m ? m[1].toLowerCase() : '';
-            const type = UPLOAD_TYPES[ext];
-            if (!type) return res.status(400).json({ error: 'That file type is not accepted. Please upload a .pdf, .ppt, .pptx or .key file.' });
-            if (f.buffer.length > MAX_UPLOAD_BYTES) {   // belt — multer already aborts the stream at the cap
-                return res.status(413).json({ error: 'That file is over the 25 MB limit. Please compress it (or export a PDF) and try again.' });
-            }
-            if (!magicOk(ext, f.buffer)) {
-                return res.status(400).json({ error: `That file does not look like a real .${ext} file inside. Please re-export it and try again.` });
-            }
-            ensurePresentationsTable();
-            const presId = crypto.randomUUID();
-            const storedKey = `${EVENT_SLUG}/${id}/${presId}.${ext}`;
-            await s3.putObject(storedKey, f.buffer, type.mime);   // S3 first — a DB row only for a stored file
-            const uploadedAt = new Date().toISOString();
-            query.run(`INSERT INTO bridges_presentations (id, registration_id, original_name, stored_key, mime, size, uploaded_at)
-                VALUES (?,?,?,?,?,?,?)`, [presId, id, name, storedKey, type.mime, f.buffer.length, uploadedAt]);
-            flushDb();
-            res.json({ success: true, filename: name, size: f.buffer.length, uploaded_at: uploadedAt });
+            const out = await storeSlides(reg, req.file);
+            res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] presentation upload failed:', e.message);
             res.status(502).json({ error: 'The upload did not go through. Please try again — this same link keeps working.' });
@@ -1240,6 +1302,38 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ---- the ONE storage path for a one-slide summary -------------------------------------------
+    // Same reasoning as storeSlides: the original /boston/onepager link and step 2 of the hub are
+    // two doors onto ONE table, ONE S3 prefix and ONE consent column, so the rules live here once.
+    // The consent is always read from what the page posted (readShareOk defaults to "share", which
+    // is what a guest looking at a ticked box would have meant).
+    async function storeSummary(reg, file, fields) {
+        if (!s3.isConfigured()) return { status: 503, body: { error: 'Uploads open soon — this same link will work shortly. Nothing else is needed from you.' } };
+        if (!file || !file.buffer || !file.buffer.length) return { status: 400, body: { error: 'Choose your one-slide summary first — a PDF or a PowerPoint, up to 10 MB.' } };
+        const name = sanitizeFilename(file.originalname || 'one-slide-summary.pdf');
+        const m = /\.([A-Za-z0-9]{1,10})$/.exec(name);
+        const ext = m ? m[1].toLowerCase() : '';
+        const type = SUMMARY_TYPES[ext];
+        if (!type) return { status: 400, body: { error: 'PDF or PowerPoint (.ppt/.pptx), please — export your slide and try again.' } };
+        if (file.buffer.length > MAX_ONEPAGER_BYTES) {  // belt — multer already aborts the stream at the cap
+            return { status: 413, body: { error: 'That file is over the 10 MB limit. One slide is all we need — export it again and try.' } };
+        }
+        if (!magicOk(ext, file.buffer)) {
+            return { status: 400, body: { error: `That file does not look like a real .${ext} file inside. Please re-export it and try again.` } };
+        }
+        ensureOnepagersTable();
+        const headline = cleanHeadline((fields || {}).headline);
+        const shareOk = readShareOk((fields || {}).share_ok);
+        const docId = crypto.randomUUID();
+        const storedKey = `${ONEPAGER_PREFIX}/${reg.id}/${docId}.${ext}`;
+        await s3.putObject(storedKey, file.buffer, type.mime);   // S3 first — a row only for a stored file
+        const uploadedAt = new Date().toISOString();
+        query.run(`INSERT INTO bridges_onepagers (id, registration_id, original_name, stored_key, mime, size, headline, share_ok, uploaded_at)
+            VALUES (?,?,?,?,?,?,?,?,?)`, [docId, reg.id, name, storedKey, type.mime, file.buffer.length, headline || null, shareOk, uploadedAt]);
+        flushDb();
+        return { status: 200, body: { success: true, filename: name, size: file.buffer.length, headline: headline || null, share_ok: shareOk === 1, uploaded_at: uploadedAt } };
+    }
+
     // ------------------------------------------------------------ POST /api/boston/onepager/:token
     app.post('/api/boston/onepager/:token', onepagerParser, async (req, res) => {
         try {
@@ -1248,31 +1342,8 @@ module.exports = function mountBoston(app, deps) {
             const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
             if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
             if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
-            if (!s3.isConfigured()) return res.status(503).json({ error: 'Uploads open soon — this same link will work shortly. Nothing else is needed from you.' });
-            const f = req.file;
-            if (!f || !f.buffer || !f.buffer.length) return res.status(400).json({ error: 'Choose your one-slide summary first — a PDF or a PowerPoint, up to 10 MB.' });
-            const name = sanitizeFilename(f.originalname || 'one-slide-summary.pdf');
-            const m = /\.([A-Za-z0-9]{1,10})$/.exec(name);
-            const ext = m ? m[1].toLowerCase() : '';
-            const type = SUMMARY_TYPES[ext];
-            if (!type) return res.status(400).json({ error: 'PDF or PowerPoint (.ppt/.pptx), please — export your slide and try again.' });
-            if (f.buffer.length > MAX_ONEPAGER_BYTES) {  // belt — multer already aborts the stream at the cap
-                return res.status(413).json({ error: 'That file is over the 10 MB limit. One slide is all we need — export it again and try.' });
-            }
-            if (!magicOk(ext, f.buffer)) {
-                return res.status(400).json({ error: `That file does not look like a real .${ext} file inside. Please re-export it and try again.` });
-            }
-            ensureOnepagersTable();
-            const headline = cleanHeadline((req.body || {}).headline);
-            const shareOk = readShareOk((req.body || {}).share_ok);
-            const docId = crypto.randomUUID();
-            const storedKey = `${ONEPAGER_PREFIX}/${id}/${docId}.${ext}`;
-            await s3.putObject(storedKey, f.buffer, type.mime);   // S3 first — a row only for a stored file
-            const uploadedAt = new Date().toISOString();
-            query.run(`INSERT INTO bridges_onepagers (id, registration_id, original_name, stored_key, mime, size, headline, share_ok, uploaded_at)
-                VALUES (?,?,?,?,?,?,?,?,?)`, [docId, id, name, storedKey, type.mime, f.buffer.length, headline || null, shareOk, uploadedAt]);
-            flushDb();
-            res.json({ success: true, filename: name, size: f.buffer.length, headline: headline || null, share_ok: shareOk === 1, uploaded_at: uploadedAt });
+            const out = await storeSummary(reg, req.file, req.body);
+            res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] one-slide summary upload failed:', e.message);
             res.status(502).json({ error: 'The upload did not go through. Please try again — this same link keeps working.' });
@@ -1403,6 +1474,130 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ============================================================ THE ONE PERSONAL PAGE ("the hub")
+    // Alen 2026-09-14: "Can it all be one link? People open one link and everything is there:
+    // first choose dietary/allergies, then upload the one-slide summary, then (presenters) upload
+    // the presentation." So this is the whole ask on one address: three numbered steps, each with
+    // its own state, each saved in place by fetch — no page reload, no second link, no login. The
+    // four older personal links keep working exactly as they did (they are in inboxes already);
+    // this one simply makes them unnecessary.
+    //
+    // Required is required for a reason: allergies are a kitchen fact for EVERY guest, and a
+    // presenter without slides is a gap in the running order. The summary is the one genuinely
+    // optional ask, and the page says so rather than nagging for it.
+
+    /** Every fact the page and its progress line are drawn from — one read, one shape. */
+    function meStateOf(reg) {
+        const presenter = isPresenterRow(reg);
+        const declined = wasDeclinedPresenter(reg);
+        const cat = cateringStateOf(reg);
+        const summary = latestOnepager(reg.id);
+        const slides = presenter ? latestPresentation(reg.id) : null;
+        // Step 1 is done only when BOTH rows are answered — "vegan, allergies unknown" is not an
+        // answer the kitchen can cook from.
+        const step1 = !!(cat.prefKey && cat.allergyState);
+        const step2 = !!summary;
+        const step3 = !!slides;
+        const total = presenter ? 3 : 2;
+        const done = (step1 ? 1 : 0) + (step2 ? 1 : 0) + (presenter && step3 ? 1 : 0);
+        return {
+            presenter, declined, cat, summary, slides,
+            step1, step2, step3, total, done,
+            // The optional step deliberately does NOT gate this: a guest who has answered the food
+            // questions (and uploaded slides, if presenting) is finished, and should be told so.
+            allDone: step1 && (!presenter || step3)
+        };
+    }
+
+    /** The row behind a hub token, or null — one lookup for the page and all three APIs. */
+    const meRegOf = token => {
+        const id = verifyMeToken(token);
+        return id ? query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
+    };
+
+    // ------------------------------------------------------------ GET /boston/me/:token
+    // Always server-rendered from the CURRENT row, so a reload (or a second device, or a tap on an
+    // old email button weeks later) shows exactly what is on file — the page holds no state of its
+    // own beyond the request that drew it.
+    app.get('/boston/me/:token', (req, res) => {
+        res.set('X-Robots-Tag', 'noindex, nofollow');
+        res.set('Cache-Control', 'private, no-store');
+        try {
+            const reg = meRegOf(req.params.token);
+            if (!reg) return res.status(404).send(meNotFoundPage());
+            if (isReleasedRow(reg)) return res.send(releasedPage(reg));   // a released seat gets the notice, not the form
+            res.send(mePage(reg, meStateOf(reg), s3.isConfigured(), {
+                me: String(req.params.token),
+                diet: dietToken(reg.id)          // the allergy box and the way out reuse the existing routes
+            }, walletLinks(reg)));
+        } catch (e) {
+            console.error('[Boston] personal page error:', e.message);
+            res.status(500).send(simplePage('Something went wrong', 'One moment, please.',
+                `We could not open your page just now. Please try the link again in a minute, or write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>).`));
+        }
+    });
+
+    // ------------------------------------------------------------ POST /api/boston/me/:token/diet
+    // The preference row, saved in place. Writes exactly what the one-tap GET route writes, so a
+    // guest who used the email chips last week and the hub today leaves one consistent record.
+    // Idempotent: posting the same preference twice is the same single row state.
+    app.post('/api/boston/me/:token/diet', (req, res) => {
+        try {
+            const reg = meRegOf(req.params.token);
+            if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
+            const pref = String((req.body || {}).pref || '').trim().toLowerCase();
+            if (!DIET_PREFS[pref]) return res.status(400).json({ error: 'Please choose one of the options shown.' });
+            query.run('UPDATE bridges_registrations SET dietary_requirements = ? WHERE id = ?', [DIET_PREFS[pref], reg.id]);
+            stampCateringAnswers(reg, { diet_pref: pref });
+            flushDb();
+            res.json({ success: true, pref, label: DIET_PREFS[pref] });
+        } catch (e) {
+            console.error('[Boston] hub diet save failed:', e.message);
+            res.status(500).json({ error: 'We could not save that just now. Please try again.' });
+        }
+    });
+
+    // ------------------------------------------------------------ POST /api/boston/me/:token/summary
+    // Step 2 — the optional one-slide summary, through the SAME storage path as /boston/onepager.
+    app.post('/api/boston/me/:token/summary', onepagerParser, async (req, res) => {
+        try {
+            const reg = meRegOf(req.params.token);
+            if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
+            const out = await storeSummary(reg, req.file, req.body);
+            res.status(out.status).json(out.body);
+        } catch (e) {
+            console.error('[Boston] hub summary upload failed:', e.message);
+            res.status(502).json({ error: 'The upload did not go through. Please try again — this same link keeps working.' });
+        }
+    });
+
+    // ------------------------------------------------------------ POST /api/boston/me/:token/slides
+    // Step 3 — presenters ONLY. A guest who is not on the running order has no slides slot, so this
+    // refuses rather than quietly filing a deck nobody will ever play.
+    app.post('/api/boston/me/:token/slides', uploadParser, async (req, res) => {
+        try {
+            const reg = meRegOf(req.params.token);
+            if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
+            if (!isPresenterRow(reg)) {
+                return res.status(403).json({
+                    error: wasDeclinedPresenter(reg)
+                        // They offered and there was no room. The refusal has to carry the seat with
+                        // it — this is the one place a declined guest could still read "not wanted".
+                        ? 'Your seat on Monday is confirmed and we look forward to seeing you. We could not fit every presentation into the evening this time, so there is no slides slot — but your one-slide summary is very welcome and reaches every participant after the event.'
+                        : 'Only the evening’s presenters upload slides. If you would like a 5-minute slot, write to Laura Rodman (' + SUPPORT_EMAIL + ').'
+                });
+            }
+            const out = await storeSlides(reg, req.file);
+            res.status(out.status).json(out.body);
+        } catch (e) {
+            console.error('[Boston] hub slides upload failed:', e.message);
+            res.status(502).json({ error: 'The upload did not go through. Please try again — this same link keeps working.' });
+        }
+    });
+
     // ============================================================ THE PROGRAM PDF (one attachment)
     // Uploaded once by the team, attached to every copy of the one email. Read back from S3 per
     // batch (not per recipient), so a 300-guest send pulls the file exactly once.
@@ -1470,9 +1665,42 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ------------------------------------------------------------ POST /api/boston/presenters/:id/status
+    // The owner's pick, one row at a time: 'confirmed' (they present), 'declined' (they offered and
+    // there was no room — the warm third email shape), or null (undecided again, back to the offer).
+    // Idempotent, keyed like every other organizer route, and it writes nothing else on the row —
+    // the offer in `notes` is a historical fact and stays exactly as it was written.
+    app.post('/api/boston/presenters/:id/status', (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            ensurePresenterStatusColumn();
+            const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?',
+                [String(req.params.id || ''), EVENT_ID]);
+            if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
+            const raw = (req.body || {}).status;
+            const want = raw == null || String(raw).trim() === '' ? null : String(raw).trim().toLowerCase();
+            if (want !== null && want !== PRESENTER_CONFIRMED && want !== PRESENTER_DECLINED) {
+                return res.status(400).json({ error: 'status must be "confirmed", "declined" or null.' });
+            }
+            query.run('UPDATE bridges_registrations SET presenter_status = ? WHERE id = ?', [want, reg.id]);
+            flushDb();
+            const fresh = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [reg.id]) || reg;
+            res.json({
+                success: true, id: reg.id, presenter_status: want,
+                presenter: isPresenterRow(fresh),
+                presentation_requested: requestedPresentation(fresh),
+                declined_presenter: wasDeclinedPresenter(fresh)
+            });
+        } catch (e) {
+            console.error('[Boston] presenter status write failed:', e.message);
+            res.status(500).json({ error: 'Could not record that just now. Please try again.' });
+        }
+    });
+
     // ------------------------------------------------------------ team data (page + JSON share it)
     function presentationAdminData() {
         ensurePresentationsTable();
+        ensurePresenterStatusColumn();
         const regs = query.all(`SELECT * FROM bridges_registrations
             WHERE event_id = ? AND (notes LIKE '%5-minute presentation%'
                OR id IN (SELECT registration_id FROM bridges_presentations))
@@ -1488,13 +1716,23 @@ module.exports = function mountBoston(app, deps) {
                 name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
                 institution: r.institution || '',
                 email: r.email,
-                requested: /5-minute presentation/.test(String(r.notes || '')),
+                requested: requestedPresentation(r),
+                // The offer and the decision, side by side and never conflated: `requested` /
+                // `presentation_requested` is what THEY asked for, `presenter_status` is what HE
+                // decided, and `presenter` is the answer everything downstream actually acts on.
+                presentation_requested: requestedPresentation(r),
+                presenter_status: presenterStatusOf(r),
+                presenter: isPresenterRow(r),
+                declined_presenter: wasDeclinedPresenter(r),
                 // A presenter who gave the seat back stays visible here (their deck is still on
                 // file) but is marked, so nobody sends slides chasers to somebody who is not coming.
                 status: r.status || null,
                 released: isReleasedRow(r),
                 released_on: isReleasedRow(r) ? releasedOn(r) : null,
                 upload_url: `${base}/boston/upload/${uploadToken(r.id)}`,
+                // The link the team should actually hand out now: one address carrying all three
+                // asks. upload_url stays beside it — it is in inboxes already and still works.
+                me_url: `${base}/boston/me/${meToken(r.id)}`,
                 upload: latest ? {
                     id: latest.id,
                     filename: latest.original_name,
@@ -1506,12 +1744,19 @@ module.exports = function mountBoston(app, deps) {
                 } : null
             };
         });
+        const askedToPresent = rows.filter(r => r.presentation_requested);
         return {
             event: EVENT_ID, event_name: EVENT_NAME,
             generated_at: new Date().toISOString(),
             s3_configured: s3.isConfigured(),
-            requested: rows.filter(r => r.requested).length,
+            requested: askedToPresent.length,
             uploaded: rows.filter(r => r.upload).length,
+            // The three counts the card's header reads. They partition the people who OFFERED, so
+            // confirmed + declined + undecided is always exactly `requested` — nothing can go
+            // missing between the owner's decisions and the number of talks the evening holds.
+            confirmed: askedToPresent.filter(r => r.presenter_status === PRESENTER_CONFIRMED).length,
+            declined: askedToPresent.filter(r => r.presenter_status === PRESENTER_DECLINED).length,
+            undecided: askedToPresent.filter(r => r.presenter_status == null).length,
             rows
         };
     }
@@ -1604,7 +1849,11 @@ module.exports = function mountBoston(app, deps) {
         try {
             if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
             const to = String((req.body || {}).to || '').trim();
-            const presenters = query.all(`SELECT * FROM bridges_registrations WHERE event_id = ? AND status IN ('registered','confirmed') AND notes LIKE '%5-minute presentation%' ORDER BY registered_at`, [EVENT_ID]);
+            ensurePresenterStatusColumn();
+            // Only people who are actually on the running order get a "upload your slides" link —
+            // sending one to somebody the owner could not fit in would be the cruellest possible bug.
+            const presenters = query.all(`SELECT * FROM bridges_registrations WHERE event_id = ? AND status IN ('registered','confirmed') AND notes LIKE '%5-minute presentation%' ORDER BY registered_at`, [EVENT_ID])
+                .filter(isPresenterRow);
             const subject = 'Upload your 5-minute presentation — Building Bridges Boston';
             if (to === 'preview') {
                 const sample = presenters[0] || { id: 'preview', first_name: 'Alen', email: reviewGate.REVIEW_TO };
@@ -1656,6 +1905,11 @@ module.exports = function mountBoston(app, deps) {
         const links = walletLinks(reg);
         const tok = dietToken(id);
         const rsvp = a => `${base}/boston/rsvp/${tok}/${a}`;
+        // Alen 2026-09-14: "Can it all be one link?" — it can. Every button below now lands on the
+        // SAME personal page, each on the step it belongs to, so a guest who opens any one of them
+        // has the whole ask in front of them and can finish the rest without going back to the
+        // email. The numbered sections stay because they are what explains the three asks.
+        const me = `${base}/boston/me/${meToken(id)}`;
         const state = cateringStateOf(reg);
 
         const fact = (label, valueHtml) => `<tr>
@@ -1726,51 +1980,49 @@ module.exports = function mountBoston(app, deps) {
         const text = (html, mt) => `<div style="font-family:${T.sans};font-size:14.5px;line-height:1.65;color:#e3d6c2;margin-top:${mt == null ? 10 : mt}px;">${html}</div>`;
         const small = html => `<div style="font-family:${T.sans};font-size:12.5px;line-height:1.6;color:#c9b89f;margin-top:8px;">${html}</div>`;
         const bigBtn = (label, href) => `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:14px;"><tr><td>${emailTemplates.btn(label, href, 'solid', 'padding:15px 26px;font-size:12px;background:#a8232b;')}</td></tr></table>`;
+        // The small-caps word that says whether a section is an obligation or an invitation.
+        const secTag = kind => `<span style="font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${kind === 'required' ? '#e8a6a1' : '#d7b56c'};vertical-align:middle;">&nbsp;${kind}</span>`;
 
         // 1 · dietary — the buttons are right here, no detour
-        const sec1 = section(1, 'Please tell us your dietary restrictions and allergies', `
-            ${text('Dinner is served during the networking part of the evening. Click <b style="color:#f2e7d6;">one button in each row</b> &mdash; that is all, your name is already attached.')}
-            <div style="font-family:${T.sans};font-weight:600;font-size:13px;color:#f2e7d6;margin-top:16px;">Dietary preference</div>
-            <div style="margin-top:8px;">${prefChips}</div>
-            <div style="font-family:${T.sans};font-weight:600;font-size:13px;color:#f2e7d6;margin-top:10px;">Food allergies</div>
-            <div style="margin-top:8px;">${allergyChips}</div>
-            ${answeredNote}`);
+        const sec1 = section(1, 'Please tell us your dietary restrictions and allergies' + secTag('required'), `
+            ${text('Dinner is served during the networking part of the evening. Please use the button below to choose your dietary preference and tell us about any food allergies &mdash; it is a very short form, two questions, and your name is already on it.')}
+            ${bigBtn('Choose my dietary preferences', me + '#step1')}`);
 
         // 2 · the one-slide summary — explained, because this is the first time they hear of it
-        const sec2 = section(2, 'Please send us a one-slide summary about you', `
-            ${text('We would like every participant to prepare <b style="color:#f2e7d6;">one slide</b> that introduces you &mdash; who you are, what you do, and what you are looking for in a collaborator, with your contact details. After the event we will compile all summaries into one document and share it with every participant, so people know who is working on what and can follow up.')}
+        const sec2 = section(2, 'Please send us a one-slide summary of your work' + secTag('optional'), `
+            ${text('We invite every participant to prepare <b style="color:#f2e7d6;">one slide</b> about their work: your institution and group, what you work on, and what kind of collaboration or partner you are looking for &mdash; with your contact details. After the event we will compile all summaries into one document and share it with every participant, so people know who is working on what and can follow up.')}
             ${small(`PDF or PowerPoint, one slide, up to 10&nbsp;MB &middot; please send it by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>. Click the button, choose your file, done. You can replace it any time from the same link.`)}
-            ${bigBtn(o.onepager ? 'Replace my one-slide summary' : 'Upload my one-slide summary', base + '/boston/onepager/' + onepagerToken(id))}
+            ${bigBtn(o.onepager ? 'Replace my one-slide summary' : 'Upload my one-slide summary', me + '#step2')}
             ${o.onepager ? onFile('Already received', o.onepager.original_name) : ''}`);
 
         // 3 · slides — presenters only
-        const sec3 = o.presenter ? section(3, 'Please send us your presentation slides', `
-            ${text('You are giving one of the <b style="color:#f2e7d6;">5-minute presentations</b>. All talks run from a single laptop, so please upload your slides in advance &mdash; the detailed instructions are in the attached program.')}
-            ${small(`${SLIDES_FORMAT_LINE} &middot; please upload by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>.`)}
-            ${bigBtn(o.uploaded ? 'Replace my slides' : 'Upload my slides', base + '/boston/upload/' + uploadToken(id))}
+        const sec3 = o.presenter ? section(3, 'Please send us your presentation slides' + secTag('required'), `
+            ${text('You are giving one of the <b style="color:#f2e7d6;">5-minute presentations</b>. In short: introduce your lab, clinic or department and the work you do there at a broad level &mdash; who you are and what your group is known for, two or three areas of your work, one example of a project or result &mdash; and use your <b style="color:#f2e7d6;">last slide</b> to say how you would like to collaborate and in which area. The audience is broad, so keep it simple and readable from the back of the room. Talks run back to back from one laptop; there is no Q&amp;A, the discussion continues at the reception. Full instructions are in the attached program.')}
+            ${small(`${SLIDES_FORMAT_LINE} &middot; please upload by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>. You can replace the file any time from the same link.`)}
+            ${bigBtn(o.uploaded ? 'Replace my slides' : 'Upload my slides', me + '#step3')}
             ${o.uploaded ? onFile('Already received', o.uploaded && o.uploaded.original_name) : ''}`) : '';
 
         // 4 · the program PDF
         const sec4 = section(o.presenter ? 4 : 3, 'Please read the attached program', `
             ${text(`Attached to this email is a two-page PDF with the running order of the evening, the instructions for presentations and the practical notes.${o.programMissing ? ' <b style="color:#e8b45c;">(program PDF not uploaded yet)</b>' : ''}`)}`);
 
-        const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
-      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Building Bridges in Biomedicine &middot; Croatia &amp; the US</div>
-      <div style="font-family:${T.serif};font-weight:500;font-size:28px;line-height:1.18;color:#f2e7d6;margin-top:10px;">A few things before Monday, <i>${esc(first)}</i>.</div>
-      <div style="font-family:${T.sans};font-size:15px;line-height:1.7;color:#e3d6c2;margin-top:16px;">
-        <p style="margin:0 0 12px;">Dear ${esc(first)},</p>
-        <p style="margin:0 0 12px;">We look forward to welcoming you to <b style="color:#f2e7d6;">Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
-        <p style="margin:0;">Before the event we kindly ask you for <b style="color:#f2e7d6;">${o.presenter ? 'four' : 'three'} short things</b>. Everything can be done directly from this email:</p>
-      </div>
+        // ---- the third shape: they offered to present, and there was no room ----------------------
+        // The whole risk in this email is that somebody reads "not presenting" as "not invited" and
+        // quietly stays home. So it opens on the seat, in bold, before the word presentation appears
+        // at all — and the ticket block is hoisted to sit directly underneath it (see `body` below).
+        const declinedNote = o.declined ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr>
+          <td style="padding:20px 22px;">
+            <div style="font-family:${T.serif};font-weight:500;font-size:20px;line-height:1.25;color:#f2e7d6;">About your presentation</div>
+            ${text(`<b style="color:#f2e7d6;">Your seat on Monday is confirmed and we very much look forward to seeing you.</b>`)}
+            ${text('Thank you for offering to give one of the 5-minute presentations. The interest this year was exceptionally high &mdash; we have far more requests than the evening can hold &mdash; so we sadly cannot give everyone the floor this time.')}
+            ${text('Please do come. The panel, the presentations, the reception and the networking afterwards are the heart of the evening, and they are exactly where the connections happen. We would also be glad to have your one-slide summary, so your work reaches every participant in the document we share after the event.')}
+            ${text('And we hope to have you present at one of the next editions.')}
+          </td></tr></table>` : '';
 
-      ${sec1}
-      ${sec2}
-      ${sec3}
-      ${sec4}
-
-      <div style="font-family:${T.sans};font-size:12.5px;line-height:1.7;color:#a8998a;margin-top:18px;">Can&rsquo;t make it after all? <a href="${esc(rsvp(CANNOT_ATTEND))}" style="color:#d7b56c;text-decoration:underline;">Let us know with one click</a> &mdash; it frees your seat for someone else.</div>
-
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:22px;">
+        // The ticket. Normally it closes the email (it is for Monday, not for today) — but in the
+        // declined shape it is hoisted directly under the note, because the one thing that guest
+        // must not doubt is that they still hold a seat.
+        const ticketBlock = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:22px;">
         ${label('Your ticket for the door')}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td align="center" style="padding:18px 20px;">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid rgba(240,228,210,.2);padding:8px;">
@@ -1779,7 +2031,31 @@ module.exports = function mountBoston(app, deps) {
           <div style="font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#c9b89f;margin-top:8px;">${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))} &middot; show at the door</div>
           <div style="font-family:${T.sans};font-size:11px;color:#c9b89f;margin-top:4px;">Tap the QR to enlarge it &mdash; then save it to your photos.</div>${walletStack}
         </td></tr></table>
-      </td></tr></table>
+      </td></tr></table>`;
+
+        const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Building Bridges in Biomedicine &middot; Croatia &amp; the US</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:28px;line-height:1.18;color:#f2e7d6;margin-top:10px;">A few things before Monday, <i>${esc(first)}</i>.</div>
+      <div style="font-family:${T.sans};font-size:15px;line-height:1.7;color:#e3d6c2;margin-top:16px;">
+        <p style="margin:0 0 12px;">Dear ${esc(first)},</p>
+        <p style="margin:0${o.declined ? '' : ' 0 12px'};">We look forward to welcoming you to <b style="color:#f2e7d6;">Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
+        ${o.declined ? '' : `<p style="margin:0;">Before the event we kindly ask you for <b style="color:#f2e7d6;">${o.presenter ? 'four' : 'three'} short things</b>. They all live on <b style="color:#f2e7d6;">one personal page</b> &mdash; open it once and everything is there:</p>`}
+      </div>
+      ${declinedNote}
+      ${o.declined ? ticketBlock : ''}
+      ${o.declined ? `<div style="font-family:${T.sans};font-size:15px;line-height:1.7;color:#e3d6c2;margin-top:26px;">Before the event we kindly ask you for <b style="color:#f2e7d6;">three short things</b>. They all live on <b style="color:#f2e7d6;">one personal page</b> &mdash; open it once and everything is there:</div>` : ''}
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:22px;">${emailTemplates.btn('Open my personal page', me, 'solid', 'width:320px;max-width:100%;padding-left:0;padding-right:0;padding-top:17px;padding-bottom:17px;text-align:center;box-sizing:border-box;background:#a8232b;font-size:13px;')}</td></tr></table>
+      <div style="font-family:${T.sans};font-size:12px;line-height:1.7;color:#a8998a;margin-top:10px;text-align:center;">The link is yours alone &mdash; your name is already on it, there is nothing to sign in to.</div>
+
+      ${sec1}
+      ${sec2}
+      ${sec3}
+      ${sec4}
+
+      <div style="font-family:${T.sans};font-size:12.5px;line-height:1.7;color:#a8998a;margin-top:18px;">Unable to attend? <a href="${esc(rsvp(CANNOT_ATTEND))}" style="color:#d7b56c;text-decoration:underline;">Cancel your participation here</a> &mdash; your seat goes to someone on the waiting list.</div>
+
+      ${o.declined ? '' : ticketBlock}
 
       <div style="margin-top:24px;padding-top:14px;border-top:1px solid rgba(240,228,210,.18);font-family:${T.sans};font-size:12px;line-height:1.7;color:#d3c5b2;">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
     </td></tr></table>`;
@@ -1983,6 +2259,9 @@ module.exports = function mountBoston(app, deps) {
                 answered: st.answered,
                 answered_at: st.answeredAt,
                 presenter,
+                presentation_requested: requestedPresentation(r),
+                presenter_status: presenterStatusOf(r),
+                declined_presenter: wasDeclinedPresenter(r),
                 uploaded: presenter ? !!latestPresentation(r.id) : false,
                 onepager: !!onePager,
                 onepager_headline: onePager && onePager.headline ? String(onePager.headline) : null,
@@ -2043,6 +2322,9 @@ module.exports = function mountBoston(app, deps) {
         const presenter = isPresenterRow(r);
         return {
             presenter,
+            // The third shape. presenter is already false for a declined row, so the slides section
+            // disappears on its own; this flag is what adds the note that explains why.
+            declined: wasDeclinedPresenter(r),
             uploaded: presenter ? (latestPresentation(r.id) || null) : null,
             onepager: latestOnepager(r.id) || null,
             programMissing: !!programMissing
@@ -2059,25 +2341,41 @@ module.exports = function mountBoston(app, deps) {
 
             if (to === 'preview') {
                 const wanted = String(body.variant || '').trim().toLowerCase();
-                if (wanted && wanted !== 'presenter' && wanted !== 'attendee') {
-                    return res.status(400).json({ error: 'variant must be "presenter" or "attendee".' });
+                const SHAPES = ['presenter', 'attendee', 'declined'];
+                if (wanted && !SHAPES.includes(wanted)) {
+                    return res.status(400).json({ error: 'variant must be "presenter", "attendee" or "declined".' });
                 }
                 // Each variant is built from a REAL row of that shape, so the preview shows the
-                // links, the ticket and the answers the owner would actually see.
+                // links, the ticket and the answers the owner would actually see. A declined row
+                // may not exist yet (he has not decided) — in that case the shape is rendered from
+                // the first person who OFFERED and is still undecided, and the subject says so, so
+                // a preview can never be mistaken for somebody's real standing.
                 const fallback = (extraNotes) => ({ id: 'preview', first_name: 'Alen', last_name: '', email: reviewGate.REVIEW_TO, institution: '', notes: extraNotes || null });
+                const realDeclined = everyone.find(wasDeclinedPresenter);
+                const declinedSample = realDeclined
+                    || everyone.find(r => requestedPresentation(r) && presenterStatusOf(r) == null)
+                    || fallback('5-minute presentation requested');
                 const pick = {
                     presenter: everyone.find(isPresenterRow) || fallback('5-minute presentation requested'),
-                    attendee: everyone.find(r => !isPresenterRow(r)) || fallback(null)
+                    // never a declined row: that person reads a different email entirely
+                    attendee: everyone.find(r => !isPresenterRow(r) && !requestedPresentation(r)) || fallback(null),
+                    declined: declinedSample
                 };
-                const variants = wanted ? [wanted] : ['presenter', 'attendee'];
+                const label = { presenter: 'presenter', attendee: 'attendee', declined: 'declined-presenter · still expected' };
+                const variants = wanted ? [wanted] : SHAPES;
                 for (const v of variants) {
                     const sample = pick[v];
-                    await sendEmail(reviewGate.REVIEW_TO, `[PREVIEW · ${v}] ` + REMINDER_SUBJECT,
-                        reminderEmailHtml(sample, perRegistrantOpts(sample, !program)),
+                    const opts = perRegistrantOpts(sample, !program);
+                    // the declined shape is what is being previewed, whoever the sample row is
+                    if (v === 'declined') { opts.declined = true; opts.presenter = false; opts.uploaded = null; }
+                    const sampled = v === 'declined' && !realDeclined ? ' (sample)' : '';
+                    await sendEmail(reviewGate.REVIEW_TO, `[PREVIEW · ${label[v]}${sampled}] ` + REMINDER_SUBJECT,
+                        reminderEmailHtml(sample, opts),
                         program ? [program] : undefined);
                 }
                 return res.json({
                     success: true, preview_to: reviewGate.REVIEW_TO, variants,
+                    declined_sample: !realDeclined,
                     program_attached: !!program, registrants: everyone.length
                 });
             }
@@ -2763,6 +3061,365 @@ ${FOOTER_HTML}
 </body></html>`;
 }
 
+// ---------------------------------------------------------------- THE ONE PERSONAL PAGE
+// Everything a Boston guest was asked for, on one address, in the order the owner dictated:
+// dietary first (the kitchen needs it from everyone), then the optional one-slide summary, then —
+// for presenters only — the deck that must be on the laptop. Each step is a card that carries its
+// own state, saves in place, and reads back from the server on any reload. The ticket sits at the
+// bottom of every render, finished or not: it is what the guest comes back for on the day.
+function mePage(reg, st, s3ok, tok, links) {
+    const first = reg.first_name || 'there';
+    const fullName = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Med&X Guest';
+    const id = String(reg.id);
+    const cat = st.cat;
+
+    const tag = (kind, text) => `<span class="tag ${kind}">${text}</span>`;
+    const head = (n, doneFlag, title, tagHtml) => `
+      <div class="shead">
+        <span class="snum${doneFlag ? ' on' : ''}" aria-hidden="true">${doneFlag ? '&#10003;' : n}</span>
+        <div class="sh"><h2>${title}</h2>${tagHtml}</div>
+      </div>`;
+    const onFileCard = (domId, file, extraHtml) => `
+      <div class="onfile" id="${domId}"${file ? '' : ' hidden'}>
+        <p class="slabel" style="margin-bottom:6px;">On file with us</p>
+        <p class="fname" id="${domId}_name">${file ? esc(file.original_name) : ''}</p>
+        <p class="fmeta" id="${domId}_meta">${file ? esc(prettySize(Number(file.size))) + ' &middot; uploaded ' + esc(fmtWhen(file.uploaded_at)) : ''}</p>
+        ${extraHtml || ''}
+      </div>`;
+
+    // ---- step 1 · the two catering questions, one tap each, saved without a reload ----
+    const prefChips = PREF_KEYS.map(k =>
+        `<button type="button" class="chip${cat.prefKey === k ? ' on' : ''}" data-pref="${esc(k)}">${esc(DIET_PREFS[k])}</button>`).join('');
+    const allergyChips =
+        `<button type="button" class="chip${cat.allergyState === 'none' ? ' on' : ''}" data-allergy="none">No allergies</button>`
+        + `<button type="button" class="chip${cat.allergyState === 'yes' ? ' on' : ''}" data-allergy="yes">I have allergies</button>`;
+
+    const step1 = `
+    <section class="sheet step" id="step1" aria-label="Step 1 — dietary preferences and allergies">
+      ${head(1, st.step1, 'Dietary preferences and allergies', tag('req', 'Required'))}
+      <p class="sbody">Dinner is served during the networking part of the evening. One tap in each row &mdash; nothing to type, nothing to sign in to.</p>
+
+      <p class="qlabel">What should we put on your plate?</p>
+      <div class="chips" id="prefrow">${prefChips}</div>
+      <p class="ok" id="pref_ok"${cat.prefKey ? '' : ' hidden'}>Saved &#10003; <b id="pref_val">${cat.prefLabel ? esc(cat.prefLabel) : ''}</b></p>
+
+      <p class="qlabel">Any food allergies?</p>
+      <div class="chips" id="allrow">${allergyChips}</div>
+      <div class="abox" id="abox"${cat.allergyState === 'yes' ? '' : ' hidden'}>
+        <label for="a_text">Tell us what to avoid</label>
+        <input type="text" id="a_text" maxlength="${MAX_ALLERGY_CHARS}" placeholder="e.g. nuts, shellfish" value="${esc(cat.allergyText)}" autocomplete="off">
+        <button type="button" class="save" id="a_save">Save</button>
+      </div>
+      <p class="ok" id="all_ok"${cat.allergyState ? '' : ' hidden'}>Saved &#10003; <b id="all_val">${cat.allergyState === 'none' ? 'no allergies' : esc(cat.allergyText)}</b></p>
+      <p class="err" id="d_err"></p>
+    </section>`;
+
+    // ---- step 2 · the one-slide summary — the one genuinely optional ask ----
+    const shareOn = !st.summary || st.summary.share_ok == null || Number(st.summary.share_ok) !== 0;
+    const step2 = `
+    <section class="sheet step" id="step2" aria-label="Step 2 — your one-slide summary">
+      ${head(2, st.step2, 'One-slide summary of your work', tag('opt', 'Optional'))}
+      <p class="sbody">One slide about your work: your institution and group, what you work on, and what kind of collaboration you are looking for &mdash; with your contact details. After the event we compile every summary into one document and send it to all participants.</p>
+      ${onFileCard('s2_file_card', st.summary, `<p class="fmeta" id="s2_share_line">${st.summary ? (shareOn ? 'Shared with all participants after the event.' : 'Kept private &mdash; only the Med&amp;X team sees it.') : ''}</p>`)}
+      ${s3ok ? `
+      <div class="hl">
+        <label for="s2_headline">One line about you <span class="lc">(optional)</span></label>
+        <input type="text" id="s2_headline" maxlength="${MAX_HEADLINE_CHARS}" placeholder="e.g. Sleep neuroscientist &middot; looking for clinical collaborators" value="${esc(st.summary && st.summary.headline ? st.summary.headline : '')}" autocomplete="off">
+      </div>
+      <label class="filepick" for="s2_file">
+        <span class="fpl">Choose your slide</span>
+        <input type="file" id="s2_file" accept="${SUMMARY_ACCEPT_ATTR}">
+      </label>
+      <p class="reqs">PDF or PowerPoint (<b>.pdf &middot; .ppt &middot; .pptx</b>), up to <b>10 MB</b> &middot; by <b>${SLIDES_DEADLINE}</b>.</p>
+      <label class="sharebox" for="s2_share"><input type="checkbox" id="s2_share"${shareOn ? ' checked' : ''}><span>${SUMMARY_SHARE_LABEL}</span></label>
+      <button type="button" class="go" id="s2_go">${st.summary ? 'Replace my one-slide summary' : 'Upload my one-slide summary'}</button>
+      <p class="ok" id="s2_ok" hidden>Saved &#10003;</p>
+      <p class="err" id="s2_err"></p>` : `
+      <div class="soon"><p class="slabel" style="margin-bottom:6px;">Uploads open soon</p><p class="sbody" style="margin-top:0;">This page is yours &mdash; keep the link. The upload box opens shortly and nothing else is needed from you for now.</p></div>`}
+    </section>`;
+
+    // ---- step 3 · the deck — presenters only, and required of them ----
+    const step3 = st.presenter ? `
+    <section class="sheet step" id="step3" aria-label="Step 3 — your presentation slides">
+      ${head(3, st.step3, 'Your presentation slides', tag('req', 'Required'))}
+      <p class="sbody">You are giving one of the <b>5-minute presentations</b>. Introduce your lab, clinic or department at a broad level, show one project or result, and use your <b>last slide</b> to say how you would like to collaborate. Talks run back to back from one laptop, so the deck has to be with us in advance.</p>
+      ${onFileCard('s3_file_card', st.slides)}
+      ${s3ok ? `
+      <label class="filepick" for="s3_file">
+        <span class="fpl">Choose your slides</span>
+        <input type="file" id="s3_file" accept="${ACCEPT_ATTR}">
+      </label>
+      <p class="reqs">${SLIDES_FORMAT_LINE} &middot; by <b>${SLIDES_DEADLINE}</b>.</p>
+      <button type="button" class="go" id="s3_go">${st.slides ? 'Replace my slides' : 'Upload my slides'}</button>
+      <p class="ok" id="s3_ok" hidden>Saved &#10003;</p>
+      <p class="err" id="s3_err"></p>` : `
+      <div class="soon"><p class="slabel" style="margin-bottom:6px;">Uploads open soon</p><p class="sbody" style="margin-top:0;">This page is yours &mdash; keep the link. The upload box opens shortly.</p></div>`}
+    </section>` : st.declined ? `
+    <section class="sheet" id="step3note" aria-label="About your presentation">
+      <p class="slabel">About your presentation</p><div class="rule"></div>
+      <p class="sbody"><b>Your seat on Monday is confirmed and we very much look forward to seeing you.</b> Interest in the 5-minute presentations was exceptionally high, so we could not give everyone the floor this time &mdash; but the panel, the reception and the networking are the heart of the evening, your one-slide summary above still reaches every participant, and we hope to have you present at a future edition.</p>
+    </section>` : '';
+
+    const w = links || {};
+    const walletRow = [
+        w.apple ? `<a class="wbtn" href="${esc(w.apple)}">Add to Apple Wallet &rarr;</a>` : '',
+        w.google ? `<a class="wbtn" href="${esc(w.google)}">Add to Google Wallet &rarr;</a>` : '',
+        w.calendar ? `<a class="wbtn ghost" href="${esc(w.calendar)}">Add to Calendar &rarr;</a>` : ''
+    ].join('');
+
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your personal page — Building Bridges Boston · Med&amp;X</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="/assets/favicon-x.png">
+${FONTS_HTML}
+<style>${BASE_CSS}
+main{max-width:640px;}
+.who{margin-top:16px;font-size:13px;color:rgba(243,236,224,.85);line-height:1.7;}
+.who b{color:#fff;font-weight:600;}
+.prog{margin-top:20px;display:inline-block;padding:9px 18px;border:1px solid rgba(176,137,59,.5);border-radius:999px;font-size:12px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:#f3ece0;}
+.prog.allset{border-color:rgba(120,200,140,.55);background:rgba(60,140,85,.18);color:#d8f0dd;letter-spacing:.6px;text-transform:none;font-size:13.5px;}
+.step{scroll-margin-top:14px;}
+.shead{display:flex;gap:13px;align-items:flex-start;}
+.snum{flex:0 0 auto;width:31px;height:31px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fbf3e6;background:linear-gradient(180deg,#a03330,var(--crimson));}
+.snum.on{background:linear-gradient(180deg,#3f8b57,#2f6e3a);}
+.sh{flex:1 1 auto;}
+.sh h2{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:clamp(19px,4.6vw,23px);line-height:1.2;letter-spacing:-.3px;color:#241d18;}
+.tag{display:inline-block;margin-top:7px;padding:3px 9px;border-radius:20px;font-size:9.5px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;}
+.tag.req{border:1px solid rgba(143,45,42,.35);color:#8f2d2a;background:rgba(143,45,42,.07);}
+.tag.opt{border:1px solid rgba(176,137,59,.42);color:#8a6a25;background:#f6efdc;}
+.sbody{margin-top:14px;font-size:14.5px;line-height:1.68;color:#4a4139;}
+.sbody b{color:#241d18;font-weight:600;}
+.qlabel{margin-top:20px;font-size:10.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);}
+.chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:10px;}
+.chip{padding:12px 16px;border-radius:11px;border:1px solid rgba(43,33,25,.2);background:#fff;color:#3a322b;font-family:inherit;font-size:14px;font-weight:600;line-height:1.2;cursor:pointer;}
+.chip:hover{border-color:var(--gold);background:#fdfbf5;}
+.chip.on{background:linear-gradient(180deg,#a03330,var(--crimson));border-color:var(--crimson);color:#fbf3e6;box-shadow:0 10px 22px -14px rgba(143,45,42,.8);}
+.chip:disabled{opacity:.6;cursor:progress;}
+.abox{margin-top:13px;padding:15px 16px;border:1px solid rgba(176,137,59,.3);background:#f4eede;border-radius:13px;}
+.abox label{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.abox input{width:100%;padding:13px 14px;border:1px solid rgba(43,33,25,.18);border-radius:11px;background:#fff;color:#241d18;font-size:16px;font-family:inherit;}
+.abox input:focus,.hl input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,137,59,.14);}
+.save{margin-top:11px;padding:12px 26px;border:none;border-radius:11px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;color:#fbf3e6;background:linear-gradient(180deg,#a03330,var(--crimson));}
+.save:disabled,.go:disabled{opacity:.55;cursor:not-allowed;}
+.ok{margin-top:11px;font-size:13.5px;font-weight:600;color:#2f6e3a;line-height:1.5;}
+.ok b{color:#245c2e;font-weight:700;}
+.err{display:none;margin-top:12px;padding:11px 13px;border-radius:10px;background:rgba(143,45,42,.08);border:1px solid rgba(143,45,42,.3);color:#7c2320;font-size:13.5px;line-height:1.55;}
+.onfile{margin-top:16px;border:1px solid rgba(176,137,59,.28);background:#f4eede;border-radius:14px;padding:15px 17px;}
+.fname{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:16px;color:#241d18;word-break:break-word;}
+.fmeta{margin-top:4px;font-size:12.5px;color:var(--muted);}
+.hl{margin-top:16px;}
+.hl label{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.hl .lc{text-transform:none;letter-spacing:.2px;font-weight:500;color:#a89a86;}
+.hl input{width:100%;padding:13px 14px;border:1px solid rgba(43,33,25,.18);border-radius:11px;background:#fff;color:#241d18;font-size:16px;font-family:inherit;}
+.filepick{display:block;margin-top:16px;padding:16px 17px;border:1.5px dashed rgba(176,137,59,.55);border-radius:14px;background:#fdfbf5;cursor:pointer;}
+.filepick .fpl{display:block;font-family:'Fraunces',Georgia,serif;font-size:15.5px;color:#3a322b;margin-bottom:10px;}
+.filepick input[type=file]{width:100%;font-family:inherit;font-size:13.5px;color:#4a4139;}
+.filepick input[type=file]::file-selector-button{margin-right:12px;padding:10px 16px;border-radius:9px;border:1px solid rgba(43,33,25,.22);background:#fff;font-family:inherit;font-size:13px;font-weight:600;color:#4a3f36;cursor:pointer;}
+.reqs{margin-top:11px;font-size:12px;color:var(--muted);line-height:1.6;}
+.reqs b{color:#4a4139;font-weight:600;}
+.sharebox{display:flex;gap:10px;align-items:flex-start;margin-top:15px;padding:14px 15px;border:1px solid rgba(176,137,59,.34);border-radius:12px;background:#fdfbf5;cursor:pointer;font-size:13.5px;line-height:1.55;color:#241d18;font-weight:600;}
+.sharebox input{flex:0 0 auto;width:18px;height:18px;margin-top:1px;accent-color:var(--crimson);cursor:pointer;}
+.go{display:block;width:100%;margin-top:16px;padding:15px;border:none;border-radius:12px;cursor:pointer;font-family:inherit;font-size:15px;font-weight:600;color:#fbf3e6;background:linear-gradient(180deg,#a03330,var(--crimson));box-shadow:0 12px 26px -14px rgba(143,45,42,.7);}
+.soon{margin-top:16px;border:1px solid rgba(176,137,59,.28);background:#f4eede;border-radius:14px;padding:16px 18px;}
+.tickwrap{text-align:center;}
+.qr{display:inline-block;background:#fff;border:1px solid rgba(43,33,25,.12);border-radius:12px;padding:10px;}
+.qr img{display:block;width:150px;height:150px;border:0;}
+.tmeta{margin-top:10px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);line-height:1.7;}
+.thint{margin-top:5px;font-size:12px;color:#8a7d70;}
+.wbtn{display:block;margin:10px auto 0;max-width:280px;padding:12px 18px;border-radius:11px;background:#241d18;color:#f7f1e6;font-size:12.5px;font-weight:600;letter-spacing:.4px;text-decoration:none;}
+.wbtn.ghost{background:transparent;border:1px solid rgba(43,33,25,.3);color:#3a322b;}
+.evline{margin-top:20px;padding-top:15px;border-top:1px solid rgba(43,33,25,.1);font-size:12.5px;line-height:1.7;color:#8a7d70;text-align:center;}
+.bail{margin:22px 4px 0;text-align:center;font-size:12.5px;line-height:1.7;color:#8a7d70;}
+.bail a{color:var(--crimson);font-weight:600;text-decoration:underline;}
+@media(max-width:430px){.chip{flex:1 1 auto;text-align:center;}}
+</style></head><body>
+
+<header class="miniband"><div class="inner">
+  <div class="orgs">
+    <img class="medx" src="${LOGO_URL}" alt="Med&amp;X">
+    <span class="x">&times;</span>
+    <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
+  </div>
+  <p class="kicker">Building Bridges — Boston &middot; Your personal page</p>
+  <h1>Hi ${esc(first)}</h1>
+  <p class="who"><b>${esc(fullName)}</b>${reg.institution ? ' &middot; ' + esc(reg.institution) : ''}</p>
+  <p class="prog${st.allDone ? ' allset' : ''}" id="prog"
+     data-total="${st.total}" data-presenter="${st.presenter ? 1 : 0}"
+     data-s1="${st.step1 ? 1 : 0}" data-s2="${st.step2 ? 1 : 0}" data-s3="${st.step3 ? 1 : 0}">${st.allDone
+        ? 'All set &mdash; see you on Monday.'
+        : `<b>${st.done}</b> of ${st.total} done`}</p>
+</div></header>
+
+<main>
+  ${step1}
+  ${step2}
+  ${step3}
+
+  <section class="sheet" aria-label="Your ticket">
+    <p class="slabel">Your ticket for the door</p><div class="rule"></div>
+    <div class="tickwrap">
+      <span class="qr"><img src="/api/boston/qr/${esc(id)}.png" alt="Your entry QR code" width="150" height="150"></span>
+      <p class="tmeta">${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))} &middot; show at the door</p>
+      <p class="thint">Save it to your photos, or add it to your phone below.</p>
+      ${walletRow}
+    </div>
+    <p class="evline">${esc(DATE_LONG)} &middot; 6:00&ndash;9:00 PM (doors 5:30 PM)<br>${esc(VENUE_FULL)} &middot; ${esc(DRESS)}</p>
+  </section>
+
+  <p class="bail">Unable to attend? <a href="/boston/rsvp/${encodeURIComponent(tok.diet)}/${CANNOT_ATTEND}">Cancel your participation</a> &mdash; your seat goes to someone on the waiting list.</p>
+</main>
+
+${FOOTER_HTML}
+
+<script>
+(function(){
+  var ME='/api/boston/me/${tok.me}';
+  var ALLERGIES='/api/boston/rsvp/${tok.diet}/allergies';
+  var $=function(id){return document.getElementById(id);};
+  var prog=$('prog');
+
+  /* The progress line is recomputed from the same three facts the server rendered it from, so a
+     save in place and a reload always agree. */
+  function mark(step,on){prog.setAttribute('data-s'+step,on?'1':'0');
+    var card=$('step'+step);if(card){var n=card.querySelector('.snum');if(n&&on){n.classList.add('on');n.innerHTML='&#10003;';}}
+    render();}
+  function render(){
+    var pres=prog.getAttribute('data-presenter')==='1',total=Number(prog.getAttribute('data-total'));
+    var s1=prog.getAttribute('data-s1')==='1',s2=prog.getAttribute('data-s2')==='1',s3=prog.getAttribute('data-s3')==='1';
+    var done=(s1?1:0)+(s2?1:0)+(pres&&s3?1:0);
+    if(s1&&(!pres||s3)){prog.classList.add('allset');prog.innerHTML='All set &mdash; see you on Monday.';}
+    else{prog.classList.remove('allset');prog.innerHTML='<b>'+done+'</b> of '+total+' done';}
+  }
+  function show(el,m){if(!el)return;el.textContent=m;el.style.display='block';}
+  function hide(el){if(el)el.style.display='none';}
+  function post(url,body){
+    return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j||{}};},function(){return{ok:false,j:{}};});});
+  }
+  function upload(url,fd){
+    return fetch(url,{method:'POST',body:fd})
+      .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j||{}};},function(){return{ok:false,j:{}};});});
+  }
+  function human(n){return n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';}
+
+  /* ---- step 1 · preference row ---- */
+  var derr=$('d_err');
+  var prefRow=$('prefrow');
+  if(prefRow) prefRow.addEventListener('click',function(e){
+    var b=e.target.closest('button[data-pref]');if(!b)return;
+    hide(derr);
+    var all=prefRow.querySelectorAll('.chip');
+    for(var i=0;i<all.length;i++)all[i].disabled=true;
+    post(ME+'/diet',{pref:b.getAttribute('data-pref')}).then(function(res){
+      for(var i=0;i<all.length;i++)all[i].disabled=false;
+      if(res.ok&&res.j.success){
+        for(var k=0;k<all.length;k++)all[k].classList.remove('on');
+        b.classList.add('on');
+        $('pref_val').textContent=res.j.label||'';
+        $('pref_ok').removeAttribute('hidden');
+        if($('all_ok')&&!$('all_ok').hasAttribute('hidden'))mark(1,true);
+      }else show(derr,res.j.error||'We could not save that. Please try again.');
+    },function(){for(var i=0;i<all.length;i++)all[i].disabled=false;show(derr,'We could not reach the server. Please try again.');});
+  });
+
+  /* ---- step 1 · allergy row (the existing allergies route, reused as-is) ---- */
+  var allRow=$('allrow'),abox=$('abox'),atext=$('a_text'),asave=$('a_save');
+  function allergySaved(label){
+    $('all_val').textContent=label;$('all_ok').removeAttribute('hidden');
+    if($('pref_ok')&&!$('pref_ok').hasAttribute('hidden'))mark(1,true);
+  }
+  if(allRow) allRow.addEventListener('click',function(e){
+    var b=e.target.closest('button[data-allergy]');if(!b)return;
+    hide(derr);
+    var which=b.getAttribute('data-allergy'),all=allRow.querySelectorAll('.chip');
+    for(var k=0;k<all.length;k++)all[k].classList.remove('on');
+    b.classList.add('on');
+    if(which==='yes'){
+      abox.removeAttribute('hidden');$('all_ok').setAttribute('hidden','');
+      try{atext.focus();}catch(err){}
+      return;
+    }
+    abox.setAttribute('hidden','');
+    for(var i=0;i<all.length;i++)all[i].disabled=true;
+    /* "no allergies" is the same stored answer the one-tap email link writes */
+    post(ALLERGIES,{text:'none'}).then(function(res){
+      for(var i=0;i<all.length;i++)all[i].disabled=false;
+      if(res.ok&&res.j.success)allergySaved('no allergies');
+      else show(derr,res.j.error||'We could not save that. Please try again.');
+    },function(){for(var i=0;i<all.length;i++)all[i].disabled=false;show(derr,'We could not reach the server. Please try again.');});
+  });
+  function saveAllergies(){
+    var t=(atext.value||'').trim();
+    hide(derr);
+    if(!t){show(derr,'Tell us what to avoid \\u2014 or tap \\u201CNo allergies\\u201D.');return;}
+    asave.disabled=true;asave.textContent='Saving…';
+    post(ALLERGIES,{text:t}).then(function(res){
+      asave.disabled=false;asave.textContent='Save';
+      if(res.ok&&res.j.success)allergySaved(res.j.allergies||t);
+      else show(derr,res.j.error||'We could not save that. Please try again.');
+    },function(){asave.disabled=false;asave.textContent='Save';show(derr,'We could not reach the server. Please try again.');});
+  }
+  if(asave){asave.addEventListener('click',saveAllergies);
+    atext.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();saveAllergies();}});}
+
+  /* ---- a step-2 / step-3 uploader, built once ---- */
+  function wireUpload(o){
+    var input=$(o.input),go=$(o.go),errb=$(o.err),okb=$(o.ok),card=$(o.card);
+    if(!input||!go)return;
+    go.addEventListener('click',function(){
+      hide(errb);okb.setAttribute('hidden','');
+      var f=input.files&&input.files[0];
+      if(!f){show(errb,o.pick);return;}
+      if(!o.re.test(f.name)){show(errb,o.wrongType);return;}
+      if(f.size>o.max){show(errb,o.tooBig+' ('+human(f.size)+').');return;}
+      var label=go.textContent;
+      go.disabled=true;go.textContent='Uploading…';
+      var fd=new FormData();
+      if(o.extra)o.extra(fd);
+      fd.append('file',f,f.name);
+      upload(ME+o.path,fd).then(function(res){
+        go.disabled=false;
+        if(res.ok&&res.j.success){
+          go.textContent=o.replaceLabel;
+          okb.removeAttribute('hidden');
+          card.removeAttribute('hidden');
+          $(o.card+'_name').textContent=res.j.filename||f.name;
+          $(o.card+'_meta').textContent=human(res.j.size||f.size)+' · just now';
+          if(o.after)o.after(res.j);
+          input.value='';
+          mark(o.step,true);
+        }else{go.textContent=label;show(errb,res.j.error||'The upload did not go through. Please try again.');}
+      },function(){go.disabled=false;go.textContent=label;show(errb,'We could not reach the server. Please try again.');});
+    });
+  }
+  wireUpload({step:2,input:'s2_file',go:'s2_go',err:'s2_err',ok:'s2_ok',card:'s2_file_card',path:'/summary',
+    re:/\\.(pdf|ppt|pptx)$/i,max:${MAX_ONEPAGER_BYTES},
+    pick:'Choose your slide first \\u2014 a PDF or a PowerPoint, up to 10 MB.',
+    wrongType:'PDF or PowerPoint (.ppt/.pptx), please \\u2014 export your slide and try again.',
+    tooBig:'That file is over the 10 MB limit',
+    replaceLabel:'Replace my one-slide summary',
+    extra:function(fd){var h=$('s2_headline'),s=$('s2_share');
+      if(h&&h.value.trim())fd.append('headline',h.value.trim());
+      fd.append('share_ok',(!s||s.checked)?'1':'0');},
+    after:function(j){var l=$('s2_share_line');
+      if(l)l.innerHTML=j.share_ok?'Shared with all participants after the event.':'Kept private &mdash; only the Med&amp;X team sees it.';}
+  });
+  wireUpload({step:3,input:'s3_file',go:'s3_go',err:'s3_err',ok:'s3_ok',card:'s3_file_card',path:'/slides',
+    re:/\\.(pdf|ppt|pptx|key)$/i,max:${MAX_UPLOAD_BYTES},
+    pick:'Choose your slides first \\u2014 .pdf, .ppt, .pptx or .key, up to 25 MB.',
+    wrongType:'That file type is not accepted \\u2014 please choose a .pdf, .ppt, .pptx or .key file.',
+    tooBig:'That file is over the 25 MB limit',
+    replaceLabel:'Replace my slides'
+  });
+
+  /* An email button lands on #step1/#step2/#step3 — bring it into view under the header. */
+  if(window.location.hash){var t=$(window.location.hash.slice(1));
+    if(t)setTimeout(function(){t.scrollIntoView({behavior:'smooth',block:'start'});},80);}
+})();
+</script>
+</body></html>`;
+}
+
 // ---------------------------------------------------------------- friendly 404 / notice pages
 function simplePage(title, headline, proseHtml) {
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2961,9 +3618,9 @@ main{max-width:600px;}
     <div id="ask"${released ? ' hidden' : ''}>
       <p class="headline">Sorry you can&rsquo;t join us, ${esc(first)}.</p>
       <p class="lede">Confirm below and we&rsquo;ll release your seat. The room holds sixty, so somebody on the list can take it.</p>
-      <button type="button" class="go" id="c_go">Yes, release my seat</button>
+      <button type="button" class="go" id="c_go">Cancel my participation</button>
       <p class="cerr" id="c_err"></p>
-      <a class="keep" href="${esc(back)}"><b>Keep my seat</b> &mdash; I tapped this by mistake</a>
+      <a class="keep" href="${esc(back)}"><b>Keep my seat</b></a>
     </div>
     <div id="done"${released ? '' : ' hidden'}>
       <p class="headline">Seat released &mdash; thank you for telling us.</p>
@@ -2987,9 +3644,9 @@ ${FOOTER_HTML}
       .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
       .then(function(res){
         if(res.ok&&res.j.success){ask.setAttribute('hidden','');done.removeAttribute('hidden');window.scrollTo(0,0);}
-        else{go.disabled=false;go.textContent='Yes, release my seat';err.textContent=(res.j&&res.j.error)||'We could not record that. Please try again.';err.style.display='block';}
+        else{go.disabled=false;go.textContent='Cancel my participation';err.textContent=(res.j&&res.j.error)||'We could not record that. Please try again.';err.style.display='block';}
       })
-      .catch(function(){go.disabled=false;go.textContent='Yes, release my seat';err.textContent='We could not reach the server. Please try again.';err.style.display='block';});
+      .catch(function(){go.disabled=false;go.textContent='Cancel my participation';err.textContent='We could not reach the server. Please try again.';err.style.display='block';});
   });
 })();
 </script>
@@ -3033,6 +3690,11 @@ function uploadNotFoundPage() {
         `The upload link you opened is incomplete or has been mistyped — links are personal, so every character matters. Please open the exact link you were sent (copy &amp; paste is safest). If it still does not work, write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>) and we will sort it out.`);
 }
 
+function meNotFoundPage() {
+    return simplePage('This link is not quite right', 'This link is not quite right.',
+        `The link you opened is incomplete or has been mistyped &mdash; your page is personal, so every character matters. Please open the exact link from your Boston email (copy &amp; paste is safest). If it still does not work, write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>) and we will take your answers by hand.`);
+}
+
 function onepagerNotFoundPage() {
     return simplePage('This link is not quite right', 'This link is not quite right.',
         `The link you opened is incomplete or has been mistyped — links are personal, so every character matters. Please open the exact link from your Boston email (copy &amp; paste is safest). If it still does not work, write to Laura Rodman (<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>) and we will add your page by hand.`);
@@ -3052,8 +3714,8 @@ function adminPage(data, key) {
       <div class="who"><b>${esc(r.name)}</b>${chips}<span>${esc(r.institution)}</span><span class="em">${esc(r.email)}</span></div>
       <div class="stat">${status}</div>
       <div class="linkrow">
-        <input readonly value="${esc(r.upload_url)}" aria-label="Personal upload link for ${esc(r.name)}">
-        <button type="button" class="copy" data-link="${esc(r.upload_url)}">Copy link</button>
+        <input readonly value="${esc(r.me_url || r.upload_url)}" aria-label="Personal page link for ${esc(r.name)}">
+        <button type="button" class="copy" data-link="${esc(r.me_url || r.upload_url)}">Copy link</button>
       </div>
     </div>`;
     }).join('\n');

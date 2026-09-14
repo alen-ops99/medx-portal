@@ -5649,9 +5649,10 @@ if (STORAGE_IS_EPHEMERAL) {
 // Endpoints whose multipart body is parsed then discarded (never persisted) — always allowed.
 const UPLOAD_EXEMPT_SUFFIXES = ['/import', '/prospects/preview'];
 // Boston uploads never touch local disk (multer memoryStorage → S3 in boston.js), so the
-// ephemeral-disk guard does not apply to them — exempt the routes by prefix. Three lanes now:
-// the presentation decks, every guest's one-pager, and the team's program PDF.
-const UPLOAD_EXEMPT_PREFIXES = ['/api/boston/upload/', '/api/boston/onepager/', '/api/boston/program'];
+// ephemeral-disk guard does not apply to them — exempt the routes by prefix. Four lanes now:
+// the presentation decks, every guest's one-pager, the team's program PDF, and the one personal
+// page (/api/boston/me/:token/{summary,slides}), which is those same two uploads behind one link.
+const UPLOAD_EXEMPT_PREFIXES = ['/api/boston/upload/', '/api/boston/onepager/', '/api/boston/program', '/api/boston/me/'];
 app.use((req, res, next) => {
     if (!STORAGE_IS_EPHEMERAL) return next();
     if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') return next();

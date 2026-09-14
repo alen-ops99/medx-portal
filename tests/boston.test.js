@@ -177,6 +177,7 @@ const BASE = 'https://medx-user-portal.onrender.com';
 const MAX = 25 * 1024 * 1024;
 const mintPassToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:' + id).digest('hex').slice(0, 32) + '.' + id;
 const mintUploadToken = id => crypto.createHmac('sha256', JWT_SECRET).update('bostonup:' + id).digest('hex').slice(0, 32) + '.' + id;
+const mintMeToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:me:' + id).digest('hex').slice(0, 32) + '.' + id;
 const ADMIN_KEY = crypto.createHmac('sha256', JWT_SECRET).update('boston-admin').digest('hex').slice(0, 40);
 const pdfBuf = (extra = 64) => Buffer.concat([Buffer.from('%PDF-1.7\n% Building Bridges Boston deck\n'), Buffer.alloc(extra, 0x20)]);
 const zipBuf = () => Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(96, 0)]);
@@ -611,8 +612,10 @@ async function t(name, fn) {
         assert.ok(html.includes('Ana@Example.org') && html.includes('ivan@example.org'), 'emails shown');
         assert.ok(html.includes('Rogulja Lab v2.pptx'), 'NEWEST file name shown');
         assert.ok(html.includes('not yet'), 'not-yet state shown for ivan');
-        assert.ok(html.includes(`/boston/upload/${mintUploadToken(anaId)}`), "ana's personal link shown");
-        assert.ok(html.includes(`/boston/upload/${mintUploadToken(ivanId)}`), "ivan's personal link shown");
+        // The copyable link is now the HUB — one address carrying all three asks. upload_url is
+        // still in the JSON beside it (asserted below), because it is in inboxes already.
+        assert.ok(html.includes(`/boston/me/${mintMeToken(anaId)}`), "ana's personal hub link shown");
+        assert.ok(html.includes(`/boston/me/${mintMeToken(ivanId)}`), "ivan's personal hub link shown");
         assert.ok(html.includes('data-link='), 'click-to-copy control missing');
         assert.ok(html.includes('/download?key=' + ADMIN_KEY), 'download link missing');
         assert.ok(String(r.headers['x-robots-tag']).includes('noindex'), 'X-Robots-Tag noindex missing');
@@ -639,6 +642,9 @@ async function t(name, fn) {
         assert.ok(ana.upload.download_url.includes(`/api/boston/presentations/${ana.upload.id}/download?key=${ADMIN_KEY}`));
         assert.strictEqual(ana.upload_url, `${BASE}/boston/upload/${mintUploadToken(anaId)}`);
         assert.strictEqual(ivan.upload_url, `${BASE}/boston/upload/${mintUploadToken(ivanId)}`);
+        // …and the hub link beside it, which is what the team now copies out of the card.
+        assert.strictEqual(ana.me_url, `${BASE}/boston/me/${mintMeToken(anaId)}`);
+        assert.strictEqual(ivan.me_url, `${BASE}/boston/me/${mintMeToken(ivanId)}`);
         assert.strictEqual(d.uploaded, 1);
         assert.strictEqual(d.requested, 1);
         latestPresId = ana.upload.id;

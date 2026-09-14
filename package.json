@@ -15,6 +15,7 @@
     "test:awards": "node tests/awards.test.js",
     "test:boston-ops": "node tests/boston-ops.test.js",
     "test:boston-reminder": "node tests/boston-reminder.test.js",
-    "test:boston-onepager": "node tests/boston-onepager.test.js"
+    "test:boston-onepager": "node tests/boston-onepager.test.js",
+    "test:boston-me": "node tests/boston-me.test.js"
   }
 }

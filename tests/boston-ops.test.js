@@ -208,8 +208,9 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
 (async () => {
     console.log('boston-ops.test.js — hermetic (stub express, one in-memory libsql DB, both portals mounted, captured emails)\n');
 
-    await t('the five admin routes are mounted', () => {
+    await t('the admin routes are mounted', () => {
         for (const k of ['GET /api/v2/boston/presenters', 'POST /api/v2/boston/presenters/:id/send-link',
+            'POST /api/v2/boston/presenters/:id/status', 'POST /api/v2/boston/presenters/decline-undecided',
             'POST /api/v2/boston/presenters/send-all', 'POST /api/v2/boston/presenters/add',
             'GET /api/v2/boston/presentations.zip']) {
             assert.ok(app.routes[k], 'missing route: ' + k);
@@ -493,19 +494,99 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         assert.equal(r.body.key, 'boston/program/program.pdf');
     });
 
-    await t('a preview goes to the reviewer only — both shapes, or one on request', async () => {
+    await t('a preview goes to the reviewer only — all three shapes, or one on request', async () => {
         const before = sentEmails.length;
         const both = await app.call('POST', '/api/v2/boston/reminders/preview', { body: {} });
         assert.equal(both.status, 200);
-        assert.deepEqual(both.body.variants, ['presenter', 'attendee']);
-        assert.equal(sentEmails.length, before + 2);
-        for (const m of sentEmails.slice(-2)) assert.equal(m.to, 'juginovic.alen@gmail.com', 'previews go to the reviewer and nobody else');
+        assert.deepEqual(both.body.variants, ['presenter', 'attendee', 'declined']);
+        assert.equal(sentEmails.length, before + 3);
+        for (const m of sentEmails.slice(-3)) assert.equal(m.to, 'juginovic.alen@gmail.com', 'previews go to the reviewer and nobody else');
         const one = await app.call('POST', '/api/v2/boston/reminders/preview', { body: { variant: 'attendee' } });
         assert.deepEqual(one.body.variants, ['attendee']);
-        assert.equal(sentEmails.length, before + 3);
+        assert.equal(sentEmails.length, before + 4, 'three shapes, then one more on request');
         const bad = await app.call('POST', '/api/v2/boston/reminders/preview', { body: { variant: 'everybody' } });
         assert.equal(bad.status, 400, 'an invented variant is refused here too');
     });
+
+    // -------- who actually presents: the owner's pick, proxied to the member wing
+    // About thirty people offered and the evening holds far fewer. The panel is only the door —
+    // the member wing owns the column, the three email shapes and the counts, so these tests prove
+    // the hop and the bookkeeping line up, exactly like every other write on this card.
+    await t('the panel can put somebody on the running order, and take them off', async () => {
+        const mailsBefore = sentEmails.length;
+        const off = await app.call('POST', '/api/v2/boston/presenters/:id/status',
+            { params: { id: 'reg-luka' }, body: { status: 'declined' } });
+        assert.equal(off.status, 200, JSON.stringify(off.body));
+        assert.equal(off.body.presenter, false, 'no longer on the running order');
+        assert.equal(off.body.presentation_requested, true, 'but the offer stays a fact');
+        assert.equal(off.body.presenter_status, 'declined');
+        assert.match(notesOf('reg-luka'), /5-minute presentation/, 'the notes were not rewritten');
+
+        const on = await app.call('POST', '/api/v2/boston/presenters/:id/status',
+            { params: { id: 'reg-luka' }, body: { status: 'confirmed' } });
+        assert.equal(on.body.presenter, true, 'and back on again');
+        assert.equal(sentEmails.length, mailsBefore, 'a decision is never a send');
+    });
+
+    await t('null puts a row back to undecided, and undecided still reads as presenting', async () => {
+        const r = await app.call('POST', '/api/v2/boston/presenters/:id/status',
+            { params: { id: 'reg-luka' }, body: { status: null } });
+        assert.equal(r.status, 200);
+        assert.equal(r.body.presenter_status, null, 'undecided');
+        assert.equal(r.body.presenter, true, 'and treated as presenting until he decides');
+        const row = rowOf((await presenters()).body, 'reg-luka');
+        assert.equal(row.presenter_status, null);
+        assert.equal(row.presentation_requested, true);
+    });
+
+    await t('the list carries the three counts, and they add up to the offers', async () => {
+        await app.call('POST', '/api/v2/boston/presenters/:id/status', { params: { id: 'reg-ana' }, body: { status: 'confirmed' } });
+        const b = (await presenters()).body;
+        assert.equal(b.confirmed + b.declined + b.undecided, b.requested,
+            `counts must partition the offers: ${b.confirmed}+${b.declined}+${b.undecided} vs ${b.requested}`);
+        assert.ok(b.confirmed >= 1, 'Ana is counted confirmed');
+    });
+
+    await t('an invented status is refused, and a stranger is a 404', async () => {
+        const bad = await app.call('POST', '/api/v2/boston/presenters/:id/status',
+            { params: { id: 'reg-ana' }, body: { status: 'maybe' } });
+        assert.equal(bad.status, 400, 'an invented status is refused at the door');
+        const ghost = await app.call('POST', '/api/v2/boston/presenters/:id/status',
+            { params: { id: 'nobody-at-all' }, body: { status: 'declined' } });
+        assert.equal(ghost.status, 404, 'a stranger is not on the Boston list');
+        const out = await app.call('POST', '/api/v2/boston/presenters/:id/status',
+            { params: { id: 'reg-ana' }, body: { status: 'declined' }, user: null });
+        assert.equal(out.status, 401, 'and a signed-out caller decides nothing');
+    });
+
+    await t('the bulk close-out declines every undecided offer and leaves the decided alone', async () => {
+        const mailsBefore = sentEmails.length;
+        const before = (await presenters()).body;
+        const wasConfirmed = (before.rows || []).filter(r => r.presenter_status === 'confirmed').map(r => r.registration_id);
+        assert.ok(before.undecided > 0, 'something must be undecided for this to mean anything');
+        const r = await app.call('POST', '/api/v2/boston/presenters/decline-undecided', { body: {} });
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(r.body.declined.length, before.undecided, 'every undecided offer was set');
+        assert.deepEqual(r.body.failed, [], 'and none failed');
+        const after = (await presenters()).body;
+        assert.equal(after.undecided, 0, 'nothing is left open');
+        for (const id of wasConfirmed) {
+            assert.equal(rowOf(after, id).presenter_status, 'confirmed', id + ' must not be swept up');
+        }
+        assert.equal(sentEmails.length, mailsBefore, 'and the bulk close-out is not a send either');
+    });
+
+    await t('a declined presenter is never sent the slides link, even by name', async () => {
+        const mailsBefore = sentEmails.length;
+        const declined = ((await presenters()).body.rows || []).find(r => r.presenter_status === 'declined');
+        assert.ok(declined, 'the sweep above left one');
+        await app.call('POST', '/api/v2/boston/presenters/:id/send-link', { params: { id: declined.registration_id } });
+        assert.equal(sentEmails.length, mailsBefore, 'nothing left for somebody who is not presenting');
+    });
+
+    // put the room back the way the later tests expect it
+    await app.call('POST', '/api/v2/boston/presenters/:id/status', { params: { id: 'reg-ana' }, body: { status: null } });
+    await app.call('POST', '/api/v2/boston/presenters/:id/status', { params: { id: 'reg-luka' }, body: { status: null } });
 
     // -------- released seats, and the team's undo
     // A guest hands the seat back from the one email; the card offers Restore. Both writes belong

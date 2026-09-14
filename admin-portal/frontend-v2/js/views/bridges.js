@@ -76,10 +76,28 @@ export const COPY = {
     zip: n => `DOWNLOAD ALL DECKS (ZIP · ${n})`, zipNone: 'NO DECKS UPLOADED YET',
     add: '+ ADD A PRESENTER', addClose: 'CLOSE',
     phName: 'Full name — e.g. Dr. Ivana Kovač', phEmail: 'Email address', addSend: 'ADD & SEND THE LINK',
-    cWho: 'PRESENTER', cInst: 'INSTITUTION', cDeck: 'DECK', cSent: 'LINK SENT',
+    cWho: 'PRESENTER', cInst: 'INSTITUTION', cPresents: 'PRESENTS?', cDeck: 'DECK', cSent: 'LINK SENT',
     send: 'SEND LINK', resend: 'RESEND', busy: 'SENDING…',
     deckYes: 'UPLOADED', deckNo: '–', notSent: 'not sent', byTeam: 'ADDED BY TEAM',
     counts: (r, u, i) => `${r} presenting · ${u} uploaded · ${i} invited`,
+    // The owner's pick. Far more people offered than the evening holds, so each row is his call:
+    // presents, not this time, or still undecided — and the three counts always add up to the
+    // number of offers, so a talk slot can never go missing between two screens.
+    pick: { yes: 'PRESENTS ✓', no: 'NOT THIS TIME', unset: 'UNDECIDED', busy: '…' },
+    pickCounts: (y, n, u) => `${y} confirmed · ${n} declined · ${u} undecided`,
+    declineAll: n => `SET ${n} UNDECIDED TO “NOT THIS TIME”`, declineAllNone: 'EVERY OFFER IS DECIDED',
+    cPickTitle: (who, s) => s === 'confirmed' ? `Put ${who} on the running order?`
+        : s === 'declined' ? `Tell ${who} there was no room?` : `Leave ${who} undecided again?`,
+    cPickBody: s => s === 'confirmed'
+        ? '<p style="margin:0 0 8px">They keep the slides step on their personal page and the Boston email asks them for a deck.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape their Boston email takes.</p>'
+        : s === 'declined'
+            ? '<p style="margin:0 0 8px">Their Boston email becomes the warm shape: <b>their seat is confirmed</b> and said first, then why there was no room, then the invitation to come anyway and send a one-slide summary.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape their Boston email takes.</p>'
+            : '<p style="margin:0 0 8px">Back to undecided — until you choose, they are treated as presenting, exactly as before.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this.</p>',
+    cDeclineAllTitle: n => `Decline ${n} undecided offer${n === 1 ? '' : 's'}?`,
+    cDeclineAllBody: n => `<p style="margin:0 0 8px">${n} ${n === 1 ? 'person who is' : 'people who are'} still undecided ${n === 1 ? 'is' : 'are'} set to <b>not this time</b>. Anyone already confirmed or declined is left alone.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape their Boston email takes. You can put anyone back one row at a time.</p>`,
+    goPick: 'YES, SET IT', goDeclineAll: 'SET THEM ALL',
+    picked: (who, s) => `${String(who).toUpperCase()} — ${s === 'confirmed' ? 'PRESENTING' : s === 'declined' ? 'NOT THIS TIME' : 'UNDECIDED AGAIN'}`,
+    declinedAll: n => n ? `${n} OFFER${n === 1 ? '' : 'S'} SET TO “NOT THIS TIME”` : 'NOTHING WAS UNDECIDED',
     empty: 'Nobody has asked to present yet.',
     emptyWhy: 'Everyone who ticks the 5-minute-presentation box on the Boston form lands here — and you can add someone by hand.',
     down: 'The member portal did not answer, so the presenter list is unavailable right now. Nothing is lost — reload in a minute.',
@@ -417,6 +435,22 @@ function blockBoston() {
   const rows = P ? (P.rows || []) : [];
   const notInvited = P ? Number(P.not_invited) || 0 : 0;
   const uploaded = P ? Number(P.uploaded) || 0 : 0;
+  const confirmedN = P ? Number(P.confirmed) || 0 : 0;
+  const declinedN = P ? Number(P.declined) || 0 : 0;
+  const undecidedN = P ? Number(P.undecided) || 0 : 0;
+  // The three-state control, one row at a time. The state a row is IN reads as a solid chip; the
+  // other two are quiet, clickable text — so the table can be scanned for "who is still open"
+  // without reading a single word.
+  const pickChip = (r, value, label) => {
+    const on = (r.presenter_status || null) === value;
+    const busy = st.bpPicking === r.registration_id;
+    const tone = value === 'confirmed' ? { bg: '#1e6e42', fg: '#fff' } : value === 'declined' ? { bg: '#8a5a1c', fg: '#fff' } : { bg: '#eee9df', fg: '#4a4239' };
+    return `<span data-act="${busy ? '' : 'bpPick'}" data-id="${esc(r.registration_id)}" data-status="${value === null ? '' : value}" data-who="${esc(r.name || r.email)}"
+      style="display:inline-block;padding:3px 8px;margin-right:5px;font:600 8px Inter,sans-serif;letter-spacing:.1em;white-space:nowrap;${on
+        ? `background:${tone.bg};color:${tone.fg};`
+        : 'background:transparent;color:#9a9086;border:1px solid rgba(32,27,22,.18);'}${busy ? 'opacity:.5;cursor:progress' : 'cursor:pointer'}"
+      ${busy ? 'aria-disabled="true"' : `data-hover="${on ? 'opacity:.85' : 'border-color:#201b16;color:#201b16'}"`}>${esc(busy ? c.pick.busy : label)}</span>`;
+  };
   // kind 'ghost' = a secondary action: bordered even when it is live, so the primary send on the
   // card stays the only crimson button (the Boston email is the send that matters).
   const btn = (act, label, on, extra, kind) => kind === 'ghost'
@@ -432,6 +466,8 @@ function blockBoston() {
         <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
         <div style="flex:1"></div>
         ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.counts(P.requested || 0, uploaded, P.invited || 0))}</span>` : ''}
+        ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.pickCounts(confirmedN, declinedN, undecidedN))}</span>` : ''}
+        ${P ? btn('bpDeclineAll', undecidedN ? c.declineAll(undecidedN) : c.declineAllNone, undecidedN > 0, '', 'ghost') : ''}
         ${P ? btn('bpSendAll', notInvited ? c.sendAll(notInvited) : c.allInvited, notInvited > 0, '', 'ghost') : ''}
         ${P && uploaded ? `<a href="${esc(P.zip_url)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.zip(uploaded))}</a>`
         : P ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.zipNone}</span>` : ''}
@@ -449,7 +485,7 @@ function blockBoston() {
       ${P && rows.length ? `
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px">
-          <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cDeck}</th><th style="${head}">${c.cSent}</th><th style="${head}"></th></tr></thead>
+          <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPresents}</th><th style="${head}">${c.cDeck}</th><th style="${head}">${c.cSent}</th><th style="${head}"></th></tr></thead>
           <tbody>
           ${rows.map(r => {
             const busy = st.bpSending === r.registration_id;
@@ -457,6 +493,9 @@ function blockBoston() {
             <tr data-row="${esc(r.registration_id)}">
               <td style="${cell}"><span style="display:block;font-weight:600">${esc(r.name || r.email)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.email)}${r.added_by_team ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">${c.byTeam}</span>` : ''}</span></td>
               <td style="${cell};color:#6d6459">${esc(r.institution || '—')}</td>
+              <td style="${cell};white-space:nowrap">${r.presentation_requested
+                ? pickChip(r, 'confirmed', c.pick.yes) + pickChip(r, 'declined', c.pick.no) + pickChip(r, null, c.pick.unset)
+                : `<span style="color:#9a9086">${c.deckNo}</span>`}</td>
               <td style="${cell};white-space:nowrap">${r.upload
                 ? `<a href="${esc(r.upload.download_url)}" title="${esc(r.upload.filename || '')}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px" data-hover="background:#1e6e42;color:#fff">✓ ${c.deckYes}</a>`
                 : `<span style="color:#9a9086">${c.deckNo}</span>`}</td>
@@ -866,6 +905,35 @@ const handlers = {
       ui.toast(c.sentAll((r && r.sent && r.sent.length) || 0));
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
+  // ---- Boston · who actually presents. These are NOT sends: each one only decides which shape
+  // that guest's Boston email takes, so the confirm says so plainly rather than warning about mail.
+  bpPick: async (el) => {
+    const c = COPY.boston;
+    const id = el.dataset.id, who = el.dataset.who || '';
+    const status = el.dataset.status ? el.dataset.status : null;
+    const row = ((D.pres && D.pres.rows) || []).find(r => r.registration_id === id);
+    if (row && (row.presenter_status || null) === status) return;         // already in that state
+    if (!await ui.confirm({ title: c.cPickTitle(esc(who), status), body: c.cPickBody(status), ok: c.goPick, cancel: c.keep })) return;
+    st.bpPicking = id; rerender('[data-block="boston"]', blockBoston());
+    try {
+      await api.post('/api/v2/boston/presenters/' + encodeURIComponent(id) + '/status', { status });
+      st.bpPicking = null;
+      await refreshBoston();
+      ui.toast(c.picked(who, status));
+    } catch (e) { st.bpPicking = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
+  },
+  bpDeclineAll: async (el) => {
+    const c = COPY.boston;
+    const n = (D.pres && Number(D.pres.undecided)) || 0;
+    if (!n) return;
+    if (!await ui.confirm({ title: c.cDeclineAllTitle(n), body: c.cDeclineAllBody(n), ok: c.goDeclineAll, cancel: c.keep })) return;
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      const r = await api.post('/api/v2/boston/presenters/decline-undecided', {});
+      await refreshBoston();
+      ui.toast(c.declinedAll((r && r.declined && r.declined.length) || 0));
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
   bpAdd: async () => {
     const c = COPY.boston;
     const name = val('bpName'), email = val('bpEmail');
@@ -953,7 +1021,7 @@ export default {
     ensureCss();
     rootEl = root;
     st = { scope: 'bridges', copied: false, newCityOpen: false, ncCity: '', ncWhen: '', editEvent: null, recapEdit: null, fuName: '', fuWhy: '', uploading: null,
-           bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null, bpReminding: null,
+           bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null, bpReminding: null, bpPicking: null,
            bpProgramBusy: false, bpPreviewing: null, bpRelOpen: false, bpRestoring: null };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading

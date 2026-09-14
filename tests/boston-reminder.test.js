@@ -120,6 +120,8 @@ const ADMIN_KEY = crypto.createHmac('sha256', JWT_SECRET).update('boston-admin')
 const dietToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:diet:' + id).digest('hex').slice(0, 32) + '.' + id;
 const uploadToken = id => crypto.createHmac('sha256', JWT_SECRET).update('bostonup:' + id).digest('hex').slice(0, 32) + '.' + id;
 const onepagerToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:onepager:' + id).digest('hex').slice(0, 32) + '.' + id;
+const meToken = id => crypto.createHmac('sha256', JWT_SECRET).update('boston:me:' + id).digest('hex').slice(0, 32) + '.' + id;
+const hub = id => BASE + '/boston/me/' + meToken(id);
 
 // The two facts the owner's program PDF fixes (2026-09-13). Literals on purpose: moving the date
 // or the format has to be a deliberate edit here as well as in the wing.
@@ -363,30 +365,32 @@ async function t(name, fn) {
         const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview' } });
         assert.strictEqual(r.statusCode, 200);
         assert.strictEqual(r.body.program_attached, false);
-        assert.strictEqual(sentEmails.length, before + 2, 'both shapes');
-        for (const m of sentEmails.slice(-2)) {
+        assert.strictEqual(sentEmails.length, before + 3, 'all three shapes');
+        for (const m of sentEmails.slice(-3)) {
             assert.strictEqual(m.attachments, null, 'nothing to attach yet');
             assert.ok(m.html.includes('(program PDF not uploaded yet)'), 'the preview says the PDF is missing');
         }
     });
 
-    await t('preview goes ONLY to the reviewer, in both shapes, and stamps nothing', async () => {
+    await t('preview goes ONLY to the reviewer, in all three shapes, and stamps nothing', async () => {
         programOn();
         const before = sentEmails.length;
         const beforeRows = query.all(`SELECT id, reminder_sent, notes FROM bridges_registrations WHERE event_id = ?`, [EVENT_ID]);
         const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview' } });
         assert.strictEqual(r.statusCode, 200);
         assert.strictEqual(r.body.preview_to, REVIEW_TO);
-        assert.deepStrictEqual(r.body.variants, ['presenter', 'attendee'], 'both variants, presenter first');
-        assert.strictEqual(sentEmails.length, before + 2, 'exactly two emails — one per shape');
-        const [pres, att] = sentEmails.slice(-2);
-        for (const mail of [pres, att]) {
+        assert.deepStrictEqual(r.body.variants, ['presenter', 'attendee', 'declined'], 'three variants, presenter first');
+        assert.strictEqual(sentEmails.length, before + 3, 'exactly three emails — one per shape');
+        const [pres, att, dec] = sentEmails.slice(-3);
+        for (const mail of [pres, att, dec]) {
             assert.strictEqual(mail.to, REVIEW_TO, 'the preview must go to the reviewer and nobody else');
             assert.strictEqual(mail.to, 'juginovic.alen@gmail.com');
             assert.ok(!mail.html.includes('(program PDF not uploaded yet)'), 'the PDF is there now');
         }
         assert.ok(pres.subject.startsWith('[PREVIEW · presenter] '), 'presenter subject: ' + pres.subject);
         assert.ok(att.subject.startsWith('[PREVIEW · attendee] '), 'attendee subject: ' + att.subject);
+        assert.ok(dec.subject.startsWith('[PREVIEW · declined-presenter · still expected'), 'declined subject: ' + dec.subject);
+        assert.ok(dec.subject.includes('(sample)'), 'and it is flagged a sample while nobody is declined yet');
         for (const row of beforeRows) {
             const now = rowOf(row.id);
             assert.strictEqual(Number(now.reminder_sent), Number(row.reminder_sent), row.id + ' reminder_sent untouched');
@@ -395,11 +399,11 @@ async function t(name, fn) {
     });
 
     await t('the presenter preview carries the slides block, the attendee preview does not', () => {
-        const [pres, att] = sentEmails.slice(-2);
+        const [pres, att] = sentEmails.slice(-3);
         assert.ok(pres.html.includes('Please send us your presentation slides'), 'presenter shape has the slides block');
-        assert.ok(pres.html.includes(BASE + '/boston/upload/' + uploadToken(LUKA)), "and Luka's own slides link");
+        assert.ok(pres.html.includes(hub(LUKA) + '#step3'), "and Luka's own slides step on his hub link");
         assert.ok(!att.html.includes('Please send us your presentation slides'), 'attendee shape must not be told to upload slides');
-        assert.ok(!/\/boston\/upload\//.test(att.html), 'no slides link at all in the attendee shape');
+        assert.ok(!/#step3/.test(att.html), 'no slides step at all in the attendee shape');
         assert.ok(pres.html.includes('Dear Luka'), 'presenter preview is built from the first presenter');
         assert.ok(att.html.includes('Dear Ana'), 'attendee preview is built from the first non-presenter');
     });
@@ -447,14 +451,14 @@ async function t(name, fn) {
         const html = sentEmails[sentEmails.length - 1].html;
         const at = s => { const i = html.indexOf(s); assert.ok(i > -1, 'missing module: ' + s); return i; };
         const seeYou = at('A few things before Monday');
-        const todo = at('short things');
+        const todo = at('Open my personal page');
         const catering = at('Please tell us your dietary restrictions and allergies');
-        const intro = at('Please send us a one-slide summary about you');
+        const intro = at('Please send us a one-slide summary of your work');
         const program = at('Please read the attached program');
         const ticket = at('Your ticket for the door');
         const laura = html.lastIndexOf('laura.rodman@medx.hr');
-        assert.ok(seeYou < todo, 'header, then the to-do list');
-        assert.ok(todo < catering, 'to-do list before the catering questions');
+        assert.ok(seeYou < todo, 'header, then the one button to the personal page');
+        assert.ok(todo < catering, 'that button before the numbered sections');
         assert.ok(catering < intro, 'catering before the one-slide summary');
         assert.ok(intro < program, 'summary before the program');
         assert.ok(program < ticket, 'program before the ticket — the ticket is for Monday, not today');
@@ -471,17 +475,17 @@ async function t(name, fn) {
 
     await t('EVERY guest is asked for a one-slide summary, on their own personal link', () => {
         const html = sentEmails[sentEmails.length - 1].html;   // Ana — not a presenter
-        assert.ok(html.includes('Please send us a one-slide summary about you'), 'the summary block');
+        assert.ok(html.includes('Please send us a one-slide summary of your work'), 'the summary block');
         assert.ok(html.includes('Upload my one-slide summary'), 'and the button says what it sends');
-        assert.ok(html.includes('who you are, what you do, and what you are looking for in a collaborator'),
-            "the PDF's own words for what goes on the slide");
+        assert.ok(/&nbsp;optional<\/span>/.test(html), 'the section header is tagged optional');
+        assert.ok(html.includes('one slide</b> about their work'),
+            "the owner's own words for what goes on the slide");
         assert.ok(html.includes('PDF or PowerPoint, one slide, up to 10&nbsp;MB'), 'the format it accepts');
+        assert.ok(/compile all summaries into one document/.test(html), 'and what happens to it afterwards');
         assert.ok(html.includes(DEADLINE), 'the same deadline as the slides');
-        assert.ok(/compile all summaries into one document and share it with every participant/.test(html),
-            "the sharing promise, in the owner's conditional");
-        assert.ok(html.includes(BASE + '/boston/onepager/' + onepagerToken(ANA)), 'her own summary link');
-        assert.ok(!html.includes('/boston/onepager/' + ANA), 'a bare id must never appear in a link');
-        assert.ok(!html.includes(onepagerToken(LUKA)), "and never somebody else's token");
+        assert.ok(html.includes(hub(ANA) + '#step2'), 'the button opens HER hub, on the summary step');
+        assert.ok(!html.includes('/boston/me/' + ANA), 'a bare id must never appear in a link');
+        assert.ok(!html.includes(meToken(LUKA)), "and never somebody else's token");
         assert.ok(!/one-pager/i.test(html), 'a guest never reads the internal name');
     });
 
@@ -492,14 +496,27 @@ async function t(name, fn) {
         assert.ok(html.includes('BB-BOS-' + ANA.slice(0, 8).toUpperCase()), 'the same ticket number');
     });
 
-    await t('the reminder carries all eight one-tap answer links, all HMAC-tokened', () => {
-        const html = sentEmails[sentEmails.length - 1].html;
-        const tok = dietToken(ANA);
-        for (const a of ['none', 'vegetarian', 'vegan', 'halal', 'kosher', 'gluten-free', 'no-allergies', 'allergies']) {
-            assert.ok(html.includes(`${BASE}/boston/rsvp/${tok}/${a}`), 'missing one-tap link: ' + a);
-        }
+    await t('EVERY button in the email opens the ONE personal page, on the right step', () => {
+        const html = sentEmails[sentEmails.length - 1].html;   // Ana — not a presenter
+        assert.ok(html.includes(hub(ANA)), 'the plain hub link, right under the intro');
+        assert.ok(html.includes('Open my personal page'), 'and it says what it opens');
+        assert.ok(html.includes(hub(ANA) + '#step1'), 'the dietary button lands on step 1');
+        assert.ok(html.includes(hub(ANA) + '#step2'), 'the summary button lands on step 2');
+        assert.ok(html.includes('Choose my dietary preferences'), 'the dietary button, in the owner\'s words');
         assert.ok(/Please tell us your dietary restrictions and allergies/.test(html), 'the catering block heading');
-        assert.ok(!html.includes(`/boston/rsvp/${ANA}/`), 'a bare id must never appear in a link');
+        assert.ok(/&nbsp;required<\/span>/.test(html), 'and that section is tagged required');
+        assert.ok(!html.includes(`/boston/me/${ANA}`), 'a bare id must never appear in a link');
+        assert.ok(!html.includes(meToken(LUKA)), 'and never somebody else\'s token');
+    });
+
+    await t('the older personal links still resolve — nothing already sent is broken', async () => {
+        for (const [what, r] of [
+            ['catering', await rsvp(ANA, 'open')],
+            ['summary', await call(app, 'GET', '/boston/onepager/:token', { params: { token: onepagerToken(ANA) } })],
+            ['slides', await call(app, 'GET', '/boston/upload/:token', { params: { token: uploadToken(LUKA) } })]
+        ]) {
+            assert.strictEqual(r.statusCode, 200, what + ' link must keep working');
+        }
     });
 
     await t('the slides block is for presenters only, and reads back a deck already on file', async () => {
@@ -514,8 +531,8 @@ async function t(name, fn) {
         assert.ok(luka.html.includes('Please send us your presentation slides'), 'the slides block');
         assert.ok(luka.html.includes('Upload my slides'), 'and the upload button');
         assert.ok(!luka.html.includes('Already received'), 'nothing on file yet');
-        assert.ok(luka.html.includes(BASE + '/boston/upload/' + uploadToken(LUKA)), 'their personal upload link');
-        assert.ok(luka.html.includes(BASE + '/boston/onepager/' + onepagerToken(LUKA)), 'a presenter is asked for a summary too');
+        assert.ok(luka.html.includes(hub(LUKA) + '#step3'), 'their own hub link, on the slides step');
+        assert.ok(luka.html.includes(hub(LUKA) + '#step2'), 'a presenter is asked for a summary too');
 
         // Mia is a presenter WITH a deck on file — the block turns into "already received, replace".
         query.run(`CREATE TABLE IF NOT EXISTS bridges_presentations (id TEXT PRIMARY KEY, registration_id TEXT NOT NULL,
@@ -557,7 +574,7 @@ async function t(name, fn) {
     });
 
     await t('no shape of the Boston email says Friday, 18 September any more', async () => {
-        for (const variant of ['presenter', 'attendee']) {
+        for (const variant of ['presenter', 'attendee', 'declined']) {
             await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant } });
             const html = sentEmails[sentEmails.length - 1].html;
             assert.ok(!/18 September|Friday, 18/.test(html), variant + ' still carries the old deadline');
@@ -725,14 +742,14 @@ async function t(name, fn) {
         await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant: 'attendee' } });
         const html = sentEmails[sentEmails.length - 1].html;
         assert.ok(html.includes(`${BASE}/boston/rsvp/${dietToken(ANA)}/cannot-attend`), 'her own one-tap link');
-        assert.ok(/Can&rsquo;t make it after all\?/.test(html), 'the line the owner asked for');
-        assert.ok(/Let us know with one click/.test(html), 'the link text');
-        assert.ok(/it frees your seat/.test(html), 'and why it matters');
-        // under the catering block, before the one-slide summary
-        assert.ok(html.indexOf('Please tell us your dietary restrictions and allergies') < html.indexOf('Can&rsquo;t make it after all?'),
-            'it sits under the catering block');
-        assert.ok(html.indexOf('Can&rsquo;t make it after all?') < html.indexOf('Your ticket for the door'),
-            'and before the summary block');
+        assert.ok(/Unable to attend\?/.test(html), 'the line the owner asked for');
+        assert.ok(/Cancel your participation here/.test(html), 'the link text');
+        assert.ok(/your seat goes to someone on the waiting list/.test(html), 'and why it matters');
+        // under the numbered sections, before the ticket
+        assert.ok(html.indexOf('Please tell us your dietary restrictions and allergies') < html.indexOf('Unable to attend?'),
+            'it sits under the numbered sections');
+        assert.ok(html.indexOf('Unable to attend?') < html.indexOf('Your ticket for the door'),
+            'and before the ticket');
     });
 
     await t('the GET only asks — it releases nothing', async () => {
@@ -742,7 +759,7 @@ async function t(name, fn) {
         const r = await cannotAttend(LEAVE);
         assert.strictEqual(r.statusCode, 200);
         assert.ok(/Sorry you can&rsquo;t join us, Petra\./.test(r.body), 'the confirm headline, personally');
-        assert.ok(/Yes, release my seat/.test(r.body), 'one button');
+        assert.ok(/Cancel my participation/.test(r.body), 'one button');
         assert.ok(/Keep my seat/.test(r.body), 'and a way back');
         assert.ok(r.body.includes('/boston/rsvp/' + dietToken(LEAVE) + '/open'), 'the "keep" link goes to the noted page');
         assert.ok(r.body.includes('noindex'), 'never indexed');

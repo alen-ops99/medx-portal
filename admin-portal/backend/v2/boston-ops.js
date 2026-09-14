@@ -228,6 +228,12 @@ module.exports = function mountBostonOps(app, ctx) {
                 s3_configured: !!data.s3_configured,
                 requested: Number(data.requested) || 0,
                 uploaded: Number(data.uploaded) || 0,
+                // The owner's pick, counted the same way the member wing counts it: these three
+                // always add up to `requested`, so the card's header can never imply a talk slot
+                // that does not exist — or lose somebody between two screens.
+                confirmed: Number(data.confirmed) || 0,
+                declined: Number(data.declined) || 0,
+                undecided: Number(data.undecided) || 0,
                 invited: rows.filter(r => r.invited_at != null).length,
                 not_invited: notInvited,
                 zip_url: keyed('/api/boston/presentations.zip'),
@@ -462,6 +468,57 @@ module.exports = function mountBostonOps(app, ctx) {
         } catch (e) {
             log('restore failed:', e.message);
             res.status(502).json({ error: e.message || 'The seat could not be restored.' });
+        }
+    });
+
+    // ---------------------------------------------------------------- who presents (the owner's pick)
+    // About thirty people offered and the evening holds far fewer, so Alen decides row by row:
+    // 'confirmed', 'declined', or null while he is still thinking. Like every other write in this
+    // panel the deed happens on the member side behind the derived key — one place writes, one
+    // place decides what the three email shapes and the hub page look like.
+    app.post('/api/v2/boston/presenters/:id/status', auth, adminOnly, async (req, res) => {
+        try {
+            const id = cleanStr(req.params.id, 64);
+            const raw = (req.body || {}).status;
+            const status = raw == null || cleanStr(raw, 20) === '' ? null : cleanStr(raw, 20).toLowerCase();
+            if (status !== null && status !== 'confirmed' && status !== 'declined') {
+                return res.status(400).json({ error: 'status must be "confirmed", "declined" or null.' });
+            }
+            const reg = id ? q.get('SELECT id, email FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
+            if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
+            const out = await memberCall('POST', '/api/boston/presenters/' + encodeURIComponent(id) + '/status', { status });
+            audit(req, 'boston.presenter_status', (status || 'undecided') + ' — ' + (reg.email || id));
+            res.json({
+                success: true, id, email: reg.email || null,
+                presenter_status: out.presenter_status === undefined ? status : out.presenter_status,
+                presenter: !!out.presenter,
+                presentation_requested: !!out.presentation_requested
+            });
+        } catch (e) {
+            log('presenter status failed:', e.message);
+            res.status(502).json({ error: e.message || 'That decision could not be recorded.' });
+        }
+    });
+
+    // The bulk close-out: everybody still undecided becomes "not this time". One call per row, on
+    // the same member route, so a partial failure leaves a readable half-done state rather than a
+    // silent one — the answer names exactly who was set and who was not.
+    app.post('/api/v2/boston/presenters/decline-undecided', auth, adminOnly, async (req, res) => {
+        try {
+            const data = await memberCall('GET', '/api/boston/presentations');
+            const undecided = (data.rows || []).filter(r => r.presentation_requested && r.presenter_status == null);
+            const set = [], failed = [];
+            for (const r of undecided) {
+                try {
+                    await memberCall('POST', '/api/boston/presenters/' + encodeURIComponent(r.registration_id) + '/status', { status: 'declined' });
+                    set.push(r.email || r.registration_id);
+                } catch (e) { failed.push(r.email || r.registration_id); }
+            }
+            audit(req, 'boston.presenter_status_bulk', 'declined ' + set.length + ' undecided' + (failed.length ? ', ' + failed.length + ' failed' : ''));
+            res.json({ success: true, declined: set, failed, considered: undecided.length });
+        } catch (e) {
+            log('bulk decline failed:', e.message);
+            res.status(502).json({ error: e.message || 'Those decisions could not be recorded.' });
         }
     });
 
