@@ -446,8 +446,8 @@ async function t(name, fn) {
     await t('the email opens with the to-do list, then the tasks in list order, and the ticket last', () => {
         const html = sentEmails[sentEmails.length - 1].html;
         const at = s => { const i = html.indexOf(s); assert.ok(i > -1, 'missing module: ' + s); return i; };
-        const seeYou = at('See you on');
-        const todo = at('Answer two food questions');
+        const seeYou = at('A few things before Monday');
+        const todo = at('Tell us what you eat');
         const catering = at('Two quick questions for the catering');
         const intro = at('Your one-slide summary');
         const program = at('Your program');
@@ -459,7 +459,7 @@ async function t(name, fn) {
         assert.ok(intro < program, 'summary before the program');
         assert.ok(program < ticket, 'program before the ticket — the ticket is for Monday, not today');
         assert.ok(ticket < laura, 'ticket before the footer');
-        assert.ok(html.includes('Read the attached program'), 'the program is a numbered to-do');
+        assert.ok(html.includes('Have a look at the attached program'), 'the program is a numbered item');
     });
 
     await t('the program line names what is attached, in the owner\'s words', () => {

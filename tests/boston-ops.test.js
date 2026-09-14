@@ -431,7 +431,7 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         assert.deepEqual(r.body.sent, ['mia@example.com']);
         assert.equal(r.body.resent, false);
         assert.equal(sentEmails.length, before + 1, 'exactly one email');
-        assert.match(sentEmails[sentEmails.length - 1].subject, /see you on Monday, 21 September/i);
+        assert.match(sentEmails[sentEmails.length - 1].subject, /A few things before Monday/i);
         assert.match(notesOf('reg-mia'), /REMINDER-SENT \d{4}-\d{2}-\d{2}/);
         assert.equal(adminEmails.length, 0, 'still nothing sent from the admin side');
     });

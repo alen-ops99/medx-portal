@@ -1643,6 +1643,8 @@ module.exports = function mountBoston(app, deps) {
     // explicit admin click behind a confirm.
 
     const REMINDER_SUBJECT = 'See you on ' + DATE_LONG.replace(/\s*\d{4}$/, '') + ' — Building Bridges Boston';
+    // The real subject asks for something — a guest must not file this as a pleasantry.
+    const ACTION_SUBJECT = r => `${r && r.first_name ? String(r.first_name).trim() + ', a' : 'A'} few things before Monday — Building Bridges Boston, 21 September`;
 
     function reminderEmailHtml(reg, opts) {
         const o = opts || {};
@@ -1715,25 +1717,25 @@ module.exports = function mountBoston(app, deps) {
               </table>` : '';
 
         const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
-      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">One week to go</div>
-      <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;color:#f2e7d6;margin-top:10px;">See you on ${esc(DATE_LONG.replace(/,\s*\d{4}$/, ''))}, <i>${esc(first)}</i>.</div>
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Monday, 21 September &middot; Boston</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;color:#f2e7d6;margin-top:10px;">A few things before Monday, <i>${esc(first)}</i>.</div>
       <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:16px;">
-        <p style="margin:0;">Dear ${esc(first)}, one week to go. <b style="color:#f2e7d6;">This is the only email you will get from us before the evening</b> &mdash; ${o.presenter ? 'four' : 'three'} things, two minutes:</p>
+        <p style="margin:0;">Dear ${esc(first)}, we look forward to welcoming you on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b>. Before then, we need your help with the following &mdash; each takes a moment:</p>
       </div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td style="padding:16px 20px 6px;">
-        ${todo(1, 'Answer two food questions', 'one tap each', '#food')}
-        ${todo(2, 'Upload your one-slide summary', 'who you are, what you look for &middot; by ' + esc(SLIDES_DEADLINE), base + '/boston/onepager/' + onepagerToken(id))}
-        ${o.presenter ? todo(3, 'Upload your presentation slides', '5 min &middot; 5&ndash;8 slides &middot; by ' + esc(SLIDES_DEADLINE), base + '/boston/upload/' + uploadToken(id)) : ''}
-        ${todo(o.presenter ? 4 : 3, 'Read the attached program', 'running order, presentation instructions, good-to-know', null)}
+        ${todo(1, 'Tell us what you eat', 'two questions, one tap each &mdash; for the catering', '#food')}
+        ${todo(2, 'Send us your one-slide summary', 'who you are, what you work on, whom you want to meet &middot; by ' + esc(SLIDES_DEADLINE), base + '/boston/onepager/' + onepagerToken(id))}
+        ${o.presenter ? todo(3, 'Send us your presentation slides', '5 minutes &middot; 5&ndash;8 slides &middot; by ' + esc(SLIDES_DEADLINE), base + '/boston/upload/' + uploadToken(id)) : ''}
+        ${todo(o.presenter ? 4 : 3, 'Have a look at the attached program', 'running order, presentation instructions and practical notes', null)}
       </td></tr></table>
-      <div style="font-family:${T.sans};font-size:12px;line-height:1.6;color:#a8998a;margin-top:10px;">Then just bring the QR code below on Monday, ${esc(DATE_LONG.replace(/^\w+,\s*/, ''))} &mdash; doors 5:30&nbsp;PM, program 6:00&ndash;9:00&nbsp;PM, business attire.</div>
+      <div style="font-family:${T.sans};font-size:12px;line-height:1.6;color:#a8998a;margin-top:10px;">This is the only email you will receive from us before the event. On the day, bring the QR code at the bottom of this email &mdash; doors 5:30&nbsp;PM, program 6:00&ndash;9:00&nbsp;PM, business attire.</div>
 
 
 
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" id="food" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
         ${label('1 · Two quick questions for the catering')}
-        ${para('One tap each &mdash; no form, no login, your name is already on it.')}
+        ${para('Two taps and you are done &mdash; your name is already on it.')}
         <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:18px;">1 &middot; What should we put on your plate?</div>
         <div style="margin-top:10px;">${prefChips}</div>
         <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:12px;">2 &middot; Any food allergies?</div>
@@ -1770,8 +1772,8 @@ module.exports = function mountBoston(app, deps) {
 
         return emailTemplates.shell({
             tone: 'dark',
-            title: 'See you on ' + DATE_LONG.replace(/\s*\d{4}$/, '') + ' — Building Bridges Boston',
-            preheader: 'Three things, two minutes: food questions, your one-slide summary, the program — and your ticket for the door.',
+            title: 'A few things before Monday — Building Bridges Boston',
+            preheader: 'Your food preferences, your one-slide summary, the program — and your ticket for the door.',
             headerRightLabel: 'BUILDING BRIDGES · BOSTON',
             rule: 'crimson',
             bodyHtml: body
@@ -2072,7 +2074,7 @@ module.exports = function mountBoston(app, deps) {
             const today = new Date().toISOString().slice(0, 10);
             const sent = [];
             for (const r of targets) {
-                const out = await sendEmail(r.email, (r.first_name ? String(r.first_name).trim() + ', s' : 'S') + REMINDER_SUBJECT.slice(1),
+                const out = await sendEmail(r.email, ACTION_SUBJECT(r),
                     reminderEmailHtml(r, perRegistrantOpts(r, false)), [program]);
                 if (out && out.success !== false) {
                     const notes = String(r.notes || '');
