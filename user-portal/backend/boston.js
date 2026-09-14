@@ -1678,6 +1678,11 @@ module.exports = function mountBoston(app, deps) {
         // and last in this block: it is the footnote to the food questions, not a sixth module.
         const cannotAttendLine = `<div style="font-family:${T.sans};font-size:11.5px;line-height:1.7;color:#a8998a;margin-top:16px;">Can&rsquo;t make it after all? <a href="${esc(rsvp(CANNOT_ATTEND))}" style="color:#d7b56c;text-decoration:underline;">Let us know with one tap</a> &mdash; it frees your seat.</div>`;
 
+        // ---- the to-do list at the top: number · task · hint, each row a link to its section ----
+        const todo = (n, task, hint, href) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;"><tr>
+          <td style="width:26px;vertical-align:top;padding-top:1px;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:#a8232b;color:#fff3e2;font-family:${T.sans};font-weight:700;font-size:11px;">${n}</span></td>
+          <td style="vertical-align:top;padding-left:8px;font-family:${T.sans};font-size:13.5px;line-height:1.45;color:#f2e7d6;">${href ? `<a href="${esc(href)}" style="color:#f2e7d6;text-decoration:underline;text-decoration-color:rgba(215,181,108,.7);font-weight:600;">${task}</a>` : `<b>${task}</b>`}<span style="display:block;font-size:11.5px;color:#c9b89f;margin-top:1px;">${hint}</span></td></tr></table>`;
+
         // ---- the module chrome every block below shares ----
         const label = t => `<div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">${t}</div>`;
         const para = (html, mt) => `<div style="font-family:${T.sans};font-size:13.5px;line-height:1.65;color:#d3c5b2;margin-top:${mt == null ? 8 : mt}px;">${html}</div>`;
@@ -1686,22 +1691,19 @@ module.exports = function mountBoston(app, deps) {
         const onFile = (verb, filename) => `<div style="font-family:${T.sans};font-size:12px;line-height:1.6;color:#c9b89f;margin-top:12px;text-align:center;">${verb} &#10003;${filename ? ' <b style="color:#f2e7d6;">' + esc(filename) + '</b>' : ''} &mdash; open the same link to replace it.</div>`;
 
         // ---- (b) your program — the PDF attached to this very email ----
-        const programBlock = module(`${label('Your program')}
-        ${para(`<b style="color:#f2e7d6;">Attached: program, presentation instructions and good-to-know</b> &mdash; one PDF with the running order of the evening, how the five-minute talks work, and the practical notes.${o.programMissing
+        const programBlock = module(`${label((o.presenter ? '4' : '3') + ' · Your program')}
+        ${para(`<b style="color:#f2e7d6;">Attached as a PDF</b> &mdash; running order, presentation instructions, good-to-know.${o.programMissing
             ? ' <b style="color:#e8b45c;">(program PDF not uploaded yet)</b>' : ''}`)}`);
 
         // ---- (e) introduce yourself — the one-slide summary, for EVERY guest ----
-        const onepagerBlock = module(`${label('Your one-slide summary')}
-        ${para(`One slide that introduces you to the room &mdash; ${SUMMARY_BRIEF}. Presenter or not, we encourage everyone to send one.`)}
-        ${para(`<span style="color:#c9b89f;font-size:12px;">PDF or PowerPoint (.ppt/.pptx), up to 10&nbsp;MB &middot; by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>. Your link is personal &mdash; you can replace the file any time before the evening.</span>`, 6)}
-        ${para('<span style="color:#c9b89f;font-size:12px;">If you are happy to share it, we send the summaries to all participants after the event &mdash; there is a tick box on the page, and it is yours to untick.</span>', 6)}
+        const onepagerBlock = module(`${label('2 · Your one-slide summary')}
+        ${para(`One slide: ${SUMMARY_BRIEF}. <span style="color:#c9b89f;font-size:12px;">PDF or PowerPoint, up to 10&nbsp;MB, by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>. Shared with all participants after the event if you tick the box.</span>`)}
         ${wideBtn(o.onepager ? 'Replace my one-slide summary' : 'Upload my one-slide summary', base + '/boston/onepager/' + onepagerToken(id))}
         ${o.onepager ? onFile('Already received', o.onepager.original_name) : ''}`);
 
         // ---- (f) you're presenting — the slides, presenters ONLY ----
-        const presenterBlock = o.presenter ? module(`${label("You're presenting")}
-        ${para('Your <b style="color:#f2e7d6;">5-minute presentation</b> is part of the evening. Please upload your slides from your personal link so we can preload every deck before the doors open.')}
-        ${para(`<span style="color:#c9b89f;font-size:12px;">${SLIDES_FORMAT_LINE} &middot; by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>.</span>`, 6)}
+        const presenterBlock = o.presenter ? module(`${label("3 · Your presentation slides")}
+        ${para(`We preload every deck on one laptop. <span style="color:#c9b89f;font-size:12px;">${SLIDES_FORMAT_LINE} &middot; by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>.</span>`)}
         ${wideBtn(o.uploaded ? 'Replace my slides' : 'Upload my slides', base + '/boston/upload/' + uploadToken(id))}
         ${o.uploaded ? onFile('Already received', o.uploaded && o.uploaded.original_name) : ''}`) : '';
 
@@ -1716,34 +1718,21 @@ module.exports = function mountBoston(app, deps) {
       <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">One week to go</div>
       <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;color:#f2e7d6;margin-top:10px;">See you on ${esc(DATE_LONG.replace(/,\s*\d{4}$/, ''))}, <i>${esc(first)}</i>.</div>
       <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:16px;">
-        <p style="margin:0 0 10px;">Dear ${esc(first)}, see you on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b> &mdash; Waterhouse Room, Gordon Hall, Harvard Medical School. Doors open at <b style="color:#f2e7d6;">5:30&nbsp;PM</b>, the program runs <b style="color:#f2e7d6;">6:00&ndash;9:00&nbsp;PM</b>, business attire.</p>
-        <p style="margin:0;">Everything you need is below &mdash; the program, your ticket, two quick questions for the caterer, and your one-slide summary to introduce yourself to the room. <b style="color:#f2e7d6;">This is the only email we will send you before the evening.</b></p>
+        <p style="margin:0;">Dear ${esc(first)}, one week to go. <b style="color:#f2e7d6;">This is the only email you will get from us before the evening</b> &mdash; ${o.presenter ? 'four' : 'three'} things, two minutes:</p>
       </div>
-
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td style="padding:18px 20px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          ${fact('WHEN', `<b>${esc(DATE_LONG)}</b> &middot; 6:00&ndash;9:00 PM &middot; doors from 5:30 PM`)}
-          ${fact('WHERE', esc(VENUE_FULL))}
-          ${fact('DRESS', esc(DRESS))}
-          ${fact('GUEST', `${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))}`)}
-        </table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td style="padding:16px 20px 6px;">
+        ${todo(1, 'Answer two food questions', 'one tap each', '#food')}
+        ${todo(2, 'Upload your one-slide summary', 'who you are, what you look for &middot; by ' + esc(SLIDES_DEADLINE), base + '/boston/onepager/' + onepagerToken(id))}
+        ${o.presenter ? todo(3, 'Upload your presentation slides', '5 min &middot; 5&ndash;8 slides &middot; by ' + esc(SLIDES_DEADLINE), base + '/boston/upload/' + uploadToken(id)) : ''}
+        ${todo(o.presenter ? 4 : 3, 'Read the attached program', 'running order, presentation instructions, good-to-know', null)}
       </td></tr></table>
+      <div style="font-family:${T.sans};font-size:12px;line-height:1.6;color:#a8998a;margin-top:10px;">Then just bring the QR code below on Monday, ${esc(DATE_LONG.replace(/^\w+,\s*/, ''))} &mdash; doors 5:30&nbsp;PM, program 6:00&ndash;9:00&nbsp;PM, business attire.</div>
 
-      ${programBlock}
 
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
-        ${label('Your ticket')}
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td align="center" style="padding:18px 20px;">
-          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid rgba(240,228,210,.2);padding:8px;">
-            <a href="${esc(base + '/api/boston/qr/' + id + '.png')}" style="display:block;text-decoration:none;"><img src="${esc(base + '/api/boston/qr/' + id + '.png')}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;"></a>
-          </td></tr></table>
-          <div style="font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#c9b89f;margin-top:8px;">Your entry QR &middot; show at the door</div>
-          <div style="font-family:${T.sans};font-size:11px;color:#c9b89f;margin-top:4px;">Tap the QR to enlarge it &mdash; then save it to your photos.</div>${walletStack}
-        </td></tr></table>
-      </td></tr></table>
 
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
-        ${label('Two quick questions for the catering')}
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" id="food" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
+        ${label('1 · Two quick questions for the catering')}
         ${para('One tap each &mdash; no form, no login, your name is already on it.')}
         <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:18px;">1 &middot; What should we put on your plate?</div>
         <div style="margin-top:10px;">${prefChips}</div>
@@ -1755,6 +1744,26 @@ module.exports = function mountBoston(app, deps) {
 
       ${onepagerBlock}
       ${presenterBlock}
+      ${programBlock}
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td style="padding:18px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          ${fact('WHEN', `<b>${esc(DATE_LONG)}</b> &middot; 6:00&ndash;9:00 PM &middot; doors from 5:30 PM`)}
+          ${fact('WHERE', esc(VENUE_FULL))}
+          ${fact('DRESS', esc(DRESS))}
+          ${fact('GUEST', `${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))}`)}
+        </table>
+      </td></tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
+        ${label('Your ticket for the door')}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td align="center" style="padding:18px 20px;">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid rgba(240,228,210,.2);padding:8px;">
+            <a href="${esc(base + '/api/boston/qr/' + id + '.png')}" style="display:block;text-decoration:none;"><img src="${esc(base + '/api/boston/qr/' + id + '.png')}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;"></a>
+          </td></tr></table>
+          <div style="font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#c9b89f;margin-top:8px;">Your entry QR &middot; show at the door</div>
+          <div style="font-family:${T.sans};font-size:11px;color:#c9b89f;margin-top:4px;">Tap the QR to enlarge it &mdash; then save it to your photos.</div>${walletStack}
+        </td></tr></table>
+      </td></tr></table>
 
       <div style="margin-top:24px;padding-top:14px;border-top:1px solid rgba(240,228,210,.18);font-family:${T.sans};font-size:11.5px;line-height:1.7;color:#d3c5b2;">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
     </td></tr></table>`;
@@ -1762,7 +1771,7 @@ module.exports = function mountBoston(app, deps) {
         return emailTemplates.shell({
             tone: 'dark',
             title: 'See you on ' + DATE_LONG.replace(/\s*\d{4}$/, '') + ' — Building Bridges Boston',
-            preheader: 'Your program, your ticket, two quick questions for the catering, and your one-slide summary.',
+            preheader: 'Three things, two minutes: food questions, your one-slide summary, the program — and your ticket for the door.',
             headerRightLabel: 'BUILDING BRIDGES · BOSTON',
             rule: 'crimson',
             bodyHtml: body
