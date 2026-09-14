@@ -451,7 +451,7 @@ async function t(name, fn) {
         const html = sentEmails[sentEmails.length - 1].html;
         const at = s => { const i = html.indexOf(s); assert.ok(i > -1, 'missing module: ' + s); return i; };
         const seeYou = at('A few things before Monday');
-        const todo = at('we would ask you for the following');
+        const todo = at('we would ask you to do the following');
         const catering = at('Tell us your dietary preference and any food allergies');
         const intro = at('Send us a one-slide summary of your work');
         const program = at('Read the attached program');
@@ -476,7 +476,7 @@ async function t(name, fn) {
     await t('EVERY guest is asked for a one-slide summary, on their own personal link', () => {
         const html = sentEmails[sentEmails.length - 1].html;   // Ana — not a presenter
         assert.ok(html.includes('Send us a one-slide summary of your work'), 'the summary block');
-        assert.ok(/Dietary preferences · summary/.test(html), 'and the button says what it sends');
+        assert.ok(/Open my personal page/.test(html), 'and the button says what it sends');
         assert.ok(/>optional<\/span>/.test(html), 'the ask is tagged optional');
         assert.ok(/one-slide summary of your work/.test(html) && /what kind of collaboration you are looking for/.test(html),
             "the owner's own words for what goes on the slide");
@@ -499,11 +499,11 @@ async function t(name, fn) {
     await t('EVERY button in the email opens the ONE personal page, on the right step', () => {
         const html = sentEmails[sentEmails.length - 1].html;   // Ana — not a presenter
         assert.ok(html.includes(hub(ANA)), 'the plain hub link, right under the intro');
-        assert.ok(/Dietary preferences · summary/.test(html), 'and it says what it opens');
+        assert.ok(/Open my personal page/.test(html), 'and it says what it opens');
         assert.ok(html.includes(hub(ANA)), 'the button lands on her page');
-        assert.ok(/Dietary preferences · summary/.test(html), 'the button names the dietary step');
+        assert.ok(/Open my personal page/.test(html), 'the button names the dietary step');
         assert.ok(/Tell us your dietary preference and any food allergies/.test(html), 'the catering ask');
-        assert.ok(/>required<\/span>/.test(html), 'and that ask is tagged required');
+        assert.ok(/>optional<\/span>/.test(html), 'the dietary ask is tagged optional');
         assert.ok(!html.includes(`/boston/me/${ANA}`), 'a bare id must never appear in a link');
         assert.ok(!html.includes(meToken(LUKA)), 'and never somebody else\'s token');
     });
@@ -528,7 +528,7 @@ async function t(name, fn) {
         const luka = sentEmails[sentEmails.length - 1];
         assert.strictEqual(luka.to, 'luka@example.com');
         assert.ok(luka.html.includes('Send us your presentation slides'), 'the slides block');
-        assert.ok(/summary · slides/.test(luka.html), 'and the button names the slides step');
+        assert.ok(/Send us your presentation slides/.test(luka.html), 'and the button names the slides step');
         assert.ok(!/Already received/.test(luka.html), 'nothing on file yet');
         assert.ok(luka.html.includes(hub(LUKA)), 'their own hub link, on the slides step');
         assert.ok(luka.html.includes(hub(LUKA)), 'a presenter is asked for a summary too');

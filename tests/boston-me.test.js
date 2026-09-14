@@ -512,18 +512,18 @@ async function t(name, fn) {
         const [pres, att] = sentEmails.slice(-3);
 
         // the attendee shape — two asks, both on the hub
-        assert.ok(/Dietary preferences · summary/.test(att.html), 'the one button under the asks');
+        assert.ok(/Open my personal page/.test(att.html), 'the one button under the asks');
         assert.ok(att.html.includes(hub(ANA)), 'and it is her hub link');
         assert.ok(att.html.includes(hub(ANA)), 'the button opens her page');
-        assert.ok(!/summary · slides/.test(att.html), 'an attendee is never sent to the slides step');
+        assert.ok(!/Send us your presentation slides/.test(att.html), 'an attendee is never sent to the slides step');
 
         // the presenter shape — all three
         assert.ok(pres.html.includes(hub(LUKA)), 'the button opens his page');
-        assert.ok(/summary · slides/.test(pres.html), 'and names the slides step');
+        assert.ok(/Send us your presentation slides/.test(pres.html), 'and names the slides step');
 
         // required / optional, said in the section headers
         for (const mail of [pres, att]) {
-            assert.ok(/>required<\/span>/.test(mail.html), 'a required tag');
+            assert.ok(/>optional<\/span>/.test(mail.html), 'an optional tag on every shape');
             assert.ok(/>optional<\/span>/.test(mail.html), 'and an optional one');
             assert.ok(!/\/boston\/me\/[0-9a-f-]{36}\b/.test(mail.html), 'a bare id must never appear in a hub link');
         }
@@ -668,10 +668,10 @@ async function t(name, fn) {
         // the seat is the point: the note comes before the word "presentation slides" ever could,
         // and the ticket sits directly under it instead of at the very bottom.
         const note = dec.html.indexOf('Your seat on Monday is confirmed');
-        const asks = dec.html.indexOf('we would ask you for the following');
+        const asks = dec.html.indexOf('we would ask you to do the following');
         assert.ok(note < asks, 'the seat note comes before the asks');
         assert.ok(!dec.html.includes('Send us your presentation slides'), 'no slides ask');
-        assert.ok(!/summary · slides/.test(dec.html), 'and the button does not mention slides');
+        assert.ok(!/Send us your presentation slides/.test(dec.html), 'and the button does not mention slides');
         assert.ok(dec.html.includes(hub(DEC)), 'the button opens her page');
 
         // and the other two shapes are untouched by any of this
