@@ -1716,58 +1716,72 @@ module.exports = function mountBoston(app, deps) {
                 ${links.calendar ? `<tr><td align="center" style="padding:0 0 10px;">${emailTemplates.btn('ADD TO CALENDAR →', links.calendar, 'ghost', 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;color:#f2e7d6;border-color:rgba(240,228,210,.5);')}</td></tr>` : ''}
               </table>` : '';
 
+        // ---- numbered sections: the number IS the section, the buttons live inside it ----
+        const section = (n, title, inner) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:26px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr>
+          <td style="width:44px;vertical-align:top;padding:20px 0 0 18px;"><span style="display:inline-block;width:30px;height:30px;line-height:30px;text-align:center;background:#a8232b;color:#fff3e2;font-family:${T.sans};font-weight:700;font-size:15px;">${n}</span></td>
+          <td style="vertical-align:top;padding:18px 20px 20px 10px;">
+            <div style="font-family:${T.serif};font-weight:500;font-size:20px;line-height:1.25;color:#f2e7d6;">${title}</div>
+            ${inner}
+          </td></tr></table>`;
+        const text = (html, mt) => `<div style="font-family:${T.sans};font-size:14.5px;line-height:1.65;color:#e3d6c2;margin-top:${mt == null ? 10 : mt}px;">${html}</div>`;
+        const small = html => `<div style="font-family:${T.sans};font-size:12.5px;line-height:1.6;color:#c9b89f;margin-top:8px;">${html}</div>`;
+        const bigBtn = (label, href) => `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:14px;"><tr><td>${emailTemplates.btn(label, href, 'solid', 'padding:15px 26px;font-size:12px;background:#a8232b;')}</td></tr></table>`;
+
+        // 1 · dietary — the buttons are right here, no detour
+        const sec1 = section(1, 'Please tell us your dietary restrictions and allergies', `
+            ${text('Dinner is served during the networking part of the evening. Click <b style="color:#f2e7d6;">one button in each row</b> &mdash; that is all, your name is already attached.')}
+            <div style="font-family:${T.sans};font-weight:600;font-size:13px;color:#f2e7d6;margin-top:16px;">Dietary preference</div>
+            <div style="margin-top:8px;">${prefChips}</div>
+            <div style="font-family:${T.sans};font-weight:600;font-size:13px;color:#f2e7d6;margin-top:10px;">Food allergies</div>
+            <div style="margin-top:8px;">${allergyChips}</div>
+            ${answeredNote}`);
+
+        // 2 · the one-slide summary — explained, because this is the first time they hear of it
+        const sec2 = section(2, 'Please send us a one-slide summary about you', `
+            ${text('We would like every participant to prepare <b style="color:#f2e7d6;">one slide</b> that introduces you &mdash; who you are, what you do, and what you are looking for in a collaborator, with your contact details. After the event we will compile all summaries into one document and share it with every participant, so people know who is working on what and can follow up.')}
+            ${small(`PDF or PowerPoint, one slide, up to 10&nbsp;MB &middot; please send it by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>. Click the button, choose your file, done. You can replace it any time from the same link.`)}
+            ${bigBtn(o.onepager ? 'Replace my one-slide summary' : 'Upload my one-slide summary', base + '/boston/onepager/' + onepagerToken(id))}
+            ${o.onepager ? onFile('Already received', o.onepager.original_name) : ''}`);
+
+        // 3 · slides — presenters only
+        const sec3 = o.presenter ? section(3, 'Please send us your presentation slides', `
+            ${text('You are giving one of the <b style="color:#f2e7d6;">5-minute presentations</b>. All talks run from a single laptop, so please upload your slides in advance &mdash; the detailed instructions are in the attached program.')}
+            ${small(`${SLIDES_FORMAT_LINE} &middot; please upload by <b style="color:#f2e7d6;">${SLIDES_DEADLINE}</b>.`)}
+            ${bigBtn(o.uploaded ? 'Replace my slides' : 'Upload my slides', base + '/boston/upload/' + uploadToken(id))}
+            ${o.uploaded ? onFile('Already received', o.uploaded && o.uploaded.original_name) : ''}`) : '';
+
+        // 4 · the program PDF
+        const sec4 = section(o.presenter ? 4 : 3, 'Please read the attached program', `
+            ${text(`Attached to this email is a two-page PDF with the running order of the evening, the instructions for presentations and the practical notes.${o.programMissing ? ' <b style="color:#e8b45c;">(program PDF not uploaded yet)</b>' : ''}`)}`);
+
         const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
-      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Monday, 21 September &middot; Boston</div>
-      <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;color:#f2e7d6;margin-top:10px;">A few things before Monday, <i>${esc(first)}</i>.</div>
-      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:16px;">
-        <p style="margin:0;">Dear ${esc(first)}, we look forward to welcoming you on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b>. Before then, we need your help with the following &mdash; each takes a moment:</p>
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Building Bridges in Biomedicine &middot; Croatia &amp; the US</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:28px;line-height:1.18;color:#f2e7d6;margin-top:10px;">A few things before Monday, <i>${esc(first)}</i>.</div>
+      <div style="font-family:${T.sans};font-size:15px;line-height:1.7;color:#e3d6c2;margin-top:16px;">
+        <p style="margin:0 0 12px;">Dear ${esc(first)},</p>
+        <p style="margin:0 0 12px;">We look forward to welcoming you to <b style="color:#f2e7d6;">Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
+        <p style="margin:0;">Before the event we kindly ask you for <b style="color:#f2e7d6;">${o.presenter ? 'four' : 'three'} short things</b>. Everything can be done directly from this email:</p>
       </div>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td style="padding:16px 20px 6px;">
-        ${todo(1, 'Tell us what you eat', 'two questions, one tap each &mdash; for the catering', '#food')}
-        ${todo(2, 'Send us your one-slide summary', 'who you are, what you work on, whom you want to meet &middot; by ' + esc(SLIDES_DEADLINE), base + '/boston/onepager/' + onepagerToken(id))}
-        ${o.presenter ? todo(3, 'Send us your presentation slides', '5 minutes &middot; 5&ndash;8 slides &middot; by ' + esc(SLIDES_DEADLINE), base + '/boston/upload/' + uploadToken(id)) : ''}
-        ${todo(o.presenter ? 4 : 3, 'Have a look at the attached program', 'running order, presentation instructions and practical notes', null)}
-      </td></tr></table>
-      <div style="font-family:${T.sans};font-size:12px;line-height:1.6;color:#a8998a;margin-top:10px;">This is the only email you will receive from us before the event. On the day, bring the QR code at the bottom of this email &mdash; doors 5:30&nbsp;PM, program 6:00&ndash;9:00&nbsp;PM, business attire.</div>
 
+      ${sec1}
+      ${sec2}
+      ${sec3}
+      ${sec4}
 
+      <div style="font-family:${T.sans};font-size:12.5px;line-height:1.7;color:#a8998a;margin-top:18px;">Can&rsquo;t make it after all? <a href="${esc(rsvp(CANNOT_ATTEND))}" style="color:#d7b56c;text-decoration:underline;">Let us know with one click</a> &mdash; it frees your seat for someone else.</div>
 
-
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" id="food" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
-        ${label('1 · Two quick questions for the catering')}
-        ${para('Two taps and you are done &mdash; your name is already on it.')}
-        <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:18px;">1 &middot; What should we put on your plate?</div>
-        <div style="margin-top:10px;">${prefChips}</div>
-        <div style="font-family:${T.sans};font-weight:600;font-size:12px;color:#f2e7d6;margin-top:12px;">2 &middot; Any food allergies?</div>
-        <div style="margin-top:10px;">${allergyChips}</div>
-        ${answeredNote}
-        ${cannotAttendLine}
-      </td></tr></table>
-
-      ${onepagerBlock}
-      ${presenterBlock}
-      ${programBlock}
-
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td style="padding:18px 20px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          ${fact('WHEN', `<b>${esc(DATE_LONG)}</b> &middot; 6:00&ndash;9:00 PM &middot; doors from 5:30 PM`)}
-          ${fact('WHERE', esc(VENUE_FULL))}
-          ${fact('DRESS', esc(DRESS))}
-          ${fact('GUEST', `${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))}`)}
-        </table>
-      </td></tr></table>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:20px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;border-top:1px solid rgba(240,228,210,.18);"><tr><td style="padding-top:22px;">
         ${label('Your ticket for the door')}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#342718;border:1px solid rgba(215,181,108,.42);"><tr><td align="center" style="padding:18px 20px;">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#ffffff;border:1px solid rgba(240,228,210,.2);padding:8px;">
             <a href="${esc(base + '/api/boston/qr/' + id + '.png')}" style="display:block;text-decoration:none;"><img src="${esc(base + '/api/boston/qr/' + id + '.png')}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;"></a>
           </td></tr></table>
-          <div style="font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#c9b89f;margin-top:8px;">Your entry QR &middot; show at the door</div>
+          <div style="font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#c9b89f;margin-top:8px;">${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))} &middot; show at the door</div>
           <div style="font-family:${T.sans};font-size:11px;color:#c9b89f;margin-top:4px;">Tap the QR to enlarge it &mdash; then save it to your photos.</div>${walletStack}
         </td></tr></table>
       </td></tr></table>
 
-      <div style="margin-top:24px;padding-top:14px;border-top:1px solid rgba(240,228,210,.18);font-family:${T.sans};font-size:11.5px;line-height:1.7;color:#d3c5b2;">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
+      <div style="margin-top:24px;padding-top:14px;border-top:1px solid rgba(240,228,210,.18);font-family:${T.sans};font-size:12px;line-height:1.7;color:#d3c5b2;">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
     </td></tr></table>`;
 
         return emailTemplates.shell({
