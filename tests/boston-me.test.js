@@ -528,7 +528,7 @@ async function t(name, fn) {
             assert.ok(!/\/boston\/me\/[0-9a-f-]{36}\b/.test(mail.html), 'a bare id must never appear in a hub link');
         }
         assert.ok(att.html.includes('Your ticket for the door'), 'the ticket is still at the bottom');
-        assert.ok(/Read the attached program/.test(mail.html), 'and the program section is still there');
+        assert.ok(/Read the attached program/.test(att.html), 'and the program section is still there');
     });
 
     await t('each anchor points at a step that actually exists on the page it opens', async () => {
