@@ -2063,7 +2063,7 @@ module.exports = function mountBoston(app, deps) {
             const today = new Date().toISOString().slice(0, 10);
             const sent = [];
             for (const r of targets) {
-                const out = await sendEmail(r.email, REMINDER_SUBJECT,
+                const out = await sendEmail(r.email, (r.first_name ? String(r.first_name).trim() + ', s' : 'S') + REMINDER_SUBJECT.slice(1),
                     reminderEmailHtml(r, perRegistrantOpts(r, false)), [program]);
                 if (out && out.success !== false) {
                     const notes = String(r.notes || '');
