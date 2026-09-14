@@ -454,7 +454,7 @@ async function t(name, fn) {
         const todo = at('we would ask you to do the following');
         const catering = at('Tell us your dietary preference and any food allergies');
         const intro = at('Send us a one-slide summary of your work');
-        const program = at('Read the attached program');
+        const program = at('Have a look at the attached program');
         const ticket = at('Your ticket for the door');
         const laura = html.lastIndexOf('laura.rodman@medx.hr');
         assert.ok(seeYou < todo, 'header, then the one button to the personal page');
@@ -463,7 +463,7 @@ async function t(name, fn) {
         assert.ok(intro < program, 'summary before the program');
         assert.ok(program < ticket, 'program before the ticket — the ticket is for Monday, not today');
         assert.ok(ticket < laura, 'ticket before the footer');
-        assert.ok(html.includes('Read the attached program'), 'the program is a numbered item');
+        assert.ok(html.includes('Have a look at the attached program'), 'the program is a numbered item');
     });
 
     await t('the program line names what is attached, in the owner\'s words', () => {
