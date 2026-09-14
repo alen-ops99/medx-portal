@@ -478,10 +478,10 @@ async function t(name, fn) {
         assert.ok(html.includes('Send us a one-slide summary of your work'), 'the summary block');
         assert.ok(/Open my personal page/.test(html), 'and the button says what it sends');
         assert.ok(/>optional<\/span>/.test(html), 'the ask is tagged optional');
-        assert.ok(/one-slide summary of your work/.test(html) && /what you are looking for in collaborators/.test(html),
+        assert.ok(/one-slide summary of your work/.test(html) && /looking for in collaborators/.test(html),
             "the owner's own words for what goes on the slide");
         assert.ok(/PDF or PowerPoint/.test(html), 'the format it accepts');
-        assert.ok(/compile all summaries into one document/.test(html), 'and what happens to it afterwards');
+        assert.ok(/compile all the slides into one document and share it with every participant/.test(html), 'and what happens to it afterwards');
         assert.ok(html.includes(DEADLINE), 'the same deadline as the slides');
         assert.ok(html.includes(hub(ANA)), 'the button opens HER hub');
         assert.ok(!html.includes('/boston/me/' + ANA), 'a bare id must never appear in a link');
