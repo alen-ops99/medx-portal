@@ -1967,7 +1967,7 @@ module.exports = function mountBoston(app, deps) {
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px auto 0;">
                 ${links.apple ? `<tr><td align="center" style="padding:0 0 10px;">${emailTemplates.btn('ADD TO APPLE WALLET →', links.apple, 'ink', 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr>` : ''}
                 ${links.google ? `<tr><td align="center" style="padding:0 0 10px;">${emailTemplates.btn('ADD TO GOOGLE WALLET →', links.google, 'gold', 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr>` : ''}
-                ${links.calendar ? `<tr><td align="center" style="padding:0 0 10px;">${emailTemplates.btn('ADD TO CALENDAR →', links.calendar, 'ghost', 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;color:#f2e7d6;border-color:rgba(240,228,210,.5);')}</td></tr>` : ''}
+                ${links.calendar ? `<tr><td align="center" style="padding:0 0 10px;">${emailTemplates.btn('ADD TO CALENDAR →', links.calendar, 'ghost', 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr>` : ''}
               </table>` : '';
 
         // ---- numbered sections: the number IS the section, the buttons live inside it ----
@@ -2033,35 +2033,50 @@ module.exports = function mountBoston(app, deps) {
         </td></tr></table>
       </td></tr></table>`;
 
-        const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
-      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Building Bridges in Biomedicine &middot; Croatia &amp; the US</div>
-      <div style="font-family:${T.serif};font-weight:500;font-size:28px;line-height:1.18;color:#f2e7d6;margin-top:10px;">A few things before Monday, <i>${esc(first)}</i>.</div>
-      <div style="font-family:${T.sans};font-size:15px;line-height:1.7;color:#e3d6c2;margin-top:16px;">
-        <p style="margin:0 0 12px;">Dear ${esc(first)},</p>
-        <p style="margin:0${o.declined ? '' : ' 0 12px'};">We look forward to welcoming you to <b style="color:#f2e7d6;">Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b style="color:#f2e7d6;">${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
-        ${o.declined ? '' : `<p style="margin:0;">Before the event we kindly ask you for <b style="color:#f2e7d6;">${o.presenter ? 'four' : 'three'} short things</b>. They all live on <b style="color:#f2e7d6;">one personal page</b> &mdash; open it once and everything is there:</p>`}
+        // Light house shell: the dark card looked wrong on white Gmail. Plain short letter — the
+        // three asks stated in the text, one button, the ticket below.
+        const ink = T.ink, soft = T.soft, gold = T.goldDark;
+        const line = (n, html) => `<tr><td style="width:30px;vertical-align:top;padding:7px 0;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:${T.crimson};color:#fff;font-family:${T.sans};font-weight:700;font-size:12px;">${n}</span></td><td style="padding:7px 0 7px 8px;font-family:${T.sans};font-size:14.5px;line-height:1.55;color:${ink};">${html}</td></tr>`;
+        const tag = t => `<span style="font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:${gold};border:1px solid ${T.gold};padding:2px 6px;margin-left:6px;vertical-align:1px;">${t}</span>`;
+        const asks = [];
+        asks.push(line(1, `<b>Tell us your dietary preference and any food allergies</b>${tag('required')}<br><span style="color:${soft};font-size:13px;">Dinner is served during the evening.</span>`));
+        asks.push(line(2, `<b>Send us a one-slide summary of your work</b>${tag('optional')}<br><span style="color:${soft};font-size:13px;">Your institution, what you work on, and what kind of collaboration you are looking for, with your contact details. We compile all summaries into one document and share it with every participant after the event. PDF or PowerPoint, by ${esc(SLIDES_DEADLINE)}.</span>`));
+        if (o.presenter) asks.push(line(3, `<b>Send us your presentation slides</b>${tag('required')}<br><span style="color:${soft};font-size:13px;">5 minutes, 5 to 8 slides, PowerPoint 16:9. Introduce your lab or department and your work at a broad level, and use the last slide to say how you would like to collaborate. Talks run from one laptop; no Q&amp;A. Full instructions in the attached program. By ${esc(SLIDES_DEADLINE)}.</span>`));
+        asks.push(line(o.presenter ? 4 : 3, `<b>Read the attached program</b><br><span style="color:${soft};font-size:13px;">Running order, presentation instructions and practical notes (PDF).${o.programMissing ? ' <b style="color:#b45309;">(program PDF not uploaded yet)</b>' : ''}</span>`));
+
+        const declinedNoteLight = o.declined ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:${T.cardCream};border-left:3px solid ${T.gold};"><tr><td style="padding:14px 18px;font-family:${T.sans};font-size:14.5px;line-height:1.65;color:${ink};">
+        <b>Your seat on Monday is confirmed and we very much look forward to seeing you.</b><br><br>
+        Thank you for offering to give one of the 5-minute presentations. The interest this year was exceptionally high &mdash; we have far more requests than the evening can hold &mdash; so we sadly cannot give everyone the floor this time. Please do come: the panel, the presentations, the reception and the networking are the heart of the evening and exactly where the connections happen. We would be glad to have your one-slide summary, so your work still reaches every participant, and we hope to have you present at one of the next editions.
+      </td></tr></table>` : '';
+
+        const ticketLight = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:26px;border-top:1px solid ${T.hairline};"><tr><td style="padding-top:18px;">
+        <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:${gold};">Your ticket for the door</div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td align="center" style="padding:18px 20px;">
+          <a href="${esc(base + '/api/boston/qr/' + id + '.png')}" style="display:inline-block;text-decoration:none;background:#fff;padding:8px;border:1px solid ${T.hairline};"><img src="${esc(base + '/api/boston/qr/' + id + '.png')}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;"></a>
+          <div style="font-family:${T.sans};font-size:12px;color:${soft};margin-top:8px;">${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))} &middot; show this at the door</div>${walletStack}
+        </td></tr></table>
+      </td></tr></table>`;
+
+        const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:34px 40px 30px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${gold};">Building Bridges in Biomedicine &middot; Croatia &amp; the US</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${ink};margin-top:8px;">Monday, 21 September &mdash; a few things before we meet</div>
+      <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:16px;">
+        <p style="margin:0 0 10px;">Dear ${esc(first)},</p>
+        <p style="margin:0;">We look forward to welcoming you to <b>Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b>${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
       </div>
-      ${declinedNote}
-      ${o.declined ? ticketBlock : ''}
-      ${o.declined ? `<div style="font-family:${T.sans};font-size:15px;line-height:1.7;color:#e3d6c2;margin-top:26px;">Before the event we kindly ask you for <b style="color:#f2e7d6;">three short things</b>. They all live on <b style="color:#f2e7d6;">one personal page</b> &mdash; open it once and everything is there:</div>` : ''}
-
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:22px;">${emailTemplates.btn('Open my personal page', me, 'solid', 'width:320px;max-width:100%;padding-left:0;padding-right:0;padding-top:17px;padding-bottom:17px;text-align:center;box-sizing:border-box;background:#a8232b;font-size:13px;')}</td></tr></table>
-      <div style="font-family:${T.sans};font-size:12px;line-height:1.7;color:#a8998a;margin-top:10px;text-align:center;">The link is yours alone &mdash; your name is already on it, there is nothing to sign in to.</div>
-
-      ${sec1}
-      ${sec2}
-      ${sec3}
-      ${sec4}
-
-      <div style="font-family:${T.sans};font-size:12.5px;line-height:1.7;color:#a8998a;margin-top:18px;">Unable to attend? <a href="${esc(rsvp(CANNOT_ATTEND))}" style="color:#d7b56c;text-decoration:underline;">Cancel your participation here</a> &mdash; your seat goes to someone on the waiting list.</div>
-
-      ${o.declined ? '' : ticketBlock}
-
-      <div style="margin-top:24px;padding-top:14px;border-top:1px solid rgba(240,228,210,.18);font-family:${T.sans};font-size:12px;line-height:1.7;color:#d3c5b2;">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
+      ${declinedNoteLight}
+      <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:18px;">Before then, we would ask you for the following:</div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;">${asks.join('')}</table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding-top:16px;">${emailTemplates.btn(o.presenter ? 'Dietary preferences · summary · slides' : 'Dietary preferences · summary', me, 'solid', 'padding:15px 26px;font-size:12px;')}</td></tr></table>
+      <div style="font-family:${T.sans};font-size:12.5px;line-height:1.6;color:${soft};margin-top:8px;">One link, your name already on it, nothing to sign in to.</div>
+      ${ticketLight}
+      <div style="font-family:${T.sans};font-size:12px;line-height:1.7;color:${soft};margin-top:18px;">Unable to attend? <a href="${esc(rsvp(CANNOT_ATTEND))}" style="color:${T.crimson};text-decoration:underline;">Cancel your participation here</a> &mdash; your seat goes to someone on the waiting list.</div>
+      <div style="margin-top:20px;padding-top:12px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:12px;line-height:1.7;color:${soft};">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
     </td></tr></table>`;
 
         return emailTemplates.shell({
-            tone: 'dark',
             title: 'A few things before Monday — Building Bridges Boston',
             preheader: 'Your food preferences, your one-slide summary, the program — and your ticket for the door.',
             headerRightLabel: 'BUILDING BRIDGES · BOSTON',

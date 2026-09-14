@@ -512,21 +512,19 @@ async function t(name, fn) {
         const [pres, att] = sentEmails.slice(-3);
 
         // the attendee shape — two asks, both on the hub
-        assert.ok(att.html.includes('Open my personal page'), 'the prominent button under the intro');
+        assert.ok(/Dietary preferences · summary/.test(att.html), 'the one button under the asks');
         assert.ok(att.html.includes(hub(ANA)), 'and it is her hub link');
-        assert.ok(att.html.includes(hub(ANA) + '#step1'), 'dietary → step 1');
-        assert.ok(att.html.includes(hub(ANA) + '#step2'), 'summary → step 2');
-        assert.ok(!att.html.includes('#step3'), 'an attendee is never sent to the slides step');
+        assert.ok(att.html.includes(hub(ANA)), 'the button opens her page');
+        assert.ok(!/summary · slides/.test(att.html), 'an attendee is never sent to the slides step');
 
         // the presenter shape — all three
-        assert.ok(pres.html.includes(hub(LUKA) + '#step1'), 'presenter dietary → step 1');
-        assert.ok(pres.html.includes(hub(LUKA) + '#step2'), 'presenter summary → step 2');
-        assert.ok(pres.html.includes(hub(LUKA) + '#step3'), 'presenter slides → step 3');
+        assert.ok(pres.html.includes(hub(LUKA)), 'the button opens his page');
+        assert.ok(/summary · slides/.test(pres.html), 'and names the slides step');
 
         // required / optional, said in the section headers
         for (const mail of [pres, att]) {
-            assert.ok(/&nbsp;required<\/span>/.test(mail.html), 'a required tag');
-            assert.ok(/&nbsp;optional<\/span>/.test(mail.html), 'and an optional one');
+            assert.ok(/>required<\/span>/.test(mail.html), 'a required tag');
+            assert.ok(/>optional<\/span>/.test(mail.html), 'and an optional one');
             assert.ok(!/\/boston\/me\/[0-9a-f-]{36}\b/.test(mail.html), 'a bare id must never appear in a hub link');
         }
         assert.ok(att.html.includes('Your ticket for the door'), 'the ticket is still at the bottom');
@@ -660,7 +658,7 @@ async function t(name, fn) {
         assert.ok(dec.subject.includes('declined-presenter · still expected'), 'the subject says it: ' + dec.subject);
         assert.ok(!dec.subject.includes('(sample)'), 'and not flagged a sample');
 
-        assert.ok(dec.html.includes('About your presentation'), 'the note is there');
+        assert.ok(/Your seat on Monday is confirmed/.test(dec.html), 'the note is there');
         assert.ok(/Your seat on Monday is confirmed and we very much look forward to seeing you\./.test(dec.html), 'opening on the seat');
         assert.ok(/exceptionally high/.test(dec.html) && /cannot give everyone the floor this time/.test(dec.html), 'the reason, said once');
         assert.ok(/the heart of the evening/.test(dec.html) && /Please do come/.test(dec.html), 'the invitation');
@@ -669,17 +667,15 @@ async function t(name, fn) {
 
         // the seat is the point: the note comes before the word "presentation slides" ever could,
         // and the ticket sits directly under it instead of at the very bottom.
-        const note = dec.html.indexOf('About your presentation');
-        const ticket = dec.html.indexOf('Your ticket for the door');
-        const step1 = dec.html.indexOf('Please tell us your dietary restrictions');
-        assert.ok(note < ticket && ticket < step1, 'note, then ticket, then the asks');
-        assert.ok(!dec.html.includes('Please send us your presentation slides'), 'no slides section');
-        assert.ok(!dec.html.includes('#step3'), 'and no link to a step that is not on her page');
-        assert.ok(dec.html.includes(hub(DEC) + '#step1') && dec.html.includes(hub(DEC) + '#step2'), 'the other two asks are hers');
-        assert.ok(/three short things/.test(dec.html) && !/four short things/.test(dec.html), 'she is asked for three, like any guest');
+        const note = dec.html.indexOf('Your seat on Monday is confirmed');
+        const asks = dec.html.indexOf('we would ask you for the following');
+        assert.ok(note < asks, 'the seat note comes before the asks');
+        assert.ok(!dec.html.includes('Send us your presentation slides'), 'no slides ask');
+        assert.ok(!/summary · slides/.test(dec.html), 'and the button does not mention slides');
+        assert.ok(dec.html.includes(hub(DEC)), 'the button opens her page');
 
         // and the other two shapes are untouched by any of this
-        assert.ok(pres.html.includes('Please send us your presentation slides'), 'the presenter still presents');
+        assert.ok(pres.html.includes('Send us your presentation slides'), 'the presenter still presents');
         assert.ok(!pres.html.includes('About your presentation'), 'and is never shown the note');
         assert.ok(!att.html.includes('About your presentation'), 'nor is a plain attendee');
         assert.ok(att.html.indexOf('Your ticket for the door') > att.html.indexOf('Please read the attached program'),
@@ -689,7 +685,7 @@ async function t(name, fn) {
     await t('one shape can still be previewed alone, and an invented one is refused', async () => {
         const one = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant: 'declined' } });
         assert.deepStrictEqual(one.body.variants, ['declined']);
-        assert.ok(sentEmails[sentEmails.length - 1].html.includes('About your presentation'));
+        assert.ok(/Your seat on Monday is confirmed/.test(sentEmails[sentEmails.length - 1].html));
         const bad = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant: 'everyone' } });
         assert.strictEqual(bad.statusCode, 400, 'an invented variant is refused');
     });
