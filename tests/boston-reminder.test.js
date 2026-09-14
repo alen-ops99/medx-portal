@@ -475,7 +475,7 @@ async function t(name, fn) {
         assert.ok(html.includes('Upload my one-slide summary'), 'and the button says what it sends');
         assert.ok(html.includes('who you are, what you do, and what you are looking for in a collaborator'),
             "the PDF's own words for what goes on the slide");
-        assert.ok(html.includes('PDF or PowerPoint, up to 10&nbsp;MB'), 'the format it accepts');
+        assert.ok(html.includes('PDF or PowerPoint, one slide, up to 10&nbsp;MB'), 'the format it accepts');
         assert.ok(html.includes(DEADLINE), 'the same deadline as the slides');
         assert.ok(/Shared with all participants after the event if you tick the box/.test(html),
             "the sharing promise, in the owner's conditional");
