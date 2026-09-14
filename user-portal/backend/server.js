@@ -85,11 +85,22 @@ async function sendEmail(to, subject, htmlContent, attachments, cc, replyTo) {
             const fromMatch = /<([^>]+)>/.exec(fromAddress);
             const bvFromEmail = (fromMatch && fromMatch[1]) || 'noreply@medx.hr';
             const bvFromName = fromAddress.replace(/<[^>]*>/, '').trim() || 'Med&X';
+            // Always ship a text/plain alternative next to the HTML: without it Gmail (and some
+            // corporate clients) can show an HTML-only message that carries an attachment as
+            // "no content, just the attachment". Derived from the HTML — links kept as URLs.
+            const textContent = String(htmlContent || '')
+                .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+                .replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (m, href, label) => `${label.replace(/<[^>]+>/g, '').trim()} (${href})`)
+                .replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|tr|h\d|li)>/gi, '\n')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&mdash;/g, '—').replace(/&ndash;/g, '–').replace(/&middot;/g, '·').replace(/&rsquo;/g, '’').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&deg;/g, '°').replace(/&rarr;/g, '→').replace(/&#10003;/g, '✓')
+                .replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
             const bvBody = {
                 sender: { email: bvFromEmail, name: bvFromName },
                 to: [{ email: to }],
                 subject,
-                htmlContent
+                htmlContent,
+                textContent
             };
             if (ccList && ccList.length) bvBody.cc = ccList.map(e => ({ email: e }));
             if (replyAddr) bvBody.replyTo = { email: replyAddr };
