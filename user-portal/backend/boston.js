@@ -173,6 +173,14 @@ const REMINDER_MARK = 'REMINDER-SENT';
 // of a row reads in one column and nothing new has to be migrated into the schema.
 const CANCELLED_MARK = 'CANCELLED-BY-GUEST';
 const RESTORED_MARK = 'RESTORED-BY-TEAM';
+// Upload receipts + the Finish button (Alen 2026-09-15). One receipt per KIND per guest, ever —
+// the first deck (file or link) and the first summary each get a short "it's in" email; every
+// replacement after that is silent. ME-FINISHED is the guest's own "I'm done" click, and the
+// single recap email it triggers is likewise once-only.
+const RECEIPT_SLIDES_MARK = 'RECEIPT-SLIDES-SENT';
+const RECEIPT_SUMMARY_MARK = 'RECEIPT-SUMMARY-SENT';
+const FINISHED_MARK = 'ME-FINISHED';
+const hasMark = (r, mark) => new RegExp(mark).test(String((r && r.notes) || ''));
 // The one sentence every released-seat surface says — page notice and API refusal alike, so a
 // guest who taps an old link and a guest who forces the form behind it read the same thing.
 const RELEASED_LINE = when => `Your seat was released${when ? ' on ' + when : ''} — write to Laura if plans change.`;
@@ -1288,6 +1296,7 @@ module.exports = function mountBoston(app, deps) {
             if (!reg) return res.status(404).json({ error: 'This upload link is not valid. Please use the exact link you were sent.' });
             if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
             const out = await storeSlides(reg, req.file);
+            if (out.status === 200) await sendUploadReceipt(reg.id, 'slides', { filename: out.body.filename });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] presentation upload failed:', e.message);
@@ -1378,6 +1387,7 @@ module.exports = function mountBoston(app, deps) {
             if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
             if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
             const out = await storeSummary(reg, req.file, req.body);
+            if (out.status === 200) await sendUploadReceipt(reg.id, 'summary', { filename: out.body.filename });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] one-slide summary upload failed:', e.message);
@@ -1542,8 +1552,100 @@ module.exports = function mountBoston(app, deps) {
             // Only the required step gates this: a presenter is finished once the slides are in;
             // an attendee has nothing required and is finished from the start. The optional
             // steps stay open below regardless.
-            allDone: !presenter || step3
+            allDone: !presenter || step3,
+            // The guest's own "I'm done" click (the Finish button) — separate from allDone,
+            // which is our arithmetic; this one is their word.
+            finished: hasMark(reg, FINISHED_MARK)
         };
+    }
+
+    // ------------------------------------------------------------ upload receipts + the finish recap
+    // Light cream Boston shell (the dark shell is Zagreb's). Stamp AFTER a successful send, from a
+    // FRESH row read, so a replacement never re-emails and a failed provider never eats the receipt.
+    function stampNote(regId, mark) {
+        const fresh = query.get('SELECT notes FROM bridges_registrations WHERE id = ?', [regId]);
+        const notes = String((fresh && fresh.notes) || '');
+        if (new RegExp(mark).test(notes)) return;
+        query.run('UPDATE bridges_registrations SET notes = ? WHERE id = ?',
+            [(notes ? notes + ' | ' : '') + mark + ' ' + new Date().toISOString().slice(0, 10), regId]);
+        flushDb();
+    }
+    const receiptShell = (title, preheader, bodyHtml) => emailTemplates.shell({
+        title, preheader, headerRightLabel: 'BUILDING BRIDGES · BOSTON', rule: 'crimson', bodyHtml
+    });
+    const receiptBody = (reg, headline, paragraphsHtml) => {
+        const T = emailTemplates.T;
+        const me = `${baseUrl()}/boston/me/${meToken(reg.id)}`;
+        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:30px 40px 28px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">Building Bridges in Biomedicine &middot; Boston</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:24px;line-height:1.22;color:${T.ink};margin-top:8px;">${headline}</div>
+      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.ink};margin-top:14px;">
+        <p style="margin:0 0 10px;">Dear ${esc(reg.first_name || 'there')},</p>
+        ${paragraphsHtml}
+      </div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 0 0;">${emailTemplates.btn('Open my personal page', me, 'solid', 'padding:14px 34px;font-size:12px;letter-spacing:.14em;')}</td></tr></table>
+      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.ink};margin-top:18px;text-align:center;">See you on ${esc(DATE_LONG.replace(' 2026', ''))}! <span style="font-size:17px;vertical-align:-2px;">🇭🇷 🇺🇸</span></div>
+      <div style="margin-top:18px;padding-top:12px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:12px;line-height:1.7;color:${T.soft};">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
+    </td></tr></table>`;
+    };
+
+    /** The first deck (file or link) / the first summary → one short "it's in" receipt, ever. */
+    async function sendUploadReceipt(regId, kind, info) {
+        try {
+            const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [regId, EVENT_ID]);
+            if (!reg || isReleasedRow(reg)) return;
+            const mark = kind === 'slides' ? RECEIPT_SLIDES_MARK : RECEIPT_SUMMARY_MARK;
+            if (hasMark(reg, mark)) return;                       // replacements are silent
+            const T = emailTemplates.T;
+            const got = info && info.link
+                ? `your shared link &mdash; <a href="${esc(info.link)}" style="color:${T.crimson};word-break:break-all;">${esc(info.link)}</a>`
+                : `<b>${esc((info && info.filename) || 'your file')}</b>`;
+            const html = kind === 'slides'
+                ? receiptShell('Your slides are in — Building Bridges Boston',
+                    'Your presentation slides are with us — nothing to bring on the evening.',
+                    receiptBody(reg, 'Your slides are in',
+                        `<p style="margin:0 0 10px;">Thank you &mdash; we received your presentation slides: ${got}.</p>
+                         <p style="margin:0;">We preload every deck on one laptop, so there is nothing to bring on the evening. Need to change something? The button below opens your personal page &mdash; replacing the file there updates what we play.</p>`))
+                : receiptShell('Your one-slide summary is in — Building Bridges Boston',
+                    'Your one-slide summary is with us — it reaches every participant after the event.',
+                    receiptBody(reg, 'Your one-slide summary is in',
+                        `<p style="margin:0 0 10px;">Thank you &mdash; we received your one-slide summary: ${got}.</p>
+                         <p style="margin:0;">After the event we compile every summary into one document and share it with all participants, so your work reaches everyone in the room. You can replace it any time from your personal page below.</p>`));
+            const sent = await sendEmail(reg.email,
+                kind === 'slides' ? 'Your slides are in — Building Bridges Boston' : 'Your one-slide summary is in — Building Bridges Boston',
+                html);
+            if (sent && sent.success !== false && !sent.mock) stampNote(reg.id, mark);
+        } catch (e) { console.warn('[Boston] upload receipt failed (non-blocking):', e.message); }
+    }
+
+    /** The single "you're all set" recap the Finish button triggers — once, ever. */
+    function finishEmailHtml(reg, st) {
+        const T = emailTemplates.T;
+        const id = String(reg.id);
+        const fullName = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || 'Med&X Guest';
+        const row = (label, value) => `<tr>
+          <td style="padding:7px 12px 7px 0;font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:${T.goldDark};white-space:nowrap;vertical-align:baseline;">${label}</td>
+          <td style="padding:7px 0;font-family:${T.sans};font-size:13px;line-height:1.5;color:${T.ink};">${value}</td></tr>`;
+        const cat = st.cat;
+        const recap = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td style="padding:8px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            ${row('Dietary', cat.prefLabel ? esc(cat.prefLabel) : 'no preference given')}
+            ${row('Allergies', cat.allergyState === 'yes' ? esc(cat.allergyText) : cat.allergyState === 'none' ? 'none' : 'not told')}
+            ${row('One-slide summary', st.summary ? '&#10003; ' + esc(st.summary.original_name) : 'not sent (optional)')}
+            ${st.presenter ? row('Presentation slides', st.slides ? '&#10003; ' + esc(st.slides.original_name) : '&mdash;') : ''}
+          </table>
+        </td></tr></table>`;
+        const ticket = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td align="center" style="padding:16px 18px;">
+          <a href="${esc(baseUrl() + '/api/boston/qr/' + id + '.png')}" style="display:inline-block;text-decoration:none;background:#fff;padding:8px;border:1px solid ${T.hairline};"><img src="${esc(baseUrl() + '/api/boston/qr/' + id + '.png')}" alt="Your entry QR code" width="120" height="120" style="display:block;width:120px;height:120px;border:0;"></a>
+          <div style="font-family:${T.sans};font-size:12px;color:${T.soft};margin-top:8px;">${esc(fullName)} &middot; N&deg; ${esc(ticketNo(id))} &middot; show this at the door</div>
+        </td></tr></table>`;
+        return receiptShell("You're all set — Building Bridges Boston",
+            'Everything is in — here is what we have, and your ticket for the door.',
+            receiptBody(reg, 'You&rsquo;re all set',
+                `<p style="margin:0 0 10px;">Thank you &mdash; everything we need from you is in. Here is what we have on file:</p>
+                 ${recap}
+                 ${ticket}
+                 <p style="margin:14px 0 0;">You can come back to your personal page any time to change anything &mdash; the same link keeps working.</p>`));
     }
 
     /** The row behind a hub token, or null — one lookup for the page and all three APIs. */
@@ -1603,6 +1705,7 @@ module.exports = function mountBoston(app, deps) {
             if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
             if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
             const out = await storeSummary(reg, req.file, req.body);
+            if (out.status === 200) await sendUploadReceipt(reg.id, 'summary', { filename: out.body.filename });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] hub summary upload failed:', e.message);
@@ -1628,6 +1731,7 @@ module.exports = function mountBoston(app, deps) {
                 });
             }
             const out = await storeSlides(reg, req.file);
+            if (out.status === 200) await sendUploadReceipt(reg.id, 'slides', { filename: out.body.filename });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] hub slides upload failed:', e.message);
@@ -1638,7 +1742,7 @@ module.exports = function mountBoston(app, deps) {
     // ------------------------------------------------------------ POST /api/boston/me/:token/slides-link
     // Step 3, the other way in: a deck over 25 MB, shared from Drive / Dropbox. Presenters only,
     // exactly like the upload — and it needs no S3, so it works even before storage is configured.
-    app.post('/api/boston/me/:token/slides-link', (req, res) => {
+    app.post('/api/boston/me/:token/slides-link', async (req, res) => {
         try {
             const reg = meRegOf(req.params.token);
             if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
@@ -1651,9 +1755,41 @@ module.exports = function mountBoston(app, deps) {
                 });
             }
             const out = storeSlidesLink(reg, (req.body || {}).url);
+            if (out.status === 200) await sendUploadReceipt(reg.id, 'slides', { link: out.body.external_url });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] hub slides link failed:', e.message);
+            res.status(500).json({ error: 'We could not save that just now. Please try again.' });
+        }
+    });
+
+    // ------------------------------------------------------------ POST /api/boston/me/:token/finish
+    // The guest's own full stop. A confirmed presenter without a deck (file or link) is turned
+    // back to step 3 instead of finishing; everyone else is stamped ME-FINISHED and gets ONE
+    // recap email — diet, summary, slides, the ticket QR — ever. A second click re-emails nothing.
+    app.post('/api/boston/me/:token/finish', async (req, res) => {
+        try {
+            const reg = meRegOf(req.params.token);
+            if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
+            const st = meStateOf(reg);
+            if (st.presenter && !st.step3) {
+                return res.status(409).json({
+                    incomplete: 'slides',
+                    error: 'One thing left — your presentation slides. Upload them (or paste a share link) in step 3 and you are done.'
+                });
+            }
+            const already = hasMark(reg, FINISHED_MARK);
+            if (!already) {
+                stampNote(reg.id, FINISHED_MARK);
+                try {
+                    const sent = await sendEmail(reg.email, "You're all set — Building Bridges Boston", finishEmailHtml(reg, st));
+                    if (!sent || sent.success === false) console.warn('[Boston] finish recap email not delivered for', reg.id);
+                } catch (e) { console.warn('[Boston] finish recap email failed (non-blocking):', e.message); }
+            }
+            res.json({ success: true, finished: true, already });
+        } catch (e) {
+            console.error('[Boston] finish failed:', e.message);
             res.status(500).json({ error: 'We could not save that just now. Please try again.' });
         }
     });
@@ -2336,7 +2472,11 @@ module.exports = function mountBoston(app, deps) {
             const presenter = isPresenterRow(r);
             const onePager = latestOnepager(r.id);
             if (onePager) onepagers++;
+            const deck = presenter ? latestPresentation(r.id) : null;   // a share link counts (isLinkRow)
             return {
+                slides: !!deck,
+                slides_link: isLinkRow(deck),
+                finished: hasMark(r, FINISHED_MARK),
                 registration_id: r.id,
                 name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
                 first_name: r.first_name || '',
@@ -2394,6 +2534,12 @@ module.exports = function mountBoston(app, deps) {
             onepagers_private: rows.filter(r => r.onepager_share_ok === false).length,
             reminders_sent: remindersSent,
             reminders_pending: rows.length - remindersSent,
+            // The completion strip (Alen 2026-09-15): slides are counted against CONFIRMED-or-
+            // undecided presenters (the people a deck is actually expected from), links included;
+            // 'finished' is the guest's own Finish click. Cancelled seats ride as released_count.
+            slides_in: rows.filter(r => r.presenter && r.slides).length,
+            slides_expected: rows.filter(r => r.presenter).length,
+            finished_count: rows.filter(r => r.finished).length,
             rows
         };
     }
@@ -3376,6 +3522,20 @@ main{max-width:640px;}
     <p class="evline">${esc(DATE_LONG)} &middot; 6:00&ndash;9:00 PM (doors 5:30 PM)<br>${esc(VENUE_FULL)} &middot; ${esc(DRESS)}</p>
   </section>
 
+  <section class="sheet" id="finishcard" style="text-align:center;" aria-label="Finish">
+    <div id="finish_pending"${st.finished ? ' hidden' : ''}>
+      <p class="slabel" style="margin-bottom:8px;">One last thing</p>
+      <p class="sbody" style="margin-top:0;">Done here? Tell us with one tap &mdash; it helps us keep count for the evening.</p>
+      <button type="button" class="go" id="finish_go" style="max-width:340px;margin:16px auto 0;">Finish &mdash; I&rsquo;m all set</button>
+      <p class="err" id="finish_err" style="text-align:left;"></p>
+    </div>
+    <div id="finish_done"${st.finished ? '' : ' hidden'}>
+      <p style="font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:clamp(22px,5.4vw,28px);line-height:1.16;letter-spacing:-.3px;color:#241d18;">All set &mdash; see you on Monday, 21 September.</p>
+      <p class="sbody" style="margin-top:10px;">You can come back to this page any time to change anything &mdash; the same link keeps working. Your ticket above gets you in the door.</p>
+    </div>
+    <p class="thint" style="margin-top:16px;">Having issues? Please contact us &mdash; <a href="mailto:${SUPPORT_EMAIL}" style="color:var(--crimson);font-weight:600;text-decoration:none;">${SUPPORT_EMAIL}</a></p>
+  </section>
+
   <p class="bail">Unable to attend? <a href="/boston/rsvp/${encodeURIComponent(tok.diet)}/${CANNOT_ATTEND}">Cancel your participation</a> &mdash; your seat goes to someone on the waiting list.</p>
 </main>
 
@@ -3548,6 +3708,26 @@ ${FOOTER_HTML}
   }
   if(linkSave){linkSave.addEventListener('click',saveLink);
     linkIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();saveLink();}});}
+
+  /* ---- the Finish button: their word that they're done ---- */
+  var fgo=$('finish_go'),ferr=$('finish_err');
+  if(fgo)fgo.addEventListener('click',function(){
+    hide(ferr);fgo.disabled=true;var t=fgo.textContent;fgo.textContent='One moment…';
+    post(ME+'/finish',{}).then(function(res){
+      fgo.disabled=false;fgo.textContent=t;
+      if(res.ok&&res.j.success){
+        $('finish_pending').setAttribute('hidden','');
+        $('finish_done').removeAttribute('hidden');
+        prog.classList.add('allset');prog.innerHTML='All set — see you on Monday.';
+      }else if(res.j&&res.j.incomplete==='slides'){
+        var s3c=$('step3');
+        if(s3c){s3c.scrollIntoView({behavior:'smooth',block:'start'});
+          s3c.style.outline='2px solid #b0893b';s3c.style.outlineOffset='3px';
+          setTimeout(function(){s3c.style.outline='';s3c.style.outlineOffset='';},3500);}
+        show(ferr,res.j.error||'One thing left — your slides.');
+      }else show(ferr,res.j.error||'We could not save that. Please try again.');
+    },function(){fgo.disabled=false;fgo.textContent=t;show(ferr,'We could not reach the server. Please try again.');});
+  });
 
   /* An email button lands on #step1/#step2/#step3 — bring it into view under the header. */
   if(window.location.hash){var t=$(window.location.hash.slice(1));

@@ -609,6 +609,125 @@ async function t(name, fn) {
         for (const a of ['step1', 'step2', 'step3']) assert.ok(html.includes(`id="${a}"`), 'the email links to #' + a + ', so it must exist');
     });
 
+    // ================================================================ receipts + the Finish button
+    const finish = token => call(app, 'POST', '/api/boston/me/:token/finish', { params: { token }, body: {} });
+    const mailsTo = to => sentEmails.filter(m => m.to === to);
+    const SLIDES_RECEIPT = 'Your slides are in — Building Bridges Boston';
+    const SUMMARY_RECEIPT = 'Your one-slide summary is in — Building Bridges Boston';
+    const RECAP = "You're all set — Building Bridges Boston";
+
+    await t('the FIRST summary and the FIRST deck each earn one receipt; replacements are silent', async () => {
+        seed('12121212-1212-4121-8121-121212121212', 'Rita', 'Prva', 'rita@example.com', '5-minute presentation requested');
+        const RITA = '12121212-1212-4121-8121-121212121212';
+        await putSummary(meToken(RITA), { originalname: 'rita-slide.pdf', buffer: pdfBuf() });
+        let mine = mailsTo('rita@example.com');
+        assert.strictEqual(mine.length, 1, 'one receipt for the first summary');
+        assert.strictEqual(mine[0].subject, SUMMARY_RECEIPT);
+        assert.ok(mine[0].html.includes('rita-slide.pdf'), 'names the file');
+        assert.ok(mine[0].html.includes(`/boston/me/${meToken(RITA)}`), 'carries her personal-page link');
+        assert.ok(!/tone.*dark|#342718/.test(mine[0].html), 'light Boston shell, not the Zagreb dark one');
+        assert.ok(/RECEIPT-SUMMARY-SENT \d{4}-\d{2}-\d{2}/.test(String(rowOf(RITA).notes)), 'marker stamped');
+
+        await putSummary(meToken(RITA), { originalname: 'rita-v2.pdf', buffer: pdfBuf() });
+        assert.strictEqual(mailsTo('rita@example.com').length, 1, 'a replacement re-emails nothing');
+
+        await putSlides(meToken(RITA), { originalname: 'rita-talk.pptx', buffer: zipBuf() });
+        mine = mailsTo('rita@example.com');
+        assert.strictEqual(mine.length, 2, 'and one receipt for the first deck');
+        assert.strictEqual(mine[1].subject, SLIDES_RECEIPT);
+        assert.ok(mine[1].html.includes('rita-talk.pptx'));
+        assert.ok(/nothing to bring/.test(mine[1].html), 'says we preload it');
+        await putSlides(meToken(RITA), { originalname: 'rita-talk-final.pptx', buffer: zipBuf() });
+        assert.strictEqual(mailsTo('rita@example.com').length, 2, 'deck replacement re-emails nothing');
+    });
+
+    await t('a pasted share link counts as the deck — receipt carries the link, replacement silent', async () => {
+        seed('13131313-1313-4131-8131-131313131313', 'Marko', 'Link', 'marko@example.com', '5-minute presentation requested');
+        const MARKO = '13131313-1313-4131-8131-131313131313';
+        const url = 'https://www.dropbox.com/s/abc123/deck.pptx?dl=0';
+        await call(app, 'POST', '/api/boston/me/:token/slides-link', { params: { token: meToken(MARKO) }, body: { url } });
+        const mine = mailsTo('marko@example.com');
+        assert.strictEqual(mine.length, 1);
+        assert.strictEqual(mine[0].subject, SLIDES_RECEIPT);
+        assert.ok(mine[0].html.includes(url.replace(/&/g, '&amp;')), 'the receipt shows the link');
+        await putSlides(meToken(MARKO), { originalname: 'marko.pdf', buffer: pdfBuf() });
+        assert.strictEqual(mailsTo('marko@example.com').length, 1, 'the file after the link is a replacement — silent');
+    });
+
+    await t('diet answers alone never email anyone', async () => {
+        seed('14141414-1414-4141-8141-141414141414', 'Tiha', 'Dijeta', 'tiha@example.com', null);
+        const TIHA = '14141414-1414-4141-8141-141414141414';
+        await setDiet(meToken(TIHA), { pref: 'vegan' });
+        await saveAllergies(TIHA, 'none');
+        assert.strictEqual(mailsTo('tiha@example.com').length, 0);
+    });
+
+    await t('Finish: an attendee finishes at once — marker, ONE recap email, idempotent', async () => {
+        const TIHA = '14141414-1414-4141-8141-141414141414';
+        const r = await finish(meToken(TIHA));
+        assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+        assert.deepStrictEqual([r.body.success, r.body.finished, r.body.already], [true, true, false]);
+        assert.ok(/ME-FINISHED \d{4}-\d{2}-\d{2}/.test(String(rowOf(TIHA).notes)), 'the marker with its date');
+        const mine = mailsTo('tiha@example.com');
+        assert.strictEqual(mine.length, 1, 'exactly one recap');
+        assert.strictEqual(mine[0].subject, RECAP);
+        assert.ok(mine[0].html.includes('Vegan'), 'recaps her dietary answer');
+        assert.ok(mine[0].html.includes('not sent (optional)'), 'says the summary is optional and absent');
+        assert.ok(mine[0].html.includes(`/api/boston/qr/${TIHA}.png`), 'the ticket QR');
+        assert.ok(mine[0].html.includes('BB-BOS-' + TIHA.slice(0, 8).toUpperCase()), 'and the ticket number');
+        assert.ok(mine[0].html.includes('come back to your personal page any time'), 'the way back');
+        const again = await finish(meToken(TIHA));
+        assert.strictEqual(again.body.already, true, 'a second click is acknowledged');
+        assert.strictEqual(mailsTo('tiha@example.com').length, 1, 'and re-emails nothing');
+    });
+
+    await t('Finish: a presenter without a deck is turned back to step 3, unstamped', async () => {
+        seed('15151515-1515-4151-8151-151515151515', 'Petar', 'Bez', 'petar@example.com', '5-minute presentation requested');
+        const PETAR = '15151515-1515-4151-8151-151515151515';
+        const r = await finish(meToken(PETAR));
+        assert.strictEqual(r.statusCode, 409);
+        assert.strictEqual(r.body.incomplete, 'slides');
+        assert.ok(/One thing left/.test(String(r.body.error)));
+        assert.ok(!/ME-FINISHED/.test(String(rowOf(PETAR).notes)), 'not stamped');
+        assert.strictEqual(mailsTo('petar@example.com').length, 0, 'and no recap');
+        // a share link satisfies the requirement, exactly like an upload
+        await call(app, 'POST', '/api/boston/me/:token/slides-link', { params: { token: meToken(PETAR) }, body: { url: 'https://drive.google.com/file/d/xyz/view' } });
+        const ok = await finish(meToken(PETAR));
+        assert.strictEqual(ok.statusCode, 200);
+        const recaps = mailsTo('petar@example.com').filter(m => m.subject === RECAP);
+        assert.strictEqual(recaps.length, 1);
+        assert.ok(/Presentation slides/.test(recaps[0].html), 'the recap lists the slides row for a presenter');
+    });
+
+    await t('the page carries the Finish card, the completion state, and the help line', async () => {
+        const PETAR = '15151515-1515-4151-8151-151515151515';
+        const fresh = String((await page(ANA)).body);
+        assert.ok(fresh.includes('id="finish_go"') && /Finish (—|&mdash;) I(’|&rsquo;)m all set/.test(fresh), 'the button');
+        assert.ok(/Having issues\? Please contact us/.test(fresh) && fresh.includes('mailto:laura.rodman@medx.hr'), 'the help line');
+        const done = String((await page(PETAR)).body);
+        assert.ok(/<div id="finish_pending" hidden>/.test(done), 'a finished guest sees no button');
+        assert.ok(/All set (—|&mdash;) see you on Monday, 21 September\./.test(done), 'the completion state');
+        assert.ok(done.includes('come back to this page any time'), 'and the way back');
+    });
+
+    await t('cateringData counts the strip: slides in X/Y presenters (links count), finished, released', async () => {
+        const d = (await call(app, 'GET', '/api/boston/catering', { query: { key: ADMIN_KEY } })).body;
+        assert.ok(d.slides_expected >= 2, 'presenters expected');
+        assert.ok(d.slides_in >= 2, 'decks + links counted');
+        assert.ok(d.finished_count >= 2, 'Tiha and Petar finished');
+        assert.strictEqual(typeof d.released_count, 'number');
+        const marko = d.rows.find(r => r.registration_id === '13131313-1313-4131-8131-131313131313');
+        assert.strictEqual(marko.slides, true, 'slides-in');
+        assert.strictEqual(marko.slides_link, false, 'his FILE replaced the link — newest wins');
+        const petar = d.rows.find(r => r.registration_id === '15151515-1515-4151-8151-151515151515');
+        assert.strictEqual(petar.slides, true, 'a link row reads as slides-in');
+        assert.strictEqual(petar.slides_link, true, 'and is marked as a link');
+        const tiha = d.rows.find(r => r.registration_id === '14141414-1414-4141-8141-141414141414');
+        assert.strictEqual(tiha.finished, true);
+        const ana = d.rows.find(r => r.registration_id === ANA);
+        assert.strictEqual(ana.finished, false);
+    });
+
     // ================================================================ who actually presents
     // ~30 people ticked "5-minute presentation" and the evening holds far fewer, so the owner picks.
     // Three states, and the one that matters most is NULL: until he decides, nothing may change.
@@ -768,10 +887,15 @@ async function t(name, fn) {
     });
 
     // ================================================================ the guard rails
-    await t('no email left the stub for a guest, and no network was touched', () => {
+    await t('guests hear only receipts and the finish recap, and no network was touched', () => {
+        const GUEST_OK = [
+            'Your slides are in — Building Bridges Boston',
+            'Your one-slide summary is in — Building Bridges Boston',
+            "You're all set — Building Bridges Boston"
+        ];
         for (const m of sentEmails) {
-            assert.ok(/juginovic\.alen@gmail\.com|laura\.rodman@medx\.hr/.test(String(m.to)),
-                'an email escaped to a guest: ' + m.to);
+            if (/juginovic\.alen@gmail\.com|laura\.rodman@medx\.hr/.test(String(m.to))) continue;
+            assert.ok(GUEST_OK.includes(m.subject), 'an unexpected email escaped to a guest: ' + m.to + ' — ' + m.subject);
         }
         assert.ok(s3Puts.length > 0, 'the S3 stub did the storing');
         assert.throws(() => global.fetch(), /NETWORK DISABLED/, 'the network is still off');

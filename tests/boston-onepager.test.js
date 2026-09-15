@@ -541,8 +541,16 @@ async function t(name, fn) {
     });
 
     // ================================================================ nothing leaked
-    await t('no email was sent by any of this, and the Google sheet was never touched', () => {
-        assert.strictEqual(sentEmails.length, 0, 'the summary lane sends nothing by itself');
+    await t('the only emails are first-upload receipts, and the Google sheet was never touched', () => {
+        // Since 2026-09-15 the FIRST summary a guest sends earns one short receipt; replacements
+        // stay silent. So every email out of this suite must be that receipt — nothing else.
+        for (const m of sentEmails) {
+            assert.strictEqual(m.subject, 'Your one-slide summary is in — Building Bridges Boston',
+                'unexpected email: ' + m.subject + ' -> ' + m.to);
+        }
+        const perGuest = {};
+        for (const m of sentEmails) perGuest[m.to] = (perGuest[m.to] || 0) + 1;
+        for (const [to, n] of Object.entries(perGuest)) assert.strictEqual(n, 1, to + ' got ' + n + ' receipts — replacements must be silent');
         const src = require('node:fs').readFileSync(require.resolve('../user-portal/backend/boston.js'), 'utf8');
         const feature = src.slice(src.indexOf('ONE-SLIDE SUMMARIES (every guest)'), src.indexOf('team data (page + JSON share it)'));
         assert.ok(feature.length > 2000, 'found the feature block');

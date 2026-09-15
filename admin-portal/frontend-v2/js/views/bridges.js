@@ -130,6 +130,13 @@ export const COPY = {
     stripReg: n => `registered ${n}`,
     strip: (a, t, al, na) => `${a} of ${t} answered · ${al} with allergies · ${na} still to answer`,
     stripOp: (n, t, priv) => `one-slide summaries received ${n}/${t}` + (priv ? ` · ${priv} private` : ''),
+    // The completion strip: the four facts the team checks daily, one glance. Slides count
+    // against the presenters a deck is expected from, links included; "finished" is the guest's
+    // own Finish click on their personal page; cancelled = seats given back.
+    stripSlides: (x, y) => `slides in ${x}/${y} presenters`,
+    stripFinished: n => `finished ${n}`,
+    stripCancelled: n => `cancelled ${n}`,
+    cDone: 'SLIDES · DONE', deckLink: 'LINK', finishedMark: 'FINISHED ✓',
     // released seats — collapsed, because on a good week the section is empty and silent
     relTitle: n => `RELEASED SEATS (${n})`, relOpen: 'SHOW', relClose: 'HIDE',
     relWhen: d => d ? `released ${d}` : 'released',
@@ -559,6 +566,9 @@ function sectionCatering(btn, cell, head) {
           <span><b style="color:#201b16">${esc(c.stripReg(C.total || 0))}</b></span>
           <span><b style="color:#201b16">${esc(c.strip(C.answered || 0, C.total || 0, C.with_allergies || 0, C.not_answered || 0))}</b></span>
           <span><b style="color:#201b16">${esc(c.stripOp(opGot, C.total || 0, opPriv))}</b></span>
+          <span><b style="color:${(C.slides_in || 0) >= (C.slides_expected || 0) ? '#1e6e42' : '#201b16'}">${esc(c.stripSlides(C.slides_in || 0, C.slides_expected || 0))}</b></span>
+          <span><b style="color:#201b16">${esc(c.stripFinished(C.finished_count || 0))}</b></span>
+          ${C.released_count ? `<span style="color:#9b1b22"><b style="color:#9b1b22">${esc(c.stripCancelled(C.released_count))}</b></span>` : ''}
           ${prefLine ? `<span>${prefLine}</span>` : ''}
         </div>` : ''}
         ${sectionReleased(btn)}
@@ -567,7 +577,7 @@ function sectionCatering(btn, cell, head) {
         ${C && rows.length ? `
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px">
-            <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPref}</th><th style="${head}">${c.cAllergy}</th><th style="${head}">${c.cOnePager}</th><th style="${head}">${c.cAnswered}</th><th style="${head}">${c.cRem}</th><th style="${head}"></th></tr></thead>
+            <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPref}</th><th style="${head}">${c.cAllergy}</th><th style="${head}">${c.cOnePager}</th><th style="${head}">${c.cAnswered}</th><th style="${head}">${c.cDone}</th><th style="${head}">${c.cRem}</th><th style="${head}"></th></tr></thead>
             <tbody>
             ${rows.map(r => {
               const busy = st.bpReminding === r.registration_id;
@@ -592,6 +602,9 @@ function sectionCatering(btn, cell, head) {
                 <td style="${cell};color:${r.allergy_state === 'yes' ? '#9b1b22' : r.allergy_state === 'none' ? '#6d6459' : '#9a9086'}">${allergy}</td>
                 <td style="${cell}">${opMark}${r.onepager_headline ? `<span style="display:block;font-size:11px;color:#6d6459;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.onepager_headline)}">${esc(r.onepager_headline)}</span>` : ''}</td>
                 <td style="${cell};white-space:nowrap;color:${r.answered ? '#1e6e42' : '#b7791f'}">${r.answered ? '✓' + (r.answered_at ? ' ' + esc(String(r.answered_at).slice(0, 10)) : '') : '—'}</td>
+                <td style="${cell};white-space:nowrap">${r.presenter
+                  ? (r.slides ? `<span style="color:#1e6e42">✓ ${r.slides_link ? c.deckLink : 'DECK'}</span>` : '<span style="color:#b7791f">no deck</span>')
+                  : '<span style="color:#9a9086">–</span>'}${r.finished ? `<span style="display:block;font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#1e6e42">${c.finishedMark}</span>` : ''}</td>
                 <td style="${cell};white-space:nowrap;color:${r.reminder_sent ? '#6d6459' : '#b7791f'}">${r.reminder_sent ? esc(r.reminder_sent_at || '✓') : c.notSent}</td>
                 <td style="${cell};text-align:right;white-space:nowrap">${btn('bpRemindOne', busy ? c.busy : (r.reminder_sent ? c.resend : c.send), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}</td>
               </tr>`;
