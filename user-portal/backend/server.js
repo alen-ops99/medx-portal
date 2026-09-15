@@ -5823,6 +5823,14 @@ try {
 // combined ticket (see gala-paylink.js for the full account of the gap).
 const galaPayLink = require('./gala-paylink');
 
+// Apple + Google Wallet passes for every Plexus Week ticket, no login (Boston parity, Alen
+// 2026-09-15). Possession-based HMAC tokens in the emails, the same QR the doors already scan.
+// A mount failure must never take the portal down — the buttons are simply omitted.
+let plexusPass = { walletLinks: () => ({ apple: null, google: null }), walletStackHtml: () => '', walletButtonsPageHtml: () => '' };
+try {
+    plexusPass = require('./plexus-pass')(app, { query, JWT_SECRET });
+} catch (e) { console.error('[PlexusPass] routes failed to mount:', e.message); }
+
 // Once the production demo purge has run (app_state marker), the demo seed blocks must never
 // re-arm — an emptied table would otherwise re-seed on the next boot, and the admin/user seed
 // variants have drifted apart (the admin pr_posts INSERT crashes against the user-created
@@ -20741,7 +20749,9 @@ By applying to this program, I provide the following consents:
                                     ['Amount paid', `€${Number(amount).toFixed(2)}`],
                                     ['Invoice', String(galaInvoice || '—')],
                                     ['Ticket', String(ticketLabel || 'Gala Evening')]
-                                ]
+                                ],
+                                // The pass IS the ticket for a standalone seat: same QR the door scans.
+                                footNote: plexusPass.walletStackHtml(plexusPass.walletLinks('gala', galaRegId))
                             }));
                     } catch (emailErr) {
                         console.warn('Gala payment confirmation email failed:', emailErr.message);
@@ -21087,7 +21097,8 @@ By applying to this program, I provide the following consents:
                             firstName: metadata.first_name, amount, seats: caSeats, invoiceNumber,
                             wantConf: metadata.bundle_conference === '1', wantBridges: metadata.bundle_bridges === '1',
                             source: metadata.source,
-                            qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your Plexus Week 2026 check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })
+                            qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your Plexus Week 2026 check-in QR', caption: 'Present this QR at the entrance of each event you registered for' }),
+                            walletHtml: plexusPass.walletStackHtml(plexusPass.walletLinks('gala', galaRegId))
                         }), galaQrAtts);
                         // sendEmail returns {success:false}/{mock:true} instead of throwing, so the
                         // catch alone would miss a Resend rejection. Log loudly — guest PAID but got no ticket.
@@ -21097,12 +21108,13 @@ By applying to this program, I provide the following consents:
                     } catch(emailErr) { console.error(`[Stripe][EMAIL-FAIL] PAID CA-gala guest ${caEmail} (reg ${galaRegId}) ticket email threw:`, emailErr.message); }
                     // Guests with an email get the SAME party QR (one QR admits the whole party) — 2026-08-30
                     try {
-                        const partyGuests = query.all('SELECT name, email FROM ca_registration_guests WHERE registration_id = ? AND COALESCE(email, \'\') <> \'\'', [caRegId]) || [];
+                        const partyGuests = query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ? AND COALESCE(email, \'\') <> \'\'', [caRegId]) || [];
                         for (const pg of partyGuests) {
                             const gFirst = String(pg.name || 'there').split(' ')[0];
                             const gHtml = galaPayLink.buildGuestEntryEmail({
                                 guestFirst: gFirst, registrantName: caGuestName,
-                                qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' })
+                                qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' }),
+                                walletHtml: plexusPass.walletStackHtml(plexusPass.walletLinks('guest', pg.id))
                             });
                             const gs = await sendEventConfirmation(pg.email, 'Your Gala Evening entry — Plexus Week 2026', gHtml);
                             if (!gs || gs.success !== true || gs.mock) console.error(`[Stripe][EMAIL-FAIL] gala GUEST ${pg.email} (reg ${caRegId}) did NOT receive their entry email`);
@@ -28231,6 +28243,7 @@ By applying to this program, I provide the following consents:
             <p style="margin:12px 0 0;font:600 10px Inter,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8a7d6c;">${escapeHtml(fullName)} &middot; MANUAL CODE ${escapeHtml(String(id).slice(0, 8).toUpperCase())}</p>
             <p style="margin:8px 0 0;font-size:12.5px;color:#8a7d6c;">One QR admits your whole party${seats > 1 ? ' of ' + seats : ''} &mdash; save it to your photos.</p>
             ${reg.invoice_number ? `<p style="margin:10px 0 0;font-size:12px;color:#8a7d6c;"><b style="color:#4a4139;">Invoice:</b> ${escapeHtml(reg.invoice_number)}</p>` : ''}
+            ${plexusPass.walletButtonsPageHtml(plexusPass.walletLinks('gala', id))}
         </div>` : '';
 
         return res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${pendingMeta}
@@ -28693,6 +28706,7 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
                     ${eventListHtml}
                 </table>
                 ${qrBlock}
+                ${plexusPass.walletStackHtml(plexusPass.walletLinks('ca', regId), { tone: 'light' })}
                 ${(finalConf || finalBridges) ? `<p>We will email you ${[finalConf ? 'the <strong>Conference program</strong>' : null, finalBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(finalConf && finalBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
                 <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> (${(() => { try { const g = query.get("SELECT date, venue, keynote_name FROM gala_settings WHERE id='default'") || {}; return [g.date ? fmtEventDate(g.date) : '5 December 2026', g.venue || 'Hotel Esplanade Zagreb', g.keynote_name ? g.keynote_name + ' keynote' : ''].filter(Boolean).join(', '); } catch (e) { return '5 December 2026, Hotel Esplanade Zagreb'; } })()}), simply reply to this email and we will send you the ticket link.</p>
                 <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
@@ -28741,7 +28755,9 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
             query, db, saveDb, flushDb,
             sendEmail: opts.noCc ? sendEmail : sendEventConfirmation,
             effectiveGalaPrice,
-            buildEmailTemplate, buildTicketQrBlock, qrPngAttachment
+            buildEmailTemplate, buildTicketQrBlock, qrPngAttachment,
+            // Apple + Google Wallet links for the combined ticket + guest copies (plexus-pass.js)
+            walletLinks: plexusPass.walletLinks, walletStackHtml: plexusPass.walletStackHtml
         };
     }
 

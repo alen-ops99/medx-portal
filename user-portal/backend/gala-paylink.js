@@ -574,7 +574,7 @@ function buildReservationsHtml({ wantConf, wantBridges, seats }) {
  * "Plexus Week 2026" in the subject (callers), the reservations header and the QR label.
  * Pure: the QR card html and every fact are injected, so tests assert it without a database.
  */
-function buildCombinedTicketEmail({ firstName, amount, seats, invoiceNumber, wantConf, wantBridges, qrBlockHtml, partyNoteText, source }) {
+function buildCombinedTicketEmail({ firstName, amount, seats, invoiceNumber, wantConf, wantBridges, qrBlockHtml, partyNoteText, source, walletHtml }) {
     const T = tpl.T;
     const paid = Number(amount) || 0;
     const partyHtml = partyNoteText
@@ -589,6 +589,7 @@ function buildCombinedTicketEmail({ firstName, amount, seats, invoiceNumber, wan
         ${buildReservationsHtml({ wantConf, wantBridges, seats })}
         ${invoiceNumber ? `<p style="margin:12px 0 0;font-size:12px;color:${DTK.soft};"><b style="color:${DTK.ink};">Invoice:</b> ${esc(invoiceNumber)}</p>` : ''}
         ${qrBlockHtml || ''}
+        ${walletHtml || ''}
         ${partyHtml}
         ${programNote}
         <p style="margin:18px 0 0;">We look forward to welcoming you ${source === 'plexus' ? 'to Plexus Week 2026' : 'home'} in Zagreb.</p>`;
@@ -600,10 +601,11 @@ function buildCombinedTicketEmail({ firstName, amount, seats, invoiceNumber, wan
 
 // The named guest's copy of the party QR — same shell, same facts as before (who registered
 // them, when and where, seat paid, shared QR, black tie, tables to follow).
-function buildGuestEntryEmail({ guestFirst, registrantName, qrBlockHtml }) {
+function buildGuestEntryEmail({ guestFirst, registrantName, qrBlockHtml, walletHtml }) {
     const body = `<p style="margin:0 0 10px;">Dear ${esc(guestFirst || 'there')},</p>
         <p style="margin:0;"><b class="em-ink">${esc(registrantName)}</b> has registered you as their guest for the <b class="em-ink">Plexus Gala Evening</b> &mdash; 5 December 2026 &middot; 19:00 &middot; Hotel Esplanade, Mihanovi&#263;eva 1, Zagreb. Your seat is paid for.</p>
         ${qrBlockHtml || ''}
+        ${walletHtml || ''}
         <p style="margin:16px 0 0;">Dress code: black tie. Table reservations will follow closer to the event.</p>`;
     return reviewGate.emailShell('Your Gala Evening entry', body, null, null, {
         eyebrow: 'Plexus Week 2026 &middot; Gala Evening',
@@ -676,6 +678,9 @@ async function notifyInvoiceNeeded(deps, { caId, galaRegId, amount, invoiceNumbe
 async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sessionEmail } = {}) {
     const { query, db, saveDb, flushDb, sendEmail, buildTicketQrBlock, qrPngAttachment } = deps;
     const log = deps.log || ((...a) => console.log('[GalaPayLink]', ...a));
+    // Wallet passes (plexus-pass.js) — optional deps so the module still works without them.
+    const links = (kind, id) => { try { return deps.walletLinks ? deps.walletLinks(kind, id) : null; } catch (e) { log('wallet links failed (non-blocking):', e.message); return null; } };
+    const stack = l => { try { return deps.walletStackHtml && l ? deps.walletStackHtml(l) : ''; } catch (e) { return ''; } };
     if (!galaRegId) return { handled: false };
 
     const ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE gala_registration_id = ?', [galaRegId]);
@@ -725,7 +730,7 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
     // their guests already hold a copy or need this email forwarded. Rows with an address get
     // their own copy further down; the rest are reachable only through the registrant.
     let namedGuests = [];
-    try { namedGuests = query.all('SELECT name, email FROM ca_registration_guests WHERE registration_id = ?', [ca.id]) || []; }
+    try { namedGuests = query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ?', [ca.id]) || []; }
     catch (e) { namedGuests = []; }
     const guestsWithEmail = namedGuests.filter(g => String(g.email || '').trim()).length;
     const party = partyNote(seats, guestsWithEmail);
@@ -734,7 +739,8 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
         firstName: ca.first_name, amount: paid, seats, invoiceNumber: invoiceNumber || ca.invoice_number,
         wantConf, wantBridges, source: ca.source,
         qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your Plexus Week 2026 check-in QR', caption: 'Present this QR at the entrance of each event you registered for' }),
-        partyNoteText: party
+        partyNoteText: party,
+        walletHtml: stack(links('gala', galaRegId))
     });
 
     const sent = await sendEmail(to, 'Your ticket — Plexus Week 2026', html, atts);
@@ -751,7 +757,8 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
             await sendEmail(g.email, 'Your Gala Evening entry — Plexus Week 2026', buildGuestEntryEmail({
                 guestFirst: gFirst,
                 registrantName: `${ca.first_name || ''} ${ca.last_name || ''}`.trim(),
-                qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' })
+                qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' }),
+                walletHtml: stack(g.id ? links('guest', g.id) : null)
             }));
         }
     } catch (e) { log('party guest entry emails failed (non-blocking):', e.message); }

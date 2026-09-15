@@ -41,6 +41,7 @@ global.fetch = () => { throw new Error('NETWORK DISABLED IN TESTS'); };
 
 const payLink = require('../user-portal/backend/gala-paylink.js');
 const gate = require('../user-portal/backend/review-gate.js');
+const plexusPass = require('../user-portal/backend/plexus-pass.js');
 
 // ---------------------------------------------------------------- tiny harness
 let passed = 0, failed = 0;
@@ -110,6 +111,9 @@ const deps = () => ({
     buildEmailTemplate: (title, body) => `<!DOCTYPE html><html><body data-title="${title}">${body}</body></html>`,
     buildTicketQrBlock: (regId, o = {}) => `<div class="qr" data-reg="${regId}">${o.label || ''}|${o.caption || ''}</div>`,
     qrPngAttachment: async (payload) => [{ filename: 'plexus-ticket-qr.png', content: Buffer.from('png'), type: 'image/png', _payload: payload }],
+    // Wallet passes (plexus-pass.js) — the real stack renderer, links stubbed per kind/id
+    walletLinks: (kind, id) => ({ apple: `https://medx-user-portal.onrender.com/api/plexus/pass/${kind}-${id}.pkpass`, google: `https://medx-user-portal.onrender.com/api/plexus/wallet/${kind}-${id}` }),
+    walletStackHtml: plexusPass.walletStackHtml,
     log: () => {}
 });
 
@@ -521,6 +525,10 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.ok(/(€|&euro;)300\.00/.test(msg.html), 'states the party total actually charged');
         assert.ok(msg.html.includes('2 Gala seats'), 'says how many seats were bought');
         assert.ok(msg.html.includes('CONFIRMED &amp; PAID &middot; 2 SEATS'), 'the Gala line reads as a party');
+        // Boston parity: both wallet buttons, keyed to THIS gala row, right under the QR card
+        assert.ok(msg.html.includes('ADD TO APPLE WALLET') && msg.html.includes('ADD TO GOOGLE WALLET'), 'both wallet buttons');
+        assert.ok(msg.html.includes(`/api/plexus/pass/gala-${galaId}.pkpass`) && msg.html.includes(`/api/plexus/wallet/gala-${galaId}`), 'the gala kind for this row');
+        assert.ok(msg.html.indexOf(`data-reg="${galaId}"`) < msg.html.indexOf('ADD TO APPLE WALLET'), 'under the QR');
         assert.ok(msg.html.includes('admits your whole party of 2'), 'the QR caption states the party');
         assert.ok(msg.html.includes('GALA26-0042'), 'carries the invoice number');
         assert.ok(msg.html.includes(`data-reg="${galaId}"`), 'carries the check-in QR block');
@@ -663,6 +671,8 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.ok(g.html.includes(`data-reg="${galaId}"`), 'the same party QR, not a second ticket');
         assert.ok(g.html.includes('Emeric'), 'addressed by first name');
         assert.ok(g.html.includes('Your seat is paid for'), 'and told their seat is covered');
+        const guestRow = query.get('SELECT id FROM ca_registration_guests WHERE email = ?', ['guest@example.org']);
+        assert.ok(g.html.includes(`/api/plexus/pass/guest-${guestRow.id}.pkpass`) && g.html.includes(`/api/plexus/wallet/guest-${guestRow.id}`), 'the guest gets THEIR OWN wallet links (guest kind)');
     });
 
     // ==================== 8. THE NUDGE ====================
