@@ -1,5 +1,5 @@
 /**
- * gala-paylink.js — the Gala payment link a HELD registration never received.
+ * gala-paylink.js — the Gala leg of a review-held Zagreb registration.
  *
  * THE GAP THIS CLOSES (found 2026-09-15, two live victims).
  * The Zagreb form (POST /api/croatians-abroad/register, source='plexus') hands a suspicious
@@ -9,29 +9,42 @@
  * institutional inbox, both of which run the SAME approve(id) handler — the free legs were
  * replayed and confirmed, but the Gala leg simply stayed at gala_status='awaiting_payment'
  * with gala_registrations.status='awaiting_payment' and pay_token NULL. No link was ever
- * minted, so no email could carry one: the guest was told to "reply and we will send the
- * ticket link". Ana Franceschi and Magdalena Zebrowska sat in that state for days.
+ * minted, so no email could carry one. Ana Franceschi and Magdalena Zebrowska sat in that
+ * state for days.
  *
- * Two entry points, one per moment:
- *   sendGalaPayLink()    — at APPROVE. Ensures the gala row exists, flips it to 'approved',
- *                          mints pay_token, and sends ONE "complete your Gala reservation"
- *                          email carrying /pay/gala/<token>. Idempotent via a notes marker.
- *   fulfilLinkedCaGala() — at PAYMENT. /pay/gala mints a Stripe session with metadata.type
- *                          'gala-ticket' (NOT 'croatians-abroad-gala'), so the webhook's
- *                          gala-ticket branch used to answer a Plexus multi-event guest with
- *                          a bare receipt: no QR, no conference/bridges lines, and the CA row
- *                          left at 'awaiting_payment' forever. This issues the ONE combined
- *                          ticket instead and squares the CA row.
+ * Three entry points, one per moment:
+ *   sendGalaPayLink()      at APPROVE. Ensures the gala row exists, flips it to 'approved',
+ *                          mints pay_token, and sends ONE "approved — one step left" email.
+ *                          When the gala leg is unpaid this is the ONLY email approval sends:
+ *                          the free-events confirmation (and its QR) is deliberately NOT
+ *                          replayed, because the combined ticket after payment is the one
+ *                          ticket that covers everything, and nobody may end up holding two
+ *                          QRs for the same registration. galaLegNeedsPayment() is the
+ *                          predicate server.js gates that suppression on.
+ *   fulfilLinkedCaGala()   at PAYMENT. /pay/gala mints its Stripe session with
+ *                          metadata.type 'gala-ticket' (NOT 'croatians-abroad-gala'), so the
+ *                          webhook's standalone-Gala branch used to answer a Plexus
+ *                          multi-event guest with a bare receipt: no QR, no conference or
+ *                          bridges lines, and the CA row left at 'awaiting_payment' forever.
+ *                          This issues the ONE combined party ticket instead.
+ *   sendUnpaidGalaNudge()  LATER, by hand. The owner-triggered reminder for a seat that is
+ *                          approved and still unpaid. Never scheduled.
+ *
+ * SEATS. guest_count is ADDITIONAL guests, never the party total — the register route caps it
+ * as "+guests, max 2", Path B charges effectiveGalaPrice() * (1 + guests), both FIRA blocks
+ * bill quantity 1 + guest_count, admin-portal v2/gala-ops seatsOf() and all four partyOf()
+ * sites in the admin door list read 1 + guest_count, and Ana Franceschi's guest_count of 1
+ * carries exactly one named row in ca_registration_guests. Party size is 1 + guest_count
+ * everywhere in this file, and the registrant pays for the whole party.
  *
  * Deliberately a separate file. The logic is then hermetically testable
  * (tests/ca-approve-paylink.test.js drives it against a scratch sqlite carrying the real
- * schema) instead of being buried in a 30,000-line route file, and server.js keeps a
- * two-line wiring diff at each site. Every collaborator is INJECTED — this module opens no
- * database, sends no mail and reads no env of its own beyond the public base URL.
+ * schema) instead of being buried in a 30,000-line route file, and server.js keeps a small
+ * wiring diff at each site. Every collaborator is INJECTED — this module opens no database,
+ * sends no mail and reads no env of its own beyond the public base URL.
  *
- * Deps contract (both functions):
- *   { query, db, saveDb, flushDb, sendEmail, log? }
- *   sendGalaPayLink    also: effectiveGalaPrice()
+ * Deps contract:
+ *   { query, db, saveDb, flushDb, sendEmail, effectiveGalaPrice, log? }
  *   fulfilLinkedCaGala also: buildEmailTemplate(), buildTicketQrBlock(), qrPngAttachment()
  */
 'use strict';
@@ -39,11 +52,12 @@
 const crypto = require('crypto');
 const reviewGate = require('./review-gate');
 
-// One outgoing pay-link email per registration, ever. The marker lives in the row's own
-// notes (the same restart-safe channel the review gate uses for VERIFY-REQUESTED /
-// VERIFY-SENT), so a second Approve click, a re-delivered institutional confirmation and a
-// redeploy mid-flight all read the same truth.
+// One outgoing email of each kind per registration, ever. The markers live in the row's own
+// notes — the same restart-safe channel the review gate uses for VERIFY-REQUESTED /
+// VERIFY-SENT — so a second Approve click, a re-delivered institutional confirmation, a
+// repeated nudge sweep and a redeploy mid-flight all read the same truth.
 const PAYLINK_MARKER = 'GALA-PAYLINK-SENT';
+const NUDGE_MARKER = 'GALA-NUDGE-SENT';
 
 // Matches every other pay_token in the codebase (admin server.js gala approve + pay-link,
 // v2/gala-ops add-guest + waitlist accept): 24 random bytes rendered as 48 hex chars.
@@ -56,6 +70,8 @@ const esc = s => String(s == null ? '' : s)
 
 const publicBase = () => String(process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com')
     .replace(/\/+$/, '');
+
+const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
 
 // '€150' for a round price, '€150.50' when the admin sets cents.
 function fmtEur(n) {
@@ -73,52 +89,166 @@ function fmtDate(d) {
         return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
     } catch (e) { return String(d); }
 }
+// '2026-09-15' -> '15 September' (the deadline reads as a date this season, not a year away).
+function fmtDayMonth(d) {
+    if (!d) return '';
+    try {
+        const dt = new Date(String(d) + 'T00:00:00Z');
+        if (isNaN(dt.getTime())) return String(d);
+        return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+    } catch (e) { return String(d); }
+}
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+const daysSince = iso => {
+    const t = Date.parse(String(iso || '').replace(' ', 'T') + (String(iso || '').includes('T') ? '' : 'Z'));
+    return Number.isFinite(t) ? Math.floor((Date.now() - t) / 86400000) : null;
+};
 
-// ---------------------------------------------------------------- the pay-link email
-// House dark shell, registrant voice, the owner's own words for the ask. Built pure so the
-// test can assert every claim in it (price, deadline, token, one-ticket promise) without a
-// database or a mail provider.
-function buildPayLinkEmail({ firstName, payUrl, price, earlyBirdDeadline, galaDate, galaVenue,
-                             wantConference, wantBridges, guestCount }) {
+// ---------------------------------------------------------------- seats + price
+// Party size. guest_count is ADDITIONAL guests (see the header) — 1 + guest_count is the
+// number of seats, and the main registrant pays for all of them.
+const partySeats = row => 1 + Math.max(0, parseInt(row && row.guest_count, 10) || 0);
+
+/**
+ * What this row's payment link should charge, and how to put it on a Stripe line item.
+ *
+ * A stamped invoice_number together with a positive amount_paid is written by exactly ONE
+ * thing — /pay/gala/:token, at the moment it sent this person to a Stripe checkout for that
+ * exact amount. That is a quote already shown to a human, so it is honoured rather than
+ * recomputed: Masakazu Toi is holding a link quoted at €150 before seats were billed as a
+ * party, and doubling it under him is the one thing this change must not do. He is the only
+ * such row in production; every other unpaid row has both columns NULL and gets party pricing
+ * on its first visit. (The alternative — charge every held row the full party price
+ * immediately — would re-quote him from €150 to €300 without warning. Whether he is asked for
+ * the second seat is a conversation, not a silent repricing.)
+ */
+function quoteGalaSeats(effectiveGalaPrice, galaRow) {
+    const seats = partySeats(galaRow);
+    const seatPrice = round2(typeof effectiveGalaPrice === 'function' ? effectiveGalaPrice() : 0);
+    const quoted = Number(galaRow && galaRow.amount_paid);
+    if (galaRow && galaRow.invoice_number && Number.isFinite(quoted) && quoted > 0) {
+        return {
+            seats, seatPrice, total: round2(quoted), honoured: true,
+            lineName: 'Plexus 2026 — Gala Evening',
+            lineQuantity: 1,
+            lineUnitAmount: Math.round(round2(quoted) * 100)
+        };
+    }
+    return {
+        seats, seatPrice, total: round2(seats * seatPrice), honoured: false,
+        lineName: 'Plexus 2026 — Gala Evening' + (seats > 1 ? ` — ${seats} seats` : ''),
+        lineQuantity: seats,
+        lineUnitAmount: Math.round(seatPrice * 100)
+    };
+}
+
+// "2 seats · €300 (€150 per seat, early-bird until 15 September)" — the owner's line.
+// One seat drops the redundant per-seat figure; an honoured quote states only the amount the
+// link will actually charge, because its per-seat arithmetic no longer holds.
+function seatsLine(quote, earlyBirdDeadline) {
+    const seatsWord = `${quote.seats} seat${quote.seats === 1 ? '' : 's'}`;
+    if (quote.honoured) return `${seatsWord} · ${fmtEur(quote.total)}`;
+    const early = earlyBirdDeadline && String(earlyBirdDeadline) >= todayIso()
+        ? `early-bird until ${fmtDayMonth(earlyBirdDeadline)}` : '';
+    const inner = [quote.seats > 1 ? `${fmtEur(quote.seatPrice)} per seat` : '', early].filter(Boolean).join(', ');
+    return `${seatsWord} · ${fmtEur(quote.total)}${inner ? ` (${inner})` : ''}`;
+}
+
+// "the Conference, Building Bridges Zagreb and the Gala Evening" — the owner's names for the
+// three legs, in the order the form offers them.
+function selectionPhrase({ wantConference, wantBridges, wantGala }) {
+    const parts = [
+        wantConference ? 'the Conference' : null,
+        wantBridges ? 'Building Bridges Zagreb' : null,
+        wantGala ? 'the Gala Evening' : null
+    ].filter(Boolean);
+    if (parts.length <= 1) return parts[0] || 'Plexus 2026';
+    return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+}
+
+// ---------------------------------------------------------------- the approval email
+// House dark shell, registrant voice, the owner's wording. Built pure so the test can assert
+// every claim in it (seats, total, per-seat price, deadline, token, one-ticket promise)
+// without a database or a mail provider.
+function buildPayLinkEmail({ firstName, payUrl, quote, earlyBirdDeadline, galaDate, galaVenue,
+                             wantConference, wantBridges }) {
     const facts = [];
     const when = [fmtDate(galaDate), galaVenue].filter(Boolean).join(' · ');
     if (when) facts.push(['Gala Evening', when]);
-    if (price) facts.push(['Gala ticket', fmtEur(price)]);
-    // Only while the early-bird price is genuinely still ahead — a deadline in the past is a
-    // stale promise, and the registrant would be charged the regular price on arrival.
-    if (earlyBirdDeadline && String(earlyBirdDeadline) >= todayIso()) {
-        facts.push(['Early-bird price until', fmtDate(earlyBirdDeadline)]);
-    }
+    facts.push(['Gala reservation', seatsLine(quote, earlyBirdDeadline)]);
 
-    const alsoRegistered = [
-        wantConference ? 'the Plexus Conference' : null,
-        wantBridges ? 'Croatian Biomedical Bridges' : null
-    ].filter(Boolean);
-    const coverLine = alsoRegistered.length
-        ? `After the payment goes through we send you <b class="em-ink">one ticket</b> — a single QR that covers ${esc(alsoRegistered.join(' and '))} and the Gala Evening together.`
-        : 'After the payment goes through we send you <b class="em-ink">one ticket</b> — a single QR that covers everything you registered for.';
+    const selected = selectionPhrase({ wantConference, wantBridges, wantGala: true });
 
-    // A party of more than one is stated, never priced: this link charges one Gala seat (the
-    // /pay/gala route has always done so), and inventing a party total in the email would
-    // promise a charge the link does not make.
-    const guests = Math.max(0, parseInt(guestCount, 10) || 0);
-    const guestNote = guests
-        ? `Your registration also notes ${guests === 1 ? 'one guest' : guests + ' guests'} — we will confirm ${guests === 1 ? 'their seat' : 'their seats'} with you separately.`
-        : '';
-
-    return reviewGate.emailShell('Your registration is confirmed',
+    return reviewGate.emailShell('Your registration is approved',
         `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
-         <p style="margin:0 0 10px;">Great news — your registration is confirmed. Thank you very much.</p>
-         <p style="margin:0 0 10px;">To complete your Gala Evening reservation, please pay for your Gala ticket here:</p>`,
+         <p style="margin:0 0 10px;">Great news — your registration for <b class="em-ink">Plexus 2026</b> is approved: ${esc(selected)}.</p>
+         <p style="margin:0;">To complete your registration for everything, please finish the last step — the payment for the Gala Evening:</p>`,
+        'Complete my registration', payUrl,
+        {
+            eyebrow: 'Registration approved',
+            preheader: 'Your registration is approved — one step left to complete it.',
+            facts,
+            footNote: 'As soon as the payment is done you will receive <b class="em-ink">one ticket</b> that covers all your events.'
+        });
+}
+
+// ---------------------------------------------------------------- the nudge email
+// Gentle, owner-triggered, and it offers the way out: pay, or take the free events alone.
+function buildNudgeEmail({ firstName, payUrl, quote, earlyBirdDeadline, galaDate, galaVenue,
+                           wantConference, wantBridges, daysWaiting }) {
+    const facts = [];
+    const when = [fmtDate(galaDate), galaVenue].filter(Boolean).join(' · ');
+    if (when) facts.push(['Gala Evening', when]);
+    facts.push(['Gala reservation', seatsLine(quote, earlyBirdDeadline)]);
+
+    // No leading article here — this list sits after "your", where "your the Conference" reads wrong.
+    const freeLegs = [
+        wantConference ? 'Conference' : null,
+        wantBridges ? 'Building Bridges Zagreb' : null
+    ].filter(Boolean);
+    const fallback = freeLegs.length
+        ? `If your plans have changed, just reply to this email and we will send your ${esc(freeLegs.join(' and '))} ticket on its own — no Gala seat, nothing to pay.`
+        : 'If your plans have changed, just reply to this email and we will release the seat — nothing to pay.';
+
+    return reviewGate.emailShell('Your Gala seat is still waiting',
+        `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
+         <p style="margin:0 0 10px;">Your place at Plexus 2026 is approved and your Gala seat is being held for you — the payment is the one thing still outstanding.</p>
+         <p style="margin:0;">You can complete it here whenever suits you:</p>`,
         'Complete my Gala reservation', payUrl,
         {
-            eyebrow: 'Registration confirmed',
-            preheader: 'Your registration is confirmed — one step left to hold your Gala seat.',
+            eyebrow: 'A gentle reminder',
+            preheader: 'Your Gala seat is still held — the payment is the last step.',
             facts,
-            footNote: `${coverLine}${guestNote ? '<br><br>' + guestNote : ''}`
+            footNote: fallback
         });
+}
+
+// ---------------------------------------------------------------- shared row resolution
+function galaRowFor(query, caRow) {
+    if (!caRow || !caRow.gala_registration_id) return null;
+    return query.get('SELECT * FROM gala_registrations WHERE id = ?', [caRow.gala_registration_id]);
+}
+const isPaid = g => !!g && (g.payment_status === 'paid' || g.status === 'confirmed');
+
+/**
+ * Does this registration still owe money on its Gala leg?
+ *
+ * server.js gates the Path-A suppression on this: when it answers true, approval sends ONLY
+ * the payment email, because the combined ticket that follows payment is the one ticket that
+ * covers everything and a free-events QR now would be a second, conflicting ticket. False —
+ * no Gala, or a seat already paid — leaves the free-events confirmation exactly as it was.
+ */
+function galaLegNeedsPayment(query, caRow) {
+    if (!caRow || !Number(caRow.selected_gala)) return false;
+    const gala = galaRowFor(query, caRow);
+    if (!gala) return true;                       // no row yet — sendGalaPayLink will create one
+    return !isPaid(gala);
+}
+
+function settingsOf(query) {
+    try { return query.get("SELECT date, venue, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {}; }
+    catch (e) { return {}; }
 }
 
 // ---------------------------------------------------------------- APPROVE: mint + send
@@ -126,14 +256,14 @@ function buildPayLinkEmail({ firstName, payUrl, price, earlyBirdDeadline, galaDa
  * Release the Gala leg of a review-held Zagreb registration.
  *
  * Reads the CA row LIVE, so when the institutional-confirmation path has already re-pointed
- * the row at the verified inbox (review-gate.js calls h.setEmail BEFORE h.approve), the pay
+ * the row at the verified inbox (review-gate.js calls h.setEmail BEFORE h.approve), the
  * email follows to that address by construction.
  *
- * opts.preview  — build the email from this row but send it to opts.to with a "[PREVIEW] "
- *                 subject and mutate NOTHING: no token is minted, no status moves, no marker
- *                 is stamped. Used to show the owner the email before anyone real gets it.
+ * opts.preview — build the email from this row but send it to opts.to with a "[PREVIEW] "
+ *                subject and mutate NOTHING: no token minted, no status moved, no marker
+ *                stamped. Used to show the owner the email before anyone real gets it.
  *
- * @returns {Promise<{status:'done'|'already'|'no-gala'|'already-paid'|'notfound'|'preview'|'no-email', ...}>}
+ * @returns {Promise<{status:'done'|'already'|'no-gala'|'already-paid'|'notfound'|'preview'|'no-email'|'send-failed', ...}>}
  */
 async function sendGalaPayLink(deps, caId, opts = {}) {
     const { query, db, saveDb, flushDb, sendEmail, effectiveGalaPrice } = deps;
@@ -142,7 +272,6 @@ async function sendGalaPayLink(deps, caId, opts = {}) {
 
     const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [caId]);
     if (!row) return { status: 'notfound' };
-    // Never touched for a registration that did not ask for the Gala.
     if (!Number(row.selected_gala)) return { status: 'no-gala' };
 
     const to = preview ? String(opts.to || '').trim() : String(row.email || '').trim();
@@ -150,9 +279,7 @@ async function sendGalaPayLink(deps, caId, opts = {}) {
 
     // The gala row is normally created by the register route; ensure it for a row that lost
     // it (an older held registration, a partial write) so the link always has a target.
-    let gala = row.gala_registration_id
-        ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [row.gala_registration_id])
-        : null;
+    let gala = galaRowFor(query, row);
     if (!gala && !preview) {
         const newId = crypto.randomUUID();
         db.run(
@@ -167,22 +294,21 @@ async function sendGalaPayLink(deps, caId, opts = {}) {
 
     // Paid already (a manual fix, a replayed webhook): there is nothing to complete, and a
     // "please pay" email to somebody who has paid is the one mistake worth guarding hardest.
-    if (gala && !preview && (gala.payment_status === 'paid' || gala.status === 'confirmed')) {
+    if (gala && !preview && isPaid(gala)) {
         return { status: 'already-paid', gala_registration_id: gala.id };
     }
     if (!preview && reviewGate.getMarker(row.notes, PAYLINK_MARKER)) {
         return { status: 'already', gala_registration_id: gala && gala.id, email: to };
     }
 
-    const price = typeof effectiveGalaPrice === 'function' ? effectiveGalaPrice() : null;
-    let settings = {};
-    try { settings = query.get("SELECT date, venue, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {}; } catch (e) {}
+    const settings = settingsOf(query);
+    const quote = quoteGalaSeats(effectiveGalaPrice, gala || row);
 
     let token;
     if (preview) {
         // A preview never mints a live payment link for a guest who has not been released.
-        // An existing token is reused (the owner can then click it for real); otherwise the
-        // button carries a sample that lands on the friendly "invalid link" page.
+        // An existing token is reused; otherwise the button carries a sample that lands on
+        // the friendly "invalid link" page.
         token = (gala && gala.pay_token) || 'sample' + crypto.randomBytes(21).toString('hex');
     } else {
         token = gala.pay_token || mintPayToken();
@@ -200,41 +326,133 @@ async function sendGalaPayLink(deps, caId, opts = {}) {
     const html = buildPayLinkEmail({
         firstName: row.first_name,
         payUrl: `${publicBase()}/pay/gala/${token}`,
-        price,
+        quote,
         earlyBirdDeadline: settings.early_bird_deadline,
         galaDate: settings.date,
         galaVenue: settings.venue,
         wantConference: !!Number(row.selected_conference),
-        wantBridges: !!Number(row.selected_bridges),
-        guestCount: row.guest_count
+        wantBridges: !!Number(row.selected_bridges)
     });
-    const subject = (preview ? '[PREVIEW] ' : '') + 'Your registration is confirmed — complete your Gala reservation';
+    const subject = (preview ? '[PREVIEW] ' : '') + 'Your registration is approved — one step left';
 
     const sent = await sendEmail(to, subject, html);
     if (sent && (sent.success === false || sent.mock)) {
         // Loud, and NOT stamped: an unsent link must stay re-sendable.
-        log(`[EMAIL-FAIL] pay link for CA ${caId} did not reach ${to}:`,
+        log(`[EMAIL-FAIL] approval + pay link for CA ${caId} did not reach ${to}:`,
             sent.mock ? 'mock mode (no provider configured)' : (sent.error || 'unknown'));
         if (!preview) return { status: 'send-failed', gala_registration_id: gala.id, token, email: to };
     }
 
-    if (preview) return { status: 'preview', email: to, token, price, subject };
+    if (preview) return { status: 'preview', email: to, token, quote, subject };
 
     db.run('UPDATE croatians_abroad_registrations SET notes = ? WHERE id = ?',
         [reviewGate.upsertMarker(row.notes, PAYLINK_MARKER, todayIso()), caId]);
     try { saveDb && saveDb(); } catch (e) {}
     try { flushDb && flushDb(); } catch (e) {}
-    log(`Gala pay link sent for CA ${caId} -> ${to} (gala ${gala.id}, ${fmtEur(price)})`);
-    return { status: 'done', gala_registration_id: gala.id, token, email: to, price, subject };
+    log(`approval + pay link sent for CA ${caId} -> ${to} (gala ${gala.id}, ${quote.seats} seat(s), ${fmtEur(quote.total)})`);
+    return { status: 'done', gala_registration_id: gala.id, token, email: to, quote, subject };
 }
 
-// ---------------------------------------------------------------- PAYMENT: one combined ticket
+// ---------------------------------------------------------------- NUDGE (owner-triggered)
+/**
+ * Every approved-but-unpaid Gala seat on a Zagreb registration that has been waiting longer
+ * than `days`. Scoped to CA-linked rows on purpose: the copy offers to fall back to the free
+ * events, which only exists on this flow, and standalone gala guests already have the admin
+ * Gala list's own Pay-link and reminder machinery.
+ *
+ * The clock runs from when the person was actually asked to pay (the GALA-PAYLINK-SENT
+ * marker) and falls back to the gala row's creation date.
+ */
+function listUnpaidGalaNudges(deps, { days = 7 } = {}) {
+    const { query } = deps;
+    const minDays = Math.max(0, parseInt(days, 10) || 0);
+    let rows = [];
+    try {
+        rows = query.all(
+            `SELECT c.id AS ca_id, c.first_name, c.last_name, c.email, c.notes,
+                    c.selected_conference, c.selected_bridges,
+                    g.id AS gala_id, g.status, g.payment_status, g.pay_token, g.guest_count,
+                    g.amount_paid, g.invoice_number, g.created_at, g.requests, g.admin_notes
+               FROM croatians_abroad_registrations c
+               JOIN gala_registrations g ON g.id = c.gala_registration_id
+              WHERE c.selected_gala = 1
+                AND g.status = 'approved'
+                AND COALESCE(g.payment_status, '') <> 'paid'
+              ORDER BY g.created_at ASC`) || [];
+    } catch (e) { return []; }
+
+    return rows.map(r => {
+        const asked = reviewGate.getMarker(r.notes, PAYLINK_MARKER);
+        const since = asked || r.created_at;
+        const waited = daysSince(since);
+        const quote = quoteGalaSeats(deps.effectiveGalaPrice, r);
+        return {
+            ca_id: r.ca_id, gala_id: r.gala_id,
+            name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+            email: r.email,
+            seats: quote.seats, amount_due: quote.total, quote_honoured: quote.honoured,
+            waiting_since: since, days_waiting: waited,
+            has_pay_link: !!r.pay_token,
+            already_nudged: !!reviewGate.getMarker(r.notes, NUDGE_MARKER),
+            is_test: /TEST/i.test(`${r.requests || ''} ${r.admin_notes || ''}`)
+        };
+    }).filter(r => !r.is_test && (r.days_waiting == null || r.days_waiting >= minDays));
+}
+
+/** Send one gentle reminder. Idempotent through the GALA-NUDGE-SENT marker. */
+async function sendUnpaidGalaNudge(deps, caId) {
+    const { query, db, saveDb, flushDb, sendEmail, effectiveGalaPrice } = deps;
+    const log = deps.log || ((...a) => console.log('[GalaPayLink]', ...a));
+
+    const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [caId]);
+    if (!row) return { status: 'notfound' };
+    if (!Number(row.selected_gala)) return { status: 'no-gala' };
+    const gala = galaRowFor(query, row);
+    if (!gala) return { status: 'no-gala-row' };
+    if (isPaid(gala)) return { status: 'already-paid' };
+    if (!gala.pay_token) return { status: 'no-pay-link' };       // send the approval email first
+    if (reviewGate.getMarker(row.notes, NUDGE_MARKER)) return { status: 'already' };
+    const to = String(row.email || '').trim();
+    if (!to) return { status: 'no-email' };
+
+    const settings = settingsOf(query);
+    const quote = quoteGalaSeats(effectiveGalaPrice, gala);
+    const asked = reviewGate.getMarker(row.notes, PAYLINK_MARKER) || gala.created_at;
+
+    const html = buildNudgeEmail({
+        firstName: row.first_name,
+        payUrl: `${publicBase()}/pay/gala/${gala.pay_token}`,
+        quote,
+        earlyBirdDeadline: settings.early_bird_deadline,
+        galaDate: settings.date,
+        galaVenue: settings.venue,
+        wantConference: !!Number(row.selected_conference),
+        wantBridges: !!Number(row.selected_bridges),
+        daysWaiting: daysSince(asked)
+    });
+
+    const sent = await sendEmail(to, 'Your Gala seat is still waiting — Plexus 2026', html);
+    if (sent && (sent.success === false || sent.mock)) {
+        log(`[EMAIL-FAIL] nudge for CA ${caId} did not reach ${to}:`,
+            sent.mock ? 'mock mode (no provider configured)' : (sent.error || 'unknown'));
+        return { status: 'send-failed', email: to };
+    }
+    db.run('UPDATE croatians_abroad_registrations SET notes = ? WHERE id = ?',
+        [reviewGate.upsertMarker(row.notes, NUDGE_MARKER, todayIso()), caId]);
+    try { saveDb && saveDb(); } catch (e) {}
+    try { flushDb && flushDb(); } catch (e) {}
+    log(`nudge sent for CA ${caId} -> ${to} (${quote.seats} seat(s), ${fmtEur(quote.total)})`);
+    return { status: 'done', email: to, seats: quote.seats, amount_due: quote.total };
+}
+
+// ---------------------------------------------------------------- PAYMENT: one party ticket
 /**
  * A 'gala-ticket' Stripe session just completed. If this gala row belongs to a Zagreb
- * multi-event registration, square the CA row and issue the ONE combined ticket instead of
- * the standalone Gala receipt (which carries no QR and never mentions the free events).
+ * multi-event registration, square the CA row and issue the ONE combined party ticket
+ * instead of the standalone Gala receipt (which carries no QR and never mentions the free
+ * events).
  *
- * @returns {Promise<{handled:boolean, duplicate?:boolean, email?:string, events?:string[]}>}
+ * @returns {Promise<{handled:boolean, duplicate?:boolean, email?:string, events?:string[], seats?:number}>}
  *          handled=false means "not a CA row" — the caller keeps its own behaviour untouched.
  */
 async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sessionEmail } = {}) {
@@ -249,6 +467,8 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
         return { handled: true, duplicate: true };
     }
 
+    const galaRow = query.get('SELECT guest_count FROM gala_registrations WHERE id = ?', [galaRegId]);
+    const seats = partySeats(galaRow || ca);
     const wantConf = !!Number(ca.selected_conference);
     const wantBridges = !!Number(ca.selected_bridges);
     const to = String(ca.email || sessionEmail || '').trim();
@@ -263,9 +483,10 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
     const events = [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null, 'gala'].filter(Boolean);
     if (!to) {
         log(`CA ${ca.id} marked paid but carries no email — no ticket could be sent`);
-        return { handled: true, email: null, events };
+        return { handled: true, email: null, events, seats };
     }
 
+    const seatsLabel = seats > 1 ? `CONFIRMED &amp; PAID · ${seats} SEATS` : 'CONFIRMED &amp; PAID';
     const eventListHtml = [
         wantConf ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
             <strong style="color:#0f172a;">Plexus Conference</strong>
@@ -277,32 +498,38 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
             <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : '',
         `<tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
             <strong style="color:#0f172a;">Plexus Gala Evening</strong>
-            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">CONFIRMED &amp; PAID</span>
+            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">${seatsLabel}</span>
             <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>`
     ].filter(Boolean).join('');
 
-    // The QR carries BOTH ids so the scanner verifies it in gala AND conference/bridges modes.
+    // The QR carries BOTH ids so the scanner verifies it in gala AND conference/bridges modes,
+    // and `guests` so the door reads the party the same way every other Med&X ticket does.
     let atts = [];
     try {
         atts = await qrPngAttachment({
             type: 'MEDX_MEMBER', caRegId: ca.id, regId: galaRegId, email: to,
             name: `${ca.first_name || ''} ${ca.last_name || ''}`.trim(),
-            evt: 'gala', evtName: 'Plexus 2026 — Gala Evening', events, amt: paid, diet: ca.dietary || ''
+            evt: 'gala', evtName: 'Plexus 2026 — Gala Evening', events,
+            guests: seats - 1, amt: paid, diet: ca.dietary || ''
         });
     } catch (e) { log('QR attachment failed (non-blocking):', e.message); }
+
+    const partyCaption = seats > 1
+        ? `Present this QR at the entrance of each event you registered for — it admits your whole party of ${seats}, arriving together or separately`
+        : 'Present this QR at the entrance of each event you registered for';
 
     const html = buildEmailTemplate('Payment Confirmed', `
         <div style="text-align:center;margin-bottom:8px;">
             <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
         </div>
         <p style="margin-top:18px;">Dear <strong>${esc(ca.first_name || 'guest')}</strong>,</p>
-        <p>Your payment of <strong>&euro;${paid.toFixed(2)}</strong> for <strong style="color:#C9A962;">Plexus 2026</strong> has been received. Your ticket is below.</p>
+        <p>Your payment of <strong>&euro;${paid.toFixed(2)}</strong> for <strong style="color:#C9A962;">Plexus 2026</strong> has been received${seats > 1 ? ` — <strong>${seats} Gala seats</strong>` : ''}. Your ticket is below.</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
             <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus 2026 Reservations</td></tr>
             ${eventListHtml}
         </table>
         ${invoiceNumber ? `<p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${esc(invoiceNumber)}</p>` : ''}
-        ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
+        ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: partyCaption })}
         ${(wantConf || wantBridges) ? `<p>We will email you ${[wantConf ? 'the <strong>Conference program</strong>' : null, wantBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(wantConf && wantBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
         <p style="margin-top:24px;">We look forward to welcoming you ${ca.source === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
         <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
@@ -323,7 +550,7 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
             const gFirst = String(g.name || 'there').split(' ')[0];
             await sendEmail(g.email, 'Your Gala Evening entry — Plexus 2026', buildEmailTemplate('Your Gala Evening entry', `
                 <p>Dear ${esc(gFirst)},</p>
-                <p><strong>${esc(`${ca.first_name || ''} ${ca.last_name || ''}`.trim())}</strong> has registered you as their guest for the <strong>Plexus 2026 Gala Evening</strong> — December 5, 2026 · 19:00 · Hotel Esplanade, Mihanovićeva 1, Zagreb.</p>
+                <p><strong>${esc(`${ca.first_name || ''} ${ca.last_name || ''}`.trim())}</strong> has registered you as their guest for the <strong>Plexus 2026 Gala Evening</strong> — December 5, 2026 · 19:00 · Hotel Esplanade, Mihanovićeva 1, Zagreb. Your seat is paid for.</p>
                 ${buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' })}
                 <p>Dress code: black tie. Table reservations will follow closer to the event.</p>
                 <p style="font-size:13px;color:#64748b;">Questions? Reply to this email or write to laura.rodman@medx.hr.</p>
@@ -331,16 +558,26 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
         }
     } catch (e) { log('party guest entry emails failed (non-blocking):', e.message); }
 
-    log(`CA ${ca.id} gala PAID via pay link — combined ticket (${events.join(' + ')}) sent to ${to}`);
-    return { handled: true, email: to, events, invoice_number: invoiceNumber || null };
+    log(`CA ${ca.id} gala PAID via pay link — combined ticket for ${seats} seat(s) (${events.join(' + ')}) sent to ${to}`);
+    return { handled: true, email: to, events, seats, invoice_number: invoiceNumber || null };
 }
 
 module.exports = {
     PAYLINK_MARKER,
+    NUDGE_MARKER,
     mintPayToken,
     fmtEur,
     fmtDate,
+    fmtDayMonth,
+    partySeats,
+    quoteGalaSeats,
+    seatsLine,
+    selectionPhrase,
+    galaLegNeedsPayment,
     buildPayLinkEmail,
+    buildNudgeEmail,
     sendGalaPayLink,
+    sendUnpaidGalaNudge,
+    listUnpaidGalaNudges,
     fulfilLinkedCaGala
 };

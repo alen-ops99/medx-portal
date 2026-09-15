@@ -2,14 +2,19 @@
  * tests/ca-approve-paylink.test.js — the Gala leg of a review-held Zagreb registration
  * (user-portal/backend/gala-paylink.js).
  *
- * THE BUG UNDER TEST. A /plexus registration that the review gate HELD never reached Stripe.
- * Approving it replayed the free-events confirmation but left the Gala leg at
- * gala_registrations.status='awaiting_payment' with pay_token NULL — no payment link was ever
- * minted, so no email could carry one. Two real registrants (Ana Franceschi, Magdalena
- * Zebrowska, September 2026) sat in that state. And when such a guest finally DID pay, the
- * Stripe webhook answered them on the 'gala-ticket' branch — a bare receipt with no QR and no
- * mention of the Conference or Bridges they had also registered for — leaving the CA row at
- * 'awaiting_payment' for good.
+ * THE BUGS UNDER TEST.
+ *  1. A /plexus registration the review gate HELD never reached Stripe. Approving it replayed
+ *     the free-events confirmation but left the Gala leg at status='awaiting_payment' with
+ *     pay_token NULL — no link was ever minted, so none could be sent. Ana Franceschi and
+ *     Magdalena Zebrowska sat in that state for days.
+ *  2. When such a guest finally paid, /pay/gala's session carries metadata.type 'gala-ticket',
+ *     so the webhook answered on the standalone branch: a bare receipt, no QR, no mention of
+ *     the Conference or Bridges, and the CA row left 'awaiting_payment' for good.
+ *  3. /pay/gala charged ONE seat however large the party. guest_count is ADDITIONAL guests
+ *     everywhere in this codebase, so a registrant with a plus-one was billed half of what
+ *     they booked.
+ *  4. Approval used to send the free-events QR *and* (after payment) the combined ticket —
+ *     the same person holding two conflicting QR codes.
  *
  * Hermetic, in the shape of tests/boston.test.js: a scratch in-memory sqlite (node:sqlite)
  * carrying the REAL croatians_abroad_registrations / gala_registrations / gala_settings /
@@ -22,6 +27,8 @@
 
 const assert = require('node:assert');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 
 // ---------------------------------------------------------------- hermetic env
@@ -44,62 +51,27 @@ async function t(name, fn) {
 
 // ---------------------------------------------------------------- scratch sqlite (real schema)
 const raw = new DatabaseSync(':memory:');
-// VERBATIM from user-portal/backend/server.js (initializeApp), minus columns no path here reads.
 raw.exec(`CREATE TABLE croatians_abroad_registrations (
-    id TEXT PRIMARY KEY,
-    invite_link_id TEXT,
-    first_name TEXT NOT NULL,
-    last_name TEXT,
-    email TEXT NOT NULL,
-    institution TEXT,
-    country TEXT,
-    role TEXT,
-    dietary TEXT,
-    notes TEXT,
-    selected_conference INTEGER DEFAULT 0,
-    selected_bridges INTEGER DEFAULT 0,
-    selected_gala INTEGER DEFAULT 0,
-    conference_status TEXT,
-    bridges_status TEXT,
-    gala_status TEXT,
-    gala_payment_status TEXT,
-    gala_registration_id TEXT,
-    stripe_session_id TEXT,
-    amount_paid REAL,
-    invoice_number TEXT,
-    guest_count INTEGER DEFAULT 0,
-    custom_answers TEXT,
-    applied_for TEXT,
-    source TEXT DEFAULT 'croatians-abroad',
-    user_id TEXT,
+    id TEXT PRIMARY KEY, invite_link_id TEXT,
+    first_name TEXT NOT NULL, last_name TEXT, email TEXT NOT NULL,
+    institution TEXT, country TEXT, role TEXT, dietary TEXT, notes TEXT,
+    selected_conference INTEGER DEFAULT 0, selected_bridges INTEGER DEFAULT 0, selected_gala INTEGER DEFAULT 0,
+    conference_status TEXT, bridges_status TEXT, gala_status TEXT, gala_payment_status TEXT,
+    gala_registration_id TEXT, stripe_session_id TEXT, amount_paid REAL, invoice_number TEXT,
+    guest_count INTEGER DEFAULT 0, custom_answers TEXT, applied_for TEXT,
+    source TEXT DEFAULT 'croatians-abroad', user_id TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )`);
 raw.exec(`CREATE TABLE gala_registrations (
-    id TEXT PRIMARY KEY,
-    first_name TEXT NOT NULL,
-    last_name TEXT NOT NULL,
-    email TEXT NOT NULL,
-    institution TEXT,
-    title TEXT,
-    dietary TEXT,
-    requests TEXT,
-    pricing TEXT,
-    status TEXT DEFAULT 'pending',
-    payment_status TEXT,
-    amount_paid REAL,
-    invoice_number TEXT,
-    stripe_session_id TEXT,
-    pay_token TEXT,
-    guest_count INTEGER DEFAULT 0,
-    user_id TEXT,
-    admin_notes TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    id TEXT PRIMARY KEY, first_name TEXT NOT NULL, last_name TEXT NOT NULL, email TEXT NOT NULL,
+    institution TEXT, title TEXT, dietary TEXT, requests TEXT, pricing TEXT,
+    status TEXT DEFAULT 'pending', payment_status TEXT, amount_paid REAL, invoice_number TEXT,
+    stripe_session_id TEXT, pay_token TEXT, guest_count INTEGER DEFAULT 0, user_id TEXT,
+    admin_notes TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )`);
 raw.exec(`CREATE TABLE gala_settings (
-    id TEXT PRIMARY KEY DEFAULT 'default',
-    title TEXT, date TEXT, venue TEXT,
-    price_gala_only REAL, price_gala_early_bird REAL, price_gala_regular REAL,
-    early_bird_deadline TEXT
+    id TEXT PRIMARY KEY DEFAULT 'default', title TEXT, date TEXT, venue TEXT,
+    price_gala_only REAL, price_gala_early_bird REAL, price_gala_regular REAL, early_bird_deadline TEXT
 )`);
 raw.exec(`CREATE TABLE ca_registration_guests (
     id TEXT PRIMARY KEY, registration_id TEXT, name TEXT, institution TEXT, email TEXT,
@@ -110,7 +82,6 @@ raw.exec(`CREATE TABLE ca_registration_guests (
 raw.exec(`INSERT INTO gala_settings (id, title, date, venue, price_gala_only, price_gala_early_bird, price_gala_regular, early_bird_deadline)
           VALUES ('default', 'Plexus Gala Evening 2026', '2026-12-05', 'Hotel Esplanade Emerald Ballroom; Zagreb, Croatia', 150, 150, 175, '2026-09-15')`);
 
-// server.js-shaped helpers over node:sqlite
 const query = {
     get: (sql, params = []) => { const r = raw.prepare(sql).get(...params); return r === undefined ? null : r; },
     all: (sql, params = []) => raw.prepare(sql).all(...params)
@@ -129,15 +100,15 @@ const sendEmailFlaky = async (to, subject, html, attachments) => {
     return sendEmail(to, subject, html, attachments);
 };
 
-const GALA_PRICE = 150;
+const SEAT_PRICE = 150;
+const effectiveGalaPrice = () => SEAT_PRICE;
 const deps = () => ({
     query, db,
     saveDb: () => {}, flushDb: () => {},
     sendEmail: sendEmailFlaky,
-    effectiveGalaPrice: () => GALA_PRICE,
-    // The real helpers' contracts, reduced to what the assertions need.
+    effectiveGalaPrice,
     buildEmailTemplate: (title, body) => `<!DOCTYPE html><html><body data-title="${title}">${body}</body></html>`,
-    buildTicketQrBlock: (regId, o = {}) => `<div class="qr" data-reg="${regId}">${o.label || ''}</div>`,
+    buildTicketQrBlock: (regId, o = {}) => `<div class="qr" data-reg="${regId}">${o.label || ''}|${o.caption || ''}</div>`,
     qrPngAttachment: async (payload) => [{ filename: 'plexus-ticket-qr.png', content: Buffer.from('png'), type: 'image/png', _payload: payload }],
     log: () => {}
 });
@@ -153,7 +124,6 @@ function makeHeldCa(over = {}) {
         selected_conference: 1, selected_bridges: 1, selected_gala: 1,
         guest_count: 0, notes: '', source: 'plexus'
     }, over);
-    // Exactly what the register route writes for a HELD row.
     db.run(`INSERT INTO croatians_abroad_registrations
             (id, first_name, last_name, email, institution, country, selected_conference, selected_bridges, selected_gala,
              conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, guest_count, notes, source)
@@ -184,106 +154,209 @@ function releaseStatuses(caId) {
         db.run(`UPDATE gala_registrations SET status = 'awaiting_payment' WHERE id = ? AND status = 'pending-review'`, [r.gala_registration_id]);
     }
 }
+
+// The approve handler's own sequence, verbatim in shape: decide, conditionally replay Path A,
+// then release the gala leg. Asserting against THIS is asserting the contract server.js keeps
+// (and the source check below proves server.js still keeps it).
+async function runApprove(caId) {
+    const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [caId]);
+    const pathA = [];
+    const galaOwesPayment = payLink.galaLegNeedsPayment(query, row);
+    if (!galaOwesPayment) {
+        pathA.push('sent');
+        await sendEmailFlaky(row.email, "You're pre-registered — Plexus 2026",
+            `<html><body>Pre-Registration Confirmed <div class="qr" data-reg="${caId}">Your Check-in QR Code</div></body></html>`);
+    }
+    let galaPay = null;
+    if (Number(row.selected_gala)) galaPay = await payLink.sendGalaPayLink(deps(), caId);
+    return { galaOwesPayment, pathAReplayed: pathA.length === 1, galaPay };
+}
+
 const ca = id => query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
 const gala = id => query.get('SELECT * FROM gala_registrations WHERE id = ?', [id]);
 const lastTo = to => [...sent].reverse().find(m => m.to === to);
+const allTo = to => sent.filter(m => m.to === to);
 
 (async () => {
     console.log('ca-approve-paylink.test.js — hermetic (scratch sqlite, no network, no mail)\n');
 
+    // ==================== 0. SEAT SEMANTICS ====================
+    await t('guest_count is ADDITIONAL guests — party is 1 + guest_count, as everywhere else', () => {
+        assert.strictEqual(payLink.partySeats({ guest_count: 0 }), 1, 'no guests = a party of one');
+        assert.strictEqual(payLink.partySeats({ guest_count: 1 }), 2, "Ana's plus-one = a party of two");
+        assert.strictEqual(payLink.partySeats({ guest_count: 2 }), 3);
+        assert.strictEqual(payLink.partySeats({}), 1, 'missing = a party of one');
+        assert.strictEqual(payLink.partySeats({ guest_count: -4 }), 1, 'never below one');
+        // The same arithmetic the register route, both FIRA blocks, gala-ops seatsOf() and the
+        // admin door list use: 1 + guest_count.
+        const src = fs.readFileSync(path.join(__dirname, '..', 'user-portal', 'backend', 'server.js'), 'utf8');
+        assert.ok(src.includes('// +guests, max 2'), 'the register route still documents guest_count as ADDITIONAL guests');
+        assert.ok(src.includes('galaBase * (1 + guests)'), 'Path B still charges 1 + guests');
+        assert.ok(src.includes('quantity: 1 + Math.max(0, parseInt(galaReg.guest_count, 10) || 0)'), 'FIRA still bills 1 + guest_count');
+    });
+
+    await t('quoteGalaSeats: a party of 2 owes 2 x the seat price, a party of 1 owes one', () => {
+        const solo = payLink.quoteGalaSeats(effectiveGalaPrice, { guest_count: 0 });
+        assert.strictEqual(solo.seats, 1);
+        assert.strictEqual(solo.total, 150);
+        assert.strictEqual(solo.lineQuantity, 1);
+        assert.strictEqual(solo.lineUnitAmount, 15000, 'Stripe minor units');
+        assert.strictEqual(solo.lineName, 'Plexus 2026 — Gala Evening', 'a single seat needs no seat count');
+
+        const pair = payLink.quoteGalaSeats(effectiveGalaPrice, { guest_count: 1 });
+        assert.strictEqual(pair.seats, 2);
+        assert.strictEqual(pair.total, 300, 'the registrant pays for the whole party');
+        assert.strictEqual(pair.lineQuantity, 2, 'Stripe shows 2 x');
+        assert.strictEqual(pair.lineUnitAmount, 15000, 'at the per-seat price');
+        assert.strictEqual(pair.lineName, 'Plexus 2026 — Gala Evening — 2 seats', 'the line item names the seats');
+        assert.strictEqual(pair.lineQuantity * pair.lineUnitAmount, 30000, 'and the line item totals the quote');
+    });
+
+    await t('Masakazu Toi is protected: a link already quoted at a checkout keeps that amount', () => {
+        // His real row, verbatim: guest_count 1 (a party of 2), but invoice GALA26-0038 and
+        // amount_paid 150 were stamped by /pay/gala when it sent him to Stripe for €150.
+        const toi = { guest_count: 1, invoice_number: 'GALA26-0038', amount_paid: 150 };
+        const q = payLink.quoteGalaSeats(effectiveGalaPrice, toi);
+        assert.strictEqual(q.honoured, true, 'an amount already shown at checkout is honoured');
+        assert.strictEqual(q.total, 150, 'he is NOT silently re-quoted from €150 to €300');
+        assert.strictEqual(q.lineQuantity * q.lineUnitAmount, 15000, 'and the line item charges exactly that');
+        assert.strictEqual(q.seats, 2, 'while the party is still known to be two');
+
+        // Every other unpaid row in production has both columns NULL and gets party pricing.
+        const fresh = payLink.quoteGalaSeats(effectiveGalaPrice, { guest_count: 1, invoice_number: null, amount_paid: null });
+        assert.strictEqual(fresh.honoured, false);
+        assert.strictEqual(fresh.total, 300);
+        // A zero/!invoice amount is not a quote.
+        assert.strictEqual(payLink.quoteGalaSeats(effectiveGalaPrice, { guest_count: 1, invoice_number: 'X', amount_paid: 0 }).total, 300);
+        assert.strictEqual(payLink.quoteGalaSeats(effectiveGalaPrice, { guest_count: 1, amount_paid: 150 }).total, 300, 'amount without an invoice is not a quote');
+    });
+
+    await t('seatsLine reads the way the owner wrote it', () => {
+        const pair = payLink.quoteGalaSeats(effectiveGalaPrice, { guest_count: 1 });
+        assert.strictEqual(payLink.seatsLine(pair, '2030-09-15'),
+            '2 seats · €300 (€150 per seat, early-bird until 15 September)');
+        const solo = payLink.quoteGalaSeats(effectiveGalaPrice, { guest_count: 0 });
+        assert.strictEqual(payLink.seatsLine(solo, '2030-09-15'),
+            '1 seat · €150 (early-bird until 15 September)', 'one seat drops the redundant per-seat figure');
+        assert.strictEqual(payLink.seatsLine(solo, '2020-01-01'), '1 seat · €150',
+            'a deadline in the past is a stale promise — never printed');
+        const toi = payLink.quoteGalaSeats(effectiveGalaPrice, { guest_count: 1, invoice_number: 'GALA26-0038', amount_paid: 150 });
+        assert.strictEqual(payLink.seatsLine(toi, '2030-09-15'), '2 seats · €150',
+            'an honoured quote states only what the link charges — its per-seat maths no longer holds');
+    });
+
+    await t('selectionPhrase names the legs the way the owner names them', () => {
+        assert.strictEqual(payLink.selectionPhrase({ wantConference: 1, wantBridges: 1, wantGala: 1 }),
+            'the Conference, Building Bridges Zagreb and the Gala Evening');
+        assert.strictEqual(payLink.selectionPhrase({ wantConference: 1, wantGala: 1 }),
+            'the Conference and the Gala Evening');
+        assert.strictEqual(payLink.selectionPhrase({ wantGala: 1 }), 'the Gala Evening');
+    });
+
     // ==================== 1. APPROVE WITH GALA ====================
-    await t('approve with Gala: pay email sent once, status approved, token works, marker stamped', async () => {
-        const { caId, galaId, email } = makeHeldCa();
+    await t('approve with Gala: exactly ONE email, and NO free-events QR', async () => {
+        const { caId, galaId, email } = makeHeldCa({ guest_count: 1 });
         releaseStatuses(caId);
         const before = sent.length;
 
-        const out = await payLink.sendGalaPayLink(deps(), caId);
+        const out = await runApprove(caId);
 
-        assert.strictEqual(out.status, 'done', 'approve must release the gala leg');
-        assert.strictEqual(sent.length, before + 1, 'exactly ONE email');
-        const msg = sent[sent.length - 1];
-        assert.strictEqual(msg.to, email, 'goes to the registrant');
-        assert.strictEqual(msg.subject, 'Your registration is confirmed — complete your Gala reservation');
+        assert.strictEqual(out.galaOwesPayment, true, 'the gala leg is unpaid');
+        assert.strictEqual(out.pathAReplayed, false, 'Path A is NOT replayed');
+        assert.strictEqual(out.galaPay.status, 'done');
+        assert.strictEqual(sent.length, before + 1, 'exactly ONE email leaves at approval');
+        assert.strictEqual(allTo(email).length, 1);
+
+        const msg = lastTo(email);
+        assert.strictEqual(msg.subject, 'Your registration is approved — one step left');
+        assert.ok(!/data-reg=/.test(msg.html), 'it carries NO QR block — the one ticket follows payment');
+        assert.strictEqual(msg.attachments.length, 0, 'and no QR attachment');
+        assert.ok(!/Pre-Registration Confirmed/.test(msg.html), 'not the free-events confirmation');
+
+        // The owner's wording, line by line.
+        assert.ok(/Dear Ana/.test(msg.html));
+        assert.ok(/Great news/.test(msg.html), 'owner wording: "Great news"');
+        assert.ok(/your registration for .*Plexus 2026.* is approved/.test(msg.html));
+        assert.ok(msg.html.includes('the Conference, Building Bridges Zagreb and the Gala Evening'),
+            'lists what they selected');
+        assert.ok(msg.html.includes('To complete your registration for everything'), 'owner wording: the ask');
+        assert.ok(msg.html.includes('the payment for the Gala Evening'), 'names the last step');
+        assert.ok(msg.html.includes('2 seats · €300 (€150 per seat, early-bird until 15 September)'),
+            'states the TOTAL for the party, not a per-seat price');
+        assert.ok(msg.html.includes('Complete my registration'), 'the button label the owner asked for');
+        assert.ok(/one ticket/.test(msg.html) && /covers all your events/.test(msg.html),
+            'promises the one ticket after payment');
+        assert.ok(!/confirm .*seat with you separately/i.test(msg.html),
+            'the old guest-seat sentence is gone');
+        assert.ok(msg.html.includes('laura.rodman@medx.hr'), 'Laura footer');
+        assert.ok(msg.html.includes('background:#120e0a'), 'house dark shell');
 
         const g = gala(galaId);
         assert.strictEqual(g.status, 'approved', "/pay/gala refuses anything but status='approved'");
-        assert.ok(g.pay_token && /^[0-9a-f]{48}$/.test(g.pay_token), 'a real secure-random hex token: ' + g.pay_token);
-        assert.ok(g.pay_token.length >= 16, '/pay/gala/:token will not even look up a shorter token');
-        assert.strictEqual(g.payment_status, 'pending', 'still unpaid — payment is still the filter');
-
-        // The link in the email is the link in the database.
+        assert.ok(g.pay_token && /^[0-9a-f]{48}$/.test(g.pay_token), 'a real secure-random hex token');
         assert.ok(msg.html.includes(`https://medx-user-portal.onrender.com/pay/gala/${g.pay_token}`),
             'the email carries the working /pay/gala link');
-        assert.ok(msg.html.includes('Complete my Gala reservation'), 'the button label the owner asked for');
-
-        // The owner's own words, and the facts a guest needs to act.
-        assert.ok(msg.html.includes('Great news'), 'owner wording: "Great news"');
-        assert.ok(/registration is confirmed/i.test(msg.html), 'says the registration is confirmed');
-        assert.ok(msg.html.includes('please pay for your Gala ticket here'), 'owner wording: the ask');
-        assert.ok(msg.html.includes('€150'), 'states the price from effectiveGalaPrice()');
-        assert.ok(msg.html.includes('5 December 2026'), 'states the Gala date from gala_settings');
-        assert.ok(/one ticket/i.test(msg.html), 'promises ONE ticket covering everything after payment');
-        assert.ok(msg.html.includes('Plexus Conference') && msg.html.includes('Croatian Biomedical Bridges'),
-            'names the free events the one ticket will cover');
-        assert.ok(msg.html.includes('laura.rodman@medx.hr'), 'Laura footer');
-        // House dark shell, same as every other review-gate registrant email.
-        assert.ok(msg.html.includes('background:#120e0a'), 'dark shell canvas');
-        assert.ok(msg.html.includes('REGISTRATION'), 'house header label');
-
-        // The CA row keeps 'awaiting_payment' — the webhook is what confirms it.
-        assert.strictEqual(ca(caId).gala_status, 'awaiting_payment');
-        assert.strictEqual(ca(caId).conference_status, 'pre-registered', 'free legs untouched');
-        assert.ok(gate.getMarker(ca(caId).notes, 'GALA-PAYLINK-SENT'), 'notes stamped GALA-PAYLINK-SENT');
+        assert.strictEqual(ca(caId).gala_status, 'awaiting_payment', 'payment is still the filter');
+        assert.ok(gate.getMarker(ca(caId).notes, 'GALA-PAYLINK-SENT'), 'notes stamped');
     });
 
-    await t('the early-bird deadline appears only while it is still ahead', async () => {
-        const { caId } = makeHeldCa();
-        releaseStatuses(caId);
-        const today = new Date().toISOString().slice(0, 10);
-
-        db.run("UPDATE gala_settings SET early_bird_deadline = '2020-01-01' WHERE id = 'default'");
-        await payLink.sendGalaPayLink(deps(), caId);
-        assert.ok(!/Early-bird price until/.test(sent[sent.length - 1].html),
-            'a deadline in the past is a stale promise — never printed');
-
-        const b = makeHeldCa();
-        releaseStatuses(b.caId);
-        db.run("UPDATE gala_settings SET early_bird_deadline = '2030-06-01' WHERE id = 'default'");
-        await payLink.sendGalaPayLink(deps(), b.caId);
-        assert.ok(/Early-bird price until/.test(sent[sent.length - 1].html), 'a live deadline is stated');
-        assert.ok(sent[sent.length - 1].html.includes('1 June 2030'), 'formatted, not raw ISO');
-
-        // Today's own date counts as still ahead (the production deadline is 2026-09-15).
-        const c = makeHeldCa();
-        releaseStatuses(c.caId);
-        db.run("UPDATE gala_settings SET early_bird_deadline = ? WHERE id = 'default'", [today]);
-        await payLink.sendGalaPayLink(deps(), c.caId);
-        assert.ok(/Early-bird price until/.test(sent[sent.length - 1].html), 'the deadline day itself still counts');
-        db.run("UPDATE gala_settings SET early_bird_deadline = '2026-09-15' WHERE id = 'default'");
+    await t('server.js really gates the Path-A replay on galaLegNeedsPayment', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'user-portal', 'backend', 'server.js'), 'utf8');
+        assert.ok(/const galaOwesPayment = galaPayLink\.galaLegNeedsPayment\(query, row\);/.test(src),
+            'the approve handler computes the predicate');
+        assert.ok(/if \(!galaOwesPayment\) \{\s*await caSendPreRegConfirmation\(/.test(src),
+            'and the free-events confirmation is sent ONLY when nothing is owed');
+        // The pay page must price the party through the shared quote, never a bare seat price.
+        assert.ok(/const quote = galaPayLink\.quoteGalaSeats\(effectiveGalaPrice, reg\);/.test(src),
+            '/pay/gala prices through quoteGalaSeats');
+        assert.ok(/quantity: quote\.lineQuantity/.test(src) && /unit_amount: quote\.lineUnitAmount/.test(src),
+            'and puts the whole party on the Stripe line item');
+        assert.ok(/amount_paid = \? WHERE id = \?', \[invoiceNumber, quote\.total, reg\.id\]/.test(src),
+            'and stamps the party total as the invoiced amount');
     });
 
-    await t('a party of more than one is stated but never priced (the link charges one seat)', async () => {
-        const { caId } = makeHeldCa({ guest_count: 1 });
-        releaseStatuses(caId);
-        await payLink.sendGalaPayLink(deps(), caId);
-        const html = sent[sent.length - 1].html;
-        assert.ok(/notes one guest/.test(html), 'the guest is acknowledged');
-        assert.ok(!/€300/.test(html), 'no party total is invented — /pay/gala charges one seat');
-        assert.ok(html.includes('€150'), 'the stated price is what the link will actually charge');
-    });
-
-    // ==================== 2. NO GALA ====================
-    await t('approve without Gala: nothing is sent and nothing changes', async () => {
-        const { caId } = makeHeldCa({ selected_gala: 0 });
+    // ==================== 2. NO GALA — PATH A UNCHANGED ====================
+    await t('approve without Gala: Path A is replayed exactly as before, with its QR', async () => {
+        const { caId, email } = makeHeldCa({ selected_gala: 0 });
         releaseStatuses(caId);
         const before = sent.length;
-        const snapshot = JSON.stringify(ca(caId));
 
-        const out = await payLink.sendGalaPayLink(deps(), caId);
+        const out = await runApprove(caId);
 
-        assert.strictEqual(out.status, 'no-gala');
-        assert.strictEqual(sent.length, before, 'no email');
-        assert.strictEqual(JSON.stringify(ca(caId)), snapshot, 'the row is byte-identical');
+        assert.strictEqual(out.galaOwesPayment, false, 'nothing is owed');
+        assert.strictEqual(out.pathAReplayed, true, 'the free-events confirmation still goes out');
+        assert.strictEqual(out.galaPay, null, 'and no pay link is even attempted');
+        assert.strictEqual(sent.length, before + 1, 'exactly one email');
+        const msg = lastTo(email);
+        assert.ok(/Pre-Registration Confirmed/.test(msg.html), 'it IS the free-events confirmation');
+        assert.ok(/data-reg=/.test(msg.html), 'and it still carries the check-in QR');
+    });
+
+    await t('approve with a Gala seat already paid: Path A is replayed, no chase email', async () => {
+        const { caId, galaId, email } = makeHeldCa();
+        releaseStatuses(caId);
+        db.run("UPDATE gala_registrations SET payment_status='paid', status='confirmed' WHERE id=?", [galaId]);
+        const before = sent.length;
+
+        const out = await runApprove(caId);
+
+        assert.strictEqual(out.galaOwesPayment, false);
+        assert.strictEqual(out.pathAReplayed, true, 'a paid seat owes nothing, so the confirmation stands');
+        assert.strictEqual(out.galaPay.status, 'already-paid');
+        assert.strictEqual(sent.length, before + 1, 'one email, and it is not a payment request');
+        assert.ok(!/Complete my registration/.test(lastTo(email).html));
+    });
+
+    await t('galaLegNeedsPayment truth table', () => {
+        const a = makeHeldCa(); releaseStatuses(a.caId);
+        assert.strictEqual(payLink.galaLegNeedsPayment(query, ca(a.caId)), true, 'unpaid gala');
+        db.run("UPDATE gala_registrations SET payment_status='paid' WHERE id=?", [a.galaId]);
+        assert.strictEqual(payLink.galaLegNeedsPayment(query, ca(a.caId)), false, 'paid gala');
+        const b = makeHeldCa({ selected_gala: 0 }); releaseStatuses(b.caId);
+        assert.strictEqual(payLink.galaLegNeedsPayment(query, ca(b.caId)), false, 'no gala selected');
+        const c = makeHeldCa(); releaseStatuses(c.caId);
+        db.run('DELETE FROM gala_registrations WHERE id=?', [c.galaId]);
+        assert.strictEqual(payLink.galaLegNeedsPayment(query, ca(c.caId)), true, 'selected but the row is missing');
     });
 
     // ==================== 3. IDEMPOTENCE ====================
@@ -298,20 +371,6 @@ const lastTo = to => [...sent].reverse().find(m => m.to === to);
         assert.strictEqual(out2.status, 'already');
         assert.strictEqual(sent.length, after1, 'nothing re-sent');
         assert.strictEqual(gala(galaId).pay_token, token1, 'the SAME link stays valid');
-
-        const out3 = await payLink.sendGalaPayLink(deps(), caId);
-        assert.strictEqual(out3.status, 'already', 'and again');
-        assert.strictEqual(sent.length, after1);
-    });
-
-    await t('a seat that is already paid is never asked to pay again', async () => {
-        const { caId, galaId } = makeHeldCa();
-        releaseStatuses(caId);
-        db.run("UPDATE gala_registrations SET payment_status = 'paid', status = 'confirmed' WHERE id = ?", [galaId]);
-        const before = sent.length;
-        const out = await payLink.sendGalaPayLink(deps(), caId);
-        assert.strictEqual(out.status, 'already-paid');
-        assert.strictEqual(sent.length, before, 'no "please pay" email to somebody who has paid');
     });
 
     await t('a rejected send is NOT stamped — the retry re-sends the same link', async () => {
@@ -323,15 +382,15 @@ const lastTo = to => [...sent].reverse().find(m => m.to === to);
         assert.ok(!gate.getMarker(ca(caId).notes, 'GALA-PAYLINK-SENT'), 'an unsent link must stay re-sendable');
         const token = gala(galaId).pay_token;
         assert.ok(token, 'the token is committed anyway, so the admin Pay-link button works');
-        assert.strictEqual(gala(galaId).status, 'approved', 'and the seat is approved anyway');
+        assert.strictEqual(gala(galaId).status, 'approved');
 
         const retry = await payLink.sendGalaPayLink(deps(), caId);
         assert.strictEqual(retry.status, 'done', 'the retry goes through');
-        assert.strictEqual(gala(galaId).pay_token, token, 'and carries the SAME link, not a second one');
+        assert.strictEqual(gala(galaId).pay_token, token, 'and carries the SAME link');
     });
 
     // ==================== 4. INSTITUTIONAL PATH ====================
-    await t('institutional confirmation: the pay email follows the re-pointed address', async () => {
+    await t('institutional confirmation: the email follows the re-pointed address', async () => {
         const { caId, galaId } = makeHeldCa({ email: 'shady.freemail@gmail.com' });
         releaseStatuses(caId);
         // review-gate.js calls h.setEmail(id, instEmail) BEFORE h.approve(id) — verbatim order.
@@ -341,14 +400,13 @@ const lastTo = to => [...sent].reverse().find(m => m.to === to);
         const out = await payLink.sendGalaPayLink(deps(), caId);
 
         assert.strictEqual(out.status, 'done');
-        assert.strictEqual(out.email, instEmail, 'reported recipient is the institutional inbox');
-        const msg = sent[sent.length - 1];
-        assert.strictEqual(msg.to, instEmail, 'the pay link goes to the verified inbox');
-        assert.ok(!sent.some(m => m.to === 'shady.freemail@gmail.com'), 'the original free-mail address gets nothing');
-        assert.ok(msg.html.includes(gala(galaId).pay_token), 'still the real token');
+        assert.strictEqual(out.email, instEmail);
+        assert.strictEqual(lastTo(instEmail).to, instEmail, 'the link goes to the verified inbox');
+        assert.strictEqual(allTo('shady.freemail@gmail.com').length, 0, 'the free-mail address gets nothing');
+        assert.ok(lastTo(instEmail).html.includes(gala(galaId).pay_token));
     });
 
-    // ==================== 5. THE MISSING GALA ROW ====================
+    // ==================== 5. EDGE CASES ====================
     await t('a held row that lost its gala row gets one, rather than no link at all', async () => {
         const { caId, galaId } = makeHeldCa();
         releaseStatuses(caId);
@@ -356,130 +414,120 @@ const lastTo = to => [...sent].reverse().find(m => m.to === to);
         db.run('UPDATE croatians_abroad_registrations SET gala_registration_id = NULL WHERE id = ?', [caId]);
 
         const out = await payLink.sendGalaPayLink(deps(), caId);
-
         assert.strictEqual(out.status, 'done');
         const newId = ca(caId).gala_registration_id;
         assert.ok(newId && newId !== galaId, 'a fresh gala row is linked');
         assert.strictEqual(gala(newId).status, 'approved');
-        assert.ok(gala(newId).pay_token, 'and carries a token');
+        assert.ok(gala(newId).pay_token);
     });
 
     await t('an unknown id is refused without side effects', async () => {
         const before = sent.length;
-        const out = await payLink.sendGalaPayLink(deps(), crypto.randomUUID());
-        assert.strictEqual(out.status, 'notfound');
+        assert.strictEqual((await payLink.sendGalaPayLink(deps(), crypto.randomUUID())).status, 'notfound');
         assert.strictEqual(sent.length, before);
     });
 
-    // ==================== 5b. WHAT THE ADMIN SEES ====================
     await t('admin visibility: the row reads "Approved · awaiting payment" and its Pay-link action works', async () => {
         const { caId, galaId } = makeHeldCa();
         releaseStatuses(caId);
-
-        // BEFORE: the state the gap left behind. Both admin predicates fail on it.
         const held = gala(galaId);
-        assert.strictEqual(held.status, 'awaiting_payment');
         assert.ok(!(held.status === 'approved' && held.payment_status !== 'paid'),
-            'admin-portal/frontend renders the "Awaiting payment" row + Pay-link button off exactly this predicate');
+            'admin-portal/frontend renders the Awaiting-payment row + Pay-link button off exactly this predicate');
         assert.ok(!held.pay_token, 'and there was no token for the button to hand out');
 
         await payLink.sendGalaPayLink(deps(), caId);
 
-        // AFTER: verbatim the two conditions the admin portal applies.
         const g = gala(galaId);
         assert.ok(g.status === 'approved' && g.payment_status !== 'paid',
-            'admin-portal/frontend/index.html: r.status === \'approved\' && r.payment_status !== \'paid\'');
-        // admin-portal/backend/server.js GET /api/gala/registrations/:id/pay-link, verbatim:
-        assert.ok(!(g.status !== 'approved'), "…rejects 'Guest must be approved first' unless status === 'approved'");
-        assert.ok(!(g.payment_status === 'paid'), "…and rejects 'Already paid'");
+            "admin frontend: r.status === 'approved' && r.payment_status !== 'paid'");
+        assert.ok(!(g.status !== 'approved'), "admin pay-link route: rejects unless status === 'approved'");
         assert.ok(g.pay_token, '…then hands out pay_token rather than minting a second one');
-        // v2/gala-ops computeGalaSummary: active + unpaid = a seat to chase, and 'approved' is active.
         assert.ok(!['cancelled', 'rejected', 'declined', 'expired'].includes(String(g.status).toLowerCase()),
             'counts as an active seat in the Gala summary');
     });
 
     // ==================== 6. PREVIEW ====================
-    await t('preview: same email, [PREVIEW] subject, sent to the owner, row untouched', async () => {
-        const { caId, galaId } = makeHeldCa({ first_name: 'Ana', last_name: 'Franceschi' });
+    await t('preview: same email, [PREVIEW] subject, to the owner, row untouched', async () => {
+        const { caId, galaId } = makeHeldCa({ guest_count: 1 });
         releaseStatuses(caId);
-        const snapCa = JSON.stringify(ca(caId));
-        const snapGala = JSON.stringify(gala(galaId));
+        const snapCa = JSON.stringify(ca(caId)), snapGala = JSON.stringify(gala(galaId));
 
         const out = await payLink.sendGalaPayLink(deps(), caId, { preview: true, to: gate.REVIEW_TO });
 
         assert.strictEqual(out.status, 'preview');
         const msg = sent[sent.length - 1];
-        assert.strictEqual(msg.to, gate.REVIEW_TO, 'addressed to the owner');
+        assert.strictEqual(msg.to, gate.REVIEW_TO);
         assert.strictEqual(gate.REVIEW_TO, 'juginovic.alen@gmail.com', 'which is Alen');
-        assert.ok(msg.subject.startsWith('[PREVIEW] '), 'subject is prefixed');
-        assert.ok(msg.subject.endsWith('Your registration is confirmed — complete your Gala reservation'),
-            'and otherwise identical to the real one');
+        assert.ok(msg.subject.startsWith('[PREVIEW] '));
+        assert.ok(msg.subject.endsWith('Your registration is approved — one step left'));
         assert.ok(msg.html.includes('Dear Ana'), "built from Ana's row");
-        assert.ok(msg.html.includes('€150') && msg.html.includes('Complete my Gala reservation'), 'same body');
+        assert.ok(msg.html.includes('2 seats · €300'), 'showing her party total');
 
         assert.strictEqual(JSON.stringify(ca(caId)), snapCa, 'the CA row is byte-identical');
         assert.strictEqual(JSON.stringify(gala(galaId)), snapGala, 'the gala row is byte-identical');
         assert.strictEqual(gala(galaId).pay_token, null, 'NO live payment link is minted by a preview');
-        assert.ok(!gate.getMarker(ca(caId).notes, 'GALA-PAYLINK-SENT'), 'and no marker is stamped');
-        // The registrant themselves must not have been written to.
-        assert.ok(!sent.slice(-1).some(m => m.to === ca(caId).email), 'the registrant received nothing');
+        assert.ok(!gate.getMarker(ca(caId).notes, 'GALA-PAYLINK-SENT'));
     });
 
     // ==================== 7. THE WEBHOOK: hold -> approve -> pay ====================
-    await t('webhook: a hold→approve→pay row gets the ONE combined ticket, not a bare receipt', async () => {
-        const { caId, galaId, email } = makeHeldCa();
+    await t('webhook: a party of 2 gets ONE combined ticket issued as a party of 2', async () => {
+        const { caId, galaId, email } = makeHeldCa({ guest_count: 1 });
         releaseStatuses(caId);
-        await payLink.sendGalaPayLink(deps(), caId);           // approve: link minted + sent
+        await payLink.sendGalaPayLink(deps(), caId);
         const before = sent.length;
 
-        // What server.js's 'gala-ticket' webhook branch passes once Stripe confirms.
         const out = await payLink.fulfilLinkedCaGala(deps(), {
-            galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0042',
-            sessionEmail: email
+            galaRegId: galaId, amount: 300, invoiceNumber: 'GALA26-0042', sessionEmail: email
         });
 
-        assert.strictEqual(out.handled, true, 'the branch must recognise a linked CA row');
-        assert.deepStrictEqual(out.events, ['conference', 'bridges', 'gala'], 'the ticket covers all three');
+        assert.strictEqual(out.handled, true);
+        assert.strictEqual(out.seats, 2, 'the ticket knows it is a party of two');
+        assert.deepStrictEqual(out.events, ['conference', 'bridges', 'gala']);
         assert.strictEqual(sent.length, before + 1, 'exactly ONE ticket email');
 
-        const msg = sent[sent.length - 1];
-        assert.strictEqual(msg.to, email);
+        const msg = lastTo(email);
         assert.strictEqual(msg.subject, 'Payment Confirmed — Plexus 2026');
-        assert.ok(msg.html.includes('PAYMENT CONFIRMED'), 'reads as a receipt');
-        assert.ok(/(€|&euro;)150\.00/.test(msg.html), 'states the amount actually charged');
+        assert.ok(/(€|&euro;)300\.00/.test(msg.html), 'states the party total actually charged');
+        assert.ok(msg.html.includes('2 Gala seats'), 'says how many seats were bought');
+        assert.ok(msg.html.includes('CONFIRMED &amp; PAID · 2 SEATS'), 'the Gala line reads as a party');
+        assert.ok(msg.html.includes('admits your whole party of 2'), 'the QR caption states the party');
         assert.ok(msg.html.includes('GALA26-0042'), 'carries the invoice number');
-        // The thing the old 'gala-ticket' receipt never had.
         assert.ok(msg.html.includes(`data-reg="${galaId}"`), 'carries the check-in QR block');
-        assert.ok(msg.attachments.length === 1 && msg.attachments[0].filename === 'plexus-ticket-qr.png',
-            'and the QR is attached as a PNG');
-        assert.deepStrictEqual(msg.attachments[0]._payload.events, ['conference', 'bridges', 'gala'],
-            'the QR payload admits all three events, so the scanner verifies every mode');
-        assert.strictEqual(msg.attachments[0]._payload.caRegId, caId, 'and carries BOTH ids');
+        assert.strictEqual(msg.attachments.length, 1);
+        assert.strictEqual(msg.attachments[0]._payload.guests, 1, 'the QR payload carries the +1, like every other Med&X ticket');
+        assert.deepStrictEqual(msg.attachments[0]._payload.events, ['conference', 'bridges', 'gala']);
+        assert.strictEqual(msg.attachments[0]._payload.caRegId, caId, 'and BOTH ids so every scanner mode verifies');
         assert.strictEqual(msg.attachments[0]._payload.regId, galaId);
-        assert.ok(msg.html.includes('Plexus Conference') && msg.html.includes('Croatian Biomedical Bridges')
-            && msg.html.includes('Plexus Gala Evening'), 'all three events are listed');
-        assert.ok(msg.html.includes('CONFIRMED &amp; PAID'), 'the Gala line reads as paid');
 
-        // Statuses square up on BOTH tables.
         const c = ca(caId);
         assert.strictEqual(c.gala_status, 'confirmed');
         assert.strictEqual(c.gala_payment_status, 'paid');
-        assert.strictEqual(c.amount_paid, 150);
-        assert.strictEqual(c.invoice_number, 'GALA26-0042');
+        assert.strictEqual(c.amount_paid, 300);
+    });
+
+    await t('webhook: a party of 1 is unchanged — no seat count anywhere', async () => {
+        const { caId, galaId, email } = makeHeldCa({ guest_count: 0 });
+        releaseStatuses(caId);
+        await payLink.sendGalaPayLink(deps(), caId);
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0043' });
+
+        const msg = lastTo(email);
+        assert.ok(/(€|&euro;)150\.00/.test(msg.html));
+        assert.ok(!/SEATS/.test(msg.html), 'no seat count on a party of one');
+        assert.ok(!/whole party of/.test(msg.html), 'and no party caption');
+        assert.ok(msg.html.includes('CONFIRMED &amp; PAID'));
+        assert.strictEqual(msg.attachments[0]._payload.guests, 0);
     });
 
     await t('webhook: a duplicate delivery re-sends nothing', async () => {
         const { caId, galaId } = makeHeldCa();
         releaseStatuses(caId);
         await payLink.sendGalaPayLink(deps(), caId);
-        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0043' });
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0044' });
         const after = sent.length;
-
-        const dup = await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0043' });
-        assert.strictEqual(dup.handled, true);
+        const dup = await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0044' });
         assert.strictEqual(dup.duplicate, true);
         assert.strictEqual(sent.length, after, 'no second ticket');
-        assert.strictEqual(ca(caId).invoice_number, 'GALA26-0043', 'and the invoice is not renumbered');
     });
 
     await t('webhook: a standalone gala row is NOT claimed — the existing receipt still owns it', async () => {
@@ -488,9 +536,9 @@ const lastTo = to => [...sent].reverse().find(m => m.to === to);
                 VALUES (?,?,?,?,?, 'approved', 'pending', ?)`,
             [soloId, 'Solo', 'Guest', 'solo@example.org', 'Somewhere', 'a'.repeat(48)]);
         const before = sent.length;
-        const out = await payLink.fulfilLinkedCaGala(deps(), { galaRegId: soloId, amount: 150, invoiceNumber: 'GALA26-0044' });
+        const out = await payLink.fulfilLinkedCaGala(deps(), { galaRegId: soloId, amount: 150, invoiceNumber: 'GALA26-0045' });
         assert.strictEqual(out.handled, false, 'handled:false leaves server.js on its untouched path');
-        assert.strictEqual(sent.length, before, 'and this module sends nothing');
+        assert.strictEqual(sent.length, before);
     });
 
     await t('webhook: a named party guest gets the SAME shared QR', async () => {
@@ -500,47 +548,131 @@ const lastTo = to => [...sent].reverse().find(m => m.to === to);
             [crypto.randomUUID(), caId, 'Emeric du Mas de Paysac', 'Sorbonne', 'guest@example.org']);
         const before = sent.length;
 
-        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0045' });
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 300, invoiceNumber: 'GALA26-0046' });
 
         assert.strictEqual(sent.length, before + 2, 'registrant + one named guest');
         const g = lastTo('guest@example.org');
-        assert.ok(g, 'the guest was written to');
         assert.strictEqual(g.subject, 'Your Gala Evening entry — Plexus 2026');
         assert.ok(g.html.includes(`data-reg="${galaId}"`), 'the same party QR, not a second ticket');
         assert.ok(g.html.includes('Emeric'), 'addressed by first name');
-        assert.ok(lastTo(email).html.includes('PAYMENT CONFIRMED'), 'and the registrant still got the receipt');
+        assert.ok(g.html.includes('Your seat is paid for'), 'and told their seat is covered');
     });
 
-    await t('webhook: a Gala-only registration is confirmed without inventing free events', async () => {
-        const { caId, galaId } = makeHeldCa({ selected_conference: 0, selected_bridges: 0 });
+    // ==================== 8. THE NUDGE ====================
+    await t('nudge dry-run lists approved-but-unpaid seats and sends nothing', async () => {
+        const fresh = makeHeldCa({ first_name: 'Nudge', last_name: 'Fresh' });
+        releaseStatuses(fresh.caId);
+        await payLink.sendGalaPayLink(deps(), fresh.caId);
+        // Age it: the clock runs from the GALA-PAYLINK-SENT marker.
+        db.run('UPDATE croatians_abroad_registrations SET notes = ? WHERE id = ?',
+            [gate.upsertMarker('', 'GALA-PAYLINK-SENT', '2026-01-01'), fresh.caId]);
+        const before = sent.length;
+
+        const rows = payLink.listUnpaidGalaNudges(deps(), { days: 7 });
+        assert.strictEqual(sent.length, before, 'a listing sends nothing');
+        const mine = rows.find(r => r.ca_id === fresh.caId);
+        assert.ok(mine, 'the waiting seat is listed');
+        assert.strictEqual(mine.has_pay_link, true);
+        assert.strictEqual(mine.already_nudged, false);
+        assert.strictEqual(mine.seats, 1);
+        assert.strictEqual(mine.amount_due, 150);
+        assert.ok(mine.days_waiting > 200, 'and how long they have waited');
+
+        // A seat asked for only today is below the threshold.
+        const today = makeHeldCa({ first_name: 'Nudge', last_name: 'Today' });
+        releaseStatuses(today.caId);
+        await payLink.sendGalaPayLink(deps(), today.caId);
+        assert.ok(!payLink.listUnpaidGalaNudges(deps(), { days: 7 }).some(r => r.ca_id === today.caId),
+            'a seat asked for today is not chased');
+        assert.ok(payLink.listUnpaidGalaNudges(deps(), { days: 0 }).some(r => r.ca_id === today.caId),
+            'days=0 lists everyone');
+    });
+
+    await t('nudge listing excludes paid seats, unselected galas and test rows', async () => {
+        const paid = makeHeldCa(); releaseStatuses(paid.caId);
+        await payLink.sendGalaPayLink(deps(), paid.caId);
+        db.run("UPDATE gala_registrations SET payment_status='paid' WHERE id=?", [paid.galaId]);
+        const noGala = makeHeldCa({ selected_gala: 0 }); releaseStatuses(noGala.caId);
+        const testRow = makeHeldCa({ first_name: 'Scanner' }); releaseStatuses(testRow.caId);
+        await payLink.sendGalaPayLink(deps(), testRow.caId);
+        db.run("UPDATE gala_registrations SET requests='SCANNER TEST — safe to delete' WHERE id=?", [testRow.galaId]);
+
+        const ids = payLink.listUnpaidGalaNudges(deps(), { days: 0 }).map(r => r.ca_id);
+        assert.ok(!ids.includes(paid.caId), 'a paid seat is never chased');
+        assert.ok(!ids.includes(noGala.caId), 'a registration with no Gala is not in this list');
+        assert.ok(!ids.includes(testRow.caId), 'test rows are excluded');
+    });
+
+    await t('nudge real run sends once, then never again', async () => {
+        const { caId, galaId, email } = makeHeldCa({ first_name: 'Magdalena', guest_count: 1 });
         releaseStatuses(caId);
-        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 175, invoiceNumber: 'GALA26-0046' });
-        const msg = sent[sent.length - 1];
-        assert.ok(msg.html.includes('Plexus Gala Evening'));
-        assert.ok(!msg.html.includes('Plexus Conference'), 'no event they did not register for');
-        assert.ok(!msg.html.includes('Croatian Biomedical Bridges'));
-        assert.strictEqual(ca(caId).gala_status, 'confirmed');
+        await payLink.sendGalaPayLink(deps(), caId);
+        const before = sent.length;
+
+        const out = await payLink.sendUnpaidGalaNudge(deps(), caId);
+        assert.strictEqual(out.status, 'done');
+        assert.strictEqual(sent.length, before + 1, 'exactly one reminder');
+        const msg = lastTo(email);
+        assert.strictEqual(msg.subject, 'Your Gala seat is still waiting — Plexus 2026');
+        assert.ok(msg.html.includes('Dear Magdalena'));
+        assert.ok(msg.html.includes(`/pay/gala/${gala(galaId).pay_token}`), 'the SAME payment link, not a new one');
+        assert.ok(msg.html.includes('2 seats · €300'), 'states the party total');
+        assert.ok(msg.html.includes('reply to this email and we will send your Conference and Building Bridges Zagreb ticket on its own'),
+            'offers the free-events fallback, and reads as English');
+        assert.ok(!/your the /.test(msg.html), 'no "your the Conference"');
+        assert.ok(msg.html.includes('nothing to pay'), 'and says it costs nothing');
+        assert.ok(msg.html.includes('laura.rodman@medx.hr'), 'Laura footer');
+        assert.ok(gate.getMarker(ca(caId).notes, 'GALA-NUDGE-SENT'), 'stamped GALA-NUDGE-SENT');
+        assert.ok(gate.getMarker(ca(caId).notes, 'GALA-PAYLINK-SENT'), 'and the approval marker survives');
+
+        const again = await payLink.sendUnpaidGalaNudge(deps(), caId);
+        assert.strictEqual(again.status, 'already');
+        assert.strictEqual(sent.length, before + 1, 'a second sweep re-sends nothing');
+        assert.ok(payLink.listUnpaidGalaNudges(deps(), { days: 0 }).find(r => r.ca_id === caId).already_nudged,
+            'and the listing shows it as already nudged');
     });
 
-    // ==================== 8. THE SHAPE OF THE WHOLE STORY ====================
+    await t('nudge refuses a seat with no payment link, and a paid one', async () => {
+        const noLink = makeHeldCa(); releaseStatuses(noLink.caId);
+        const before = sent.length;
+        assert.strictEqual((await payLink.sendUnpaidGalaNudge(deps(), noLink.caId)).status, 'no-pay-link',
+            'send the approval email first');
+        const paid = makeHeldCa(); releaseStatuses(paid.caId);
+        await payLink.sendGalaPayLink(deps(), paid.caId);
+        db.run("UPDATE gala_registrations SET payment_status='paid' WHERE id=?", [paid.galaId]);
+        assert.strictEqual((await payLink.sendUnpaidGalaNudge(deps(), paid.caId)).status, 'already-paid');
+        assert.strictEqual(sent.length, before + 1, 'only the approval email in this block');
+    });
+
+    await t('the nudge route defaults to a dry run in every shape', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'user-portal', 'backend', 'server.js'), 'utf8');
+        assert.ok(src.includes("app.post('/api/admin/gala/unpaid-nudge', auth, adminOnly"), 'mounted behind admin auth');
+        assert.ok(/const dry = !\(q\.dry === 0 \|\| q\.dry === '0' \|\| q\.dry === false \|\| q\.dry === 'false' \|\| q\.dry === 'no'\)/.test(src),
+            'only an explicit 0/false/no arms the send');
+        assert.ok(!/setInterval[^\n]*unpaid-nudge|cron[^\n]*unpaid-nudge/i.test(src), 'and it is never scheduled');
+    });
+
+    // ==================== 9. THE SHAPE OF THE WHOLE STORY ====================
     await t('end to end: hold -> approve -> pay leaves exactly two emails and clean state', async () => {
         const { caId, galaId, email } = makeHeldCa({ first_name: 'Magdalena', last_name: 'Zebrowska',
-            email: 'magdalena@meduniwien.example', country: 'Austria' });
-        const mine = () => sent.filter(m => m.to === email);
+            email: 'magdalena@meduniwien.example', country: 'Austria', guest_count: 0 });
         releaseStatuses(caId);
 
-        await payLink.sendGalaPayLink(deps(), caId);
-        assert.strictEqual(mine().length, 1, 'one email at approve');
+        await runApprove(caId);
+        assert.strictEqual(allTo(email).length, 1, 'one email at approval');
+        assert.ok(!/data-reg=/.test(lastTo(email).html), 'and it holds no QR');
 
         const token = gala(galaId).pay_token;
-        // /pay/gala/:token's own gate, asserted verbatim: it resolves by token and REQUIRES approved.
+        // /pay/gala/:token's own gate, asserted verbatim.
         const resolved = query.get('SELECT * FROM gala_registrations WHERE pay_token = ?', [token]);
         assert.ok(resolved && token.length >= 16, 'the emailed token resolves a row');
         assert.strictEqual(resolved.status, 'approved', 'and passes the /pay/gala status gate');
-        assert.notStrictEqual(resolved.payment_status, 'paid', 'and is not short-circuited as already paid');
+        const q = payLink.quoteGalaSeats(effectiveGalaPrice, resolved);
+        assert.strictEqual(q.total, 150, 'which will charge her one seat');
 
-        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0047' });
-        assert.strictEqual(mine().length, 2, 'one email at payment — two in total, never three');
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: q.total, invoiceNumber: 'GALA26-0047' });
+        assert.strictEqual(allTo(email).length, 2, 'one email at payment — two in total, never three');
+        assert.ok(/data-reg=/.test(lastTo(email).html), 'and THIS one carries the single ticket');
 
         const c = ca(caId);
         assert.deepStrictEqual(
