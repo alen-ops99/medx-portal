@@ -8261,6 +8261,11 @@ async function initializeApp() {
     // logged in (or claimed retroactively by email) attaches to the member's account.
     // Nullable — the anonymous path is untouched. Declared identically in BOTH portals.
     try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN user_id TEXT'); } catch(e) {}
+    // Mirror of the user-portal migration: "official invoice to my company/institution" ticked on
+    // the Zagreb form (Gala selected). The user portal's payment webhooks act on it; the admin
+    // only reads it.
+    try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0'); } catch(e) {}
 
     // Denormalized "what they applied for" + answers + link token on every registration table.
     // Runs HERE (not in the early migration block) because gala/forum/bridges/CA are created above.

@@ -59,7 +59,7 @@ raw.exec(`CREATE TABLE croatians_abroad_registrations (
     conference_status TEXT, bridges_status TEXT, gala_status TEXT, gala_payment_status TEXT,
     gala_registration_id TEXT, stripe_session_id TEXT, amount_paid REAL, invoice_number TEXT,
     guest_count INTEGER DEFAULT 0, custom_answers TEXT, applied_for TEXT,
-    source TEXT DEFAULT 'croatians-abroad', user_id TEXT,
+    source TEXT DEFAULT 'croatians-abroad', user_id TEXT, needs_invoice INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )`);
 raw.exec(`CREATE TABLE gala_registrations (
@@ -67,7 +67,7 @@ raw.exec(`CREATE TABLE gala_registrations (
     institution TEXT, title TEXT, dietary TEXT, requests TEXT, pricing TEXT,
     status TEXT DEFAULT 'pending', payment_status TEXT, amount_paid REAL, invoice_number TEXT,
     stripe_session_id TEXT, pay_token TEXT, guest_count INTEGER DEFAULT 0, user_id TEXT,
-    admin_notes TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    admin_notes TEXT, needs_invoice INTEGER DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )`);
 raw.exec(`CREATE TABLE gala_settings (
     id TEXT PRIMARY KEY DEFAULT 'default', title TEXT, date TEXT, venue TEXT,
@@ -122,23 +122,23 @@ function makeHeldCa(over = {}) {
         first_name: 'Ana', last_name: 'Franceschi', email: `held${++seq}@example.org`,
         institution: 'Northwell Health', country: 'United States',
         selected_conference: 1, selected_bridges: 1, selected_gala: 1,
-        guest_count: 0, notes: '', source: 'plexus'
+        guest_count: 0, notes: '', source: 'plexus', needs_invoice: 0
     }, over);
     db.run(`INSERT INTO croatians_abroad_registrations
             (id, first_name, last_name, email, institution, country, selected_conference, selected_bridges, selected_gala,
-             conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, guest_count, notes, source)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+             conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, guest_count, notes, source, needs_invoice)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [caId, f.first_name, f.last_name, f.email, f.institution, f.country,
          f.selected_conference, f.selected_bridges, f.selected_gala,
          f.selected_conference ? 'pending-review' : null,
          f.selected_bridges ? 'pending-review' : null,
          f.selected_gala ? 'pending-review' : null,
          f.selected_gala ? 'pending' : null,
-         galaId, f.guest_count, f.notes, f.source]);
+         galaId, f.guest_count, f.notes, f.source, f.needs_invoice ? 1 : 0]);
     if (galaId) {
-        db.run(`INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, guest_count)
-                VALUES (?,?,?,?,?, 'pending-review', 'pending', ?)`,
-            [galaId, f.first_name, f.last_name || '', f.email, f.institution || '', f.guest_count]);
+        db.run(`INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, guest_count, needs_invoice)
+                VALUES (?,?,?,?,?, 'pending-review', 'pending', ?, ?)`,
+            [galaId, f.first_name, f.last_name || '', f.email, f.institution || '', f.guest_count, f.needs_invoice ? 1 : 0]);
     }
     return { caId, galaId, email: f.email };
 }
@@ -777,6 +777,117 @@ const allTo = to => sent.filter(m => m.to === to);
             [c.conference_status, c.bridges_status, c.gala_status, c.gala_payment_status],
             ['pre-registered', 'pre-registered', 'confirmed', 'paid'],
             'every leg ends where it should');
+    });
+
+    // ==================== 10. THE OFFICIAL-INVOICE NOTE (to the finance lead) ====================
+    // "I need an official invoice made out to my company or institution" — a tick on the Zagreb
+    // form, only offered with the Gala. On PAYMENT the finance lead (vp@medx.hr) is told ONCE,
+    // from whichever webhook branch the payment arrives on; the registrant is not written to.
+    await t('invoice: the finance recipient is the VP, overridable by env only', () => {
+        assert.strictEqual(payLink.FINANCE_TO, 'vp@medx.hr');
+        assert.strictEqual(payLink.INVOICE_MARKER, 'INVOICE-MIRO-NOTIFIED');
+    });
+
+    await t('invoice: the note names the registrant, the amount, the ref, the seats — and asks for FIRA', () => {
+        const html = payLink.buildInvoiceNeededEmail({
+            name: 'Ivana Horvat', email: 'ivana@klinika.hr', institution: 'Klinika d.o.o.', country: 'Croatia',
+            seats: 2, amount: 300, paymentRef: 'GALA26-0077', registrationId: 'abcdef12-3456'
+        });
+        for (const needle of ['Official invoice needed', 'Ivana Horvat', 'ivana@klinika.hr', 'Klinika d.o.o.', 'Croatia',
+                              '€300', 'GALA26-0077', 'ABCDEF12', 'issue the invoice via FIRA',
+                              'legal name, address, OIB / VAT ID', 'has not been written to']) {
+            assert.ok(html.includes(needle), 'missing: ' + needle);
+        }
+        assert.ok(html.includes('>2<') || html.includes('>2</td>'), 'seat count in the facts');
+        assert.ok(!/href="https?:\/\/[^"]*\/pay\/gala/.test(html), 'no payment link — this is not a registrant email');
+    });
+
+    await t('invoice: a row that did not tick the box sends nothing and is left alone', async () => {
+        const { caId, galaId } = makeHeldCa({ needs_invoice: 0 });
+        releaseStatuses(caId);
+        const before = sent.length;
+        const out = await payLink.notifyInvoiceNeeded(deps(), { caId, galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0080' });
+        assert.strictEqual(out.status, 'not-needed');
+        assert.strictEqual(sent.length, before);
+        assert.strictEqual(gate.getMarker(ca(caId).notes, payLink.INVOICE_MARKER), null);
+    });
+
+    await t('invoice: a ticked row tells the finance lead once, stamps the marker, and never again', async () => {
+        const { caId, galaId, email } = makeHeldCa({ needs_invoice: 1, guest_count: 1, institution: 'Northwell Health' });
+        releaseStatuses(caId);
+        const before = sent.length;
+        const first = await payLink.notifyInvoiceNeeded(deps(), { caId, galaRegId: galaId, amount: 300, invoiceNumber: 'GALA26-0081' });
+        assert.strictEqual(first.status, 'done');
+        assert.strictEqual(first.to, 'vp@medx.hr');
+        assert.strictEqual(sent.length, before + 1, 'exactly one email');
+        const msg = sent[sent.length - 1];
+        assert.strictEqual(msg.to, 'vp@medx.hr', 'to the finance lead, not the registrant');
+        assert.notStrictEqual(msg.to, email);
+        assert.strictEqual(msg.subject, 'Official invoice needed — Ana Franceschi, Gala Evening');
+        assert.ok(msg.html.includes('Northwell Health'));
+        assert.ok(msg.html.includes('€300'));
+        assert.ok(msg.html.includes('GALA26-0081'));
+        assert.ok(gate.getMarker(ca(caId).notes, payLink.INVOICE_MARKER), 'marker stamped on the CA row');
+
+        // second call, by the id of the OTHER branch (gala id only) — nothing
+        const again = await payLink.notifyInvoiceNeeded(deps(), { galaRegId: galaId, amount: 300, invoiceNumber: 'GALA26-0081' });
+        assert.strictEqual(again.status, 'already');
+        assert.strictEqual(sent.length, before + 1, 'no second note');
+    });
+
+    await t('invoice: a failed send stamps nothing, so the next delivery can try again', async () => {
+        const { caId, galaId } = makeHeldCa({ needs_invoice: 1 });
+        releaseStatuses(caId);
+        FAIL_NEXT_SEND = true;
+        const out = await payLink.notifyInvoiceNeeded(deps(), { caId, galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0082' });
+        assert.strictEqual(out.status, 'send-failed');
+        assert.strictEqual(gate.getMarker(ca(caId).notes, payLink.INVOICE_MARKER), null);
+        const retry = await payLink.notifyInvoiceNeeded(deps(), { caId, galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0082' });
+        assert.strictEqual(retry.status, 'done');
+    });
+
+    await t('invoice: the pay-link payment path fires it from inside the combined-ticket fulfilment', async () => {
+        const { caId, galaId, email } = makeHeldCa({ needs_invoice: 1 });
+        releaseStatuses(caId);
+        await payLink.sendGalaPayLink(deps(), caId);
+        const before = sent.length;
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0083' });
+        const mine = sent.slice(before);
+        assert.strictEqual(mine.length, 2, 'finance note + the combined ticket');
+        assert.deepStrictEqual(mine.map(m => m.to).sort(), ['vp@medx.hr', email].sort());
+        assert.ok(gate.getMarker(ca(caId).notes, payLink.INVOICE_MARKER));
+        // a replayed webhook is a duplicate — neither email again
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0083' });
+        assert.strictEqual(sent.length, before + 2);
+    });
+
+    await t('invoice: a ticked row that never paid tells nobody (the note is a payment event)', async () => {
+        const { caId, email } = makeHeldCa({ needs_invoice: 1 });
+        releaseStatuses(caId);
+        const before = sent.length;
+        await payLink.sendGalaPayLink(deps(), caId);           // approval email only
+        assert.strictEqual(sent.length, before + 1);
+        assert.strictEqual(sent[sent.length - 1].to, email);
+        assert.strictEqual(gate.getMarker(ca(caId).notes, payLink.INVOICE_MARKER), null);
+    });
+
+    await t('invoice: server.js persists the tick on BOTH rows, shows it to the reviewer, and calls the note from Path B', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'user-portal', 'backend', 'server.js'), 'utf8');
+        assert.ok(src.includes("ADD COLUMN needs_invoice INTEGER DEFAULT 0"), 'column migration present');
+        assert.ok(/INSERT INTO gala_registrations \(id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id, needs_invoice\)/.test(src), 'gala row carries it');
+        assert.ok(/gala_registration_id, source, user_id, needs_invoice\)/.test(src), 'CA row carries it');
+        assert.ok(src.includes("'Official invoice': finalGala ? (needsInvoice ?"), 'review email lists it');
+        assert.ok(src.includes("galaPayLink.notifyInvoiceNeeded(caPayLinkDeps(), { caId: caRegId, galaRegId, amount, invoiceNumber })"), 'Path B webhook calls the note');
+        assert.ok(src.includes("official_invoice: caNeedsInvoice ? 'YES' : 'NO'"), 'Path B sheet row carries it');
+        assert.ok(src.includes("official_invoice: Number(galaReg.needs_invoice) ? 'YES' : 'NO'"), 'pay-link sheet row carries it');
+        assert.ok(src.includes('id="pf_invoice"'), '/plexus form offers the tick');
+        assert.ok(src.includes('id="caInvoice"'), 'the Croatians Abroad form offers the tick');
+        assert.ok(src.includes("invWrap.style.display = galaSel ? 'block' : 'none'"), '/plexus shows it only with the Gala');
+        assert.ok(src.includes("caInvWrap.style.display = state.gala ? 'block' : 'none'"), 'CA form shows it only with the Gala');
+        assert.ok(src.includes("const needsInvoice = finalGala &&"), 'ignored unless the Gala is selected');
+        const admin = fs.readFileSync(path.join(__dirname, '..', 'admin-portal', 'backend', 'server.js'), 'utf8');
+        assert.ok(admin.includes("ALTER TABLE croatians_abroad_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0"), 'admin mirrors the CA column');
+        assert.ok(admin.includes("ALTER TABLE gala_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0"), 'admin mirrors the gala column');
     });
 
     await t('no email escaped the stub and no network was touched', () => {

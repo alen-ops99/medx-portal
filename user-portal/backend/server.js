@@ -1511,6 +1511,14 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                                     <button type="button" id="pf_couponBtn" onclick="plexApplyCoupon()" style="padding:11px 16px;border:0;border-radius:0;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;white-space:nowrap;">Apply</button>
                                 </div>
                                 <div id="pf_couponMsg" style="margin-top:6px;font-size:12px;display:none;"></div></div>
+                            <!-- Official invoice (Gala only — the one paid item). Shown by plexRecompute() while the Gala is selected. The
+                                 flag reaches the Sheet and, once the seat is paid, the finance lead — who then asks for the billing details. -->
+                            <div id="pf_invoice_wrap" style="display:none;">
+                                <label for="pf_invoice" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#191512;line-height:1.45;padding:12px 14px;border:1px solid rgba(25,21,18,.16);background:#f7f1e6;">
+                                    <input type="checkbox" id="pf_invoice" style="margin-top:2px;width:16px;height:16px;flex:0 0 16px;accent-color:#9b1b22;">
+                                    <span>I need an official invoice made out to my company or institution<br><span style="color:#9b8f80;font-weight:400;font-size:12px;">(we will contact you for the billing details)</span></span>
+                                </label>
+                            </div>
                             <div><label>Anything else?${reqStar('notes')}</label><textarea id="pf_notes" maxlength="500"${reqAttr('notes')}></textarea></div>
                         </div>
                         <div class="total-display show" style="margin-top:14px;"><span class="label">To pay now</span><span class="amount" id="plexPayAmt">&euro;0</span></div>
@@ -1590,6 +1598,8 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 total += Math.round(galaSub * 100) / 100;
             }
             var any = document.querySelectorAll('.event-option.selected').length > 0;
+            var invWrap = document.getElementById('pf_invoice_wrap');
+            if (invWrap) invWrap.style.display = galaSel ? 'block' : 'none';   // invoice question only with the paid item
             document.getElementById('plexTotal').classList.toggle('show', any);
             document.getElementById('plexTotalAmt').textContent = '\\u20AC' + total;
             document.getElementById('plexPayAmt').textContent = '\\u20AC' + total;
@@ -1642,6 +1652,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                     return out;
                 })(),
                 coupon: ((document.getElementById('pf_coupon') || {}).value || '').trim(),
+                needs_invoice: (sel.gala && (document.getElementById('pf_invoice') || {}).checked) ? 1 : 0,
                 notes: document.getElementById('pf_notes').value.trim(),
                 selected_conference: sel.conference, selected_bridges: sel.bridges, selected_gala: sel.gala
             };
@@ -3613,6 +3624,13 @@ app.get('/invite/:data', async (req, res) => {
                     <label>Notes <span style="font-size:11px;color:#64748b;">(allergies, accessibility needs, anything we should know)</span></label>
                     <textarea id="caNotes" placeholder="Optional"></textarea>
                 </div>
+                <!-- Official invoice (Gala only — the one paid item). render() shows it while the Gala is selected. -->
+                <div id="caInvoiceWrap" style="display:none;">
+                    <label for="caInvoice" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#e2e8f0;line-height:1.45;padding:12px 14px;border:1px solid rgba(201,169,98,0.28);border-radius:10px;background:rgba(255,255,255,0.03);">
+                        <input type="checkbox" id="caInvoice" style="margin-top:2px;width:16px;height:16px;flex:0 0 16px;accent-color:#c9a962;">
+                        <span>I need an official invoice made out to my company or institution<br><span style="color:#94a3b8;font-weight:400;font-size:12px;">(we will contact you for the billing details)</span></span>
+                    </label>
+                </div>
             </div>
             ${renderCustomFieldsHtml(loadCustomFields('croatians-abroad', null))}
 
@@ -3650,6 +3668,9 @@ function render() {
 
     // Dietary field — visible if Bridges or Gala selected
     document.getElementById('caDietaryWrap').style.display = (state.bridges || state.gala) ? 'block' : 'none';
+    // Invoice question — only with the paid item
+    const caInvWrap = document.getElementById('caInvoiceWrap');
+    if (caInvWrap) caInvWrap.style.display = state.gala ? 'block' : 'none';
 
     // Total / submit button text
     const total = document.getElementById('caTotalDisplay');
@@ -3691,6 +3712,7 @@ async function submitCA(e) {
         selected_conference: state.conference ? 1 : 0,
         selected_bridges: state.bridges ? 1 : 0,
         selected_gala: state.gala ? 1 : 0,
+        needs_invoice: (state.gala && (document.getElementById('caInvoice') || {}).checked) ? 1 : 0,
         custom_answers: (function(){ const o={}; document.querySelectorAll('#caForm [data-cf]').forEach(function(el){ const k = el.getAttribute('data-cf'); o[k] = el.getAttribute('data-cf-checkbox') ? (el.checked ? 'true' : 'false') : el.value; }); return o; })()
     };
     try {
@@ -9363,6 +9385,11 @@ async function initializeApp() {
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN pay_token TEXT'); } catch(e) {}
     // Track which shareable invite link the registrant came in through (NULL for direct/admin-curated)
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invite_link_id TEXT'); } catch(e) {}
+    // "I need an official invoice made out to my company or institution" — ticked on the Zagreb
+    // form when the Gala is selected. Read by the payment webhooks to tell the finance lead
+    // (invoice via FIRA, never generated here) and mirrored into the Sheet. Both portals.
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0'); } catch(e) {}
+    try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0'); } catch(e) {}
 
     // ===== Custom questions + denormalized "what they applied for" (shared with admin portal via Turso) =====
     // Admin-defined extra registration questions. scope='event' applies to every link of an
@@ -20690,7 +20717,9 @@ By applying to this program, I provide the following consents:
                                     items: ticketLabel,
                                     applied_for: 'Gala',
                                     dietary: galaReg.dietary || '',
-                                    amount, payment: 'Paid',
+                                    // Zagreb-form rows carry the "official invoice" tick on the gala row too.
+                                    amount, payment: 'Paid' + (Number(galaReg.needs_invoice) ? ' · OFFICIAL INVOICE REQUESTED' : ''),
+                                    official_invoice: Number(galaReg.needs_invoice) ? 'YES' : 'NO',
                                     registration_id: galaRegId,
                                     invoice: galaInvoice
                                 })
@@ -20968,6 +20997,14 @@ By applying to this program, I provide the following consents:
                         );
                     } catch (finErr) { console.error('[Stripe] CA gala finance record failed (non-blocking):', finErr.message); }
 
+                    // "Official invoice" ticked on the form → tell the finance lead once (FIRA does
+                    // the invoice; nobody here generates one). Marker-guarded in the module, so the
+                    // pay-link branch reaching the same row later sends nothing twice.
+                    const caNeedsInvoice = !!Number(existingCA.needs_invoice) || metadata.needs_invoice === '1';
+                    try {
+                        await galaPayLink.notifyInvoiceNeeded(caPayLinkDeps(), { caId: caRegId, galaRegId, amount, invoiceNumber });
+                    } catch (invErr) { console.error('[Stripe] CA gala invoice note failed (non-blocking):', invErr.message); }
+
                     // Gala QR ticket — hosted image URL in the email body + PNG attachment
                     // (carries BOTH ids so the scanner verifies in gala AND conference/bridges modes)
                     const galaQrAtts = await qrPngAttachment({
@@ -21063,7 +21100,10 @@ By applying to this program, I provide the following consents:
                                     guests: metadata.guest_count || 0,
                                     custom_summary: metadata.custom_summary || '',
                                     applied_for: events.join(' + '),
-                                    amount, payment: metadata.source === 'plexus' ? 'Paid (Gala)' : 'Paid (Gala bundle)',
+                                    // The invoice request rides in the payment column (a column every tab has) AND as
+                                    // its own key, so it is visible in the Sheet whichever the Apps Script maps.
+                                    amount, payment: (metadata.source === 'plexus' ? 'Paid (Gala)' : 'Paid (Gala bundle)') + (caNeedsInvoice ? ' · OFFICIAL INVOICE REQUESTED' : ''),
+                                    official_invoice: caNeedsInvoice ? 'YES' : 'NO',
                                     coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0',
                                     ticket_code: String(galaRegId).substring(0, 8).toUpperCase(),
                                     registration_id: caRegId,
@@ -28533,9 +28573,12 @@ By applying to this program, I provide the following consents:
     }
 
     // Log to Google Sheets — `events` array tells the Apps Script which tab(s) to write to.
-    function caMirrorPreRegToSheets({ regId, first_name, last_name, email, institution, country, role, dietary, notes, events, regSource, caAppliedFor, customAnswers, inviteLabel }) {
+    function caMirrorPreRegToSheets({ regId, first_name, last_name, email, institution, country, role, dietary, notes, events, regSource, caAppliedFor, customAnswers, inviteLabel, needsInvoice }) {
         try {
             mirrorToSheets({
+                // "Official invoice" tick (Gala) — surfaced on the free-events row too so staff see it
+                // before the seat is paid; the paid Gala row repeats it in its payment column.
+                official_invoice: needsInvoice ? 'YES' : 'NO',
                 events,                            // ← tab routing (['conference','bridges','gala'])
                 name: first_name + ' ' + (last_name || ''),
                 email, institution: institution || '', country: country || '', role: role || '',
@@ -28546,7 +28589,7 @@ By applying to this program, I provide the following consents:
                 applied_for: caAppliedFor,
                 custom_summary: customAnswersSummary(customAnswers || {}),
                 custom_answers: customAnswers || {},
-                amount: 0, payment: 'Free (Pre-Registered)',
+                amount: 0, payment: 'Free (Pre-Registered)' + (needsInvoice ? ' · OFFICIAL INVOICE REQUESTED (Gala)' : ''),
                 invite_label: inviteLabel || '',
                 ticket_code: String(regId).substring(0, 8).toUpperCase(),
                 registration_id: regId
@@ -28636,7 +28679,8 @@ By applying to this program, I provide the following consents:
                 institution: row.institution, country: row.country, role: row.role,
                 dietary: row.dietary, notes: row.notes,
                 events: [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null].filter(Boolean),
-                regSource, caAppliedFor, customAnswers, inviteLabel
+                regSource, caAppliedFor, customAnswers, inviteLabel,
+                needsInvoice: wantGala && !!Number(row.needs_invoice)
             });
             // The Gala leg. Held registrations never reached Stripe, so approving them used to
             // leave the seat at 'awaiting_payment' with no pay_token and no link in any email —
@@ -28809,6 +28853,11 @@ By applying to this program, I provide the following consents:
             const finalConf = wantConf;
             const finalBridges = wantBridges;
             const finalGala = wantGala;
+            // "I need an official invoice made out to my company or institution" — only meaningful
+            // with the paid item, so it is ignored unless the Gala is selected. Persisted on both
+            // rows; acted on when the seat is PAID (gala-paylink.notifyInvoiceNeeded tells the
+            // finance lead, who asks for the billing details — the invoice itself is FIRA's job).
+            const needsInvoice = finalGala && ['1', 'true', 'yes', 'on'].includes(String(req.body.needs_invoice ?? '').trim().toLowerCase()) ? 1 : 0;
 
             // ---- REVIEW GATE (Alen 2026-09-06): three holds on this Zagreb funnel ----
             //   1. gibberish-looking name/institution/role (bot registrations),
@@ -28845,11 +28894,11 @@ By applying to this program, I provide the following consents:
             if (finalGala) {
                 galaRegistrationId = require('crypto').randomUUID();
                 db.run(
-                    `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id)
-                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+                    `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id, needs_invoice)
+                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
                     [galaRegistrationId, first_name, last_name || '', email, institution || '',
                      gateHeld ? 'pending-review' : 'awaiting_payment',      // review gate: held gala rows wait for Alen
-                     dietary || null, notes || null, linkedUserId]
+                     dietary || null, notes || null, linkedUserId, needsInvoice]
                 );
             }
 
@@ -28857,15 +28906,15 @@ By applying to this program, I provide the following consents:
                 `INSERT INTO croatians_abroad_registrations
                  (id, invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
                   selected_conference, selected_bridges, selected_gala,
-                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, source, user_id)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, source, user_id, needs_invoice)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
                 [regId, invite_link_id || null, first_name, last_name || '', email, institution || '', country || '', role || '', dietary || '', notes || '',
                  finalConf ? 1 : 0, finalBridges ? 1 : 0, finalGala ? 1 : 0,
                  finalConf ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
                  finalBridges ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
                  finalGala ? (gateHeld ? 'pending-review' : 'awaiting_payment') : null,
                  finalGala ? 'pending' : null,
-                 galaRegistrationId, regSource, linkedUserId]
+                 galaRegistrationId, regSource, linkedUserId, needsInvoice]
             );
             // E2E fix 2026-08-29: link the row to an existing member account by e-mail even
             // without the ?mxt hand-off, so the portal (My Plexus / wallet / cards) sees it.
@@ -28934,6 +28983,7 @@ By applying to this program, I provide the following consents:
                                 'First name': first_name, 'Last name': last_name || '', 'Email': email,
                                 'Institution': institution || '', 'Country': country || '', 'Role': role || '',
                                 'Selected events': caAppliedFor, 'Gala guests': finalGala ? heldGuests : 'n/a (no Gala)',
+                                'Official invoice': finalGala ? (needsInvoice ? 'YES — company/institution invoice requested' : 'no') : 'n/a (no Gala)',
                                 'Dietary': dietary || '', 'Allergies': galaAllergies, 'Notes': notes || '',
                                 'Custom answers': customAnswersSummary(caCf.answers), 'Source': regSource
                             },
@@ -29020,6 +29070,7 @@ By applying to this program, I provide the following consents:
                     dietary: dietary || '',
                     allergies: galaAllergies,
                     guest_count: String(guests),
+                    needs_invoice: needsInvoice ? '1' : '0',
                     coupon_code: galaPromo ? (req.body.coupon || req.body.coupon_code || '') : '',
                     discount_amount: String(galaDiscount),
                     notes: (notes || '').substring(0, 200),

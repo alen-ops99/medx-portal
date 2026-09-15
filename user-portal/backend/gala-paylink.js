@@ -29,6 +29,13 @@
  *                          This issues the ONE combined party ticket instead.
  *   sendUnpaidGalaNudge()  LATER, by hand. The owner-triggered reminder for a seat that is
  *                          approved and still unpaid. Never scheduled.
+ *   notifyInvoiceNeeded()  at PAYMENT, from BOTH webhook branches (Path B 'croatians-abroad-gala'
+ *                          and the pay-link 'gala-ticket' route through fulfilLinkedCaGala).
+ *                          A registrant who ticked "I need an official invoice made out to my
+ *                          company or institution" on the Zagreb form gets the finance lead
+ *                          (vp@medx.hr) told ONCE — name, amount, payment ref — so he can ask
+ *                          for the billing details and issue the invoice via FIRA. Nothing is
+ *                          generated here and the registrant is not written to.
  *
  * SEATS. guest_count is ADDITIONAL guests, never the party total — the register route caps it
  * as "+guests, max 2", Path B charges effectiveGalaPrice() * (1 + guests), both FIRA blocks
@@ -51,6 +58,7 @@
 
 const crypto = require('crypto');
 const reviewGate = require('./review-gate');
+const tpl = require('./v2/email-templates');   // house shell — the finance note wears the same dark shell as the gate's emails
 
 // One outgoing email of each kind per registration, ever. The markers live in the row's own
 // notes — the same restart-safe channel the review gate uses for VERIFY-REQUESTED /
@@ -58,6 +66,11 @@ const reviewGate = require('./review-gate');
 // repeated nudge sweep and a redeploy mid-flight all read the same truth.
 const PAYLINK_MARKER = 'GALA-PAYLINK-SENT';
 const NUDGE_MARKER = 'GALA-NUDGE-SENT';
+const INVOICE_MARKER = 'INVOICE-MIRO-NOTIFIED';
+
+// Who is told when a paid registrant asked for an official invoice. Invoices are issued only
+// via FIRA, by a person — this module never generates one.
+const FINANCE_TO = process.env.FINANCE_EMAIL || 'vp@medx.hr';
 
 // Matches every other pay_token in the codebase (admin server.js gala approve + pay-link,
 // v2/gala-ops add-guest + waitlist accept): 24 random bytes rendered as 48 hex chars.
@@ -222,6 +235,52 @@ function buildNudgeEmail({ firstName, payUrl, quote, earlyBirdDeadline, galaDate
             facts,
             footNote: fallback
         });
+}
+
+// ---------------------------------------------------------------- the finance note (to Miro)
+// Internal, on the dark house shell like the gate's own FYI to the organizer. Built pure so the
+// test can assert every fact in it. No button: the ask is a conversation with the registrant.
+function buildInvoiceNeededEmail({ name, email, institution, country, seats, amount, paymentRef, registrationId }) {
+    const T = tpl.T;
+    const DT = { ink: '#f2e7d6', soft: '#d3c5b2', gold: '#d7b56c', hair: 'rgba(240,228,210,.18)',
+                 factBg: '#342718', factBorder: 'rgba(240,228,210,.16)' };
+    const facts = [
+        ['Name', name || '—'],
+        ['Email', email || '—'],
+        ['Institution', institution || '(not given)'],
+        country ? ['Country', country] : null,
+        ['Gala seats', String(seats || 1)],
+        ['Amount paid', fmtEur(amount) || '—'],
+        ['Payment ref', paymentRef || '—'],
+        registrationId ? ['Registration', String(registrationId).slice(0, 8).toUpperCase()] : null
+    ].filter(Boolean);
+    const factsHtml = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:16px;background:${DT.factBg};border:1px solid ${DT.factBorder};"><tr><td style="padding:4px 18px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        ${facts.map(([label, value], i) => {
+            const sep = i ? `border-top:1px solid ${DT.hair};` : '';
+            return `<tr>
+              <td class="em-goldlab em-hair" style="${sep}padding:9px 14px 9px 0;font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:${DT.gold};vertical-align:middle;white-space:nowrap;">${esc(label)}</td>
+              <td class="em-ink em-hair" style="${sep}padding:9px 0;font-family:${T.sans};font-size:12.5px;line-height:1.45;color:${DT.ink};word-break:break-word;">${esc(value)}</td>
+            </tr>`;
+        }).join('')}
+        </table>
+      </td></tr></table>`;
+    const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">
+      <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${DT.gold};">Finance &middot; Gala Evening</div>
+      <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${DT.ink};margin-top:10px;">Official invoice needed</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${DT.soft};margin-top:14px;"><b class="em-ink" style="color:${DT.ink};">${esc(name || 'A registrant')}</b> ticked &ldquo;I need an official invoice made out to my company or institution&rdquo; when registering for Plexus Week 2026, and has now paid for the Gala Evening. Please reach out to them for the billing details (legal name, address, OIB / VAT ID) and issue the invoice via FIRA.</div>${factsHtml}
+      <div class="em-soft" style="font-family:${T.sans};font-size:12px;line-height:1.65;color:${DT.soft};margin-top:14px;">The registrant has not been written to about this — the conversation is yours to open.</div>
+    </td></tr></table>`;
+    return tpl.shell({
+        tone: 'dark',
+        title: 'Official invoice needed — Med&X',
+        preheader: `${name || 'A registrant'} paid for the Gala and needs a company/institution invoice.`,
+        headerRightLabel: 'FINANCE',
+        rule: 'gold',
+        bodyHtml: body,
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Sent only to the finance lead']
+    });
 }
 
 // ---------------------------------------------------------------- the party line on the ticket
@@ -467,6 +526,53 @@ async function sendUnpaidGalaNudge(deps, caId) {
     return { status: 'done', email: to, seats: quote.seats, amount_due: quote.total };
 }
 
+// ---------------------------------------------------------------- PAYMENT: the finance note
+/**
+ * The Gala seat of a Zagreb registration was just PAID. If the registrant ticked
+ * "official invoice" on the form, tell the finance lead once. Both webhook branches call
+ * this (Path B directly; the pay-link route through fulfilLinkedCaGala), so the guard is the
+ * INVOICE-MIRO-NOTIFIED marker on the CA row's notes — a second call, from whichever branch,
+ * sends nothing. Rows without the flag return 'not-needed' and touch nothing.
+ *
+ * @param {{caId?:string, galaRegId?:string, amount?:number, invoiceNumber?:string}} p
+ * @returns {Promise<{status:'done'|'already'|'not-needed'|'notfound'|'send-failed', to?:string}>}
+ */
+async function notifyInvoiceNeeded(deps, { caId, galaRegId, amount, invoiceNumber } = {}) {
+    const { query, db, saveDb, flushDb, sendEmail } = deps;
+    const log = deps.log || ((...a) => console.log('[GalaPayLink]', ...a));
+
+    const ca = caId
+        ? query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [caId])
+        : (galaRegId ? query.get('SELECT * FROM croatians_abroad_registrations WHERE gala_registration_id = ?', [galaRegId]) : null);
+    if (!ca) return { status: 'notfound' };
+    if (!Number(ca.needs_invoice)) return { status: 'not-needed' };
+    if (reviewGate.getMarker(ca.notes, INVOICE_MARKER)) return { status: 'already' };
+
+    const galaRow = (galaRegId || ca.gala_registration_id)
+        ? query.get('SELECT guest_count, invoice_number, amount_paid FROM gala_registrations WHERE id = ?', [galaRegId || ca.gala_registration_id])
+        : null;
+    const paid = Number(amount) || Number(ca.amount_paid) || Number(galaRow && galaRow.amount_paid) || 0;
+    const ref = invoiceNumber || ca.invoice_number || (galaRow && galaRow.invoice_number) || '';
+    const name = `${ca.first_name || ''} ${ca.last_name || ''}`.trim();
+
+    const html = buildInvoiceNeededEmail({
+        name, email: ca.email, institution: ca.institution, country: ca.country,
+        seats: partySeats(galaRow || ca), amount: paid, paymentRef: ref, registrationId: ca.id
+    });
+    const sent = await sendEmail(FINANCE_TO, `Official invoice needed — ${name || ca.email}, Gala Evening`, html);
+    if (!sent || sent.success === false || sent.mock) {
+        log(`[EMAIL-FAIL] invoice note for CA ${ca.id} did not reach ${FINANCE_TO}:`,
+            sent && sent.mock ? 'mock mode (no provider configured)' : ((sent && sent.error) || 'unknown'));
+        return { status: 'send-failed', to: FINANCE_TO };
+    }
+    db.run('UPDATE croatians_abroad_registrations SET notes = ? WHERE id = ?',
+        [reviewGate.upsertMarker(ca.notes, INVOICE_MARKER, todayIso()), ca.id]);
+    try { saveDb && saveDb(); } catch (e) {}
+    try { flushDb && flushDb(); } catch (e) {}
+    log(`invoice note for CA ${ca.id} (${name}, ${fmtEur(paid)}, ${ref || 'no ref'}) -> ${FINANCE_TO}`);
+    return { status: 'done', to: FINANCE_TO };
+}
+
 // ---------------------------------------------------------------- PAYMENT: one party ticket
 /**
  * A 'gala-ticket' Stripe session just completed. If this gala row belongs to a Zagreb
@@ -501,6 +607,11 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
             WHERE id = ?`, [paid, invoiceNumber || ca.invoice_number || null, ca.id]);
     try { saveDb && saveDb(); } catch (e) {}
     try { flushDb && flushDb(); } catch (e) {}
+
+    // The finance note goes out BEFORE the ticket so a registrant with no usable address (the
+    // early return below) still gets their invoice request in front of a person. Idempotent.
+    try { await notifyInvoiceNeeded(deps, { caId: ca.id, galaRegId, amount: paid, invoiceNumber: invoiceNumber || ca.invoice_number }); }
+    catch (e) { log('invoice note failed (non-blocking):', e.message); }
 
     const events = [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null, 'gala'].filter(Boolean);
     if (!to) {
@@ -594,6 +705,8 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
 module.exports = {
     PAYLINK_MARKER,
     NUDGE_MARKER,
+    INVOICE_MARKER,
+    FINANCE_TO,
     mintPayToken,
     fmtEur,
     fmtDate,
@@ -606,8 +719,10 @@ module.exports = {
     galaLegNeedsPayment,
     buildPayLinkEmail,
     buildNudgeEmail,
+    buildInvoiceNeededEmail,
     sendGalaPayLink,
     sendUnpaidGalaNudge,
     listUnpaidGalaNudges,
+    notifyInvoiceNeeded,
     fulfilLinkedCaGala
 };
