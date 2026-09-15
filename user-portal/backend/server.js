@@ -5838,6 +5838,16 @@ let plexusPass = { walletLinks: () => ({ apple: null, google: null }), walletSta
 try {
     plexusPass = require('./plexus-pass')(app, { query, JWT_SECRET });
 } catch (e) { console.error('[PlexusPass] routes failed to mount:', e.message); }
+// "Your Plexus Week 2026 program & ticket" — the one-touch re-send (built 2026-09-15, sent in
+// November by the team). Key-gated team routes; the admin proxies to them. S3 = Boston's helper.
+try {
+    require('./plexus-program')(app, {
+        query, db, saveDb, flushDb, JWT_SECRET,
+        sendEmail: sendEventConfirmation, qrImageUrl,
+        walletLinks: (kind, id) => plexusPass.walletLinks(kind, id),
+        s3: require('./boston')._s3
+    });
+} catch (e) { console.error('[PlexusProgram] routes failed to mount:', e.message); }
 
 // Once the production demo purge has run (app_state marker), the demo seed blocks must never
 // re-arm — an emptied table would otherwise re-seed on the next boot, and the admin/user seed
@@ -9461,6 +9471,11 @@ async function initializeApp() {
     // collected on the form so the finance lead has everything up front. vat may be ''.
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_details TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN invoice_details TEXT'); } catch(e) {}
+    // Final dates/venues for the Plexus Week ticket + program email (admin-editable through the
+    // PROGRAM & TICKETS panel; plexus-ticket.legFacts reads them). Both portals.
+    for (const col of ['conference_venue TEXT', 'bridges_zagreb_date TEXT', 'bridges_zagreb_time TEXT', 'bridges_zagreb_venue TEXT']) {
+        try { db.run(`ALTER TABLE plexus_settings ADD COLUMN ${col}`); } catch(e) {}
+    }
 
     // ===== Custom questions + denormalized "what they applied for" (shared with admin portal via Turso) =====
     // Admin-defined extra registration questions. scope='event' applies to every link of an
