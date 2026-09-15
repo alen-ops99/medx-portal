@@ -135,7 +135,7 @@ const jpgBuf = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0
 
 // The two facts the owner's program PDF fixes — asserted as literals here on purpose, so a change
 // of date or format has to be a deliberate edit in the test as well as in the wing.
-const DEADLINE = 'Saturday, 19 September 2026';
+const DEADLINE = 'Sunday, 20 September 2026';
 const FORMAT_LINE = '5 minutes · 5 to 8 slides · PowerPoint 16:9, in English (PDF also accepted) · up to 25 MB · all talks run from one laptop';
 
 // ---------------------------------------------------------------- seed
@@ -552,7 +552,7 @@ async function t(name, fn) {
     // ================================================================ the deadline and the format
     // Both come from the owner's program PDF. The presenter page states them, and the superseded
     // "Friday, 18 September" must not survive anywhere in the wing's source.
-    await t('the presenter upload page states the format and the 19 September deadline', async () => {
+    await t('the presenter upload page states the format and the 20 September deadline', async () => {
         const html = String((await call(app, 'GET', '/boston/upload/:token', { params: { token: uploadToken(LUKA) } })).body);
         assert.ok(html.includes(FORMAT_LINE), 'the format line, verbatim');
         assert.ok(html.includes('Deadline ' + DEADLINE), 'the deadline, verbatim');

@@ -133,7 +133,7 @@ const pdfBuf = (extra = 64) => Buffer.concat([Buffer.from('%PDF-1.7\n% Building 
 const zipBuf = () => Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(96, 0)]);   // .pptx / .key
 const jpgBuf = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]), Buffer.alloc(96, 0)]);
 
-const DEADLINE = 'Saturday, 19 September 2026';
+const DEADLINE = 'Sunday, 20 September 2026';
 
 // ---------------------------------------------------------------- seed
 const ANA = '11111111-1111-4111-8111-111111111111';     // attendee — two steps

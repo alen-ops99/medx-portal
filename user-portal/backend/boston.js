@@ -110,7 +110,7 @@ const ACCEPT_ATTR = '.pdf,.ppt,.pptx,.key';
 // The owner's program PDF (BB_Boston_Event_Info_and_Presentation_Instructions, 2026-09-13) is the
 // source of truth for the two facts a presenter needs, so both live here once and every email and
 // page reads them from this one place. Real UTF-8 punctuation — the same as the rest of the wing.
-const SLIDES_DEADLINE = 'Saturday, 19 September 2026';
+const SLIDES_DEADLINE = 'Sunday, 20 September 2026';
 const SLIDES_FORMAT_LINE = '5 minutes · 5 to 8 slides · PowerPoint 16:9, in English (PDF also accepted) · up to 25 MB · all talks run from one laptop';
 
 // ------------------------------------------------------- one-slide summary constants (EVERYONE)

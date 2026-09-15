@@ -125,7 +125,7 @@ const hub = id => BASE + '/boston/me/' + meToken(id);
 
 // The two facts the owner's program PDF fixes (2026-09-13). Literals on purpose: moving the date
 // or the format has to be a deliberate edit here as well as in the wing.
-const DEADLINE = 'Saturday, 19 September 2026';
+const DEADLINE = 'Sunday, 20 September 2026';
 const FORMAT_LINE = '5 minutes · 5 to 8 slides · PowerPoint 16:9, in English (PDF also accepted) · up to 25 MB · all talks run from one laptop';
 
 // ---------------------------------------------------------------- seed
@@ -563,7 +563,7 @@ async function t(name, fn) {
 
     // ================================================================ the format and the deadline
     // Straight from the owner's program PDF — the email is where most people will read them.
-    await t('the presenter block states the format and the 19 September deadline, verbatim', async () => {
+    await t('the presenter block states the format and the 20 September deadline, verbatim', async () => {
         await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant: 'presenter' } });
         const html = sentEmails[sentEmails.length - 1].html;
         assert.ok(html.includes('Send us your presentation slides'), 'the presenter block is there to carry them');

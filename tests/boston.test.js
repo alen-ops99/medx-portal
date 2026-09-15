@@ -474,7 +474,7 @@ async function t(name, fn) {
         // straight from the owner's program PDF (2026-09-13)
         assert.ok(html.includes('5 minutes · 5 to 8 slides · PowerPoint 16:9, in English (PDF also accepted) · up to 25 MB · all talks run from one laptop'),
             'the format line, verbatim');
-        assert.ok(html.includes('Deadline Saturday, 19 September 2026'), 'the deadline, verbatim');
+        assert.ok(html.includes('Deadline Sunday, 20 September 2026'), 'the deadline, verbatim');
         assert.ok(!/18 September|Friday, 18/.test(html), 'the superseded deadline must be gone');
         assert.ok(html.includes(`/api/boston/upload/${mintUploadToken(anaId)}`), 'page must POST to its own token API');
         assert.ok(html.includes('is safely with us. You can replace it any time from this same link'), 'success copy missing');
