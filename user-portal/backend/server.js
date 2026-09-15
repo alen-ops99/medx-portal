@@ -1691,6 +1691,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                     btn.disabled=false; plexRecompute(); return false;
                 }
                 if(d.checkout_url){ window.location = d.checkout_url; return false; }
+                if(d.ticket_url){ window.location = d.ticket_url; return false; }   // free events: the ticket on screen, like Boston
                 if(d.held){
                     document.getElementById('plexMain').innerHTML = '<div class="card" style="text-align:center;max-width:640px;margin:0 auto;padding:36px 28px;"><div style="font-size:46px;color:#c9a962;margin-bottom:10px;"><i class="fas fa-circle-check"></i></div><h1>Thank you for registering.</h1><p class="lede" style="margin-top:10px;">Your registration is being reviewed \\u2014 we will confirm it by email shortly.</p></div>';
                     return false;
@@ -3784,6 +3785,11 @@ async function submitCA(e) {
             window.location.href = result.checkout_url;
             return;
         }
+        if (result.ticket_url) {                       // free events: the ticket on screen, like Boston
+            btn.textContent = 'Opening your ticket…';
+            window.location.href = result.ticket_url;
+            return;
+        }
         document.getElementById('mainCard').innerHTML = '<div class="success">' +
             '<div class="success-icon"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>' +
             '<h1 style="color:#22c55e;margin-bottom:8px;">You&apos;re pre-registered!</h1>' +
@@ -5822,6 +5828,8 @@ try {
 // and sends the one "complete your Gala reservation" email; at payment it issues the ONE
 // combined ticket (see gala-paylink.js for the full account of the gap).
 const galaPayLink = require('./gala-paylink');
+// The one Plexus Week ticket design (Boston style): emails, on-screen ticket pages, .ics.
+const plexusTicket = require('./plexus-ticket');
 
 // Apple + Google Wallet passes for every Plexus Week ticket, no login (Boston parity, Alen
 // 2026-09-15). Possession-based HMAC tokens in the emails, the same QR the doors already scan.
@@ -20736,23 +20744,16 @@ By applying to this program, I provide the following consents:
                     // Send gala payment confirmation email (skipped for a linked CA row — the
                     // combined ticket above IS that guest's confirmation, and one is enough).
                     try {
-                        // Same house dark shell as every other payment email (was the old navy
-                        // template with a green pill and an invisible logo).
-                        if (!caCombined.handled) sendEventConfirmation(galaReg.email, 'Payment Confirmed — Plexus 2026 Gala Evening', reviewGate.emailShell('Payment confirmed',
-                            `<p style="margin:0 0 10px;">Dear ${escapeHtml(galaReg.first_name || 'guest')},</p>
-                             <p style="margin:0;">Your <b class="em-ink">Gala Evening</b> payment has been received &mdash; your spot is secured. We look forward to welcoming you at the Gala Evening.</p>`,
-                            null, null,
-                            {
-                                eyebrow: 'Plexus Week 2026 &middot; Gala Evening',
-                                preheader: 'Your Gala Evening payment has been received — your spot is secured.',
-                                facts: [
-                                    ['Amount paid', `€${Number(amount).toFixed(2)}`],
-                                    ['Invoice', String(galaInvoice || '—')],
-                                    ['Ticket', String(ticketLabel || 'Gala Evening')]
-                                ],
-                                // The pass IS the ticket for a standalone seat: same QR the door scans.
-                                footNote: plexusPass.walletStackHtml(plexusPass.walletLinks('gala', galaRegId))
-                            }));
+                        // The same Boston-style ticket as every other Plexus payment email — and, for the
+                        // first time, the standalone seat's QR + wallet passes ride in it.
+                        if (!caCombined.handled) sendEventConfirmation(galaReg.email, 'Your Gala Evening ticket — Plexus Week 2026', plexusTicket.ticketEmail('gala', {
+                            firstName: galaReg.first_name, fullName: `${galaReg.first_name || ''} ${galaReg.last_name || ''}`.trim(),
+                            legs: ['gala'], seats: 1 + Math.max(0, parseInt(galaReg.guest_count, 10) || 0),
+                            amount, invoice: galaInvoice, seat: galaReg.seat_number || null,
+                            ticketCode: String(galaRegId).slice(0, 8).toUpperCase(),
+                            qrPngUrl: qrImageUrl(galaRegId), wallet: plexusPass.walletLinks('gala', galaRegId),
+                            calendarUrl: plexusTicket.calendarUrl(`${req.protocol}://${req.get('host')}`, ['gala'])
+                        }));
                     } catch (emailErr) {
                         console.warn('Gala payment confirmation email failed:', emailErr.message);
                     }
@@ -21093,12 +21094,15 @@ By applying to this program, I provide the following consents:
                     // (house dark shell, "Plexus Week 2026" wording), so the two can never drift.
                     try {
                         const caSeats = 1 + Math.max(0, parseInt(metadata.guest_count, 10) || 0);
+                        const caNamed = query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ?', [caRegId]) || [];
                         const caSend = await sendEventConfirmation(caEmail, 'Your ticket — Plexus Week 2026', galaPayLink.buildCombinedTicketEmail({
-                            firstName: metadata.first_name, amount, seats: caSeats, invoiceNumber,
+                            firstName: metadata.first_name, fullName: caGuestName, amount, seats: caSeats, invoiceNumber,
                             wantConf: metadata.bundle_conference === '1', wantBridges: metadata.bundle_bridges === '1',
                             source: metadata.source,
-                            qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your Plexus Week 2026 check-in QR', caption: 'Present this QR at the entrance of each event you registered for' }),
-                            walletHtml: plexusPass.walletStackHtml(plexusPass.walletLinks('gala', galaRegId))
+                            qrPngUrl: qrImageUrl(galaRegId), wallet: plexusPass.walletLinks('gala', galaRegId),
+                            ticketCode: String(galaRegId).slice(0, 8).toUpperCase(),
+                            partyNoteText: galaPayLink.partyNote(caSeats, caNamed.filter(g => String(g.email || '').trim()).length),
+                            guests: caNamed
                         }), galaQrAtts);
                         // sendEmail returns {success:false}/{mock:true} instead of throwing, so the
                         // catch alone would miss a Resend rejection. Log loudly — guest PAID but got no ticket.
@@ -21112,9 +21116,9 @@ By applying to this program, I provide the following consents:
                         for (const pg of partyGuests) {
                             const gFirst = String(pg.name || 'there').split(' ')[0];
                             const gHtml = galaPayLink.buildGuestEntryEmail({
-                                guestFirst: gFirst, registrantName: caGuestName,
-                                qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' }),
-                                walletHtml: plexusPass.walletStackHtml(plexusPass.walletLinks('guest', pg.id))
+                                guestFirst: gFirst, guestName: String(pg.name || '').trim(), registrantName: caGuestName,
+                                qrPngUrl: qrImageUrl(galaRegId), wallet: plexusPass.walletLinks('guest', pg.id),
+                                ticketCode: String(galaRegId).slice(0, 8).toUpperCase()
                             });
                             const gs = await sendEventConfirmation(pg.email, 'Your Gala Evening entry — Plexus Week 2026', gHtml);
                             if (!gs || gs.success !== true || gs.mock) console.error(`[Stripe][EMAIL-FAIL] gala GUEST ${pg.email} (reg ${caRegId}) did NOT receive their entry email`);
@@ -28193,95 +28197,95 @@ By applying to this program, I provide the following consents:
 </div></body></html>`);
     }
 
-    // ---- The page a payer lands on straight after Stripe (and can reopen any time) ----
-    // Possession of the signed URL is the authorization, exactly like the pay link itself:
-    // the sig is HMAC-bound to the gala row id and travels only through Stripe's success_url.
-    // Boston is the benchmark: the ticket is on the page AND in the email. While the webhook
-    // is still settling (a few seconds), the page says so and refreshes itself.
-    const galaTicketPageSig = id => require('crypto').createHmac('sha256', String(JWT_SECRET))
-        .update('gala-ticket-page:' + String(id)).digest('hex').slice(0, 32);
+    // ---- The ticket pages — what a person sees the moment their registration is complete ----
+    // Boston parity (Alen 2026-09-15): the ticket on screen AND by email, same card, same QR,
+    // Apple Wallet · Google Wallet · calendar. Possession of the signed URL is the authorization,
+    // exactly like the pay link: the sig is HMAC-bound to the row id and travels through Stripe's
+    // success_url, the register response, or the institutional-confirmation page.
+    //   /gala/ticket/:sig/:id    a gala_registrations row (direct payers, pay-link payers, comps)
+    //   /plexus/ticket/:sig/:id  a croatians_abroad row with no Gala (free events, straight after the form)
+    // While the webhook is still settling (a few seconds) the gala page says so and refreshes.
+    const galaTicketPageSig = id => plexusTicket.galaPageSig(JWT_SECRET, id);
     const galaTicketPageUrl = (base, id) => `${base}/gala/ticket/${galaTicketPageSig(id)}/${id}`;
+    const plexusTicketPageUrl = (base, caId) => `${base}/plexus/ticket/${plexusTicket.pageSig(JWT_SECRET, 'ca', caId)}/${caId}`;
+
+    // Everything both pages (and the institutional-confirmation page) need for a Zagreb row.
+    function plexusTicketView(reqBase, { galaRow, caRow }) {
+        const ca = caRow || (galaRow ? query.get('SELECT * FROM croatians_abroad_registrations WHERE gala_registration_id = ?', [galaRow.id]) : null);
+        const g = galaRow || (ca && ca.gala_registration_id ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [ca.gala_registration_id]) : null);
+        const wantConf = !!(ca && Number(ca.selected_conference));
+        const wantBridges = !!(ca && Number(ca.selected_bridges));
+        const hasGala = !!g;
+        const legs = [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null, hasGala ? 'gala' : null].filter(Boolean);
+        const paid = hasGala && ['paid', 'vip-comp', 'comp'].includes(String(g.payment_status || '').toLowerCase());
+        const seats = 1 + Math.max(0, parseInt((g || ca || {}).guest_count, 10) || 0);
+        const who = g || ca || {};
+        const fullName = `${who.first_name || ''} ${who.last_name || ''}`.trim();
+        const qrId = hasGala ? g.id : (ca ? ca.id : null);
+        const guests = ca ? (query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ?', [ca.id]) || []) : [];
+        const wallet = hasGala ? plexusPass.walletLinks('gala', g.id) : (ca ? plexusPass.walletLinks('ca', ca.id) : { apple: null, google: null });
+        return {
+            ca, g, legs, paid, hasGala, seats, fullName, email: who.email || '', qrId, guests, wallet,
+            party: { conference: wantConf ? seats : 0, bridges: wantBridges ? seats : 0, gala: hasGala ? seats : 0 },
+            invoice: g ? g.invoice_number : null, seat: g ? g.seat_number : null,
+            ticketCode: qrId ? String(qrId).slice(0, 8).toUpperCase() : '',
+            qrPngUrl: qrId ? qrImageUrl(qrId) : null,
+            calendarUrl: plexusTicket.calendarUrl(reqBase, legs)
+        };
+    }
+    const reqBase = req => `${req.protocol}://${req.get('host')}`;
 
     app.get('/gala/ticket/:sig/:id', publicLimiter, (req, res) => {
         res.set('X-Robots-Tag', 'noindex, nofollow');
         res.set('Cache-Control', 'private, no-store');
         const id = String(req.params.id || '');
-        const sig = String(req.params.sig || '');
-        const expect = galaTicketPageSig(id);
-        const sigOk = sig.length === expect.length && (() => {
-            try { return require('crypto').timingSafeEqual(Buffer.from(sig), Buffer.from(expect)); } catch (e) { return false; }
-        })();
-        const reg = sigOk ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [id]) : null;
+        const reg = plexusTicket.safeEq(String(req.params.sig || ''), galaTicketPageSig(id)) ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [id]) : null;
         if (!reg) return galaPayPage(res, 404, 'Nothing here', 'This link is not valid. Please use the link from your email.');
+        const v = plexusTicketView(reqBase(req), { galaRow: reg });
+        return res.send(plexusTicket.ticketPageHtml({
+            state: v.paid ? 'ticket' : 'pending',
+            headline: v.paid ? 'Plexus Week 2026 — you are <i>in</i>.' : 'Finalizing your payment&hellip;',
+            sub: v.paid
+                ? `Thank you, ${escapeHtml(reg.first_name || 'guest')} &mdash; your payment is confirmed. The same ticket is on its way to <b style="color:#fff;">${escapeHtml(v.email)}</b>.`
+                : 'Your card payment went through &mdash; we are issuing your ticket now. This page refreshes itself; your ticket email follows in a moment.',
+            fullName: v.fullName, legs: v.legs, party: v.party, seats: v.seats, invoice: v.invoice, seat: v.seat,
+            ticketCode: v.ticketCode, qrPngUrl: v.qrPngUrl, wallet: v.wallet, calendarUrl: v.calendarUrl, guests: v.guests
+        }));
+    });
 
-        const ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE gala_registration_id = ?', [id]);
-        const fullName = `${reg.first_name || ''} ${reg.last_name || ''}`.trim();
-        const seats = 1 + Math.max(0, parseInt(reg.guest_count, 10) || 0);
-        const paid = String(reg.payment_status || '') === 'paid';
-        const wantConf = !!(ca && Number(ca.selected_conference));
-        const wantBridges = !!(ca && Number(ca.selected_bridges));
+    app.get('/plexus/ticket/:sig/:id', publicLimiter, (req, res) => {
+        res.set('X-Robots-Tag', 'noindex, nofollow');
+        res.set('Cache-Control', 'private, no-store');
+        const id = String(req.params.id || '');
+        const ca = plexusTicket.safeEq(String(req.params.sig || ''), plexusTicket.pageSig(JWT_SECRET, 'ca', id)) ? query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]) : null;
+        if (!ca) return galaPayPage(res, 404, 'Nothing here', 'This link is not valid. Please use the link from your email.');
+        const live = s => ['pre-registered', 'confirmed'].includes(String(s || ''));
+        if (!live(ca.conference_status) && !live(ca.bridges_status)) {
+            return galaPayPage(res, 200, 'Still under review', 'Your registration is being reviewed. You will receive an email as soon as it is confirmed.');
+        }
+        if (ca.gala_registration_id) {                              // a paid Gala leg → the combined page owns it
+            const g = query.get('SELECT * FROM gala_registrations WHERE id = ?', [ca.gala_registration_id]);
+            if (g && ['paid', 'vip-comp', 'comp'].includes(String(g.payment_status || '').toLowerCase())) return res.redirect(302, galaTicketPageUrl(reqBase(req), g.id));
+        }
+        const v = plexusTicketView(reqBase(req), { caRow: ca, galaRow: null });
+        v.legs = v.legs.filter(l => l !== 'gala'); v.party.gala = 0;
+        return res.send(plexusTicket.ticketPageHtml({
+            state: 'ticket',
+            headline: 'Plexus Week 2026 — you are <i>in</i>.',
+            sub: `Thank you, ${escapeHtml(ca.first_name || 'guest')} &mdash; your registration is confirmed and there is nothing to pay. The same ticket is on its way to <b style="color:#fff;">${escapeHtml(ca.email || '')}</b>.`,
+            kicker: 'Plexus Week 2026 · Zagreb',
+            fullName: v.fullName, legs: v.legs, party: v.party, seats: 1, ticketCode: v.ticketCode,
+            qrPngUrl: qrImageUrl(ca.id), wallet: plexusPass.walletLinks('ca', ca.id), calendarUrl: v.calendarUrl, guests: v.guests
+        }));
+    });
 
-        const evRow = (name, status, meta, last) => `<tr><td style="padding:12px 14px;${last ? '' : 'border-bottom:1px solid rgba(25,21,18,.1);'}">
-            <span style="font-weight:600;font-size:14px;color:#191512;">${name}</span>
-            <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#1e6e42;margin-left:8px;">${status}</span>
-            <div style="font-size:12px;color:#6e6455;margin-top:3px;">${meta}</div></td></tr>`;
-        const evRows = [
-            wantConf ? evRow('Plexus Conference', 'PRE-REGISTERED (INCLUDED)', '4 December 2026 &middot; Zagreb &middot; program to follow') : '',
-            wantBridges ? evRow('Croatian Biomedical Bridges', 'PRE-REGISTERED (INCLUDED)', '4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed') : '',
-            evRow('Plexus Gala Evening', paid ? ('CONFIRMED &amp; PAID' + (seats > 1 ? ' &middot; ' + seats + ' SEATS' : '')) : 'FINALIZING', '5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM', true)
-        ].filter(Boolean).join('');
-
-        const pendingMeta = paid ? '' : '<meta http-equiv="refresh" content="5">';
-        const heroTitle = paid ? 'Payment confirmed' : 'Finalizing your payment&hellip;';
-        const heroSub = paid
-            ? `Thank you, ${escapeHtml(reg.first_name || 'guest')} &mdash; your ticket email is on its way to <b style="color:#fff;">${escapeHtml(reg.email || '')}</b>. It carries this same QR.`
-            : 'Your card payment went through &mdash; we are issuing your ticket now. This page refreshes itself; your ticket email follows in a moment.';
-        const ticketCard = paid ? `
-        <div class="sheet" style="text-align:center;">
-            <p class="slabel">Your ticket for the door</p>
-            <span style="display:inline-block;background:#fff;border:1px solid rgba(25,21,18,.12);padding:10px;"><img src="/qr/${escapeHtml(id)}.png" alt="Your entry QR code" width="200" height="200" style="display:block;border:0;"></span>
-            <p style="margin:12px 0 0;font:600 10px Inter,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8a7d6c;">${escapeHtml(fullName)} &middot; MANUAL CODE ${escapeHtml(String(id).slice(0, 8).toUpperCase())}</p>
-            <p style="margin:8px 0 0;font-size:12.5px;color:#8a7d6c;">One QR admits your whole party${seats > 1 ? ' of ' + seats : ''} &mdash; save it to your photos.</p>
-            ${reg.invoice_number ? `<p style="margin:10px 0 0;font-size:12px;color:#8a7d6c;"><b style="color:#4a4139;">Invoice:</b> ${escapeHtml(reg.invoice_number)}</p>` : ''}
-            ${plexusPass.walletButtonsPageHtml(plexusPass.walletLinks('gala', id))}
-        </div>` : '';
-
-        return res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${pendingMeta}
-<title>${paid ? 'Payment confirmed' : 'Finalizing your payment'} — Plexus Week 2026 · Med&X</title>
-<meta name="robots" content="noindex, nofollow"><link rel="icon" type="image/png" href="/assets/favicon-x.png">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-*{box-sizing:border-box;margin:0;padding:0;}
-body{min-height:100vh;font-family:Inter,-apple-system,system-ui,sans-serif;background:#f7f1e6;color:#191512;-webkit-font-smoothing:antialiased;}
-.band{background:#1b1613;color:#f3ece0;text-align:center;padding:clamp(38px,7vw,58px) 22px clamp(56px,8vw,72px);}
-.band img.logo{height:30px;width:auto;filter:brightness(0) invert(1);opacity:.95;}
-.kicker{margin-top:22px;font:600 11px Inter,sans-serif;letter-spacing:3px;text-transform:uppercase;color:#c9a962;}
-.band h1{margin-top:12px;font-family:Fraunces,Georgia,serif;font-weight:500;font-size:clamp(27px,6.4vw,38px);line-height:1.14;letter-spacing:-.4px;color:#f7f1e6;}
-.band p.sub{margin:14px auto 0;max-width:520px;font-size:14px;line-height:1.7;color:rgba(243,236,224,.85);}
-main{max-width:640px;margin:0 auto;padding:0 16px 56px;}
-.sheet{background:#fdfaf3;border:1px solid rgba(25,21,18,.08);padding:clamp(24px,5vw,36px) clamp(20px,4.6vw,34px);margin-top:22px;box-shadow:0 22px 55px -30px rgba(25,21,18,.35);}
-.sheet:first-child{margin-top:-34px;position:relative;}
-.slabel{font:600 10.5px Inter,sans-serif;letter-spacing:2.4px;text-transform:uppercase;color:#6e5626;margin-bottom:14px;}
-table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1);}
-.foot{text-align:center;font-size:12px;color:#94897c;padding:26px 18px 40px;line-height:1.9;}
-.foot a{color:#9b1b22;font-weight:600;text-decoration:none;}
-</style></head><body>
-<header class="band">
-  <img class="logo" src="/assets/images/medx-logo.png" alt="Med&amp;X" onerror="this.outerHTML='<div style=&quot;font-weight:800;font-size:22px;color:#f7f1e6;&quot;>med&amp;<span style=&quot;color:#c9a962;&quot;>x</span></div>'">
-  <p class="kicker">Plexus Week 2026 &middot; Zagreb</p>
-  <h1>${heroTitle}</h1>
-  <p class="sub">${heroSub}</p>
-</header>
-<main>
-  <div class="sheet">
-    <p class="slabel">Your Plexus Week 2026 reservations</p>
-    <table class="res">${evRows}</table>
-  </div>
-  ${ticketCard}
-</main>
-<footer class="foot">Questions? Laura Rodman (<a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a>)<br><a href="https://medx.hr">www.medx.hr</a></footer>
-</body></html>`);
+    // The calendar file behind "Add to calendar" — one VEVENT per leg held (?legs=conference,gala).
+    app.get('/plexus.ics', (req, res) => {
+        const legs = plexusTicket.parseLegs(req.query.legs);
+        res.set('Content-Type', 'text/calendar; charset=utf-8');
+        res.set('Content-Disposition', `attachment; filename="plexus-week-2026${legs.length === 1 ? '-' + legs[0] : ''}.ics"`);
+        res.set('Cache-Control', 'public, max-age=3600');
+        res.send(plexusTicket.icsFor(legs));
     });
 
     app.get('/pay/gala/:token', publicLimiter, async (req, res) => {
@@ -28658,60 +28662,28 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
     // route below) and the review-gate APPROVE handler — an approved registration receives
     // EXACTLY the email + sheet row it would have received had it never been held.
     async function caSendPreRegConfirmation({ regId, first_name, last_name, email, finalConf, finalBridges, finalGala, regSource }) {
-        // Event-list HTML used in the confirmation email (per-event color accents)
-        const eventListHtml = [
-            finalConf ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
-                <strong style="color:#0f172a;">Plexus Conference</strong>
-                <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
-                <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to be announced</div></td></tr>` : '',
-            finalBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #2dd4bf;">
-                <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
-                <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED</span>
-                <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : '',
-            finalGala ? `<tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
-                <strong style="color:#0f172a;">Plexus Gala Evening</strong>
-                <span style="color:#f59e0b;font-size:12px;font-weight:600;margin-left:8px;">AWAITING PAYMENT</span>
-                <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>` : ''
-        ].filter(Boolean).join('');
-
-        // QR ticket for check-in at Conference / Bridges (Gala entry arrives with payment)
-        let caQrDataUrl = '';
+        // The free-events ticket, on the same Boston-style card as every other Plexus ticket
+        // (Alen 2026-09-15): facts per leg, the hosted /qr/:id.png the doors scan (the same
+        // payload the old inline QR carried), Apple Wallet · Google Wallet · calendar under it.
+        // A Gala leg that is already paid rides along; an unpaid one never reaches this email
+        // (the approve path sends the pay link instead — see galaLegNeedsPayment).
+        const legs = [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null, finalGala ? 'gala' : null].filter(Boolean);
+        const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [regId]) || {};
+        const galaRow = finalGala && row.gala_registration_id ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [row.gala_registration_id]) : null;
+        const qrId = (galaRow && galaRow.id) || regId;                  // /qr/:id resolves either to the party QR
+        const base = process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com';
+        const html = plexusTicket.ticketEmail(finalGala ? 'combined' : 'free', {
+            firstName: first_name, fullName: `${first_name || ''} ${last_name || ''}`.trim(),
+            legs, seats: 1 + Math.max(0, parseInt(row.guest_count, 10) || 0),
+            amount: galaRow ? Number(galaRow.amount_paid || 0) : 0, invoice: galaRow ? galaRow.invoice_number : null,
+            seat: galaRow ? galaRow.seat_number : null, source: regSource,
+            ticketCode: String(qrId).slice(0, 8).toUpperCase(),
+            qrPngUrl: qrImageUrl(qrId),
+            wallet: plexusPass.walletLinks(finalGala ? 'gala' : 'ca', finalGala ? qrId : regId),
+            calendarUrl: plexusTicket.calendarUrl(base, legs)
+        });
         try {
-            const caQrPayload = JSON.stringify({
-                type: 'MEDX_MEMBER',
-                caRegId: regId, regId,
-                email, name: `${first_name} ${last_name || ''}`.trim(),
-                evt: 'croatians-abroad', evtName: 'Plexus 2026',
-                events: [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null].filter(Boolean)
-            });
-            caQrDataUrl = await QRCode.toDataURL(caQrPayload, { width: 220, margin: 2 });
-        } catch(qrErr) { console.warn('CA free QR gen failed:', qrErr.message); }
-
-        const qrBlock = caQrDataUrl ? `
-            <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td align="center">
-                <table cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:14px;padding:20px;text-align:center;">
-                    <tr><td style="padding-bottom:10px;font-size:11px;font-weight:700;color:#C9A962;text-transform:uppercase;letter-spacing:2px;">Your Check-in QR Code</td></tr>
-                    <tr><td align="center" style="text-align:center;"><img src="${caQrDataUrl}" alt="QR Code" width="200" height="200" style="display:block;margin:0 auto;border-radius:8px;border:0;" /></td></tr>
-                    <tr><td style="padding-top:8px;font-size:13px;color:#475569;font-family:'Courier New',monospace;letter-spacing:2px;"><span style="font-family:Arial,sans-serif;font-size:9px;letter-spacing:1.5px;color:#94a3b8;">MANUAL CODE&nbsp;&nbsp;</span>${String(regId).substring(0, 8).toUpperCase()}</td></tr>
-                    <tr><td style="padding-top:10px;font-size:12px;color:#94a3b8;">Present this QR at the entrance to each event you've pre-registered for</td></tr>
-                </table>
-            </td></tr></table>` : '';
-
-        try {
-            await sendEventConfirmation(email, "You're pre-registered — Plexus 2026", buildEmailTemplate('Pre-Registration Confirmed', `
-                <p>Dear <strong>${first_name}</strong>,</p>
-                <p>Thank you for accepting our invitation. Your pre-registration for <strong>Plexus 2026</strong> is confirmed.</p>
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-                    <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Selections</td></tr>
-                    ${eventListHtml}
-                </table>
-                ${qrBlock}
-                ${plexusPass.walletStackHtml(plexusPass.walletLinks('ca', regId), { tone: 'light' })}
-                ${(finalConf || finalBridges) ? `<p>We will email you ${[finalConf ? 'the <strong>Conference program</strong>' : null, finalBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(finalConf && finalBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
-                <p>If you would also like to join us at the <strong>Plexus Gala Evening</strong> (${(() => { try { const g = query.get("SELECT date, venue, keynote_name FROM gala_settings WHERE id='default'") || {}; return [g.date ? fmtEventDate(g.date) : '5 December 2026', g.venue || 'Hotel Esplanade Zagreb', g.keynote_name ? g.keynote_name + ' keynote' : ''].filter(Boolean).join(', '); } catch (e) { return '5 December 2026, Hotel Esplanade Zagreb'; } })()}), simply reply to this email and we will send you the ticket link.</p>
-                <p style="margin-top:24px;">We look forward to welcoming you ${regSource === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
-                <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
-            `));
+            await sendEventConfirmation(email, finalGala ? 'Your ticket — Plexus Week 2026' : "You're pre-registered — Plexus Week 2026", html);
         } catch(emailErr) { console.warn('CA pre-reg email failed:', emailErr.message); }
     }
 
@@ -28757,7 +28729,8 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
             effectiveGalaPrice,
             buildEmailTemplate, buildTicketQrBlock, qrPngAttachment,
             // Apple + Google Wallet links for the combined ticket + guest copies (plexus-pass.js)
-            walletLinks: plexusPass.walletLinks, walletStackHtml: plexusPass.walletStackHtml
+            walletLinks: plexusPass.walletLinks, walletStackHtml: plexusPass.walletStackHtml,
+            qrImageUrl                                   // the hosted /qr/:id.png the ticket card shows
         };
     }
 
@@ -28914,6 +28887,28 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
             db.run('UPDATE croatians_abroad_registrations SET email = ? WHERE id = ?', [email, id]);
             saveDb();
             flushDb();
+        },
+        // The ticket on the confirmation page, like Boston's — only once the row IS a ticket
+        // (free legs released, or the Gala leg paid); an unpaid Gala shows nothing here, the pay
+        // link arrives by email.
+        ticketAssets: (id) => {
+            const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
+            if (!row) return null;
+            const base = process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com';
+            const g = row.gala_registration_id ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [row.gala_registration_id]) : null;
+            const galaPaid = !!(g && ['paid', 'vip-comp', 'comp'].includes(String(g.payment_status || '').toLowerCase()));
+            const live = st => ['pre-registered', 'confirmed'].includes(String(st || ''));
+            if (!galaPaid && !live(row.conference_status) && !live(row.bridges_status)) return null;
+            const kind = galaPaid ? 'gala' : 'ca';
+            const qrId = galaPaid ? g.id : row.id;
+            const legs = [live(row.conference_status) ? 'conference' : null, live(row.bridges_status) ? 'bridges' : null, galaPaid ? 'gala' : null].filter(Boolean);
+            const links = plexusPass.walletLinks(kind, qrId);
+            return {
+                qrUrl: qrImageUrl(qrId), apple: links.apple, google: links.google,
+                calendar: plexusTicket.calendarUrl(base, legs),
+                ticketNumber: (g && g.invoice_number) || String(qrId).slice(0, 8).toUpperCase(),
+                eventLine: 'Plexus Week 2026 · ' + legs.map(l => plexusTicket.LEG[l].name).join(' · ')
+            };
         },
         eventLabel: 'Plexus 2026'
     });
@@ -29196,7 +29191,8 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
                     db.run('UPDATE registration_links SET uses = COALESCE(uses,0) + 1 WHERE id = ? AND (max_uses IS NULL OR max_uses = 0 OR COALESCE(uses,0) < max_uses)', [plexusLinkRow.id]);
                     saveDb();
                 }
-                return res.json({ success: true, id: regId, status: 'pre-registered' });
+                // The form redirects here: the ticket on screen (QR, wallet passes, calendar) — Boston parity.
+                return res.json({ success: true, id: regId, status: 'pre-registered', ticket_url: plexusTicketPageUrl(process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`, regId) });
             }
 
             // ---------- PATH B: Gala selected → server-trusted pricing (guests + coupon) ----------

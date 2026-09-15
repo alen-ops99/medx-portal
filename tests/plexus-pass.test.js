@@ -325,17 +325,18 @@ function qrRouteShape(ca) {
     await t('the combined ticket and the guest copy carry both wallet buttons when links exist — and stay clean when they do not', () => {
         const links = { apple: 'https://medx-user-portal.onrender.com/api/plexus/pass/tok.pkpass', google: 'https://medx-user-portal.onrender.com/api/plexus/wallet/tok' };
         const html = payLink.buildCombinedTicketEmail({
-            firstName: 'Ana', amount: 300, seats: 2, invoiceNumber: 'GALA26-0041', wantConf: true, wantBridges: true, source: 'plexus',
-            qrBlockHtml: '<div class="qr">QR</div>', partyNoteText: 'This QR admits your whole party of 2.',
-            walletHtml: pp.walletStackHtml(links)
+            firstName: 'Ana', fullName: 'Ana Franceschi', amount: 300, seats: 2, invoiceNumber: 'GALA26-0041', wantConf: true, wantBridges: true, source: 'plexus',
+            qrPngUrl: 'https://medx-user-portal.onrender.com/qr/' + GALA + '.png', partyNoteText: 'This QR admits your whole party of 2.',
+            wallet: links
         });
-        assert.ok(html.includes('ADD TO APPLE WALLET') && html.includes('ADD TO GOOGLE WALLET'), 'both buttons');
-        assert.ok(html.indexOf('<div class="qr">QR</div>') < html.indexOf('ADD TO APPLE WALLET'), 'right under the QR card');
+        assert.ok(html.includes('ADD TO APPLE WALLET') && html.includes('ADD TO GOOGLE WALLET') && html.includes('ADD TO CALENDAR'), 'all three buttons');
+        assert.ok(html.indexOf('/qr/' + GALA + '.png') < html.indexOf('ADD TO APPLE WALLET'), 'right under the QR card');
         assert.ok(html.indexOf('ADD TO GOOGLE WALLET') < html.indexOf('whole party of 2'), 'before the party note');
-        const guest = payLink.buildGuestEntryEmail({ guestFirst: 'Emeric', registrantName: 'Ana Franceschi', qrBlockHtml: '<div class="qr">QR</div>', walletHtml: pp.walletStackHtml(links) });
+        const guest = payLink.buildGuestEntryEmail({ guestFirst: 'Emeric', guestName: 'Emeric du Mas de Paysac', registrantName: 'Ana Franceschi', qrPngUrl: 'https://x/qr/' + GALA + '.png', wallet: links });
         assert.ok(guest.includes('ADD TO APPLE WALLET') && guest.includes('ADD TO GOOGLE WALLET'));
-        const bare = payLink.buildCombinedTicketEmail({ firstName: 'A', amount: 150, seats: 1, wantConf: false, wantBridges: false, qrBlockHtml: '', walletHtml: '' });
-        assert.ok(!/WALLET/.test(bare), 'no dangling buttons when the env is absent');
+        const bare = payLink.buildCombinedTicketEmail({ firstName: 'A', amount: 150, seats: 1, wantConf: false, wantBridges: false, qrPngUrl: 'https://x/qr/1.png', wallet: { apple: null, google: null } });
+        assert.ok(!/WALLET/.test(bare), 'no dangling wallet buttons when the env is absent');
+        assert.ok(bare.includes('ADD TO CALENDAR'), 'the calendar button needs no env');
     });
 
     await t('server.js wires the passes into every surface: mount, pay-link deps, Path B, standalone receipt, ticket page, pre-registration email', () => {
@@ -344,10 +345,11 @@ function qrRouteShape(ca) {
         assert.ok(src.includes('walletLinks: plexusPass.walletLinks, walletStackHtml: plexusPass.walletStackHtml'), 'gala-paylink deps');
         assert.strictEqual((src.match(/plexusPass\.walletLinks\('gala', galaRegId\)/g) || []).length, 2, 'Path B ticket + standalone receipt');
         assert.ok(src.includes("plexusPass.walletLinks('guest', pg.id)"), 'Path B guest copies');
-        assert.ok(src.includes("plexusPass.walletButtonsPageHtml(plexusPass.walletLinks('gala', id))"), 'the ticket page');
-        assert.ok(src.includes("plexusPass.walletStackHtml(plexusPass.walletLinks('ca', regId), { tone: 'light' })"), 'the free-events pre-registration email');
+        assert.ok(src.includes("plexusPass.walletLinks('gala', g.id) : (ca ? plexusPass.walletLinks('ca', ca.id)"), 'the ticket pages (gala + free)');
+        assert.ok(src.includes("wallet: plexusPass.walletLinks(finalGala ? 'gala' : 'ca', finalGala ? qrId : regId)"), 'the free-events pre-registration email');
+        assert.ok(src.includes("const links = plexusPass.walletLinks(kind, qrId);"), 'the institutional-confirmation page (ticketAssets)');
         const gp = fs.readFileSync(path.join(__dirname, '..', 'user-portal', 'backend', 'gala-paylink.js'), 'utf8');
-        assert.ok(gp.includes("walletHtml: stack(links('gala', galaRegId))") && gp.includes("walletHtml: stack(g.id ? links('guest', g.id) : null)"), 'fulfilLinkedCaGala: ticket + guest copies');
+        assert.ok(gp.includes("wallet: links('gala', galaRegId)") && gp.includes("wallet: g.id ? links('guest', g.id) : null"), 'fulfilLinkedCaGala: ticket + guest copies');
         // The /qr route still paints the croatians_abroad branch in the order qrPayloadFor mirrors.
         const route = src.slice(src.indexOf("app.get('/qr/:id.png'"), src.indexOf("app.get('/qr/:id.png'") + 3000);
         for (const k of ['type: \'MEDX_MEMBER\'', 'caRegId: ca.id', 'regId: ca.gala_registration_id || ca.id', 'email: ca.email', 'evt: ca.selected_gala ? \'gala\' : \'croatians-abroad\'', 'events']) {

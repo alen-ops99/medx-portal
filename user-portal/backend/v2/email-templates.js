@@ -203,7 +203,8 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
 // ---------------------------------------------------------------- 02 · TICKET CONFIRMATION
 function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue, qrPngUrl, passUrl, walletUrl,
                               calendarUrl, ticketLabel, priceLabel, guestLabel, ticketNumber,
-                              dressLabel, tableLabel, headlineHtml, introHtml, note, ctaLabel, replyLine, walletSaveUrl, appleWalletUrl } = {}) {
+                              dressLabel, tableLabel, headlineHtml, introHtml, note, ctaLabel, replyLine, walletSaveUrl, appleWalletUrl,
+                              headerRightLabel, kicker, extraHtml, subjectTitle, preheader } = {}) {
     const fieldRow = (label, valueHtml) => `
         <tr><td style="padding:5px 0;vertical-align:baseline;width:76px;${microStyle(T.soft, 9, '.12em')}">${label}</td>
             <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
@@ -243,19 +244,19 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
               </td></tr></table>
               <div style="${microStyle(T.soft, 9, '.14em')};margin-top:8px;">YOUR ENTRY QR · SHOW AT THE DOOR</div>
               <div style="font-family:${T.sans};font-size:11px;color:${T.soft};margin-top:4px;">Tap the QR to enlarge it — then save it to your photos.</div>
-              ${(walletSaveUrl || appleWalletUrl) ? `
+              ${(walletSaveUrl || appleWalletUrl || calendarUrl) ? `
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px auto 0;">
                 ${appleWalletUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO APPLE WALLET →', appleWalletUrl, 'ink', BTN_STACK_W)}</td></tr>` : ''}
                 ${walletSaveUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO GOOGLE WALLET →', walletSaveUrl, 'gold', BTN_STACK_W)}</td></tr>` : ''}
                 ${calendarUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO CALENDAR →', calendarUrl, 'ghost', BTN_STACK_W)}</td></tr>` : ''}
               </table>
-              <div style="font-family:${T.sans};font-size:11px;color:${T.soft};">Tap Add to Wallet to add your ticket to Apple or Google Wallet${calendarUrl ? ' — and Add to Calendar to save the dates' : ''}.</div>` : ''}
+              <div style="font-family:${T.sans};font-size:11px;color:${T.soft};">${(walletSaveUrl || appleWalletUrl) ? `Tap Add to Wallet to add your ticket to Apple or Google Wallet${calendarUrl ? ' — and Add to Calendar to save the dates' : ''}.` : 'Tap Add to Calendar to save the dates.'}</div>` : ''}
             </td>
           </tr></table>` : '';
     const ctaUrl = passUrl || walletUrl;
     const body = `
     <div style="padding:32px 28px 26px;">
-      <span style="${microStyle(T.gold)}">YOU'RE GOING</span>
+      <span style="${microStyle(T.gold)}">${kicker || "YOU'RE GOING"}</span>
       <div style="font-family:${T.serif};font-size:26px;line-height:1.18;color:${T.ink};margin-top:10px;">${headlineHtml || `${esc(eventName || 'Your seat')} — seat <i>confirmed</i>.`}</div>
       ${introHtml ? `<div style="font-family:${T.sans};font-size:13.5px;color:${T.soft};line-height:1.65;margin-top:12px;">${introHtml}</div>` : ''}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border:1px solid rgba(201,169,98,.65);background:${T.cardCream};">
@@ -264,13 +265,15 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
           ${qrBlock}
         </td></tr>
       </table>
+      ${extraHtml || ''}
       <div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:14px;">${note || 'Present the QR above at the door — it admits you to everything you are registered for.'}</div>
       <div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:10px;">${replyLine || `Questions? Just reply to this email, or write to <a href="mailto:laura.rodman@medx.hr" style="color:${T.soft};">laura.rodman@medx.hr</a>.`}</div>
       ${ctaUrl ? `<div style="text-align:center;margin:22px 0 4px;">${btn(ctaLabel || 'OPEN MY TICKETS →', ctaUrl)}${calendarUrl ? `<span style="display:inline-block;width:8px;">&nbsp;</span>${btn('ADD TO CALENDAR', calendarUrl, 'ghost')}` : ''}</div>` : ''}
     </div>`;
     return shell({
-        title: `${eventName || 'Ticket'} — confirmed`,
-        preheader: `${eventName || 'Your seat'} is confirmed — your QR is inside.`,
+        title: subjectTitle || `${eventName || 'Ticket'} — confirmed`,
+        preheader: preheader || `${eventName || 'Your seat'} is confirmed — your QR is inside.`,
+        headerRightLabel,                       // omitted → the shell's default (Boston unchanged)
         rule: 'gold',
         bodyHtml: body,
         footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Questions? Reply to this email or write to laura.rodman@medx.hr']
