@@ -119,8 +119,10 @@ function paletteMatches(q) {
 }
 const IMPERATIVE = /^(email|send|add|create|make|chase|remind|invite|schedule|publish|post|change|update|set|open|show|how|what|who|list|find|count|which|when|where|draft|queue|approve|cancel|delete|remove|rename|move|export|generate|book|tell|give|explain|can)\b/i;
 
-const NAV_ON = 'font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box';
-const NAV_OFF = 'font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center';
+// white-space:nowrap — every nav label was one word until BIG IDEAS, which wrapped to two lines
+// and pushed the row out of alignment.
+const NAV_ON = 'font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b16;border-bottom:2px solid #9b1b22;height:100%;display:flex;align-items:center;box-sizing:border-box;white-space:nowrap';
+const NAV_OFF = 'font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;white-space:nowrap';
 
 let els = {};
 let popover = null;          // 'search' | 'menu' | 'projects' | null
