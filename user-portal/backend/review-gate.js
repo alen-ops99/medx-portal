@@ -1064,6 +1064,10 @@ module.exports = {
     buildVerifyAskEmail,
     buildPendingEmail,
     buildInstConfirmEmail,
+    // Exported so the modules that email a registrant AFTER the gate releases them
+    // (gala-paylink.js) speak in the same dark shell as the gate's own emails, instead of
+    // growing a second copy of it that drifts.
+    emailShell,
     registerReviewHandlers,
     mountReviewRoutes
 };
