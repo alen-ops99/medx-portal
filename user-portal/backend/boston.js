@@ -122,6 +122,7 @@ const SLIDES_FORMAT_LINE = '5 minutes · 5 to 8 slides · PowerPoint 16:9, in En
 const MAX_ONEPAGER_BYTES = 10 * 1024 * 1024;           // 10 MB
 const ONEPAGER_PREFIX = 'boston/onepagers';            // S3: boston/onepagers/<registration id>/<id>.<ext>
 const MAX_HEADLINE_CHARS = 120;                        // "Sleep neuroscientist · looking for clinical collaborators"
+const MAX_LINK_CHARS = 600;                            // a Drive / Dropbox share link (the over-25 MB slides lane)
 const SUMMARY_TYPES = {                                 // a slide is a slide — PDF or PowerPoint
     pdf:  { mime: 'application/pdf' },
     ppt:  { mime: 'application/vnd.ms-powerpoint' },
@@ -526,8 +527,18 @@ module.exports = function mountBoston(app, deps) {
             size INTEGER NOT NULL,
             uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP
         )`);
+        // The over-25 MB lane (Alen 2026-09-15): a deck too big for the uploader lives on the
+        // presenter's Google Drive / Dropbox and the row carries the share link instead of a
+        // stored object (stored_key '' / size 0). Additive, PRAGMA-guarded like share_ok.
+        try {
+            const cols = query.all('PRAGMA table_info(bridges_presentations)') || [];
+            if (!cols.some(c => String(c.name) === 'external_url')) {
+                query.run('ALTER TABLE bridges_presentations ADD COLUMN external_url TEXT');
+            }
+        } catch (e) { console.warn('[Boston] external_url migration skipped:', e.message); }
         presTableReady = true;
     }
+    const isLinkRow = row => !!(row && String(row.external_url || '').trim());
     function latestPresentation(regId) {
         ensurePresentationsTable();
         return query.get(`SELECT * FROM bridges_presentations WHERE registration_id = ?
@@ -1244,6 +1255,30 @@ module.exports = function mountBoston(app, deps) {
         return { status: 200, body: { success: true, filename: name, size: file.buffer.length, uploaded_at: uploadedAt } };
     }
 
+    // The over-25 MB lane: a Google Drive / Dropbox (any https) share link saved as the presenter's
+    // deck. Same history table, newest wins, so a link counts as the required upload everywhere
+    // latestPresentation() is read — the progress line, the admin list, the ZIP's links.txt.
+    function parseShareLink(raw) {
+        const s = String(raw == null ? '' : raw).trim();
+        if (!s || s.length > MAX_LINK_CHARS) return null;
+        let u;
+        try { u = new URL(s); } catch (e) { return null; }
+        if (!/^https?:$/.test(u.protocol) || !u.hostname || !u.hostname.includes('.')) return null;
+        return u;
+    }
+    function storeSlidesLink(reg, raw) {
+        const u = parseShareLink(raw);
+        if (!u) return { status: 400, body: { error: 'Please paste a full web link (starting with https://) from Google Drive, Dropbox or a similar service.' } };
+        ensurePresentationsTable();
+        const presId = crypto.randomUUID();
+        const uploadedAt = new Date().toISOString();
+        const label = `Link · ${u.hostname.replace(/^www\./, '')}`;
+        query.run(`INSERT INTO bridges_presentations (id, registration_id, original_name, stored_key, mime, size, uploaded_at, external_url)
+            VALUES (?,?,?,?,?,?,?,?)`, [presId, reg.id, label, '', 'text/uri-list', 0, uploadedAt, u.href]);
+        flushDb();
+        return { status: 200, body: { success: true, filename: label, external_url: u.href, size: 0, uploaded_at: uploadedAt } };
+    }
+
     // ------------------------------------------------------------ POST /api/boston/upload/:token
     app.post('/api/boston/upload/:token', uploadParser, async (req, res) => {
         try {
@@ -1482,9 +1517,9 @@ module.exports = function mountBoston(app, deps) {
     // four older personal links keep working exactly as they did (they are in inboxes already);
     // this one simply makes them unnecessary.
     //
-    // Required is required for a reason: allergies are a kitchen fact for EVERY guest, and a
-    // presenter without slides is a gap in the running order. The summary is the one genuinely
-    // optional ask, and the page says so rather than nagging for it.
+    // One thing is required, of one group: a presenter without slides is a gap in the running
+    // order. Everything else — the catering answers, the one-slide summary — is asked for and
+    // welcome, but optional (Alen 2026-09-15), and the page says so rather than nagging for it.
 
     /** Every fact the page and its progress line are drawn from — one read, one shape. */
     function meStateOf(reg) {
@@ -1492,6 +1527,7 @@ module.exports = function mountBoston(app, deps) {
         const declined = wasDeclinedPresenter(reg);
         const cat = cateringStateOf(reg);
         const summary = latestOnepager(reg.id);
+        // A deck on file OR a saved share link (the over-25 MB lane) — either satisfies step 3.
         const slides = presenter ? latestPresentation(reg.id) : null;
         // Step 1 is done only when BOTH rows are answered — "vegan, allergies unknown" is not an
         // answer the kitchen can cook from.
@@ -1503,9 +1539,10 @@ module.exports = function mountBoston(app, deps) {
         return {
             presenter, declined, cat, summary, slides,
             step1, step2, step3, total, done,
-            // The optional step deliberately does NOT gate this: a guest who has answered the food
-            // questions (and uploaded slides, if presenting) is finished, and should be told so.
-            allDone: step1 && (!presenter || step3)
+            // Only the required step gates this: a presenter is finished once the slides are in;
+            // an attendee has nothing required and is finished from the start. The optional
+            // steps stay open below regardless.
+            allDone: !presenter || step3
         };
     }
 
@@ -1586,7 +1623,7 @@ module.exports = function mountBoston(app, deps) {
                     error: wasDeclinedPresenter(reg)
                         // They offered and there was no room. The refusal has to carry the seat with
                         // it — this is the one place a declined guest could still read "not wanted".
-                        ? 'Your seat on Monday is confirmed and we look forward to seeing you. We could not fit every presentation into the evening this time, so there is no slides slot — but your one-slide summary is very welcome and reaches every participant after the event.'
+                        ? 'Your seat on Monday is confirmed and we look forward to seeing you. Sadly we could not accommodate your presentation this time, so there is no slides slot — but your one-slide summary is very welcome: the summaries of everyone’s work are shared with all participants.'
                         : 'Only the evening’s presenters upload slides. If you would like a 5-minute slot, write to Laura Rodman (' + SUPPORT_EMAIL + ').'
                 });
             }
@@ -1595,6 +1632,29 @@ module.exports = function mountBoston(app, deps) {
         } catch (e) {
             console.error('[Boston] hub slides upload failed:', e.message);
             res.status(502).json({ error: 'The upload did not go through. Please try again — this same link keeps working.' });
+        }
+    });
+
+    // ------------------------------------------------------------ POST /api/boston/me/:token/slides-link
+    // Step 3, the other way in: a deck over 25 MB, shared from Drive / Dropbox. Presenters only,
+    // exactly like the upload — and it needs no S3, so it works even before storage is configured.
+    app.post('/api/boston/me/:token/slides-link', (req, res) => {
+        try {
+            const reg = meRegOf(req.params.token);
+            if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
+            if (!isPresenterRow(reg)) {
+                return res.status(403).json({
+                    error: wasDeclinedPresenter(reg)
+                        ? 'Your seat on Monday is confirmed and we look forward to seeing you. Sadly we could not accommodate your presentation this time, so there is no slides slot — but your one-slide summary is very welcome: the summaries of everyone’s work are shared with all participants.'
+                        : 'Only the evening’s presenters send slides. If you would like a 5-minute slot, write to Laura Rodman (' + SUPPORT_EMAIL + ').'
+                });
+            }
+            const out = storeSlidesLink(reg, (req.body || {}).url);
+            res.status(out.status).json(out.body);
+        } catch (e) {
+            console.error('[Boston] hub slides link failed:', e.message);
+            res.status(500).json({ error: 'We could not save that just now. Please try again.' });
         }
     });
 
@@ -1740,6 +1800,10 @@ module.exports = function mountBoston(app, deps) {
                     mime: latest.mime,
                     uploaded_at: latest.uploaded_at,
                     versions,
+                    // A share link (the over-25 MB lane) instead of a stored file. download_url
+                    // still works — it redirects there — so every existing "Download" control is
+                    // right either way; external_url is exposed so the team can see WHERE it goes.
+                    external_url: isLinkRow(latest) ? String(latest.external_url) : null,
                     download_url: `${base}/api/boston/presentations/${latest.id}/download?key=${adminKey()}`
                 } : null
             };
@@ -1797,17 +1861,26 @@ module.exports = function mountBoston(app, deps) {
         try {
             if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
             ensurePresentationsTable();
-            if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
             const data = presentationAdminData();
             const withFile = data.rows.filter(r => r.upload && r.upload.id);
             if (!withFile.length) return res.status(404).json({ error: 'No presentations uploaded yet.' });
+            // Stored decks need S3; share links (the over-25 MB lane) do not — they go into
+            // links.txt, so the archive is complete even when some decks live on Drive / Dropbox.
+            const files = withFile.filter(r => !r.upload.external_url);
+            const linked = withFile.filter(r => r.upload.external_url);
+            if (files.length && !s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
             const entries = [];
-            for (const r of withFile) {
+            for (const r of files) {
                 const p = query.get('SELECT * FROM bridges_presentations WHERE id = ?', [r.upload.id]);
                 if (!p) continue;
                 const buf = await s3.getObject(p.stored_key);
                 const reg = query.get('SELECT first_name, last_name FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
                 entries.push({ name: `${zipSafe(reg.last_name)}_${zipSafe(reg.first_name)}__${zipSafe(p.original_name)}`, data: buf });
+            }
+            if (linked.length) {
+                const lines = ['Decks shared as links (larger than 25 MB) — open each in a browser and download it:', ''];
+                for (const r of linked) lines.push(`${r.name}${r.institution ? ' (' + r.institution + ')' : ''}\n  ${r.upload.external_url}`, '');
+                entries.push({ name: 'links.txt', data: Buffer.from(lines.join('\n'), 'utf8') });
             }
             const zip = buildZip(entries);
             res.set('Content-Type', 'application/zip');
@@ -2047,7 +2120,8 @@ module.exports = function mountBoston(app, deps) {
         const declinedNoteLight = o.declined ? `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:${T.cardCream};border-left:3px solid ${T.gold};"><tr><td style="padding:14px 18px;font-family:${T.sans};font-size:14.5px;line-height:1.65;color:${ink};">
         <b>Your seat on Monday is confirmed and we very much look forward to seeing you.</b><br><br>
-        Thank you for offering to give one of the 5-minute presentations. The interest this year was exceptionally high &mdash; we have far more requests than the evening can hold &mdash; so we sadly cannot give everyone the floor this time. Please do come: the panel, the presentations, the reception and the networking are the heart of the evening and exactly where the connections happen. We would be glad to have your one-slide summary, so your work still reaches every participant, and we hope to have you present at one of the next editions.
+        Thank you for offering to give one of the 5-minute presentations. We received many more requests than the evening can hold, and sadly we could not accommodate your presentation this time. We are sorry about that, and we hope to have you present at one of the next editions.<br><br>
+        We would warmly encourage you to send us your <b>one-slide summary</b> (point 2 below). The summaries of everyone&rsquo;s work are compiled into one document and shared with all participants, so your work is still presented to the room &mdash; with your contact details, for anyone who wants to follow up.
       </td></tr></table>` : '';
 
         const ticketLight = `
@@ -2477,6 +2551,10 @@ module.exports = function mountBoston(app, deps) {
             ensurePresentationsTable();
             const p = query.get('SELECT * FROM bridges_presentations WHERE id = ?', [String(req.params.id || '')]);
             if (!p) return res.status(404).json({ error: 'Not found' });
+            if (isLinkRow(p)) {                     // the over-25 MB lane: the deck lives on Drive / Dropbox
+                res.set('Cache-Control', 'private, no-store');
+                return res.redirect(302, String(p.external_url));
+            }
             if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
             const url = s3.presignGet(p.stored_key, { expires: 900, filename: p.original_name });   // 15 minutes
             res.set('Cache-Control', 'private, no-store');
@@ -2910,12 +2988,7 @@ function onepagerPage(reg, current, s3ok, token) {
         <p class="fmeta">${currentShared ? 'Shared with all participants after the event.' : 'Kept private &mdash; only the Med&amp;X team sees it.'}</p>
         <p class="fnote">Uploading a new file from this page replaces it, together with the answer below.</p>
       </div>` : '';
-    const headlineField = `
-        <div class="hl">
-          <label for="hl_text">One line about you <span style="text-transform:none;letter-spacing:.2px;font-weight:500;color:#a89a86;">(optional)</span></label>
-          <input type="text" id="hl_text" maxlength="${MAX_HEADLINE_CHARS}" placeholder="e.g. Sleep neuroscientist &middot; looking for clinical collaborators" value="${esc(current && current.headline ? current.headline : '')}" autocomplete="off">
-          <p class="reqs" style="margin-top:7px;">This is the line printed under your name in the index.</p>
-        </div>`;
+    // (The "one line about you" text field was removed 2026-09-15 — file upload only.)
     const shareField = `
         <div class="share">
           <label class="sharebox" for="share_ok"><input type="checkbox" id="share_ok"${currentShared ? ' checked' : ''}><span>${SUMMARY_SHARE_LABEL}</span></label>
@@ -2924,14 +2997,13 @@ function onepagerPage(reg, current, s3ok, token) {
     const uploader = s3ok ? `
       ${currentCard}
       <div id="upwrap">
-        ${headlineField}
         <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose your one-slide summary">
           <div class="dtitle">${current ? 'Replace it &mdash; drag &amp; drop the new file here' : 'Drag &amp; drop your one-slide summary here'}</div>
           <div class="dor">or</div>
           <button type="button" class="pick" id="pickbtn">${current ? 'Choose a replacement file' : 'Browse for the file'}</button>
           <input type="file" id="fileinput" accept="${SUMMARY_ACCEPT_ATTR}" hidden>
         </div>
-        <p class="reqs">Accepted: <b>.pdf &middot; .ppt &middot; .pptx</b> &mdash; up to <b>10 MB</b>. One slide is all we need.</p>
+        <p class="reqs">Accepted: <b>.pdf &middot; .ppt &middot; .pptx</b> &mdash; up to <b>10 MB</b>. Please keep it to one slide &mdash; a single PowerPoint slide or a one-page PDF.</p>
         ${shareField}
         <div class="picked" id="picked" style="display:none;">
           <span class="pname" id="pname"></span><span class="psize" id="psize"></span>
@@ -3096,11 +3168,13 @@ function mePage(reg, st, s3ok, tok, links) {
         <span class="snum${doneFlag ? ' on' : ''}" aria-hidden="true">${doneFlag ? '&#10003;' : n}</span>
         <div class="sh"><h2>${title}</h2>${tagHtml}</div>
       </div>`;
+    const linkOf = file => (file && file.external_url) ? String(file.external_url) : '';
     const onFileCard = (domId, file, extraHtml) => `
       <div class="onfile" id="${domId}"${file ? '' : ' hidden'}>
         <p class="slabel" style="margin-bottom:6px;">On file with us</p>
         <p class="fname" id="${domId}_name">${file ? esc(file.original_name) : ''}</p>
-        <p class="fmeta" id="${domId}_meta">${file ? esc(prettySize(Number(file.size))) + ' &middot; uploaded ' + esc(fmtWhen(file.uploaded_at)) : ''}</p>
+        <p class="fmeta" id="${domId}_meta">${file ? (linkOf(file) ? 'shared link &middot; saved ' : esc(prettySize(Number(file.size))) + ' &middot; uploaded ') + esc(fmtWhen(file.uploaded_at)) : ''}</p>
+        <p class="fmeta" id="${domId}_link"${linkOf(file) ? '' : ' hidden'} style="word-break:break-all;"><a id="${domId}_href" href="${esc(linkOf(file))}" target="_blank" rel="noopener">${esc(linkOf(file))}</a></p>
         ${extraHtml || ''}
       </div>`;
 
@@ -3113,8 +3187,8 @@ function mePage(reg, st, s3ok, tok, links) {
 
     const step1 = `
     <section class="sheet step" id="step1" aria-label="Step 1 — dietary preferences and allergies">
-      ${head(1, st.step1, 'Dietary preferences and allergies', tag('req', 'Required'))}
-      <p class="sbody">Dinner is served during the networking part of the evening. One tap in each row &mdash; nothing to type, nothing to sign in to.</p>
+      ${head(1, st.step1, 'Dietary preferences and allergies', tag('opt', 'Optional'))}
+      <p class="sbody">Finger food and drinks will be served during the networking part of the evening. If you have a preference or an allergy, one tap in each row tells the kitchen &mdash; nothing to type, nothing to sign in to.</p>
 
       <p class="qlabel">What should we put on your plate?</p>
       <div class="chips" id="prefrow">${prefChips}</div>
@@ -3137,17 +3211,14 @@ function mePage(reg, st, s3ok, tok, links) {
     <section class="sheet step" id="step2" aria-label="Step 2 — your one-slide summary">
       ${head(2, st.step2, 'One-slide summary of your work', tag('opt', 'Optional'))}
       <p class="sbody">One slide about your work: your institution and group, what you work on, and what kind of collaboration you are looking for &mdash; with your contact details. After the event we compile every summary into one document and send it to all participants.</p>
+      <p class="sbody" style="margin-top:8px;"><b>Please keep it to one slide</b> &mdash; a single PowerPoint slide or a one-page PDF.</p>
       ${onFileCard('s2_file_card', st.summary, `<p class="fmeta" id="s2_share_line">${st.summary ? (shareOn ? 'Shared with all participants after the event.' : 'Kept private &mdash; only the Med&amp;X team sees it.') : ''}</p>`)}
       ${s3ok ? `
-      <div class="hl">
-        <label for="s2_headline">One line about you <span class="lc">(optional)</span></label>
-        <input type="text" id="s2_headline" maxlength="${MAX_HEADLINE_CHARS}" placeholder="e.g. Sleep neuroscientist &middot; looking for clinical collaborators" value="${esc(st.summary && st.summary.headline ? st.summary.headline : '')}" autocomplete="off">
-      </div>
       <label class="filepick" for="s2_file">
         <span class="fpl">Choose your slide</span>
         <input type="file" id="s2_file" accept="${SUMMARY_ACCEPT_ATTR}">
       </label>
-      <p class="reqs">PDF or PowerPoint (<b>.pdf &middot; .ppt &middot; .pptx</b>), up to <b>10 MB</b> &middot; by <b>${SLIDES_DEADLINE}</b>.</p>
+      <p class="reqs">PDF or PowerPoint (<b>.pdf &middot; .ppt &middot; .pptx</b>), one slide, up to <b>10 MB</b> &middot; by <b>${SLIDES_DEADLINE}</b>.</p>
       <label class="sharebox" for="s2_share"><input type="checkbox" id="s2_share"${shareOn ? ' checked' : ''}><span>${SUMMARY_SHARE_LABEL}</span></label>
       <button type="button" class="go" id="s2_go">${st.summary ? 'Replace my one-slide summary' : 'Upload my one-slide summary'}</button>
       <p class="ok" id="s2_ok" hidden>Saved &#10003;</p>
@@ -3171,10 +3242,22 @@ function mePage(reg, st, s3ok, tok, links) {
       <p class="ok" id="s3_ok" hidden>Saved &#10003;</p>
       <p class="err" id="s3_err"></p>` : `
       <div class="soon"><p class="slabel" style="margin-bottom:6px;">Uploads open soon</p><p class="sbody" style="margin-top:0;">This page is yours &mdash; keep the link. The upload box opens shortly.</p></div>`}
+      <div class="biglink">
+        <p class="qlabel">Larger than 25 MB?</p>
+        <p class="reqs" style="margin-top:6px;">Upload it to Google Drive or Dropbox and paste the share link here.</p>
+        <div class="linkrow">
+          <input type="url" id="s3_link" inputmode="url" maxlength="${MAX_LINK_CHARS}" placeholder="https://drive.google.com/&hellip;" value="${esc(linkOf(st.slides))}" autocomplete="off">
+          <button type="button" class="save" id="s3_link_save">Save link</button>
+        </div>
+        <p class="ok" id="s3_link_ok" hidden>Link saved &#10003;</p>
+        <p class="err" id="s3_link_err"></p>
+      </div>
     </section>` : st.declined ? `
     <section class="sheet" id="step3note" aria-label="About your presentation">
       <p class="slabel">About your presentation</p><div class="rule"></div>
-      <p class="sbody"><b>Your seat on Monday is confirmed and we very much look forward to seeing you.</b> Interest in the 5-minute presentations was exceptionally high, so we could not give everyone the floor this time &mdash; but the panel, the reception and the networking are the heart of the evening, your one-slide summary above still reaches every participant, and we hope to have you present at a future edition.</p>
+      <p class="sbody"><b>Your seat on Monday is confirmed and we very much look forward to seeing you.</b></p>
+      <p class="sbody" style="margin-top:10px;">Thank you for offering to give one of the 5-minute presentations. We received many more requests than the evening can hold, and sadly we could not accommodate your presentation this time. We are sorry about that, and we hope to have you present at one of the next editions.</p>
+      <p class="sbody" style="margin-top:10px;">We would warmly encourage you to send us your <b>one-slide summary</b> (step 2 above). The summaries of everyone&rsquo;s work are compiled into one document and shared with all participants, so your work is still presented to the room &mdash; with your contact details, for anyone who wants to follow up.</p>
     </section>` : '';
 
     const w = links || {};
@@ -3248,17 +3331,27 @@ main{max-width:640px;}
 .evline{margin-top:20px;padding-top:15px;border-top:1px solid rgba(43,33,25,.1);font-size:12.5px;line-height:1.7;color:#8a7d70;text-align:center;}
 .bail{margin:22px 4px 0;text-align:center;font-size:12.5px;line-height:1.7;color:#8a7d70;}
 .bail a{color:var(--crimson);font-weight:600;text-decoration:underline;}
-@media(max-width:430px){.chip{flex:1 1 auto;text-align:center;}}
+/* the Boston skyline behind the greeting — the same photo the registration page opens on */
+.miniband.skyline{position:relative;overflow:hidden;}
+.miniband.skyline .bg{position:absolute;inset:0;background:url('/boston/hero.jpg') center 32%/cover no-repeat;opacity:.6;}
+.miniband.skyline .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(27,22,19,.6) 0%,rgba(27,22,19,.42) 40%,rgba(27,22,19,.93) 88%,#1b1613 100%);}
+.miniband.skyline .inner{position:relative;}
+.biglink{margin-top:18px;padding-top:16px;border-top:1px solid rgba(43,33,25,.1);}
+.linkrow{display:flex;gap:9px;margin-top:10px;}
+.linkrow input{flex:1 1 auto;min-width:0;padding:13px 14px;border:1px solid rgba(43,33,25,.18);border-radius:11px;background:#fff;color:#241d18;font-size:15px;font-family:inherit;}
+.linkrow input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,137,59,.14);}
+.linkrow .save{margin-top:0;flex:0 0 auto;white-space:nowrap;}
+@media(max-width:430px){.chip{flex:1 1 auto;text-align:center;}.linkrow{flex-direction:column;}}
 </style></head><body>
 
-<header class="miniband"><div class="inner">
+<header class="miniband skyline"><div class="bg" aria-hidden="true"></div><div class="veil" aria-hidden="true"></div><div class="inner">
   <div class="orgs">
     <img class="medx" src="${LOGO_URL}" alt="Med&amp;X">
     <span class="x">&times;</span>
     <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
   </div>
   <p class="kicker">Building Bridges — Boston &middot; Your personal page</p>
-  <h1>Hi ${esc(first)}</h1>
+  <h1>Hi ${esc(first)}!</h1>
   <p class="who"><b>${esc(fullName)}</b>${reg.institution ? ' &middot; ' + esc(reg.institution) : ''}</p>
   <p class="prog${st.allDone ? ' allset' : ''}" id="prog"
      data-total="${st.total}" data-presenter="${st.presenter ? 1 : 0}"
@@ -3304,7 +3397,8 @@ ${FOOTER_HTML}
     var pres=prog.getAttribute('data-presenter')==='1',total=Number(prog.getAttribute('data-total'));
     var s1=prog.getAttribute('data-s1')==='1',s2=prog.getAttribute('data-s2')==='1',s3=prog.getAttribute('data-s3')==='1';
     var done=(s1?1:0)+(s2?1:0)+(pres&&s3?1:0);
-    if(s1&&(!pres||s3)){prog.classList.add('allset');prog.innerHTML='All set &mdash; see you on Monday.';}
+    /* only the required step (a presenter's slides) gates "all set" — the rest is optional */
+    if(!pres||s3){prog.classList.add('allset');prog.innerHTML='All set &mdash; see you on Monday.';}
     else{prog.classList.remove('allset');prog.innerHTML='<b>'+done+'</b> of '+total+' done';}
   }
   function show(el,m){if(!el)return;el.textContent=m;el.style.display='block';}
@@ -3415,8 +3509,7 @@ ${FOOTER_HTML}
     wrongType:'PDF or PowerPoint (.ppt/.pptx), please \\u2014 export your slide and try again.',
     tooBig:'That file is over the 10 MB limit',
     replaceLabel:'Replace my one-slide summary',
-    extra:function(fd){var h=$('s2_headline'),s=$('s2_share');
-      if(h&&h.value.trim())fd.append('headline',h.value.trim());
+    extra:function(fd){var s=$('s2_share');
       fd.append('share_ok',(!s||s.checked)?'1':'0');},
     after:function(j){var l=$('s2_share_line');
       if(l)l.innerHTML=j.share_ok?'Shared with all participants after the event.':'Kept private &mdash; only the Med&amp;X team sees it.';}
@@ -3425,9 +3518,36 @@ ${FOOTER_HTML}
     re:/\\.(pdf|ppt|pptx|key)$/i,max:${MAX_UPLOAD_BYTES},
     pick:'Choose your slides first \\u2014 .pdf, .ppt, .pptx or .key, up to 25 MB.',
     wrongType:'That file type is not accepted \\u2014 please choose a .pdf, .ppt, .pptx or .key file.',
-    tooBig:'That file is over the 25 MB limit',
-    replaceLabel:'Replace my slides'
+    tooBig:'That file is over the 25 MB limit (use the share link below instead)',
+    replaceLabel:'Replace my slides',
+    after:function(){var l=$('s3_file_card_link');if(l)l.setAttribute('hidden','');}
   });
+
+  /* ---- step 3 · the over-25 MB lane: a Drive / Dropbox share link, saved as the deck ---- */
+  var linkIn=$('s3_link'),linkSave=$('s3_link_save'),linkErr=$('s3_link_err'),linkOk=$('s3_link_ok');
+  function saveLink(){
+    var v=(linkIn.value||'').trim();
+    hide(linkErr);linkOk.setAttribute('hidden','');
+    if(!v){show(linkErr,'Paste the share link first \\u2014 it should start with https://');return;}
+    if(!/^https?:\\/\\//i.test(v)){show(linkErr,'Please paste the full link, starting with https://');return;}
+    linkSave.disabled=true;linkSave.textContent='Saving…';
+    post(ME+'/slides-link',{url:v}).then(function(res){
+      linkSave.disabled=false;linkSave.textContent='Save link';
+      if(res.ok&&res.j.success){
+        linkOk.removeAttribute('hidden');
+        var card=$('s3_file_card');if(card)card.removeAttribute('hidden');
+        if($('s3_file_card_name'))$('s3_file_card_name').textContent=res.j.filename||'Link';
+        if($('s3_file_card_meta'))$('s3_file_card_meta').textContent='shared link · saved just now';
+        var l=$('s3_file_card_link'),a=$('s3_file_card_href');
+        if(a){a.href=res.j.external_url||v;a.textContent=res.j.external_url||v;}
+        if(l)l.removeAttribute('hidden');
+        var go=$('s3_go');if(go)go.textContent='Replace my slides';
+        mark(3,true);
+      }else show(linkErr,res.j.error||'We could not save that link. Please try again.');
+    },function(){linkSave.disabled=false;linkSave.textContent='Save link';show(linkErr,'We could not reach the server. Please try again.');});
+  }
+  if(linkSave){linkSave.addEventListener('click',saveLink);
+    linkIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();saveLink();}});}
 
   /* An email button lands on #step1/#step2/#step3 — bring it into view under the header. */
   if(window.location.hash){var t=$(window.location.hash.slice(1));
@@ -3723,9 +3843,14 @@ function adminPage(data, key) {
         const chips = (r.requested ? '<span class="chip">requested</span>' : '')
             + (r.upload ? '<span class="chip ok">uploaded</span>' : '');
         const status = r.upload
-            ? `<p class="fname">${esc(r.upload.filename)}</p>
+            ? (r.upload.external_url
+                ? `<p class="fname">${esc(r.upload.filename)}</p>
+               <p class="fmeta">shared link &middot; ${esc(fmtWhen(r.upload.uploaded_at))}${r.upload.versions > 1 ? ' &middot; v' + r.upload.versions : ''}</p>
+               <p class="fmeta" style="word-break:break-all;">${esc(r.upload.external_url)}</p>
+               <a class="dl" href="${esc(r.upload.external_url)}" target="_blank" rel="noopener">Open link &nearr;</a>`
+                : `<p class="fname">${esc(r.upload.filename)}</p>
                <p class="fmeta">${esc(prettySize(r.upload.size))} &middot; ${esc(fmtWhen(r.upload.uploaded_at))}${r.upload.versions > 1 ? ' &middot; v' + r.upload.versions : ''}</p>
-               <a class="dl" href="${esc(r.upload.download_url)}">Download &darr;</a>`
+               <a class="dl" href="${esc(r.upload.download_url)}">Download &darr;</a>`)
             : `<p class="notyet">not yet</p>`;
         return `<div class="prow">
       <div class="who"><b>${esc(r.name)}</b>${chips}<span>${esc(r.institution)}</span><span class="em">${esc(r.email)}</span></div>

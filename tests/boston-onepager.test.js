@@ -224,7 +224,8 @@ async function t(name, fn) {
         assert.ok(html.includes('noindex'), 'never indexed');
         assert.ok(html.includes('width=device-width'), 'phone viewport');
         assert.ok(html.includes(`/api/boston/onepager/${onepagerToken(ANA)}`), 'the page posts to its own token API');
-        assert.ok(html.includes('id="hl_text"'), 'the optional headline field');
+        assert.ok(!html.includes('id="hl_text"') && !/One line about you/.test(html), 'no headline text field — file upload only (Alen 2026-09-15)');
+        assert.ok(/Please keep it to one slide/.test(html), 'and the one-slide note');
         assert.ok(html.includes('accept=".pdf,.ppt,.pptx"'), 'PDF or PowerPoint in the picker');
         assert.ok(html.includes('Upload my one-slide summary'), 'the button says what it sends');
         assert.ok(!/one-pager/i.test(html), 'the guest never reads the internal name');

@@ -78,7 +78,7 @@ export const COPY = {
     phName: 'Full name — e.g. Dr. Ivana Kovač', phEmail: 'Email address', addSend: 'ADD & SEND THE LINK',
     cWho: 'PRESENTER', cInst: 'INSTITUTION', cPresents: 'PRESENTS?', cDeck: 'DECK', cSent: 'LINK SENT',
     send: 'SEND LINK', resend: 'RESEND', busy: 'SENDING…',
-    deckYes: 'UPLOADED', deckNo: '–', notSent: 'not sent', byTeam: 'ADDED BY TEAM',
+    deckYes: 'UPLOADED', deckLink: 'LINK ↗', deckNo: '–', notSent: 'not sent', byTeam: 'ADDED BY TEAM',
     counts: (r, u, i) => `${r} presenting · ${u} uploaded · ${i} invited`,
     // The owner's pick. Far more people offered than the evening holds, so each row is his call:
     // presents, not this time, or still undecided — and the three counts always add up to the
@@ -497,7 +497,10 @@ function blockBoston() {
                 ? pickChip(r, 'confirmed', c.pick.yes) + pickChip(r, 'declined', c.pick.no) + pickChip(r, null, c.pick.unset)
                 : `<span style="color:#9a9086">${c.deckNo}</span>`}</td>
               <td style="${cell};white-space:nowrap">${r.upload
-                ? `<a href="${esc(r.upload.download_url)}" title="${esc(r.upload.filename || '')}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px" data-hover="background:#1e6e42;color:#fff">✓ ${c.deckYes}</a>`
+                ? (r.upload.external_url
+                  /* the over-25 MB lane: the deck lives on Drive / Dropbox — open it there, the URL sits in the title */
+                  ? `<a href="${esc(r.upload.external_url)}" target="_blank" rel="noopener" title="${esc(r.upload.external_url)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px" data-hover="background:#1e6e42;color:#fff">✓ ${c.deckLink}</a>`
+                  : `<a href="${esc(r.upload.download_url)}" title="${esc(r.upload.filename || '')}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px" data-hover="background:#1e6e42;color:#fff">✓ ${c.deckYes}</a>`)
                 : `<span style="color:#9a9086">${c.deckNo}</span>`}</td>
               <td style="${cell};white-space:nowrap;color:${r.invited_at == null ? '#b7791f' : '#6d6459'}">${r.invited_at == null ? c.notSent : esc(r.invited_at || '✓')}</td>
               <td style="${cell};text-align:right;white-space:nowrap">${btn('bpSendOne', busy ? c.busy : (r.invited_at == null ? c.send : c.resend), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}</td>

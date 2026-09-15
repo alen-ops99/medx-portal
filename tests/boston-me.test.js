@@ -223,7 +223,8 @@ async function t(name, fn) {
         const r = await page(ANA);
         assert.strictEqual(r.statusCode, 200);
         const html = String(r.body);
-        assert.ok(html.includes('<h1>Hi Ana</h1>'), 'her first name in the header');
+        assert.ok(html.includes('<h1>Hi Ana!</h1>'), 'her first name in the header, with the exclamation mark (Alen 2026-09-15)');
+        assert.ok(html.includes('miniband skyline') && html.includes("url('/boston/hero.jpg')"), 'the Boston skyline behind the greeting');
         assert.ok(html.includes('Ana Horvat'), 'attributed to the registration');
         assert.ok(html.includes('width=device-width'), 'phone viewport');
         assert.ok(html.includes('noindex'), 'never indexed in the meta');
@@ -247,14 +248,17 @@ async function t(name, fn) {
         assert.ok(luka.includes('Your presentation slides'), 'presenter: the slides card');
     });
 
-    await t('the three asks are marked required / optional / required, in that order', async () => {
+    await t('the three asks are marked optional / optional / required, in that order', async () => {
         const html = String((await page(LUKA)).body);
         const at = s => { const i = html.indexOf(s); assert.ok(i > -1, 'missing: ' + s); return i; };
         const s1 = at('id="step1"'), s2 = at('id="step2"'), s3 = at('id="step3"'), tick = at('Your ticket for the door');
         assert.ok(s1 < s2 && s2 < s3, 'dietary, then summary, then slides');
         assert.ok(s3 < tick, 'and the ticket last');
         const card = (from, to) => html.slice(from, to);
-        assert.ok(/tag req">Required</.test(card(s1, s2)), 'step 1 is required');
+        assert.ok(/tag opt">Optional</.test(card(s1, s2)), 'step 1 is optional (Alen 2026-09-15: dietary is not required)');
+        assert.ok(!/id="s2_headline"|One line about you/.test(card(s2, s3)), 'no headline text field — file upload only');
+        assert.ok(/Please keep it to one slide/.test(card(s2, s3)), 'and the one-slide note');
+        assert.ok(/Larger than 25 MB\?/.test(card(s3, tick)) && /id="s3_link"/.test(card(s3, tick)), 'the share-link lane under the uploader');
         assert.ok(/tag opt">Optional</.test(card(s2, s3)), 'step 2 is optional');
         assert.ok(/tag req">Required</.test(card(s3, tick)), 'step 3 is required');
     });
@@ -408,6 +412,74 @@ async function t(name, fn) {
         assert.strictEqual(keyAsSummary.statusCode, 400, 'but never as a one-slide summary');
     });
 
+    // ================================================================ step 3 · the over-25 MB lane (a share link)
+    const putLink = (token, url) => call(app, 'POST', '/api/boston/me/:token/slides-link', { params: { token }, body: { url } });
+    const BIGLINK = 'https://drive.google.com/file/d/1AbCdEfGh/view?usp=sharing';
+    await t('a presenter can save a Drive / Dropbox link instead of a file — and it counts as the deck', async () => {
+        seed('abababab-abab-4bab-8bab-abababababab', 'Ivo', 'Kos', 'ivo.kos@example.com', '5-minute presentation requested');
+        const IVO = 'abababab-abab-4bab-8bab-abababababab';
+        const puts = s3Puts.length;
+        const r = await putLink(meToken(IVO), '  ' + BIGLINK + '  ');
+        assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+        assert.strictEqual(r.body.success, true);
+        assert.strictEqual(r.body.external_url, BIGLINK, 'the link, trimmed');
+        assert.strictEqual(r.body.filename, 'Link · drive.google.com', 'labelled by host');
+        assert.strictEqual(s3Puts.length, puts, 'nothing goes to S3 — the deck lives on Drive');
+        const all = rows('bridges_presentations', IVO);
+        assert.strictEqual(all.length, 1, 'one history row, in the SAME table as uploaded decks');
+        assert.strictEqual(all[0].external_url, BIGLINK);
+        assert.strictEqual(all[0].stored_key, '');
+        const html = String((await page(IVO)).body);
+        assert.ok(html.includes('Link · drive.google.com'), 'on file, by label');
+        assert.ok(html.includes(`href="${BIGLINK.replace(/&/g, '&amp;')}"`), 'and the link itself, clickable');
+        assert.ok(html.includes('Replace my slides'), 'the upload button reads as a replacement now');
+        const m = /<p class="prog[^"]*" id="prog"[\s\S]*?>([\s\S]*?)<\/p>/.exec(html);
+        assert.ok(m && /All set/.test(m[1]), 'a saved link satisfies the required step: ' + (m && m[1]));
+        assert.ok(html.includes(`value="${BIGLINK.replace(/&/g, '&amp;')}"`), 'the link box is pre-filled on reload');
+    });
+
+    await t('a bad link is refused and nothing is stored; an attendee is refused the lane entirely', async () => {
+        const IVO = 'abababab-abab-4bab-8bab-abababababab';
+        const before = rows('bridges_presentations', IVO).length;
+        for (const bad of ['', 'drive.google.com/x', 'ftp://files.example.org/deck.pptx', 'javascript:alert(1)', 'https://', 'not a link', 'https://' + 'a'.repeat(700) + '.com/x']) {
+            const r = await putLink(meToken(IVO), bad);
+            assert.strictEqual(r.statusCode, 400, 'must refuse ' + JSON.stringify(bad).slice(0, 40));
+        }
+        assert.strictEqual(rows('bridges_presentations', IVO).length, before, 'and no row added');
+        const att = await putLink(meToken(ANA), BIGLINK);
+        assert.strictEqual(att.statusCode, 403, 'only presenters have a slides slot');
+        assert.strictEqual(rows('bridges_presentations', ANA).length, 0);
+        const DEA = '88888888-8888-4888-8888-888888888888';
+        seed(DEA, 'Dea', 'Nik', 'dea@example.com', '5-minute presentation requested');
+        await call(app, 'POST', '/api/boston/presenters/:id/status', { params: { id: DEA }, query: { key: ADMIN_KEY }, body: { status: 'declined' } });
+        const dec = await putLink(meToken(DEA), BIGLINK);
+        assert.strictEqual(dec.statusCode, 403, 'a declined presenter neither');
+        assert.ok(/seat on Monday is confirmed/.test(String(dec.body.error)), 'and is told their seat stands');
+        // back to undecided, so the later "who presents" section meets the fixtures it expects
+        await call(app, 'POST', '/api/boston/presenters/:id/status', { params: { id: DEA }, query: { key: ADMIN_KEY }, body: { status: null } });
+    });
+
+    await t('the team sees the link: admin JSON, the download redirect, and links.txt in the ZIP', async () => {
+        const IVO = 'abababab-abab-4bab-8bab-abababababab';
+        const list = await call(app, 'GET', '/api/boston/presentations', { query: { key: ADMIN_KEY } });
+        assert.strictEqual(list.statusCode, 200);
+        const ivo = list.body.rows.find(r => r.registration_id === IVO);
+        assert.ok(ivo && ivo.upload, 'listed with an upload');
+        assert.strictEqual(ivo.upload.external_url, BIGLINK, 'the URL is exposed to the admin');
+        assert.strictEqual(ivo.upload.filename, 'Link · drive.google.com');
+        assert.ok(list.body.uploaded >= 1, 'counted as uploaded');
+        const dl = await call(app, 'GET', '/api/boston/presentations/:id/download', { params: { id: ivo.upload.id }, query: { key: ADMIN_KEY } });
+        assert.strictEqual(dl.statusCode, 302, 'download redirects');
+        assert.strictEqual(dl.headers.location, BIGLINK, 'straight to the share link, no S3 involved');
+
+        const zip = await call(app, 'GET', '/api/boston/presentations.zip', { query: { key: ADMIN_KEY } });
+        assert.strictEqual(zip.statusCode, 200, JSON.stringify(zip.body).slice(0, 200));
+        const bytes = Buffer.isBuffer(zip.body) ? zip.body : Buffer.from(zip.body);
+        assert.ok(bytes.includes(Buffer.from('links.txt')), 'the archive carries links.txt');
+        assert.ok(bytes.includes(Buffer.from('Ivo Kos')) && bytes.includes(Buffer.from(BIGLINK)), 'listing name + URL');
+        assert.ok(bytes.includes(Buffer.from('Babic_Luka__')), 'alongside the stored decks');
+    });
+
     // ================================================================ progress
     await t('the progress line counts what is done, out of the steps this guest has', async () => {
         seed('55555555-5555-4555-8555-555555555555', 'Petra', 'Maric', 'petra@example.com', null);
@@ -416,11 +488,12 @@ async function t(name, fn) {
             const m = /<p class="prog[^"]*" id="prog"[\s\S]*?>([\s\S]*?)<\/p>/.exec(String((await page(id)).body));
             return m ? m[1].replace(/<[^>]+>/g, '').replace(/&mdash;/g, '\u2014').trim() : null;
         };
-        assert.strictEqual(await read(PETRA), '0 of 2 done', 'a fresh attendee');
+        // Nothing is required of an attendee (Alen 2026-09-15), so she is all set from the start;
+        // the optional steps stay open below and their progress shows as ticks, not as a gate.
+        assert.strictEqual(await read(PETRA), 'All set — see you on Monday.', 'a fresh attendee has nothing required');
         await setDiet(meToken(PETRA), { pref: 'kosher' });
-        assert.strictEqual(await read(PETRA), '0 of 2 done', 'a preference alone is not an answered step');
         await saveAllergies(PETRA, 'none');
-        assert.strictEqual(await read(PETRA), 'All set — see you on Monday.', 'both rows answered — and she is done');
+        assert.strictEqual(await read(PETRA), 'All set — see you on Monday.', 'and still is after answering');
 
         // Ana: dietary answered + a summary on file = 2 of 2, and finished
         assert.strictEqual(await read(ANA), 'All set — see you on Monday.', 'Ana is finished too');
@@ -601,8 +674,11 @@ async function t(name, fn) {
         assert.ok(html.includes('About your presentation'), 'titled in the owner\'s words');
         assert.ok(/<b>Your seat on Monday is confirmed and we very much look forward to seeing you\.<\/b>/.test(html),
             'and the seat is the FIRST thing it says, in bold');
-        assert.ok(/hope to have you present at a future edition/.test(html), 'with the door left open');
-        assert.ok(html.includes('of 2 done'), 'she is counted on two steps, like any guest');
+        assert.ok(/sadly we could not accommodate your presentation this time/.test(html), 'the decline, said plainly');
+        assert.ok(/hope to have you present at one of the next editions/.test(html), 'with the door left open');
+        assert.ok(/warmly encourage you to send us your <b>one-slide summary<\/b>/.test(html) && /shared with all participants/.test(html), 'and the summary is encouraged — it reaches the room');
+        assert.ok(!/\bhonest\b/i.test(html), 'never that word');
+        assert.ok(html.includes('All set'), 'nothing is required of her, so she is all set');
         assert.ok(html.includes('Your ticket for the door'), 'and she still holds a ticket');
     });
 
@@ -660,9 +736,10 @@ async function t(name, fn) {
 
         assert.ok(/Your seat on Monday is confirmed/.test(dec.html), 'the note is there');
         assert.ok(/Your seat on Monday is confirmed and we very much look forward to seeing you\./.test(dec.html), 'opening on the seat');
-        assert.ok(/exceptionally high/.test(dec.html) && /cannot give everyone the floor this time/.test(dec.html), 'the reason, said once');
-        assert.ok(/the heart of the evening/.test(dec.html) && /Please do come/.test(dec.html), 'the invitation');
-        assert.ok(/one-slide summary/.test(dec.html), 'and the thing they can still send');
+        assert.ok(/many more requests than the evening can hold/.test(dec.html) && /sadly we could not accommodate your presentation this time/.test(dec.html), 'the reason, said once and plainly');
+        assert.ok(/We are sorry about that/.test(dec.html), 'with an apology');
+        assert.ok(/warmly encourage you to send us your <b>one-slide summary<\/b>/.test(dec.html) && /shared with all participants/.test(dec.html), 'and the summary is encouraged — their work still reaches the room');
+        assert.ok(!/\bhonest\b/i.test(dec.html), 'never that word');
         assert.ok(/hope to have you present at one of the next editions/.test(dec.html), 'the door left open');
 
         // the seat is the point: the note comes before the word "presentation slides" ever could,
