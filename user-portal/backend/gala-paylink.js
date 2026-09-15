@@ -33,9 +33,10 @@
  *                          and the pay-link 'gala-ticket' route through fulfilLinkedCaGala).
  *                          A registrant who ticked "I need an official invoice made out to my
  *                          company or institution" on the Zagreb form gets the finance lead
- *                          (vp@medx.hr) told ONCE — name, amount, payment ref — so he can ask
- *                          for the billing details and issue the invoice via FIRA. Nothing is
- *                          generated here and the registrant is not written to.
+ *                          (vp@medx.hr) told ONCE — name, amount, payment ref, and the billing
+ *                          details (company, address, country, VAT) collected on the form —
+ *                          so the invoice can be issued via FIRA with no back-and-forth.
+ *                          Nothing is generated here and the registrant is not written to.
  *
  * SEATS. guest_count is ADDITIONAL guests, never the party total — the register route caps it
  * as "+guests, max 2", Path B charges effectiveGalaPrice() * (1 + guests), both FIRA blocks
@@ -240,15 +241,25 @@ function buildNudgeEmail({ firstName, payUrl, quote, earlyBirdDeadline, galaDate
 // ---------------------------------------------------------------- the finance note (to Miro)
 // Internal, on the dark house shell like the gate's own FYI to the organizer. Built pure so the
 // test can assert every fact in it. No button: the ask is a conversation with the registrant.
-function buildInvoiceNeededEmail({ name, email, institution, country, seats, amount, paymentRef, registrationId }) {
+function buildInvoiceNeededEmail({ name, email, institution, country, seats, amount, paymentRef, registrationId, billing }) {
     const T = tpl.T;
     const DT = { ink: '#f2e7d6', soft: '#d3c5b2', gold: '#d7b56c', hair: 'rgba(240,228,210,.18)',
                  factBg: '#342718', factBorder: 'rgba(240,228,210,.16)' };
+    // billing = {company, address, country, vat} straight from the form. Older rows ticked the
+    // box before the form asked for these — for them the email falls back to asking Miro to
+    // collect the details himself.
+    const b = billing && billing.company ? billing : null;
     const facts = [
         ['Name', name || '—'],
         ['Email', email || '—'],
         ['Institution', institution || '(not given)'],
-        country ? ['Country', country] : null,
+        !b && country ? ['Country', country] : null,
+        ...(b ? [
+            ['Invoice to', b.company],
+            ['Billing address', b.address || '—'],
+            ['Billing country', b.country || '—'],
+            ['VAT / tax number', b.vat || 'not provided']
+        ] : []),
         ['Gala seats', String(seats || 1)],
         ['Amount paid', fmtEur(amount) || '—'],
         ['Payment ref', paymentRef || '—'],
@@ -269,8 +280,10 @@ function buildInvoiceNeededEmail({ name, email, institution, country, seats, amo
     const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">
       <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${DT.gold};">Finance &middot; Gala Evening</div>
       <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${DT.ink};margin-top:10px;">Official invoice needed</div>
-      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${DT.soft};margin-top:14px;"><b class="em-ink" style="color:${DT.ink};">${esc(name || 'A registrant')}</b> ticked &ldquo;I need an official invoice made out to my company or institution&rdquo; when registering for Plexus Week 2026, and has now paid for the Gala Evening. Please reach out to them for the billing details (legal name, address, OIB / VAT ID) and issue the invoice via FIRA.</div>${factsHtml}
-      <div class="em-soft" style="font-family:${T.sans};font-size:12px;line-height:1.65;color:${DT.soft};margin-top:14px;">The registrant has not been written to about this — the conversation is yours to open.</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${DT.soft};margin-top:14px;"><b class="em-ink" style="color:${DT.ink};">${esc(name || 'A registrant')}</b> ticked &ldquo;I need an official invoice made out to my company or institution&rdquo; when registering for Plexus Week 2026, and has now paid for the Gala Evening. ${b
+        ? 'The billing details they gave on the form are below — please issue the invoice via FIRA.'
+        : 'Please reach out to them for the billing details (legal name, address, OIB / VAT ID) and issue the invoice via FIRA.'}</div>${factsHtml}
+      <div class="em-soft" style="font-family:${T.sans};font-size:12px;line-height:1.65;color:${DT.soft};margin-top:14px;">The registrant has not been written to about this${b ? '' : ' — the conversation is yours to open'}.</div>
     </td></tr></table>`;
     return tpl.shell({
         tone: 'dark',
@@ -555,9 +568,14 @@ async function notifyInvoiceNeeded(deps, { caId, galaRegId, amount, invoiceNumbe
     const ref = invoiceNumber || ca.invoice_number || (galaRow && galaRow.invoice_number) || '';
     const name = `${ca.first_name || ''} ${ca.last_name || ''}`.trim();
 
+    // The billing details from the form (may be absent on rows ticked before the form asked).
+    let billing = null;
+    try { billing = JSON.parse(ca.invoice_details || 'null'); } catch (e) { billing = null; }
+
     const html = buildInvoiceNeededEmail({
         name, email: ca.email, institution: ca.institution, country: ca.country,
-        seats: partySeats(galaRow || ca), amount: paid, paymentRef: ref, registrationId: ca.id
+        seats: partySeats(galaRow || ca), amount: paid, paymentRef: ref, registrationId: ca.id,
+        billing
     });
     const sent = await sendEmail(FINANCE_TO, `Official invoice needed — ${name || ca.email}, Gala Evening`, html);
     if (!sent || sent.success === false || sent.mock) {

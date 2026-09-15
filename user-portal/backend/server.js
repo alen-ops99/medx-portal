@@ -1515,9 +1515,16 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                                  flag reaches the Sheet and, once the seat is paid, the finance lead — who then asks for the billing details. -->
                             <div id="pf_invoice_wrap" style="display:none;">
                                 <label for="pf_invoice" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#191512;line-height:1.45;padding:12px 14px;border:1px solid rgba(25,21,18,.16);background:#f7f1e6;">
-                                    <input type="checkbox" id="pf_invoice" style="margin-top:2px;width:16px;height:16px;flex:0 0 16px;accent-color:#9b1b22;">
-                                    <span>I need an official invoice made out to my company or institution<br><span style="color:#9b8f80;font-weight:400;font-size:12px;">(we will contact you for the billing details)</span></span>
+                                    <input type="checkbox" id="pf_invoice" onchange="plexInvoiceFields()" style="margin-top:2px;width:16px;height:16px;flex:0 0 16px;accent-color:#9b1b22;">
+                                    <span>I need an official invoice made out to my company or institution</span>
                                 </label>
+                                <!-- The billing details, revealed by the tick — so the invoice can be issued without a back-and-forth. -->
+                                <div id="pf_invoice_fields" style="display:none;border:1px solid rgba(25,21,18,.16);border-top:0;background:#fdfaf3;padding:12px 14px;">
+                                    <div><label>Company / institution name (for the invoice) *</label><input id="pf_inv_company" maxlength="160"></div>
+                                    <div style="margin-top:10px;"><label>Billing address *</label><input id="pf_inv_address" maxlength="240" placeholder="Street, city, postal code"></div>
+                                    <div style="margin-top:10px;"><label>Country *</label><input id="pf_inv_country" maxlength="80"></div>
+                                    <div style="margin-top:10px;"><label>VAT / tax number <span style="color:#9b8f80;font-weight:400;">(optional &mdash; some institutions don't have one)</span></label><input id="pf_inv_vat" maxlength="60"></div>
+                                </div>
                             </div>
                             <div><label>Anything else?${reqStar('notes')}</label><textarea id="pf_notes" maxlength="500"${reqAttr('notes')}></textarea></div>
                         </div>
@@ -1600,10 +1607,16 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             var any = document.querySelectorAll('.event-option.selected').length > 0;
             var invWrap = document.getElementById('pf_invoice_wrap');
             if (invWrap) invWrap.style.display = galaSel ? 'block' : 'none';   // invoice question only with the paid item
+            plexInvoiceFields();
             document.getElementById('plexTotal').classList.toggle('show', any);
             document.getElementById('plexTotalAmt').textContent = '\\u20AC' + total;
             document.getElementById('plexPayAmt').textContent = '\\u20AC' + total;
             document.getElementById('plexBtn').textContent = total > 0 ? ('Proceed to payment \\u2014 \\u20AC' + total) : 'Complete registration';
+        }
+        function plexInvoiceFields(){
+            var box = document.getElementById('pf_invoice_fields');
+            var cb = document.getElementById('pf_invoice');
+            if (box) box.style.display = (cb && cb.checked) ? 'block' : 'none';
         }
         function plexClearCoupon(){ plexDiscount = 0; plexDiscountType = ''; var m = document.getElementById('pf_couponMsg'); if (m) m.style.display = 'none'; plexRecompute(); }
         async function plexApplyCoupon(){
@@ -1627,6 +1640,12 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             var sel = { conference:0, bridges:0, gala:0 };
             document.querySelectorAll('.event-option.selected').forEach(function(o){ sel[o.dataset.key] = 1; });
             if(!sel.conference && !sel.bridges && !sel.gala){ plexErr('Please select at least one event.'); return false; }
+            var invTicked = sel.gala && !!((document.getElementById('pf_invoice') || {}).checked);
+            var invVal = function(id){ var el = document.getElementById(id); return el && el.value ? el.value.trim() : ''; };
+            if (invTicked && (!invVal('pf_inv_company') || !invVal('pf_inv_address') || !invVal('pf_inv_country'))) {
+                plexErr('Please fill in the billing details for the official invoice \\u2014 company name, billing address and country (VAT is optional).');
+                return false;
+            }
             var btn = document.getElementById('plexBtn'); btn.disabled = true; btn.textContent = 'Processing\\u2026';
             var body = {
                 source: 'plexus',
@@ -1652,7 +1671,13 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                     return out;
                 })(),
                 coupon: ((document.getElementById('pf_coupon') || {}).value || '').trim(),
-                needs_invoice: (sel.gala && (document.getElementById('pf_invoice') || {}).checked) ? 1 : 0,
+                needs_invoice: invTicked ? 1 : 0,
+                invoice_details: invTicked ? {
+                    company: invVal('pf_inv_company'),
+                    address: invVal('pf_inv_address'),
+                    country: invVal('pf_inv_country'),
+                    vat: invVal('pf_inv_vat')
+                } : undefined,
                 notes: document.getElementById('pf_notes').value.trim(),
                 selected_conference: sel.conference, selected_bridges: sel.bridges, selected_gala: sel.gala
             };
@@ -3627,9 +3652,16 @@ app.get('/invite/:data', async (req, res) => {
                 <!-- Official invoice (Gala only — the one paid item). render() shows it while the Gala is selected. -->
                 <div id="caInvoiceWrap" style="display:none;">
                     <label for="caInvoice" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#e2e8f0;line-height:1.45;padding:12px 14px;border:1px solid rgba(201,169,98,0.28);border-radius:10px;background:rgba(255,255,255,0.03);">
-                        <input type="checkbox" id="caInvoice" style="margin-top:2px;width:16px;height:16px;flex:0 0 16px;accent-color:#c9a962;">
-                        <span>I need an official invoice made out to my company or institution<br><span style="color:#94a3b8;font-weight:400;font-size:12px;">(we will contact you for the billing details)</span></span>
+                        <input type="checkbox" id="caInvoice" onchange="caInvoiceFields()" style="margin-top:2px;width:16px;height:16px;flex:0 0 16px;accent-color:#c9a962;">
+                        <span>I need an official invoice made out to my company or institution</span>
                     </label>
+                    <!-- The billing details, revealed by the tick — so the invoice can be issued without a back-and-forth. -->
+                    <div id="caInvoiceFields" style="display:none;margin-top:10px;padding:12px 14px;border:1px solid rgba(201,169,98,0.28);border-radius:10px;background:rgba(255,255,255,0.03);">
+                        <div><label>Company / institution name (for the invoice) *</label><input id="caInvCompany" maxlength="160"></div>
+                        <div style="margin-top:10px;"><label>Billing address *</label><input id="caInvAddress" maxlength="240" placeholder="Street, city, postal code"></div>
+                        <div style="margin-top:10px;"><label>Country *</label><input id="caInvCountry" maxlength="80"></div>
+                        <div style="margin-top:10px;"><label>VAT / tax number <span style="font-size:11px;color:#94a3b8;">(optional &mdash; some institutions don't have one)</span></label><input id="caInvVat" maxlength="60"></div>
+                    </div>
                 </div>
             </div>
             ${renderCustomFieldsHtml(loadCustomFields('croatians-abroad', null))}
@@ -3671,6 +3703,7 @@ function render() {
     // Invoice question — only with the paid item
     const caInvWrap = document.getElementById('caInvoiceWrap');
     if (caInvWrap) caInvWrap.style.display = state.gala ? 'block' : 'none';
+    caInvoiceFields();
 
     // Total / submit button text
     const total = document.getElementById('caTotalDisplay');
@@ -3694,9 +3727,21 @@ function render() {
     }
 }
 
+function caInvoiceFields() {
+    const box = document.getElementById('caInvoiceFields');
+    const cb = document.getElementById('caInvoice');
+    if (box) box.style.display = (cb && cb.checked) ? 'block' : 'none';
+}
+
 async function submitCA(e) {
     e.preventDefault();
     const btn = document.getElementById('caSubmitBtn');
+    const caInvTicked = state.gala && !!((document.getElementById('caInvoice') || {}).checked);
+    const caInvVal = id => { const el = document.getElementById(id); return el && el.value ? el.value.trim() : ''; };
+    if (caInvTicked && (!caInvVal('caInvCompany') || !caInvVal('caInvAddress') || !caInvVal('caInvCountry'))) {
+        alert('Please fill in the billing details for the official invoice — company name, billing address and country (VAT is optional).');
+        return;
+    }
     btn.disabled = true;
     btn.textContent = 'Processing…';
     const body = {
@@ -3712,7 +3757,13 @@ async function submitCA(e) {
         selected_conference: state.conference ? 1 : 0,
         selected_bridges: state.bridges ? 1 : 0,
         selected_gala: state.gala ? 1 : 0,
-        needs_invoice: (state.gala && (document.getElementById('caInvoice') || {}).checked) ? 1 : 0,
+        needs_invoice: caInvTicked ? 1 : 0,
+        invoice_details: caInvTicked ? {
+            company: caInvVal('caInvCompany'),
+            address: caInvVal('caInvAddress'),
+            country: caInvVal('caInvCountry'),
+            vat: caInvVal('caInvVat')
+        } : undefined,
         custom_answers: (function(){ const o={}; document.querySelectorAll('#caForm [data-cf]').forEach(function(el){ const k = el.getAttribute('data-cf'); o[k] = el.getAttribute('data-cf-checkbox') ? (el.checked ? 'true' : 'false') : el.value; }); return o; })()
     };
     try {
@@ -9390,6 +9441,10 @@ async function initializeApp() {
     // (invoice via FIRA, never generated here) and mirrored into the Sheet. Both portals.
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0'); } catch(e) {}
+    // The billing details behind that tick, as one JSON blob {company, address, country, vat} —
+    // collected on the form so the finance lead has everything up front. vat may be ''.
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_details TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN invoice_details TEXT'); } catch(e) {}
 
     // ===== Custom questions + denormalized "what they applied for" (shared with admin portal via Turso) =====
     // Admin-defined extra registration questions. scope='event' applies to every link of an
@@ -20720,6 +20775,10 @@ By applying to this program, I provide the following consents:
                                     // Zagreb-form rows carry the "official invoice" tick on the gala row too.
                                     amount, payment: 'Paid' + (Number(galaReg.needs_invoice) ? ' · OFFICIAL INVOICE REQUESTED' : ''),
                                     official_invoice: Number(galaReg.needs_invoice) ? 'YES' : 'NO',
+                                    ...(Number(galaReg.needs_invoice) ? (() => {
+                                        let d = {}; try { d = JSON.parse(galaReg.invoice_details || 'null') || {}; } catch (e) {}
+                                        return { invoice_company: d.company || '', invoice_address: d.address || '', invoice_country: d.country || '', invoice_vat: d.vat || '' };
+                                    })() : {}),
                                     registration_id: galaRegId,
                                     invoice: galaInvoice
                                 })
@@ -21001,6 +21060,8 @@ By applying to this program, I provide the following consents:
                     // the invoice; nobody here generates one). Marker-guarded in the module, so the
                     // pay-link branch reaching the same row later sends nothing twice.
                     const caNeedsInvoice = !!Number(existingCA.needs_invoice) || metadata.needs_invoice === '1';
+                    let caInvDetails = {};
+                    try { caInvDetails = JSON.parse(existingCA.invoice_details || 'null') || {}; } catch (e) {}
                     try {
                         await galaPayLink.notifyInvoiceNeeded(caPayLinkDeps(), { caId: caRegId, galaRegId, amount, invoiceNumber });
                     } catch (invErr) { console.error('[Stripe] CA gala invoice note failed (non-blocking):', invErr.message); }
@@ -21104,6 +21165,10 @@ By applying to this program, I provide the following consents:
                                     // its own key, so it is visible in the Sheet whichever the Apps Script maps.
                                     amount, payment: (metadata.source === 'plexus' ? 'Paid (Gala)' : 'Paid (Gala bundle)') + (caNeedsInvoice ? ' · OFFICIAL INVOICE REQUESTED' : ''),
                                     official_invoice: caNeedsInvoice ? 'YES' : 'NO',
+                                    invoice_company: caNeedsInvoice ? (caInvDetails.company || '') : '',
+                                    invoice_address: caNeedsInvoice ? (caInvDetails.address || '') : '',
+                                    invoice_country: caNeedsInvoice ? (caInvDetails.country || '') : '',
+                                    invoice_vat: caNeedsInvoice ? (caInvDetails.vat || '') : '',
                                     coupon: metadata.coupon_code || '', discount: metadata.discount_amount || '0',
                                     ticket_code: String(galaRegId).substring(0, 8).toUpperCase(),
                                     registration_id: caRegId,
@@ -28573,12 +28638,17 @@ By applying to this program, I provide the following consents:
     }
 
     // Log to Google Sheets — `events` array tells the Apps Script which tab(s) to write to.
-    function caMirrorPreRegToSheets({ regId, first_name, last_name, email, institution, country, role, dietary, notes, events, regSource, caAppliedFor, customAnswers, inviteLabel, needsInvoice }) {
+    function caMirrorPreRegToSheets({ regId, first_name, last_name, email, institution, country, role, dietary, notes, events, regSource, caAppliedFor, customAnswers, inviteLabel, needsInvoice, invoiceDetails }) {
         try {
+            const inv = invoiceDetails || {};
             mirrorToSheets({
                 // "Official invoice" tick (Gala) — surfaced on the free-events row too so staff see it
                 // before the seat is paid; the paid Gala row repeats it in its payment column.
                 official_invoice: needsInvoice ? 'YES' : 'NO',
+                invoice_company: needsInvoice ? (inv.company || '') : '',
+                invoice_address: needsInvoice ? (inv.address || '') : '',
+                invoice_country: needsInvoice ? (inv.country || '') : '',
+                invoice_vat: needsInvoice ? (inv.vat || '') : '',
                 events,                            // ← tab routing (['conference','bridges','gala'])
                 name: first_name + ' ' + (last_name || ''),
                 email, institution: institution || '', country: country || '', role: role || '',
@@ -28680,7 +28750,8 @@ By applying to this program, I provide the following consents:
                 dietary: row.dietary, notes: row.notes,
                 events: [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null].filter(Boolean),
                 regSource, caAppliedFor, customAnswers, inviteLabel,
-                needsInvoice: wantGala && !!Number(row.needs_invoice)
+                needsInvoice: wantGala && !!Number(row.needs_invoice),
+                invoiceDetails: (() => { try { return JSON.parse(row.invoice_details || 'null'); } catch (e) { return null; } })()
             });
             // The Gala leg. Held registrations never reached Stripe, so approving them used to
             // leave the seat at 'awaiting_payment' with no pay_token and no link in any email —
@@ -28858,6 +28929,24 @@ By applying to this program, I provide the following consents:
             // rows; acted on when the seat is PAID (gala-paylink.notifyInvoiceNeeded tells the
             // finance lead, who asks for the billing details — the invoice itself is FIRA's job).
             const needsInvoice = finalGala && ['1', 'true', 'yes', 'on'].includes(String(req.body.needs_invoice ?? '').trim().toLowerCase()) ? 1 : 0;
+            // The billing details behind the tick — required (except vat) when ticked, so the
+            // finance lead has everything up front and the invoice can be issued via FIRA with
+            // no back-and-forth. Stored as one JSON blob on both rows.
+            let invoiceDetails = null;
+            if (needsInvoice) {
+                const src = (req.body.invoice_details && typeof req.body.invoice_details === 'object') ? req.body.invoice_details : {};
+                const clean = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
+                invoiceDetails = {
+                    company: clean(src.company, 160),
+                    address: clean(src.address, 240),
+                    country: clean(src.country, 80),
+                    vat: clean(src.vat, 60)                      // optional — some institutions don't have one
+                };
+                if (!invoiceDetails.company || !invoiceDetails.address || !invoiceDetails.country) {
+                    return res.status(400).json({ error: 'Please fill in the billing details for the official invoice — company name, billing address and country (VAT is optional).' });
+                }
+            }
+            const invoiceDetailsJson = invoiceDetails ? JSON.stringify(invoiceDetails) : null;
 
             // ---- REVIEW GATE (Alen 2026-09-06): three holds on this Zagreb funnel ----
             //   1. gibberish-looking name/institution/role (bot registrations),
@@ -28894,11 +28983,11 @@ By applying to this program, I provide the following consents:
             if (finalGala) {
                 galaRegistrationId = require('crypto').randomUUID();
                 db.run(
-                    `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id, needs_invoice)
-                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+                    `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id, needs_invoice, invoice_details)
+                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
                     [galaRegistrationId, first_name, last_name || '', email, institution || '',
                      gateHeld ? 'pending-review' : 'awaiting_payment',      // review gate: held gala rows wait for Alen
-                     dietary || null, notes || null, linkedUserId, needsInvoice]
+                     dietary || null, notes || null, linkedUserId, needsInvoice, invoiceDetailsJson]
                 );
             }
 
@@ -28906,15 +28995,15 @@ By applying to this program, I provide the following consents:
                 `INSERT INTO croatians_abroad_registrations
                  (id, invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
                   selected_conference, selected_bridges, selected_gala,
-                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, source, user_id, needs_invoice)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, source, user_id, needs_invoice, invoice_details)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
                 [regId, invite_link_id || null, first_name, last_name || '', email, institution || '', country || '', role || '', dietary || '', notes || '',
                  finalConf ? 1 : 0, finalBridges ? 1 : 0, finalGala ? 1 : 0,
                  finalConf ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
                  finalBridges ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
                  finalGala ? (gateHeld ? 'pending-review' : 'awaiting_payment') : null,
                  finalGala ? 'pending' : null,
-                 galaRegistrationId, regSource, linkedUserId, needsInvoice]
+                 galaRegistrationId, regSource, linkedUserId, needsInvoice, invoiceDetailsJson]
             );
             // E2E fix 2026-08-29: link the row to an existing member account by e-mail even
             // without the ?mxt hand-off, so the portal (My Plexus / wallet / cards) sees it.
@@ -28984,6 +29073,12 @@ By applying to this program, I provide the following consents:
                                 'Institution': institution || '', 'Country': country || '', 'Role': role || '',
                                 'Selected events': caAppliedFor, 'Gala guests': finalGala ? heldGuests : 'n/a (no Gala)',
                                 'Official invoice': finalGala ? (needsInvoice ? 'YES — company/institution invoice requested' : 'no') : 'n/a (no Gala)',
+                                ...(invoiceDetails ? {
+                                    'Invoice to': invoiceDetails.company,
+                                    'Billing address': invoiceDetails.address,
+                                    'Billing country': invoiceDetails.country,
+                                    'VAT / tax number': invoiceDetails.vat || 'not provided'
+                                } : {}),
                                 'Dietary': dietary || '', 'Allergies': galaAllergies, 'Notes': notes || '',
                                 'Custom answers': customAnswersSummary(caCf.answers), 'Source': regSource
                             },

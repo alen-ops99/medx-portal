@@ -59,7 +59,7 @@ raw.exec(`CREATE TABLE croatians_abroad_registrations (
     conference_status TEXT, bridges_status TEXT, gala_status TEXT, gala_payment_status TEXT,
     gala_registration_id TEXT, stripe_session_id TEXT, amount_paid REAL, invoice_number TEXT,
     guest_count INTEGER DEFAULT 0, custom_answers TEXT, applied_for TEXT,
-    source TEXT DEFAULT 'croatians-abroad', user_id TEXT, needs_invoice INTEGER DEFAULT 0,
+    source TEXT DEFAULT 'croatians-abroad', user_id TEXT, needs_invoice INTEGER DEFAULT 0, invoice_details TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )`);
 raw.exec(`CREATE TABLE gala_registrations (
@@ -67,7 +67,7 @@ raw.exec(`CREATE TABLE gala_registrations (
     institution TEXT, title TEXT, dietary TEXT, requests TEXT, pricing TEXT,
     status TEXT DEFAULT 'pending', payment_status TEXT, amount_paid REAL, invoice_number TEXT,
     stripe_session_id TEXT, pay_token TEXT, guest_count INTEGER DEFAULT 0, user_id TEXT,
-    admin_notes TEXT, needs_invoice INTEGER DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    admin_notes TEXT, needs_invoice INTEGER DEFAULT 0, invoice_details TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )`);
 raw.exec(`CREATE TABLE gala_settings (
     id TEXT PRIMARY KEY DEFAULT 'default', title TEXT, date TEXT, venue TEXT,
@@ -122,19 +122,20 @@ function makeHeldCa(over = {}) {
         first_name: 'Ana', last_name: 'Franceschi', email: `held${++seq}@example.org`,
         institution: 'Northwell Health', country: 'United States',
         selected_conference: 1, selected_bridges: 1, selected_gala: 1,
-        guest_count: 0, notes: '', source: 'plexus', needs_invoice: 0
+        guest_count: 0, notes: '', source: 'plexus', needs_invoice: 0, invoice_details: null
     }, over);
     db.run(`INSERT INTO croatians_abroad_registrations
             (id, first_name, last_name, email, institution, country, selected_conference, selected_bridges, selected_gala,
-             conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, guest_count, notes, source, needs_invoice)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+             conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, guest_count, notes, source, needs_invoice, invoice_details)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [caId, f.first_name, f.last_name, f.email, f.institution, f.country,
          f.selected_conference, f.selected_bridges, f.selected_gala,
          f.selected_conference ? 'pending-review' : null,
          f.selected_bridges ? 'pending-review' : null,
          f.selected_gala ? 'pending-review' : null,
          f.selected_gala ? 'pending' : null,
-         galaId, f.guest_count, f.notes, f.source, f.needs_invoice ? 1 : 0]);
+         galaId, f.guest_count, f.notes, f.source, f.needs_invoice ? 1 : 0,
+         f.invoice_details ? JSON.stringify(f.invoice_details) : null]);
     if (galaId) {
         db.run(`INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, guest_count, needs_invoice)
                 VALUES (?,?,?,?,?, 'pending-review', 'pending', ?, ?)`,
@@ -788,18 +789,40 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.strictEqual(payLink.INVOICE_MARKER, 'INVOICE-MIRO-NOTIFIED');
     });
 
-    await t('invoice: the note names the registrant, the amount, the ref, the seats — and asks for FIRA', () => {
+    await t('invoice: with billing details on file, the note carries them and needs no back-and-forth', () => {
         const html = payLink.buildInvoiceNeededEmail({
             name: 'Ivana Horvat', email: 'ivana@klinika.hr', institution: 'Klinika d.o.o.', country: 'Croatia',
-            seats: 2, amount: 300, paymentRef: 'GALA26-0077', registrationId: 'abcdef12-3456'
+            seats: 2, amount: 300, paymentRef: 'GALA26-0077', registrationId: 'abcdef12-3456',
+            billing: { company: 'Klinika d.o.o.', address: 'Ilica 1, 10000 Zagreb', country: 'Croatia', vat: 'HR12345678901' }
         });
-        for (const needle of ['Official invoice needed', 'Ivana Horvat', 'ivana@klinika.hr', 'Klinika d.o.o.', 'Croatia',
-                              '€300', 'GALA26-0077', 'ABCDEF12', 'issue the invoice via FIRA',
-                              'legal name, address, OIB / VAT ID', 'has not been written to']) {
+        for (const needle of ['Official invoice needed', 'Ivana Horvat', 'ivana@klinika.hr',
+                              'Invoice to', 'Klinika d.o.o.', 'Billing address', 'Ilica 1, 10000 Zagreb',
+                              'Billing country', 'HR12345678901',
+                              '€300', 'GALA26-0077', 'ABCDEF12',
+                              'billing details they gave on the form are below', 'issue the invoice via FIRA',
+                              'has not been written to']) {
             assert.ok(html.includes(needle), 'missing: ' + needle);
         }
-        assert.ok(html.includes('>2<') || html.includes('>2</td>'), 'seat count in the facts');
+        assert.ok(!html.includes('legal name, address, OIB / VAT ID'), 'the collect-it-yourself ask is gone');
+        assert.ok(!html.includes('the conversation is yours to open'), 'and so is the follow-up nudge');
         assert.ok(!/href="https?:\/\/[^"]*\/pay\/gala/.test(html), 'no payment link — this is not a registrant email');
+    });
+
+    await t('invoice: a VAT left blank reads "not provided"; no details at all falls back to the ask', () => {
+        const noVat = payLink.buildInvoiceNeededEmail({
+            name: 'Ana', email: 'a@b.hr', seats: 1, amount: 150, paymentRef: 'GALA26-0078',
+            billing: { company: 'Bolnica X', address: 'Trg 2, Split', country: 'Croatia', vat: '' }
+        });
+        assert.ok(noVat.includes('VAT / tax number'), 'the row is there');
+        assert.ok(noVat.includes('not provided'), 'and says not provided');
+        const legacy = payLink.buildInvoiceNeededEmail({
+            name: 'Old Row', email: 'o@r.hr', institution: 'Inst', country: 'Japan',
+            seats: 1, amount: 150, paymentRef: 'GALA26-0079'
+        });
+        assert.ok(legacy.includes('legal name, address, OIB / VAT ID'), 'legacy rows still ask Miro to collect');
+        assert.ok(legacy.includes('the conversation is yours to open'));
+        assert.ok(!legacy.includes('Invoice to'), 'and show no empty billing rows');
+        assert.ok(legacy.includes('Japan'), 'the registration country stays as a hint');
     });
 
     await t('invoice: a row that did not tick the box sends nothing and is left alone', async () => {
@@ -813,7 +836,8 @@ const allTo = to => sent.filter(m => m.to === to);
     });
 
     await t('invoice: a ticked row tells the finance lead once, stamps the marker, and never again', async () => {
-        const { caId, galaId, email } = makeHeldCa({ needs_invoice: 1, guest_count: 1, institution: 'Northwell Health' });
+        const { caId, galaId, email } = makeHeldCa({ needs_invoice: 1, guest_count: 1, institution: 'Northwell Health',
+            invoice_details: { company: 'Northwell Health Inc.', address: '2000 Marcus Ave, New Hyde Park, NY', country: 'United States', vat: '' } });
         releaseStatuses(caId);
         const before = sent.length;
         const first = await payLink.notifyInvoiceNeeded(deps(), { caId, galaRegId: galaId, amount: 300, invoiceNumber: 'GALA26-0081' });
@@ -825,6 +849,10 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.notStrictEqual(msg.to, email);
         assert.strictEqual(msg.subject, 'Official invoice needed — Ana Franceschi, Gala Evening');
         assert.ok(msg.html.includes('Northwell Health'));
+        assert.ok(msg.html.includes('Northwell Health Inc.'), 'the invoice company from the form');
+        assert.ok(msg.html.includes('2000 Marcus Ave, New Hyde Park, NY'), 'the billing address');
+        assert.ok(msg.html.includes('United States'), 'the billing country');
+        assert.ok(msg.html.includes('not provided'), 'blank VAT reads as not provided');
         assert.ok(msg.html.includes('€300'));
         assert.ok(msg.html.includes('GALA26-0081'));
         assert.ok(gate.getMarker(ca(caId).notes, payLink.INVOICE_MARKER), 'marker stamped on the CA row');
@@ -847,7 +875,8 @@ const allTo = to => sent.filter(m => m.to === to);
     });
 
     await t('invoice: the pay-link payment path fires it from inside the combined-ticket fulfilment', async () => {
-        const { caId, galaId, email } = makeHeldCa({ needs_invoice: 1 });
+        const { caId, galaId, email } = makeHeldCa({ needs_invoice: 1,
+            invoice_details: { company: 'Uni Klinik GmbH', address: 'Hauptstr. 5, Wien', country: 'Austria', vat: 'ATU99999999' } });
         releaseStatuses(caId);
         await payLink.sendGalaPayLink(deps(), caId);
         const before = sent.length;
@@ -855,6 +884,11 @@ const allTo = to => sent.filter(m => m.to === to);
         const mine = sent.slice(before);
         assert.strictEqual(mine.length, 2, 'finance note + the combined ticket');
         assert.deepStrictEqual(mine.map(m => m.to).sort(), ['vp@medx.hr', email].sort());
+        // approve (sendGalaPayLink) touched the row before payment — the JSON survived it
+        const kept = JSON.parse(ca(caId).invoice_details);
+        assert.strictEqual(kept.company, 'Uni Klinik GmbH', 'billing JSON survives the approve path');
+        const fin = mine.find(m => m.to === 'vp@medx.hr');
+        assert.ok(fin.html.includes('Uni Klinik GmbH') && fin.html.includes('ATU99999999'), 'and reaches the finance note');
         assert.ok(gate.getMarker(ca(caId).notes, payLink.INVOICE_MARKER));
         // a replayed webhook is a duplicate — neither email again
         await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 150, invoiceNumber: 'GALA26-0083' });
@@ -874,8 +908,8 @@ const allTo = to => sent.filter(m => m.to === to);
     await t('invoice: server.js persists the tick on BOTH rows, shows it to the reviewer, and calls the note from Path B', () => {
         const src = fs.readFileSync(path.join(__dirname, '..', 'user-portal', 'backend', 'server.js'), 'utf8');
         assert.ok(src.includes("ADD COLUMN needs_invoice INTEGER DEFAULT 0"), 'column migration present');
-        assert.ok(/INSERT INTO gala_registrations \(id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id, needs_invoice\)/.test(src), 'gala row carries it');
-        assert.ok(/gala_registration_id, source, user_id, needs_invoice\)/.test(src), 'CA row carries it');
+        assert.ok(/INSERT INTO gala_registrations \(id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id, needs_invoice, invoice_details\)/.test(src), 'gala row carries it');
+        assert.ok(/gala_registration_id, source, user_id, needs_invoice, invoice_details\)/.test(src), 'CA row carries it');
         assert.ok(src.includes("'Official invoice': finalGala ? (needsInvoice ?"), 'review email lists it');
         assert.ok(src.includes("galaPayLink.notifyInvoiceNeeded(caPayLinkDeps(), { caId: caRegId, galaRegId, amount, invoiceNumber })"), 'Path B webhook calls the note');
         assert.ok(src.includes("official_invoice: caNeedsInvoice ? 'YES' : 'NO'"), 'Path B sheet row carries it');
@@ -885,6 +919,16 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.ok(src.includes("invWrap.style.display = galaSel ? 'block' : 'none'"), '/plexus shows it only with the Gala');
         assert.ok(src.includes("caInvWrap.style.display = state.gala ? 'block' : 'none'"), 'CA form shows it only with the Gala');
         assert.ok(src.includes("const needsInvoice = finalGala &&"), 'ignored unless the Gala is selected');
+        // The billing details behind the tick — collected, validated, persisted and surfaced.
+        assert.ok(src.includes("ADD COLUMN invoice_details TEXT"), 'invoice_details migration present');
+        assert.ok(src.includes('Please fill in the billing details for the official invoice — company name, billing address and country (VAT is optional).'), 'server-side required-when-ticked validation');
+        assert.ok(/needs_invoice, invoice_details\)/.test(src), 'both INSERTs carry the JSON');
+        assert.ok(src.includes("'Invoice to': invoiceDetails.company"), 'review email lists the billing details');
+        assert.ok(src.includes("'VAT / tax number': invoiceDetails.vat || 'not provided'"), 'with the optional VAT spelled out');
+        assert.ok(src.includes('invoice_company:') && src.includes('invoice_address:') && src.includes('invoice_country:') && src.includes('invoice_vat:'), 'sheet payloads carry the four keys');
+        assert.ok(src.includes('id="pf_inv_company"') && src.includes('id="pf_inv_vat"'), '/plexus reveals the billing fields');
+        assert.ok(src.includes('id="caInvCompany"') && src.includes('id="caInvVat"'), 'the CA form reveals them too');
+        assert.ok(src.split("optional — some institutions don't have one").length >= 3 || src.split('optional &mdash; some institutions don&#39;t have one').length >= 2 || /optional (—|&mdash;) some institutions don/.test(src), 'the VAT hint is on the forms');
         const admin = fs.readFileSync(path.join(__dirname, '..', 'admin-portal', 'backend', 'server.js'), 'utf8');
         assert.ok(admin.includes("ALTER TABLE croatians_abroad_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0"), 'admin mirrors the CA column');
         assert.ok(admin.includes("ALTER TABLE gala_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0"), 'admin mirrors the gala column');
