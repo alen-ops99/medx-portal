@@ -20931,18 +20931,18 @@ By applying to this program, I provide the following consents:
 
                     // Confirmation email — payment receipt + bundle summary + QR
                     try {
-                        const caSend = await sendEventConfirmation(caEmail, 'Payment Confirmed — Plexus 2026', buildEmailTemplate('Payment Confirmed', `
+                        const caSend = await sendEventConfirmation(caEmail, 'Your ticket — Plexus Week 2026', buildEmailTemplate('Payment Confirmed', `
                             <div style="text-align:center;margin-bottom:8px;">
                                 <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
                             </div>
                             <p style="margin-top:18px;">Dear <strong>${metadata.first_name || 'guest'}</strong>,</p>
                             <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">Plexus 2026</strong> has been received. Your ticket is below.</p>
                             <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-                                <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus 2026 Reservations</td></tr>
+                                <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus Week 2026 reservations</td></tr>
                                 ${eventListHtml}
                             </table>
                             <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
-                            ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
+                            ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus Week 2026 check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
                             ${(metadata.bundle_conference === '1' || metadata.bundle_bridges === '1') ? `<p>We will email you ${[metadata.bundle_conference === '1' ? 'the <strong>Conference program</strong>' : null, metadata.bundle_bridges === '1' ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(metadata.bundle_conference === '1' && metadata.bundle_bridges === '1') ? 'they are' : 'it is'} finalized.</p>` : ''}
                             <p style="margin-top:24px;">We look forward to welcoming you ${metadata.source === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
                             <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
@@ -27796,11 +27796,11 @@ By applying to this program, I provide the following consents:
                 <p style="margin-top:18px;">Dear <strong>${first}</strong>,</p>
                 <p>Your payment of <strong>€${amount.toFixed(2)}</strong> for the <strong style="color:#C9A962;">Plexus 2026 Gala Evening</strong> has been received. Your ticket is below.</p>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-                    <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus 2026 Reservations</td></tr>
+                    <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus Week 2026 reservations</td></tr>
                     ${eventListHtml}
                 </table>
                 <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
-                ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
+                ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus Week 2026 check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
                 <p>We will email you the <strong>Conference program</strong> as soon as it is finalized, and confirm the <strong>Croatian Biomedical Bridges date and venue</strong> when those are set.</p>
                 <p style="margin-top:18px;">We look forward to welcoming you home in Zagreb.</p>
                 <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
