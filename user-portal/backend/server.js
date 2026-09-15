@@ -5683,6 +5683,11 @@ try {
     reviewGate.mountReviewRoutes(app, { JWT_SECRET, sendEmail: sendEventConfirmation });
 } catch (e) { console.error('[ReviewGate] routes failed to mount:', e.message); }
 
+// The Gala leg a review-held Zagreb registration never got: at approve it mints the pay_token
+// and sends the one "complete your Gala reservation" email; at payment it issues the ONE
+// combined ticket (see gala-paylink.js for the full account of the gap).
+const galaPayLink = require('./gala-paylink');
+
 // Once the production demo purge has run (app_state marker), the demo seed blocks must never
 // re-arm — an emptied table would otherwise re-seed on the next boot, and the admin/user seed
 // variants have drifted apart (the admin pr_posts INSERT crashes against the user-created
@@ -20554,9 +20559,27 @@ By applying to this program, I provide the following consents:
                     saveDb();
                     console.log(`[Stripe] Gala registration ${galaRegId} marked as paid`);
 
-                    // Send gala payment confirmation email
+                    // A Zagreb multi-event guest can reach THIS branch, not the CA one: their
+                    // payment link (/pay/gala/<token>, minted when the review gate released
+                    // them) builds a session with metadata.type 'gala-ticket'. Answering them
+                    // with the standalone receipt below would send a guest who registered for
+                    // Conference + Bridges + Gala a bare confirmation with no QR at all, and
+                    // leave the CA row at 'awaiting_payment' forever. Hand those rows the ONE
+                    // combined ticket instead — and send nothing else, so they get one email.
+                    let caCombined = { handled: false };
                     try {
-                        sendEventConfirmation(galaReg.email, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
+                        caCombined = await galaPayLink.fulfilLinkedCaGala(caPayLinkDeps(), {
+                            galaRegId, amount, invoiceNumber: galaInvoice,
+                            sessionEmail: session.customer_details?.email
+                        });
+                    } catch (caErr) {
+                        console.error('[Stripe] linked CA gala fulfilment failed (falling back to the standalone receipt):', caErr.message);
+                    }
+
+                    // Send gala payment confirmation email (skipped for a linked CA row — the
+                    // combined ticket above IS that guest's confirmation, and one is enough).
+                    try {
+                        if (!caCombined.handled) sendEventConfirmation(galaReg.email, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
                             <p>Dear ${galaReg.first_name},</p>
                             <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
                                 Your Gala Evening payment has been received. Your spot is secured!
@@ -28020,6 +28043,40 @@ By applying to this program, I provide the following consents:
         }
     });
 
+    // ---- Send (or preview) the Gala pay link for a Zagreb registration ----
+    // The recovery handle for rows the review gate released BEFORE this leg existed: two real
+    // registrants were approved with no link ever minted. :id accepts either identifier the
+    // admin has in front of them — the croatians_abroad_registrations id or the linked
+    // gala_registrations id. { preview: true } builds the same email from the same row but
+    // sends it to the reviewer (subject prefixed "[PREVIEW]") and changes nothing at all.
+    app.post('/api/admin/gala/:id/send-paylink', auth, adminOnly, async (req, res) => {
+        try {
+            const key = String(req.params.id || '');
+            const ca = query.get(
+                'SELECT id FROM croatians_abroad_registrations WHERE id = ? OR gala_registration_id = ?', [key, key]);
+            if (!ca) return res.status(404).json({ error: 'No Zagreb registration found for that id' });
+            const preview = !!(req.body && req.body.preview);
+            const to = preview ? (String((req.body && req.body.to) || '').trim() || reviewGate.REVIEW_TO) : null;
+            const out = await galaPayLink.sendGalaPayLink(caPayLinkDeps(), ca.id, { preview, to });
+            const human = {
+                done: 'Payment link sent.',
+                already: 'A payment link was already sent to this registrant — nothing was re-sent.',
+                'already-paid': 'This Gala seat is already paid — no link was sent.',
+                'no-gala': 'This registration did not select the Gala — nothing to send.',
+                'no-email': 'This registration carries no email address.',
+                'send-failed': 'The email provider rejected the send — nothing was stamped, you can retry.',
+                preview: 'Preview sent.',
+                notfound: 'Registration not found.'
+            }[out.status] || out.status;
+            console.log(`[GalaPayLink] admin ${req.user && req.user.email} -> CA ${ca.id}: ${out.status}${preview ? ' (preview)' : ''}`);
+            return res.status(out.status === 'send-failed' ? 502 : 200)
+                .json({ success: out.status === 'done' || out.status === 'preview', message: human, ...out });
+        } catch (err) {
+            console.error('[GalaPayLink] admin send failed:', err.message);
+            return res.status(500).json({ error: err.message || 'Could not send the payment link' });
+        }
+    });
+
     // --- SPEAKER PORTAL: AUTH & DOCUMENTS ---
 
     // Verify speaker invite code, return speaker record
@@ -28351,6 +28408,18 @@ By applying to this program, I provide the following consents:
         } catch(e) {}
     }
 
+    // Everything gala-paylink.js is allowed to touch, in one place. The module opens no
+    // database and sends no mail of its own; sendEventConfirmation keeps the team CC that
+    // every other registrant-facing email carries.
+    function caPayLinkDeps() {
+        return {
+            query, db, saveDb, flushDb,
+            sendEmail: sendEventConfirmation,
+            effectiveGalaPrice,
+            buildEmailTemplate, buildTicketQrBlock, qrPngAttachment
+        };
+    }
+
     // ---- review-gate decisions for the Zagreb form (croatians_abroad_registrations) ----
     // Rows held by the register route below carry 'pending-review' per-event statuses. APPROVE
     // flips them to the normal initial values and then runs the SAME confirmation + Sheets code
@@ -28410,10 +28479,33 @@ By applying to this program, I provide the following consents:
                 events: [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null].filter(Boolean),
                 regSource, caAppliedFor, customAnswers, inviteLabel
             });
+            // The Gala leg. Held registrations never reached Stripe, so approving them used to
+            // leave the seat at 'awaiting_payment' with no pay_token and no link in any email —
+            // the guest was told to reply for one. Now the link is minted and sent here, on the
+            // one path BOTH releases run through (the owner's Approve click and the automatic
+            // institutional confirmation), to whatever email the row carries at this moment —
+            // review-gate.js re-points it via setEmail() BEFORE calling approve(), so a
+            // registrant who confirmed from their university inbox is written to there.
+            let galaPay = null;
+            if (wantGala) {
+                try {
+                    galaPay = await galaPayLink.sendGalaPayLink(caPayLinkDeps(), id);
+                } catch (payErr) {
+                    console.error(`[GalaPayLink] pay link for CA ${id} failed (registration still approved):`, payErr.message);
+                }
+            }
             console.log(`[ReviewGate] Zagreb registration ${id} APPROVED — confirmation sent to ${row.email}`);
             return { status: 'done', headline: 'Approved.',
                 message: `${guest}'s Plexus registration is confirmed — the standard confirmation email has been sent to ${row.email}.`
-                    + (wantGala ? ' The Gala portion now awaits payment; they were invited to reply for the ticket link (payment remains the filter there).' : '') };
+                    + (wantGala
+                        ? (galaPay && galaPay.status === 'done'
+                            ? ` Their Gala payment link went out in a second email to ${galaPay.email} (${galaPayLink.fmtEur(galaPay.price)}); the seat is held as approved until they pay.`
+                            : galaPay && galaPay.status === 'already'
+                                ? ' Their Gala payment link had already been sent — nothing was re-sent.'
+                                : galaPay && galaPay.status === 'already-paid'
+                                    ? ' The Gala seat is already paid.'
+                                    : ' The Gala portion awaits payment — the payment link could NOT be sent, please send it from the admin Gala list.')
+                        : '') };
         },
         reject: async (id) => {
             const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);

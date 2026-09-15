@@ -10,6 +10,7 @@
     "test:sheets": "node tests/sheets-mirror.test.js",
     "test:wallet": "node tests/wallet-checkin.test.js",
     "test:wallet-ui": "python3 tests/wallet-checkin-ui.py",
-    "test:gala-ticket": "node tests/gala-ticket-scan.test.js"
+    "test:gala-ticket": "node tests/gala-ticket-scan.test.js",
+    "test:ca-paylink": "node tests/ca-approve-paylink.test.js"
   }
 }
