@@ -28057,7 +28057,7 @@ By applying to this program, I provide the following consents:
             if (!ca) return res.status(404).json({ error: 'No Zagreb registration found for that id' });
             const preview = !!(req.body && req.body.preview);
             const to = preview ? (String((req.body && req.body.to) || '').trim() || reviewGate.REVIEW_TO) : null;
-            const out = await galaPayLink.sendGalaPayLink(caPayLinkDeps(), ca.id, { preview, to });
+            const out = await galaPayLink.sendGalaPayLink(caPayLinkDeps({ noCc: preview }), ca.id, { preview, to });
             const human = {
                 done: 'Payment link sent.',
                 already: 'A payment link was already sent to this registrant — nothing was re-sent.',
@@ -28410,11 +28410,13 @@ By applying to this program, I provide the following consents:
 
     // Everything gala-paylink.js is allowed to touch, in one place. The module opens no
     // database and sends no mail of its own; sendEventConfirmation keeps the team CC that
-    // every other registrant-facing email carries.
-    function caPayLinkDeps() {
+    // every other registrant-facing email carries. A PREVIEW passes noCc: a preview is for
+    // the reviewer alone, and CC'ing the team on one would read as a guest having been written
+    // to when nobody has been.
+    function caPayLinkDeps(opts = {}) {
         return {
             query, db, saveDb, flushDb,
-            sendEmail: sendEventConfirmation,
+            sendEmail: opts.noCc ? sendEmail : sendEventConfirmation,
             effectiveGalaPrice,
             buildEmailTemplate, buildTicketQrBlock, qrPngAttachment
         };
