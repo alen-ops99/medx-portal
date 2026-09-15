@@ -39,15 +39,45 @@ const LEG = {
                   start: '20261205T190000', end: '20261205T233000' }
 };
 const LEG_ORDER = ['conference', 'bridges', 'gala'];
-const legNames = legs => legs.map(l => LEG[l].name);
+const legNames = (legs, facts) => legs.map(l => (facts || LEG)[l].name);
 const joinAnd = arr => arr.length > 1 ? arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1] : (arr[0] || '');
 
+/**
+ * The leg facts with the admin-editable dates/venues applied (plexus_settings: conference_venue,
+ * conference_start_date, bridges_zagreb_date / _time / _venue). Anything unset keeps the default,
+ * so a half-filled settings row never blanks a line. Returns a fresh map — LEG itself is constant.
+ */
+function legFacts(settings) {
+    const st = settings || {};
+    const f = JSON.parse(JSON.stringify(LEG));
+    const longDate = d => { try { const dt = new Date(String(d).slice(0, 10) + 'T12:00:00'); return isNaN(dt) ? null : dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return null; } };
+    const compact = d => String(d).slice(0, 10).replace(/-/g, '');
+    const hhmm = t => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? m[1].padStart(2, '0') + m[2] : null; };
+    if (st.conference_venue) f.conference.venue = String(st.conference_venue).trim();
+    if (st.conference_start_date && longDate(st.conference_start_date)) {
+        f.conference.when = longDate(st.conference_start_date);
+        f.conference.start = compact(st.conference_start_date) + 'T090000';
+        f.conference.end = compact(st.conference_start_date) + 'T180000';
+    }
+    if (st.bridges_zagreb_venue) f.bridges.venue = String(st.bridges_zagreb_venue).trim();
+    if (st.bridges_zagreb_date && longDate(st.bridges_zagreb_date)) {
+        const t = hhmm(st.bridges_zagreb_time);
+        f.bridges.when = longDate(st.bridges_zagreb_date) + (t ? ` · ${t.slice(0, 2)}:${t.slice(2)}` : '');
+        f.bridges.start = compact(st.bridges_zagreb_date) + 'T' + (t || '1800') + '00';
+        const endH = Math.min(23, Number((t || '1800').slice(0, 2)) + 3);
+        f.bridges.end = compact(st.bridges_zagreb_date) + 'T' + String(endH).padStart(2, '0') + (t || '1800').slice(2) + '00';
+        f.bridges.confirmed = true;
+    }
+    return f;
+}
+
 /** The WHEN lines the facts card prints — the event name before " — " renders bold. */
-const whenLinesFor = legs => legs.map(l => `${LEG[l].name} — ${LEG[l].when}${l === 'bridges' ? '' : ' · ' + LEG[l].venue}`);
-const whereFor = legs => legs.length === 1 ? LEG[legs[0]].venue : 'Zagreb, Croatia';
+const whenLinesFor = (legs, facts) => { const F = facts || LEG; return legs.map(l => `${F[l].name} — ${F[l].when}${(l === 'bridges' && !F[l].confirmed) ? '' : ' · ' + F[l].venue}`); };
+const whereFor = (legs, facts) => legs.length === 1 ? (facts || LEG)[legs[0]].venue : 'Zagreb, Croatia';
 
 // ---------------------------------------------------------------- calendar (.ics), per legs held
-function icsFor(legs) {
+function icsFor(legs, facts) {
+    const LEG = facts || module.exports.LEG;   // the admin-set dates when given
     const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
     const escIcs = s => String(s || '').replace(/([,;\\])/g, '\\$1');
     const events = legs.filter(l => LEG[l]).map(l => [
@@ -58,7 +88,7 @@ function icsFor(legs) {
         `DTEND;TZID=Europe/Zagreb:${LEG[l].end}`,
         `SUMMARY:${escIcs('Plexus Week 2026 — ' + LEG[l].name)}`,
         `LOCATION:${escIcs(LEG[l].venue)}`,
-        `DESCRIPTION:${escIcs(l === 'bridges' ? 'Date and venue to be confirmed — we will email you.' : 'Your entry QR is in your ticket email and wallet pass.')}`,
+        `DESCRIPTION:${escIcs(l === 'bridges' && !LEG[l].confirmed ? 'Date and venue to be confirmed — we will email you.' : 'Your entry QR is in your ticket email and wallet pass.')}`,
         'STATUS:CONFIRMED', 'END:VEVENT'
     ].join('\r\n'));
     return [
@@ -85,11 +115,12 @@ function parseLegs(raw) {
  *       calendarUrl, partyNote, guestsHtml, source }
  */
 function ticketEmail(kind, f) {
-    const legs = (f.legs || []).filter(l => LEG[l]);
+    const F = f.facts || LEG;                     // admin-set dates/venues, when the caller has them
+    const legs = (f.legs || []).filter(l => F[l]);
     const hasGala = legs.includes('gala');
     const seats = Math.max(1, Number(f.seats) || 1);
     const paid = Number(f.amount) || 0;
-    const names = legNames(legs);
+    const names = legNames(legs, F);
     const freeLegs = legs.filter(l => l !== 'gala');
     const first = esc(f.firstName || 'there');
     const eventName = kind === 'gala' || kind === 'gala-guest' ? 'Plexus Week 2026 — Gala Evening' : 'Plexus Week 2026 — Zagreb';
@@ -98,7 +129,7 @@ function ticketEmail(kind, f) {
     if (kind === 'combined') {
         headlineHtml = 'Plexus Week 2026 — you are <i>in</i>.';
         introHtml = `Dear ${first} — your payment of <b>&euro;${paid.toFixed(2)}</b> has been received and your registration is confirmed for ${esc(joinAnd(names))}${seats > 1 ? ` — <b>${seats} Gala seats</b>` : ''}. Med&amp;X looks forward to welcoming you ${f.source === 'plexus' ? 'to Plexus Week 2026' : 'home'} in Zagreb.`;
-        ticketLabel = [freeLegs.length ? `${legNames(freeLegs).join(' + ')} — free` : null, `Gala Evening — ${seats} seat${seats === 1 ? '' : 's'}, paid`].filter(Boolean).join(' · ');
+        ticketLabel = [freeLegs.length ? `${legNames(freeLegs, F).join(' + ')} — free` : null, `Gala Evening — ${seats} seat${seats === 1 ? '' : 's'}, paid`].filter(Boolean).join(' · ');
         priceLabel = `€${paid.toFixed(2)} paid${f.invoice ? ` · invoice ${f.invoice}` : ''}`;
         subjectTitle = 'Your ticket — Plexus Week 2026';
         preheader = `Payment received — your Plexus Week 2026 ticket, QR and wallet passes are inside.`;
@@ -131,16 +162,21 @@ function ticketEmail(kind, f) {
     noteParts.push(hasGala
         ? 'Present the QR above at the door of each event you hold — it admits your party at the Conference and Building Bridges, and your seats at the Gala. The same ticket lives in the wallet passes.'
         : 'Present the QR above at the door — it admits you at the events you registered for. The same ticket lives in the wallet passes.');
-    if (freeLegs.length && kind !== 'gala-guest') {
-        noteParts.push(`We will email you ${[freeLegs.includes('conference') ? 'the <b>Conference program</b>' : null, freeLegs.includes('bridges') ? 'the <b>Building Bridges date and venue</b>' : null].filter(Boolean).join(' and ')} as soon as ${freeLegs.length > 1 ? 'they are' : 'it is'} finalized.`);
+    if (freeLegs.length && kind !== 'gala-guest' && !f.programAttached) {
+        const pending = [freeLegs.includes('conference') ? 'the <b>Conference program</b>' : null, (freeLegs.includes('bridges') && !F.bridges.confirmed) ? 'the <b>Building Bridges date and venue</b>' : null].filter(Boolean);
+        if (pending.length) noteParts.push(`We will email you ${pending.join(' and ')} as soon as ${pending.length > 1 ? 'they are' : 'it is'} finalized.`);
     }
+    if (f.programAttached) noteParts.push('Your <b>program</b> is attached to this email as a PDF.');
+    if (f.extraNote) noteParts.push(f.extraNote);
     if (kind === 'free' && !f.guestOf) {
         noteParts.push('Would you also like to join the <b>Gala Evening</b> (5 December 2026, Hotel Esplanade)? Just reply to this email and we will send you the ticket link.');
     }
 
     return emailTemplates.ticketConfirmation({
-        firstName: f.firstName, eventName, headlineHtml, introHtml, kicker,
-        whenLines: whenLinesFor(legs), venue: whereFor(legs),
+        firstName: f.firstName, eventName,
+        headlineHtml: f.headlineHtml || headlineHtml, introHtml: f.introHtml || introHtml, kicker: f.kicker || kicker,
+        whenLines: whenLinesFor(legs, F), venue: whereFor(legs, F),
+        passUrl: f.ctaUrl || undefined, ctaLabel: f.ctaLabel || undefined,
         guestLabel: f.fullName, ticketNumber: f.invoice || (f.ticketCode || ''),
         ticketLabel, priceLabel,
         dressLabel: hasGala ? (legs.length > 1 ? 'Gala Evening: black tie' : 'Black tie') : null,
@@ -152,7 +188,7 @@ function ticketEmail(kind, f) {
         note: noteParts.join('<br><br>'),
         replyLine: `Questions? Laura Rodman — <a href="mailto:${SUPPORT_EMAIL}" style="color:#6f6256;">${SUPPORT_EMAIL}</a>.`,
         headerRightLabel: 'PLEXUS WEEK 2026 · ZAGREB',
-        subjectTitle, preheader
+        subjectTitle: f.subjectTitle || subjectTitle, preheader: f.preheader || preheader
     });
 }
 
@@ -179,13 +215,14 @@ const safeEq = (a, b) => { try { return a.length === b.length && crypto.timingSa
  *       invoice, seat, ticketCode, qrPngUrl, wallet, calendarUrl, guests, emailTo, kicker }
  */
 function ticketPageHtml(p) {
+    const LEG = p.facts || module.exports.LEG;
     const legs = (p.legs || []).filter(l => LEG[l]);
     const party = p.party || {};
     const plus = n => n > 1 ? ` · you + ${n - 1} guest${n - 1 === 1 ? '' : 's'}` : '';
     const legRow = (l, last) => `<tr><td style="padding:12px 14px;${last ? '' : 'border-bottom:1px solid rgba(25,21,18,.1);'}">
         <span style="font-weight:600;font-size:14px;color:#191512;">${LEG[l].name}</span>
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#1e6e42;margin-left:8px;">${l === 'gala' ? (p.state === 'ticket' ? 'CONFIRMED &amp; PAID' + ((p.seats || 1) > 1 ? ' · ' + p.seats + ' SEATS' : '') : 'FINALIZING') : 'CONFIRMED'}</span>
-        <div style="font-size:12px;color:#6e6455;margin-top:3px;">${esc(LEG[l].when)}${l === 'bridges' ? '' : ' · ' + esc(LEG[l].venue)}${esc(plus(party[l] || 0))}</div></td></tr>`;
+        <div style="font-size:12px;color:#6e6455;margin-top:3px;">${esc(LEG[l].when)}${(l === 'bridges' && !LEG[l].confirmed) ? '' : ' · ' + esc(LEG[l].venue)}${esc(plus(party[l] || 0))}</div></td></tr>`;
     const w = p.wallet || {};
     const b = (href, label, skin) => `<a href="${esc(href)}" style="display:block;margin:10px auto 0;max-width:280px;padding:12px 18px;background:${skin === 'ink' ? '#241d18' : skin === 'gold' ? '#c9a962' : 'transparent'};border:1px solid ${skin === 'ghost' ? 'rgba(25,21,18,.3)' : 'transparent'};color:${skin === 'ink' ? '#f7f1e6' : skin === 'gold' ? '#191512' : '#3a322b'};font:600 12.5px Inter,sans-serif;letter-spacing:.4px;text-decoration:none;text-align:center;">${label}</a>`;
     const buttons = [w.apple ? b(w.apple, 'Add to Apple Wallet →', 'ink') : '', w.google ? b(w.google, 'Add to Google Wallet →', 'gold') : '', p.calendarUrl ? b(p.calendarUrl, 'Add to calendar →', 'ghost') : ''].join('');
@@ -241,7 +278,7 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
 }
 
 module.exports = {
-    LEG, LEG_ORDER, legNames, whenLinesFor, whereFor, joinAnd,
+    LEG, LEG_ORDER, legFacts, legNames, whenLinesFor, whereFor, joinAnd,
     icsFor, calendarUrl, parseLegs,
     ticketEmail, guestsHtml,
     pageSig, galaPageSig, safeEq, ticketPageHtml

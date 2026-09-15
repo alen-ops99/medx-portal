@@ -8204,6 +8204,10 @@ async function initializeApp() {
     // The billing details behind that tick, as one JSON blob {company, address, country, vat}.
     try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN invoice_details TEXT'); } catch(e) {}
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_details TEXT'); } catch(e) {}
+    // Mirror: final dates/venues for the Plexus Week ticket + program email (plexus-ticket.legFacts).
+    for (const col of ['conference_venue TEXT', 'bridges_zagreb_date TEXT', 'bridges_zagreb_time TEXT', 'bridges_zagreb_venue TEXT']) {
+        try { db.run(`ALTER TABLE plexus_settings ADD COLUMN ${col}`); } catch(e) {}
+    }
 
     // Denormalized "what they applied for" + answers + link token on every registration table.
     // Runs HERE (not in the early migration block) because gala/forum/bridges/CA are created above.

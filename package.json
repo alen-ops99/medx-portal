@@ -13,6 +13,7 @@
     "test:gala-ticket": "node tests/gala-ticket-scan.test.js",
     "test:ca-paylink": "node tests/ca-approve-paylink.test.js",
     "test:plexus-pass": "node tests/plexus-pass.test.js",
-    "test:plexus-ticket": "node tests/plexus-ticket.test.js"
+    "test:plexus-ticket": "node tests/plexus-ticket.test.js",
+    "test:plexus-program": "node tests/plexus-program.test.js"
   }
 }
