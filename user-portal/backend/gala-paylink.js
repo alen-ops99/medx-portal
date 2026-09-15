@@ -163,7 +163,7 @@ function selectionPhrase({ wantConference, wantBridges, wantGala }) {
         wantBridges ? 'Building Bridges Zagreb' : null,
         wantGala ? 'the Gala Evening' : null
     ].filter(Boolean);
-    if (parts.length <= 1) return parts[0] || 'Plexus 2026';
+    if (parts.length <= 1) return parts[0] || 'Plexus Week 2026';
     return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
 }
 
@@ -182,7 +182,7 @@ function buildPayLinkEmail({ firstName, payUrl, quote, earlyBirdDeadline, galaDa
 
     return reviewGate.emailShell('Your registration is approved',
         `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
-         <p style="margin:0 0 10px;">Great news — your registration for <b class="em-ink">Plexus 2026</b> is approved: ${esc(selected)}.</p>
+         <p style="margin:0 0 10px;">Great news — your registration for <b class="em-ink">Plexus Week 2026</b> is approved: ${esc(selected)}.</p>
          <p style="margin:0;">To complete your registration for everything, please finish the last step — the payment for the Gala Evening:</p>`,
         'Complete my registration', payUrl,
         {
@@ -213,7 +213,7 @@ function buildNudgeEmail({ firstName, payUrl, quote, earlyBirdDeadline, galaDate
 
     return reviewGate.emailShell('Your Gala seat is still waiting',
         `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
-         <p style="margin:0 0 10px;">Your place at Plexus 2026 is approved and your Gala seat is being held for you — the payment is the one thing still outstanding.</p>
+         <p style="margin:0 0 10px;">Your place at Plexus Week 2026 is approved and your Gala seat is being held for you — the payment is the one thing still outstanding.</p>
          <p style="margin:0;">You can complete it here whenever suits you:</p>`,
         'Complete my Gala reservation', payUrl,
         {
@@ -222,6 +222,28 @@ function buildNudgeEmail({ firstName, payUrl, quote, earlyBirdDeadline, galaDate
             facts,
             footNote: fallback
         });
+}
+
+// ---------------------------------------------------------------- the party line on the ticket
+/**
+ * What the combined ticket says about the party, under the QR.
+ *
+ * ONE QR admits everyone, so the only thing the registrant has to know is whether their
+ * guests already hold a copy. Guests who gave an email get their own copy automatically
+ * (below); anyone who did not is reachable only through the registrant, so the ticket asks
+ * them to forward it. A party of one says nothing at all — there is nobody to admit but them.
+ *
+ * `guestsWithEmail` counts named ca_registration_guests rows carrying an address. A guest
+ * nobody named at all (guest_count of 1, no guest row) is, correctly, a guest with no email.
+ */
+function partyNote(seats, guestsWithEmail) {
+    const guests = Math.max(0, seats - 1);
+    if (!guests) return '';
+    const missing = Math.max(0, guests - Math.max(0, guestsWithEmail || 0));
+    const tail = missing === 0
+        ? `Your guest${guests === 1 ? ' has' : 's have'} received the same QR by email.`
+        : `Please share this email with your guest${missing === 1 ? '' : 's'} who did not give us an email address — the same QR admits them.`;
+    return `This QR admits your whole party of ${seats}. ${tail}`;
 }
 
 // ---------------------------------------------------------------- shared row resolution
@@ -514,9 +536,17 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
         });
     } catch (e) { log('QR attachment failed (non-blocking):', e.message); }
 
-    const partyCaption = seats > 1
-        ? `Present this QR at the entrance of each event you registered for — it admits your whole party of ${seats}, arriving together or separately`
-        : 'Present this QR at the entrance of each event you registered for';
+    // Read the named party BEFORE composing, so the ticket can tell the registrant whether
+    // their guests already hold a copy or need this email forwarded. Rows with an address get
+    // their own copy further down; the rest are reachable only through the registrant.
+    let namedGuests = [];
+    try { namedGuests = query.all('SELECT name, email FROM ca_registration_guests WHERE registration_id = ?', [ca.id]) || []; }
+    catch (e) { namedGuests = []; }
+    const guestsWithEmail = namedGuests.filter(g => String(g.email || '').trim()).length;
+    const party = partyNote(seats, guestsWithEmail);
+    const partyHtml = party
+        ? `<p style="background:#f8fafc;border-left:3px solid #C9A962;padding:10px 14px;font-size:13.5px;color:#334155;">${esc(party)}</p>`
+        : '';
 
     const html = buildEmailTemplate('Payment Confirmed', `
         <div style="text-align:center;margin-bottom:8px;">
@@ -529,7 +559,8 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
             ${eventListHtml}
         </table>
         ${invoiceNumber ? `<p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${esc(invoiceNumber)}</p>` : ''}
-        ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: partyCaption })}
+        ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
+        ${partyHtml}
         ${(wantConf || wantBridges) ? `<p>We will email you ${[wantConf ? 'the <strong>Conference program</strong>' : null, wantBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(wantConf && wantBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
         <p style="margin-top:24px;">We look forward to welcoming you ${ca.source === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
         <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
@@ -542,11 +573,9 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
     }
 
     // Named guests with an email get the SAME party QR — one QR admits the whole party.
+    // (Those without one are covered by the forward-this-email line on the ticket above.)
     try {
-        const party = query.all(
-            "SELECT name, email FROM ca_registration_guests WHERE registration_id = ? AND COALESCE(email, '') <> ''",
-            [ca.id]) || [];
-        for (const g of party) {
+        for (const g of namedGuests.filter(x => String(x.email || '').trim())) {
             const gFirst = String(g.name || 'there').split(' ')[0];
             await sendEmail(g.email, 'Your Gala Evening entry — Plexus 2026', buildEmailTemplate('Your Gala Evening entry', `
                 <p>Dear ${esc(gFirst)},</p>
@@ -570,6 +599,7 @@ module.exports = {
     fmtDate,
     fmtDayMonth,
     partySeats,
+    partyNote,
     quoteGalaSeats,
     seatsLine,
     selectionPhrase,

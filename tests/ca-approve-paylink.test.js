@@ -245,6 +245,26 @@ const allTo = to => sent.filter(m => m.to === to);
             'an honoured quote states only what the link charges — its per-seat maths no longer holds');
     });
 
+    await t('partyNote: party size stated, and whether the guests already hold a copy', () => {
+        // A party of one has nobody to admit but themselves — the ticket says nothing.
+        assert.strictEqual(payLink.partyNote(1, 0), '');
+
+        // Every guest reachable by email already has their own copy.
+        assert.strictEqual(payLink.partyNote(2, 1),
+            'This QR admits your whole party of 2. Your guest has received the same QR by email.');
+        assert.strictEqual(payLink.partyNote(3, 2),
+            'This QR admits your whole party of 3. Your guests have received the same QR by email.');
+
+        // Anyone we cannot reach is reachable only through the registrant.
+        assert.strictEqual(payLink.partyNote(2, 0),
+            'This QR admits your whole party of 2. Please share this email with your guest who did not give us an email address — the same QR admits them.');
+        assert.strictEqual(payLink.partyNote(3, 0),
+            'This QR admits your whole party of 3. Please share this email with your guests who did not give us an email address — the same QR admits them.');
+        // Mixed: the plural follows the number actually MISSING, not the party size.
+        assert.strictEqual(payLink.partyNote(3, 1),
+            'This QR admits your whole party of 3. Please share this email with your guest who did not give us an email address — the same QR admits them.');
+    });
+
     await t('selectionPhrase names the legs the way the owner names them', () => {
         assert.strictEqual(payLink.selectionPhrase({ wantConference: 1, wantBridges: 1, wantGala: 1 }),
             'the Conference, Building Bridges Zagreb and the Gala Evening');
@@ -276,7 +296,9 @@ const allTo = to => sent.filter(m => m.to === to);
         // The owner's wording, line by line.
         assert.ok(/Dear Ana/.test(msg.html));
         assert.ok(/Great news/.test(msg.html), 'owner wording: "Great news"');
-        assert.ok(/your registration for .*Plexus 2026.* is approved/.test(msg.html));
+        assert.ok(/your registration for .*Plexus Week 2026.* is approved/.test(msg.html),
+            'the WEEK covers all three events, so the approval names the week');
+        assert.ok(!/registration for .*>Plexus 2026</.test(msg.html), 'never the bare "Plexus 2026" for the whole registration');
         assert.ok(msg.html.includes('the Conference, Building Bridges Zagreb and the Gala Evening'),
             'lists what they selected');
         assert.ok(msg.html.includes('To complete your registration for everything'), 'owner wording: the ask');
@@ -505,6 +527,81 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.strictEqual(c.amount_paid, 300);
     });
 
+    await t('ticket: party of 2, guest HAS an email — says they already have the QR', async () => {
+        const { caId, galaId, email } = makeHeldCa({ guest_count: 1 });
+        releaseStatuses(caId);
+        db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?,?,?,?,?)',
+            [crypto.randomUUID(), caId, 'Emeric du Mas de Paysac', 'Sorbonne', 'emeric@example.org']);
+
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 300, invoiceNumber: 'GALA26-0060' });
+
+        const msg = lastTo(email);
+        assert.ok(msg.html.includes('This QR admits your whole party of 2.'), 'states the party size');
+        assert.ok(msg.html.includes('Your guest has received the same QR by email.'), 'and that the guest holds a copy');
+        assert.ok(!/Please share this email/.test(msg.html), 'so no forwarding request');
+        assert.ok(lastTo('emeric@example.org'), 'and the guest really did get their own copy');
+    });
+
+    await t('ticket: party of 2, guest has NO email — asks the registrant to forward it', async () => {
+        const { caId, galaId, email } = makeHeldCa({ guest_count: 1 });
+        releaseStatuses(caId);
+        db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?,?,?,?,?)',
+            [crypto.randomUUID(), caId, 'Unreachable Guest', 'Somewhere', '']);
+        const before = sent.length;
+
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 300, invoiceNumber: 'GALA26-0061' });
+
+        assert.strictEqual(sent.length, before + 1, 'only the registrant is written to');
+        const msg = lastTo(email);
+        assert.ok(msg.html.includes('This QR admits your whole party of 2.'));
+        assert.ok(msg.html.includes('Please share this email with your guest who did not give us an email address — the same QR admits them.'),
+            'asks them to forward it');
+        assert.ok(!/received the same QR by email/.test(msg.html));
+    });
+
+    await t('ticket: a guest nobody named at all counts as a guest with no email', async () => {
+        const { caId, galaId, email } = makeHeldCa({ guest_count: 1 });   // no ca_registration_guests row
+        releaseStatuses(caId);
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: 300, invoiceNumber: 'GALA26-0062' });
+        const msg = lastTo(email);
+        assert.ok(msg.html.includes('This QR admits your whole party of 2.'));
+        assert.ok(msg.html.includes('Please share this email with your guest'), 'we cannot reach them, so the registrant must');
+    });
+
+    await t('ticket: party of 3 — both guests reachable, then one, then neither', async () => {
+        // both reachable
+        const a = makeHeldCa({ guest_count: 2 }); releaseStatuses(a.caId);
+        for (const [n, e] of [['G One', 'g1@example.org'], ['G Two', 'g2@example.org']]) {
+            db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?,?,?,?,?)',
+                [crypto.randomUUID(), a.caId, n, '', e]);
+        }
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: a.galaId, amount: 450, invoiceNumber: 'GALA26-0063' });
+        let msg = lastTo(a.email);
+        assert.ok(msg.html.includes('This QR admits your whole party of 3.'), 'party of three');
+        assert.ok(msg.html.includes('Your guests have received the same QR by email.'), 'plural, both covered');
+        assert.ok(lastTo('g1@example.org') && lastTo('g2@example.org'), 'both guests got their own copy');
+
+        // one reachable, one not -> the plural follows the MISSING one
+        const b = makeHeldCa({ guest_count: 2 }); releaseStatuses(b.caId);
+        db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?,?,?,?,?)',
+            [crypto.randomUUID(), b.caId, 'Named', '', 'g3@example.org']);
+        db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?,?,?,?,?)',
+            [crypto.randomUUID(), b.caId, 'Anonymous', '', '']);
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: b.galaId, amount: 450, invoiceNumber: 'GALA26-0064' });
+        msg = lastTo(b.email);
+        assert.ok(msg.html.includes('This QR admits your whole party of 3.'));
+        assert.ok(msg.html.includes('Please share this email with your guest who did not give us an email address'),
+            'singular — only one guest is unreachable');
+
+        // neither reachable
+        const c = makeHeldCa({ guest_count: 2 }); releaseStatuses(c.caId);
+        await payLink.fulfilLinkedCaGala(deps(), { galaRegId: c.galaId, amount: 450, invoiceNumber: 'GALA26-0065' });
+        msg = lastTo(c.email);
+        assert.ok(msg.html.includes('This QR admits your whole party of 3.'));
+        assert.ok(msg.html.includes('Please share this email with your guests who did not give us an email address'),
+            'plural — both are unreachable');
+    });
+
     await t('webhook: a party of 1 is unchanged — no seat count anywhere', async () => {
         const { caId, galaId, email } = makeHeldCa({ guest_count: 0 });
         releaseStatuses(caId);
@@ -514,7 +611,8 @@ const allTo = to => sent.filter(m => m.to === to);
         const msg = lastTo(email);
         assert.ok(/(€|&euro;)150\.00/.test(msg.html));
         assert.ok(!/SEATS/.test(msg.html), 'no seat count on a party of one');
-        assert.ok(!/whole party of/.test(msg.html), 'and no party caption');
+        assert.ok(!/whole party of/.test(msg.html), 'and no party line — there is nobody else to admit');
+        assert.ok(!/share this email with your guest/.test(msg.html), 'and nothing to forward');
         assert.ok(msg.html.includes('CONFIRMED &amp; PAID'));
         assert.strictEqual(msg.attachments[0]._payload.guests, 0);
     });
