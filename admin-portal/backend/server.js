@@ -8201,6 +8201,9 @@ async function initializeApp() {
     // only reads it.
     try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0'); } catch(e) {}
     try { db.run('ALTER TABLE gala_registrations ADD COLUMN needs_invoice INTEGER DEFAULT 0'); } catch(e) {}
+    // The billing details behind that tick, as one JSON blob {company, address, country, vat}.
+    try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN invoice_details TEXT'); } catch(e) {}
+    try { db.run('ALTER TABLE gala_registrations ADD COLUMN invoice_details TEXT'); } catch(e) {}
 
     // Denormalized "what they applied for" + answers + link token on every registration table.
     // Runs HERE (not in the early migration block) because gala/forum/bridges/CA are created above.
