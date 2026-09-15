@@ -28110,29 +28110,37 @@ By applying to this program, I provide the following consents:
         if (reg.status !== 'approved') return galaPayPage(res, 200, 'Still under review', 'Your invitation request is still being reviewed. You will receive an email as soon as a decision is made.');
         if (!stripe) return galaPayPage(res, 503, 'Payments temporarily unavailable', 'Card payments are temporarily unavailable. Please try again shortly, or contact us.');
         try {
-            // Mirror /api/gala/checkout-session exactly (pricing, invoice numbering, metadata)
-            // so the payment webhook and admin ledgers treat both paths identically.
-            // ONE Gala price — the legacy 'bundle' tier is abolished (see checkout-session).
-            const price = effectiveGalaPrice();
+            // Mirror /api/gala/checkout-session (invoice numbering, metadata) so the payment
+            // webhook and admin ledgers treat both paths identically. ONE Gala price — the
+            // legacy 'bundle' tier is abolished (see checkout-session).
+            //
+            // SEATS: the registrant pays for the whole party. guest_count is ADDITIONAL guests
+            // everywhere in this codebase, so the charge is (1 + guest_count) x the seat price
+            // — the same arithmetic Path B uses at registration and both FIRA blocks use when
+            // they bill quantity 1 + guest_count. This link used to charge exactly one seat
+            // regardless, which under-billed every party that reached it. quoteGalaSeats()
+            // also honours an amount this very route already quoted at a Stripe checkout, so
+            // nobody holding an older link is silently re-priced.
+            const quote = galaPayLink.quoteGalaSeats(effectiveGalaPrice, reg);
             let invoiceNumber = reg.invoice_number;
             if (!invoiceNumber) {
                 const count = query.get("SELECT COUNT(*) as c FROM gala_registrations WHERE invoice_number IS NOT NULL")?.c || 0;
                 invoiceNumber = `GALA26-${String(count + 1).padStart(4, '0')}`;
             }
-            db.run('UPDATE gala_registrations SET invoice_number = ?, amount_paid = ? WHERE id = ?', [invoiceNumber, price, reg.id]);
+            db.run('UPDATE gala_registrations SET invoice_number = ?, amount_paid = ? WHERE id = ?', [invoiceNumber, quote.total, reg.id]);
             saveDb();
-            const ticketLabel = 'Gala Evening';
             const baseUrl = `${req.protocol}://${req.get('host')}`;
             const session = await stripe.checkout.sessions.create({
                 adaptive_pricing: { enabled: false },
                 mode: 'payment',
                 payment_method_types: ['card'],
-                line_items: [{ price_data: { currency: 'eur', product_data: { name: `Plexus 2026 — ${ticketLabel}`, description: `Gala Evening Ticket (Invoice: ${invoiceNumber})` }, unit_amount: Math.round(price * 100) }, quantity: 1 }],
+                line_items: [{ price_data: { currency: 'eur', product_data: { name: quote.lineName, description: `Gala Evening ${quote.seats > 1 ? quote.seats + ' seats' : 'Ticket'} (Invoice: ${invoiceNumber})` }, unit_amount: quote.lineUnitAmount }, quantity: quote.lineQuantity }],
                 metadata: { gala_registration_id: reg.id, invoice_number: invoiceNumber, type: 'gala-ticket' },
                 customer_email: reg.email,
                 success_url: `${baseUrl}/?payment=success&gala=${reg.id}`,
                 cancel_url: `${baseUrl}/?payment=cancelled&gala=${reg.id}`
             });
+            console.log(`[GalaPayLink] /pay/gala ${reg.id}: ${quote.seats} seat(s), ${galaPayLink.fmtEur(quote.total)}${quote.honoured ? ' (honouring the amount already quoted at checkout)' : ''}, invoice ${invoiceNumber}`);
             db.run('UPDATE gala_registrations SET stripe_session_id = ? WHERE id = ?', [session.id, reg.id]);
             saveDb();
             return res.redirect(303, session.url);
@@ -28173,6 +28181,45 @@ By applying to this program, I provide the following consents:
         } catch (err) {
             console.error('[GalaPayLink] admin send failed:', err.message);
             return res.status(500).json({ error: err.message || 'Could not send the payment link' });
+        }
+    });
+
+    // ---- Unpaid-Gala nudge (maintenance, owner-triggered — NEVER scheduled) ----
+    // Approved Zagreb seats that are still unpaid after N days. ?dry=1 (the default) only
+    // lists them; ?dry=0 sends each one a gentle reminder carrying the SAME payment link,
+    // stamped GALA-NUDGE-SENT so a second sweep re-sends nothing. Deliberately manual: who
+    // gets chased, and when, is the owner's call, not a cron's.
+    //   GET-shaped params: ?days=7 (default 7, 0 = everyone), ?dry=1|0, ?id=<ca id> for one.
+    app.post('/api/admin/gala/unpaid-nudge', auth, adminOnly, async (req, res) => {
+        try {
+            const q = Object.assign({}, req.query || {}, req.body || {});
+            const days = q.days === undefined ? 7 : Math.max(0, parseInt(q.days, 10) || 0);
+            // Dry by default in every shape: only an explicit 0/false/no arms the send.
+            const dry = !(q.dry === 0 || q.dry === '0' || q.dry === false || q.dry === 'false' || q.dry === 'no');
+            const only = String(q.id || '').trim();
+
+            let rows = galaPayLink.listUnpaidGalaNudges(caPayLinkDeps(), { days });
+            if (only) rows = rows.filter(r => r.ca_id === only || r.gala_id === only);
+
+            if (dry) {
+                return res.json({
+                    dry_run: true, days, count: rows.length,
+                    sendable: rows.filter(r => r.has_pay_link && !r.already_nudged).length,
+                    rows,
+                    hint: 'Nothing was sent. Repeat with ?dry=0 to send, or add &id=<ca id> for one person.'
+                });
+            }
+
+            const sent = [], skipped = [];
+            for (const r of rows) {
+                const out = await galaPayLink.sendUnpaidGalaNudge(caPayLinkDeps(), r.ca_id);
+                (out.status === 'done' ? sent : skipped).push({ ca_id: r.ca_id, name: r.name, email: r.email, status: out.status });
+            }
+            console.log(`[GalaPayLink] nudge sweep by ${req.user && req.user.email}: ${sent.length} sent, ${skipped.length} skipped (>= ${days} days)`);
+            return res.json({ dry_run: false, days, sent_count: sent.length, sent, skipped });
+        } catch (err) {
+            console.error('[GalaPayLink] nudge sweep failed:', err.message);
+            return res.status(500).json({ error: err.message || 'Nudge sweep failed' });
         }
     });
 
@@ -28567,10 +28614,21 @@ By applying to this program, I provide the following consents:
             const regSource = row.source === 'plexus' ? 'plexus' : 'croatians-abroad';
             const caAppliedFor = row.applied_for
                 || [wantConf ? 'Plexus Conference' : null, wantBridges ? 'Croatian Biomedical Bridges' : null, wantGala ? 'Gala Evening' : null].filter(Boolean).join(', ');
-            await caSendPreRegConfirmation({
-                regId: id, first_name: row.first_name, last_name: row.last_name, email: row.email,
-                finalConf: wantConf, finalBridges: wantBridges, finalGala: wantGala, regSource
-            });
+            // ONE ticket per registration. When the Gala leg is still unpaid, approval sends
+            // the payment email ALONE — the free-events confirmation and its QR are NOT
+            // replayed, because the combined party ticket issued after payment is the single
+            // ticket that covers everything they registered for, and handing them a
+            // free-events QR now would leave the same person holding two conflicting ones.
+            // (If they never pay, the owner-triggered nudge below offers exactly that fallback
+            // in writing: reply, and we send the free-events ticket on its own.)
+            // No Gala, or a seat already paid, keeps the free-events confirmation untouched.
+            const galaOwesPayment = galaPayLink.galaLegNeedsPayment(query, row);
+            if (!galaOwesPayment) {
+                await caSendPreRegConfirmation({
+                    regId: id, first_name: row.first_name, last_name: row.last_name, email: row.email,
+                    finalConf: wantConf, finalBridges: wantBridges, finalGala: wantGala, regSource
+                });
+            }
             // Sheet tabs: free events only — a gala row reaches the sheet when payment confirms,
             // exactly as on the untouched path (the webhook posts it).
             caMirrorPreRegToSheets({
@@ -28595,18 +28653,19 @@ By applying to this program, I provide the following consents:
                     console.error(`[GalaPayLink] pay link for CA ${id} failed (registration still approved):`, payErr.message);
                 }
             }
-            console.log(`[ReviewGate] Zagreb registration ${id} APPROVED — confirmation sent to ${row.email}`);
+            console.log(`[ReviewGate] Zagreb registration ${id} APPROVED — ${galaOwesPayment ? 'approval + payment email only (free-events QR withheld until payment)' : 'confirmation sent'} to ${row.email}`);
+            const seatsSaid = galaPay && galaPay.quote
+                ? `${galaPay.quote.seats} seat${galaPay.quote.seats === 1 ? '' : 's'}, ${galaPayLink.fmtEur(galaPay.quote.total)}`
+                : '';
             return { status: 'done', headline: 'Approved.',
-                message: `${guest}'s Plexus registration is confirmed — the standard confirmation email has been sent to ${row.email}.`
-                    + (wantGala
-                        ? (galaPay && galaPay.status === 'done'
-                            ? ` Their Gala payment link went out in a second email to ${galaPay.email} (${galaPayLink.fmtEur(galaPay.price)}); the seat is held as approved until they pay.`
-                            : galaPay && galaPay.status === 'already'
-                                ? ' Their Gala payment link had already been sent — nothing was re-sent.'
-                                : galaPay && galaPay.status === 'already-paid'
-                                    ? ' The Gala seat is already paid.'
-                                    : ' The Gala portion awaits payment — the payment link could NOT be sent, please send it from the admin Gala list.')
-                        : '') };
+                message: !galaOwesPayment
+                    ? `${guest}'s Plexus registration is confirmed — the standard confirmation email has been sent to ${row.email}.`
+                        + (wantGala ? ' The Gala seat is already paid.' : '')
+                    : (galaPay && galaPay.status === 'done'
+                        ? `${guest}'s registration is approved, and ONE email has gone to ${galaPay.email}: the approval with their Gala payment link (${seatsSaid}). The free-events ticket is deliberately held back — the single ticket covering everything follows the moment they pay, so nobody ends up holding two QR codes.`
+                        : galaPay && galaPay.status === 'already'
+                            ? `${guest}'s approval email with the Gala payment link had already been sent — nothing was re-sent.`
+                            : `${guest} is approved in the database, but the approval email could NOT be sent, so they have received NOTHING yet. Send it from the admin Gala list (Pay link) or POST /api/admin/gala/${id}/send-paylink.`) };
         },
         reject: async (id) => {
             const row = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
