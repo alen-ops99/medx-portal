@@ -514,24 +514,28 @@ const allTo = to => sent.filter(m => m.to === to);
 
         const msg = lastTo(email);
         assert.strictEqual(msg.subject, 'Your ticket — Plexus Week 2026', 'the wording 90705c7 missed here');
-        // The ticket rides the house dark shell now (Ana Franceschi got the old navy template):
-        // espresso card, visible logo, "Plexus Week 2026" in the reservations header and QR label.
-        assert.ok(msg.html.includes('Your Plexus Week 2026 reservations'), 'reservations header renamed');
-        assert.ok(msg.html.includes('Plexus Week 2026 check-in QR'), 'QR label renamed');
-        assert.ok(msg.html.includes('#342718'), 'the espresso facts card — the dark house shell');
-        assert.ok(/medx|med&amp;x|Med&amp;X/i.test(msg.html), 'the wordmark is in the shell');
+        // The ticket is the Boston "You are in" card now (Alen 2026-09-15): the light cream shell
+        // (the dark one looked wrong on white Gmail), the facts card per leg, the hosted QR, and
+        // Apple Wallet · Google Wallet · calendar under it.
+        assert.ok(msg.html.includes('PLEXUS WEEK 2026 · ZAGREB'), 'the header label');
+        assert.ok(msg.html.includes('Plexus Week 2026 — you are <i>in</i>.'), 'the Boston headline shape');
+        assert.ok(msg.html.includes('<strong>Plexus Conference</strong>') && msg.html.includes('<strong>Building Bridges Zagreb</strong>') && msg.html.includes('<strong>Gala Evening</strong>'), 'every leg on its own WHEN line');
+        assert.ok(msg.html.includes('Hotel Esplanade, Zagreb') && msg.html.includes('Novinarski dom, Zagreb'), 'with venues');
+        assert.ok(!msg.html.includes('#342718'), 'not the dark shell');
         assert.ok(!msg.html.includes('data-title="Payment Confirmed"'), 'the OLD navy template is gone');
         assert.ok(!msg.html.includes('#22c55e'), 'and so is the green pill');
         assert.ok(/(€|&euro;)300\.00/.test(msg.html), 'states the party total actually charged');
         assert.ok(msg.html.includes('2 Gala seats'), 'says how many seats were bought');
-        assert.ok(msg.html.includes('CONFIRMED &amp; PAID &middot; 2 SEATS'), 'the Gala line reads as a party');
-        // Boston parity: both wallet buttons, keyed to THIS gala row, right under the QR card
-        assert.ok(msg.html.includes('ADD TO APPLE WALLET') && msg.html.includes('ADD TO GOOGLE WALLET'), 'both wallet buttons');
+        assert.ok(msg.html.includes('Gala Evening — 2 seats, paid'), 'the TICKET line reads as a party');
+        assert.ok(msg.html.includes('Gala Evening: black tie'), 'dress code for the Gala leg');
+        // Boston parity: the three buttons, keyed to THIS gala row, right under the QR card
+        assert.ok(msg.html.includes('ADD TO APPLE WALLET') && msg.html.includes('ADD TO GOOGLE WALLET') && msg.html.includes('ADD TO CALENDAR'), 'wallet + calendar buttons');
         assert.ok(msg.html.includes(`/api/plexus/pass/gala-${galaId}.pkpass`) && msg.html.includes(`/api/plexus/wallet/gala-${galaId}`), 'the gala kind for this row');
-        assert.ok(msg.html.indexOf(`data-reg="${galaId}"`) < msg.html.indexOf('ADD TO APPLE WALLET'), 'under the QR');
-        assert.ok(msg.html.includes('admits your whole party of 2'), 'the QR caption states the party');
+        assert.ok(msg.html.includes('/plexus.ics?legs=conference%2Cbridges%2Cgala'), 'the calendar file for the legs held');
+        assert.ok(msg.html.includes(`/qr/${galaId}.png`), 'the hosted party QR — the same image the doors scan');
+        assert.ok(msg.html.indexOf(`/qr/${galaId}.png`) < msg.html.indexOf('ADD TO APPLE WALLET'), 'buttons under the QR');
+        assert.ok(msg.html.includes('admits your whole party of 2'), 'the party note');
         assert.ok(msg.html.includes('GALA26-0042'), 'carries the invoice number');
-        assert.ok(msg.html.includes(`data-reg="${galaId}"`), 'carries the check-in QR block');
         assert.strictEqual(msg.attachments.length, 1);
         assert.strictEqual(msg.attachments[0]._payload.guests, 1, 'the QR payload carries the +1, like every other Med&X ticket');
         assert.deepStrictEqual(msg.attachments[0]._payload.events, ['conference', 'bridges', 'gala']);
@@ -627,10 +631,10 @@ const allTo = to => sent.filter(m => m.to === to);
 
         const msg = lastTo(email);
         assert.ok(/(€|&euro;)150\.00/.test(msg.html));
-        assert.ok(!/SEATS/.test(msg.html), 'no seat count on a party of one');
+        assert.ok(!/2 seats|3 seats|Gala seats/.test(msg.html), 'no seat count on a party of one');
         assert.ok(!/whole party of/.test(msg.html), 'and no party line — there is nobody else to admit');
         assert.ok(!/share this email with your guest/.test(msg.html), 'and nothing to forward');
-        assert.ok(msg.html.includes('CONFIRMED &amp; PAID'));
+        assert.ok(msg.html.includes('Gala Evening — 1 seat, paid'));
         assert.strictEqual(msg.attachments[0]._payload.guests, 0);
     });
 
@@ -668,9 +672,11 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.strictEqual(sent.length, before + 2, 'registrant + one named guest');
         const g = lastTo('guest@example.org');
         assert.strictEqual(g.subject, 'Your Gala Evening entry — Plexus Week 2026');
-        assert.ok(g.html.includes(`data-reg="${galaId}"`), 'the same party QR, not a second ticket');
+        assert.ok(g.html.includes(`/qr/${galaId}.png`), 'the same party QR, not a second ticket');
         assert.ok(g.html.includes('Emeric'), 'addressed by first name');
         assert.ok(g.html.includes('Your seat is paid for'), 'and told their seat is covered');
+        assert.ok(g.html.includes('Guest of Ana Franceschi'), 'the TICKET line names the host');
+        assert.ok(g.html.includes('ADD TO CALENDAR') && g.html.includes('/plexus.ics?legs=gala'), 'calendar for the Gala');
         const guestRow = query.get('SELECT id FROM ca_registration_guests WHERE email = ?', ['guest@example.org']);
         assert.ok(g.html.includes(`/api/plexus/pass/guest-${guestRow.id}.pkpass`) && g.html.includes(`/api/plexus/wallet/guest-${guestRow.id}`), 'the guest gets THEIR OWN wallet links (guest kind)');
     });
@@ -789,7 +795,7 @@ const allTo = to => sent.filter(m => m.to === to);
 
         await payLink.fulfilLinkedCaGala(deps(), { galaRegId: galaId, amount: q.total, invoiceNumber: 'GALA26-0047' });
         assert.strictEqual(allTo(email).length, 2, 'one email at payment — two in total, never three');
-        assert.ok(/data-reg=/.test(lastTo(email).html), 'and THIS one carries the single ticket');
+        assert.ok(lastTo(email).html.includes(`/qr/${galaId}.png`), 'and THIS one carries the single ticket');
 
         const c = ca(caId);
         assert.deepStrictEqual(
