@@ -17,6 +17,17 @@ input:focus, select:focus, textarea:focus { outline: 1px solid #9b1b22; outline-
 img { max-width: 100%; }
 [hidden] { display: none !important; }
 
+/* ---- brand lockup (header · sign-in · the "waking up" overlay) ----------- */
+/* logo.png is a fixed-ratio asset — 750×165, i.e. 4.545:1. The top bar is a crowded nowrap flex
+   row, so the lockup (a flex item at the default `flex: 0 1 auto`) was being SHRUNK below the
+   logo's own width, and `img { max-width: 100% }` two lines up then capped the image to that
+   shrunken box while the inline `height:18px` stayed pinned. The image squashed horizontally
+   only: measured 44.6×18 (2.48:1) at 1440px and 39.3×18 (2.18:1) at 1180px, against 81.8×18.
+   The lockup is now rigid and the image is never width-capped; the search field absorbs the
+   width instead (see the topbar width budget by the responsive rules below). */
+.mx-brand { flex: none !important; }
+.mx-brand img { width: auto !important; max-width: none !important; flex: none !important; }   /* height stays the inline one (18px header, 22px overlay) */
+
 /* clickable spans from the artboards (onClick → data-act): pointer + keyboard focus ring */
 [data-act], [data-nav] { cursor: pointer; }
 [data-act]:focus-visible, [data-nav]:focus-visible, a:focus-visible, button:focus-visible { outline: 1px solid #9b1b22; outline-offset: 3px; }
@@ -46,9 +57,26 @@ body[data-layout="signin"] #chrome { display: none; }
 .mx-nav-item { position: relative; }
 .mx-nav-item.locked { opacity: .45; }
 
-/* ---- mobile menu (≤760px: the nav row collapses behind MENU — note 0a) ---- */
+/* ---- top bar width budget (why the numbers below are what they are) ------
+   The bar is one nowrap flex row inside max-width:1180px, so at EVERY desktop width its content
+   box is 1180 − 56 = 1124px at most. Natural widths today: brand 82 · nav 733 (10 items) ·
+   TEAM CHAT 134 · search 200 · avatar 30 = 1179, plus six gaps. That never fit — before this
+   change the only shrinkable items were the brand and the search box, which is exactly why the
+   logo came out squashed. With the brand made rigid (.mx-brand above) the budget has to balance:
+     · gaps tighten (26→20 bar, 22→16 nav) once the desktop nav is showing — frees 90px
+     · below 1190px the nav collapses behind MENU (the drawer that already existed at ≤760px)
+   That leaves the search field ~90–135px of width to give back, and nothing overflows.
+   IF YOU ADD A NAV ITEM: re-measure. Each one costs ~73px and the budget is already spent. */
+@media (min-width: 1191px) {
+  .mx-topbar { gap: 20px !important; }
+  .mx-topbar .mx-nav { gap: 16px !important; }
+}
+
+/* ---- collapsed nav (≤1190px: the nav row collapses behind MENU — note 0a) ----
+   Was ≤760px. Between 761 and 1190 the full nav did not fit and pushed the whole document into
+   horizontal overflow (measured 64px at 1100, 184px at 980). The drawer below is unchanged. */
 #mx-menu-btn { display: none; }
-@media (max-width: 760px) {
+@media (max-width: 1190px) {
   #mx-menu-btn { display: inline-flex; }
   .mx-nav { display: none !important; }
   body.menu-open .mx-nav { display: flex !important; flex-direction: column; align-items: stretch !important; gap: 0 !important; position: absolute; left: 0; right: 0; top: 100%; background: #fff; border-bottom: 1px solid rgba(32,27,22,.14); box-shadow: 0 12px 30px rgba(32,27,22,.16); z-index: 66; padding: 6px 0 10px; height: auto !important; }

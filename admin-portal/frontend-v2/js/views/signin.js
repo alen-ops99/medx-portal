@@ -72,9 +72,11 @@ function template(query) {
 <div data-screen-label="Admin Sign in" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif;display:flex;flex-direction:column">
   <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14)">
     <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px">
-      <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><img src="/assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">${COPY.admin}</span></span>
+      <span class="mx-brand" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:18px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">${COPY.admin}</span></span>
       <div style="flex:1"></div>
-      ${cfg.isStaging ? `<span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;background:#f8f1e2;color:#7a6432;padding:3px 8px;white-space:nowrap">${COPY.footer.staging}</span>` : ''}
+      ${/* the banner wraps rather than forcing the bar wider than a phone — it is a long sentence,
+            and the brand lockup beside it is fixed-ratio and no longer absorbs the overflow */''}
+      ${cfg.isStaging ? `<span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;background:#f8f1e2;color:#7a6432;padding:3px 8px;min-width:0;line-height:1.5">${COPY.footer.staging}</span>` : ''}
     </div>
   </div>
   <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:48px 16px">

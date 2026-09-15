@@ -34,7 +34,7 @@ function showWaking(payload) {
     wakeOverlay.setAttribute('aria-live', 'polite');
     wakeOverlay.innerHTML = `
       <div class="mx-waking-inner">
-        <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><img src="/assets/logo-white.png" alt="med&amp;X" style="height:22px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#c9a962">ADMIN</span></span>
+        <span class="mx-brand" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><img src="/assets/logo-white.png" alt="med&amp;X" style="width:auto;height:22px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#c9a962">ADMIN</span></span>
         <div class="line">One moment.</div>
         <p class="why">The admin portal is waking up — about a minute after a quiet spell. Your session is safe; this page continues by itself.</p>
         <div class="bar"></div>

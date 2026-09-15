@@ -18306,57 +18306,157 @@ By applying to this program, I provide the following consents:
         res.json(summary);
     });
 
-    // Registration trends endpoint — returns daily counts for the last 30 days
+    // Registration trends — the daily series behind the dashboard's activity chart.
+    //
+    // Every series is a zero-filled [{ date: 'YYYY-MM-DD', count: N }] array: oldest day first,
+    // exactly `days` entries, last entry today. The old sparse shape made quiet days vanish, so the
+    // browser had to rebuild the axis and guess where the gaps were; now the answer IS the axis.
+    //
+    // Per source, so the chart can say WHICH sign-up moved:
+    //   conference      croatians_abroad_registrations with a live conference_status  (created_at)
+    //   gala            gala_registrations paid or still awaiting payment             (created_at),
+    //                   also split as gala_paid / gala_unpaid. The two predicates are disjoint and
+    //                   gala is literally their sum, so the breakdown cannot drift from the total.
+    //   bridges_zagreb  croatians_abroad_registrations that signed up for Building Bridges Zagreb
+    //   bridges_boston  bridges_registrations for the Boston evening, status 'registered' (registered_at)
+    //   accelerator     accelerator_applications of the active programme              (created_at)
+    //   forum           forum_event_registrations                                     (registered_at)
+    //   meetups         plexus_meetup_attendees, confirmed                            (created_at)
+    //   total           the per-day sum of those seven. gala_paid/gala_unpaid are a breakdown of
+    //                   gala, never added a second time.
+    //
+    // plexus / accelerator / events are the ORIGINAL keys and keep their original meaning — the
+    // admin v1 dashboard and frontend-v2/ARCHITECTURE.md both read them, so they stay (zero-filled
+    // now too). ?event=plexus|accelerator|events|all still narrows that trio exactly as before, an
+    // unselected key answering []; the per-source series are always computed because `total` is
+    // built from them.
+    //
+    // ?days=7|30|90 picks the window (anything else falls back to 30) and the response carries
+    // days/from/to, so a caller labels the axis from the answer instead of re-deriving it.
+    //
+    // Every table is read inside its own try/catch: a replica that does not have one answers an
+    // all-zero series instead of a 500, which is how the rest of this dashboard already behaves.
+
+    // ── TRENDS-SERIES-HELPER — tests/today-trends.test.js lifts this function verbatim by these two
+    //    markers and drives it against its own database, so it stays self-contained: everything it
+    //    touches arrives as an argument. Keep it that way. ──
+    function buildDashboardTrends(query, rawDays, rawEvent) {
+        const days = [7, 30, 90].indexOf(Number(rawDays)) >= 0 ? Number(rawDays) : 30;
+        const asked = String(rawEvent == null ? 'all' : rawEvent);
+        const eventFilter = ['plexus', 'accelerator', 'events'].indexOf(asked) >= 0 ? asked : 'all';
+        const wants = (key) => eventFilter === 'all' || eventFilter === key;
+
+        // The window is `days` calendar days ending today, in UTC — the same day boundary SQLite's
+        // date() uses, so the buckets and the fill can never disagree about which day a row is on.
+        const now = new Date();
+        const dayKeys = [];
+        for (let i = days - 1; i >= 0; i--) {
+            dayKeys.push(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i)).toISOString().slice(0, 10));
+        }
+        const slotOf = Object.create(null);
+        dayKeys.forEach((d, i) => { slotOf[d] = i; });
+
+        // SQL trims the scan, the fill trims the edges: datetime('now', '-N days') reaches back from
+        // the current CLOCK time, so it leaves a few extra hours at the far end that simply find no
+        // bucket here. The fill, not the SQL, is what defines the window.
+        const WINDOW = "datetime('now', '-" + days + " days')";
+        const zeros = () => dayKeys.map((d) => ({ date: d, count: 0 }));
+        const series = (sql, params) => {
+            const out = zeros();
+            let rows;
+            try { rows = query.all(sql, params || []) || []; }
+            catch (e) { return out; }                       // table absent on this replica — zeros, not a 500
+            rows.forEach((r) => {
+                const slot = r && r.date != null ? slotOf[r.date] : undefined;
+                if (slot !== undefined) out[slot].count += Number(r.count) || 0;
+            });
+            return out;
+        };
+        const addUp = (a, b) => a.map((p, i) => ({ date: p.date, count: p.count + b[i].count }));
+        const sumOf = (list) => list.reduce(addUp, zeros());
+
+        const conference = series(
+            "SELECT date(created_at) AS date, count(*) AS count FROM croatians_abroad_registrations" +
+            " WHERE conference_status IN ('pre-registered','confirmed','registered') AND created_at > " + WINDOW +
+            " GROUP BY date(created_at)");
+
+        // Paid is the house predicate used everywhere else in this file (payment_status IN
+        // ('paid','vip-comp')); unpaid is every OTHER live booking — a seat held, money not in yet.
+        // Cancelled/refunded rows fall out of both, which is why gala is the sum and not a third query.
+        const galaPaid = series(
+            "SELECT date(created_at) AS date, count(*) AS count FROM gala_registrations" +
+            " WHERE LOWER(COALESCE(payment_status,'')) IN ('paid','vip-comp') AND created_at > " + WINDOW +
+            " GROUP BY date(created_at)");
+        const galaUnpaid = series(
+            "SELECT date(created_at) AS date, count(*) AS count FROM gala_registrations" +
+            " WHERE LOWER(COALESCE(payment_status,'')) NOT IN ('paid','vip-comp')" +
+            " AND LOWER(COALESCE(status,'')) IN ('pending','pending-review','approved','awaiting_payment','confirmed','registered')" +
+            " AND created_at > " + WINDOW + " GROUP BY date(created_at)");
+        const gala = addUp(galaPaid, galaUnpaid);
+
+        // Signed up for Building Bridges Zagreb = the column says something, and that something is
+        // not a withdrawal. An inclusion list would silently drop whatever new status the sign-up
+        // form starts writing; the seed DB already carries 'pre-registered' beside plain NULLs.
+        const bridgesZagreb = series(
+            "SELECT date(created_at) AS date, count(*) AS count FROM croatians_abroad_registrations" +
+            " WHERE bridges_status IS NOT NULL AND TRIM(bridges_status) <> ''" +
+            " AND LOWER(TRIM(bridges_status)) NOT IN ('not-attending','not attending','declined','cancelled','canceled','withdrawn','no','none')" +
+            " AND created_at > " + WINDOW + " GROUP BY date(created_at)");
+
+        // Same literal as admin-portal/backend/v2/boston-ops.js — nothing here invents a second event id.
+        const bridgesBoston = series(
+            "SELECT date(registered_at) AS date, count(*) AS count FROM bridges_registrations" +
+            " WHERE event_id = ? AND status = 'registered' AND registered_at > " + WINDOW +
+            " GROUP BY date(registered_at)", ['bb-boston-2026-09-21']);
+
+        let program = null;
+        try { program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1'); } catch (e) { program = null; }
+        const accelerator = program && program.id ? series(
+            "SELECT date(created_at) AS date, count(*) AS count FROM accelerator_applications" +
+            " WHERE program_id = ? AND created_at > " + WINDOW + " GROUP BY date(created_at)", [program.id]) : zeros();
+
+        const forum = series(
+            "SELECT date(registered_at) AS date, count(*) AS count FROM forum_event_registrations" +
+            " WHERE registered_at > " + WINDOW + " GROUP BY date(registered_at)");
+
+        const meetups = series(
+            "SELECT date(created_at) AS date, count(*) AS count FROM plexus_meetup_attendees" +
+            " WHERE status = 'confirmed' AND created_at > " + WINDOW + " GROUP BY date(created_at)");
+
+        const total = sumOf([conference, gala, bridgesZagreb, bridgesBoston, accelerator, forum, meetups]);
+
+        // The compat "events" line: every event sign-up table summed together, each read with its
+        // OWN timestamp column and no status filter — the series the v1 dashboard has always drawn.
+        const events = sumOf([
+            series("SELECT date(created_at) AS date, count(*) AS count FROM gala_registrations WHERE created_at > " + WINDOW + " GROUP BY date(created_at)"),
+            series("SELECT date(registered_at) AS date, count(*) AS count FROM bridges_registrations WHERE registered_at > " + WINDOW + " GROUP BY date(registered_at)"),
+            series("SELECT date(created_at) AS date, count(*) AS count FROM croatians_abroad_registrations WHERE created_at > " + WINDOW + " GROUP BY date(created_at)"),
+            series("SELECT date(registered_at) AS date, count(*) AS count FROM forum_event_registrations WHERE registered_at > " + WINDOW + " GROUP BY date(registered_at)"),
+            series("SELECT date(created_at) AS date, count(*) AS count FROM signup_form_responses WHERE created_at > " + WINDOW + " GROUP BY date(created_at)")
+        ]);
+
+        return {
+            days: days,
+            from: dayKeys[0],
+            to: dayKeys[dayKeys.length - 1],
+            conference: conference,
+            gala: gala,
+            gala_paid: galaPaid,
+            gala_unpaid: galaUnpaid,
+            bridges_zagreb: bridgesZagreb,
+            bridges_boston: bridgesBoston,
+            accelerator: wants('accelerator') ? accelerator : [],
+            forum: forum,
+            meetups: meetups,
+            total: total,
+            plexus: wants('plexus') ? conference : [],
+            events: wants('events') ? events : []
+        };
+    }
+    // ── END TRENDS-SERIES-HELPER ──
+
     app.get('/api/dashboard/trends', auth, adminOnly, (req, res) => {
-        const eventFilter = req.query.event || 'all'; // 'plexus', 'accelerator', 'events', or 'all'
-        const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
-        const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
-
-        let plexusTrends = [];
-        let acceleratorTrends = [];
-        let eventTrends = [];
-
-        if (eventFilter === 'all' || eventFilter === 'plexus') {
-            plexusTrends = query.all(
-                "SELECT date(created_at) as date, count(*) as count FROM croatians_abroad_registrations WHERE conference_status IN ('pre-registered','confirmed','registered') AND created_at > datetime('now', '-30 days') GROUP BY date(created_at) ORDER BY date ASC"
-            ) || [];
-        }
-
-        if (eventFilter === 'all' || eventFilter === 'accelerator') {
-            acceleratorTrends = query.all(
-                "SELECT date(created_at) as date, count(*) as count FROM accelerator_applications WHERE program_id = ? AND created_at > datetime('now', '-30 days') GROUP BY date(created_at) ORDER BY date ASC",
-                [program?.id]
-            ) || [];
-        }
-
-        // "Event registrations" — a combined daily series across every event sign-up table
-        // (Gala, Building Bridges / Donor, Croatians Abroad, Forum events, sign-up forms), so a
-        // real Gala booking actually moves the 30-day slope. Previously the chart only drew the
-        // conference + accelerator tables, so Gala/other-event signups were invisible. Each table
-        // is summed with its OWN timestamp column and guarded independently so a table missing on a
-        // fresh replica never blanks the whole series.
-        if (eventFilter === 'all' || eventFilter === 'events') {
-            const dateMap = {};
-            const addDaily = (sql) => {
-                try {
-                    (query.all(sql) || []).forEach((r) => {
-                        if (r && r.date) dateMap[r.date] = (dateMap[r.date] || 0) + (Number(r.count) || 0);
-                    });
-                } catch (e) { /* table absent on this DB — skip */ }
-            };
-            addDaily("SELECT date(created_at) as date, count(*) as count FROM gala_registrations WHERE created_at > datetime('now', '-30 days') GROUP BY date(created_at)");
-            addDaily("SELECT date(registered_at) as date, count(*) as count FROM bridges_registrations WHERE registered_at > datetime('now', '-30 days') GROUP BY date(registered_at)");
-            addDaily("SELECT date(created_at) as date, count(*) as count FROM croatians_abroad_registrations WHERE created_at > datetime('now', '-30 days') GROUP BY date(created_at)");
-            addDaily("SELECT date(registered_at) as date, count(*) as count FROM forum_event_registrations WHERE registered_at > datetime('now', '-30 days') GROUP BY date(registered_at)");
-            addDaily("SELECT date(created_at) as date, count(*) as count FROM signup_form_responses WHERE created_at > datetime('now', '-30 days') GROUP BY date(created_at)");
-            eventTrends = Object.keys(dateMap).sort().map((d) => ({ date: d, count: dateMap[d] }));
-        }
-
-        res.json({
-            plexus: plexusTrends,
-            accelerator: acceleratorTrends,
-            events: eventTrends
-        });
+        res.json(buildDashboardTrends(query, req.query.days, req.query.event));
     });
 
     app.get('/api/dashboard/portal-stats', auth, adminOnly, (req, res) => {

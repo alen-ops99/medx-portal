@@ -20,6 +20,18 @@ input:focus, textarea:focus { outline: 1px solid #9b1b22; outline-offset: -1px; 
 img { max-width: 100%; }
 [hidden] { display: none !important; }
 
+/* ---- brand lockup (top bar · mobile top bar) ----------------------------
+   logo.png is a fixed-ratio asset — 750×165, i.e. 4.545:1. The bar that holds it is a flex row,
+   and the lockup's anchor is a flex item at the default `flex: 0 1 auto`. Because its only child
+   is an image already capped by `img { max-width: 100% }` two lines up, the anchor's min-content
+   width collapses to zero, so it shrinks freely — and the image shrinks with it while the inline
+   `height` stays pinned, compressing the logo horizontally only. Measured 71.0×17 (4.17:1, 8%
+   squashed) on the 320px mobile bar, and up to 22% squashed on the desktop bar for a member with
+   a long display name at 901–1050px. `flex: none` on the ANCHOR is the load-bearing half: the
+   image is not the flex item, so width/flex on the image alone changes nothing. */
+.mx-brand { flex: none !important; }
+.mx-brand img { width: auto !important; max-width: none !important; }   /* height stays the inline one */
+
 /* clickable spans from the artboards (onClick → data-act): pointer + keyboard focus ring */
 [data-act], [data-nav] { cursor: pointer; }
 [data-act]:focus-visible, [data-nav]:focus-visible, a:focus-visible, button:focus-visible {

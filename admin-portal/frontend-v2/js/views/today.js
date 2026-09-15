@@ -9,6 +9,7 @@ import { api } from '../api.js';
 import { session, state } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow, routeForSection } from '../facts.js';
+import { buildTrend, dayTick, dayFull, normDays, RANGES, DEFAULT_DAYS } from '../trends.js';
 import { perms } from '../perms.js';
 import { chrome } from '../chrome.js';
 import { health } from '../health.js';
@@ -45,9 +46,24 @@ export const COPY = {
       sub: n => `${n} paid Gala registration${n === 1 ? '' : 's'} · all of Money →`,
       subWithConf: (n, confEur) => `${n} paid Gala registration${n === 1 ? '' : 's'} + ${confEur} conference · all of Money →`
     },
+    kTrend: { label: 'Registrations chart' },
     locked: 'locked for you · ask Alen'
   },
-  trends: { title: 'REGISTRATIONS — LAST 30 DAYS', scope: 'ALL EVENTS · CONFERENCE + GALA + BRIDGES + FORUM' },
+  // The registrations chart. The owner reads it to answer one question — "who signed up for what,
+  // and when" — so every event is its own series behind its own chip, and the headline stays the
+  // total for whatever window is on screen.
+  trends: {
+    title: d => `REGISTRATIONS — LAST ${d} DAYS`,
+    regs: n => `${n} registration${n === 1 ? '' : 's'}`,
+    daily: 'DAILY', cumulative: 'RUNNING TOTAL',
+    modeTitle: 'Daily counts, or the running total across the window',
+    rangeTitle: d => `Last ${d} days`,
+    chipTitle: (label, on) => `${on ? 'Hide' : 'Show'} ${label.toLowerCase()} — your choice is remembered on this computer`,
+    empty: 'Nothing registered in this window.',
+    none: 'Every series is hidden — click a chip to bring one back.',
+    stale: 'Per-event breakdown needs the newer admin backend — showing the combined series meanwhile.',
+    today: 'TODAY'
+  },
   projects: {
     title: 'YOUR PROJECTS', sub: 'each one is a hub — everything for that project lives inside',
     plexus: { live: 'LIVE', closed: 'REGISTRATION CLOSED', title: FACTS.plexus.week, line: (r, cap, galaBit) => `${r} registered of ${cap} · ${galaBit}`, parts: FACTS.plexus.parts },
@@ -104,7 +120,9 @@ export const COPY = {
   footer: { admin: 'ADMIN:', audit: 'AUDIT LOG', member: 'VIEW MEMBER PORTAL ↗' }
 };
 const KPI_KEYS = ['kDays', 'kConf', 'kGala', 'kMoney'];
+const TREND_KEY = 'kTrend';                          // the chart is its own Customise tick, not a KPI card
 const SC_KEYS = ['sScan', 'sEmail', 'sNews', 'sFind'];
+const PREF_KEYS = KPI_KEYS.concat([TREND_KEY], SC_KEYS);
 const PREFS_SECTION = 'today-v2';
 const NAG_DOT = { gala_unpaid: '#9b1b22', task_overdue: '#9b1b22', payment_reminder: '#9b1b22' };
 const TOP_ROWS = 6;
@@ -119,12 +137,12 @@ function nextMidnight() { const d = new Date(); d.setHours(24, 0, 0, 0); return 
 const isLocked = key => !!(D && D.errors[key] && D.errors[key].isLocked);
 
 // ---------------------------------------------------------------- data
-async function load() {
+async function load(days) {
   const r = await api.settle({
     me: api.get('/api/auth/me'),
     conf: api.get('/api/conferences/active', { noAuth: true }),
     summary: api.get('/api/dashboard/summary'),
-    trends: api.get('/api/dashboard/trends'),
+    trends: api.get('/api/dashboard/trends?days=' + normDays(days)),
     pstats: api.get('/api/dashboard/portal-stats'),
     gala: api.get('/api/admin/gala/registrations'),
     galaSettings: api.get('/api/admin/gala/settings'),
@@ -153,7 +171,7 @@ async function load() {
   const gs = r.galaSettings || {};
   const price = galaPriceNow(gs);
   const ebDeadline = (gs.early_bird_deadline || FACTS.gala.priceFlip).slice(0, 10);
-  const prefs = {}; KPI_KEYS.concat(SC_KEYS).forEach(k => { prefs[k] = true; });
+  const prefs = {}; PREF_KEYS.forEach(k => { prefs[k] = true; });
   (Array.isArray(r.prefs) ? r.prefs : []).forEach(row => { if (row && row.card_id in prefs) prefs[row.card_id] = !!Number(row.is_visible); });
   const status = {}; (((r.status || {}).projects) || []).forEach(p => { status[p.project_key] = p; });
   const bridges = Array.isArray(r.bridges) ? r.bridges : [];
@@ -217,16 +235,62 @@ function shortcutDefs() {
     ? { label: s.label, href: s.href, gold: true, bg: '#201b16', bd: '#201b16', fg: '#f6f2ea' }
     : { label: s.label, href: s.href, gold: false, bg: 'transparent', bd: 'rgba(32,27,22,.2)', fg: '#201b16' }; });
 }
-function trendSeries() {
-  const t = D.trends || {}; const map = {};
-  ['plexus', 'accelerator', 'events'].forEach(k => (t[k] || []).forEach(r => { if (r && r.date) map[String(r.date).slice(0, 10)] = (map[String(r.date).slice(0, 10)] || 0) + Number(r.count || 0); }));
-  const pts = []; const now = new Date();
-  for (let i = 29; i >= 0; i--) { const d = new Date(now.getTime() - i * 86400000); pts.push(map[fmt.ymd(d)] || 0); }
-  const total = pts.reduce((a, b) => a + b, 0);
-  const max = Math.max(1, ...pts);
-  const top = [2, 4, 6, 8, 10, 20, 30, 40, 50, 100, 200, 500, 1000, 2000, 5000].find(n => n >= max) || Math.ceil(max / 1000) * 1000;
-  const coords = pts.map((v, i) => [(i / 29 * 300).toFixed(1), (45 - v / top * 38).toFixed(1)]);
-  return { pts, total, top, coords, line: coords.map(c => c.join(',')).join(' '), area: 'M' + coords.map(c => c.join(',')).join(' L') + ' L300,45 L0,45 Z' };
+// ---------------------------------------------------------------- registrations chart
+// The chart's own settings live per admin on this computer — which series are on, the window and
+// daily-vs-running-total. They are deliberately NOT part of the server-side Customise prefs: those
+// decide whether the block exists at all, these are a reading position inside it.
+function trendKey() { return 'medx_admin_trend:' + ((session.user || {}).id || 'anon'); }
+function readTrendPrefs() {
+  const d = { days: DEFAULT_DAYS, mode: 'daily', hidden: {} };
+  try {
+    const o = JSON.parse(localStorage.getItem(trendKey()) || '{}');
+    return { days: normDays(o.days), mode: o.mode === 'cumulative' ? 'cumulative' : 'daily', hidden: (o.hidden && typeof o.hidden === 'object') ? o.hidden : {} };
+  } catch (e) { return d; }
+}
+function writeTrendPrefs() { try { localStorage.setItem(trendKey(), JSON.stringify({ days: st.trDays, mode: st.trMode, hidden: st.trHidden })); } catch (e) {} }
+function trendModel() { return buildTrend(D.trends, { days: st.trDays, mode: st.trMode, hidden: st.trHidden }); }
+
+const CH_PAD = { l: 34, r: 10, t: 10, b: 22 };
+const CH_PLOT_H = 130;
+const CH_H = CH_PAD.t + CH_PLOT_H + CH_PAD.b;
+
+// The whole plot as one SVG string, laid out in real pixels for the measured width — no
+// preserveAspectRatio stretching, so the labels stay at their true size at every viewport.
+function trendSvg(m, W) {
+  const { l, r, t } = CH_PAD;
+  const plotW = Math.max(60, W - l - r), n = m.dates.length, slot = plotW / n;
+  const x = i => l + (i + 0.5) * slot;
+  const y = v => t + CH_PLOT_H - (m.top ? (v / m.top) * CH_PLOT_H : 0);
+  const base = y(0), right = l + plotW;
+  const totalRow = m.series.find(s => s.total);
+  const bars = m.mode === 'daily' && !totalRow.hidden;
+  const bw = Math.max(1, Math.min(16, slot - (n > 45 ? 1 : 2.5)));
+
+  const grid = m.ticks.map(v => `<line x1="${l}" y1="${y(v).toFixed(1)}" x2="${right}" y2="${y(v).toFixed(1)}" stroke="rgba(32,27,22,${v === 0 ? '.28' : '.07'})" stroke-width="1"></line>
+      <text x="${l - 6}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end" font-family="Inter,sans-serif" font-size="8.5" font-weight="600" fill="#6d6459">${v}</text>`).join('');
+
+  const xlab = m.tickIdx.map(i => {
+    const last = i === n - 1, first = i === 0;
+    const px = last ? right : first ? l : x(i);
+    return `<text x="${px.toFixed(1)}" y="${(t + CH_PLOT_H + 14).toFixed(1)}" text-anchor="${last ? 'end' : first ? 'start' : 'middle'}" font-family="Inter,sans-serif" font-size="8.5" font-weight="600" letter-spacing=".06em" fill="${last ? '#9b1b22' : '#6d6459'}">${last ? COPY.trends.today : esc(dayTick(m.dates[i]))}</text>`;
+  }).join('');
+  const todayMark = `<line x1="${x(n - 1).toFixed(1)}" y1="${t}" x2="${x(n - 1).toFixed(1)}" y2="${base.toFixed(1)}" stroke="#9b1b22" stroke-width="1" stroke-dasharray="2 3" opacity=".35"></line>`;
+
+  const barRects = bars ? totalRow.plot.map((v, i) => v <= 0 ? '' :
+    `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, base - y(v)).toFixed(1)}" fill="#9b1b22" opacity=".85"></rect>`).join('') : '';
+
+  const lines = m.visible.filter(s => !s.total || !bars).map(s => {
+    const pts = s.plot.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+    const area = s.total ? `<path d="M${pts.split(' ').join(' L')} L${right.toFixed(1)},${base.toFixed(1)} L${l},${base.toFixed(1)} Z" fill="${s.color}" opacity=".08"></path>` : '';
+    return area + `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.total ? 2 : 1.4}" stroke-linejoin="round" stroke-linecap="round"></polyline>`;
+  }).join('');
+
+  return `<svg width="${W}" height="${CH_H}" viewBox="0 0 ${W} ${CH_H}" role="img" aria-label="${esc(COPY.trends.title(m.days))} — ${esc(m.scopeLabel)}" style="display:block;overflow:visible">
+      ${grid}${todayMark}${barRects}${lines}${xlab}
+      <line data-role="trGuide" x1="0" y1="${t}" x2="0" y2="${base.toFixed(1)}" stroke="#201b16" stroke-width="1" opacity="0" pointer-events="none"></line>
+      <g data-role="trDots" pointer-events="none"></g>
+      <rect data-role="trHit" x="${l}" y="${t}" width="${plotW.toFixed(1)}" height="${CH_PLOT_H}" fill="transparent" style="touch-action:pan-y;cursor:crosshair"></rect>
+    </svg>`;
 }
 function overdueTasks() { const today = fmt.ymd(new Date()); return D.tasks.filter(t => t.due_date && String(t.due_date).trim() && fmt.ymd(t.due_date) < today); }
 function attentionItems() {
@@ -317,6 +381,7 @@ function blockCustomise() {
       <div style="display:flex;flex-direction:column;gap:8px">
         <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${COPY.customise.numbers}</span>
         ${KPI_KEYS.map(k => box(k, COPY.kpi[k].label)).join('\n        ')}
+        ${box(TREND_KEY, COPY.kpi.kTrend.label)}
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${COPY.customise.shortcuts}</span>
@@ -327,7 +392,7 @@ function blockCustomise() {
     <!-- /dc -->`;
 }
 function blockHero() {
-  const kpis = kpiDefs(); const t = trendSeries();
+  const kpis = kpiDefs();
   return `
     <!-- dc: Admin Home.dc.html › "Hero numbers" -->
     <div data-block="hero" style="border:1px solid rgba(32,27,22,.14);background:#fff">
@@ -340,28 +405,38 @@ function blockHero() {
         </a>`).join('')}
       ${!kpis.length ? `<div style="padding:18px 22px;font-size:12.5px;color:#6d6459">${COPY.doItNow.empty.replace('shortcuts', 'numbers')}</div>` : ''}
     </div>
-    <div style="border-top:1px solid rgba(32,27,22,.12);padding:14px 22px 16px">
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${COPY.trends.title}</span>
-        <span style="font-family:Fraunces,serif;font-size:18px">${D.trends ? t.total : '—'}</span>
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459">${COPY.trends.scope}</span>
-        <div style="flex:1"></div>
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${fmt.sparkRange(30)}</span>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:8px;align-items:stretch">
-        <div style="display:flex;flex-direction:column;justify-content:space-between;width:20px;flex:none;font:600 8.5px Inter,sans-serif;color:#6d6459;text-align:right;padding:1px 0 3px"><span>${t.top}</span><span>${t.top / 2}</span><span>0</span></div>
-        <svg viewBox="0 0 300 46" style="flex:1;min-width:0;height:54px;display:block" preserveAspectRatio="none" aria-label="Registrations per day, last 30 days">
-          <defs><linearGradient id="regfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(155,27,34,.16)"></stop><stop offset="1" stop-color="rgba(155,27,34,0)"></stop></linearGradient></defs>
-          <line x1="0" y1="5" x2="300" y2="5" stroke="rgba(32,27,22,.06)" stroke-width="1"></line>
-          <line x1="0" y1="25" x2="300" y2="25" stroke="rgba(32,27,22,.08)" stroke-width="1"></line>
-          <path d="${t.area}" fill="url(#regfill)" stroke="none"></path>
-          <polyline points="${t.line}" fill="none" stroke="#9b1b22" stroke-width="1.8"></polyline>
-          <line x1="0" y1="45" x2="300" y2="45" stroke="rgba(32,27,22,.18)" stroke-width="1"></line>
-        </svg>
-      </div>
-    </div>
+    ${blockTrend()}
     </div>
     <!-- /dc -->`;
+}
+// The registrations chart. Re-rendered on its own for a chip/range/mode click; the SVG inside is
+// drawn by drawTrend() after the markup lands, because it is laid out in measured pixels.
+function blockTrend() {
+  if (!D.prefs[TREND_KEY]) return '<!-- trend chart hidden via ✎ CUSTOMISE -->';
+  const c = COPY.trends;
+  const m = D.trends ? trendModel() : null;
+  const pill = (on, label, act, data, title) => `<span data-act="${act}" ${data} role="button" aria-pressed="${on}" title="${esc(title)}" style="padding:4px 9px;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;border:1px solid ${on ? '#201b16' : 'rgba(32,27,22,.18)'};background:${on ? '#201b16' : '#fff'};color:${on ? '#f6f2ea' : '#6d6459'}">${label}</span>`;
+  const chip = s => `<span data-act="trChip" data-key="${s.key}" role="checkbox" aria-checked="${!s.hidden}" title="${esc(c.chipTitle(s.label, !s.hidden))}" style="display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid ${s.hidden ? 'rgba(32,27,22,.14)' : 'rgba(32,27,22,.3)'};background:${s.hidden ? 'transparent' : '#fff'};font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:${s.hidden ? '#a49a8d' : '#201b16'};cursor:pointer" data-hover="border-color:#201b16">
+      <span style="width:9px;height:9px;flex:none;background:${s.hidden ? 'transparent' : s.color};border:1px solid ${s.color};opacity:${s.hidden ? '.45' : '1'}"></span>${s.label}<span style="color:${s.hidden ? '#bdb4a7' : '#6d6459'};letter-spacing:.06em">${s.sum}</span></span>`;
+  return `
+    <div data-block="trend" style="border-top:1px solid rgba(32,27,22,.12);padding:14px 22px 16px">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${c.title(st.trDays)}</span>
+        <span style="font-family:Fraunces,serif;font-size:18px">${m ? esc(c.regs(m.total)) : '—'}</span>
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459">${m ? esc(m.scopeLabel) : ''}</span>
+        <div style="flex:1;min-width:10px"></div>
+        <span style="display:inline-flex;gap:4px">${[['daily', c.daily], ['cumulative', c.cumulative]].map(([k, l]) => pill(st.trMode === k, l, 'trMode', `data-mode="${k}"`, c.modeTitle)).join('')}</span>
+        <span style="display:inline-flex;gap:4px">${RANGES.map(d => pill(st.trDays === d, d + 'D', 'trRange', `data-days="${d}"`, c.rangeTitle(d))).join('')}</span>
+      </div>
+      ${m ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${m.series.map(chip).join('')}</div>` : ''}
+      ${m && m.stale ? `<div style="font-size:11px;color:#b7791f;margin-top:8px">${c.stale}</div>` : ''}
+      <div data-role="trHost" style="position:relative;margin-top:10px;min-height:${CH_H}px"></div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-top:2px">
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${m ? esc(m.rangeLabel) : ''}</span>
+        <div style="flex:1"></div>
+        ${m && !m.visible.length ? `<span style="font-size:11.5px;color:#9b1b22">${c.none}</span>` : m && !m.total ? `<span style="font-size:11.5px;color:#6d6459;font-style:italic">${c.empty}</span>` : ''}
+      </div>
+    </div>`;
 }
 function blockProjects() {
   const c = COPY.projects, s = D.status, g = D.gala, conf = D.conf;
@@ -566,7 +641,7 @@ function template() {
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
 function rerenderCustomise() { const el = rootEl.querySelector('[data-block="customise"]'); const html = blockCustomise(); if (el) { el.outerHTML = html; } else { const g = rootEl.querySelector('[data-block="pill"]'); const row = g && g.closest('div'); if (row) row.insertAdjacentHTML('afterend', html); } const b = rootEl.querySelector('[data-act="custToggle"]'); if (b) b.style.background = st.custOpen ? '#f6f2ea' : '#fff'; }
 async function savePrefs() {
-  const cards = KPI_KEYS.concat(SC_KEYS).map((k, i) => ({ card_id: k, is_visible: !!D.prefs[k], sort_order: i }));
+  const cards = PREF_KEYS.map((k, i) => ({ card_id: k, is_visible: !!D.prefs[k], sort_order: i }));
   try { await api.put('/api/dashboard-preferences/' + PREFS_SECTION, { cards }); ui.toast(COPY.customise.saved); }
   catch (e) { ui.toast(COPY.customise.failed, { kind: 'error' }); }
 }
@@ -576,9 +651,93 @@ async function reloadTasks() {
   const attn = rootEl.querySelector('[data-block="attn"]'); if (attn) attn.outerHTML = attentionRows();
 }
 
+// Draw (or redraw) the chart into the block that is currently in the DOM, sized to the space it
+// actually has. Re-run after every re-render of the block and on any resize — that is what keeps
+// it from overflowing a phone and what keeps the tick labels unstretched.
+let trRO = null, trOff = null;
+function drawTrend() {
+  if (trOff) { trOff(); trOff = null; }
+  if (trRO) { trRO.disconnect(); trRO = null; }
+  const host = rootEl && rootEl.querySelector('[data-role="trHost"]');
+  if (!host || !D.trends) return;
+  const m = trendModel();
+  const paint = () => {
+    const W = Math.max(240, Math.round(host.clientWidth || 0));
+    if (!W) return;
+    host.innerHTML = trendSvg(m, W) + `<div data-role="trTip" style="position:absolute;left:0;top:0;display:none;pointer-events:none;background:#201b16;color:#f6f2ea;padding:8px 10px;max-width:min(240px,calc(100% - 8px));box-shadow:0 8px 22px rgba(32,27,22,.28);z-index:5"></div>`;
+    bindTrendHover(host, m, W);
+  };
+  paint();
+  if (typeof ResizeObserver === 'function') {
+    let last = host.clientWidth;
+    trRO = new ResizeObserver(() => { const w = host.clientWidth; if (Math.abs(w - last) > 1) { last = w; paint(); } });
+    trRO.observe(host);
+  }
+}
+// Pointer tracking: one hit rect over the plot, a guide line, a dot per visible series and a
+// tooltip that follows the pointer and is clamped inside the host so it can never clip off a
+// phone. Touch works through Pointer Events; `touch-action:pan-y` on the rect keeps the page
+// scrollable while a horizontal drag reads the chart.
+function bindTrendHover(host, m, W) {
+  const svg = host.querySelector('svg'), hit = host.querySelector('[data-role="trHit"]');
+  const guide = host.querySelector('[data-role="trGuide"]'), dots = host.querySelector('[data-role="trDots"]');
+  const tip = host.querySelector('[data-role="trTip"]');
+  if (!svg || !hit || !tip) return;
+  const { l, r, t } = CH_PAD;
+  const plotW = Math.max(60, W - l - r), n = m.dates.length, slot = plotW / n;
+  const x = i => l + (i + 0.5) * slot;
+  const y = v => t + CH_PLOT_H - (m.top ? (v / m.top) * CH_PLOT_H : 0);
+  let idx = -1;
+  const hide = () => { idx = -1; guide.setAttribute('opacity', '0'); dots.innerHTML = ''; tip.style.display = 'none'; };
+  const move = (e) => {
+    const box = svg.getBoundingClientRect();
+    const i = Math.min(n - 1, Math.max(0, Math.floor((e.clientX - box.left - l) / slot)));
+    if (i !== idx) {
+      idx = i;
+      guide.setAttribute('x1', x(i).toFixed(1)); guide.setAttribute('x2', x(i).toFixed(1));
+      guide.setAttribute('opacity', '.2');
+      dots.innerHTML = m.visible.map(s => `<circle cx="${x(i).toFixed(1)}" cy="${y(s.plot[i]).toFixed(1)}" r="3" fill="#fff" stroke="${s.color}" stroke-width="1.6"></circle>`).join('');
+      // Past five rows the single column grows taller than the plot itself, so it goes two-up —
+      // that is what keeps the whole tooltip inside the card on a phone as well as on a desktop.
+      const cols = m.visible.length > 5 ? 2 : 1;
+      tip.style.maxWidth = cols === 2 ? 'min(330px,calc(100% - 8px))' : 'min(240px,calc(100% - 8px))';
+      tip.innerHTML = `<div style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#c9a962">${esc(dayFull(m.dates[i]).toUpperCase())}</div>`
+        + (m.visible.length ? `<div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));column-gap:14px;margin-top:3px">`
+            + m.visible.map(s => `<div style="display:flex;align-items:center;gap:6px;margin-top:3px;font:400 11px Inter,sans-serif;line-height:1.35;white-space:nowrap"><span style="width:8px;height:8px;flex:none;background:${s.color}"></span><span style="flex:1;min-width:0">${s.label}</span><span style="font-weight:600">${s.plot[i]}</span></div>`).join('')
+            + `</div>`
+          : `<div style="margin-top:4px;font:400 11.5px Inter,sans-serif;white-space:normal">${COPY.trends.none}</div>`);
+      tip.style.display = 'block';
+    }
+    // Follow the pointer, then clamp hard to the host box on both axes — the tooltip is a child of
+    // the host, so staying inside it is what guarantees nothing clips off the card or the screen.
+    const hb = host.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    const maxX = Math.max(0, hb.width - tw), maxY = Math.max(0, hb.height - th);
+    let px = e.clientX - hb.left + 14, py = e.clientY - hb.top + 12;
+    if (px > maxX) px = e.clientX - hb.left - 14 - tw;
+    if (py > maxY) py = e.clientY - hb.top - 12 - th;
+    tip.style.left = Math.round(Math.min(Math.max(0, px), maxX)) + 'px';
+    tip.style.top = Math.round(Math.min(Math.max(0, py), maxY)) + 'px';
+  };
+  hit.addEventListener('pointermove', move);
+  hit.addEventListener('pointerdown', move);
+  hit.addEventListener('pointerleave', hide);
+  hit.addEventListener('pointercancel', hide);
+  trOff = () => { hit.removeEventListener('pointermove', move); hit.removeEventListener('pointerdown', move); hit.removeEventListener('pointerleave', hide); hit.removeEventListener('pointercancel', hide); };
+}
+function rerenderTrend() { rerender('[data-block="trend"]', blockTrend()); drawTrend(); }
+
 const handlers = {
   custToggle: () => { st.custOpen = !st.custOpen; rerenderCustomise(); },
-  custTg: (el) => { const k = el.dataset.key; D.prefs[k] = !D.prefs[k]; rerenderCustomise(); rerender('[data-block="hero"]', blockHero()); rerender('[data-block="doit"]', blockDoIt()); savePrefs(); },
+  trChip: (el) => { const k = el.dataset.key; const m = trendModel(); const cur = m.series.find(s => s.key === k); if (!cur) return; st.trHidden[k] = !cur.hidden; writeTrendPrefs(); rerenderTrend(); },
+  trMode: (el) => { const mode = el.dataset.mode === 'cumulative' ? 'cumulative' : 'daily'; if (mode === st.trMode) return; st.trMode = mode; writeTrendPrefs(); rerenderTrend(); },
+  trRange: async (el) => {
+    const d = normDays(el.dataset.days); if (d === st.trDays) return;
+    st.trDays = d; writeTrendPrefs(); rerenderTrend();                        // redraw at once on the data we have
+    try { const t = await api.get('/api/dashboard/trends?days=' + d); if (st && st.trDays === d) { D.trends = t; rerenderTrend(); } }
+    catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  custTg: (el) => { const k = el.dataset.key; D.prefs[k] = !D.prefs[k]; rerenderCustomise(); rerender('[data-block="hero"]', blockHero()); drawTrend(); rerender('[data-block="doit"]', blockDoIt()); savePrefs(); },
   snooze: (el) => {
     const id = el.dataset.id; const m = readSnoozes(); m[id] = nextMidnight(); writeSnoozes(m);
     const attn = rootEl.querySelector('[data-block="attn"]'); if (attn) attn.outerHTML = attentionRows();
@@ -652,17 +811,22 @@ export default {
     if (!document.getElementById('mx-css-today')) {
       const l = document.createElement('link'); l.id = 'mx-css-today'; l.rel = 'stylesheet'; l.href = '/css/views/today.css'; document.head.appendChild(l);
     }
-    st = { custOpen: ctx.query.qa === 'customise', wrOpen: false, wrAll: false, showAll: false, adding: false, taskDraft: '', taskWho: '' };
-    D = await load();
+    const tp = readTrendPrefs();
+    st = { custOpen: ctx.query.qa === 'customise', wrOpen: false, wrAll: false, showAll: false, adding: false, taskDraft: '', taskWho: '',
+           trDays: tp.days, trMode: tp.mode, trHidden: tp.hidden };
+    D = await load(st.trDays);
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
+    drawTrend();
     startTimers();
     health.refresh();
     chrome.refresh();
   },
   destroy() {
     timers.forEach(stop => { try { stop(); } catch (e) {} }); timers = [];
+    if (trOff) { trOff(); trOff = null; }
+    if (trRO) { trRO.disconnect(); trRO = null; }
     if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null;
   }
 };

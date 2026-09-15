@@ -193,7 +193,7 @@ function header() {
   <!-- dc: Admin Home.dc.html › "Header" -->
   <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14);position:relative;z-index:50">
     <div class="mx-topbar mx-gutter" style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px;position:relative">
-      <a href="/today" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="/assets/logo.png" alt="med&amp;X" style="height:18px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">${COPY.admin}</span></a>
+      <a href="/today" class="mx-brand" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:18px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">${COPY.admin}</span></a>
       <span id="mx-menu-btn" data-act="menu" aria-label="Menu" style="align-items:center;gap:8px;font:600 10.5px Inter,sans-serif;letter-spacing:.18em;cursor:pointer"><span style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#201b16"></span><span style="width:18px;height:2px;background:#201b16"></span><span style="width:12px;height:2px;background:#201b16"></span></span>${COPY.nav.menu}</span>
       <div class="mx-nav" style="display:flex;gap:22px;align-items:center;height:100%">
         ${NAV.map(navItem).join('\n        ')}

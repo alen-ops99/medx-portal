@@ -55,6 +55,7 @@ admin-portal/frontend-v2/
 ├─ js/router.js               History-API router (+ auth + permission guards, scroll restore, not-found)
 ├─ js/routes.js               THE ROUTE TABLE
 ├─ js/chrome.js               the header (nav, badges, PROJECTS dropdown, search + assistant, profile menu)
+├─ js/trends.js               the registrations chart's PURE layer: payload → axis + named series + ticks (no DOM; unit-tested by tests/today-trends.test.js)
 ├─ js/views/*.js              one module per destination (default export { title, render, destroy }); `_stub.js` = placeholder factory
 ├─ assets/                    logo.png · logo-white.png · mark-x.png (from the export) · icons/ (shared with the member PWA)
 ├─ scripts/                   apply-config.js · qa-today.py
@@ -383,7 +384,7 @@ node ../../scripts/design-diff.js design/handoff/admin-portal-2026-08-28 ~/Downl
 | chrome | `GET /api/admin/search?q=` | header search — people/registrations/gala rows |
 | chrome | `POST /api/admin/assistant` · `POST /api/admin/assistant/execute` | the agent front door (note 14); confirm-before-execute |
 | Today | `GET /api/dashboard/summary` | conference registrations, accelerator applications, forum members, bridges cities |
-| Today | `GET /api/dashboard/trends` | the 30-day registration sparkline (plexus + accelerator + events series, summed per day) |
+| Today | `GET /api/dashboard/trends?days=7\|30\|90` | the registrations chart. Zero-filled daily series PER SOURCE — `conference`, `gala` (+`gala_paid`/`gala_unpaid`), `bridges_zagreb`, `bridges_boston`, `accelerator`, `forum`, `meetups` — plus `total` and `days`/`from`/`to`. The original `plexus`/`accelerator`/`events` keys and `?event=` still answer exactly as before (admin v1 reads them). Mapped to the chart by `js/trends.js`. |
 | Today | `GET /api/admin/gala/registrations` · `GET /api/admin/gala/settings` | GALA SEATS PAID, payments to chase, collected €, early-bird deadline + price flip |
 | Today | `GET /api/finance/dashboard` | collected-this-year cross-check (`totalIncome`, `byProject`) |
 | Today | `GET /api/admin/nag/items` | Action Center rows (kind, title, `action_payload`, status) |

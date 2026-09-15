@@ -81,7 +81,7 @@ function topBar() {
       <span style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#191512"></span><span style="width:18px;height:2px;background:#191512"></span><span style="width:12px;height:2px;background:#191512"></span></span>
       <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.18em">${COPY.menu}</span>
     </span>
-    <a href="/app/home" style="display:block"><img src="/assets/logo.png" alt="med&amp;X" style="height:22px;display:block"></a>
+    <a href="/app/home" class="mx-brand" style="display:block"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:22px;display:block"></a>
     <div style="flex:1"></div>
     <span data-act="search" aria-label="Search" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">${COPY.search}</span>
     <span data-act="alerts" aria-label="Alerts" style="display:flex;align-items:center;gap:6px;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">${COPY.alerts}<span data-role="unread-dot" style="width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'inline-block' : 'none'}"></span></span>
@@ -164,7 +164,7 @@ function mobileTop() {
   <!-- dc: Mobile Portal.dc.html › "Top bar" -->
   <div id="mx-mobile-top" style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(25,21,18,.16);position:sticky;top:0;background:#f7f1e6;z-index:20">
     ${isRoot
-      ? `<a href="/app/home" style="display:block"><img src="/assets/logo.png" alt="med&amp;X" style="height:17px;display:block"></a>`
+      ? `<a href="/app/home" class="mx-brand" style="display:block"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:17px;display:block"></a>`
       : `<span data-act="back" aria-label="Back" style="font-size:17px;cursor:pointer;color:#9b1b22;min-width:44px;min-height:24px;display:inline-flex;align-items:center">←</span>`}
     <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${esc(title)}</span>
     <div style="flex:1"></div>
