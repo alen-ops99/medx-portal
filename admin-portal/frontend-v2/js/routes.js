@@ -19,6 +19,9 @@ export const ROUTES = [
   { path: '/projects/accelerator/:tab?', view: () => import('./views/accelerator.js'), active: 'Projects', title: 'Accelerator',       sections: S.accelerator },
   { path: '/projects/forum/:tab?',       view: () => import('./views/forum.js'),       active: 'Projects', title: 'Biomedical Forum',  sections: S.forum },
   { path: '/projects/bridges/:tab?',     view: () => import('./views/bridges.js'),     active: 'Projects', title: 'Building Bridges',  sections: S.bridges },
+  // BIG IDEAS — a primary destination of its own (never a tab inside PROJECTS): the long-term
+  // projects book. '/big-ideas' is the list, '/big-ideas/<id>' the detail.
+  { path: '/big-ideas/:id?',   view: () => import('./views/big-ideas.js'),   active: 'Big Ideas', title: 'Big Ideas',    sections: S.bigideas },
   { path: '/inbox/:tab?',      view: () => import('./views/inbox.js'),       active: 'Inbox',     title: 'Inbox',        sections: S.inbox },      // outbox|email|messages|announcements|newsletter|chat
   { path: '/people/:tab?',     view: () => import('./views/people.js'),      active: 'People',    title: 'People',       sections: S.people },
   { path: '/money/:tab?',      view: () => import('./views/money.js'),       active: 'Money',     title: 'Money',        sections: S.money },

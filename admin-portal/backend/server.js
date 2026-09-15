@@ -971,11 +971,16 @@ if (STORAGE_IS_EPHEMERAL) {
 }
 // Endpoints whose multipart body is parsed then discarded (never persisted) — always allowed.
 const UPLOAD_EXEMPT_SUFFIXES = ['/import', '/prospects/preview'];
+// Big Ideas attachments never touch local disk (multer memoryStorage → the private S3 bucket in
+// v2/big-ideas.js), so the ephemeral-disk guard does not apply to them — exempt by prefix, the same
+// way the member portal exempts the Boston upload lanes.
+const UPLOAD_EXEMPT_PREFIXES = ['/api/v2/big-ideas/'];
 app.use((req, res, next) => {
     if (!STORAGE_IS_EPHEMERAL) return next();
     if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') return next();
     if (!(req.headers['content-type'] || '').includes('multipart/form-data')) return next();
     if (UPLOAD_EXEMPT_SUFFIXES.some(s => req.path.endsWith(s))) return next();
+    if (UPLOAD_EXEMPT_PREFIXES.some(s => req.path.startsWith(s))) return next();
     return res.status(503).json({ error: 'File uploads are temporarily unavailable. Persistent storage is not configured, so an uploaded file would be lost on the next restart. Please contact the administrator.' });
 });
 
@@ -1169,6 +1174,11 @@ const PERMISSION_SECTIONS = [
     { id: 'bridges',       label: 'Building Bridges',      group: 'Projects',        desc: 'Events, speakers, Croatians abroad' },
     { id: 'plexus-meetups',label: 'Plexus Meetups',        group: 'Projects',        desc: 'Plexus Week meetups: tables, hosts, attendees, waitlists, invitations' },
     { id: 'plexus-awards', label: 'Plexus Awards',         group: 'Projects',        desc: 'The four Gala awards: nominations, the reading panel, shortlists, laureates' },
+    // BIG IDEAS (2026-09-15) — the long game beyond Plexus and Building Bridges: joint programmes,
+    // the people we met, the institutions, the log, the next step. Every admin with full access
+    // (allowed_sections NULL — which is the whole team today) has it automatically; only a SCOPED
+    // admin (an explicit section list) needs this id granted from Team Access.
+    { id: 'big-ideas',     label: 'Big Ideas',             group: 'Projects',        desc: 'Long-term projects: the idea, the people, the institutions, the log, the next step' },
     { id: 'gameday',       label: 'Game Day',              group: 'Events & access', desc: 'Event-day staff console & tracking' },
     { id: 'conferences',   label: 'Conferences',           group: 'Events & access', desc: 'Conference & ticket-type management' },
     { id: 'editions',      label: 'Editions',              group: 'Events & access', desc: 'Past & future editions' },
@@ -1203,6 +1213,11 @@ const SECTION_ROUTE_MAP = [
     // — Plexus Gala AWARDS (2026-09-11, design/AWARDS-SPEC.md): its own section, for the same
     //   reason — a reading panel's administrator does not need the whole Plexus project.
     ['/api/v2/awards-ops', 'plexus-awards'],
+    // — BIG IDEAS (2026-09-15, admin-portal/backend/v2/big-ideas.js): the long-game book. Mapped
+    //   so it has a home in Team Access at all; because the policy is DENY-only-what-is-mapped and
+    //   allowed_sections NULL means full access, every admin on the team sees it by default. A
+    //   scoped admin (an explicit section list) needs `big-ideas` added to their list.
+    ['/api/v2/big-ideas', 'big-ideas'],
     // — Plexus Week (incl. Gala, ticketing, check-in, sponsors, volunteers, auctions, event ops) —
     ['/api/plexus', 'plexus'], ['/api/admin/plexus', 'plexus'], ['/api/admin/plexus-experience', 'plexus'],
     ['/api/gala', 'plexus'], ['/api/admin/gala', 'plexus'],

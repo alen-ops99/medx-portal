@@ -76,6 +76,13 @@ export const COPY = {
     }
   },
   doItNow: { title: 'DO IT NOW', hint: 'edit via ✎ CUSTOMISE', empty: 'No shortcuts picked — add some via ✎ CUSTOMISE.' },
+  // Big Ideas — the long game. The card appears only when a next step is due or already late;
+  // with nothing owing it stays away entirely (the section is one click up in the top nav).
+  bigIdeas: {
+    title: 'BIG IDEAS — NEXT STEPS', hint: 'the long game', all: n => `ALL ${n} →`, open: '/big-ideas',
+    overdue: d => `${d}D OVERDUE`, today: 'DUE TODAY', due: d => `DUE ${d}`,
+    locked: 'Big Ideas needs access — ask Alen.'
+  },
   shortcuts: {
     sScan: { label: 'REHEARSE THE SCANNER', href: '/event-day', gold: true, pick: 'Rehearse the scanner' },
     sEmail: { label: 'EMAIL PLEXUS REGISTRANTS', href: '/inbox/email', pick: 'Email Plexus registrants' },
@@ -134,7 +141,8 @@ async function load() {
     bridges: api.get('/api/bridges/events'),
     forumCand: api.get('/api/admin/forum/candidates?status=all'),
     institutions: api.get('/api/accelerator/institutions', { noAuth: true }),
-    team: api.get('/api/team')
+    team: api.get('/api/team'),
+    bigIdeas: api.get('/api/v2/big-ideas/due?days=14')   // Big Ideas — next steps due or overdue
   });
   if (r.me) session.update(r.me);
   const today = fmt.ymd(new Date());
@@ -171,7 +179,10 @@ async function load() {
     forumCandidates: r.forumCand && r.forumCand.counts ? Number(r.forumCand.counts.all || 0) : 0,
     institutions: Array.isArray(r.institutions) ? r.institutions.filter(i => Number(i.is_active == null ? 1 : i.is_active)).length : null,
     plexusDays: Math.max(0, fmt.daysUntil(conf.start_date || FACTS.plexus.start) || 0),
-    cap: Number(conf.max_capacity) || FACTS.plexus.cap
+    cap: Number(conf.max_capacity) || FACTS.plexus.cap,
+    // Big Ideas: the next steps already due or falling inside a fortnight, overdue first. An older
+    // backend answers 404 — the card then simply has nothing to show and stays away.
+    bigIdeas: (r.bigIdeas && Array.isArray(r.bigIdeas.items)) ? r.bigIdeas.items : []
   };
 }
 
@@ -430,9 +441,35 @@ function blockAttention() {
             ${!shortcuts.length ? `<span style="font-size:12.5px;color:#6d6459;font-style:italic">${COPY.doItNow.empty}</span>` : ''}
           </div>
         </div>
+        ${bigIdeasCard()}
       </div>
     </div>
     <!-- /dc -->`;
+}
+// Big Ideas — next steps. A compact card in the right-hand column (so it inherits the ≤480px
+// order of .mx-t-attn), showing the five most pressing next steps, overdue first. With nothing
+// due it renders NOTHING: the flex gap collapses and Today looks exactly as it did.
+function bigIdeasCard() {
+  const c = COPY.bigIdeas;
+  const items = Array.isArray(D.bigIdeas) ? D.bigIdeas : [];
+  if (!items.length) return `
+        <!-- Big Ideas — next steps: nothing due, so no card -->`;
+  const shown = items.slice(0, 5);
+  const label = i => (i.days_until < 0 ? c.overdue(Math.abs(i.days_until)) : i.days_until === 0 ? c.today : c.due(i.next_step_due || ''));
+  const colour = i => (i.days_until < 0 ? '#9b1b22' : i.days_until <= 3 ? '#b7791f' : '#6d6459');
+  return `
+        <div data-block="bigideas" style="border:1px solid rgba(32,27,22,.14);background:#fff">
+          <div style="display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${c.hint}</span></div>
+          ${shown.map((i, n) => `
+          <a class="mx-row" href="/big-ideas/${esc(i.id)}" style="display:flex;gap:12px;align-items:baseline;padding:12px 20px;color:#201b16;${n < shown.length - 1 ? 'border-bottom:1px solid rgba(32,27,22,.08)' : ''}" data-hover="background:#fdfbf6">
+            <span class="mx-row-text" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+              <span style="font-size:12.5px;font-weight:600;overflow-wrap:anywhere">${esc(i.title)}</span>
+              <span style="font-size:11.5px;color:#6d6459;line-height:1.45;overflow-wrap:anywhere">${esc(i.next_step)}</span>
+            </span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${colour(i)};white-space:nowrap">${esc(label(i))}</span>
+          </a>`).join('')}
+          ${items.length > shown.length ? `<div style="padding:10px 20px;border-top:1px solid rgba(32,27,22,.08);display:flex"><div style="flex:1"></div><a href="${c.open}" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${c.all(items.length)}</a></div>` : ''}
+        </div>`;
 }
 function tasksCard() {
   const c = COPY.tasks; const open = D.tasks; const shown = open.slice(0, TOP_ROWS);

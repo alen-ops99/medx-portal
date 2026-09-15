@@ -24,7 +24,7 @@ import router from './router.js';
 
 export const COPY = {
   admin: 'ADMIN',
-  nav: { today: 'TODAY', projects: 'PROJECTS', inbox: 'INBOX', people: 'PEOPLE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', menu: 'MENU' },
+  nav: { today: 'TODAY', projects: 'PROJECTS', bigIdeas: 'BIG IDEAS', inbox: 'INBOX', people: 'PEOPLE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', menu: 'MENU' },
   chat: { label: 'TEAM CHAT', title: 'Team chat — straight to the chat tab' },
   search: { placeholder: 'Search or type a task…', none: 'No matches — try a screen, a person, or a project.', hint: 'Type a name, a screen, or an instruction — Enter asks the assistant.', asking: 'Asking the assistant…', ask: 'ASK', confirm: 'CONFIRM', done: 'Done.', gated: 'The do-it-for-me assistant needs ANTHROPIC_API_KEY on the admin service — search and live numbers still work.' },
   menu: { displayName: 'DISPLAY NAME', save: 'SAVE', saved: '✓ SAVED', team: 'TEAM ACCESS →', signOut: 'SIGN OUT', profileTitle: 'Your profile', locked: 'Locked — ask Alen, he grants access per section' },
@@ -37,6 +37,10 @@ export const COPY = {
 const NAV = [
   { key: 'Today', label: COPY.nav.today, to: '/today' },
   { key: 'Projects', label: COPY.nav.projects, to: '/projects/plexus', dropdown: true, sections: ['plexus', 'accelerator', 'forum', 'bridges'] },
+  // BIG IDEAS sits between PROJECTS and INBOX as a primary item, never inside the PROJECTS
+  // dropdown — the owner's rule is that it cannot be buried. Same list on desktop and in the
+  // ≤760px MENU drawer (both render this NAV array).
+  { key: 'Big Ideas', label: COPY.nav.bigIdeas, to: '/big-ideas', sections: ['big-ideas'] },
   { key: 'Inbox', label: COPY.nav.inbox, to: '/inbox', badge: 'inbox', sections: ['member-ops', 'pr-media'] },
   { key: 'People', label: COPY.nav.people, to: '/people', sections: ['member-ops', 'guest-passes', 'team', 'contacts'] },
   { key: 'Money', label: COPY.nav.money, to: '/money', sections: ['finances'] },
@@ -72,6 +76,9 @@ const PALETTE = [
   { kind: 'SCREEN', label: 'Gala Evening — guests, seating, chase', syn: 'seating stol stolovi raspored sjedenja meal menu večera kitchen gosti naplata', href: '/gala' },
   { kind: 'SCREEN', label: COPY.meetups.screen, syn: 'meetup meetups kava coffee ručak lunch dinner večera walk šetnja stol table host domaćin waitlist lista čekanja plexus week', href: '/projects/plexus/meetups' },
   { kind: 'ACTION', label: COPY.meetups.action, syn: 'meetup meetups new napravi kava coffee ručak lunch stol table host domaćin capacity kapacitet waitlist lista čekanja invite pozovi', href: '/projects/plexus/meetups' },
+  { kind: 'SCREEN', label: 'Big Ideas — the long-term projects book', syn: 'big idea ideje ideja dugoročno long term phd programme program suradnja collaboration ministarstvo ministry partnership sveučilište university yale', href: '/big-ideas' },
+  { kind: 'ACTION', label: 'Add a big idea', syn: 'new big idea nova ideja dodaj add long term projekt project partnership programme', href: '/big-ideas?new=1' },
+  { kind: 'ACTION', label: 'Portfolio briefing — before a ministry meeting', syn: 'briefing ministarstvo ministry portfolio print sastanak meeting sve ideje one pager', href: '/big-ideas' },
   { kind: 'SCREEN', label: 'Inbox — email, outbox, chat', syn: 'poruke pošta mail', href: '/inbox' },
   { kind: 'SCREEN', label: 'People', syn: 'ljudi članovi members kontakti directory imenik', href: '/people' },
   { kind: 'SCREEN', label: 'Registrations — all events', syn: 'prijave registracije sign-ups sudionici attendees', href: '/registrations' },

@@ -1,0 +1,39 @@
+/* css/views/big-ideas.css — Big Ideas (2026-09-15).
+   Behaviour + responsive only; the look stays inline in js/views/big-ideas.js, the same
+   discipline as people.css and plexus-hub.css. Nothing here may widen the page: the card
+   grid drops columns, the form grids stack, wide tables scroll inside themselves. */
+
+/* the card grid: 3 → 2 → 1 as the page narrows */
+@media (max-width: 1040px) {
+  .mxb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 720px) {
+  .mxb-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+/* a card is a link: keep its own words from pushing it wide */
+.mxb-card { text-decoration: none; }
+.mxb-card > * { min-width: 0; }
+.mxb-card span { overflow-wrap: anywhere; }
+
+/* tables carry their own scrollbar rather than widening the page (mxp-scroll idiom) */
+.mxb-scroll { -webkit-overflow-scrolling: touch; }
+
+/* drawer + section forms stack on narrow screens; every field takes the full line */
+@media (max-width: 860px) {
+  .mxb-form { grid-template-columns: minmax(0, 1fr) !important; }
+  .mxb-form > * { grid-column: auto !important; }
+  .mxb-controls { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; width: 100%; }
+}
+@media (max-width: 560px) {
+  .mxb-controls { grid-template-columns: minmax(0, 1fr) !important; }
+  .mxb-cardhead { row-gap: 8px; }
+  /* the filter chip strip wraps instead of scrolling — the counts stay readable */
+  .mxb-chips > span[style*="flex:1"] { display: none !important; }
+}
+
+/* the drawer fields focus the way the inline manage panels do (plexus-hub.css §42) */
+.mxb-form input:focus, .mxb-form textarea:focus, .mxb-form select:focus,
+[data-role="search"]:focus, [data-role="personSearch"]:focus {
+  outline: 1px solid #9b1b22; outline-offset: -1px;
+}

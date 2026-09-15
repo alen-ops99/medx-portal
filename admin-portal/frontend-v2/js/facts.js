@@ -73,7 +73,8 @@ export const SECTION_ROUTES = Object.freeze({
   'pr-media': '/studio', 'content-studio': '/studio', 'merch-studio': '/studio', print: '/studio', studio: '/studio',
   'portal-content': '/member-pages', 'website-content': '/member-pages', 'member-feed': '/member-pages', 'member-pages': '/member-pages',
   'signup-forms': '/links', 'registration-links': '/links', 'event-invites': '/links', links: '/links',
-  registrations: '/registrations'
+  registrations: '/registrations',
+  'big-ideas': '/big-ideas', bigideas: '/big-ideas', 'big ideas': '/big-ideas'
 });
 export function routeForSection(id, fallback = '/today') {
   const k = String(id || '').trim().toLowerCase().replace(/^#/, '').replace(/^(section-|up-section-)/, '');
@@ -91,5 +92,9 @@ export const DEST_SECTIONS = Object.freeze({
   inbox: ['member-ops', 'pr-media'], people: ['member-ops', 'guest-passes', 'team', 'contacts'], money: ['finances'],
   eventday: ['gameday', 'plexus'], studio: ['pr-media', 'plexus', 'signup-forms'], gala: ['plexus'],
   registrations: ['plexus', 'forum', 'bridges', 'signup-forms'], links: ['plexus', 'bridges', 'signup-forms'],
-  memberpages: ['pr-media', 'plexus', 'accelerator'], acceleratorreview: ['accelerator']
+  memberpages: ['pr-media', 'plexus', 'accelerator'], acceleratorreview: ['accelerator'],
+  // BIG IDEAS is its own destination, not a project tab: full-access admins (allowed_sections NULL)
+  // pass canAny() and see it; a scoped admin without the grant gets views/locked.js, and the server
+  // 403s the calls behind it either way.
+  bigideas: ['big-ideas']
 });

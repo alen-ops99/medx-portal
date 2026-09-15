@@ -19,6 +19,11 @@ export const PERMISSION_SECTIONS = Object.freeze([
   // Plexus Gala AWARDS (design/AWARDS-SPEC.md) — same shape, same adjacency rule: server.js
   // PERMISSION_SECTIONS carries the id and SECTION_ROUTE_MAP maps /api/v2/awards-ops → it.
   { id: 'plexus-awards', label: 'Plexus Awards', group: 'Projects' },
+  // BIG IDEAS — the long game beyond Plexus and Building Bridges. Same shape, same adjacency rule:
+  // server.js PERMISSION_SECTIONS carries the id and SECTION_ROUTE_MAP maps /api/v2/big-ideas → it.
+  // allowed_sections NULL (every admin today) already passes, so BIG IDEAS is visible to the team
+  // by default; only a scoped admin needs the grant.
+  { id: 'big-ideas', label: 'Big Ideas', group: 'Projects' },
   { id: 'gameday', label: 'Game Day', group: 'Events & access' },
   { id: 'conferences', label: 'Conferences', group: 'Events & access' },
   { id: 'editions', label: 'Editions', group: 'Events & access' },
