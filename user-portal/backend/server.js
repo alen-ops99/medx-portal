@@ -20728,22 +20728,21 @@ By applying to this program, I provide the following consents:
                     // Send gala payment confirmation email (skipped for a linked CA row — the
                     // combined ticket above IS that guest's confirmation, and one is enough).
                     try {
-                        if (!caCombined.handled) sendEventConfirmation(galaReg.email, 'Payment Confirmed — Plexus 2026 Gala Evening', buildEmailTemplate('Payment Confirmed', `
-                            <p>Dear ${galaReg.first_name},</p>
-                            <p style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 14px 18px; border-radius: 8px; color: #065f46; font-weight: 600; font-size: 16px; text-align: center;">
-                                Your Gala Evening payment has been received. Your spot is secured!
-                            </p>
-                            <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-                                <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Amount Paid</td>
-                                    <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">&euro;${Number(amount).toFixed(2)}</td></tr>
-                                <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Invoice Number</td>
-                                    <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${galaInvoice}</td></tr>
-                                <tr><td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Ticket</td>
-                                    <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${ticketLabel}</td></tr>
-                            </table>
-                            <p>We look forward to welcoming you at the Gala Evening. If you have any questions, contact us at <a href="mailto:info@medx.hr" style="color: #C9A962;">info@medx.hr</a>.</p>
-                            <p>Warm regards,<br><strong>The Med&amp;X Team</strong></p>
-                        `));
+                        // Same house dark shell as every other payment email (was the old navy
+                        // template with a green pill and an invisible logo).
+                        if (!caCombined.handled) sendEventConfirmation(galaReg.email, 'Payment Confirmed — Plexus 2026 Gala Evening', reviewGate.emailShell('Payment confirmed',
+                            `<p style="margin:0 0 10px;">Dear ${escapeHtml(galaReg.first_name || 'guest')},</p>
+                             <p style="margin:0;">Your <b class="em-ink">Gala Evening</b> payment has been received &mdash; your spot is secured. We look forward to welcoming you at the Gala Evening.</p>`,
+                            null, null,
+                            {
+                                eyebrow: 'Plexus Week 2026 &middot; Gala Evening',
+                                preheader: 'Your Gala Evening payment has been received — your spot is secured.',
+                                facts: [
+                                    ['Amount paid', `€${Number(amount).toFixed(2)}`],
+                                    ['Invoice', String(galaInvoice || '—')],
+                                    ['Ticket', String(ticketLabel || 'Gala Evening')]
+                                ]
+                            }));
                     } catch (emailErr) {
                         console.warn('Gala payment confirmation email failed:', emailErr.message);
                     }
@@ -21080,38 +21079,16 @@ By applying to this program, I provide the following consents:
                         amt: amount, diet: metadata.dietary || ''
                     });
 
-                    const eventListHtml = `
-                        ${metadata.bundle_conference === '1' ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
-                            <strong style="color:#0f172a;">Plexus Conference</strong>
-                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-                            <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to follow</div></td></tr>` : ''}
-                        ${metadata.bundle_bridges === '1' ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #2dd4bf;">
-                            <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
-                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-                            <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : ''}
-                        <tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
-                            <strong style="color:#0f172a;">Plexus Gala Evening</strong>
-                            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">CONFIRMED &amp; PAID</span>
-                            <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>`;
-
-                    // Confirmation email — payment receipt + bundle summary + QR
+                    // Confirmation email — the SAME combined party ticket the pay-link branch sends
+                    // (house dark shell, "Plexus Week 2026" wording), so the two can never drift.
                     try {
-                        const caSend = await sendEventConfirmation(caEmail, 'Payment Confirmed — Plexus 2026', buildEmailTemplate('Payment Confirmed', `
-                            <div style="text-align:center;margin-bottom:8px;">
-                                <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
-                            </div>
-                            <p style="margin-top:18px;">Dear <strong>${metadata.first_name || 'guest'}</strong>,</p>
-                            <p>Your payment of <strong>&euro;${amount.toFixed(2)}</strong> for <strong style="color:#C9A962;">Plexus 2026</strong> has been received. Your ticket is below.</p>
-                            <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-                                <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus 2026 Reservations</td></tr>
-                                ${eventListHtml}
-                            </table>
-                            <p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${invoiceNumber}</p>
-                            ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
-                            ${(metadata.bundle_conference === '1' || metadata.bundle_bridges === '1') ? `<p>We will email you ${[metadata.bundle_conference === '1' ? 'the <strong>Conference program</strong>' : null, metadata.bundle_bridges === '1' ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(metadata.bundle_conference === '1' && metadata.bundle_bridges === '1') ? 'they are' : 'it is'} finalized.</p>` : ''}
-                            <p style="margin-top:24px;">We look forward to welcoming you ${metadata.source === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
-                            <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
-                        `), galaQrAtts);
+                        const caSeats = 1 + Math.max(0, parseInt(metadata.guest_count, 10) || 0);
+                        const caSend = await sendEventConfirmation(caEmail, 'Your ticket — Plexus Week 2026', galaPayLink.buildCombinedTicketEmail({
+                            firstName: metadata.first_name, amount, seats: caSeats, invoiceNumber,
+                            wantConf: metadata.bundle_conference === '1', wantBridges: metadata.bundle_bridges === '1',
+                            source: metadata.source,
+                            qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your Plexus Week 2026 check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })
+                        }), galaQrAtts);
                         // sendEmail returns {success:false}/{mock:true} instead of throwing, so the
                         // catch alone would miss a Resend rejection. Log loudly — guest PAID but got no ticket.
                         if (!caSend || caSend.success === false || caSend.mock) {
@@ -21123,14 +21100,11 @@ By applying to this program, I provide the following consents:
                         const partyGuests = query.all('SELECT name, email FROM ca_registration_guests WHERE registration_id = ? AND COALESCE(email, \'\') <> \'\'', [caRegId]) || [];
                         for (const pg of partyGuests) {
                             const gFirst = String(pg.name || 'there').split(' ')[0];
-                            const gHtml = buildEmailTemplate('Your Gala Evening entry', `
-                                <p>Dear ${gFirst},</p>
-                                <p><strong>${caGuestName}</strong> has registered you as their guest for the <strong>Plexus 2026 Gala Evening</strong> — December 5, 2026 · 19:00 · Hotel Esplanade, Mihanovićeva 1, Zagreb.</p>
-                                ${buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' })}
-                                <p>Dress code: black tie. Table reservations will follow closer to the event.</p>
-                                <p style="font-size:13px;color:#64748b;">Questions? Reply to this email or write to laura.rodman@medx.hr.</p>
-                            `);
-                            const gs = await sendEventConfirmation(pg.email, 'Your Gala Evening entry — Plexus 2026', gHtml);
+                            const gHtml = galaPayLink.buildGuestEntryEmail({
+                                guestFirst: gFirst, registrantName: caGuestName,
+                                qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' })
+                            });
+                            const gs = await sendEventConfirmation(pg.email, 'Your Gala Evening entry — Plexus Week 2026', gHtml);
                             if (!gs || gs.success !== true || gs.mock) console.error(`[Stripe][EMAIL-FAIL] gala GUEST ${pg.email} (reg ${caRegId}) did NOT receive their entry email`);
                         }
                     } catch (pgErr) { console.error('[Stripe] guest entry emails failed (non-blocking):', pgErr.message); }
@@ -28207,6 +28181,96 @@ By applying to this program, I provide the following consents:
 </div></body></html>`);
     }
 
+    // ---- The page a payer lands on straight after Stripe (and can reopen any time) ----
+    // Possession of the signed URL is the authorization, exactly like the pay link itself:
+    // the sig is HMAC-bound to the gala row id and travels only through Stripe's success_url.
+    // Boston is the benchmark: the ticket is on the page AND in the email. While the webhook
+    // is still settling (a few seconds), the page says so and refreshes itself.
+    const galaTicketPageSig = id => require('crypto').createHmac('sha256', String(JWT_SECRET))
+        .update('gala-ticket-page:' + String(id)).digest('hex').slice(0, 32);
+    const galaTicketPageUrl = (base, id) => `${base}/gala/ticket/${galaTicketPageSig(id)}/${id}`;
+
+    app.get('/gala/ticket/:sig/:id', publicLimiter, (req, res) => {
+        res.set('X-Robots-Tag', 'noindex, nofollow');
+        res.set('Cache-Control', 'private, no-store');
+        const id = String(req.params.id || '');
+        const sig = String(req.params.sig || '');
+        const expect = galaTicketPageSig(id);
+        const sigOk = sig.length === expect.length && (() => {
+            try { return require('crypto').timingSafeEqual(Buffer.from(sig), Buffer.from(expect)); } catch (e) { return false; }
+        })();
+        const reg = sigOk ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [id]) : null;
+        if (!reg) return galaPayPage(res, 404, 'Nothing here', 'This link is not valid. Please use the link from your email.');
+
+        const ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE gala_registration_id = ?', [id]);
+        const fullName = `${reg.first_name || ''} ${reg.last_name || ''}`.trim();
+        const seats = 1 + Math.max(0, parseInt(reg.guest_count, 10) || 0);
+        const paid = String(reg.payment_status || '') === 'paid';
+        const wantConf = !!(ca && Number(ca.selected_conference));
+        const wantBridges = !!(ca && Number(ca.selected_bridges));
+
+        const evRow = (name, status, meta, last) => `<tr><td style="padding:12px 14px;${last ? '' : 'border-bottom:1px solid rgba(25,21,18,.1);'}">
+            <span style="font-weight:600;font-size:14px;color:#191512;">${name}</span>
+            <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#1e6e42;margin-left:8px;">${status}</span>
+            <div style="font-size:12px;color:#6e6455;margin-top:3px;">${meta}</div></td></tr>`;
+        const evRows = [
+            wantConf ? evRow('Plexus Conference', 'PRE-REGISTERED (INCLUDED)', '4 December 2026 &middot; Zagreb &middot; program to follow') : '',
+            wantBridges ? evRow('Croatian Biomedical Bridges', 'PRE-REGISTERED (INCLUDED)', '4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed') : '',
+            evRow('Plexus Gala Evening', paid ? ('CONFIRMED &amp; PAID' + (seats > 1 ? ' &middot; ' + seats + ' SEATS' : '')) : 'FINALIZING', '5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM', true)
+        ].filter(Boolean).join('');
+
+        const pendingMeta = paid ? '' : '<meta http-equiv="refresh" content="5">';
+        const heroTitle = paid ? 'Payment confirmed' : 'Finalizing your payment&hellip;';
+        const heroSub = paid
+            ? `Thank you, ${escapeHtml(reg.first_name || 'guest')} &mdash; your ticket email is on its way to <b style="color:#fff;">${escapeHtml(reg.email || '')}</b>. It carries this same QR.`
+            : 'Your card payment went through &mdash; we are issuing your ticket now. This page refreshes itself; your ticket email follows in a moment.';
+        const ticketCard = paid ? `
+        <div class="sheet" style="text-align:center;">
+            <p class="slabel">Your ticket for the door</p>
+            <span style="display:inline-block;background:#fff;border:1px solid rgba(25,21,18,.12);padding:10px;"><img src="/qr/${escapeHtml(id)}.png" alt="Your entry QR code" width="200" height="200" style="display:block;border:0;"></span>
+            <p style="margin:12px 0 0;font:600 10px Inter,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#8a7d6c;">${escapeHtml(fullName)} &middot; MANUAL CODE ${escapeHtml(String(id).slice(0, 8).toUpperCase())}</p>
+            <p style="margin:8px 0 0;font-size:12.5px;color:#8a7d6c;">One QR admits your whole party${seats > 1 ? ' of ' + seats : ''} &mdash; save it to your photos.</p>
+            ${reg.invoice_number ? `<p style="margin:10px 0 0;font-size:12px;color:#8a7d6c;"><b style="color:#4a4139;">Invoice:</b> ${escapeHtml(reg.invoice_number)}</p>` : ''}
+        </div>` : '';
+
+        return res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${pendingMeta}
+<title>${paid ? 'Payment confirmed' : 'Finalizing your payment'} — Plexus Week 2026 · Med&X</title>
+<meta name="robots" content="noindex, nofollow"><link rel="icon" type="image/png" href="/assets/favicon-x.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{min-height:100vh;font-family:Inter,-apple-system,system-ui,sans-serif;background:#f7f1e6;color:#191512;-webkit-font-smoothing:antialiased;}
+.band{background:#1b1613;color:#f3ece0;text-align:center;padding:clamp(38px,7vw,58px) 22px clamp(56px,8vw,72px);}
+.band img.logo{height:30px;width:auto;filter:brightness(0) invert(1);opacity:.95;}
+.kicker{margin-top:22px;font:600 11px Inter,sans-serif;letter-spacing:3px;text-transform:uppercase;color:#c9a962;}
+.band h1{margin-top:12px;font-family:Fraunces,Georgia,serif;font-weight:500;font-size:clamp(27px,6.4vw,38px);line-height:1.14;letter-spacing:-.4px;color:#f7f1e6;}
+.band p.sub{margin:14px auto 0;max-width:520px;font-size:14px;line-height:1.7;color:rgba(243,236,224,.85);}
+main{max-width:640px;margin:0 auto;padding:0 16px 56px;}
+.sheet{background:#fdfaf3;border:1px solid rgba(25,21,18,.08);padding:clamp(24px,5vw,36px) clamp(20px,4.6vw,34px);margin-top:22px;box-shadow:0 22px 55px -30px rgba(25,21,18,.35);}
+.sheet:first-child{margin-top:-34px;position:relative;}
+.slabel{font:600 10.5px Inter,sans-serif;letter-spacing:2.4px;text-transform:uppercase;color:#6e5626;margin-bottom:14px;}
+table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1);}
+.foot{text-align:center;font-size:12px;color:#94897c;padding:26px 18px 40px;line-height:1.9;}
+.foot a{color:#9b1b22;font-weight:600;text-decoration:none;}
+</style></head><body>
+<header class="band">
+  <img class="logo" src="/assets/images/medx-logo.png" alt="Med&amp;X" onerror="this.outerHTML='<div style=&quot;font-weight:800;font-size:22px;color:#f7f1e6;&quot;>med&amp;<span style=&quot;color:#c9a962;&quot;>x</span></div>'">
+  <p class="kicker">Plexus Week 2026 &middot; Zagreb</p>
+  <h1>${heroTitle}</h1>
+  <p class="sub">${heroSub}</p>
+</header>
+<main>
+  <div class="sheet">
+    <p class="slabel">Your Plexus Week 2026 reservations</p>
+    <table class="res">${evRows}</table>
+  </div>
+  ${ticketCard}
+</main>
+<footer class="foot">Questions? Laura Rodman (<a href="mailto:laura.rodman@medx.hr">laura.rodman@medx.hr</a>)<br><a href="https://medx.hr">www.medx.hr</a></footer>
+</body></html>`);
+    });
+
     app.get('/pay/gala/:token', publicLimiter, async (req, res) => {
         const token = String(req.params.token || '');
         const reg = token.length >= 16 ? query.get('SELECT * FROM gala_registrations WHERE pay_token = ?', [token]) : null;
@@ -28242,7 +28306,7 @@ By applying to this program, I provide the following consents:
                 line_items: [{ price_data: { currency: 'eur', product_data: { name: quote.lineName, description: `Gala Evening ${quote.seats > 1 ? quote.seats + ' seats' : 'Ticket'} (Invoice: ${invoiceNumber})` }, unit_amount: quote.lineUnitAmount }, quantity: quote.lineQuantity }],
                 metadata: { gala_registration_id: reg.id, invoice_number: invoiceNumber, type: 'gala-ticket' },
                 customer_email: reg.email,
-                success_url: `${baseUrl}/?payment=success&gala=${reg.id}`,
+                success_url: galaTicketPageUrl(baseUrl, reg.id),
                 cancel_url: `${baseUrl}/?payment=cancelled&gala=${reg.id}`
             });
             console.log(`[GalaPayLink] /pay/gala ${reg.id}: ${quote.seats} seat(s), ${galaPayLink.fmtEur(quote.total)}${quote.honoured ? ' (honouring the amount already quoted at checkout)' : ''}, invoice ${invoiceNumber}`);
@@ -29174,7 +29238,9 @@ By applying to this program, I provide the following consents:
                     custom_summary: customAnswersSummary(caCf.answers).slice(0, 480)
                 },
                 customer_email: email,
-                success_url: `${baseUrl}/invite-success?session_id={CHECKOUT_SESSION_ID}`,
+                // Straight to the ticket page (the same page the pay-link flow lands on): the
+                // reservations list, then — as soon as the webhook settles — the party QR.
+                success_url: galaTicketPageUrl(baseUrl, galaRegistrationId),
                 cancel_url: `${baseUrl}/invite-cancelled`
             });
             db.run('UPDATE croatians_abroad_registrations SET stripe_session_id = ? WHERE id = ?', [session.id, regId]);

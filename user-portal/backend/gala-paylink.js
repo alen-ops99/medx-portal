@@ -53,7 +53,8 @@
  *
  * Deps contract:
  *   { query, db, saveDb, flushDb, sendEmail, effectiveGalaPrice, log? }
- *   fulfilLinkedCaGala also: buildEmailTemplate(), buildTicketQrBlock(), qrPngAttachment()
+ *   fulfilLinkedCaGala also: buildTicketQrBlock(), qrPngAttachment() (buildEmailTemplate is
+ *   accepted for compatibility but no longer used — every email here is on the house shell)
  */
 'use strict';
 
@@ -539,6 +540,77 @@ async function sendUnpaidGalaNudge(deps, caId) {
     return { status: 'done', email: to, seats: quote.seats, amount_due: quote.total };
 }
 
+// ---------------------------------------------------------------- the combined party ticket (dark shell)
+// Ana Franceschi's ticket arrived on the OLD navy template (logo invisible, green pill) while
+// every gate/approval email had long been on the dark house shell — and with the OLD wording:
+// commit 90705c7 renamed the Path B webhook copy to "Plexus Week 2026" but never touched THIS
+// module's fulfilLinkedCaGala, which is the branch every pay-link payer actually goes through.
+// Both problems end here: one pure builder, house shell, "Plexus Week 2026" throughout, used by
+// fulfilLinkedCaGala AND the Path B webhook so the two can never drift again.
+const DTK = { ink: '#f2e7d6', soft: '#d3c5b2', gold: '#d7b56c', green: '#8fce9f',
+              hair: 'rgba(240,228,210,.18)', cardBg: '#342718', cardBorder: 'rgba(215,181,108,.42)' };
+
+// The three-event reservations list, restyled for the espresso shell (substance unchanged).
+function buildReservationsHtml({ wantConf, wantBridges, seats }) {
+    const T = tpl.T;
+    const seatsLabel = seats > 1 ? `CONFIRMED &amp; PAID &middot; ${seats} SEATS` : 'CONFIRMED &amp; PAID';
+    const row = (name, status, meta, last) => `<tr><td style="padding:12px 16px;${last ? '' : `border-bottom:1px solid ${DTK.hair};`}">
+        <span style="font-family:${T.sans};font-weight:600;font-size:13.5px;color:${DTK.ink};">${name}</span>
+        <span style="font-family:${T.sans};font-weight:700;font-size:10px;letter-spacing:.12em;color:${DTK.green};margin-left:8px;">${status}</span>
+        <div style="font-family:${T.sans};font-size:11.5px;color:${DTK.soft};margin-top:3px;">${meta}</div></td></tr>`;
+    const rows = [
+        wantConf ? row('Plexus Conference', 'PRE-REGISTERED (INCLUDED)', '4 December 2026 &middot; Zagreb &middot; program to follow') : '',
+        wantBridges ? row('Croatian Biomedical Bridges', 'PRE-REGISTERED (INCLUDED)', '4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed') : '',
+        row('Plexus Gala Evening', seatsLabel, '5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM', true)
+    ].filter(Boolean).join('');
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 0;background:${DTK.cardBg};border:1px solid ${DTK.cardBorder};">
+        <tr><td style="padding:10px 16px;border-bottom:1px solid ${DTK.hair};font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:${DTK.gold};">Your Plexus Week 2026 reservations</td></tr>
+        ${rows}
+    </table>`;
+}
+
+/**
+ * The ONE ticket email a paid Zagreb registration receives — house dark shell, logo visible,
+ * "Plexus Week 2026" in the subject (callers), the reservations header and the QR label.
+ * Pure: the QR card html and every fact are injected, so tests assert it without a database.
+ */
+function buildCombinedTicketEmail({ firstName, amount, seats, invoiceNumber, wantConf, wantBridges, qrBlockHtml, partyNoteText, source }) {
+    const T = tpl.T;
+    const paid = Number(amount) || 0;
+    const partyHtml = partyNoteText
+        ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;background:${DTK.cardBg};border-left:3px solid ${DTK.gold};"><tr>
+             <td style="padding:12px 16px;font-family:${T.sans};font-size:13px;line-height:1.6;color:${DTK.ink};">${esc(partyNoteText)}</td></tr></table>`
+        : '';
+    const programNote = (wantConf || wantBridges)
+        ? `<p style="margin:16px 0 0;">We will email you ${[wantConf ? 'the <b class="em-ink">Conference program</b>' : null, wantBridges ? 'the <b class="em-ink">Croatian Biomedical Bridges date and venue</b>' : null].filter(Boolean).join(' and ')} as soon as ${(wantConf && wantBridges) ? 'they are' : 'it is'} finalized.</p>`
+        : '';
+    const body = `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
+        <p style="margin:0;">Your payment of <b class="em-ink">&euro;${paid.toFixed(2)}</b> for <b class="em-ink">Plexus Week 2026</b> has been received${seats > 1 ? ` &mdash; <b class="em-ink">${seats} Gala seats</b>` : ''}. Your ticket is below.</p>
+        ${buildReservationsHtml({ wantConf, wantBridges, seats })}
+        ${invoiceNumber ? `<p style="margin:12px 0 0;font-size:12px;color:${DTK.soft};"><b style="color:${DTK.ink};">Invoice:</b> ${esc(invoiceNumber)}</p>` : ''}
+        ${qrBlockHtml || ''}
+        ${partyHtml}
+        ${programNote}
+        <p style="margin:18px 0 0;">We look forward to welcoming you ${source === 'plexus' ? 'to Plexus Week 2026' : 'home'} in Zagreb.</p>`;
+    return reviewGate.emailShell('Payment confirmed', body, null, null, {
+        eyebrow: 'Plexus Week 2026 &middot; Your ticket',
+        preheader: 'Payment received — your Plexus Week 2026 ticket and check-in QR are inside.'
+    });
+}
+
+// The named guest's copy of the party QR — same shell, same facts as before (who registered
+// them, when and where, seat paid, shared QR, black tie, tables to follow).
+function buildGuestEntryEmail({ guestFirst, registrantName, qrBlockHtml }) {
+    const body = `<p style="margin:0 0 10px;">Dear ${esc(guestFirst || 'there')},</p>
+        <p style="margin:0;"><b class="em-ink">${esc(registrantName)}</b> has registered you as their guest for the <b class="em-ink">Plexus Gala Evening</b> &mdash; 5 December 2026 &middot; 19:00 &middot; Hotel Esplanade, Mihanovi&#263;eva 1, Zagreb. Your seat is paid for.</p>
+        ${qrBlockHtml || ''}
+        <p style="margin:16px 0 0;">Dress code: black tie. Table reservations will follow closer to the event.</p>`;
+    return reviewGate.emailShell('Your Gala Evening entry', body, null, null, {
+        eyebrow: 'Plexus Week 2026 &middot; Gala Evening',
+        preheader: 'Your seat at the Gala Evening is paid — your entry QR is inside.'
+    });
+}
+
 // ---------------------------------------------------------------- PAYMENT: the finance note
 /**
  * The Gala seat of a Zagreb registration was just PAID. If the registrant ticked
@@ -602,7 +674,7 @@ async function notifyInvoiceNeeded(deps, { caId, galaRegId, amount, invoiceNumbe
  *          handled=false means "not a CA row" — the caller keeps its own behaviour untouched.
  */
 async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sessionEmail } = {}) {
-    const { query, db, saveDb, flushDb, sendEmail, buildEmailTemplate, buildTicketQrBlock, qrPngAttachment } = deps;
+    const { query, db, saveDb, flushDb, sendEmail, buildTicketQrBlock, qrPngAttachment } = deps;
     const log = deps.log || ((...a) => console.log('[GalaPayLink]', ...a));
     if (!galaRegId) return { handled: false };
 
@@ -637,22 +709,6 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
         return { handled: true, email: null, events, seats };
     }
 
-    const seatsLabel = seats > 1 ? `CONFIRMED &amp; PAID · ${seats} SEATS` : 'CONFIRMED &amp; PAID';
-    const eventListHtml = [
-        wantConf ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #a78bfa;">
-            <strong style="color:#0f172a;">Plexus Conference</strong>
-            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-            <div style="color:#64748b;font-size:12px;margin-top:3px;">4 December 2026 &middot; Zagreb &middot; program to follow</div></td></tr>` : '',
-        wantBridges ? `<tr><td style="padding:12px 14px;border-bottom:1px solid #f1f5f9;border-left:3px solid #2dd4bf;">
-            <strong style="color:#0f172a;">Croatian Biomedical Bridges</strong>
-            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">PRE-REGISTERED (INCLUDED)</span>
-            <div style="color:#64748b;font-size:12px;margin-top:3px;">4 or 5 December 2026 &middot; Zagreb &middot; date and venue to be confirmed</div></td></tr>` : '',
-        `<tr><td style="padding:12px 14px;border-left:3px solid #c9a962;">
-            <strong style="color:#0f172a;">Plexus Gala Evening</strong>
-            <span style="color:#22c55e;font-size:12px;font-weight:600;margin-left:8px;">${seatsLabel}</span>
-            <div style="color:#64748b;font-size:12px;margin-top:3px;">5 December 2026 &middot; Hotel Esplanade Zagreb &middot; arrival from 7:00 PM</div></td></tr>`
-    ].filter(Boolean).join('');
-
     // The QR carries BOTH ids so the scanner verifies it in gala AND conference/bridges modes,
     // and `guests` so the door reads the party the same way every other Med&X ticket does.
     let atts = [];
@@ -673,29 +729,15 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
     catch (e) { namedGuests = []; }
     const guestsWithEmail = namedGuests.filter(g => String(g.email || '').trim()).length;
     const party = partyNote(seats, guestsWithEmail);
-    const partyHtml = party
-        ? `<p style="background:#f8fafc;border-left:3px solid #C9A962;padding:10px 14px;font-size:13.5px;color:#334155;">${esc(party)}</p>`
-        : '';
 
-    const html = buildEmailTemplate('Payment Confirmed', `
-        <div style="text-align:center;margin-bottom:8px;">
-            <div style="display:inline-block;background:#22c55e;color:#fff;font-size:13px;font-weight:600;padding:6px 20px;border-radius:20px;letter-spacing:0.5px;">PAYMENT CONFIRMED</div>
-        </div>
-        <p style="margin-top:18px;">Dear <strong>${esc(ca.first_name || 'guest')}</strong>,</p>
-        <p>Your payment of <strong>&euro;${paid.toFixed(2)}</strong> for <strong style="color:#C9A962;">Plexus 2026</strong> has been received${seats > 1 ? ` — <strong>${seats} Gala seats</strong>` : ''}. Your ticket is below.</p>
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-            <tr><td style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">Your Plexus 2026 Reservations</td></tr>
-            ${eventListHtml}
-        </table>
-        ${invoiceNumber ? `<p style="font-size:13px;color:#64748b;"><strong>Invoice:</strong> ${esc(invoiceNumber)}</p>` : ''}
-        ${buildTicketQrBlock(galaRegId, { label: 'Your Plexus 2026 Check-in QR', caption: 'Present this QR at the entrance of each event you registered for' })}
-        ${partyHtml}
-        ${(wantConf || wantBridges) ? `<p>We will email you ${[wantConf ? 'the <strong>Conference program</strong>' : null, wantBridges ? 'the <strong>Croatian Biomedical Bridges date and venue</strong>' : null].filter(Boolean).join(' and ')} as soon as ${(wantConf && wantBridges) ? 'they are' : 'it is'} finalized.</p>` : ''}
-        <p style="margin-top:24px;">We look forward to welcoming you ${ca.source === 'plexus' ? 'to Plexus 2026' : 'home'} in Zagreb.</p>
-        <p style="font-size:13px;color:#64748b;">Questions? <a href="mailto:laura.rodman@medx.hr" style="color:#C9A962;font-weight:500;">Laura Rodman</a><br><span style="font-size:12px;">Best regards, <strong style="color:#334155;">The Med&amp;X Team</strong></span></p>
-    `);
+    const html = buildCombinedTicketEmail({
+        firstName: ca.first_name, amount: paid, seats, invoiceNumber: invoiceNumber || ca.invoice_number,
+        wantConf, wantBridges, source: ca.source,
+        qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your Plexus Week 2026 check-in QR', caption: 'Present this QR at the entrance of each event you registered for' }),
+        partyNoteText: party
+    });
 
-    const sent = await sendEmail(to, 'Payment Confirmed — Plexus 2026', html, atts);
+    const sent = await sendEmail(to, 'Your ticket — Plexus Week 2026', html, atts);
     if (!sent || sent.success === false || sent.mock) {
         log(`[EMAIL-FAIL] PAID guest ${to} (CA ${ca.id}, gala ${galaRegId}) did NOT receive the combined ticket:`,
             sent && sent.mock ? 'mock mode (no provider configured)' : ((sent && sent.error) || 'unknown'));
@@ -706,13 +748,11 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
     try {
         for (const g of namedGuests.filter(x => String(x.email || '').trim())) {
             const gFirst = String(g.name || 'there').split(' ')[0];
-            await sendEmail(g.email, 'Your Gala Evening entry — Plexus 2026', buildEmailTemplate('Your Gala Evening entry', `
-                <p>Dear ${esc(gFirst)},</p>
-                <p><strong>${esc(`${ca.first_name || ''} ${ca.last_name || ''}`.trim())}</strong> has registered you as their guest for the <strong>Plexus 2026 Gala Evening</strong> — December 5, 2026 · 19:00 · Hotel Esplanade, Mihanovićeva 1, Zagreb. Your seat is paid for.</p>
-                ${buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' })}
-                <p>Dress code: black tie. Table reservations will follow closer to the event.</p>
-                <p style="font-size:13px;color:#64748b;">Questions? Reply to this email or write to laura.rodman@medx.hr.</p>
-            `));
+            await sendEmail(g.email, 'Your Gala Evening entry — Plexus Week 2026', buildGuestEntryEmail({
+                guestFirst: gFirst,
+                registrantName: `${ca.first_name || ''} ${ca.last_name || ''}`.trim(),
+                qrBlockHtml: buildTicketQrBlock(galaRegId, { label: 'Your entry QR (shared with your party)', caption: 'Present this QR at the entrance — it admits your whole party, arriving together or separately' })
+            }));
         }
     } catch (e) { log('party guest entry emails failed (non-blocking):', e.message); }
 
@@ -738,6 +778,9 @@ module.exports = {
     buildPayLinkEmail,
     buildNudgeEmail,
     buildInvoiceNeededEmail,
+    buildReservationsHtml,
+    buildCombinedTicketEmail,
+    buildGuestEntryEmail,
     sendGalaPayLink,
     sendUnpaidGalaNudge,
     listUnpaidGalaNudges,

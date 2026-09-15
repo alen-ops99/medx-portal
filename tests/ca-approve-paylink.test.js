@@ -509,10 +509,18 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.strictEqual(sent.length, before + 1, 'exactly ONE ticket email');
 
         const msg = lastTo(email);
-        assert.strictEqual(msg.subject, 'Payment Confirmed — Plexus 2026');
+        assert.strictEqual(msg.subject, 'Your ticket — Plexus Week 2026', 'the wording 90705c7 missed here');
+        // The ticket rides the house dark shell now (Ana Franceschi got the old navy template):
+        // espresso card, visible logo, "Plexus Week 2026" in the reservations header and QR label.
+        assert.ok(msg.html.includes('Your Plexus Week 2026 reservations'), 'reservations header renamed');
+        assert.ok(msg.html.includes('Plexus Week 2026 check-in QR'), 'QR label renamed');
+        assert.ok(msg.html.includes('#342718'), 'the espresso facts card — the dark house shell');
+        assert.ok(/medx|med&amp;x|Med&amp;X/i.test(msg.html), 'the wordmark is in the shell');
+        assert.ok(!msg.html.includes('data-title="Payment Confirmed"'), 'the OLD navy template is gone');
+        assert.ok(!msg.html.includes('#22c55e'), 'and so is the green pill');
         assert.ok(/(€|&euro;)300\.00/.test(msg.html), 'states the party total actually charged');
         assert.ok(msg.html.includes('2 Gala seats'), 'says how many seats were bought');
-        assert.ok(msg.html.includes('CONFIRMED &amp; PAID · 2 SEATS'), 'the Gala line reads as a party');
+        assert.ok(msg.html.includes('CONFIRMED &amp; PAID &middot; 2 SEATS'), 'the Gala line reads as a party');
         assert.ok(msg.html.includes('admits your whole party of 2'), 'the QR caption states the party');
         assert.ok(msg.html.includes('GALA26-0042'), 'carries the invoice number');
         assert.ok(msg.html.includes(`data-reg="${galaId}"`), 'carries the check-in QR block');
@@ -651,7 +659,7 @@ const allTo = to => sent.filter(m => m.to === to);
 
         assert.strictEqual(sent.length, before + 2, 'registrant + one named guest');
         const g = lastTo('guest@example.org');
-        assert.strictEqual(g.subject, 'Your Gala Evening entry — Plexus 2026');
+        assert.strictEqual(g.subject, 'Your Gala Evening entry — Plexus Week 2026');
         assert.ok(g.html.includes(`data-reg="${galaId}"`), 'the same party QR, not a second ticket');
         assert.ok(g.html.includes('Emeric'), 'addressed by first name');
         assert.ok(g.html.includes('Your seat is paid for'), 'and told their seat is covered');
