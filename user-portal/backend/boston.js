@@ -1305,6 +1305,7 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
           <span class="t">I would like to give a short 5-minute presentation of my lab, clinic, department, or institution.</span>
         </label>
         <p class="slots">Presentation slots are confirmed by email based on the total number of requests.</p>
+        <p class="fine" style="margin:0 0 12px;">Email addresses collected during registration will only be used to inform attendants about the event and will not be used for other purposes.</p>
         <button type="submit" class="btn" id="subbtn">Register for the evening</button>
         <div class="err" id="errbox"></div>
       </form>
