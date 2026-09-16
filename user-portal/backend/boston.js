@@ -146,7 +146,7 @@ const s3 = (() => {
         return { scope, kSigning };
     }
 
-    return {
+    const S = {
         isConfigured: () => !!config(),
 
         /** Header-signed single-chunk PUT of a Buffer. Resolves { etag } on 200, rejects otherwise. */
@@ -215,8 +215,48 @@ const s3 = (() => {
             const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256hex(canonicalRequest)].join('\n');
             const signature = hmac(kSigning, stringToSign).toString('hex');
             return `https://${cfg.host}${canonicalPath}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+        },
+
+        /** An object's bytes, pulled through a short-lived presigned GET. Rejects on anything but 200. */
+        getObject(objectKey, { expires = 300 } = {}) {
+            return new Promise((resolve, reject) => {
+                const url = S.presignGet(objectKey, { expires });
+                if (!url) return reject(new Error('BB_S3_* env not configured'));
+                const req = https.get(url, resp => {
+                    if (resp.statusCode !== 200) { resp.resume(); return reject(new Error('S3 GET ' + resp.statusCode + ' for ' + objectKey)); }
+                    const chunks = [];
+                    resp.on('data', c => chunks.push(c));
+                    resp.on('end', () => resolve(Buffer.concat(chunks)));
+                    resp.on('error', reject);
+                });
+                req.setTimeout(60000, () => req.destroy(new Error('S3 GET timed out')));
+                req.on('error', reject);
+            });
+        },
+
+        /** Size + last-modified without pulling the body: a presigned GET, abandoned at the headers.
+         *  Answers null for "not there" (and for every failure) — callers treat both the same. */
+        headObject(objectKey) {
+            return new Promise(resolve => {
+                let url = null;
+                try { url = S.presignGet(objectKey, { expires: 300 }); } catch (e) { url = null; }
+                if (!url) return resolve(null);
+                let done = false;
+                const finish = v => { if (!done) { done = true; resolve(v); } };
+                const req = https.get(url, resp => {
+                    const out = resp.statusCode === 200 ? {
+                        size: Number(resp.headers['content-length'] || 0),
+                        lastModified: resp.headers['last-modified'] ? new Date(resp.headers['last-modified']).toISOString() : null
+                    } : null;
+                    resp.destroy();
+                    finish(out);
+                });
+                req.setTimeout(20000, () => { req.destroy(); finish(null); });
+                req.on('error', () => finish(null));
+            });
         }
     };
+    return S;
 })();
 
 // ---------------------------------------------------------------- branded entry QR (plate overlay)

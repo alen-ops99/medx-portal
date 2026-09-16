@@ -97,7 +97,9 @@ module.exports = function mountPlexusProgram(app, deps) {
     async function programStatus() {
         const key = programKey();
         if (!s3 || !s3.isConfigured()) return { present: false, configured: false, key, filename: PROGRAM_FILENAME };
-        const head = await s3.headObject(key);
+        let head = null;                                  // null = not there (or unreadable) — never a 500
+        try { head = typeof s3.headObject === 'function' ? await s3.headObject(key) : null; }
+        catch (e) { log('program head failed:', e.message); head = null; }
         return { present: !!head, configured: true, key, filename: PROGRAM_FILENAME, size: head ? head.size : null, uploaded_at: head ? head.lastModified : null, source: key === PROGRAM_UPLOAD_KEY ? 'upload' : 'env' };
     }
     async function loadProgramAttachment() {
