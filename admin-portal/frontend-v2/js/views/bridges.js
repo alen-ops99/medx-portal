@@ -90,7 +90,6 @@ export const COPY = {
     pick: { yes: 'PRESENTS ✓', panel: 'PANEL', no: 'NOT THIS TIME', unset: 'UNDECIDED', busy: '…' },
     pickCounts: (y, p, n, u) => `${y} confirmed · ${p} panel · ${n} declined · ${u} undecided`,
     panelReply: { yes: '✓ ACCEPTED', no: '✗ DECLINED', none: '– AWAITING' },
-    stripPanel: (a, t) => `panel ${a}/${t} accepted`,
     declineAll: n => `SET ${n} UNDECIDED TO “NOT THIS TIME”`, declineAllNone: 'EVERY OFFER IS DECIDED',
     cPickTitle: (who, s) => s === 'confirmed' ? `Put ${who} on the running order?`
         : s === 'panel' ? `Invite ${who} to the panel?`
@@ -143,6 +142,7 @@ export const COPY = {
     // against the presenters a deck is expected from, links included; "finished" is the guest's
     // own Finish click on their personal page; cancelled = seats given back.
     stripSlides: (x, y) => `slides in ${x}/${y} presenters`,
+    stripPanel: (a, t) => `panel ${a}/${t} accepted`,
     stripFinished: n => `finished ${n}`,
     stripCancelled: n => `cancelled ${n}`,
     cDone: 'SLIDES · DONE', deckLink: 'LINK', finishedMark: 'FINISHED ✓',
