@@ -1440,11 +1440,11 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                             <div aria-hidden="true" style="position:absolute!important;left:-9999px!important;top:-9999px!important;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;"><label>Website</label><input id="pf_website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
                             <div><label>Dietary requirements (for the Gala)</label><input id="pf_diet" maxlength="200" placeholder="e.g. vegetarian"></div>
                             <div><label>Allergies (for the Gala)</label><input id="pf_allergies" maxlength="200" placeholder="e.g. nuts, shellfish"></div>
-                            <div><label>Additional guests for the Gala <span style="color:#9b8f80;font-weight:400;">(max 2)</span></label>
+                            <div><label>Additional guests <span style="color:#9b8f80;font-weight:400;">(max 2 &mdash; you choose which events each guest joins; Gala seats are &euro;${galaPrice} each)</span></label>
                                 <select id="pf_guests" onchange="plexGuestFields();plexRecompute()">
                                     <option value="0">No additional guests</option>
-                                    <option value="1">+1 guest (+&euro;${galaPrice})</option>
-                                    <option value="2">+2 guests (+&euro;${galaPrice * 2})</option>
+                                    <option value="1">+1 guest</option>
+                                    <option value="2">+2 guests</option>
                                 </select></div>
                             <div id="pf_guest_fields" style="display:none;"></div>
                             <div><label>Discount code <span style="color:#9b8f80;font-weight:400;">(optional, applies to the Gala)</span></label>
@@ -1507,29 +1507,52 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 }
             } else { PLEX_AUTH = null; }
         } catch (e) { PLEX_AUTH = null; }
+        // Which events the registrant has selected — a guest can only join those.
+        function plexSelectedKeys(){ var sel = {}; document.querySelectorAll('.event-option.selected').forEach(function(o){ sel[o.dataset.key] = true; }); return sel; }
+        var PLEX_LEGS = [['conference', 'Plexus Conference'], ['bridges', 'Building Bridges Zagreb'], ['gala', 'Gala Evening (+\u20AC${galaPrice} seat)']];
+        function plexGuestTick(g, key){ var el = document.getElementById('pf_g' + key + g); return !!(el && el.checked); }
         function plexGuestFields(){
             var n = parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0;
             var box = document.getElementById('pf_guest_fields');
             if (!box) return;
+            var sel = plexSelectedKeys();
             var keep = [];
             for (var i = 0; i < 2; i++) {
+                var had = !!document.getElementById('pf_gname' + i);
                 keep.push({
                     name: (document.getElementById('pf_gname' + i) || {}).value || '',
                     inst: (document.getElementById('pf_ginst' + i) || {}).value || '',
-                    email: (document.getElementById('pf_gemail' + i) || {}).value || ''
+                    email: (document.getElementById('pf_gemail' + i) || {}).value || '',
+                    // a fresh card defaults every tick to the registrant's own selection; a re-render keeps what they chose
+                    ticks: had ? { conference: plexGuestTick(i, 'conference'), bridges: plexGuestTick(i, 'bridges'), gala: plexGuestTick(i, 'gala') } : null
                 });
             }
             if (n < 1) { box.style.display = 'none'; box.innerHTML = ''; return; }
             var html = '';
             for (var g = 0; g < n; g++) {
+                var ticks = '';
+                for (var L = 0; L < PLEX_LEGS.length; L++) {
+                    var key = PLEX_LEGS[L][0];
+                    if (!sel[key]) continue;
+                    var on = keep[g].ticks ? !!keep[g].ticks[key] : true;
+                    ticks += '<label for="pf_g' + key + g + '" style="display:inline-flex;align-items:center;gap:7px;margin:6px 16px 0 0;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#191512;">'
+                        + '<input type="checkbox" id="pf_g' + key + g + '"' + (on ? ' checked' : '') + ' onchange="plexRecompute()" style="width:15px;height:15px;accent-color:#9b1b22;">' + PLEX_LEGS[L][1] + '</label>';
+                }
                 html += '<div style="border:1px solid rgba(25,21,18,.16);border-radius:0;padding:12px 14px;margin-top:10px;background:#f7f1e6;">'
                     + '<div style="font-weight:700;font-size:13px;margin-bottom:8px;">Guest ' + (g + 1) + '</div>'
                     + '<div><label>Full name *</label><input id="pf_gname' + g + '" maxlength="120" value="' + plexEsc(keep[g].name) + '"></div>'
                     + '<div><label>Institution / Company</label><input id="pf_ginst' + g + '" maxlength="160" value="' + plexEsc(keep[g].inst) + '"></div>'
-                    + '<div><label>Email <span style="color:#9b8f80;font-weight:400;">(so they receive the entry QR too)</span></label><input id="pf_gemail' + g + '" type="email" maxlength="160" value="' + plexEsc(keep[g].email) + '"></div>'
+                    + '<div><label>Email <span style="color:#9b8f80;font-weight:400;">(so they receive their entry QR too)</span></label><input id="pf_gemail' + g + '" type="email" maxlength="160" value="' + plexEsc(keep[g].email) + '"></div>'
+                    + '<div style="margin-top:10px;"><label>Joins</label><div>' + (ticks || '<span style="font-size:12px;color:#9b8f80;">Select at least one event above first.</span>') + '</div></div>'
                     + '</div>';
             }
             box.innerHTML = html; box.style.display = 'block';
+        }
+        // Gala seats beyond the registrant = guests with the Gala ticked (the only paid leg).
+        function plexGalaGuests(){
+            var n = parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0, c = 0;
+            for (var g = 0; g < n; g++) if (plexGuestTick(g, 'gala')) c++;
+            return c;
         }
         function plexRecompute(){
             var total = 0, galaUnit = 0, galaSel = false;
@@ -1537,7 +1560,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 if (o.dataset.key === 'gala') { galaSel = true; galaUnit = Number(o.dataset.price) || 0; }
                 else { total += Number(o.dataset.price) || 0; }
             });
-            var guests = parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0;
+            var guests = galaSel ? plexGalaGuests() : 0;
             if (galaSel) {
                 var galaSub = galaUnit * (1 + guests);
                 if (plexDiscount > 0) {
@@ -1575,7 +1598,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             b.disabled = false; b.textContent = 'Apply';
             plexRecompute();
         }
-        function plexToggle(el){ el.classList.toggle('selected'); plexRecompute(); }
+        function plexToggle(el){ el.classList.toggle('selected'); plexGuestFields(); plexRecompute(); }
         function plexErr(m){ var e=document.getElementById('plexMsg'); e.className='msg err'; e.textContent=m; }
         async function plexSubmit(ev){
             ev.preventDefault();
@@ -1600,14 +1623,17 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
                 country: document.getElementById('pf_country').value.trim(),
                 dietary: document.getElementById('pf_diet').value.trim(),
                 allergies: (document.getElementById('pf_allergies') || {}).value ? document.getElementById('pf_allergies').value.trim() : '',
-                guest_count: parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0,
+                guest_count: sel.gala ? plexGalaGuests() : 0,            // Gala seats beyond the registrant (the server re-derives it)
                 guests: (function(){
                     var n = parseInt((document.getElementById('pf_guests') || {}).value || '0') || 0, out = [];
                     for (var g = 0; g < n; g++) {
                         out.push({
                             name: ((document.getElementById('pf_gname' + g) || {}).value || '').trim(),
                             institution: ((document.getElementById('pf_ginst' + g) || {}).value || '').trim(),
-                            email: ((document.getElementById('pf_gemail' + g) || {}).value || '').trim()
+                            email: ((document.getElementById('pf_gemail' + g) || {}).value || '').trim(),
+                            conference: !!sel.conference && plexGuestTick(g, 'conference'),
+                            bridges: !!sel.bridges && plexGuestTick(g, 'bridges'),
+                            gala: !!sel.gala && plexGuestTick(g, 'gala')
                         });
                     }
                     return out;
@@ -3590,6 +3616,17 @@ app.get('/invite/:data', async (req, res) => {
                     <label>Notes <span style="font-size:11px;color:#64748b;">(allergies, accessibility needs, anything we should know)</span></label>
                     <textarea id="caNotes" placeholder="Optional"></textarea>
                 </div>
+                <!-- Guests per event (2026-09-16): shown once any event is selected; each guest ticks the legs they join,
+                     limited to the registrant's own selection. Gala seats are the only paid item. -->
+                <div id="caGuestsWrap" style="display:none;">
+                    <label>Additional guests <span style="font-size:11px;color:#64748b;">(max 2 &mdash; you choose which events each guest joins; Gala seats &euro;${galaPrice} each)</span></label>
+                    <select id="caGuests" onchange="caGuestFields();render()">
+                        <option value="0">No additional guests</option>
+                        <option value="1">+1 guest</option>
+                        <option value="2">+2 guests</option>
+                    </select>
+                    <div id="caGuestFields" style="display:none;"></div>
+                </div>
                 <!-- Official invoice (Gala only — the one paid item). render() shows it while the Gala is selected. -->
                 <div id="caInvoiceWrap" style="display:none;">
                     <label for="caInvoice" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#e2e8f0;line-height:1.45;padding:12px 14px;border:1px solid rgba(201,169,98,0.28);border-radius:10px;background:rgba(255,255,255,0.03);">
@@ -3633,11 +3670,53 @@ function toggleEvent(evt) {
     render();
 }
 
+const CA_LEGS = [['conference', 'Plexus Conference'], ['bridges', 'Building Bridges Zagreb'], ['gala', 'Gala Evening (+\u20AC' + GALA_PRICE + ' seat)']];
+const caEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const caGuestTick = (g, key) => { const el = document.getElementById('caG' + key + g); return !!(el && el.checked); };
+const caGuestN = () => parseInt((document.getElementById('caGuests') || {}).value || '0') || 0;
+function caGalaGuests() { let c = 0; for (let g = 0; g < caGuestN(); g++) if (state.gala && caGuestTick(g, 'gala')) c++; return c; }
+function caGuestFields() {
+    const box = document.getElementById('caGuestFields');
+    if (!box) return;
+    const n = caGuestN(), keep = [];
+    for (let i = 0; i < 2; i++) {
+        const had = !!document.getElementById('caGname' + i);
+        keep.push({
+            name: (document.getElementById('caGname' + i) || {}).value || '',
+            inst: (document.getElementById('caGinst' + i) || {}).value || '',
+            email: (document.getElementById('caGemail' + i) || {}).value || '',
+            ticks: had ? { conference: caGuestTick(i, 'conference'), bridges: caGuestTick(i, 'bridges'), gala: caGuestTick(i, 'gala') } : null
+        });
+    }
+    if (n < 1) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    let html = '';
+    for (let g = 0; g < n; g++) {
+        let ticks = '';
+        CA_LEGS.forEach(([key, label]) => {
+            if (!state[key]) return;
+            const on = keep[g].ticks ? !!keep[g].ticks[key] : true;
+            ticks += '<label for="caG' + key + g + '" style="display:inline-flex;align-items:center;gap:7px;margin:6px 16px 0 0;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#e2e8f0;"><input type="checkbox" id="caG' + key + g + '"' + (on ? ' checked' : '') + ' onchange="render()" style="width:15px;height:15px;accent-color:#c9a962;">' + label + '</label>';
+        });
+        html += '<div style="margin-top:10px;padding:12px 14px;border:1px solid rgba(201,169,98,0.28);border-radius:10px;background:rgba(255,255,255,0.03);">'
+            + '<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#e2e8f0;">Guest ' + (g + 1) + '</div>'
+            + '<div><label>Full name *</label><input id="caGname' + g + '" maxlength="120" value="' + caEsc(keep[g].name) + '"></div>'
+            + '<div style="margin-top:8px;"><label>Institution / Company</label><input id="caGinst' + g + '" maxlength="160" value="' + caEsc(keep[g].inst) + '"></div>'
+            + '<div style="margin-top:8px;"><label>Email <span style="font-size:11px;color:#64748b;">(so they receive their entry QR too)</span></label><input id="caGemail' + g + '" type="email" maxlength="160" value="' + caEsc(keep[g].email) + '"></div>'
+            + '<div style="margin-top:10px;"><label>Joins</label><div>' + (ticks || '<span style="font-size:12px;color:#64748b;">Select at least one event above first.</span>') + '</div></div>'
+            + '</div>';
+    }
+    box.innerHTML = html; box.style.display = 'block';
+}
+
 function render() {
     // Each event card highlighted only if explicitly selected
     document.getElementById('evtConference').classList.toggle('selected', state.conference);
     document.getElementById('evtBridges').classList.toggle('selected', state.bridges);
     document.getElementById('evtGala').classList.toggle('selected', state.gala);
+    // Guests — any selected event; the cards re-mask their ticks to the current selection
+    const gw = document.getElementById('caGuestsWrap');
+    if (gw) gw.style.display = (state.conference || state.bridges || state.gala) ? 'block' : 'none';
+    caGuestFields();
 
     // Dietary field — visible if Bridges or Gala selected
     document.getElementById('caDietaryWrap').style.display = (state.bridges || state.gala) ? 'block' : 'none';
@@ -3651,10 +3730,13 @@ function render() {
     const btn = document.getElementById('caSubmitBtn');
     const anySelected = state.conference || state.bridges || state.gala;
     if (state.gala) {
+        const seats = 1 + caGalaGuests();
         total.classList.add('show');
+        total.querySelector('.label').textContent = seats > 1 ? ('Gala \u2014 ' + seats + ' seats') : 'Gala Ticket';
+        total.querySelector('.amount').innerHTML = '&euro;' + (GALA_PRICE * seats);
         btn.disabled = false;
         btn.className = 'submit-btn';
-        btn.innerHTML = 'Proceed to Payment &mdash; &euro;' + GALA_PRICE;
+        btn.innerHTML = 'Proceed to Payment &mdash; &euro;' + (GALA_PRICE * seats);
     } else if (anySelected) {
         total.classList.remove('show');
         btn.disabled = false;
@@ -3698,6 +3780,15 @@ async function submitCA(e) {
         selected_conference: state.conference ? 1 : 0,
         selected_bridges: state.bridges ? 1 : 0,
         selected_gala: state.gala ? 1 : 0,
+        guest_count: caGalaGuests(),                       // Gala seats beyond the registrant (the server re-derives it)
+        guests: (function(){ const out = []; for (let g = 0; g < caGuestN(); g++) out.push({
+            name: ((document.getElementById('caGname' + g) || {}).value || '').trim(),
+            institution: ((document.getElementById('caGinst' + g) || {}).value || '').trim(),
+            email: ((document.getElementById('caGemail' + g) || {}).value || '').trim(),
+            conference: state.conference && caGuestTick(g, 'conference'),
+            bridges: state.bridges && caGuestTick(g, 'bridges'),
+            gala: state.gala && caGuestTick(g, 'gala')
+        }); return out; })(),
         needs_invoice: caInvTicked ? 1 : 0,
         invoice_details: caInvTicked ? {
             company: caInvVal('caInvCompany'),
@@ -9023,6 +9114,19 @@ async function initializeApp() {
         email TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Guests per event (2026-09-16): which legs each guest joins. Declared identically in BOTH
+    // portals (outside the SCHEMA-MIRROR block). Rows from before the flags were Gala-only by
+    // construction — the one-off backfill below stamps gala=1 on them, marker-guarded so a
+    // future all-zero row (impossible from the form, which drops leg-less guests) is never touched.
+    for (const col of ['conference', 'bridges', 'gala']) { try { db.run(`ALTER TABLE ca_registration_guests ADD COLUMN ${col} INTEGER DEFAULT 0`); } catch(e) {} }
+    try { db.run('ALTER TABLE ca_registration_guests ADD COLUMN ticket_sent_at TEXT'); } catch(e) {}
+    try {
+        if (!query.get("SELECT value FROM app_state WHERE key = 'ca_guest_events_backfill_v1'")) {
+            db.run('UPDATE ca_registration_guests SET gala = 1 WHERE COALESCE(conference,0) = 0 AND COALESCE(bridges,0) = 0 AND COALESCE(gala,0) = 0');
+            db.run("INSERT INTO app_state (key, value, updated_at) VALUES ('ca_guest_events_backfill_v1', ?, ?)", [new Date().toISOString(), new Date().toISOString()]);
+            saveDb();
+        }
+    } catch(e) { console.warn('[CA] guest-events backfill skipped:', e.message); }
 
     // Gala invite links — admin-generated shareable URLs (generic paid + VIP free)
     db.run(`CREATE TABLE IF NOT EXISTS gala_invite_links (
@@ -28577,6 +28681,45 @@ By applying to this program, I provide the following consents:
     // One implementation, two callers: the untouched immediate path (free-only Path A in the
     // route below) and the review-gate APPROVE handler — an approved registration receives
     // EXACTLY the email + sheet row it would have received had it never been held.
+    // ---- guests per event (Alen 2026-09-16) — the rules live in ca-guests.js (pure, tested) ----
+    const caGuestsMod = require('./ca-guests');
+    const caNormalizeGuests = caGuestsMod.normalizeGuests;
+    const caGuestsSummary = caGuestsMod.summary;
+    const caGuestRows = regId => { try { return query.all('SELECT * FROM ca_registration_guests WHERE registration_id = ? ORDER BY created_at, rowid', [regId]) || []; } catch (e) { return []; } };
+    // Guests holding at least one FREE leg get their own copy of the free-events ticket — the same
+    // party QR, their name on the card, their own wallet passes. Gala-leg guests get their Gala
+    // entry from the payment webhook instead (fulfilLinkedCaGala), so nobody gets two copies for
+    // one leg; ticket_sent_at makes a replayed confirmation a no-op.
+    async function caSendGuestFreeCopies({ regId, hostFirst, hostLast, regSource }) {
+        const host = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [regId]);
+        if (!host) return 0;
+        const hostName = `${hostFirst || host.first_name || ''} ${hostLast || host.last_name || ''}`.trim();
+        const base = process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com';
+        let sent = 0;
+        for (const g of caGuestRows(regId)) {
+            if (!g.email || g.ticket_sent_at) continue;
+            const legs = plexusTicket.guestLegs(g).filter(l => l !== 'gala' && (l === 'conference' ? Number(host.selected_conference) : Number(host.selected_bridges)));
+            if (!legs.length) continue;
+            try {
+                const html = plexusTicket.ticketEmail('free', {
+                    firstName: String(g.name || '').trim().split(/\s+/)[0] || 'there', fullName: String(g.name || '').trim() || 'Guest',
+                    legs, seats: 1, guestOf: hostName, source: regSource,
+                    ticketCode: String(regId).slice(0, 8).toUpperCase(),
+                    qrPngUrl: qrImageUrl(regId),
+                    wallet: plexusPass.walletLinks('guest', g.id),
+                    calendarUrl: plexusTicket.calendarUrl(base, legs)
+                });
+                const out = await sendEventConfirmation(g.email, 'Your Plexus Week 2026 entry', html);
+                if (out && out.success !== false && !out.mock) {
+                    db.run('UPDATE ca_registration_guests SET ticket_sent_at = ? WHERE id = ?', [new Date().toISOString(), g.id]);
+                    sent++;
+                }
+            } catch (e) { console.warn('[CA] guest free-copy failed (non-blocking):', e.message); }
+        }
+        if (sent) saveDb();
+        return sent;
+    }
+
     async function caSendPreRegConfirmation({ regId, first_name, last_name, email, finalConf, finalBridges, finalGala, regSource }) {
         // The free-events ticket, on the same Boston-style card as every other Plexus ticket
         // (Alen 2026-09-15): facts per leg, the hosted /qr/:id.png the doors scan (the same
@@ -28596,11 +28739,14 @@ By applying to this program, I provide the following consents:
             ticketCode: String(qrId).slice(0, 8).toUpperCase(),
             qrPngUrl: qrImageUrl(qrId),
             wallet: plexusPass.walletLinks(finalGala ? 'gala' : 'ca', finalGala ? qrId : regId),
-            calendarUrl: plexusTicket.calendarUrl(base, legs)
+            calendarUrl: plexusTicket.calendarUrl(base, legs),
+            guestsHtml: plexusTicket.guestsHtml(caGuestRows(regId))          // who joins which event
         });
         try {
             await sendEventConfirmation(email, finalGala ? 'Your ticket — Plexus Week 2026' : "You're pre-registered — Plexus Week 2026", html);
         } catch(emailErr) { console.warn('CA pre-reg email failed:', emailErr.message); }
+        try { await caSendGuestFreeCopies({ regId, hostFirst: first_name, hostLast: last_name, regSource }); }
+        catch (e) { console.warn('[CA] guest copies failed (non-blocking):', e.message); }
     }
 
     // Log to Google Sheets — `events` array tells the Apps Script which tab(s) to write to.
@@ -28628,9 +28774,23 @@ By applying to this program, I provide the following consents:
                 amount: 0, payment: 'Free (Pre-Registered)' + (needsInvoice ? ' · OFFICIAL INVOICE REQUESTED (Gala)' : ''),
                 invite_label: inviteLabel || '',
                 ticket_code: String(regId).substring(0, 8).toUpperCase(),
-                registration_id: regId
+                registration_id: regId,
+                ...caGuestSheetFields(regId)
             });
         } catch(e) {}
+    }
+    // Guests per event for the Sheet: a Conference-only guest counts at the Conference, not the Gala.
+    function caGuestSheetFields(regId) {
+        const gs = caGuestRows(regId);
+        const legsOf = g => plexusTicket.guestLegs(g);
+        return {
+            guests: gs.filter(g => legsOf(g).includes('gala')).length,                       // = guest_count (Gala seats beyond the registrant)
+            guests_total: gs.length,
+            guests_conference: gs.filter(g => legsOf(g).includes('conference')).length,
+            guests_bridges: gs.filter(g => legsOf(g).includes('bridges')).length,
+            guests_gala: gs.filter(g => legsOf(g).includes('gala')).length,
+            guest_list: gs.map(g => `${g.name || g.email || 'Guest'} (${plexusTicket.guestEvents(g).join(' + ')})`).join('; ')
+        };
     }
 
     // Everything gala-paylink.js is allowed to touch, in one place. The module opens no
@@ -29011,30 +29171,33 @@ By applying to this program, I provide the following consents:
             saveDb();
             flushDb(); // durability: the CA registration row is final now — push to Turso immediately
 
-            // Gala extras (guests + allergies) — persisted for ANY gala selection, held or not,
-            // so an approved registration keeps its full party details. Shared by the held
-            // branch below and the untouched paid Path B.
-            const galaGuestCount = Math.max(0, Math.min(2, parseInt(req.body.guest_count, 10) || 0)); // +guests, max 2
+            // ---- GUESTS, per event (Alen 2026-09-16) ----
+            // A guest may join any leg the registrant selected: each guest carries conference /
+            // bridges / gala flags, masked server-side by the registrant's own selection (a guest
+            // can never hold a leg the host did not pick). `guest_count` KEEPS meaning "additional
+            // GALA guests" — every reader of it (pay link, party pricing, gala door, admin partyOf)
+            // is a seats reader — so it is derived here from the flags, never taken from the client.
+            const caGuests = caNormalizeGuests(req.body.guests, { wantConf: finalConf, wantBridges: finalBridges, wantGala: finalGala });
+            const galaGuestCount = caGuestsMod.galaGuestCount(caGuests);                   // Gala seats beyond the registrant, max 2
             const galaAllergies = (req.body.allergies || '').toString().slice(0, 200);
+            // Per-guest rows → ca_registration_guests, for EVERY path (held, free-only, paid): a
+            // conference-only guest must exist even when nobody pays anything.
+            const persistGuests = () => {
+                try {
+                    db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [galaGuestCount, regId]);
+                    for (const g of caGuests) {
+                        db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email, conference, bridges, gala) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                            [uuidv4(), regId, g.name, g.institution, g.email, g.conference ? 1 : 0, g.bridges ? 1 : 0, g.gala ? 1 : 0]);
+                    }
+                } catch (gErr) { console.error('[CA] guest details save failed (non-blocking):', gErr.message); }
+            };
+            persistGuests();
+            // Gala extras (gala seats + allergies) on the gala row — for ANY gala selection, held or
+            // not, so an approved registration keeps its full party details.
             const persistGalaExtras = () => {
-                // Persist guests + allergies on the gala row (allergies folded into requests) + CA row.
                 try {
                     const reqText = [notes, galaAllergies ? ('Allergies: ' + galaAllergies) : ''].filter(Boolean).join(' | ') || null;
                     db.run('UPDATE gala_registrations SET guest_count = ?, requests = ? WHERE id = ?', [galaGuestCount, reqText, galaRegistrationId]);
-                    db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [galaGuestCount, regId]);
-                    // Per-guest details (name/institution/email) → ca_registration_guests (2026-08-30)
-                    try {
-                        const guestRows = Array.isArray(req.body.guests) ? req.body.guests.slice(0, galaGuestCount) : [];
-                        for (const g of guestRows) {
-                            const gName = String((g && g.name) || '').slice(0, 120).trim();
-                            const gInst = String((g && g.institution) || '').slice(0, 160).trim();
-                            const gEmailRaw = String((g && g.email) || '').slice(0, 160).trim().toLowerCase();
-                            const gEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(gEmailRaw) ? gEmailRaw : '';
-                            if (!gName && !gEmail) continue;
-                            db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email) VALUES (?, ?, ?, ?, ?)',
-                                [uuidv4(), regId, gName, gInst, gEmail]);
-                        }
-                    } catch (gErr) { console.error('[CA] guest details save failed (non-blocking):', gErr.message); }
                 } catch(e) {}
             };
 
@@ -29047,9 +29210,7 @@ By applying to this program, I provide the following consents:
                 if (finalGala) persistGalaExtras();
                 try {
                     const urls = reviewGate.reviewUrls(JWT_SECRET, 'croatians_abroad_registrations', regId);
-                    const heldGuests = galaGuestCount
-                        ? galaGuestCount + (Array.isArray(req.body.guests) ? ' — ' + req.body.guests.slice(0, galaGuestCount).map(g => String((g && g.name) || '').trim()).filter(Boolean).join(', ') : '')
-                        : 'None';
+                    const heldGuests = caGuests.length ? caGuestsSummary(caGuests) : 'None';
                     await sendEventConfirmation(reviewGate.REVIEW_TO, 'A registration needs your review — Plexus (Zagreb form)',
                         reviewGate.buildReviewEmail({
                             kind: 'Zagreb form',
@@ -29057,7 +29218,7 @@ By applying to this program, I provide the following consents:
                             fields: {
                                 'First name': first_name, 'Last name': last_name || '', 'Email': email,
                                 'Institution': institution || '', 'Country': country || '', 'Role': role || '',
-                                'Selected events': caAppliedFor, 'Gala guests': finalGala ? heldGuests : 'n/a (no Gala)',
+                                'Selected events': caAppliedFor, 'Guests': heldGuests, 'Gala seats billed': finalGala ? String(1 + galaGuestCount) : 'n/a (no Gala)',
                                 'Official invoice': finalGala ? (needsInvoice ? 'YES — company/institution invoice requested' : 'no') : 'n/a (no Gala)',
                                 ...(invoiceDetails ? {
                                     'Invoice to': invoiceDetails.company,

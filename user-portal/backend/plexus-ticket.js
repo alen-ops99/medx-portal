@@ -192,10 +192,21 @@ function ticketEmail(kind, f) {
     });
 }
 
+// A guest's legs from the per-event flags on ca_registration_guests (2026-09-16). Rows written
+// before the flags existed were gala-only by definition (the form offered guests for the Gala
+// alone) — the boot backfill stamps gala=1 on them, and this falls back to it as well.
+function guestLegs(g) {
+    const on = v => v === 1 || v === true || v === '1';
+    const legs = [on(g && g.conference) ? 'conference' : null, on(g && g.bridges) ? 'bridges' : null, on(g && g.gala) ? 'gala' : null].filter(Boolean);
+    return legs.length ? legs : ['gala'];
+}
+const guestEvents = g => guestLegs(g).map(l => LEG[l].name);
+
 // The guests block under the facts card (who joins which event, and whether they got their own copy).
 function guestsHtml(guests, eventsOf) {
     const rows = (guests || []).filter(g => g && (g.name || g.email));
     if (!rows.length) return '';
+    if (!eventsOf) eventsOf = guestEvents;
     const T = emailTemplates.T;
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border:1px solid rgba(201,169,98,.45);background:${T.cardCream};"><tr><td style="padding:12px 18px;">
         <div style="font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:${T.goldDark};">Your guests</div>
@@ -280,6 +291,6 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
 module.exports = {
     LEG, LEG_ORDER, legFacts, legNames, whenLinesFor, whereFor, joinAnd,
     icsFor, calendarUrl, parseLegs,
-    ticketEmail, guestsHtml,
+    ticketEmail, guestsHtml, guestLegs, guestEvents,
     pageSig, galaPageSig, safeEq, ticketPageHtml
 };
