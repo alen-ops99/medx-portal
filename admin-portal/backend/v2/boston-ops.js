@@ -232,6 +232,8 @@ module.exports = function mountBostonOps(app, ctx) {
                 // always add up to `requested`, so the card's header can never imply a talk slot
                 // that does not exist — or lose somebody between two screens.
                 confirmed: Number(data.confirmed) || 0,
+                panel: Number(data.panel) || 0,
+                panel_total: Number(data.panel_total) || 0,
                 declined: Number(data.declined) || 0,
                 undecided: Number(data.undecided) || 0,
                 invited: rows.filter(r => r.invited_at != null).length,
@@ -481,8 +483,8 @@ module.exports = function mountBostonOps(app, ctx) {
             const id = cleanStr(req.params.id, 64);
             const raw = (req.body || {}).status;
             const status = raw == null || cleanStr(raw, 20) === '' ? null : cleanStr(raw, 20).toLowerCase();
-            if (status !== null && status !== 'confirmed' && status !== 'declined') {
-                return res.status(400).json({ error: 'status must be "confirmed", "declined" or null.' });
+            if (status !== null && !['confirmed', 'panel', 'declined'].includes(status)) {
+                return res.status(400).json({ error: 'status must be "confirmed", "panel", "declined" or null.' });
             }
             const reg = id ? q.get('SELECT id, email FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
             if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });

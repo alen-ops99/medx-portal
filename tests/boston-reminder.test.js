@@ -365,23 +365,23 @@ async function t(name, fn) {
         const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview' } });
         assert.strictEqual(r.statusCode, 200);
         assert.strictEqual(r.body.program_attached, false);
-        assert.strictEqual(sentEmails.length, before + 3, 'all three shapes');
-        for (const m of sentEmails.slice(-3)) {
+        assert.strictEqual(sentEmails.length, before + 4, 'all four shapes');
+        for (const m of sentEmails.slice(-4)) {
             assert.strictEqual(m.attachments, null, 'nothing to attach yet');
             assert.ok(m.html.includes('(program PDF not uploaded yet)'), 'the preview says the PDF is missing');
         }
     });
 
-    await t('preview goes ONLY to the reviewer, in all three shapes, and stamps nothing', async () => {
+    await t('preview goes ONLY to the reviewer, in all four shapes, and stamps nothing', async () => {
         programOn();
         const before = sentEmails.length;
         const beforeRows = query.all(`SELECT id, reminder_sent, notes FROM bridges_registrations WHERE event_id = ?`, [EVENT_ID]);
         const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview' } });
         assert.strictEqual(r.statusCode, 200);
         assert.strictEqual(r.body.preview_to, REVIEW_TO);
-        assert.deepStrictEqual(r.body.variants, ['presenter', 'attendee', 'declined'], 'three variants, presenter first');
-        assert.strictEqual(sentEmails.length, before + 3, 'exactly three emails — one per shape');
-        const [pres, att, dec] = sentEmails.slice(-3);
+        assert.deepStrictEqual(r.body.variants, ['presenter', 'attendee', 'declined', 'panel'], 'four variants, presenter first');
+        assert.strictEqual(sentEmails.length, before + 4, 'exactly four emails — one per shape');
+        const [pres, att, dec] = sentEmails.slice(-4);
         for (const mail of [pres, att, dec]) {
             assert.strictEqual(mail.to, REVIEW_TO, 'the preview must go to the reviewer and nobody else');
             assert.strictEqual(mail.to, 'juginovic.alen@gmail.com');
@@ -399,7 +399,7 @@ async function t(name, fn) {
     });
 
     await t('the presenter preview carries the slides block, the attendee preview does not', () => {
-        const [pres, att] = sentEmails.slice(-3);
+        const [pres, att] = sentEmails.slice(-4);
         assert.ok(pres.html.includes('Send us your presentation slides'), 'presenter shape has the slides block');
         assert.ok(pres.html.includes(hub(LUKA)), "and Luka's own slides step on his hub link");
         assert.ok(!att.html.includes('Send us your presentation slides'), 'attendee shape must not be told to upload slides');
@@ -573,7 +573,7 @@ async function t(name, fn) {
     });
 
     await t('no shape of the Boston email says Friday, 18 September any more', async () => {
-        for (const variant of ['presenter', 'attendee', 'declined']) {
+        for (const variant of ['presenter', 'attendee', 'declined', 'panel']) {
             await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant } });
             const html = sentEmails[sentEmails.length - 1].html;
             assert.ok(!/18 September|Friday, 18/.test(html), variant + ' still carries the old deadline');

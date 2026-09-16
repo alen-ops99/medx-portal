@@ -247,20 +247,26 @@ function cateringStateOf(reg) {
 // a row is decided it falls back to the offer, which is exactly the behaviour before he chose.
 const PRESENTER_CONFIRMED = 'confirmed';
 const PRESENTER_DECLINED = 'declined';
+// Alen 2026-09-16: a fourth answer. 'panel' = not on the running order (no slides, nothing
+// required), seat confirmed, invited to the 7:05 PM panel discussion instead — its own email shape.
+const PRESENTER_PANEL = 'panel';
+const PRESENTER_STATES = [PRESENTER_CONFIRMED, PRESENTER_DECLINED, PRESENTER_PANEL];
 const requestedPresentation = r => /5-minute presentation/.test(String((r && r.notes) || ''));
 const presenterStatusOf = r => {
     const v = String((r && r.presenter_status) || '').trim().toLowerCase();
-    return v === PRESENTER_CONFIRMED || v === PRESENTER_DECLINED ? v : null;
+    return PRESENTER_STATES.includes(v) ? v : null;
 };
 const isPresenterRow = r => {
     const s = presenterStatusOf(r);
     if (s === PRESENTER_CONFIRMED) return true;
-    if (s === PRESENTER_DECLINED) return false;
+    if (s === PRESENTER_DECLINED || s === PRESENTER_PANEL) return false;
     return requestedPresentation(r);
 };
 // The one shape that earns the warm note: they offered, and he could not fit them in. A row marked
 // declined that never offered is a data slip, not a disappointment — it gets the plain guest email.
 const wasDeclinedPresenter = r => presenterStatusOf(r) === PRESENTER_DECLINED && requestedPresentation(r);
+// On the panel: whether or not they offered a talk, they get the panel invitation shape.
+const isPanelRow = r => presenterStatusOf(r) === PRESENTER_PANEL;
 // A released seat: the row is cancelled. `releasedOn` prefers the dated notes marker, falls back to
 // the custom_answers stamp, and answers '' when a row is cancelled without either (a review-gate
 // rejection) — so every reader can say "released" without ever printing "undefined".
@@ -515,6 +521,12 @@ module.exports = function mountBoston(app, deps) {
             if (!cols.some(c => String(c.name) === 'presenter_status')) {
                 query.run('ALTER TABLE bridges_registrations ADD COLUMN presenter_status TEXT');
                 console.log('[Boston] presenter_status column added to bridges_registrations');
+            }
+            // The panelist's own answer (Alen 2026-09-16): 'yes' | 'no' | NULL while unanswered.
+            if (!cols.some(c => String(c.name) === 'panel_reply')) {
+                query.run('ALTER TABLE bridges_registrations ADD COLUMN panel_reply TEXT');
+                query.run('ALTER TABLE bridges_registrations ADD COLUMN panel_replied_at TEXT');
+                console.log('[Boston] panel_reply columns added to bridges_registrations');
             }
             presenterStatusReady = true;
         } catch (e) { console.warn('[Boston] presenter_status migration skipped:', e.message); }
@@ -1533,8 +1545,11 @@ module.exports = function mountBoston(app, deps) {
 
     /** Every fact the page and its progress line are drawn from — one read, one shape. */
     function meStateOf(reg) {
+        ensurePresenterStatusColumn();
         const presenter = isPresenterRow(reg);
         const declined = wasDeclinedPresenter(reg);
+        const panel = isPanelRow(reg);
+        const panelReply = panel ? (String(reg.panel_reply || '').toLowerCase() === 'yes' ? 'yes' : String(reg.panel_reply || '').toLowerCase() === 'no' ? 'no' : null) : null;
         const cat = cateringStateOf(reg);
         const summary = latestOnepager(reg.id);
         // A deck on file OR a saved share link (the over-25 MB lane) — either satisfies step 3.
@@ -1547,11 +1562,13 @@ module.exports = function mountBoston(app, deps) {
         // The Finish click is itself the last numbered step (Alen 2026-09-16: "we have one, we have
         // two, but we need three"), so the count includes it: attendee 1·2·3, presenter 1·2·3·4.
         const finished = hasMark(reg, FINISHED_MARK);
-        const finishNo = presenter ? 4 : 3;
+        // Panel rows carry one extra numbered step at the top — the answer — so their Finish is 4th.
+        const stepP = !!panelReply;
+        const finishNo = (presenter || panel) ? 4 : 3;
         const total = finishNo;
-        const done = (step1 ? 1 : 0) + (step2 ? 1 : 0) + (presenter && step3 ? 1 : 0) + (finished ? 1 : 0);
+        const done = (panel && stepP ? 1 : 0) + (step1 ? 1 : 0) + (step2 ? 1 : 0) + (presenter && step3 ? 1 : 0) + (finished ? 1 : 0);
         return {
-            presenter, declined, cat, summary, slides,
+            presenter, declined, panel, panelReply, stepP, cat, summary, slides,
             step1, step2, step3, total, done, finishNo,
             // "All set" is the guest's own word — the Finish click — and nothing else. It used to be
             // derived from "nothing required", which made an attendee's page open already finished
@@ -1765,6 +1782,40 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ------------------------------------------------------------ POST /api/boston/me/:token/panel
+    // The panelist's answer: {reply:'yes'|'no'}. Saved on the row, changeable any time, and the team
+    // gets a one-line FYI either way (a 'no' means a replacement seat to fill). A 'no' keeps their
+    // guest seat exactly as it was — from then on the page behaves like an attendee's.
+    app.post('/api/boston/me/:token/panel', async (req, res) => {
+        try {
+            const reg = meRegOf(req.params.token);
+            if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
+            if (!isPanelRow(reg)) return res.status(403).json({ error: 'This page has no panel question.' });
+            const reply = String((req.body || {}).reply || '').trim().toLowerCase();
+            if (reply !== 'yes' && reply !== 'no') return res.status(400).json({ error: 'Please answer yes or no.' });
+            const before = String(reg.panel_reply || '').toLowerCase() || null;
+            const now = new Date().toISOString();
+            query.run('UPDATE bridges_registrations SET panel_reply = ?, panel_replied_at = ? WHERE id = ?', [reply, now, reg.id]);
+            flushDb();
+            if (before !== reply) {
+                const who = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || reg.email;
+                const subject = reply === 'yes' ? `${who} accepted the panel seat — Boston` : `${who} declined the panel seat — Boston`;
+                const html = panelFyiHtml(who, reg.institution || '', reg.email, reply, before);
+                for (const to of [process.env.CONFIRMATION_CC || SUPPORT_EMAIL, reviewGate.REVIEW_TO]) {
+                    try { await sendEmail(to, subject, html); }
+                    catch (e) { console.warn('[Boston] panel FYI failed for ' + to + ':', e.message); }
+                }
+            }
+            const fresh = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [reg.id]) || reg;
+            const st = meStateOf(fresh);
+            res.json({ success: true, reply, changed: before !== reply, done: st.done, total: st.total });
+        } catch (e) {
+            console.error('[Boston] panel reply failed:', e.message);
+            res.status(500).json({ error: 'We could not save that just now. Please try again.' });
+        }
+    });
+
     // ------------------------------------------------------------ POST /api/boston/me/:token/finish
     // The guest's own full stop. A confirmed presenter without a deck (file or link) is turned
     // back to step 3 instead of finishing; everyone else is stamped ME-FINISHED and gets ONE
@@ -1779,6 +1830,12 @@ module.exports = function mountBoston(app, deps) {
                 return res.status(409).json({
                     incomplete: 'slides',
                     error: 'One thing left — your presentation slides. Upload them (or paste a share link) in step 3 and you are done.'
+                });
+            }
+            if (st.panel && !st.stepP) {
+                return res.status(409).json({
+                    incomplete: 'panel',
+                    error: 'One thing left — please tell us in step 1 whether you can join the panel.'
                 });
             }
             const already = hasMark(reg, FINISHED_MARK);
@@ -1877,8 +1934,8 @@ module.exports = function mountBoston(app, deps) {
             if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
             const raw = (req.body || {}).status;
             const want = raw == null || String(raw).trim() === '' ? null : String(raw).trim().toLowerCase();
-            if (want !== null && want !== PRESENTER_CONFIRMED && want !== PRESENTER_DECLINED) {
-                return res.status(400).json({ error: 'status must be "confirmed", "declined" or null.' });
+            if (want !== null && !PRESENTER_STATES.includes(want)) {
+                return res.status(400).json({ error: 'status must be "confirmed", "panel", "declined" or null.' });
             }
             query.run('UPDATE bridges_registrations SET presenter_status = ? WHERE id = ?', [want, reg.id]);
             flushDb();
@@ -1887,7 +1944,8 @@ module.exports = function mountBoston(app, deps) {
                 success: true, id: reg.id, presenter_status: want,
                 presenter: isPresenterRow(fresh),
                 presentation_requested: requestedPresentation(fresh),
-                declined_presenter: wasDeclinedPresenter(fresh)
+                declined_presenter: wasDeclinedPresenter(fresh),
+                panel: isPanelRow(fresh)
             });
         } catch (e) {
             console.error('[Boston] presenter status write failed:', e.message);
@@ -1901,6 +1959,7 @@ module.exports = function mountBoston(app, deps) {
         ensurePresenterStatusColumn();
         const regs = query.all(`SELECT * FROM bridges_registrations
             WHERE event_id = ? AND (notes LIKE '%5-minute presentation%'
+               OR presenter_status IS NOT NULL
                OR id IN (SELECT registration_id FROM bridges_presentations))
             ORDER BY registered_at, rowid`, [EVENT_ID]);
         const base = baseUrl();
@@ -1922,6 +1981,8 @@ module.exports = function mountBoston(app, deps) {
                 presenter_status: presenterStatusOf(r),
                 presenter: isPresenterRow(r),
                 declined_presenter: wasDeclinedPresenter(r),
+                panel: isPanelRow(r),
+                panel_reply: isPanelRow(r) ? (String(r.panel_reply || '').toLowerCase() || null) : null,
                 // A presenter who gave the seat back stays visible here (their deck is still on
                 // file) but is marked, so nobody sends slides chasers to somebody who is not coming.
                 status: r.status || null,
@@ -1957,8 +2018,11 @@ module.exports = function mountBoston(app, deps) {
             // confirmed + declined + undecided is always exactly `requested` — nothing can go
             // missing between the owner's decisions and the number of talks the evening holds.
             confirmed: askedToPresent.filter(r => r.presenter_status === PRESENTER_CONFIRMED).length,
+            panel: askedToPresent.filter(r => r.presenter_status === PRESENTER_PANEL).length,
             declined: askedToPresent.filter(r => r.presenter_status === PRESENTER_DECLINED).length,
             undecided: askedToPresent.filter(r => r.presenter_status == null).length,
+            // panelists who never offered a talk (added straight to the panel) — counted separately
+            panel_total: rows.filter(r => r.presenter_status === PRESENTER_PANEL).length,
             rows
         };
     }
@@ -2250,10 +2314,12 @@ module.exports = function mountBoston(app, deps) {
         const line = (n, html) => `<tr><td style="width:30px;vertical-align:top;padding:7px 0;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:${T.crimson};color:#fff;font-family:${T.sans};font-weight:700;font-size:12px;">${n}</span></td><td style="padding:7px 0 7px 8px;font-family:${T.sans};font-size:14.5px;line-height:1.55;color:${ink};">${html}</td></tr>`;
         const tag = t => `<span style="font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:${gold};border:1px solid ${T.gold};padding:2px 6px;margin-left:6px;vertical-align:1px;">${t}</span>`;
         const asks = [];
-        asks.push(line(1, `<b>Tell us your dietary preference and any food allergies</b>${tag('optional')}<br><span style="color:${soft};font-size:13px;">Finger food and drinks will be served.</span>`));
-        asks.push(line(2, `<b>Send us a one-slide summary of your work</b>${tag('optional')}<br><span style="color:${soft};font-size:13px;">We would like every participant to leave with the key information about everyone else in the room. If you would like to take part, please share one slide: who you are, a bit about your work and where you do it, what you are looking for in collaborators or partners, and your contact details. We compile all the slides into one document and share it with every participant after the event. PDF or PowerPoint, by ${esc(SLIDES_DEADLINE)}.</span>`));
+        const off = o.panel ? 1 : 0;
+        if (o.panel) asks.push(line(1, `<b>Tell us whether you can join the panel</b>${tag('required')}<br><span style="color:${soft};font-size:13px;">One tap on your personal page &mdash; yes or no. We will send the panel questions a few days before the evening.</span>`));
+        asks.push(line(1 + off, `<b>Tell us your dietary preference and any food allergies</b>${tag('optional')}<br><span style="color:${soft};font-size:13px;">Finger food and drinks will be served.</span>`));
+        asks.push(line(2 + off, `<b>Send us a one-slide summary of your work</b>${tag('optional')}<br><span style="color:${soft};font-size:13px;">We would like every participant to leave with the key information about everyone else in the room. If you would like to take part, please share one slide: who you are, a bit about your work and where you do it, what you are looking for in collaborators or partners, and your contact details. We compile all the slides into one document and share it with every participant after the event. PDF or PowerPoint, by ${esc(SLIDES_DEADLINE)}.</span>`));
         if (o.presenter) asks.push(line(3, `<b>Send us your presentation slides</b>${tag('required')}<br><span style="color:${soft};font-size:13px;">5 minutes, 5 to 8 slides, PowerPoint 16:9. Introduce your lab, department or institution (whichever you are representing), what you or your group do, and how you would like to collaborate. We will load all presentations onto one laptop, so there is no need to bring your own. Q&amp;A is reserved for the networking reception, given the number of presentations. Full instructions in the attached program. By ${esc(SLIDES_DEADLINE)}.</span>`));
-        asks.push(line(o.presenter ? 4 : 3, `<b>Have a look at the attached program</b><br><span style="color:${soft};font-size:13px;">Running order, presentation instructions and practical notes (PDF).${o.programMissing ? ' <b style="color:#b45309;">(program PDF not uploaded yet)</b>' : ''}</span>`));
+        asks.push(line((o.presenter ? 4 : 3) + off, `<b>Have a look at the attached program</b><br><span style="color:${soft};font-size:13px;">Running order, presentation instructions and practical notes (PDF).${o.programMissing ? ' <b style="color:#b45309;">(program PDF not uploaded yet)</b>' : ''}</span>`));
 
         const declinedNoteLight = o.declined ? `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:${T.cardCream};border-left:3px solid ${T.gold};"><tr><td style="padding:14px 18px;font-family:${T.sans};font-size:14.5px;line-height:1.65;color:${ink};">
@@ -2278,6 +2344,7 @@ module.exports = function mountBoston(app, deps) {
         <p style="margin:0 0 10px;">Dear ${esc(first)},</p>
         <p style="margin:0;">We look forward to welcoming you to <b>Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b>${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
         ${o.presenter ? `<p style="margin:12px 0 0;">Thank you for your interest in presenting &mdash; we are happy to offer you a <b>5-minute slot</b>. The order of presentations will be set once everyone has confirmed, and we will send you the schedule before the evening.</p>` : ''}
+        ${o.panel ? `<p style="margin:12px 0 0;">Thank you for your interest in presenting. We would like to invite you to join the <b>panel discussion</b> instead &mdash; 7:05&nbsp;PM, about 25 minutes, moderated by Alen Juginovic together with a few other senior guests. You will be asked about your work in general and your thoughts on the challenges and opportunities in biomedical collaboration. No slides are needed. Please let us know on your personal page whether you can join the panel.</p>` : ''}
       </div>
       ${declinedNoteLight}
       <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:18px;">Before then, we would ask you to do the following <b>by clicking the button below</b>:</div>
@@ -2480,6 +2547,8 @@ module.exports = function mountBoston(app, deps) {
                 slides: !!deck,
                 slides_link: isLinkRow(deck),
                 finished: hasMark(r, FINISHED_MARK),
+                panel: isPanelRow(r),
+                panel_reply: isPanelRow(r) ? (String(r.panel_reply || '').toLowerCase() || null) : null,
                 registration_id: r.id,
                 name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
                 first_name: r.first_name || '',
@@ -2543,6 +2612,9 @@ module.exports = function mountBoston(app, deps) {
             slides_in: rows.filter(r => r.presenter && r.slides).length,
             slides_expected: rows.filter(r => r.presenter).length,
             finished_count: rows.filter(r => r.finished).length,
+            panel_count: rows.filter(r => r.panel).length,
+            panel_accepted: rows.filter(r => r.panel && r.panel_reply === 'yes').length,
+            panel_declined: rows.filter(r => r.panel && r.panel_reply === 'no').length,
             rows
         };
     }
@@ -2564,6 +2636,7 @@ module.exports = function mountBoston(app, deps) {
             // The third shape. presenter is already false for a declined row, so the slides section
             // disappears on its own; this flag is what adds the note that explains why.
             declined: wasDeclinedPresenter(r),
+            panel: isPanelRow(r),
             uploaded: presenter ? (latestPresentation(r.id) || null) : null,
             onepager: latestOnepager(r.id) || null,
             programMissing: !!programMissing
@@ -2580,9 +2653,9 @@ module.exports = function mountBoston(app, deps) {
 
             if (to === 'preview') {
                 const wanted = String(body.variant || '').trim().toLowerCase();
-                const SHAPES = ['presenter', 'attendee', 'declined'];
+                const SHAPES = ['presenter', 'attendee', 'declined', 'panel'];
                 if (wanted && !SHAPES.includes(wanted)) {
-                    return res.status(400).json({ error: 'variant must be "presenter", "attendee" or "declined".' });
+                    return res.status(400).json({ error: 'variant must be "presenter", "attendee", "declined" or "panel".' });
                 }
                 // Each variant is built from a REAL row of that shape, so the preview shows the
                 // links, the ticket and the answers the owner would actually see. A declined row
@@ -2597,16 +2670,18 @@ module.exports = function mountBoston(app, deps) {
                 const pick = {
                     presenter: everyone.find(isPresenterRow) || fallback('5-minute presentation requested'),
                     // never a declined row: that person reads a different email entirely
-                    attendee: everyone.find(r => !isPresenterRow(r) && !requestedPresentation(r)) || fallback(null),
-                    declined: declinedSample
+                    attendee: everyone.find(r => !isPresenterRow(r) && !requestedPresentation(r) && !isPanelRow(r)) || fallback(null),
+                    declined: declinedSample,
+                    panel: everyone.find(isPanelRow) || fallback(null)
                 };
-                const label = { presenter: 'presenter', attendee: 'attendee', declined: 'declined-presenter · still expected' };
+                const label = { presenter: 'presenter', attendee: 'attendee', declined: 'declined-presenter · still expected', panel: 'panel' };
                 const variants = wanted ? [wanted] : SHAPES;
                 for (const v of variants) {
                     const sample = pick[v];
                     const opts = perRegistrantOpts(sample, !program);
                     // the declined shape is what is being previewed, whoever the sample row is
-                    if (v === 'declined') { opts.declined = true; opts.presenter = false; opts.uploaded = null; }
+                    if (v === 'declined') { opts.declined = true; opts.presenter = false; opts.panel = false; opts.uploaded = null; }
+                    if (v === 'panel') { opts.panel = true; opts.declined = false; opts.presenter = false; opts.uploaded = null; }
                     const sampled = v === 'declined' && !realDeclined ? ' (sample)' : '';
                     await sendEmail(reviewGate.REVIEW_TO, `[PREVIEW · ${label[v]}${sampled}] ` + REMINDER_SUBJECT,
                         reminderEmailHtml(sample, opts),
@@ -3334,9 +3409,24 @@ function mePage(reg, st, s3ok, tok, links) {
         `<button type="button" class="chip${cat.allergyState === 'none' ? ' on' : ''}" data-allergy="none">No allergies</button>`
         + `<button type="button" class="chip${cat.allergyState === 'yes' ? ' on' : ''}" data-allergy="yes">I have allergies</button>`;
 
+    // Panel rows: the answer is step 1 and the others move down by one.
+    const off = st.panel ? 1 : 0;
+    const stepP = st.panel ? `
+    <section class="sheet step" id="stepP" aria-label="Step 1 — the panel">
+      ${head(1, st.stepP, 'The panel: will you join us?', tag('req', 'Required'))}
+      <p class="sbody">We would like to invite you to join the <b>panel discussion</b> &mdash; 7:05&nbsp;PM, about 25 minutes, moderated by Alen Juginovic together with a few other senior guests. You will be asked about your work in general and your thoughts on the challenges and opportunities in biomedical collaboration. No slides are needed.</p>
+      <p class="qlabel">Can you join the panel?</p>
+      <div class="chips" id="panelrow">
+        <button type="button" class="chip${st.panelReply === 'yes' ? ' on' : ''}" data-panel="yes">Yes, I&rsquo;ll join the panel</button>
+        <button type="button" class="chip${st.panelReply === 'no' ? ' on' : ''}" data-panel="no">I&rsquo;d rather not</button>
+      </div>
+      <p class="sbody" id="panel_note" style="margin-top:12px;font-size:13px;color:#6f6256;">${st.panelReply === 'yes' ? 'Thank you &mdash; we will send you the panel questions a few days before the evening. You can change your answer here any time.' : st.panelReply === 'no' ? 'Noted &mdash; your seat for the evening stays confirmed. You can change your answer here any time.' : 'One tap saves your answer; you can change it any time.'}</p>
+      <p class="err" id="p_err"></p>
+    </section>` : '';
+
     const step1 = `
-    <section class="sheet step" id="step1" aria-label="Step 1 — dietary preferences and allergies">
-      ${head(1, st.step1, 'Dietary preferences and allergies', tag('opt', 'Optional'))}
+    <section class="sheet step" id="step1" aria-label="Step ${1 + off} — dietary preferences and allergies">
+      ${head(1 + off, st.step1, 'Dietary preferences and allergies', tag('opt', 'Optional'))}
       <p class="sbody">Finger food and drinks will be served during the networking part of the evening. If you have a preference or an allergy, one tap in each row tells the kitchen &mdash; nothing to type, nothing to sign in to.</p>
 
       <p class="qlabel">What should we put on your plate?</p>
@@ -3358,7 +3448,7 @@ function mePage(reg, st, s3ok, tok, links) {
     const shareOn = !st.summary || st.summary.share_ok == null || Number(st.summary.share_ok) !== 0;
     const step2 = `
     <section class="sheet step" id="step2" aria-label="Step 2 — your one-slide summary">
-      ${head(2, st.step2, 'One-slide summary of your work', tag('opt', 'Optional'))}
+      ${head(2 + off, st.step2, 'One-slide summary of your work', tag('opt', 'Optional'))}
       <p class="sbody">One slide about your work: your institution and group, what you work on, and what kind of collaboration you are looking for &mdash; with your contact details. After the event we compile every summary into one document and send it to all participants.</p>
       <p class="sbody" style="margin-top:8px;"><b>Please keep it to one slide</b> &mdash; a single PowerPoint slide or a one-page PDF.</p>
       ${onFileCard('s2_file_card', st.summary, `<p class="fmeta" id="s2_share_line">${st.summary ? (shareOn ? 'Shared with all participants after the event.' : 'Kept private &mdash; only the Med&amp;X team sees it.') : ''}</p>`)}
@@ -3514,14 +3604,16 @@ main{max-width:640px;}
   <p class="kicker">Building Bridges — Boston &middot; Your personal page</p>
   <h1>Hi ${esc(first)}!</h1>
   <p class="who"><b>${esc(fullName)}</b>${reg.institution ? ' &middot; ' + esc(reg.institution) : ''}</p>
+  ${st.panel ? '<p class="who" style="margin-top:6px">You are on the panel at 7:05 PM &mdash; no slides needed.</p>' : ''}
   <p class="prog${st.finished ? ' allset' : ''}" id="prog"
-     data-total="${st.total}" data-presenter="${st.presenter ? 1 : 0}" data-fin="${st.finished ? 1 : 0}"
+     data-total="${st.total}" data-presenter="${st.presenter ? 1 : 0}" data-panel="${st.panel ? 1 : 0}" data-sp="${st.stepP ? 1 : 0}" data-fin="${st.finished ? 1 : 0}"
      data-s1="${st.step1 ? 1 : 0}" data-s2="${st.step2 ? 1 : 0}" data-s3="${st.step3 ? 1 : 0}">${st.finished
         ? 'All set &mdash; see you on Monday.'
         : `<b>${st.done}</b> of ${st.total} done`}</p>
 </div></header>
 
 <main>
+  ${stepP}
   ${step1}
   ${step2}
   ${step3}
@@ -3558,9 +3650,10 @@ ${FOOTER_HTML}
     render();}
   function render(){
     var pres=prog.getAttribute('data-presenter')==='1',total=Number(prog.getAttribute('data-total'));
+    var pan=prog.getAttribute('data-panel')==='1',sp=prog.getAttribute('data-sp')==='1';
     var s1=prog.getAttribute('data-s1')==='1',s2=prog.getAttribute('data-s2')==='1',s3=prog.getAttribute('data-s3')==='1';
     var fin=prog.getAttribute('data-fin')==='1';
-    var done=(s1?1:0)+(s2?1:0)+(pres&&s3?1:0)+(fin?1:0);
+    var done=(pan&&sp?1:0)+(s1?1:0)+(s2?1:0)+(pres&&s3?1:0)+(fin?1:0);
     /* "All set" is the Finish click and nothing else — optional steps never finish the page */
     if(fin){prog.classList.add('allset');prog.innerHTML='All set &mdash; see you on Monday.';}
     else{prog.classList.remove('allset');prog.innerHTML='<b>'+done+'</b> of '+total+' done';}
@@ -3576,6 +3669,22 @@ ${FOOTER_HTML}
       .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j||{}};},function(){return{ok:false,j:{}};});});
   }
   function human(n){return n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';}
+
+  /* ---- panel · yes / no, saved without a reload ---- */
+  var prow=$('panelrow'),perr=$('p_err'),pnote=$('panel_note');
+  if(prow)prow.addEventListener('click',function(e){
+    var b=e.target.closest('button[data-panel]');if(!b)return;
+    hide(perr);var v=b.getAttribute('data-panel');
+    Array.prototype.forEach.call(prow.querySelectorAll('button'),function(x){x.classList.toggle('on',x===b);});
+    post(ME+'/panel',{reply:v}).then(function(res){
+      if(res.ok&&res.j.success){
+        prog.setAttribute('data-sp','1');
+        var c=$('stepP'),n=c&&c.querySelector('.snum');if(n){n.classList.add('on');n.innerHTML='&#10003;';}
+        if(pnote)pnote.innerHTML=v==='yes'?'Thank you &mdash; we will send you the panel questions a few days before the evening. You can change your answer here any time.':'Noted &mdash; your seat for the evening stays confirmed. You can change your answer here any time.';
+        render();
+      }else show(perr,res.j.error||'We could not save that. Please try again.');
+    },function(){show(perr,'We could not reach the server. Please try again.');});
+  });
 
   /* ---- step 1 · preference row ---- */
   var derr=$('d_err');
@@ -3724,6 +3833,12 @@ ${FOOTER_HTML}
         $('finish_done').removeAttribute('hidden');
         var fc=$('finishcard'),fn=fc&&fc.querySelector('.snum');if(fn){fn.classList.add('on');fn.innerHTML='&#10003;';}
         prog.setAttribute('data-fin','1');render();
+      }else if(res.j&&res.j.incomplete==='panel'){
+        var spc=$('stepP');
+        if(spc){spc.scrollIntoView({behavior:'smooth',block:'start'});
+          spc.style.outline='2px solid #b0893b';spc.style.outlineOffset='3px';
+          setTimeout(function(){spc.style.outline='';spc.style.outlineOffset='';},3500);}
+        show(ferr,res.j.error||'One thing left — the panel answer.');
       }else if(res.j&&res.j.incomplete==='slides'){
         var s3c=$('step3');
         if(s3c){s3c.scrollIntoView({behavior:'smooth',block:'start'});
@@ -3995,6 +4110,30 @@ function releasedFyiHtml(who, institution, registeredNow) {
         tone: 'dark',
         title: 'Seat released — Building Bridges Boston',
         preheader: `${who} can’t attend — ${registeredNow} registered now.`,
+        headerRightLabel: 'BUILDING BRIDGES · BOSTON',
+        rule: 'gold',
+        bodyHtml: body,
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Sent only to the Boston team']
+    });
+}
+
+function panelFyiHtml(who, institution, email, reply, before) {
+    const T = emailTemplates.T;
+    const yes = reply === 'yes';
+    const headline = yes ? 'Panel seat accepted' : 'Panel seat declined';
+    const line = yes
+        ? `<b style="color:#f2e7d6;">${esc(who)}</b>${institution ? ` (${esc(institution)})` : ''} will join the panel at 7:05&nbsp;PM.`
+        : `<b style="color:#f2e7d6;">${esc(who)}</b>${institution ? ` (${esc(institution)})` : ''} would rather not be on the panel &mdash; they keep their seat as a guest. A replacement panelist can be invited from the Boston card.`;
+    const changed = before ? `<br><span style="color:#c9b89f;">They had answered &ldquo;${esc(before)}&rdquo; before and changed it.</span>` : '';
+    const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">
+      <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">For your information</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:#f2e7d6;margin-top:10px;">${headline}</div>
+      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:14px;">${line}${changed}<br><span style="color:#c9b89f;">${esc(email)}</span></div>
+    </td></tr></table>`;
+    return emailTemplates.shell({
+        tone: 'dark',
+        title: headline + ' — Building Bridges Boston',
+        preheader: `${who} ${yes ? 'accepted' : 'declined'} the panel seat.`,
         headerRightLabel: 'BUILDING BRIDGES · BOSTON',
         rule: 'gold',
         bodyHtml: body,

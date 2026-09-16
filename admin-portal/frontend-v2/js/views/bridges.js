@@ -83,12 +83,17 @@ export const COPY = {
     // The owner's pick. Far more people offered than the evening holds, so each row is his call:
     // presents, not this time, or still undecided — and the three counts always add up to the
     // number of offers, so a talk slot can never go missing between two screens.
-    pick: { yes: 'PRESENTS ✓', no: 'NOT THIS TIME', unset: 'UNDECIDED', busy: '…' },
-    pickCounts: (y, n, u) => `${y} confirmed · ${n} declined · ${u} undecided`,
+    pick: { yes: 'PRESENTS ✓', panel: 'PANEL', no: 'NOT THIS TIME', unset: 'UNDECIDED', busy: '…' },
+    pickCounts: (y, p, n, u) => `${y} confirmed · ${p} panel · ${n} declined · ${u} undecided`,
+    panelReply: { yes: '✓ ACCEPTED', no: '✗ DECLINED', none: '– AWAITING' },
+    stripPanel: (a, t) => `panel ${a}/${t} accepted`,
     declineAll: n => `SET ${n} UNDECIDED TO “NOT THIS TIME”`, declineAllNone: 'EVERY OFFER IS DECIDED',
     cPickTitle: (who, s) => s === 'confirmed' ? `Put ${who} on the running order?`
+        : s === 'panel' ? `Invite ${who} to the panel?`
         : s === 'declined' ? `Tell ${who} there was no room?` : `Leave ${who} undecided again?`,
-    cPickBody: s => s === 'confirmed'
+    cPickBody: s => s === 'panel'
+        ? '<p style="margin:0 0 8px">Their Boston email invites them to the <b>7:05 PM panel</b> instead of a talk — no slides step; their personal page asks them to accept or decline the seat.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape they get.</p>'
+        : s === 'confirmed'
         ? '<p style="margin:0 0 8px">They keep the slides step on their personal page and the Boston email asks them for a deck.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape their Boston email takes.</p>'
         : s === 'declined'
             ? '<p style="margin:0 0 8px">Their Boston email becomes the warm shape: <b>their seat is confirmed</b> and said first, then why there was no room, then the invitation to come anyway and send a one-slide summary.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape their Boston email takes.</p>'
@@ -96,7 +101,7 @@ export const COPY = {
     cDeclineAllTitle: n => `Decline ${n} undecided offer${n === 1 ? '' : 's'}?`,
     cDeclineAllBody: n => `<p style="margin:0 0 8px">${n} ${n === 1 ? 'person who is' : 'people who are'} still undecided ${n === 1 ? 'is' : 'are'} set to <b>not this time</b>. Anyone already confirmed or declined is left alone.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape their Boston email takes. You can put anyone back one row at a time.</p>`,
     goPick: 'YES, SET IT', goDeclineAll: 'SET THEM ALL',
-    picked: (who, s) => `${String(who).toUpperCase()} — ${s === 'confirmed' ? 'PRESENTING' : s === 'declined' ? 'NOT THIS TIME' : 'UNDECIDED AGAIN'}`,
+    picked: (who, s) => `${String(who).toUpperCase()} — ${s === 'confirmed' ? 'PRESENTING' : s === 'panel' ? 'ON THE PANEL' : s === 'declined' ? 'NOT THIS TIME' : 'UNDECIDED AGAIN'}`,
     declinedAll: n => n ? `${n} OFFER${n === 1 ? '' : 'S'} SET TO “NOT THIS TIME”` : 'NOTHING WAS UNDECIDED',
     empty: 'Nobody has asked to present yet.',
     emptyWhy: 'Everyone who ticks the 5-minute-presentation box on the Boston form lands here — and you can add someone by hand.',
@@ -443,6 +448,7 @@ function blockBoston() {
   const notInvited = P ? Number(P.not_invited) || 0 : 0;
   const uploaded = P ? Number(P.uploaded) || 0 : 0;
   const confirmedN = P ? Number(P.confirmed) || 0 : 0;
+  const panelN = P ? Number(P.panel) || 0 : 0;
   const declinedN = P ? Number(P.declined) || 0 : 0;
   const undecidedN = P ? Number(P.undecided) || 0 : 0;
   // The three-state control, one row at a time. The state a row is IN reads as a solid chip; the
@@ -451,7 +457,7 @@ function blockBoston() {
   const pickChip = (r, value, label) => {
     const on = (r.presenter_status || null) === value;
     const busy = st.bpPicking === r.registration_id;
-    const tone = value === 'confirmed' ? { bg: '#1e6e42', fg: '#fff' } : value === 'declined' ? { bg: '#8a5a1c', fg: '#fff' } : { bg: '#eee9df', fg: '#4a4239' };
+    const tone = value === 'confirmed' ? { bg: '#1e6e42', fg: '#fff' } : value === 'panel' ? { bg: '#2f4f7a', fg: '#fff' } : value === 'declined' ? { bg: '#8a5a1c', fg: '#fff' } : { bg: '#eee9df', fg: '#4a4239' };
     return `<span data-act="${busy ? '' : 'bpPick'}" data-id="${esc(r.registration_id)}" data-status="${value === null ? '' : value}" data-who="${esc(r.name || r.email)}"
       style="display:inline-block;padding:3px 8px;margin-right:5px;font:600 8px Inter,sans-serif;letter-spacing:.1em;white-space:nowrap;${on
         ? `background:${tone.bg};color:${tone.fg};`
@@ -473,7 +479,7 @@ function blockBoston() {
         <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
         <div style="flex:1"></div>
         ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.counts(P.requested || 0, uploaded, P.invited || 0))}</span>` : ''}
-        ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.pickCounts(confirmedN, declinedN, undecidedN))}</span>` : ''}
+        ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.pickCounts(confirmedN, panelN, declinedN, undecidedN))}</span>` : ''}
         ${P ? btn('bpDeclineAll', undecidedN ? c.declineAll(undecidedN) : c.declineAllNone, undecidedN > 0, '', 'ghost') : ''}
         ${P ? btn('bpSendAll', notInvited ? c.sendAll(notInvited) : c.allInvited, notInvited > 0, '', 'ghost') : ''}
         ${P && uploaded ? `<a href="${esc(P.zip_url)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.zip(uploaded))}</a>`
@@ -500,8 +506,9 @@ function blockBoston() {
             <tr data-row="${esc(r.registration_id)}">
               <td style="${cell}"><span style="display:block;font-weight:600">${esc(r.name || r.email)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.email)}${r.added_by_team ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">${c.byTeam}</span>` : ''}</span></td>
               <td style="${cell};color:#6d6459">${esc(r.institution || '—')}</td>
-              <td style="${cell};white-space:nowrap">${r.presentation_requested
-                ? pickChip(r, 'confirmed', c.pick.yes) + pickChip(r, 'declined', c.pick.no) + pickChip(r, null, c.pick.unset)
+              <td style="${cell};white-space:nowrap">${(r.presentation_requested || r.panel)
+                ? pickChip(r, 'confirmed', c.pick.yes) + pickChip(r, 'panel', c.pick.panel) + pickChip(r, 'declined', c.pick.no) + pickChip(r, null, c.pick.unset)
+                  + (r.panel ? `<span style="display:block;margin-top:4px;font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:${r.panel_reply === 'yes' ? '#1e6e42' : r.panel_reply === 'no' ? '#9b1b22' : '#b7791f'}">${c.panelReply[r.panel_reply === 'yes' ? 'yes' : r.panel_reply === 'no' ? 'no' : 'none']}</span>` : '')
                 : `<span style="color:#9a9086">${c.deckNo}</span>`}</td>
               <td style="${cell};white-space:nowrap">${r.upload
                 ? (r.upload.external_url
@@ -568,6 +575,7 @@ function sectionCatering(btn, cell, head) {
           <span><b style="color:#201b16">${esc(c.stripOp(opGot, C.total || 0, opPriv))}</b></span>
           <span><b style="color:${(C.slides_in || 0) >= (C.slides_expected || 0) ? '#1e6e42' : '#201b16'}">${esc(c.stripSlides(C.slides_in || 0, C.slides_expected || 0))}</b></span>
           <span><b style="color:#201b16">${esc(c.stripFinished(C.finished_count || 0))}</b></span>
+          ${C.panel_count ? `<span><b style="color:${(C.panel_accepted || 0) >= (C.panel_count || 0) ? '#1e6e42' : '#201b16'}">${esc(c.stripPanel(C.panel_accepted || 0, C.panel_count || 0))}</b></span>` : ''}
           ${C.released_count ? `<span style="color:#9b1b22"><b style="color:#9b1b22">${esc(c.stripCancelled(C.released_count))}</b></span>` : ''}
           ${prefLine ? `<span>${prefLine}</span>` : ''}
         </div>` : ''}

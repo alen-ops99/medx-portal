@@ -494,16 +494,16 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         assert.equal(r.body.key, 'boston/program/program.pdf');
     });
 
-    await t('a preview goes to the reviewer only — all three shapes, or one on request', async () => {
+    await t('a preview goes to the reviewer only — all four shapes, or one on request', async () => {
         const before = sentEmails.length;
         const both = await app.call('POST', '/api/v2/boston/reminders/preview', { body: {} });
         assert.equal(both.status, 200);
-        assert.deepEqual(both.body.variants, ['presenter', 'attendee', 'declined']);
-        assert.equal(sentEmails.length, before + 3);
-        for (const m of sentEmails.slice(-3)) assert.equal(m.to, 'juginovic.alen@gmail.com', 'previews go to the reviewer and nobody else');
+        assert.deepEqual(both.body.variants, ['presenter', 'attendee', 'declined', 'panel']);
+        assert.equal(sentEmails.length, before + 4);
+        for (const m of sentEmails.slice(-4)) assert.equal(m.to, 'juginovic.alen@gmail.com', 'previews go to the reviewer and nobody else');
         const one = await app.call('POST', '/api/v2/boston/reminders/preview', { body: { variant: 'attendee' } });
         assert.deepEqual(one.body.variants, ['attendee']);
-        assert.equal(sentEmails.length, before + 4, 'three shapes, then one more on request');
+        assert.equal(sentEmails.length, before + 5, 'four shapes, then one more on request');
         const bad = await app.call('POST', '/api/v2/boston/reminders/preview', { body: { variant: 'everybody' } });
         assert.equal(bad.status, 400, 'an invented variant is refused here too');
     });
@@ -545,6 +545,13 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         assert.equal(b.confirmed + b.declined + b.undecided, b.requested,
             `counts must partition the offers: ${b.confirmed}+${b.declined}+${b.undecided} vs ${b.requested}`);
         assert.ok(b.confirmed >= 1, 'Ana is counted confirmed');
+    });
+
+    await t("the fourth answer — 'panel' — passes the door and reaches the member side", async () => {
+        const r = await app.call('POST', '/api/v2/boston/presenters/:id/status', { params: { id: 'reg-ana' }, body: { status: 'panel' } });
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(r.body.presenter_status, 'panel');
+        assert.ok(fetchLog.some(f => f.path.endsWith('/status') && f.body && f.body.status === 'panel'), 'forwarded as panel');
     });
 
     await t('an invented status is refused, and a stranger is a 404', async () => {

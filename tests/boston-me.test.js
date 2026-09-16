@@ -594,7 +594,7 @@ async function t(name, fn) {
         query.run(`UPDATE bridges_registrations SET notes = NULL WHERE id = ?`, [GONE]);   // keep the send list honest
         const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview' } });
         assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
-        const [pres, att] = sentEmails.slice(-3);
+        const [pres, att] = sentEmails.slice(-4);
 
         // the attendee shape — two asks, both on the hub
         assert.ok(/Open my personal page/.test(att.html), 'the one button under the asks');
@@ -855,9 +855,9 @@ async function t(name, fn) {
     await t('the declined EMAIL opens on the seat, hoists the ticket, and drops step 3', async () => {
         const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview' } });
         assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
-        assert.deepStrictEqual(r.body.variants, ['presenter', 'attendee', 'declined']);
+        assert.deepStrictEqual(r.body.variants, ['presenter', 'attendee', 'declined', 'panel']);
         assert.strictEqual(r.body.declined_sample, false, 'a real declined row exists now, so it is not a sample');
-        const [pres, att, dec] = sentEmails.slice(-3);
+        const [pres, att, dec] = sentEmails.slice(-4);
         assert.ok(dec.subject.includes('declined-presenter · still expected'), 'the subject says it: ' + dec.subject);
         assert.ok(!dec.subject.includes('(sample)'), 'and not flagged a sample');
 
@@ -892,6 +892,82 @@ async function t(name, fn) {
         assert.ok(/Your seat on Monday is confirmed/.test(sentEmails[sentEmails.length - 1].html));
         const bad = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant: 'everyone' } });
         assert.strictEqual(bad.statusCode, 400, 'an invented variant is refused');
+    });
+
+    // ================================================================ the PANEL shape (Alen 2026-09-16)
+    const PAN = 'ca1ca1ca-ca1c-4a1c-8a1c-ca1ca1ca1ca1';
+    seed(PAN, 'Guido', 'Panel', 'guido@example.com', '5-minute presentation requested');
+    const panelReply = (token, reply) => call(app, 'POST', '/api/boston/me/:token/panel', { params: { token }, body: { reply } });
+
+    await t('panel: the status is accepted by the presenter route and flips every reader', async () => {
+        const r = await call(app, 'POST', '/api/boston/presenters/:id/status', { params: { id: PAN }, query: { key: ADMIN_KEY }, body: { status: 'panel' } });
+        assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+        assert.strictEqual(r.body.presenter_status, 'panel');
+        assert.strictEqual(r.body.presenter, false, 'a panelist is not on the running order');
+        assert.strictEqual(r.body.declined_presenter, false, 'and is not a declined presenter');
+        assert.strictEqual(r.body.panel, true);
+        const pres = await call(app, 'GET', '/api/boston/presentations', { query: { key: ADMIN_KEY } });
+        const row = pres.body.rows.find(x => x.registration_id === PAN);
+        assert.ok(row && row.panel === true && row.panel_reply === null, 'the admin list carries the panel flag and the (unanswered) reply');
+        assert.strictEqual(pres.body.panel, 1, 'the panel count is one of the partition of offers');
+        assert.strictEqual(pres.body.confirmed + pres.body.panel + pres.body.declined + pres.body.undecided, pres.body.requested, 'and the partition still adds up');
+    });
+
+    await t('panel: the email is its own shape — invitation, the answer as ask 1, no slides step', async () => {
+        const r = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: 'preview', variant: 'panel' } });
+        assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+        assert.deepStrictEqual(r.body.variants, ['panel']);
+        const m = sentEmails[sentEmails.length - 1];
+        assert.ok(m.subject.startsWith('[PREVIEW · panel]'), m.subject);
+        assert.ok(/join the <b>panel discussion<\/b> instead/.test(m.html), 'the invitation');
+        assert.ok(/7:05&nbsp;PM, about 25 minutes, moderated by Alen Juginovic together with a few other senior guests/.test(m.html), 'time, length, moderator');
+        assert.ok(/challenges and opportunities in biomedical collaboration/.test(m.html), 'what they will be asked about');
+        assert.ok(/No slides are needed/.test(m.html) && /whether you can join the panel/.test(m.html), 'no slides; answer on the page');
+        assert.ok(/Tell us whether you can join the panel/.test(m.html), 'the answer is a numbered ask');
+        assert.ok(m.html.indexOf('Tell us whether you can join the panel') < m.html.indexOf('dietary preference'), 'and it comes first');
+        assert.ok(!/Send us your presentation slides/.test(m.html), 'no slides ask');
+        assert.ok(!/could not accommodate your presentation/.test(m.html), 'never the declined wording');
+        assert.ok(!/happy to offer you a <b>5-minute slot<\/b>/.test(m.html), 'never the presenter wording');
+        assert.ok(!/\bhonest\b/i.test(m.html));
+    });
+
+    await t('panel: the page opens on the question, Finish waits for the answer, the team hears both ways', async () => {
+        const html = (await page(PAN)).body;
+        assert.ok(/You are on the panel at 7:05 PM/.test(html), 'the calm line under the name');
+        assert.ok(/id="stepP"/.test(html) && /The panel: will you join us\?/.test(html), 'step 1 is the panel question');
+        assert.ok(/Yes, I&rsquo;ll join the panel/.test(html) && /I&rsquo;d rather not/.test(html), 'two buttons');
+        assert.ok(html.indexOf('id="stepP"') < html.indexOf('id="step1"'), 'and it sits above dietary');
+        assert.ok(/data-total="4"/.test(html), 'four numbered steps for a panelist');
+        assert.ok(!/id="step3"/.test(html), 'no slides step');
+
+        const tooSoon = await call(app, 'POST', '/api/boston/me/:token/finish', { params: { token: meToken(PAN) }, body: {} });
+        assert.strictEqual(tooSoon.statusCode, 409); assert.strictEqual(tooSoon.body.incomplete, 'panel');
+
+        const before = sentEmails.length;
+        const yes = await panelReply(meToken(PAN), 'yes');
+        assert.strictEqual(yes.statusCode, 200, JSON.stringify(yes.body));
+        assert.strictEqual(rowOf(PAN).panel_reply, 'yes'); assert.ok(rowOf(PAN).panel_replied_at);
+        const fyi = sentEmails.slice(before);
+        assert.strictEqual(fyi.length, 2, 'one FYI to Laura, one to Alen');
+        assert.ok(fyi.every(x => /accepted the panel seat/.test(x.subject)), fyi.map(x => x.subject).join(' | '));
+        assert.deepStrictEqual(fyi.map(x => x.to).sort(), ['juginovic.alen@gmail.com', 'laura.rodman@medx.hr']);
+
+        const again = await panelReply(meToken(PAN), 'yes');
+        assert.strictEqual(sentEmails.length, before + 2, 'saying yes twice re-emails nobody');
+        assert.strictEqual(again.body.changed, false);
+
+        const no = await panelReply(meToken(PAN), 'no');
+        assert.strictEqual(no.statusCode, 200); assert.strictEqual(rowOf(PAN).panel_reply, 'no');
+        assert.strictEqual(sentEmails.length, before + 4, 'a change of mind is reported');
+        assert.ok(/declined the panel seat/.test(sentEmails[sentEmails.length - 1].subject));
+        assert.ok(/keep their seat as a guest/.test(sentEmails[sentEmails.length - 1].html), 'the FYI says the seat stays');
+        assert.strictEqual((await panelReply(meToken(PAN), 'maybe')).statusCode, 400, 'only yes or no');
+        assert.strictEqual((await panelReply(meToken(ANA), 'yes')).statusCode, 403, 'a non-panelist has no panel question');
+
+        const fin = await call(app, 'POST', '/api/boston/me/:token/finish', { params: { token: meToken(PAN) }, body: {} });
+        assert.strictEqual(fin.statusCode, 200, 'answered (either way) → Finish works');
+        const cat = await call(app, 'GET', '/api/boston/catering', { query: { key: ADMIN_KEY } });
+        assert.strictEqual(cat.body.panel_count, 1); assert.strictEqual(cat.body.panel_declined, 1); assert.strictEqual(cat.body.panel_accepted, 0);
     });
 
     // ================================================================ the guard rails
