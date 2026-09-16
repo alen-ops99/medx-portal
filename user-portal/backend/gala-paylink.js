@@ -562,11 +562,14 @@ function buildCombinedTicketEmail({ firstName, fullName, amount, seats, invoiceN
     });
 }
 // The named guest's copy of the party ticket — same card, same QR, their own wallet passes.
-function buildGuestEntryEmail({ guestFirst, guestName, registrantName, qrPngUrl, wallet, calendarUrl, ticketCode, seat }) {
-    return plexusTicket.ticketEmail('gala-guest', {
-        firstName: guestFirst, fullName: guestName || guestFirst, legs: ['gala'], seats: 1,
+// `legs` = the guest's OWN legs (2026-09-16: a guest may join the Conference and Building Bridges
+// too); a Gala guest reads the Gala card, a free-only guest the free-events one.
+function buildGuestEntryEmail({ guestFirst, guestName, registrantName, qrPngUrl, wallet, calendarUrl, ticketCode, seat, legs, source }) {
+    const own = Array.isArray(legs) && legs.length ? legs : ['gala'];
+    return plexusTicket.ticketEmail(own.includes('gala') ? 'gala-guest' : 'free', {
+        firstName: guestFirst, fullName: guestName || guestFirst, legs: own, seats: 1, source,
         guestOf: registrantName, ticketCode, seat, qrPngUrl, wallet,
-        calendarUrl: calendarUrl || plexusTicket.calendarUrl(publicBase(), ['gala'])
+        calendarUrl: calendarUrl || plexusTicket.calendarUrl(publicBase(), own)
     });
 }
 // Kept for callers that still print the reservations list on the dark shell (the finance note
@@ -694,9 +697,12 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
     // their guests already hold a copy or need this email forwarded. Rows with an address get
     // their own copy further down; the rest are reachable only through the registrant.
     let namedGuests = [];
-    try { namedGuests = query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ?', [ca.id]) || []; }
+    try { namedGuests = query.all('SELECT * FROM ca_registration_guests WHERE registration_id = ? ORDER BY created_at, rowid', [ca.id]) || []; }
     catch (e) { namedGuests = []; }
-    const guestsWithEmail = namedGuests.filter(g => String(g.email || '').trim()).length;
+    // Only the legs the HOST holds count for a guest (the form masks them, this guards old rows).
+    const hostLegs = [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null, 'gala'].filter(Boolean);
+    const guestLegsOf = g => plexusTicket.guestLegs(g).filter(l => hostLegs.includes(l));
+    const guestsWithEmail = namedGuests.filter(g => String(g.email || '').trim() && guestLegsOf(g).includes('gala')).length;
     const party = partyNote(seats, guestsWithEmail);
 
     const qrPngUrl = (deps.qrImageUrl ? deps.qrImageUrl(galaRegId) : `${publicBase()}/qr/${galaRegId}.png`);
@@ -719,12 +725,18 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
     // (Those without one are covered by the forward-this-email line on the ticket above.)
     try {
         for (const g of namedGuests.filter(x => String(x.email || '').trim())) {
+            const own = guestLegsOf(g);
+            if (!own.length) continue;
+            // A free-only guest who already got their copy at pre-registration is not written to twice.
+            if (!own.includes('gala') && g.ticket_sent_at) continue;
             const gFirst = String(g.name || 'there').split(' ')[0];
-            await sendEmail(g.email, 'Your Gala Evening entry — Plexus Week 2026', buildGuestEntryEmail({
+            const out = await sendEmail(g.email, own.includes('gala') ? 'Your Gala Evening entry — Plexus Week 2026' : 'Your Plexus Week 2026 entry', buildGuestEntryEmail({
                 guestFirst: gFirst, guestName: String(g.name || '').trim(),
                 registrantName: `${ca.first_name || ''} ${ca.last_name || ''}`.trim(),
-                qrPngUrl, wallet: g.id ? links('guest', g.id) : null, ticketCode: String(galaRegId).slice(0, 8).toUpperCase()
+                qrPngUrl, wallet: g.id ? links('guest', g.id) : null, ticketCode: String(galaRegId).slice(0, 8).toUpperCase(),
+                legs: own, source: ca.source
             }));
+            if (out && out.success !== false && !out.mock) { try { db.run('UPDATE ca_registration_guests SET ticket_sent_at = ? WHERE id = ?', [new Date().toISOString(), g.id]); } catch (e) {} }
         }
     } catch (e) { log('party guest entry emails failed (non-blocking):', e.message); }
 

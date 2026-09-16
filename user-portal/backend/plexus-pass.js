@@ -111,15 +111,38 @@ function resolveTicket(query, kind, id) {
         ca && Number(ca.selected_bridges) && legLive(ca.bridges_status) ? 'bridges' : null
     ].filter(Boolean);
 
-    if (kind === 'gala' || kind === 'guest') {
-        let guest = null, galaId = id;
-        if (kind === 'guest') {
-            guest = query.get('SELECT * FROM ca_registration_guests WHERE id = ?', [id]);
-            if (!guest) return null;
-            const host = query.get('SELECT gala_registration_id FROM croatians_abroad_registrations WHERE id = ?', [guest.registration_id]);
-            if (!host || !host.gala_registration_id) return null;
-            galaId = host.gala_registration_id;
-        }
+    // Which legs a named guest holds (2026-09-16: guests may join any leg the host selected).
+    const on = v => v === 1 || v === true || v === '1';
+    const guestOwnLegs = (guest, hostLegs, galaPaid) => {
+        const flags = [on(guest.conference) ? 'conference' : null, on(guest.bridges) ? 'bridges' : null, on(guest.gala) ? 'gala' : null].filter(Boolean);
+        const own = flags.length ? flags : ['gala'];                 // pre-flag rows were Gala guests
+        return own.filter(l => l === 'gala' ? galaPaid : hostLegs.includes(l));
+    };
+
+    if (kind === 'guest') {
+        const guest = query.get('SELECT * FROM ca_registration_guests WHERE id = ?', [id]);
+        if (!guest) return null;
+        const ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [guest.registration_id]);
+        if (!ca) return null;
+        const g = ca.gala_registration_id ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [ca.gala_registration_id]) : null;
+        const galaOk = !!(g && String(g.status || '') !== 'cancelled' && galaPaid(g));
+        const hostLegs = legsOf(ca);
+        const legs = guestOwnLegs(guest, hostLegs, galaOk);
+        if (!legs.length) return null;                                // nothing of theirs is a ticket (yet)
+        const hasGala = legs.includes('gala');
+        const registrant = `${ca.first_name || ''} ${ca.last_name || ''}`.trim() || 'Med&X Guest';
+        const party = hasGala ? 1 + Math.max(0, parseInt(g.guest_count, 10) || 0) : 1;
+        return {
+            kind, id, galaId: hasGala ? g.id : null, caId: ca.id,
+            name: String(guest.name || '').trim() || 'Guest', guestOf: registrant, email: guest.email || '',
+            party, legs, gala: hasGala, paid: hasGala,
+            invoice: hasGala ? (g.invoice_number || null) : null, seat: hasGala ? (g.seat_number || null) : null,
+            qr: JSON.stringify(qrPayloadFor({ ca, galaId: hasGala ? g.id : null })),
+            serial: hasGala ? `medx-t-galaguest-${id}` : `medx-t-caguest-${id}`, objectKey: `g-${id}`
+        };
+    }
+    if (kind === 'gala') {
+        const galaId = id;
         const g = query.get('SELECT * FROM gala_registrations WHERE id = ?', [galaId]);
         if (!g || String(g.status || '') === 'cancelled' || !galaPaid(g)) return null;
         const ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE gala_registration_id = ?', [galaId]);
@@ -128,14 +151,11 @@ function resolveTicket(query, kind, id) {
         const registrant = `${g.first_name || ''} ${g.last_name || ''}`.trim() || 'Med&X Guest';
         return {
             kind, id, galaId, caId: ca ? ca.id : null,
-            name: guest ? (String(guest.name || '').trim() || 'Guest') : registrant,
-            guestOf: guest ? registrant : null,
-            email: guest ? (guest.email || '') : (g.email || ''),
+            name: registrant, guestOf: null, email: g.email || '',
             party, legs, gala: true, paid: true,
             invoice: g.invoice_number || null, seat: g.seat_number || null,
             qr: JSON.stringify(qrPayloadFor({ ca, galaId })),
-            serial: guest ? `medx-t-galaguest-${id}` : `medx-t-gala-${galaId}`,
-            objectKey: guest ? `g-${id}` : galaId
+            serial: `medx-t-gala-${galaId}`, objectKey: galaId
         };
     }
     // kind === 'ca' — the free-events ticket (no gala leg on this row)

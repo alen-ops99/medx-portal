@@ -8264,6 +8264,11 @@ async function initializeApp() {
     // logged in (or claimed retroactively by email) attaches to the member's account.
     // Nullable — the anonymous path is untouched. Declared identically in BOTH portals.
     try { db.run('ALTER TABLE croatians_abroad_registrations ADD COLUMN user_id TEXT'); } catch(e) {}
+    // Guests per event (2026-09-16): which legs each named guest joins — declared identically in
+    // both portals (outside the SCHEMA-MIRROR block); the user portal runs the one-off backfill.
+    try { db.run('CREATE TABLE IF NOT EXISTS ca_registration_guests (id TEXT PRIMARY KEY, registration_id TEXT NOT NULL, name TEXT, institution TEXT, email TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)'); } catch(e) {}
+    for (const col of ['conference', 'bridges', 'gala']) { try { db.run(`ALTER TABLE ca_registration_guests ADD COLUMN ${col} INTEGER DEFAULT 0`); } catch(e) {} }
+    try { db.run('ALTER TABLE ca_registration_guests ADD COLUMN ticket_sent_at TEXT'); } catch(e) {}
     // Mirror of the user-portal migration: "official invoice to my company/institution" ticked on
     // the Zagreb form (Gala selected). The user portal's payment webhooks act on it; the admin
     // only reads it.
@@ -33500,12 +33505,27 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 country: caReg.country || '', role: caReg.role || '', dietary: caReg.dietary || '',
                 applied_for: [caReg.selected_conference ? 'Plexus Conference' : null, caReg.selected_bridges ? 'Croatian Biomedical Bridges' : null, caReg.selected_gala ? 'Gala Evening' : null].filter(Boolean).join(', '),
                 answers: appliedInfo(caReg).answers,
-                guests: caReg.guest_count || 0,
+                // Guests joining THIS door (2026-09-16: guests are per event). guest_count on the
+                // row is the Gala seat count and must not be shown at the Conference / Bridges door.
+                guests: caGuestsForDoor(caReg.id, event),
+                guest_names: caGuestNamesForDoor(caReg.id, event),
                 seat: caReg.seat_number || '',
                 ...welcomeInfo(caReg.email)
             }
         });
     });
+
+    // Guests per door for a Zagreb registration (2026-09-16): the flags on ca_registration_guests
+    // say which legs each named guest joins; before the flags existed every guest was a Gala guest.
+    function caGuestRowsFor(caId) { try { return query.all('SELECT name, email, conference, bridges, gala FROM ca_registration_guests WHERE registration_id = ? ORDER BY created_at, rowid', [caId]) || []; } catch (e) { return []; } }
+    function caGuestJoins(g, event) {
+        const on = v => Number(v) === 1;
+        const any = on(g.conference) || on(g.bridges) || on(g.gala);
+        if (!any) return event === 'gala';
+        return on(g[event === 'conference' ? 'conference' : event === 'bridges' ? 'bridges' : 'gala']);
+    }
+    const caGuestsForDoor = (caId, event) => caGuestRowsFor(caId).filter(g => caGuestJoins(g, event)).length;
+    const caGuestNamesForDoor = (caId, event) => caGuestRowsFor(caId).filter(g => caGuestJoins(g, event)).map(g => String(g.name || g.email || 'Guest').trim());
 
     // ========== SCAN ENRICHMENT — read-only member/registration lookup for the scanner ==========
     // Mirror of the user-portal route (same shared DB). Purely additive, read-only, adminOnly.
@@ -33947,8 +33967,16 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             // Admin test tools tag their rows in notes — keep phantom test attendees out
             // of the door totals.
             const notTest = "AND (notes IS NULL OR (notes NOT LIKE '%SCANNER TEST%' AND notes NOT LIKE '%BUNDLE TEST%'))";
-            const croatiansAbroadConference = query.get(`SELECT COUNT(*) as total, COALESCE(SUM(conference_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_conference = 1 ${notTest}`) || { total: 0, checked_in: 0 };
-            const bridges = query.get(`SELECT COUNT(*) as total, COALESCE(SUM(bridges_checked_in), 0) as checked_in FROM croatians_abroad_registrations WHERE selected_bridges = 1 ${notTest}`) || { total: 0, checked_in: 0 };
+            // Conference / Bridges doors count PEOPLE (2026-09-16: a registrant's named guests may
+            // join these legs too — they enter on the registrant's QR, so expected and admitted are
+            // 1 + guests-on-this-leg per booking). `bookings` keeps the row count.
+            const caDoor = (selCol, chkCol, legCol) => query.get(`SELECT
+                    COALESCE(SUM(1 + (SELECT COUNT(*) FROM ca_registration_guests g WHERE g.registration_id = r.id AND COALESCE(g.${legCol},0) = 1)), 0) as total,
+                    COALESCE(SUM(CASE WHEN r.${chkCol} = 1 THEN 1 + (SELECT COUNT(*) FROM ca_registration_guests g WHERE g.registration_id = r.id AND COALESCE(g.${legCol},0) = 1) ELSE 0 END), 0) as checked_in,
+                    COUNT(*) as bookings
+                FROM croatians_abroad_registrations r WHERE r.${selCol} = 1 ${notTest.replace(/notes/g, 'r.notes')}`) || { total: 0, checked_in: 0, bookings: 0 };
+            const croatiansAbroadConference = caDoor('selected_conference', 'conference_checked_in', 'conference');
+            const bridges = caDoor('selected_bridges', 'bridges_checked_in', 'bridges');
             // Gala plus-ones have no seat/QR of their own — a booking with guest_count=N is N+1
             // people who enter together on the ONE registrant QR. So the door head count (expected)
             // and the admitted head count (checked_in) are PEOPLE, not bookings: SUM(1 + guests).
