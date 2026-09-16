@@ -66,10 +66,10 @@ test('stored rows: flags → legs → event names; an all-zero pre-flag row read
 
 test('the guests block on the ticket names each guest with THEIR events, not "Gala Evening" for all', () => {
     const html = ticket.guestsHtml([{ name: 'Ana Horvat', email: 'ana@x.hr', conference: 1, gala: 0 }, { name: 'Marko', conference: 0, gala: 1 }]);
-    assert.match(html, /Ana Horvat<\/b> <span[^>]*>— Plexus Conference</);
-    assert.match(html, /Marko<\/b> <span[^>]*>— Gala Evening</);
-    assert.match(html, /their own ticket went to ana@x\.hr/);
-    assert.match(html, /no email given/);
+    assert.match(html, /Ana Horvat<\/b> <span[^>]*>&middot; Plexus Conference</);
+    assert.match(html, /Marko<\/b> <span[^>]*>&middot; Gala Evening</);
+    assert.match(html, /Their own ticket was emailed to <b>ana@x\.hr<\/b>/);
+    assert.match(html, /No email on file for this guest\.<\/b> Your QR admits them too &mdash; please forward this email to them/);
 });
 
 test('guest copy: a Gala guest reads the Gala card, a free-only guest the free-events card', () => {

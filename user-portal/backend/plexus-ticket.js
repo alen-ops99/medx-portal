@@ -41,6 +41,21 @@ const LEG = {
 const LEG_ORDER = ['conference', 'bridges', 'gala'];
 const legNames = (legs, facts) => legs.map(l => (facts || LEG)[l].name);
 const joinAnd = arr => arr.length > 1 ? arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1] : (arr[0] || '');
+// People per leg: the registrant plus every guest whose ticks include that leg; the Gala figure is
+// the billed seats (1 + guest_count). Guests may join any leg since 2026-09-16, so "2 Gala seats"
+// alone no longer says who is coming where — the count sits in brackets after each event instead:
+// "Plexus Conference (2 seats), Building Bridges Zagreb and Gala Evening (2 seats)".
+function partyByLeg(legs, guests, seats) {
+    const on = v => v === 1 || v === true || v === '1';
+    const legsOfGuest = g => { const l = [on(g && g.conference) ? 'conference' : null, on(g && g.bridges) ? 'bridges' : null, on(g && g.gala) ? 'gala' : null].filter(Boolean); return l.length ? l : ['gala']; };
+    const party = {};
+    for (const l of legs || []) party[l] = l === 'gala' ? Math.max(1, Number(seats) || 1) : 1 + (guests || []).filter(g => legsOfGuest(g).includes(l)).length;
+    return party;
+}
+const legNamesWithParty = (legs, facts, party) => legs.map(l => {
+    const n = party && Number(party[l]);
+    return (facts || LEG)[l].name + (n > 1 ? ` (${n} seats)` : '');
+});
 
 /**
  * The leg facts with the admin-editable dates/venues applied (plexus_settings: conference_venue,
@@ -128,7 +143,7 @@ function ticketEmail(kind, f) {
     let headlineHtml, introHtml, ticketLabel, priceLabel = null, kicker, subjectTitle, preheader;
     if (kind === 'combined') {
         headlineHtml = 'Plexus Week 2026 — you are <i>in</i>.';
-        introHtml = `Dear ${first} — your payment of <b>&euro;${paid.toFixed(2)}</b> has been received and your registration is confirmed for ${esc(joinAnd(names))}${seats > 1 ? ` — <b>${seats} Gala seats</b>` : ''}. Med&amp;X looks forward to welcoming you ${f.source === 'plexus' ? 'to Plexus Week 2026' : 'home'} in Zagreb.`;
+        introHtml = `Dear ${first} — your payment of <b>&euro;${paid.toFixed(2)}</b> has been received and your registration is confirmed for ${esc(joinAnd(legNamesWithParty(legs, F, f.party || { gala: seats })))}. Med&amp;X looks forward to welcoming you ${f.source === 'plexus' ? 'to Plexus Week 2026' : 'home'} in Zagreb.`;
         ticketLabel = [freeLegs.length ? `${legNames(freeLegs, F).join(' + ')} — free` : null, `Gala Evening — ${seats} seat${seats === 1 ? '' : 's'}, paid`].filter(Boolean).join(' · ');
         priceLabel = `€${paid.toFixed(2)} paid${f.invoice ? ` · invoice ${f.invoice}` : ''}`;
         subjectTitle = 'Your ticket — Plexus Week 2026';
@@ -210,7 +225,12 @@ function guestsHtml(guests, eventsOf) {
     const T = emailTemplates.T;
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border:1px solid rgba(201,169,98,.45);background:${T.cardCream};"><tr><td style="padding:12px 18px;">
         <div style="font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:${T.goldDark};">Your guests</div>
-        ${rows.map(g => `<div style="font-family:${T.sans};font-size:13px;line-height:1.55;color:${T.ink};margin-top:6px;"><b>${esc(g.name || g.email)}</b> <span style="color:${T.soft};">— ${esc((eventsOf ? eventsOf(g) : ['Gala Evening']).join(', '))}</span><span style="display:block;font-size:11.5px;color:${T.soft};">${g.email ? 'their own ticket went to ' + esc(g.email) : 'no email given — please share this email with them'}</span></div>`).join('')}
+        ${rows.map(g => `<div style="font-family:${T.sans};font-size:13.5px;line-height:1.6;color:${T.ink};margin-top:10px;padding-top:10px;border-top:1px solid rgba(201,169,98,.3);">
+            <b>${esc(g.name || g.email)}</b> <span style="color:${T.soft};">&middot; ${esc((eventsOf ? eventsOf(g) : ['Gala Evening']).join(', '))}</span>
+            <div style="margin-top:3px;font-size:13px;color:${g.email ? T.ink : T.goldDark};">${g.email
+                ? `&#10003; Their own ticket was emailed to <b>${esc(g.email)}</b>.`
+                : `<b>No email on file for this guest.</b> Your QR admits them too &mdash; please forward this email to them.`}</div>
+          </div>`).join('')}
     </td></tr></table>`;
 }
 
@@ -239,7 +259,7 @@ function ticketPageHtml(p) {
     const buttons = [w.apple ? b(w.apple, 'Add to Apple Wallet →', 'ink') : '', w.google ? b(w.google, 'Add to Google Wallet →', 'gold') : '', p.calendarUrl ? b(p.calendarUrl, 'Add to calendar →', 'ghost') : ''].join('');
     const guests = (p.guests || []).filter(g => g && (g.name || g.email));
     const guestsBlock = guests.length ? `<div class="sheet"><p class="slabel">Your guests</p>
-        ${guests.map(g => `<p style="margin:8px 0 0;font-size:14px;color:#191512;"><b>${esc(g.name || g.email)}</b> <span style="color:#6e6455;">— ${esc((g.events || ['Gala Evening']).join(', '))}</span><span style="display:block;font-size:12px;color:#8a7d6c;">${g.email ? 'their own ticket went to ' + esc(g.email) : 'no email given — please share your ticket with them'}</span></p>`).join('')}</div>` : '';
+        ${guests.map(g => `<p style="margin:10px 0 0;padding-top:10px;border-top:1px solid rgba(201,169,98,.3);font-size:14px;line-height:1.55;color:#191512;"><b>${esc(g.name || g.email)}</b> <span style="color:#6e6455;">&middot; ${esc((g.events || ['Gala Evening']).join(', '))}</span><span style="display:block;margin-top:3px;font-size:13px;color:${g.email ? '#191512' : '#6e5626'};">${g.email ? '&#10003; Their own ticket was emailed to <b>' + esc(g.email) + '</b>.' : '<b>No email on file for this guest.</b> Your QR admits them too &mdash; please forward your ticket email to them.'}</span></p>`).join('')}</div>` : '';
     const ticketCard = p.state === 'ticket' ? `
       <div class="sheet" style="text-align:center;">
         <p class="slabel">Your ticket for the door</p>
@@ -289,7 +309,7 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
 }
 
 module.exports = {
-    LEG, LEG_ORDER, legFacts, legNames, whenLinesFor, whereFor, joinAnd,
+    LEG, LEG_ORDER, legFacts, legNames, legNamesWithParty, partyByLeg, whenLinesFor, whereFor, joinAnd,
     icsFor, calendarUrl, parseLegs,
     ticketEmail, guestsHtml, guestLegs, guestEvents,
     pageSig, galaPageSig, safeEq, ticketPageHtml

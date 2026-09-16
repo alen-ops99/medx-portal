@@ -197,11 +197,13 @@ module.exports = function mountPlexusProgram(app, deps) {
             preheader: 'Your Plexus Week 2026 events and your ticket, ready for your wallet — the program is attached.',
             guestsHtml: r.paid ? plexusTicket.guestsHtml(named) : ''
         };
-        const legsText = plexusTicket.joinAnd(plexusTicket.legNames(r.legs, F));
+        const party = plexusTicket.partyByLeg(r.legs, named, seats);
+        common.party = party;
+        const legsText = plexusTicket.joinAnd(plexusTicket.legNamesWithParty(r.legs, F, r.paid ? party : {}));
         if (r.state === 'paid') {
             return plexusTicket.ticketEmail('combined', {
                 ...common,
-                introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here are your Plexus Week 2026 events and your ticket for ${escapeHtml(legsText)}${seats > 1 ? ` — <b>${seats} Gala seats</b>` : ''}. The program is attached as a PDF. Add the ticket to your wallet and bring the QR below; it admits you at every event you hold.`,
+                introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here are your Plexus Week 2026 events and your ticket for ${escapeHtml(legsText)}. The program is attached as a PDF. Add the ticket to your wallet and bring the QR below; it admits you at every event you hold.`,
                 partyNote: galaPayLink.partyNote(seats, withEmail)
             });
         }

@@ -531,7 +531,7 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.ok(!msg.html.includes('data-title="Payment Confirmed"'), 'the OLD navy template is gone');
         assert.ok(!msg.html.includes('#22c55e'), 'and so is the green pill');
         assert.ok(/(€|&euro;)300\.00/.test(msg.html), 'states the party total actually charged');
-        assert.ok(msg.html.includes('2 Gala seats'), 'says how many seats were bought');
+        assert.ok(msg.html.includes('Gala Evening (2 seats)'), 'says how many seats were bought — in brackets after the event');
         assert.ok(msg.html.includes('Gala Evening — 2 seats, paid'), 'the TICKET line reads as a party');
         assert.ok(msg.html.includes('Gala Evening: black tie'), 'dress code for the Gala leg');
         // Boston parity: the three buttons, keyed to THIS gala row, right under the QR card

@@ -163,9 +163,16 @@ function resolveTicket(query, kind, id) {
     if (!ca) return null;
     const legs = legsOf(ca);
     if (!legs.length) return null;
+    let unpaidGalaId = null;
     if (Number(ca.selected_gala) && ca.gala_registration_id) {
-        // A row with a Gala leg holds the COMBINED ticket instead — never two passes for one person.
-        return resolveTicket(query, 'gala', ca.gala_registration_id);
+        // A row with a PAID Gala leg holds the COMBINED ticket instead — never two passes for one
+        // person. A reserved-but-unpaid Gala seat must not block the free-events pass (found
+        // 2026-09-16: every "approved, pay later" registrant got no pass at all) — they get the
+        // free-events pass now, issued under the gala row's identity so the combined pass simply
+        // replaces it in the wallet once they pay.
+        const g = query.get('SELECT id, status, payment_status FROM gala_registrations WHERE id = ?', [ca.gala_registration_id]);
+        if (g && String(g.status || '') !== 'cancelled' && galaPaid(g)) return resolveTicket(query, 'gala', ca.gala_registration_id);
+        if (g && String(g.status || '') !== 'cancelled') unpaidGalaId = g.id;
     }
     return {
         kind: 'ca', id, galaId: null, caId: ca.id,
@@ -173,7 +180,7 @@ function resolveTicket(query, kind, id) {
         email: ca.email || '', party: 1, legs, gala: false, paid: false,
         invoice: null, seat: null,
         qr: JSON.stringify(qrPayloadFor({ ca, galaId: null })),
-        serial: `medx-t-ca-${id}`, objectKey: id
+        serial: unpaidGalaId ? `medx-t-gala-${unpaidGalaId}` : `medx-t-ca-${id}`, objectKey: unpaidGalaId || id
     };
 }
 

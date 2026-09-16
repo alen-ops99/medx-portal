@@ -558,6 +558,7 @@ function buildCombinedTicketEmail({ firstName, fullName, amount, seats, invoiceN
         firstName, fullName: fullName || firstName, legs, seats, amount, invoice: invoiceNumber, seat, source,
         ticketCode, qrPngUrl, wallet, calendarUrl: calendarUrl || plexusTicket.calendarUrl(publicBase(), legs),
         partyNote: partyNoteText,
+        party: plexusTicket.partyByLeg(legs, guests, seats),   // "(2 seats)" after each event the party joins
         guestsHtml: plexusTicket.guestsHtml(guests)
     });
 }
