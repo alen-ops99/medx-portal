@@ -434,7 +434,8 @@ async function t(name, fn) {
         assert.ok(html.includes(`href="${BIGLINK.replace(/&/g, '&amp;')}"`), 'and the link itself, clickable');
         assert.ok(html.includes('Replace my slides'), 'the upload button reads as a replacement now');
         const m = /<p class="prog[^"]*" id="prog"[\s\S]*?>([\s\S]*?)<\/p>/.exec(html);
-        assert.ok(m && /All set/.test(m[1]), 'a saved link satisfies the required step: ' + (m && m[1]));
+        assert.ok(m && /1<\/b> of 4 done/.test(m[1]), 'a saved link satisfies the required step (1 of 4 — Finish is the fourth): ' + (m && m[1]));
+        assert.ok(html.includes('data-s3="1"'), 'and the slides step reads as done');
         assert.ok(html.includes(`value="${BIGLINK.replace(/&/g, '&amp;')}"`), 'the link box is pre-filled on reload');
     });
 
@@ -488,17 +489,18 @@ async function t(name, fn) {
             const m = /<p class="prog[^"]*" id="prog"[\s\S]*?>([\s\S]*?)<\/p>/.exec(String((await page(id)).body));
             return m ? m[1].replace(/<[^>]+>/g, '').replace(/&mdash;/g, '\u2014').trim() : null;
         };
-        // Nothing is required of an attendee (Alen 2026-09-15), so she is all set from the start;
-        // the optional steps stay open below and their progress shows as ticks, not as a gate.
-        assert.strictEqual(await read(PETRA), 'All set — see you on Monday.', 'a fresh attendee has nothing required');
+        // "All set" is the Finish click and nothing else (Alen 2026-09-16 — his attendee page opened
+        // already finished before he had touched anything). The Finish button is the last numbered
+        // step, so an attendee counts out of 3 and a presenter out of 4.
+        assert.strictEqual(await read(PETRA), '0 of 3 done', 'a fresh attendee starts at zero — never pre-finished');
         await setDiet(meToken(PETRA), { pref: 'kosher' });
         await saveAllergies(PETRA, 'none');
-        assert.strictEqual(await read(PETRA), 'All set — see you on Monday.', 'and still is after answering');
+        assert.strictEqual(await read(PETRA), '1 of 3 done', 'answering counts, but does not finish her');
 
-        // Ana: dietary answered + a summary on file = 2 of 2, and finished
-        assert.strictEqual(await read(ANA), 'All set — see you on Monday.', 'Ana is finished too');
-        // Luka: dietary + summary? no summary yet — but as a presenter he is judged on 1 and 3
-        assert.strictEqual(await read(LUKA), 'All set — see you on Monday.', 'Luka: dietary + slides, summary skipped');
+        // Ana: dietary answered + a summary on file = 2 of 3, Finish still open
+        assert.strictEqual(await read(ANA), '2 of 3 done', 'Ana is not finished until she says so');
+        // Luka: dietary + slides, no summary = 2 of 4
+        assert.strictEqual(await read(LUKA), '2 of 4 done', 'Luka: dietary + slides, summary skipped, Finish open');
     });
 
     await t('a presenter is NOT finished until the slides are in', async () => {
@@ -507,14 +509,24 @@ async function t(name, fn) {
             return m ? m[1].replace(/<[^>]+>/g, '').replace(/&mdash;/g, '\u2014').trim() : null;
         };
         // Mia is a presenter with dietary answered (above) and nothing uploaded.
-        assert.strictEqual(await read(MIA), '1 of 3 done', 'dietary only');
+        assert.strictEqual(await read(MIA), '1 of 4 done', 'dietary only');
         await putSummary(meToken(MIA), { originalname: 'mia.pdf', buffer: pdfBuf() });
-        assert.strictEqual(await read(MIA), '2 of 3 done', 'the optional summary counts, but does not finish her');
+        assert.strictEqual(await read(MIA), '2 of 4 done', 'the optional summary counts, but does not finish her');
+        const finishTry = await call(app, 'POST', '/api/boston/me/:token/finish', { params: { token: meToken(MIA) }, body: {} });
+        assert.strictEqual(finishTry.statusCode, 409, 'Finish is refused while the deck is missing');
+        assert.strictEqual(finishTry.body.incomplete, 'slides');
         await putSlides(meToken(MIA), { originalname: 'mia-talk.pptx', buffer: zipBuf() });
-        assert.strictEqual(await read(MIA), 'All set — see you on Monday.', 'the deck is what finishes a presenter');
+        assert.strictEqual(await read(MIA), '3 of 4 done', 'the deck unlocks Finish but does not finish her by itself');
+        const fin = await call(app, 'POST', '/api/boston/me/:token/finish', { params: { token: meToken(MIA) }, body: {} });
+        assert.strictEqual(fin.statusCode, 200, JSON.stringify(fin.body));
+        assert.strictEqual(await read(MIA), 'All set — see you on Monday.', 'her own click is what finishes her');
         const html = String((await page(MIA)).body);
         assert.ok(html.includes('class="prog allset"'), 'the line is styled as the all-set state');
-        assert.ok(html.indexOf('All set') < html.indexOf('Your ticket for the door'), 'with the ticket below it');
+        // page order: steps 1–3, then Finish (step 4), then the ticket LAST — nobody scrolls past the button
+        const iFinish = html.indexOf('id="finishcard"'), iTicket = html.indexOf('Your ticket for the door'), iStep3 = html.indexOf('id="step3"');
+        assert.ok(iStep3 < iFinish && iFinish < iTicket, 'step 3 → Finish → ticket, in that order');
+        assert.ok(/aria-label="Step 4 — finish"/.test(html), 'Finish is numbered step 4 for a presenter');
+        assert.ok(html.includes('Your ticket below gets you in the door'), 'the finished copy points DOWN to the ticket');
     });
 
     await t('the ticket block is on the page whether the guest is finished or not', async () => {
@@ -789,15 +801,11 @@ async function t(name, fn) {
     await t('the declined hub hides step 3 and opens on the seat, not the decline', async () => {
         const html = String((await page(DEC)).body);
         assert.ok(!html.includes('id="step3"'), 'no slides step');
-        assert.ok(html.includes('id="step3note"'), 'the warm note in its place');
-        assert.ok(html.includes('About your presentation'), 'titled in the owner\'s words');
-        assert.ok(/<b>Your seat on Monday is confirmed and we very much look forward to seeing you\.<\/b>/.test(html),
-            'and the seat is the FIRST thing it says, in bold');
-        assert.ok(/sadly we could not accommodate your presentation this time/.test(html), 'the decline, said plainly');
-        assert.ok(/hope to have you present at one of the next editions/.test(html), 'with the door left open');
-        assert.ok(/warmly encourage you to send us your <b>one-slide summary<\/b>/.test(html) && /shared with all participants/.test(html), 'and the summary is encouraged — it reaches the room');
+        // The email already told her; the page says NOTHING about the decision (Alen 2026-09-16).
+        assert.ok(!html.includes('id="step3note"') && !/could not accommodate|About your presentation|next editions/.test(html), 'no decline note on the page');
+        assert.ok(/aria-label="Step 3 — finish"/.test(html), 'she gets the plain attendee steps: Finish is step 3');
         assert.ok(!/\bhonest\b/i.test(html), 'never that word');
-        assert.ok(html.includes('All set'), 'nothing is required of her, so she is all set');
+        assert.ok(/<b>[012]<\/b> of 3 done/.test(html) && !html.includes('class="prog allset"'), 'not pre-finished — the count is open until she clicks Finish');
         assert.ok(html.includes('Your ticket for the door'), 'and she still holds a ticket');
     });
 

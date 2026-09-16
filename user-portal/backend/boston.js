@@ -1544,18 +1544,20 @@ module.exports = function mountBoston(app, deps) {
         const step1 = !!(cat.prefKey && cat.allergyState);
         const step2 = !!summary;
         const step3 = !!slides;
-        const total = presenter ? 3 : 2;
-        const done = (step1 ? 1 : 0) + (step2 ? 1 : 0) + (presenter && step3 ? 1 : 0);
+        // The Finish click is itself the last numbered step (Alen 2026-09-16: "we have one, we have
+        // two, but we need three"), so the count includes it: attendee 1·2·3, presenter 1·2·3·4.
+        const finished = hasMark(reg, FINISHED_MARK);
+        const finishNo = presenter ? 4 : 3;
+        const total = finishNo;
+        const done = (step1 ? 1 : 0) + (step2 ? 1 : 0) + (presenter && step3 ? 1 : 0) + (finished ? 1 : 0);
         return {
             presenter, declined, cat, summary, slides,
-            step1, step2, step3, total, done,
-            // Only the required step gates this: a presenter is finished once the slides are in;
-            // an attendee has nothing required and is finished from the start. The optional
-            // steps stay open below regardless.
-            allDone: !presenter || step3,
-            // The guest's own "I'm done" click (the Finish button) — separate from allDone,
-            // which is our arithmetic; this one is their word.
-            finished: hasMark(reg, FINISHED_MARK)
+            step1, step2, step3, total, done, finishNo,
+            // "All set" is the guest's own word — the Finish click — and nothing else. It used to be
+            // derived from "nothing required", which made an attendee's page open already finished
+            // before they had touched anything (Alen saw exactly that on 2026-09-16).
+            allDone: finished,
+            finished
         };
     }
 
@@ -2256,7 +2258,7 @@ module.exports = function mountBoston(app, deps) {
         const declinedNoteLight = o.declined ? `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:${T.cardCream};border-left:3px solid ${T.gold};"><tr><td style="padding:14px 18px;font-family:${T.sans};font-size:14.5px;line-height:1.65;color:${ink};">
         <b>Your seat on Monday is confirmed and we very much look forward to seeing you.</b><br><br>
-        Thank you for offering to give one of the 5-minute presentations. We received many more requests than the evening can hold, and sadly we could not accommodate your presentation this time. We are sorry about that, and we hope to have you present at one of the next editions.<br><br>
+        Thank you for offering to give one of the 5-minute presentations. We received many more requests than the evening can hold, and sadly we could not accommodate your presentation this time. We are sorry about that, and we look forward to welcoming you regardless &mdash; your seat is confirmed. We hope to have you present at one of the next editions.<br><br>
         We would warmly encourage you to send us your <b>one-slide summary</b> (point 2 below). The summaries of everyone&rsquo;s work are compiled into one document and shared with all participants, so your work is still presented to the room &mdash; with your contact details, for anyone who wants to follow up.
       </td></tr></table>` : '';
 
@@ -3398,13 +3400,25 @@ function mePage(reg, st, s3ok, tok, links) {
         <p class="ok" id="s3_link_ok" hidden>Link saved &#10003;</p>
         <p class="err" id="s3_link_err"></p>
       </div>
-    </section>` : st.declined ? `
-    <section class="sheet" id="step3note" aria-label="About your presentation">
-      <p class="slabel">About your presentation</p><div class="rule"></div>
-      <p class="sbody"><b>Your seat on Monday is confirmed and we very much look forward to seeing you.</b></p>
-      <p class="sbody" style="margin-top:10px;">Thank you for offering to give one of the 5-minute presentations. We received many more requests than the evening can hold, and sadly we could not accommodate your presentation this time. We are sorry about that, and we hope to have you present at one of the next editions.</p>
-      <p class="sbody" style="margin-top:10px;">We would warmly encourage you to send us your <b>one-slide summary</b> (step 2 above). The summaries of everyone&rsquo;s work are compiled into one document and shared with all participants, so your work is still presented to the room &mdash; with your contact details, for anyone who wants to follow up.</p>
     </section>` : '';
+    // A declined presenter's page carries NO note about the decision (Alen 2026-09-16: the email
+    // already said it) — they simply see the attendee steps.
+
+    // ---- last numbered step · Finish — their word that they're done (above the ticket, so nobody
+    //      scrolls past it; the QR is the very last thing on the page) ----
+    const finishStep = `
+    <section class="sheet step" id="finishcard" aria-label="Step ${st.finishNo} — finish">
+      ${head(st.finishNo, st.finished, 'Finish &mdash; I&rsquo;m all set', '')}
+      <div id="finish_pending"${st.finished ? ' hidden' : ''}>
+        <p class="sbody">Done here? Tell us with one tap &mdash; it helps us keep count for the evening. You can still come back and change anything afterwards.</p>
+        <button type="button" class="go" id="finish_go">Finish &mdash; I&rsquo;m all set</button>
+        <p class="err" id="finish_err"></p>
+      </div>
+      <div id="finish_done"${st.finished ? '' : ' hidden'}>
+        <p style="margin-top:14px;font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:clamp(22px,5.4vw,28px);line-height:1.16;letter-spacing:-.3px;color:#241d18;">All set &mdash; see you on Monday, 21 September.</p>
+        <p class="sbody" style="margin-top:10px;">You can come back to this page any time to change anything &mdash; the same link keeps working. Your ticket below gets you in the door.</p>
+      </div>
+    </section>`;
 
     const w = links || {};
     const walletRow = [
@@ -3499,9 +3513,9 @@ main{max-width:640px;}
   <p class="kicker">Building Bridges — Boston &middot; Your personal page</p>
   <h1>Hi ${esc(first)}!</h1>
   <p class="who"><b>${esc(fullName)}</b>${reg.institution ? ' &middot; ' + esc(reg.institution) : ''}</p>
-  <p class="prog${st.allDone ? ' allset' : ''}" id="prog"
-     data-total="${st.total}" data-presenter="${st.presenter ? 1 : 0}"
-     data-s1="${st.step1 ? 1 : 0}" data-s2="${st.step2 ? 1 : 0}" data-s3="${st.step3 ? 1 : 0}">${st.allDone
+  <p class="prog${st.finished ? ' allset' : ''}" id="prog"
+     data-total="${st.total}" data-presenter="${st.presenter ? 1 : 0}" data-fin="${st.finished ? 1 : 0}"
+     data-s1="${st.step1 ? 1 : 0}" data-s2="${st.step2 ? 1 : 0}" data-s3="${st.step3 ? 1 : 0}">${st.finished
         ? 'All set &mdash; see you on Monday.'
         : `<b>${st.done}</b> of ${st.total} done`}</p>
 </div></header>
@@ -3510,6 +3524,7 @@ main{max-width:640px;}
   ${step1}
   ${step2}
   ${step3}
+  ${finishStep}
 
   <section class="sheet" aria-label="Your ticket">
     <p class="slabel">Your ticket for the door</p><div class="rule"></div>
@@ -3520,20 +3535,7 @@ main{max-width:640px;}
       ${walletRow}
     </div>
     <p class="evline">${esc(DATE_LONG)} &middot; 6:00&ndash;9:00 PM (doors 5:30 PM)<br>${esc(VENUE_FULL)} &middot; ${esc(DRESS)}</p>
-  </section>
-
-  <section class="sheet" id="finishcard" style="text-align:center;" aria-label="Finish">
-    <div id="finish_pending"${st.finished ? ' hidden' : ''}>
-      <p class="slabel" style="margin-bottom:8px;">One last thing</p>
-      <p class="sbody" style="margin-top:0;">Done here? Tell us with one tap &mdash; it helps us keep count for the evening.</p>
-      <button type="button" class="go" id="finish_go" style="max-width:340px;margin:16px auto 0;">Finish &mdash; I&rsquo;m all set</button>
-      <p class="err" id="finish_err" style="text-align:left;"></p>
-    </div>
-    <div id="finish_done"${st.finished ? '' : ' hidden'}>
-      <p style="font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:clamp(22px,5.4vw,28px);line-height:1.16;letter-spacing:-.3px;color:#241d18;">All set &mdash; see you on Monday, 21 September.</p>
-      <p class="sbody" style="margin-top:10px;">You can come back to this page any time to change anything &mdash; the same link keeps working. Your ticket above gets you in the door.</p>
-    </div>
-    <p class="thint" style="margin-top:16px;">Having issues? Please contact us &mdash; <a href="mailto:${SUPPORT_EMAIL}" style="color:var(--crimson);font-weight:600;text-decoration:none;">${SUPPORT_EMAIL}</a></p>
+    <p class="thint" style="margin-top:16px;text-align:center;">Having issues? Please contact us &mdash; <a href="mailto:${SUPPORT_EMAIL}" style="color:var(--crimson);font-weight:600;text-decoration:none;">${SUPPORT_EMAIL}</a></p>
   </section>
 
   <p class="bail">Unable to attend? <a href="/boston/rsvp/${encodeURIComponent(tok.diet)}/${CANNOT_ATTEND}">Cancel your participation</a> &mdash; your seat goes to someone on the waiting list.</p>
@@ -3556,9 +3558,10 @@ ${FOOTER_HTML}
   function render(){
     var pres=prog.getAttribute('data-presenter')==='1',total=Number(prog.getAttribute('data-total'));
     var s1=prog.getAttribute('data-s1')==='1',s2=prog.getAttribute('data-s2')==='1',s3=prog.getAttribute('data-s3')==='1';
-    var done=(s1?1:0)+(s2?1:0)+(pres&&s3?1:0);
-    /* only the required step (a presenter's slides) gates "all set" — the rest is optional */
-    if(!pres||s3){prog.classList.add('allset');prog.innerHTML='All set &mdash; see you on Monday.';}
+    var fin=prog.getAttribute('data-fin')==='1';
+    var done=(s1?1:0)+(s2?1:0)+(pres&&s3?1:0)+(fin?1:0);
+    /* "All set" is the Finish click and nothing else — optional steps never finish the page */
+    if(fin){prog.classList.add('allset');prog.innerHTML='All set &mdash; see you on Monday.';}
     else{prog.classList.remove('allset');prog.innerHTML='<b>'+done+'</b> of '+total+' done';}
   }
   function show(el,m){if(!el)return;el.textContent=m;el.style.display='block';}
@@ -3718,7 +3721,8 @@ ${FOOTER_HTML}
       if(res.ok&&res.j.success){
         $('finish_pending').setAttribute('hidden','');
         $('finish_done').removeAttribute('hidden');
-        prog.classList.add('allset');prog.innerHTML='All set — see you on Monday.';
+        var fc=$('finishcard'),fn=fc&&fc.querySelector('.snum');if(fn){fn.classList.add('on');fn.innerHTML='&#10003;';}
+        prog.setAttribute('data-fin','1');render();
       }else if(res.j&&res.j.incomplete==='slides'){
         var s3c=$('step3');
         if(s3c){s3c.scrollIntoView({behavior:'smooth',block:'start'});
