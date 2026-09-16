@@ -582,7 +582,11 @@ module.exports = function mountBoston(app, deps) {
             const email = clean(b.email, 160);
             const institution = clean(b.institution, 160);
             const position = clean(b.position, 120);
-            const presentation = b.presentation === true || ['yes', 'true', '1', 'on'].includes(String(b.presentation).toLowerCase());
+            // Presentation slots closed 2026-09-16 (Alen): the checkbox is disabled on the form and the
+            // server ignores the field unless BOSTON_PRESENTATION_SLOTS=open, so nobody registering from
+            // now on becomes a presenter request (tests open the slots to exercise the presenter paths).
+            const slotsOpen = process.env.BOSTON_PRESENTATION_SLOTS === 'open';
+            const presentation = slotsOpen && (b.presentation === true || ['yes', 'true', '1', 'on'].includes(String(b.presentation).toLowerCase()));
             if (!fullName) return res.status(400).json({ error: 'Please tell us your full name.' });
             if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid email address is required.' });
             if (!institution) return res.status(400).json({ error: 'Please tell us your institution.' });
@@ -1340,11 +1344,15 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
           <input type="text" id="f_pos" name="position" autocomplete="organization-title" placeholder="e.g. Postdoctoral fellow"></div>
         <div class="hp" aria-hidden="true"><label for="f_web">Website</label>
           <input type="text" id="f_web" name="website" tabindex="-1" autocomplete="off"></div>
-        <label class="check" for="f_pres">
+        ${process.env.BOSTON_PRESENTATION_SLOTS === 'open' ? `<label class="check" for="f_pres">
           <input type="checkbox" id="f_pres" name="presentation">
           <span class="t">I would like to give a short 5-minute presentation of my lab, clinic, department, or institution.</span>
         </label>
-        <p class="slots">Presentation slots are confirmed by email based on the total number of requests.</p>
+        <p class="slots">Presentation slots are confirmed by email based on the total number of requests.</p>` : `<label class="check" for="f_pres" style="opacity:.55;cursor:not-allowed">
+          <input type="checkbox" id="f_pres" name="presentation" disabled aria-disabled="true">
+          <span class="t">Short 5-minute presentations &mdash; <b>all slots are now filled</b>. Thank you for the interest; you are very welcome to join the evening as a guest.</span>
+        </label>
+        <p class="slots">Every participant can still share a one-slide summary of their work after registering.</p>`}
         <p class="fine" style="margin:0 0 12px;">Email addresses collected during registration will only be used to inform attendants about the event and will not be used for other purposes.</p>
         <button type="submit" class="btn" id="subbtn">Register for the evening</button>
         <div class="err" id="errbox"></div>
