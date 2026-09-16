@@ -43,7 +43,7 @@ const MARK = 'PROGRAM-TICKET-SENT';
 const PROGRAM_UPLOAD_KEY = 'plexus/program/program.pdf';
 const PROGRAM_FILENAME = 'Plexus-Week-2026-Program.pdf';
 const MAX_PROGRAM_BYTES = 10 * 1024 * 1024;
-const SUBJECT = 'Your Plexus Week 2026 program & ticket';
+const SUBJECT = 'Your Plexus Week 2026 events & ticket';
 const PAID_STATES = ['paid', 'vip-comp', 'comp'];
 
 function tryRequire(name) { try { return require(name); } catch (e) { return null; } }
@@ -121,13 +121,33 @@ module.exports = function mountPlexusProgram(app, deps) {
     }
 
     // ---------------------------------------------------------------- rows
+    // Gala-only payers who never used the Zagreb multi-event form (standalone gala page, invite
+    // links, older sign-ups) hold a Gala ticket too, so they get the program & ticket email like
+    // everyone else. They have no CA row: a synthetic one carries what buildFor() reads, the
+    // sent-marker lives on gala_registrations.admin_notes, and the QR/pass is their gala row.
+    function standaloneGalaRows() {
+        const gs = query.all(`SELECT g.* FROM gala_registrations g
+            WHERE COALESCE(g.email, '') <> ''
+              AND NOT EXISTS (SELECT 1 FROM croatians_abroad_registrations c WHERE c.gala_registration_id = g.id)
+            ORDER BY rowid`) || [];
+        return gs
+            .filter(g => PAID_STATES.includes(String(g.payment_status || '').toLowerCase()) && String(g.status || '') !== 'cancelled')
+            .map(g => {
+                const ca = { id: g.id, first_name: g.first_name, last_name: g.last_name, email: g.email, institution: g.institution || '',
+                    country: '', source: 'gala', guest_count: g.guest_count, notes: g.admin_notes || '',
+                    selected_conference: 0, selected_bridges: 0, selected_gala: 1, gala_registration_id: g.id };
+                const mark = reviewGate.getMarker(g.admin_notes, MARK) || null;
+                return { ca, g, state: 'paid', legs: ['gala'], paid: true, payLink: false, standalone: true, sent: !!mark, sent_at: mark };
+            });
+    }
     function rows() {
         const cas = query.all(`SELECT * FROM croatians_abroad_registrations ORDER BY created_at, rowid`) || [];
-        return cas.map(ca => {
+        const linked = cas.map(ca => {
             const g = ca.gala_registration_id ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [ca.gala_registration_id]) : null;
             const c = classify(ca, g);
             return { ca, g, ...c, sent: wasSent(ca), sent_at: reviewGate.getMarker(ca.notes, MARK) || null };
         });
+        return linked.concat(standaloneGalaRows());
     }
     function summary(all) {
         const count = st => all.filter(r => r.state === st).length;
@@ -137,6 +157,9 @@ module.exports = function mountPlexusProgram(app, deps) {
             sent: eligible.filter(r => r.sent).length,
             unsent: eligible.filter(r => !r.sent).length,
             paid: count('paid'), unpaid_gala: count('unpaid-gala'), free: count('free'),
+            // seats = registrant + guests (guest_count is ADDITIONAL guests everywhere in this codebase)
+            paid_seats: all.filter(r => r.state === 'paid').reduce((n, r) => n + 1 + Math.max(0, parseInt((r.g || r.ca).guest_count, 10) || 0), 0),
+            paid_standalone: all.filter(r => r.state === 'paid' && r.standalone).length,
             skipped_held: count('held'), skipped_cancelled: count('cancelled'), skipped_unpaid_gala_only: count('unpaid-only')
         };
     }
@@ -146,7 +169,7 @@ module.exports = function mountPlexusProgram(app, deps) {
         country: r.ca.country || '', source: r.ca.source || 'croatians-abroad',
         state: r.state, legs: r.legs, party: 1 + Math.max(0, parseInt((r.g || r.ca).guest_count, 10) || 0),
         pay_link: r.payLink, invoice: r.g ? (r.g.invoice_number || null) : null,
-        sent: r.sent, sent_at: r.sent_at
+        sent: r.sent, sent_at: r.sent_at, standalone: !!r.standalone
     });
 
     // ---------------------------------------------------------------- the email for one row
@@ -169,31 +192,40 @@ module.exports = function mountPlexusProgram(app, deps) {
             calendarUrl: plexusTicket.calendarUrl(base, r.legs), facts: F,
             programAttached: !!o.programAttached,
             kicker: 'YOUR PROGRAM & TICKET',
-            headlineHtml: 'Plexus Week 2026 — your program and your ticket.',
+            headlineHtml: 'Plexus Week 2026 — your events and your ticket.',
             subjectTitle: SUBJECT,
-            preheader: 'The Plexus Week 2026 program is attached — and here is your ticket, ready for your wallet.',
+            preheader: 'Your Plexus Week 2026 events and your ticket, ready for your wallet — the program is attached.',
             guestsHtml: r.paid ? plexusTicket.guestsHtml(named) : ''
         };
         const legsText = plexusTicket.joinAnd(plexusTicket.legNames(r.legs, F));
         if (r.state === 'paid') {
             return plexusTicket.ticketEmail('combined', {
                 ...common,
-                introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here is your program for Plexus Week 2026 (attached as a PDF) and your ticket for ${escapeHtml(legsText)}${seats > 1 ? ` — <b>${seats} Gala seats</b>` : ''}. Add it to your wallet and bring the QR below; it admits you at every event you hold.`,
+                introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here are your Plexus Week 2026 events and your ticket for ${escapeHtml(legsText)}${seats > 1 ? ` — <b>${seats} Gala seats</b>` : ''}. The program is attached as a PDF. Add the ticket to your wallet and bring the QR below; it admits you at every event you hold.`,
                 partyNote: galaPayLink.partyNote(seats, withEmail)
             });
         }
         if (r.state === 'unpaid-gala') {
+            // Everything automated (Alen 2026-09-16): a reserved-but-unpaid seat ALWAYS gets its pay
+            // button. Rows that never had a link (Stripe session expired before pay-links existed)
+            // get one minted here — same token shape as gala-paylink.js, and /pay/gala/:token needs
+            // status 'approved', so a still-'awaiting_payment' row is released to it on the spot.
+            if (g && !g.pay_token) {
+                g.pay_token = galaPayLink.mintPayToken();
+                db.run("UPDATE gala_registrations SET pay_token = ?, status = CASE WHEN status = 'awaiting_payment' THEN 'approved' ELSE status END WHERE id = ?", [g.pay_token, g.id]);
+                try { saveDb && saveDb(); } catch (e) {}
+            }
             const payUrl = g && g.pay_token ? `${base}/pay/gala/${g.pay_token}` : null;
             return plexusTicket.ticketEmail('free', {
                 ...common,
-                introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here is your program for Plexus Week 2026 (attached as a PDF) and your ticket for ${escapeHtml(legsText)}. Your Gala Evening seat is still reserved for you — one step completes it${payUrl ? ' (the button below)' : ''}.`,
+                introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here are your Plexus Week 2026 events and your ticket for ${escapeHtml(legsText)}. The program is attached as a PDF. Your Gala Evening seat is still reserved for you — one step completes it (the button below).`,
                 ctaUrl: payUrl || undefined, ctaLabel: payUrl ? 'COMPLETE MY GALA RESERVATION →' : undefined,
-                extraNote: payUrl ? 'Your Gala Evening seat is held but not yet confirmed — the button above opens the secure card payment; your Gala entry follows the moment it is done.' : 'Your Gala Evening seat is held but not yet confirmed — just reply to this email and we will send you the payment link.'
+                extraNote: 'Your Gala Evening seat is held but not yet confirmed — the button above opens the secure card payment; your Gala entry follows the moment it is done.'
             });
         }
         return plexusTicket.ticketEmail('free', {
             ...common,
-            introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here is your program for Plexus Week 2026 (attached as a PDF) and your ticket for ${escapeHtml(legsText)}. There is nothing to pay — add it to your wallet and bring the QR below.`
+            introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here are your Plexus Week 2026 events and your ticket for ${escapeHtml(legsText)}. The program is attached as a PDF. There is nothing to pay — add the ticket to your wallet and bring the QR below.`
         });
     }
     function guestEmails(r, program) {
@@ -220,7 +252,8 @@ module.exports = function mountPlexusProgram(app, deps) {
     async function sendOne(r, program) {
         const out = await sendEmail(r.ca.email, SUBJECT, buildFor(r, { programAttached: !!program }), program ? [program] : undefined);
         if (!out || out.success === false || out.mock) return { ok: false, error: (out && out.error) || (out && out.mock ? 'mock mode' : 'unknown') };
-        db.run('UPDATE croatians_abroad_registrations SET notes = ? WHERE id = ?', [reviewGate.upsertMarker(r.ca.notes, MARK, todayIso()), r.ca.id]);
+        if (r.standalone) db.run('UPDATE gala_registrations SET admin_notes = ? WHERE id = ?', [reviewGate.upsertMarker(r.g.admin_notes, MARK, todayIso()), r.g.id]);
+        else db.run('UPDATE croatians_abroad_registrations SET notes = ? WHERE id = ?', [reviewGate.upsertMarker(r.ca.notes, MARK, todayIso()), r.ca.id]);
         try { saveDb && saveDb(); } catch (e) {}
         let guests = 0;
         for (const ge of guestEmails(r, program)) {

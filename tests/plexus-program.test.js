@@ -133,7 +133,7 @@ const to = e => sent.filter(m => m.to === e);
         const rowsNow = mod.rows();
         const paid = mod.buildFor(rowsNow.find(r => r.ca.id === ANA), { programAttached: true });
         assert.ok(paid.includes('YOUR PROGRAM &amp; TICKET') || paid.includes('YOUR PROGRAM & TICKET'), 'kicker');
-        assert.ok(paid.includes('your program and your ticket'), 'headline');
+        assert.ok(paid.includes('your events and your ticket'), 'headline');
         assert.ok(paid.includes('Your <b>program</b> is attached'), 'program note');
         assert.ok(paid.includes('2 Gala seats') && paid.includes('GALA26-0041') && paid.includes('Emeric du Mas de Paysac'), 'party, invoice, guests');
         assert.ok(paid.includes(`/qr/${ANA_G}.png`) && paid.includes(`/api/plexus/pass/gala-${ANA_G}.pkpass`) && paid.includes('ADD TO CALENDAR'), 'QR, wallet, calendar');
@@ -147,7 +147,13 @@ const to = e => sent.filter(m => m.to === e);
         assert.ok(!/Gala Evening — /.test(unpaid.replace(/Gala Evening seat/g, '')), 'the Gala is not on the WHEN lines');
 
         const noLink = mod.buildFor(rowsNow.find(r => r.ca.id === ROZ), { programAttached: false });
-        assert.ok(!noLink.includes('COMPLETE MY GALA RESERVATION') && noLink.includes('reply to this email and we will send you the payment link'), 'no token → no button, a reply line instead');
+        // Everything automated: a row that never had a pay link gets one minted at build time
+        // (status released to 'approved' so /pay/gala accepts it) — never "reply and we will send it".
+        assert.ok(noLink.includes('COMPLETE MY GALA RESERVATION') && !noLink.includes('reply to this email and we will send you the payment link'), 'no token → a link is minted, the button is there');
+        const rozGala = mod.rows().find(r => r.ca.id === ROZ).g;
+        assert.ok(rozGala && /^[0-9a-f]{48}$/.test(String(rozGala.pay_token || '')), 'minted token persisted on the gala row');
+        assert.ok(noLink.includes('/pay/gala/' + rozGala.pay_token), 'the button points at the minted token');
+        assert.strictEqual(rozGala.status, 'approved', "'awaiting_payment' released to 'approved' so the pay page opens");
         assert.ok(!noLink.includes('Your <b>program</b> is attached'), 'no program claim when it is not attached');
 
         const free = mod.buildFor(rowsNow.find(r => r.ca.id === IVA), { programAttached: true });
@@ -189,7 +195,7 @@ const to = e => sent.filter(m => m.to === e);
         assert.strictEqual(r.body.failed.length, 0);
         for (const e of ['held@example.org', 'gone@example.org', 'solo@example.org']) assert.strictEqual(to(e).length, 0, e + ' must never be emailed by this tool');
         const ana = to('ana@example.org')[0];
-        assert.strictEqual(ana.subject, 'Your Plexus Week 2026 program & ticket');
+        assert.strictEqual(ana.subject, 'Your Plexus Week 2026 events & ticket');
         assert.strictEqual(ana.attachments.length, 1);
         assert.strictEqual(ana.attachments[0].filename, 'Plexus-Week-2026-Program.pdf');
         const em = to('emeric@example.org')[0];
