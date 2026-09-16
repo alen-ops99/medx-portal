@@ -173,12 +173,10 @@ const REMINDER_MARK = 'REMINDER-SENT';
 // of a row reads in one column and nothing new has to be migrated into the schema.
 const CANCELLED_MARK = 'CANCELLED-BY-GUEST';
 const RESTORED_MARK = 'RESTORED-BY-TEAM';
-// Upload receipts + the Finish button (Alen 2026-09-15). One receipt per KIND per guest, ever —
-// the first deck (file or link) and the first summary each get a short "it's in" email; every
-// replacement after that is silent. ME-FINISHED is the guest's own "I'm done" click, and the
-// single recap email it triggers is likewise once-only.
-const RECEIPT_SLIDES_MARK = 'RECEIPT-SLIDES-SENT';
-const RECEIPT_SUMMARY_MARK = 'RECEIPT-SUMMARY-SENT';
+// The Finish button (Alen 2026-09-15/16). Uploads send NO email of their own — a guest hears from
+// us exactly once, when they click Finish: ME-FINISHED is that click, and the single "you're all
+// set" recap it triggers is once-only. (Per-upload receipts existed for a day and were retired:
+// three emails for one visit was two too many.)
 const FINISHED_MARK = 'ME-FINISHED';
 const hasMark = (r, mark) => new RegExp(mark).test(String((r && r.notes) || ''));
 // "Any special requests?" — the free-text box on the personal page; capped so a paste never
@@ -306,6 +304,21 @@ function magicOk(ext, buf) {
 // buffer arithmetic over node's zlib.crc32 — no zip dependency. One writer, two archives (every
 // presentation, every one-pager): the naming rule is the caller's, the bytes are identical.
 const zipSafe = str => String(str || '').normalize('NFKD').replace(/[^\w.\- ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) || 'x';
+// Files the team downloads are named after the PERSON, never after whatever the guest called the
+// file: "Ruscic_Katarina.pptx" (diacritics folded, ASCII only), "_summary" for the one-slide
+// summary, and "_2", "_3" when two guests share a name. The guest's original name survives in the
+// index / links file, so nothing is lost — it just is not what the team has to search for.
+const asciiName = str => String(str || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, m => m === 'đ' ? 'd' : 'D').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').replace(/-+/g, '-') || 'x';
+const extOf = (original, fallback = 'bin') => { const m = /\.([A-Za-z0-9]{1,6})$/.exec(String(original || '')); return m ? m[1].toLowerCase() : fallback; };
+function personFileNamer() {
+    const seen = new Map();
+    return (reg, original, suffix = '') => {
+        const stem = `${asciiName(reg && reg.last_name)}_${asciiName(reg && reg.first_name)}${suffix}`;
+        const n = (seen.get(stem.toLowerCase()) || 0) + 1; seen.set(stem.toLowerCase(), n);
+        return `${stem}${n > 1 ? '_' + n : ''}.${extOf(original)}`;
+    };
+}
 function buildZip(entries) {
     const zlib = require('zlib');
     const parts = []; const central = []; let offset = 0;
@@ -909,7 +922,11 @@ module.exports = function mountBoston(app, deps) {
             const email = clean(b.email, 160);
             const institution = clean(b.institution, 160);
             const position = clean(b.position, 120);
-            const presentation = b.presentation === true || ['yes', 'true', '1', 'on'].includes(String(b.presentation).toLowerCase());
+            // Presentation slots closed 2026-09-16 (Alen): the checkbox is disabled on the form and the
+            // server ignores the field unless BOSTON_PRESENTATION_SLOTS=open, so nobody registering from
+            // now on becomes a presenter request (tests open the slots to exercise the presenter paths).
+            const slotsOpen = process.env.BOSTON_PRESENTATION_SLOTS === 'open';
+            const presentation = slotsOpen && (b.presentation === true || ['yes', 'true', '1', 'on'].includes(String(b.presentation).toLowerCase()));
             if (!fullName) return res.status(400).json({ error: 'Please tell us your full name.' });
             if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid email address is required.' });
             if (!institution) return res.status(400).json({ error: 'Please tell us your institution.' });
@@ -1322,7 +1339,6 @@ module.exports = function mountBoston(app, deps) {
             if (!reg) return res.status(404).json({ error: 'This upload link is not valid. Please use the exact link you were sent.' });
             if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
             const out = await storeSlides(reg, req.file);
-            if (out.status === 200) await sendUploadReceipt(reg.id, 'slides', { filename: out.body.filename });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] presentation upload failed:', e.message);
@@ -1413,7 +1429,6 @@ module.exports = function mountBoston(app, deps) {
             if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
             if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
             const out = await storeSummary(reg, req.file, req.body);
-            if (out.status === 200) await sendUploadReceipt(reg.id, 'summary', { filename: out.body.filename });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] one-slide summary upload failed:', e.message);
@@ -1498,8 +1513,11 @@ module.exports = function mountBoston(app, deps) {
             if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
             const data = onepagerAdminData();
             const withFile = data.rows.filter(r => r.onepager && r.onepager.id);
-            const shareable = withFile.filter(r => r.onepager.share_ok);
-            const excluded = withFile.length - shareable.length;
+            // ?all=1 is the TEAM's archive: every summary, private ones included and flagged in the
+            // index. Without it this stays the participant booklet — shared summaries only.
+            const wantAll = String((req.query || {}).all || '') === '1';
+            const shareable = wantAll ? withFile : withFile.filter(r => r.onepager.share_ok);
+            const excluded = withFile.length - withFile.filter(r => r.onepager.share_ok).length;
             if (!shareable.length) {
                 return res.status(404).json({
                     error: excluded
@@ -1508,17 +1526,20 @@ module.exports = function mountBoston(app, deps) {
                     received: withFile.length, shared: 0, excluded_private: excluded
                 });
             }
-            const entries = [];
+            const entries = []; const nameFor = personFileNamer(); const index = ['file,name,institution,shared with participants,original file name'];
             for (const r of shareable) {
                 const p = query.get('SELECT * FROM bridges_onepagers WHERE id = ?', [r.onepager.id]);
                 if (!p) continue;
                 const buf = await s3.getObject(p.stored_key);
-                const reg = query.get('SELECT first_name, last_name FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
-                entries.push({ name: `${zipSafe(reg.last_name)}_${zipSafe(reg.first_name)}__${zipSafe(p.original_name)}`, data: buf });
+                const reg = query.get('SELECT first_name, last_name, institution FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
+                const name = nameFor(reg, p.original_name, '_summary');
+                entries.push({ name, data: buf });
+                index.push([name, `${reg.first_name || ''} ${reg.last_name || ''}`.trim(), reg.institution || '', shareOkOf(p) ? 'yes' : 'no', p.original_name || ''].map(csvCell).join(','));
             }
+            entries.push({ name: '_index.csv', data: Buffer.from('\ufeff' + index.join('\n') + '\n', 'utf8') });
             const zip = buildZip(entries);
             res.set('Content-Type', 'application/zip');
-            res.set('Content-Disposition', `attachment; filename="BB-Boston-one-slide-summaries-${new Date().toISOString().slice(0, 10)}.zip"`);
+            res.set('Content-Disposition', `attachment; filename="BB-Boston-one-slide-summaries${wantAll ? '-all' : ''}-${new Date().toISOString().slice(0, 10)}.zip"`);
             res.set('X-Summaries-Excluded-Private', String(excluded));
             res.set('Cache-Control', 'private, no-store');
             res.send(zip);
@@ -1536,7 +1557,8 @@ module.exports = function mountBoston(app, deps) {
             const p = query.get('SELECT * FROM bridges_onepagers WHERE id = ?', [String(req.params.id || '')]);
             if (!p) return res.status(404).json({ error: 'Not found' });
             if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
-            const url = s3.presignGet(p.stored_key, { expires: 900, filename: p.original_name });   // 15 minutes
+            const owner = query.get('SELECT first_name, last_name FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
+            const url = s3.presignGet(p.stored_key, { expires: 900, filename: personFileNamer()(owner, p.original_name, '_summary') });   // 15 minutes, named after the person
             res.set('Cache-Control', 'private, no-store');
             res.redirect(302, url);
         } catch (e) {
@@ -1603,9 +1625,8 @@ module.exports = function mountBoston(app, deps) {
         };
     }
 
-    // ------------------------------------------------------------ upload receipts + the finish recap
-    // Light cream Boston shell (the dark shell is Zagreb's). Stamp AFTER a successful send, from a
-    // FRESH row read, so a replacement never re-emails and a failed provider never eats the receipt.
+    // ------------------------------------------------------------ the finish recap (the one email)
+    // Light cream Boston shell (the dark shell is Zagreb's). Stamp from a FRESH row read.
     function stampNote(regId, mark) {
         const fresh = query.get('SELECT notes FROM bridges_registrations WHERE id = ?', [regId]);
         const notes = String((fresh && fresh.notes) || '');
@@ -1632,35 +1653,6 @@ module.exports = function mountBoston(app, deps) {
       <div style="margin-top:18px;padding-top:12px;border-top:1px solid ${T.hairline};font-family:${T.sans};font-size:12px;line-height:1.7;color:${T.soft};">Questions? Just reply to this email &mdash; or write to Laura Rodman at ${SUPPORT_EMAIL}.</div>
     </td></tr></table>`;
     };
-
-    /** The first deck (file or link) / the first summary → one short "it's in" receipt, ever. */
-    async function sendUploadReceipt(regId, kind, info) {
-        try {
-            const reg = query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [regId, EVENT_ID]);
-            if (!reg || isReleasedRow(reg)) return;
-            const mark = kind === 'slides' ? RECEIPT_SLIDES_MARK : RECEIPT_SUMMARY_MARK;
-            if (hasMark(reg, mark)) return;                       // replacements are silent
-            const T = emailTemplates.T;
-            const got = info && info.link
-                ? `your shared link &mdash; <a href="${esc(info.link)}" style="color:${T.crimson};word-break:break-all;">${esc(info.link)}</a>`
-                : `<b>${esc((info && info.filename) || 'your file')}</b>`;
-            const html = kind === 'slides'
-                ? receiptShell('Your slides are in — Building Bridges Boston',
-                    'Your presentation slides are with us — nothing to bring on the evening.',
-                    receiptBody(reg, 'Your slides are in',
-                        `<p style="margin:0 0 10px;">Thank you &mdash; we received your presentation slides: ${got}.</p>
-                         <p style="margin:0;">We preload every deck on one laptop, so there is nothing to bring on the evening. Need to change something? The button below opens your personal page &mdash; replacing the file there updates what we play.</p>`))
-                : receiptShell('Your one-slide summary is in — Building Bridges Boston',
-                    'Your one-slide summary is with us — it reaches every participant after the event.',
-                    receiptBody(reg, 'Your one-slide summary is in',
-                        `<p style="margin:0 0 10px;">Thank you &mdash; we received your one-slide summary: ${got}.</p>
-                         <p style="margin:0;">After the event we compile every summary into one document and share it with all participants, so your work reaches everyone in the room. You can replace it any time from your personal page below.</p>`));
-            const sent = await sendEmail(reg.email,
-                kind === 'slides' ? 'Your slides are in — Building Bridges Boston' : 'Your one-slide summary is in — Building Bridges Boston',
-                html);
-            if (sent && sent.success !== false && !sent.mock) stampNote(reg.id, mark);
-        } catch (e) { console.warn('[Boston] upload receipt failed (non-blocking):', e.message); }
-    }
 
     /** The single "you're all set" recap the Finish button triggers — once, ever. */
     function finishEmailHtml(reg, st) {
@@ -1751,11 +1743,31 @@ module.exports = function mountBoston(app, deps) {
             if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
             if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
             const out = await storeSummary(reg, req.file, req.body);
-            if (out.status === 200) await sendUploadReceipt(reg.id, 'summary', { filename: out.body.filename });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] hub summary upload failed:', e.message);
             res.status(502).json({ error: 'The upload did not go through. Please try again — this same link keeps working.' });
+        }
+    });
+
+    // ------------------------------------------------------------ POST /api/boston/me/:token/summary-share
+    // The share tick, changed AFTER the summary is on file (uploads happen the moment a file is
+    // chosen, so the tick can no longer ride with the upload as a rule). {share_ok:1|0} → the latest
+    // summary row. 404 when nothing is on file yet.
+    app.post('/api/boston/me/:token/summary-share', (req, res) => {
+        try {
+            const reg = meRegOf(req.params.token);
+            if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
+            const latest = latestOnepager(reg.id);
+            if (!latest) return res.status(404).json({ error: 'Upload your one-slide summary first — the tick is saved with it.' });
+            const shareOk = readShareOk((req.body || {}).share_ok);
+            query.run('UPDATE bridges_onepagers SET share_ok = ? WHERE id = ?', [shareOk, latest.id]);
+            flushDb();
+            res.json({ success: true, share_ok: shareOk === 1 });
+        } catch (e) {
+            console.error('[Boston] summary share patch failed:', e.message);
+            res.status(500).json({ error: 'We could not save that just now. Please try again.' });
         }
     });
 
@@ -1777,7 +1789,6 @@ module.exports = function mountBoston(app, deps) {
                 });
             }
             const out = await storeSlides(reg, req.file);
-            if (out.status === 200) await sendUploadReceipt(reg.id, 'slides', { filename: out.body.filename });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] hub slides upload failed:', e.message);
@@ -1801,7 +1812,6 @@ module.exports = function mountBoston(app, deps) {
                 });
             }
             const out = storeSlidesLink(reg, (req.body || {}).url);
-            if (out.status === 200) await sendUploadReceipt(reg.id, 'slides', { link: out.body.external_url });
             res.status(out.status).json(out.body);
         } catch (e) {
             console.error('[Boston] hub slides link failed:', e.message);
@@ -2128,19 +2138,25 @@ module.exports = function mountBoston(app, deps) {
             const files = withFile.filter(r => !r.upload.external_url);
             const linked = withFile.filter(r => r.upload.external_url);
             if (files.length && !s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
-            const entries = [];
+            const entries = []; const nameFor = personFileNamer(); const index = ['file,presenter,institution,original file name'];
             for (const r of files) {
                 const p = query.get('SELECT * FROM bridges_presentations WHERE id = ?', [r.upload.id]);
                 if (!p) continue;
                 const buf = await s3.getObject(p.stored_key);
-                const reg = query.get('SELECT first_name, last_name FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
-                entries.push({ name: `${zipSafe(reg.last_name)}_${zipSafe(reg.first_name)}__${zipSafe(p.original_name)}`, data: buf });
+                const reg = query.get('SELECT first_name, last_name, institution FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
+                const name = nameFor(reg, p.original_name);
+                entries.push({ name, data: buf });
+                index.push([name, `${reg.first_name || ''} ${reg.last_name || ''}`.trim(), reg.institution || '', p.original_name || ''].map(csvCell).join(','));
             }
             if (linked.length) {
                 const lines = ['Decks shared as links (larger than 25 MB) — open each in a browser and download it:', ''];
-                for (const r of linked) lines.push(`${r.name}${r.institution ? ' (' + r.institution + ')' : ''}\n  ${r.upload.external_url}`, '');
-                entries.push({ name: 'links.txt', data: Buffer.from(lines.join('\n'), 'utf8') });
+                for (const r of linked) {
+                    const reg = query.get('SELECT first_name, last_name FROM bridges_registrations WHERE id = ?', [r.registration_id]) || { first_name: r.name };
+                    lines.push(`${asciiName(reg.last_name)}_${asciiName(reg.first_name)} — ${r.upload.external_url}`);
+                }
+                entries.push({ name: '_links.txt', data: Buffer.from(lines.join('\n') + '\n', 'utf8') });
             }
+            entries.push({ name: '_index.csv', data: Buffer.from('\ufeff' + index.join('\n') + '\n', 'utf8') });
             const zip = buildZip(entries);
             res.set('Content-Type', 'application/zip');
             res.set('Content-Disposition', `attachment; filename="BB-Boston-presentations-${new Date().toISOString().slice(0, 10)}.zip"`);
@@ -2906,7 +2922,8 @@ module.exports = function mountBoston(app, deps) {
                 return res.redirect(302, String(p.external_url));
             }
             if (!s3.isConfigured()) return res.status(503).json({ error: 'File storage is not configured on this server yet.' });
-            const url = s3.presignGet(p.stored_key, { expires: 900, filename: p.original_name });   // 15 minutes
+            const owner = query.get('SELECT first_name, last_name FROM bridges_registrations WHERE id = ?', [p.registration_id]) || {};
+            const url = s3.presignGet(p.stored_key, { expires: 900, filename: personFileNamer()(owner, p.original_name) });   // 15 minutes, named after the person
             res.set('Cache-Control', 'private, no-store');
             res.redirect(302, url);
         } catch (e) {
@@ -3093,11 +3110,15 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
           <input type="text" id="f_pos" name="position" autocomplete="organization-title" placeholder="e.g. Postdoctoral fellow"></div>
         <div class="hp" aria-hidden="true"><label for="f_web">Website</label>
           <input type="text" id="f_web" name="website" tabindex="-1" autocomplete="off"></div>
-        <label class="check" for="f_pres">
+        ${process.env.BOSTON_PRESENTATION_SLOTS === 'open' ? `<label class="check" for="f_pres">
           <input type="checkbox" id="f_pres" name="presentation">
           <span class="t">I would like to give a short 5-minute presentation of my lab, clinic, department, or institution.</span>
         </label>
-        <p class="slots">Presentation slots are confirmed by email based on the total number of requests.</p>
+        <p class="slots">Presentation slots are confirmed by email based on the total number of requests.</p>` : `<label class="check" for="f_pres" style="opacity:.55;cursor:not-allowed">
+          <input type="checkbox" id="f_pres" name="presentation" disabled aria-disabled="true">
+          <span class="t">Short 5-minute presentations &mdash; <b>all slots are now filled</b>. Thank you for the interest; you are very welcome to join the evening as a guest.</span>
+        </label>
+        <p class="slots">Every participant can still share a one-slide summary of their work after registering.</p>`}
         <p class="fine" style="margin:0 0 12px;">Email addresses collected during registration will only be used to inform attendants about the event and will not be used for other purposes.</p>
         <button type="submit" class="btn" id="subbtn">Register for the evening</button>
         <div class="err" id="errbox"></div>
@@ -3581,13 +3602,14 @@ function mePage(reg, st, s3ok, tok, links) {
       <p class="sbody" style="margin-top:8px;"><b>Please keep it to one slide</b> &mdash; a single PowerPoint slide or a one-page PDF.</p>
       ${onFileCard('s2_file_card', st.summary, `<p class="fmeta" id="s2_share_line">${st.summary ? (shareOn ? 'Shared with all participants after the event.' : 'Kept private &mdash; only the Med&amp;X team sees it.') : ''}</p>`)}
       ${s3ok ? `
-      <label class="filepick" for="s2_file">
-        <span class="fpl">Choose your slide</span>
+      <label class="filepick" for="s2_file" id="s2_pick" data-idle="${st.summary ? 'Choose a new file to replace it' : 'Choose your slide'}">
+        <span class="fpl" id="s2_fpl">${st.summary ? 'Choose a new file to replace it' : 'Choose your slide'}</span>
+        <span class="fph" id="s2_fph">Click or drop the file here &mdash; it uploads straight away.</span>
+        <div class="upbar" id="s2_bar" hidden><div class="upfill" id="s2_fill"></div></div>
         <input type="file" id="s2_file" accept="${SUMMARY_ACCEPT_ATTR}">
       </label>
       <p class="reqs">PDF or PowerPoint (<b>.pdf &middot; .ppt &middot; .pptx</b>), one slide, up to <b>10 MB</b> &middot; by <b>${SLIDES_DEADLINE}</b>.</p>
       <label class="sharebox" for="s2_share"><input type="checkbox" id="s2_share"${shareOn ? ' checked' : ''}><span>${SUMMARY_SHARE_LABEL}</span></label>
-      <button type="button" class="go" id="s2_go">${st.summary ? 'Replace my one-slide summary' : 'Upload my one-slide summary'}</button>
       <p class="ok" id="s2_ok" hidden>Saved &#10003;</p>
       <p class="err" id="s2_err"></p>` : `
       <div class="soon"><p class="slabel" style="margin-bottom:6px;">Uploads open soon</p><p class="sbody" style="margin-top:0;">This page is yours &mdash; keep the link. The upload box opens shortly and nothing else is needed from you for now.</p></div>`}
@@ -3600,12 +3622,13 @@ function mePage(reg, st, s3ok, tok, links) {
       <p class="sbody">You are giving one of the <b>5-minute presentations</b>. Introduce your lab, clinic or department at a broad level, show one project or result, and use your <b>last slide</b> to say how you would like to collaborate. Talks run back to back from one laptop, so the deck has to be with us in advance. We will send you the running order of the presentations once everybody has confirmed, most likely on the day of the event.</p>
       ${onFileCard('s3_file_card', st.slides)}
       ${s3ok ? `
-      <label class="filepick" for="s3_file">
-        <span class="fpl">Choose your slides</span>
+      <label class="filepick" for="s3_file" id="s3_pick" data-idle="${st.slides ? 'Choose a new file to replace it' : 'Choose your slides'}">
+        <span class="fpl" id="s3_fpl">${st.slides ? 'Choose a new file to replace it' : 'Choose your slides'}</span>
+        <span class="fph" id="s3_fph">Click or drop the file here &mdash; it uploads straight away.</span>
+        <div class="upbar" id="s3_bar" hidden><div class="upfill" id="s3_fill"></div></div>
         <input type="file" id="s3_file" accept="${ACCEPT_ATTR}">
       </label>
       <p class="reqs">${SLIDES_FORMAT_LINE} &middot; by <b>${SLIDES_DEADLINE}</b>.</p>
-      <button type="button" class="go" id="s3_go">${st.slides ? 'Replace my slides' : 'Upload my slides'}</button>
       <p class="ok" id="s3_ok" hidden>Saved &#10003;</p>
       <p class="err" id="s3_err"></p>` : `
       <div class="soon"><p class="slabel" style="margin-bottom:6px;">Uploads open soon</p><p class="sbody" style="margin-top:0;">This page is yours &mdash; keep the link. The upload box opens shortly.</p></div>`}
@@ -3708,10 +3731,17 @@ main{max-width:640px;}
 .hl label{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
 .hl .lc{text-transform:none;letter-spacing:.2px;font-weight:500;color:#a89a86;}
 .hl input{width:100%;padding:13px 14px;border:1px solid rgba(43,33,25,.18);border-radius:11px;background:#fff;color:#241d18;font-size:16px;font-family:inherit;}
-.filepick{display:block;margin-top:16px;padding:16px 17px;border:1.5px dashed rgba(176,137,59,.55);border-radius:14px;background:#fdfbf5;cursor:pointer;}
-.filepick .fpl{display:block;font-family:'Fraunces',Georgia,serif;font-size:15.5px;color:#3a322b;margin-bottom:10px;}
-.filepick input[type=file]{width:100%;font-family:inherit;font-size:13.5px;color:#4a4139;}
-.filepick input[type=file]::file-selector-button{margin-right:12px;padding:10px 16px;border-radius:9px;border:1px solid rgba(43,33,25,.22);background:#fff;font-family:inherit;font-size:13px;font-weight:600;color:#4a3f36;cursor:pointer;}
+.filepick{display:block;position:relative;margin-top:16px;padding:18px 18px 16px;border:1.5px dashed rgba(176,137,59,.6);border-radius:14px;background:#fdfbf5;cursor:pointer;text-align:center;transition:background .15s,border-color .15s;}
+.filepick:hover,.filepick.drag{background:#fbf5e8;border-color:var(--crimson);}
+.filepick.busy{cursor:progress;border-style:solid;}
+.filepick.done{border-style:solid;border-color:rgba(46,125,50,.55);background:#f6fbf4;}
+.filepick .fpl{display:block;font-family:'Fraunces',Georgia,serif;font-size:16px;color:#3a322b;}
+.filepick .fph{display:block;margin-top:5px;font-size:12.5px;color:#7a6e63;}
+.filepick.done .fpl{color:#2e7d32;}
+.filepick input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;}
+.filepick.busy input[type=file]{pointer-events:none;}
+.upbar{height:6px;margin:12px auto 0;max-width:320px;border-radius:99px;background:rgba(43,33,25,.1);overflow:hidden;}
+.upfill{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#b0893b,var(--crimson));transition:width .15s;}
 .reqs{margin-top:11px;font-size:12px;color:var(--muted);line-height:1.6;}
 .reqs b{color:#4a4139;font-weight:600;}
 .sharebox{display:flex;gap:10px;align-items:flex-start;margin-top:15px;padding:14px 15px;border:1px solid rgba(176,137,59,.34);border-radius:12px;background:#fdfbf5;cursor:pointer;font-size:13.5px;line-height:1.55;color:#241d18;font-weight:600;}
@@ -3891,54 +3921,74 @@ ${FOOTER_HTML}
   if(asave){asave.addEventListener('click',saveAllergies);
     atext.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();saveAllergies();}});}
 
-  /* ---- a step-2 / step-3 uploader, built once ---- */
+  /* ---- a step-2 / step-3 uploader, built once: the upload starts the moment a file is chosen
+          (or dropped) — no second button. Progress shows in the picker, then "Received". ---- */
   function wireUpload(o){
-    var input=$(o.input),go=$(o.go),errb=$(o.err),okb=$(o.ok),card=$(o.card);
-    if(!input||!go)return;
-    go.addEventListener('click',function(){
+    var input=$(o.input),pick=$(o.pick),fpl=$(o.fpl),fph=$(o.fph),bar=$(o.bar),fill=$(o.fill),errb=$(o.err),okb=$(o.ok),card=$(o.card);
+    if(!input||!pick)return;
+    var busy=false;
+    function idle(msg){pick.classList.remove('busy');bar.setAttribute('hidden','');fill.style.width='0';busy=false;
+      if(msg){fpl.textContent=msg;}fph.textContent='Click or drop the file here \u2014 it uploads straight away.';input.value='';}
+    function start(f){
+      if(busy)return;
       hide(errb);okb.setAttribute('hidden','');
-      var f=input.files&&input.files[0];
-      if(!f){show(errb,o.pick);return;}
-      if(!o.re.test(f.name)){show(errb,o.wrongType);return;}
-      if(f.size>o.max){show(errb,o.tooBig+' ('+human(f.size)+').');return;}
-      var label=go.textContent;
-      go.disabled=true;go.textContent='Uploading…';
-      var fd=new FormData();
-      if(o.extra)o.extra(fd);
-      fd.append('file',f,f.name);
-      upload(ME+o.path,fd).then(function(res){
-        go.disabled=false;
-        if(res.ok&&res.j.success){
-          go.textContent=o.replaceLabel;
-          okb.removeAttribute('hidden');
-          card.removeAttribute('hidden');
-          $(o.card+'_name').textContent=res.j.filename||f.name;
-          $(o.card+'_meta').textContent=human(res.j.size||f.size)+' · just now';
-          if(o.after)o.after(res.j);
-          input.value='';
-          mark(o.step,true);
-        }else{go.textContent=label;show(errb,res.j.error||'The upload did not go through. Please try again.');}
-      },function(){go.disabled=false;go.textContent=label;show(errb,'We could not reach the server. Please try again.');});
-    });
+      if(!f){return;}
+      if(!o.re.test(f.name)){pick.classList.remove('done');idle(pick.getAttribute('data-idle'));show(errb,o.wrongType);return;}
+      if(f.size>o.max){pick.classList.remove('done');idle(pick.getAttribute('data-idle'));show(errb,o.tooBig+' ('+human(f.size)+').');return;}
+      busy=true;pick.classList.remove('done');pick.classList.add('busy');
+      fpl.textContent='Uploading\u2026 0%';fph.textContent=f.name+' \u00b7 '+human(f.size);
+      bar.removeAttribute('hidden');fill.style.width='0';
+      var fd=new FormData();if(o.extra)o.extra(fd);fd.append('file',f,f.name);
+      var xhr=new XMLHttpRequest();xhr.open('POST',ME+o.path);
+      xhr.upload.onprogress=function(e){if(e.lengthComputable){var pct=Math.min(99,Math.round(e.loaded/e.total*100));fpl.textContent='Uploading\u2026 '+pct+'%';fill.style.width=pct+'%';}};
+      xhr.onload=function(){
+        var j={};try{j=JSON.parse(xhr.responseText||'{}');}catch(err){}
+        if(xhr.status>=200&&xhr.status<300&&j.success){
+          fill.style.width='100%';
+          setTimeout(function(){bar.setAttribute('hidden','');},400);
+          pick.classList.remove('busy');pick.classList.add('done');busy=false;
+          fpl.innerHTML='&#10003; Received \u2014 '+(j.filename||f.name).replace(/[<>&]/g,'');
+          fph.textContent='Choose another file if you need to replace it.';
+          pick.setAttribute('data-idle','Choose a new file to replace it');
+          okb.removeAttribute('hidden');card.removeAttribute('hidden');
+          $(o.card+'_name').textContent=j.filename||f.name;
+          $(o.card+'_meta').textContent=human(j.size||f.size)+' \u00b7 just now';
+          if(o.after)o.after(j);
+          input.value='';mark(o.step,true);
+        }else{idle(pick.getAttribute('data-idle'));show(errb,j.error||'The upload did not go through. Please try again.');}
+      };
+      xhr.onerror=function(){idle(pick.getAttribute('data-idle'));show(errb,'We could not reach the server. Please check your connection and try again.');};
+      xhr.send(fd);
+    }
+    input.addEventListener('change',function(){start(input.files&&input.files[0]);});
+    ['dragenter','dragover'].forEach(function(ev){pick.addEventListener(ev,function(e){e.preventDefault();if(!busy)pick.classList.add('drag');});});
+    ['dragleave','drop'].forEach(function(ev){pick.addEventListener(ev,function(e){e.preventDefault();pick.classList.remove('drag');});});
+    pick.addEventListener('drop',function(e){var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];if(f)start(f);});
   }
-  wireUpload({step:2,input:'s2_file',go:'s2_go',err:'s2_err',ok:'s2_ok',card:'s2_file_card',path:'/summary',
+  wireUpload({step:2,input:'s2_file',pick:'s2_pick',fpl:'s2_fpl',fph:'s2_fph',bar:'s2_bar',fill:'s2_fill',err:'s2_err',ok:'s2_ok',card:'s2_file_card',path:'/summary',
     re:/\\.(pdf|ppt|pptx)$/i,max:${MAX_ONEPAGER_BYTES},
-    pick:'Choose your slide first \\u2014 a PDF or a PowerPoint, up to 10 MB.',
     wrongType:'PDF or PowerPoint (.ppt/.pptx), please \\u2014 export your slide and try again.',
     tooBig:'That file is over the 10 MB limit',
-    replaceLabel:'Replace my one-slide summary',
     extra:function(fd){var s=$('s2_share');
       fd.append('share_ok',(!s||s.checked)?'1':'0');},
     after:function(j){var l=$('s2_share_line');
       if(l)l.innerHTML=j.share_ok?'Shared with all participants after the event.':'Kept private &mdash; only the Med&amp;X team sees it.';}
   });
-  wireUpload({step:3,input:'s3_file',go:'s3_go',err:'s3_err',ok:'s3_ok',card:'s3_file_card',path:'/slides',
+  wireUpload({step:3,input:'s3_file',pick:'s3_pick',fpl:'s3_fpl',fph:'s3_fph',bar:'s3_bar',fill:'s3_fill',err:'s3_err',ok:'s3_ok',card:'s3_file_card',path:'/slides',
     re:/\\.(pdf|ppt|pptx|key)$/i,max:${MAX_UPLOAD_BYTES},
-    pick:'Choose your slides first \\u2014 .pdf, .ppt, .pptx or .key, up to 25 MB.',
     wrongType:'That file type is not accepted \\u2014 please choose a .pdf, .ppt, .pptx or .key file.',
     tooBig:'That file is over the 25 MB limit (use the share link below instead)',
-    replaceLabel:'Replace my slides',
     after:function(){var l=$('s3_file_card_link');if(l)l.setAttribute('hidden','');}
+  });
+  /* the share tick, changed after a summary is already on file, patches the row on its own */
+  var shareTick=$('s2_share');
+  if(shareTick)shareTick.addEventListener('change',function(){
+    var card=$('s2_file_card');if(!card||card.hasAttribute('hidden'))return;   /* nothing on file yet: the tick rides with the upload */
+    post(ME+'/summary-share',{share_ok:shareTick.checked?1:0}).then(function(res){
+      var l=$('s2_share_line');
+      if(res.ok&&res.j.success){if(l)l.innerHTML=res.j.share_ok?'Shared with all participants after the event.':'Kept private &mdash; only the Med&amp;X team sees it.';}
+      else{shareTick.checked=!shareTick.checked;show($('s2_err'),res.j.error||'We could not save that. Please try again.');}
+    },function(){shareTick.checked=!shareTick.checked;show($('s2_err'),'We could not reach the server. Please try again.');});
   });
 
   /* ---- step 3 · the over-25 MB lane: a Drive / Dropbox share link, saved as the deck ---- */
@@ -3959,7 +4009,7 @@ ${FOOTER_HTML}
         var l=$('s3_file_card_link'),a=$('s3_file_card_href');
         if(a){a.href=res.j.external_url||v;a.textContent=res.j.external_url||v;}
         if(l)l.removeAttribute('hidden');
-        var go=$('s3_go');if(go)go.textContent='Replace my slides';
+        var pk=$('s3_pick');if(pk){pk.setAttribute('data-idle','Choose a new file to replace it');var l3=$('s3_fpl');if(l3)l3.textContent='Choose a new file to replace it';}
         mark(3,true);
       }else show(linkErr,res.j.error||'We could not save that link. Please try again.');
     },function(){linkSave.disabled=false;linkSave.textContent='Save link';show(linkErr,'We could not reach the server. Please try again.');});

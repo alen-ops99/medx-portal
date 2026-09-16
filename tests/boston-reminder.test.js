@@ -13,6 +13,7 @@
 'use strict';
 
 const assert = require('node:assert');
+process.env.BOSTON_PRESENTATION_SLOTS = 'open';   // slots closed in prod on 2026-09-16; the suite exercises the presenter paths
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 

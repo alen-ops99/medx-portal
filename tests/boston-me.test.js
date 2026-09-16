@@ -17,6 +17,7 @@
 'use strict';
 
 const assert = require('node:assert');
+process.env.BOSTON_PRESENTATION_SLOTS = 'open';   // slots closed in prod on 2026-09-16; the suite exercises the presenter paths
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 
@@ -357,7 +358,7 @@ async function t(name, fn) {
 
         const html = String((await page(ANA)).body);
         assert.ok(html.includes('Ana Horvat — one slide.pdf'), 'the file on record, by name');
-        assert.ok(html.includes('Replace my one-slide summary'), 'and the button now says replace');
+        assert.ok(html.includes('Choose a new file to replace it'), 'and the picker now says replace');
         assert.ok(html.includes('Shared with all participants after the event.'), 'her sharing answer, read back');
     });
 
@@ -396,7 +397,7 @@ async function t(name, fn) {
         assert.strictEqual(rows('bridges_presentations', LUKA).length, 1, 'one history row');
         const html = String((await page(LUKA)).body);
         assert.ok(html.includes('Luka talk.pptx'), 'the deck on record, by name');
-        assert.ok(html.includes('Replace my slides'), 'and the button says replace');
+        assert.ok(html.includes('Choose a new file to replace it'), 'and the picker says replace');
     });
 
     await t('an attendee is refused the slides step — 403, and nothing is stored', async () => {
@@ -440,7 +441,7 @@ async function t(name, fn) {
         const html = String((await page(IVO)).body);
         assert.ok(html.includes('Link · drive.google.com'), 'on file, by label');
         assert.ok(html.includes(`href="${BIGLINK.replace(/&/g, '&amp;')}"`), 'and the link itself, clickable');
-        assert.ok(html.includes('Replace my slides'), 'the upload button reads as a replacement now');
+        assert.ok(html.includes('Choose a new file to replace it'), 'the picker reads as a replacement now');
         const m = /<p class="prog[^"]*" id="prog"[\s\S]*?>([\s\S]*?)<\/p>/.exec(html);
         assert.ok(m && /1<\/b> of 4 done/.test(m[1]), 'a saved link satisfies the required step (1 of 4 — Finish is the fourth): ' + (m && m[1]));
         assert.ok(html.includes('data-s3="1"'), 'and the slides step reads as done');
@@ -629,49 +630,55 @@ async function t(name, fn) {
         for (const a of ['step1', 'step2', 'step3']) assert.ok(html.includes(`id="${a}"`), 'the email links to #' + a + ', so it must exist');
     });
 
-    // ================================================================ receipts + the Finish button
+    // ================================================================ uploads are silent; Finish is the one email
     const finish = token => call(app, 'POST', '/api/boston/me/:token/finish', { params: { token }, body: {} });
     const mailsTo = to => sentEmails.filter(m => m.to === to);
-    const SLIDES_RECEIPT = 'Your slides are in — Building Bridges Boston';
-    const SUMMARY_RECEIPT = 'Your one-slide summary is in — Building Bridges Boston';
     const RECAP = "You're all set — Building Bridges Boston";
 
-    await t('the FIRST summary and the FIRST deck each earn one receipt; replacements are silent', async () => {
+    await t('uploads never email the guest — summary, deck, replacements, a pasted link: silence', async () => {
         seed('12121212-1212-4121-8121-121212121212', 'Rita', 'Prva', 'rita@example.com', '5-minute presentation requested');
         const RITA = '12121212-1212-4121-8121-121212121212';
         await putSummary(meToken(RITA), { originalname: 'rita-slide.pdf', buffer: pdfBuf() });
-        let mine = mailsTo('rita@example.com');
-        assert.strictEqual(mine.length, 1, 'one receipt for the first summary');
-        assert.strictEqual(mine[0].subject, SUMMARY_RECEIPT);
-        assert.ok(mine[0].html.includes('rita-slide.pdf'), 'names the file');
-        assert.ok(mine[0].html.includes(`/boston/me/${meToken(RITA)}`), 'carries her personal-page link');
-        assert.ok(!/tone.*dark|#342718/.test(mine[0].html), 'light Boston shell, not the Zagreb dark one');
-        assert.ok(/RECEIPT-SUMMARY-SENT \d{4}-\d{2}-\d{2}/.test(String(rowOf(RITA).notes)), 'marker stamped');
-
         await putSummary(meToken(RITA), { originalname: 'rita-v2.pdf', buffer: pdfBuf() });
-        assert.strictEqual(mailsTo('rita@example.com').length, 1, 'a replacement re-emails nothing');
-
         await putSlides(meToken(RITA), { originalname: 'rita-talk.pptx', buffer: zipBuf() });
-        mine = mailsTo('rita@example.com');
-        assert.strictEqual(mine.length, 2, 'and one receipt for the first deck');
-        assert.strictEqual(mine[1].subject, SLIDES_RECEIPT);
-        assert.ok(mine[1].html.includes('rita-talk.pptx'));
-        assert.ok(/nothing to bring/.test(mine[1].html), 'says we preload it');
         await putSlides(meToken(RITA), { originalname: 'rita-talk-final.pptx', buffer: zipBuf() });
-        assert.strictEqual(mailsTo('rita@example.com').length, 2, 'deck replacement re-emails nothing');
-    });
-
-    await t('a pasted share link counts as the deck — receipt carries the link, replacement silent', async () => {
+        assert.strictEqual(mailsTo('rita@example.com').length, 0, 'not one email for four uploads');
+        assert.ok(!/RECEIPT-/.test(String(rowOf(RITA).notes)), 'no receipt markers exist any more');
         seed('13131313-1313-4131-8131-131313131313', 'Marko', 'Link', 'marko@example.com', '5-minute presentation requested');
         const MARKO = '13131313-1313-4131-8131-131313131313';
         const url = 'https://www.dropbox.com/s/abc123/deck.pptx?dl=0';
-        await call(app, 'POST', '/api/boston/me/:token/slides-link', { params: { token: meToken(MARKO) }, body: { url } });
-        const mine = mailsTo('marko@example.com');
-        assert.strictEqual(mine.length, 1);
-        assert.strictEqual(mine[0].subject, SLIDES_RECEIPT);
-        assert.ok(mine[0].html.includes(url.replace(/&/g, '&amp;')), 'the receipt shows the link');
-        await putSlides(meToken(MARKO), { originalname: 'marko.pdf', buffer: pdfBuf() });
-        assert.strictEqual(mailsTo('marko@example.com').length, 1, 'the file after the link is a replacement — silent');
+        const r = await call(app, 'POST', '/api/boston/me/:token/slides-link', { params: { token: meToken(MARKO) }, body: { url } });
+        assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+        await putSlides(meToken(MARKO), { originalname: 'marko.pdf', buffer: pdfBuf() });   // the file after the link: newest wins
+        assert.strictEqual(mailsTo('marko@example.com').length, 0, 'a pasted link, then a file — emails nobody either');
+    });
+
+    await t('the share tick can be changed after the summary is on file (and not before)', async () => {
+        const RITA = '12121212-1212-4121-8121-121212121212';
+        const share = (token, v) => call(app, 'POST', '/api/boston/me/:token/summary-share', { params: { token }, body: { share_ok: v } });
+        let r = await share(meToken(RITA), 0);
+        assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+        assert.strictEqual(r.body.share_ok, false);
+        const latest = query.get('SELECT share_ok FROM bridges_onepagers WHERE registration_id = ? ORDER BY uploaded_at DESC, rowid DESC LIMIT 1', [RITA]);
+        assert.strictEqual(Number(latest.share_ok), 0, 'the latest summary row is now private');
+        r = await share(meToken(RITA), 1);
+        assert.strictEqual(r.body.share_ok, true);
+        seed('16161616-1616-4161-8161-161616161616', 'Nula', 'Bez', 'nula@example.com', null);
+        r = await share(meToken('16161616-1616-4161-8161-161616161616'), 0);
+        assert.strictEqual(r.statusCode, 404, 'nothing on file yet → 404, the tick rides with the upload');
+        assert.strictEqual(mailsTo('rita@example.com').length, 0, 'still silent');
+    });
+
+    await t('the personal page uploads on pick: no Upload button, a change-driven XHR with progress', async () => {
+        const html = String((await page('12121212-1212-4121-8121-121212121212')).body);
+        assert.ok(!/id="s2_go"|id="s3_go"|Upload my one-slide summary<\/button>|Upload my slides<\/button>/.test(html), 'the separate upload buttons are gone');
+        for (const id of ['s2_pick', 's2_fpl', 's2_bar', 's2_fill', 's3_pick', 's3_fpl', 's3_bar', 's3_fill']) assert.ok(html.includes(`id="${id}"`), 'picker part ' + id);
+        assert.ok(/input\.addEventListener\('change',function\(\)\{start\(/.test(html), 'the change event starts the upload');
+        assert.ok(/xhr\.upload\.onprogress/.test(html) && /Uploading\\u2026|Uploading…/.test(html), 'progress is reported');
+        assert.ok(/Received/.test(html), 'a received state exists');
+        assert.ok(/'drop'/.test(html) && /dataTransfer/.test(html), 'drag and drop is wired');
+        assert.ok(/\/summary-share/.test(html), 'the share tick patches after the fact');
+        assert.ok(html.includes('id="s3_link_save"'), 'the Drive/Dropbox link lane keeps its Save');
     });
 
     await t('diet answers alone never email anyone', async () => {
@@ -1029,12 +1036,8 @@ async function t(name, fn) {
     });
 
     // ================================================================ the guard rails
-    await t('guests hear only receipts and the finish recap, and no network was touched', () => {
-        const GUEST_OK = [
-            'Your slides are in — Building Bridges Boston',
-            'Your one-slide summary is in — Building Bridges Boston',
-            "You're all set — Building Bridges Boston"
-        ];
+    await t('guests hear ONLY the finish recap, and no network was touched', () => {
+        const GUEST_OK = ["You're all set — Building Bridges Boston"];
         for (const m of sentEmails) {
             if (/juginovic\.alen@gmail\.com|laura\.rodman@medx\.hr/.test(String(m.to))) continue;
             assert.ok(GUEST_OK.includes(m.subject), 'an unexpected email escaped to a guest: ' + m.to + ' — ' + m.subject);
