@@ -81,7 +81,9 @@ const wasSent = ca => !!reviewGate.getMarker(ca.notes, MARK);
 
 // ---------------------------------------------------------------- mount
 module.exports = function mountPlexusProgram(app, deps) {
-    const { query, db, saveDb, flushDb, sendEmail, JWT_SECRET, qrImageUrl, walletLinks, s3 } = deps;
+    const { query, saveDb, flushDb, sendEmail, JWT_SECRET, qrImageUrl, walletLinks, s3 } = deps;
+    // Read the DB handle at call time: server.js assigns `db` after this module mounts.
+    const db = { run: (...a) => deps.db.run(...a), get: (...a) => deps.db.get(...a), all: (...a) => deps.db.all(...a) };
     const log = deps.log || ((...a) => console.log('[PlexusProgram]', ...a));
     const adminKey = () => crypto.createHmac('sha256', String(JWT_SECRET)).update('plexus-admin').digest('hex').slice(0, 40);
     const checkKey = k => { const e = adminKey(); const s = String(k || ''); try { return s.length === e.length && crypto.timingSafeEqual(Buffer.from(s), Buffer.from(e)); } catch (x) { return false; } };
@@ -180,7 +182,7 @@ module.exports = function mountPlexusProgram(app, deps) {
         const ca = r.ca, g = r.g;
         const seats = 1 + Math.max(0, parseInt((g || ca).guest_count, 10) || 0);
         const qrId = r.paid && g ? g.id : ca.id;
-        const named = query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ?', [ca.id]) || [];
+        const named = query.all('SELECT * FROM ca_registration_guests WHERE registration_id = ? ORDER BY rowid', [ca.id]) || [];
         const withEmail = named.filter(x => String(x.email || '').trim()).length;
         const fullName = `${ca.first_name || ''} ${ca.last_name || ''}`.trim();
         const common = {
@@ -232,17 +234,18 @@ module.exports = function mountPlexusProgram(app, deps) {
     }
     function guestEmails(r, program) {
         if (!r.paid || !r.g) return [];
-        const named = query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ? AND COALESCE(email, \'\') <> \'\'', [r.ca.id]) || [];
+        const named = query.all('SELECT * FROM ca_registration_guests WHERE registration_id = ? AND COALESCE(email, \'\') <> \'\' ORDER BY rowid', [r.ca.id]) || [];
         const registrantName = `${r.ca.first_name || ''} ${r.ca.last_name || ''}`.trim();
-        return named.map(gst => ({
+        // Each guest gets THEIR legs (2026-09-16): a Conference-only guest gets a free entry, not a Gala one.
+        return named.map(gst => ({ gst, own: plexusTicket.guestLegs(gst).filter(l => r.legs.includes(l)) })).filter(x => x.own.length).map(({ gst, own }) => ({
             to: gst.email,
-            subject: 'Your Plexus Week 2026 program & Gala entry',
-            html: plexusTicket.ticketEmail('gala-guest', {
+            subject: own.includes('gala') ? 'Your Plexus Week 2026 program & Gala entry' : 'Your Plexus Week 2026 program & entry',
+            html: plexusTicket.ticketEmail(own.includes('gala') ? 'gala-guest' : 'free', {
                 firstName: String(gst.name || 'there').split(' ')[0], fullName: String(gst.name || '').trim() || 'Guest',
-                legs: ['gala'], seats: 1, guestOf: registrantName, seat: r.g.seat_number || null,
+                legs: own, seats: 1, guestOf: registrantName, seat: own.includes('gala') ? (r.g.seat_number || null) : null,
                 ticketCode: String(r.g.id).slice(0, 8).toUpperCase(),
-                qrPngUrl: qrImageUrl(r.g.id), wallet: walletLinks('guest', gst.id),
-                calendarUrl: plexusTicket.calendarUrl(publicBase(), ['gala']), facts: facts(),
+                qrPngUrl: qrImageUrl(own.includes('gala') ? r.g.id : r.ca.id), wallet: walletLinks('guest', gst.id),
+                calendarUrl: plexusTicket.calendarUrl(publicBase(), own), facts: facts(),
                 programAttached: !!program, kicker: 'YOUR PROGRAM & TICKET',
                 headlineHtml: 'Plexus Week 2026 — your program and your Gala entry.',
                 subjectTitle: 'Your Plexus Week 2026 program & Gala entry'

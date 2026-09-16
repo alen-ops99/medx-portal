@@ -165,7 +165,7 @@ function ticketEmail(kind, f) {
         headlineHtml = 'Plexus Week 2026 — you are <i>in</i>.';
         introHtml = f.guestOf
             ? `Dear ${first} — <b>${esc(f.guestOf)}</b> has registered you as their guest for ${esc(joinAnd(names))} at Plexus Week 2026 in Zagreb. Your place is confirmed and there is nothing to pay.`
-            : `Dear ${first} — your registration for ${esc(joinAnd(names))} at Plexus Week 2026 in Zagreb is confirmed. There is nothing to pay — bring the QR below.`;
+            : `Dear ${first} — your registration for ${esc(joinAnd(legNamesWithParty(legs, F, f.party || {})))} at Plexus Week 2026 in Zagreb is confirmed. There is nothing to pay — bring the QR below.`;
         ticketLabel = f.guestOf ? `Guest of ${f.guestOf} · ${names.join(' + ')} — free` : `${names.join(' + ')} — free`;
         kicker = "YOU'RE IN";
         subjectTitle = f.guestOf ? 'Your Plexus Week 2026 entry' : "You're pre-registered — Plexus Week 2026";

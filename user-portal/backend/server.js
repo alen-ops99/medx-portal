@@ -5933,7 +5933,9 @@ try {
 // November by the team). Key-gated team routes; the admin proxies to them. S3 = Boston's helper.
 try {
     require('./plexus-program')(app, {
-        query, db, saveDb, flushDb, JWT_SECRET,
+        // `db` is assigned later in boot — a getter hands the module the LIVE handle (audit
+        // 2026-09-16: passed by value it was undefined, and every marker/settings write crashed).
+        query, get db() { return db; }, saveDb, flushDb, JWT_SECRET,
         sendEmail: sendEventConfirmation, qrImageUrl,
         walletLinks: (kind, id) => plexusPass.walletLinks(kind, id),
         s3: require('./boston')._s3
@@ -20908,6 +20910,7 @@ By applying to this program, I provide the following consents:
                                         let d = {}; try { d = JSON.parse(galaReg.invoice_details || 'null') || {}; } catch (e) {}
                                         return { invoice_company: d.company || '', invoice_address: d.address || '', invoice_country: d.country || '', invoice_vat: d.vat || '' };
                                     })() : {}),
+                                    ...(() => { try { const caOf = query.get('SELECT id FROM croatians_abroad_registrations WHERE gala_registration_id = ?', [galaRegId]); return caOf ? caGuestSheetFields(caOf.id) : {}; } catch (e) { return {}; } })(),
                                     registration_id: galaRegId,
                                     invoice: galaInvoice
                                 })
@@ -21213,14 +21216,19 @@ By applying to this program, I provide the following consents:
                     // (house dark shell, "Plexus Week 2026" wording), so the two can never drift.
                     try {
                         const caSeats = 1 + Math.max(0, parseInt(metadata.guest_count, 10) || 0);
-                        const caNamed = query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ?', [caRegId]) || [];
+                        // Guests WITH their per-event flags (audit 2026-09-16: this branch selected
+                        // id/name/email only, so every guest read as a Gala guest and the "(N seats)"
+                        // brackets never reached the Conference/Bridges — the pay-link branch had it right).
+                        const caNamed = query.all('SELECT * FROM ca_registration_guests WHERE registration_id = ? ORDER BY rowid', [caRegId]) || [];
+                        const caHostLegs = [metadata.bundle_conference === '1' ? 'conference' : null, metadata.bundle_bridges === '1' ? 'bridges' : null, 'gala'].filter(Boolean);
+                        const caGuestLegsOf = g => plexusTicket.guestLegs(g).filter(l => caHostLegs.includes(l));
                         const caSend = await sendEventConfirmation(caEmail, 'Your ticket — Plexus Week 2026', galaPayLink.buildCombinedTicketEmail({
                             firstName: metadata.first_name, fullName: caGuestName, amount, seats: caSeats, invoiceNumber,
                             wantConf: metadata.bundle_conference === '1', wantBridges: metadata.bundle_bridges === '1',
                             source: metadata.source,
                             qrPngUrl: qrImageUrl(galaRegId), wallet: plexusPass.walletLinks('gala', galaRegId),
                             ticketCode: String(galaRegId).slice(0, 8).toUpperCase(),
-                            partyNoteText: galaPayLink.partyNote(caSeats, caNamed.filter(g => String(g.email || '').trim()).length),
+                            partyNoteText: galaPayLink.partyNote(caSeats, caNamed.filter(g => String(g.email || '').trim() && caGuestLegsOf(g).includes('gala')).length),
                             guests: caNamed
                         }), galaQrAtts);
                         // sendEmail returns {success:false}/{mock:true} instead of throwing, so the
@@ -21231,16 +21239,23 @@ By applying to this program, I provide the following consents:
                     } catch(emailErr) { console.error(`[Stripe][EMAIL-FAIL] PAID CA-gala guest ${caEmail} (reg ${galaRegId}) ticket email threw:`, emailErr.message); }
                     // Guests with an email get the SAME party QR (one QR admits the whole party) — 2026-08-30
                     try {
-                        const partyGuests = query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ? AND COALESCE(email, \'\') <> \'\'', [caRegId]) || [];
+                        const partyGuests = query.all('SELECT * FROM ca_registration_guests WHERE registration_id = ? AND COALESCE(email, \'\') <> \'\' ORDER BY rowid', [caRegId]) || [];
+                        const pgHostLegs = [metadata.bundle_conference === '1' ? 'conference' : null, metadata.bundle_bridges === '1' ? 'bridges' : null, 'gala'].filter(Boolean);
                         for (const pg of partyGuests) {
+                            // The guest's OWN legs (2026-09-16: a guest may join the Conference and Building
+                            // Bridges without the Gala) — a Conference-only guest gets the free entry, not a Gala one.
+                            const own = plexusTicket.guestLegs(pg).filter(l => pgHostLegs.includes(l));
+                            if (!own.length) continue;
+                            if (!own.includes('gala') && pg.ticket_sent_at) continue;   // free-only copy already went out at pre-registration
                             const gFirst = String(pg.name || 'there').split(' ')[0];
                             const gHtml = galaPayLink.buildGuestEntryEmail({
                                 guestFirst: gFirst, guestName: String(pg.name || '').trim(), registrantName: caGuestName,
                                 qrPngUrl: qrImageUrl(galaRegId), wallet: plexusPass.walletLinks('guest', pg.id),
-                                ticketCode: String(galaRegId).slice(0, 8).toUpperCase()
+                                ticketCode: String(galaRegId).slice(0, 8).toUpperCase(), legs: own, source: metadata.source
                             });
-                            const gs = await sendEventConfirmation(pg.email, 'Your Gala Evening entry — Plexus Week 2026', gHtml);
+                            const gs = await sendEventConfirmation(pg.email, own.includes('gala') ? 'Your Gala Evening entry — Plexus Week 2026' : 'Your Plexus Week 2026 entry', gHtml);
                             if (!gs || gs.success !== true || gs.mock) console.error(`[Stripe][EMAIL-FAIL] gala GUEST ${pg.email} (reg ${caRegId}) did NOT receive their entry email`);
+                            else { try { db.run('UPDATE ca_registration_guests SET ticket_sent_at = ? WHERE id = ?', [new Date().toISOString(), pg.id]); } catch (e) {} }
                         }
                     } catch (pgErr) { console.error('[Stripe] guest entry emails failed (non-blocking):', pgErr.message); }
 
@@ -21267,7 +21282,8 @@ By applying to this program, I provide the following consents:
                                     items: events.join(' + '),
                                     dietary: metadata.dietary || '',
                                     allergies: metadata.allergies || '',
-                                    guests: metadata.guest_count || 0,
+                                    // guests per event (audit 2026-09-16): a Conference-only guest counts at the Conference, not the Gala
+                                    ...caGuestSheetFields(caRegId),
                                     custom_summary: metadata.custom_summary || '',
                                     applied_for: events.join(' + '),
                                     // The invoice request rides in the payment column (a column every tab has) AND as
@@ -28341,11 +28357,12 @@ By applying to this program, I provide the following consents:
         const who = g || ca || {};
         const fullName = `${who.first_name || ''} ${who.last_name || ''}`.trim();
         const qrId = hasGala ? g.id : (ca ? ca.id : null);
-        const guests = ca ? (query.all('SELECT id, name, email FROM ca_registration_guests WHERE registration_id = ?', [ca.id]) || []) : [];
+        const guests = ca ? (query.all('SELECT * FROM ca_registration_guests WHERE registration_id = ? ORDER BY rowid', [ca.id]) || []) : [];
         const wallet = hasGala ? plexusPass.walletLinks('gala', g.id) : (ca ? plexusPass.walletLinks('ca', ca.id) : { apple: null, google: null });
         return {
             ca, g, legs, paid, hasGala, seats, fullName, email: who.email || '', qrId, guests, wallet,
-            party: { conference: wantConf ? seats : 0, bridges: wantBridges ? seats : 0, gala: hasGala ? seats : 0 },
+            // people per leg = registrant + the guests who ticked THAT leg (gala = billed seats)
+            party: (() => { const p = plexusTicket.partyByLeg(legs, guests, seats); return { conference: wantConf ? (p.conference || 1) : 0, bridges: wantBridges ? (p.bridges || 1) : 0, gala: hasGala ? seats : 0 }; })(),
             invoice: g ? g.invoice_number : null, seat: g ? g.seat_number : null,
             ticketCode: qrId ? String(qrId).slice(0, 8).toUpperCase() : '',
             qrPngUrl: qrId ? qrImageUrl(qrId) : null,
@@ -28839,6 +28856,7 @@ By applying to this program, I provide the following consents:
             qrPngUrl: qrImageUrl(qrId),
             wallet: plexusPass.walletLinks(finalGala ? 'gala' : 'ca', finalGala ? qrId : regId),
             calendarUrl: plexusTicket.calendarUrl(base, legs),
+            party: plexusTicket.partyByLeg(legs, caGuestRows(regId), 1 + Math.max(0, parseInt(row.guest_count, 10) || 0)),   // "(N seats)" per event
             guestsHtml: plexusTicket.guestsHtml(caGuestRows(regId))          // who joins which event
         });
         try {
@@ -29216,12 +29234,52 @@ By applying to this program, I provide the following consents:
                 gateCountryHold ? 'Country requires manual approval: ' + (String(country || '').trim() || '(blank)') : null,
                 gateCoherenceHold ? 'Claimed country does not match name/email/institution' : null
             ].filter(Boolean).join(' · ');
-            if (gateHeld) {
-                // One review email per address — a retrying bot must not bombard the inbox.
+            {
+                // One review email per address — a retrying bot must not bombard the inbox. And an
+                // address the gate is still holding stays held whatever the retry claims (audit
+                // 2026-09-16: a resubmission with a "safer" country used to open a fresh, unreviewed row).
                 const priorHeld = query.get(`SELECT id FROM croatians_abroad_registrations
                     WHERE LOWER(email) = LOWER(?) AND (conference_status = 'pending-review'
                        OR bridges_status = 'pending-review' OR gala_status = 'pending-review')`, [email]);
                 if (priorHeld) return res.json({ success: true, id: priorHeld.id, status: 'pending-review', held: true });
+            }
+
+            // ONE person = ONE registration (audit 2026-09-16). Someone who submits the form again
+            // for events they already hold — lost the email, double-clicked, came back — must not
+            // become a second row (two QRs, two seats in every headcount, two Sheet rows). When the
+            // new request adds nothing beyond what a live prior row already holds, that row is the
+            // registration: answer with it (its ticket page), re-send the free-events ticket if
+            // nothing is owed, and write nothing. A request that ADDS a leg still creates its row.
+            {
+                const liveLeg = st => ['pre-registered', 'confirmed'].includes(String(st || ''));
+                const prior = query.get(`SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?)
+                    AND (conference_status IN ('pre-registered','confirmed') OR bridges_status IN ('pre-registered','confirmed')
+                         OR gala_status IN ('awaiting_payment','approved','confirmed'))
+                    ORDER BY rowid DESC LIMIT 1`, [email]);
+                if (prior) {
+                    const priorGala = prior.gala_registration_id ? query.get('SELECT status, payment_status FROM gala_registrations WHERE id = ?', [prior.gala_registration_id]) : null;
+                    const galaLive = !!(priorGala && String(priorGala.status || '') !== 'cancelled' && String(priorGala.status || '') !== 'pending-review');
+                    const covered = (!wantConf || (Number(prior.selected_conference) && liveLeg(prior.conference_status)))
+                        && (!wantBridges || (Number(prior.selected_bridges) && liveLeg(prior.bridges_status)))
+                        && (!wantGala || (Number(prior.selected_gala) && galaLive));
+                    if (covered) {
+                        const base = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
+                        const galaPaid = !!(priorGala && ['paid', 'vip-comp', 'comp'].includes(String(priorGala.payment_status || '').toLowerCase()));
+                        if (Number(prior.selected_gala) && !galaPaid) {
+                            // A seat is still owed: the approval/pay-link email they already hold is the way in.
+                            return res.json({ success: true, id: prior.id, status: 'awaiting_payment', duplicate: true,
+                                message: 'You are already registered — the Gala payment link in your email completes it.' });
+                        }
+                        try {
+                            await caSendPreRegConfirmation({ regId: prior.id, first_name: prior.first_name, last_name: prior.last_name, email: prior.email,
+                                finalConf: !!Number(prior.selected_conference) && liveLeg(prior.conference_status), finalBridges: !!Number(prior.selected_bridges) && liveLeg(prior.bridges_status),
+                                finalGala: galaPaid, regSource: prior.source || regSource });
+                        } catch (e) { console.warn('[CA register] duplicate: re-send failed:', e.message); }
+                        console.log(`[CA register] duplicate submission for ${email} → existing ${prior.id} answered, nothing written`);
+                        return res.json({ success: true, id: prior.id, status: 'pre-registered', duplicate: true,
+                            ticket_url: galaPaid && prior.gala_registration_id ? `${base}/gala/ticket/${plexusTicket.galaPageSig(JWT_SECRET, prior.gala_registration_id)}/${prior.gala_registration_id}` : plexusTicketPageUrl(base, prior.id) });
+                    }
+                }
             }
 
             const regId = require('crypto').randomUUID();
