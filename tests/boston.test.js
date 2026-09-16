@@ -468,7 +468,7 @@ async function t(name, fn) {
         const r = await call(app, 'GET', '/boston/upload/:token', { params: { token: mintUploadToken(anaId) } });
         assert.strictEqual(r.statusCode, 200);
         const html = String(r.body);
-        assert.ok(html.includes('Hi Ana — upload your 5-minute presentation'), 'personal greeting missing');
+        assert.ok(html.includes('Dr. Horvat — upload your 5-minute presentation'), 'personal greeting: a postdoc is Dr. (Alen 2026-09-16)');
         assert.ok(html.includes('Ana Horvat') && html.includes('Massachusetts General Hospital'), 'attribution (name + institution) missing');
         assert.ok(html.includes('accept=".pdf,.ppt,.pptx,.key"'), 'accept attr missing');
         assert.ok(html.includes('25 MB'), 'size limit note missing');

@@ -321,7 +321,7 @@ async function t(name, fn) {
     // ================================================================ the page itself
     await t('the page is personal, mobile-ready, and offers the other question inline', async () => {
         const page = (await rsvp(ANA, 'vegetarian')).body;
-        assert.ok(page.includes('Hi Ana'), "the guest's first name");
+        assert.ok(page.includes('Dear Ana Horvat'), 'addressed formally (full name when no academic title is known)');
         assert.ok(/Noted &mdash; vegetarian\./.test(page), 'the "Noted — vegetarian." confirmation');
         assert.ok(page.includes('width=device-width'), 'phone viewport');
         assert.ok(page.includes('noindex'), 'never indexed');
@@ -406,7 +406,7 @@ async function t(name, fn) {
         assert.ok(!att.html.includes('Send us your presentation slides'), 'attendee shape must not be told to upload slides');
         assert.ok(!/presentation slides/.test(att.html), 'no slides step at all in the attendee shape');
         assert.ok(pres.html.includes('Dear Luka'), 'presenter preview is built from the first presenter');
-        assert.ok(att.html.includes('Dear Ana'), 'attendee preview is built from the first non-presenter');
+        assert.ok(att.html.includes('Dear Ana Horvat'), 'attendee preview is built from the first non-presenter');
     });
 
     await t('one variant can be previewed on its own', async () => {
@@ -928,7 +928,7 @@ async function t(name, fn) {
     await t('with the seat back, her links work again and she is counted again', async () => {
         const page = await rsvp(LEAVE, 'open');
         assert.ok(!/Your seat was released/.test(page.body), 'no stale notice');
-        assert.ok(/Hi Petra/.test(page.body), 'the catering page is hers again');
+        assert.ok(/Dear Petra/.test(page.body), 'the catering page is hers again');
         const d = (await call(app, 'GET', '/api/boston/catering', { query: { key: ADMIN_KEY } })).body;
         assert.strictEqual(d.total, 5, 'five seats held again');
         assert.strictEqual(d.released_count, 0, 'and nothing in the released list');

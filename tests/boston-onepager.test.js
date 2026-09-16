@@ -214,7 +214,7 @@ async function t(name, fn) {
         const r = await call(app, 'GET', '/boston/onepager/:token', { params: { token: onepagerToken(ANA) } });
         assert.strictEqual(r.statusCode, 200);
         const html = String(r.body);
-        assert.ok(html.includes('Hi Ana — your one-slide summary'), 'personal greeting');
+        assert.ok(html.includes('Ana Horvat — your one-slide summary'), 'personal greeting');
         assert.ok(html.includes('Ana Horvat'), 'attributed to the registration');
         assert.ok(/One slide that introduces you to the room/.test(html), 'the brief');
         assert.ok(/who you are, what you do, and what you are looking for in a collaborator &mdash; with your contact details/.test(html), "the PDF's own words for what goes on the slide");

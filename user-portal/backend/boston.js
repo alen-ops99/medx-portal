@@ -193,6 +193,38 @@ const RELEASED_LINE_HTML = when => esc(RELEASED_LINE(when)).replace('—', '&mda
 const LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/images/medx-logo.png';
 const baseUrl = () => String(process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// ---------------------------------------------------------------- how we address a guest (Alen 2026-09-16)
+// Never "Hi Ana" — this room is professors and physicians. "Prof. Kellis" when the position says
+// professor/chair/dean/director/chief; "Dr. Zwang" for every other academic or clinical role, for
+// credentials in the name (MD, PhD, DMD…) and for postdocs; students, coordinators and unknowns get
+// their full name ("Dear Katrina Casteel") — formal, and no guess at anyone's gender. Credentials
+// are stripped from the surname ("Blackstone, MD PhD" → Blackstone). An explicit `salutation`
+// column on the row, when present, always wins.
+const CRED_RE = /\b(M\.?D\.?|Ph\.?D\.?|D\.?M\.?D\.?|D\.?O\.?|Dr\.?P\.?H\.?|M\.?P\.?H\.?|M\.?B\.?B\.?S\.?|D\.?V\.?M\.?|Pharm\.?D\.?|F[A-Z]{2,5})\b/gi;
+function cleanSurname(last) {
+    return String(last || '').split(',')[0].replace(CRED_RE, '').replace(/[\s.]+$/, '').trim();
+}
+function salutationFor(reg) {
+    if (reg && reg.salutation) return String(reg.salutation).trim();
+    const first = String((reg && reg.first_name) || '').trim(); const last = cleanSurname(reg && reg.last_name);
+    const full = `${(reg && reg.first_name) || ''} ${(reg && reg.last_name) || ''}`;
+    const pos = String((reg && reg.position) || '').toLowerCase();
+    const hasCred = CRED_RE.test(full); CRED_RE.lastIndex = 0;
+    const student = /\b(undergraduate|pre-?medical|medical student|student|intern)\b/.test(pos);
+    const isProf = !student && /\bprofessor\b|\bprof\b|\bdean\b/.test(pos);
+    // director / chief / chair / head are titles, not degrees — Dr. only with a credential or a clinical/scientific role
+    const isDr = !student && (hasCred || /\bscientist\b|\bphysician\b|\battending\b|\bfaculty\b|\binvestigator\b|\bpostdoc|\bfellow\b|\bresident\b|\bsurgeon\b|\bmd\b|\bphd\b|\blecturer\b|\bclinician\b|\bpsychiatr|\banesthesi|\bneurolog|\boncolog|\bcardiolog/.test(pos));
+    // a director / chief / chair / PI at a hospital, medical school or research institute is a Dr.;
+    // the same title at a business school or a company is not — the institution decides
+    const inst = String((reg && reg.institution) || '').toLowerCase();
+    const clinicalInst = /hospital|medical|medicine|health|clinic|brigham|mass general|mgh|bidmc|dana|broad|institute|biotech|pharma|sanofi|umass chan|tufts medicine/.test(inst) && !/business school/.test(inst);
+    const seniorTitle = /\bdirector\b|\bchief\b|\bchair\b|\bhead\b|\bpi\b|\bprincipal investigator\b|\bvice\b/.test(pos);
+    if (!last) return first || 'colleague';
+    if (isProf) return `Prof. ${last}`;
+    if (isDr || (seniorTitle && clinicalInst)) return `Dr. ${last}`;
+    return `${first} ${last}`.trim();
+}
 const ticketNo = id => 'BB-BOS-' + String(id).slice(0, 8).toUpperCase();
 const shortCode = id => String(id).slice(0, 8).toUpperCase();
 const prettySize = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
@@ -851,7 +883,7 @@ module.exports = function mountBoston(app, deps) {
             firstName: first,
             eventName: 'Building Bridges in Biomedicine — Boston',
             headlineHtml: 'Building Bridges Boston — you are <i>in</i>.',
-            introHtml: `Dear ${esc(first)} — your registration is confirmed. Med&X and the Harvard Medical Postdoc Association look forward to welcoming you in the Waterhouse Room, Gordon Hall, Harvard Medical School for an evening of panels, participant presentations and a networking reception.`
+            introHtml: `Dear ${esc(salutationFor(reg))} — your registration is confirmed. Med&X and the Harvard Medical Postdoc Association look forward to welcoming you in the Waterhouse Room, Gordon Hall, Harvard Medical School for an evening of panels, participant presentations and a networking reception.`
                 + (presentation ? ` You asked to give a 5-minute presentation — we will confirm presentation slots by email based on the total number of requests.` : ''),
             whenLines: [`${DATE_LONG} · 6:00 PM · doors from 5:30 PM`],
             venue: VENUE_FULL,
@@ -1646,7 +1678,7 @@ module.exports = function mountBoston(app, deps) {
       <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${T.goldDark};">Building Bridges in Biomedicine &middot; Boston</div>
       <div style="font-family:${T.serif};font-weight:500;font-size:24px;line-height:1.22;color:${T.ink};margin-top:8px;">${headline}</div>
       <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${T.ink};margin-top:14px;">
-        <p style="margin:0 0 10px;">Dear ${esc(reg.first_name || 'there')},</p>
+        <p style="margin:0 0 10px;">Dear ${esc(salutationFor(reg))},</p>
         ${paragraphsHtml}
       </div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 0 0;">${emailTemplates.btn('Open my personal page', me, 'solid', 'padding:14px 34px;font-size:12px;letter-spacing:.14em;')}</td></tr></table>
@@ -2185,7 +2217,7 @@ module.exports = function mountBoston(app, deps) {
       <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">Your 5-minute presentation</div>
       <div style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;color:#f2e7d6;margin-top:10px;">Upload your slides for Boston</div>
       <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:16px;">
-        <p style="margin:0 0 10px;">Dear ${esc(first)},</p>
+        <p style="margin:0 0 10px;">Dear ${esc(salutationFor(reg))},</p>
         <p style="margin:0 0 10px;">We are happy to have you presenting at <b style="color:#f2e7d6;">Building Bridges in Biomedicine — Boston</b> on ${DATE_LONG}, in the Waterhouse Room, Gordon Hall, Harvard Medical School.</p>
         <p style="margin:0;">Please upload your slides through your <b style="color:#f2e7d6;">personal link</b> below — it is yours alone, and only the Med&amp;X team can see what you upload. You can replace the file any time before the event from the same link.</p>
       </div>
@@ -2245,7 +2277,7 @@ module.exports = function mountBoston(app, deps) {
 
     const REMINDER_SUBJECT = 'See you on ' + DATE_LONG.replace(/\s*\d{4}$/, '') + ' — Building Bridges Boston';
     // The real subject asks for something — a guest must not file this as a pleasantry.
-    const ACTION_SUBJECT = r => `${r && r.first_name ? String(r.first_name).trim() + ', your' : 'Your'} Building Bridges Boston details — action needed before 21 September`;
+    const ACTION_SUBJECT = r => `${r && (r.first_name || r.last_name) ? salutationFor(r) + ', your' : 'Your'} Building Bridges Boston details — action needed before 21 September`;
 
     function reminderEmailHtml(reg, opts) {
         const o = opts || {};
@@ -2430,7 +2462,7 @@ module.exports = function mountBoston(app, deps) {
       <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${gold};">Building Bridges in Biomedicine &middot; Croatia &amp; the US</div>
       <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:${ink};margin-top:8px;">Your details for Monday, 21 September</div>
       <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:16px;">
-        <p style="margin:0 0 10px;">Dear ${esc(first)},</p>
+        <p style="margin:0 0 10px;">Dear ${esc(salutationFor(reg))},</p>
         <p style="margin:0;">We look forward to welcoming you to <b>Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b>${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
         ${o.presenter ? `<p style="margin:12px 0 0;">Thank you for your interest in presenting &mdash; we are happy to offer you a <b>5-minute slot</b>. We will send you the running order of the presentations once everybody has confirmed, most likely on the day of the event.</p>` : ''}
         ${o.panel ? `<p style="margin:12px 0 0;">Thank you for your interest in presenting. We would like to ask you to join the <b>panel discussion</b> instead &mdash; about 25 minutes, moderated by Alen Juginovic together with a few other senior guests. You will be able to present your work and share your thoughts on the challenges and opportunities in international biomedical collaboration. No slides are needed for the panel discussion, but we would still love to receive a one-slide summary of your work. Please accept or decline the panel seat on your personal page (button below).</p>` : ''}
@@ -2974,6 +3006,8 @@ module.exports = function mountBoston(app, deps) {
 // Test seam: the SigV4 helper — tests stub putObject (never the wire) and drive presignGet as-is
 // (pure computation) against AWS's published test vector.
 module.exports._s3 = s3;
+module.exports.salutationFor = salutationFor;
+module.exports.cleanSurname = cleanSurname;
 // The awards wing (v2/awards.js) stores its optional one-page PDFs in the SAME private bucket
 // under awards/<entry id>/ and vets them with the SAME magic-byte check — reusing these two
 // rather than keeping a second, quietly diverging copy of the signer and the sniffing rules.
@@ -3278,7 +3312,7 @@ ${FONTS_HTML}
       <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
     </div>
     <p class="kicker">Building Bridges — Boston &middot; 5-minute presentations</p>
-    <h1>Hi ${esc(first)} — upload your 5-minute presentation</h1>
+    <h1>${esc(salutationFor(reg))} — upload your 5-minute presentation</h1>
     <p class="who"><b>${esc(fullName)}</b> &middot; ${esc(reg.institution || '')}<span class="attr">Files uploaded from this page are attributed to this registration.</span></p>
   </div>
 </header>
@@ -3453,7 +3487,7 @@ ${FONTS_HTML}
       <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
     </div>
     <p class="kicker">Building Bridges — Boston &middot; One-slide summary</p>
-    <h1>Hi ${esc(first)} — your one-slide summary</h1>
+    <h1>${esc(salutationFor(reg))} — your one-slide summary</h1>
     <p class="who"><b>${esc(fullName)}</b> &middot; ${esc(reg.institution || '')}<span class="attr">Files uploaded from this page are attributed to this registration.</span></p>
   </div>
 </header>
@@ -3784,7 +3818,7 @@ main{max-width:640px;}
     <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
   </div>
   <p class="kicker">Building Bridges — Boston &middot; Your personal page</p>
-  <h1>Hi ${esc(first)}!</h1>
+  <h1>Welcome, ${esc(salutationFor(reg))}</h1>
   <p class="who"><b>${esc(fullName)}</b>${reg.institution ? ' &middot; ' + esc(reg.institution) : ''}</p>
   <p class="prog${st.finished ? ' allset' : ''}" id="prog"
      data-total="${st.total}" data-presenter="${st.presenter ? 1 : 0}" data-panel="${st.panel ? 1 : 0}" data-sp="${st.stepP ? 1 : 0}" data-fin="${st.finished ? 1 : 0}"
@@ -4176,7 +4210,7 @@ main{max-width:600px;}
     <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
   </div>
   <p class="kicker">Building Bridges — Boston &middot; Catering</p>
-  <h1>Hi ${esc(first)}</h1>
+  <h1>Dear ${esc(salutationFor(reg))}</h1>
 </div></header>
 
 <main>
@@ -4262,7 +4296,7 @@ main{max-width:600px;}
     <span class="hmpa"><img src="/boston/hmpa.png" alt="Harvard Medical Postdoc Association"></span>
   </div>
   <p class="kicker">Building Bridges — Boston</p>
-  <h1>Hi ${esc(first)}</h1>
+  <h1>Dear ${esc(salutationFor(reg))}</h1>
 </div></header>
 
 <main>

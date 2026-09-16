@@ -224,7 +224,7 @@ async function t(name, fn) {
         const r = await page(ANA);
         assert.strictEqual(r.statusCode, 200);
         const html = String(r.body);
-        assert.ok(html.includes('<h1>Hi Ana!</h1>'), 'her first name in the header, with the exclamation mark (Alen 2026-09-15)');
+        assert.ok(html.includes('<h1>Welcome, Ana Horvat</h1>'), 'addressed formally — a student/unknown role gets the full name; academics get Prof./Dr. (Alen 2026-09-16)');
         assert.ok(html.includes('miniband skyline') && html.includes("url('/boston/hero.jpg')"), 'the Boston skyline behind the greeting');
         assert.ok(html.includes('Ana Horvat'), 'attributed to the registration');
         assert.ok(html.includes('width=device-width'), 'phone viewport');
