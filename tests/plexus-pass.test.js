@@ -162,7 +162,14 @@ function qrRouteShape(ca) {
         const combined = pp.resolveTicket(query, 'ca', CA);
         assert.strictEqual(combined.kind, 'gala', 'never two passes for one person');
         assert.strictEqual(combined.id, GALA);
-        assert.strictEqual(pp.resolveTicket(query, 'ca', CA2), null, 'gala selected but unpaid → nothing yet (the pay link comes first)');
+        // Gala selected but unpaid: the FREE-events pass is issued now (Alen 2026-09-16 — an approved
+        // pay-later registrant must not be left without a pass), under the gala row's identity so
+        // the combined pass replaces it in the wallet the moment they pay.
+        const pending = pp.resolveTicket(query, 'ca', CA2);
+        assert.ok(pending && pending.kind === 'ca' && !pending.gala && !pending.paid, 'unpaid gala → the free-events pass, not nothing');
+        assert.ok(!pending.legs.includes('gala') && pending.legs.length >= 1, 'only the free legs are on it');
+        const ca2 = query.get('SELECT gala_registration_id FROM croatians_abroad_registrations WHERE id = ?', [CA2]);
+        assert.strictEqual(pending.serial, `medx-t-gala-${ca2.gala_registration_id}`, 'same serial as the future combined pass — one card, upgraded on payment');
         assert.strictEqual(pp.resolveTicket(query, 'ca', CA6), null, 'a held row is not released — no pass');
     });
 

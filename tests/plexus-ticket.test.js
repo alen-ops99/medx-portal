@@ -35,7 +35,7 @@ t('the four emails share one Boston-style shell: light, PLEXUS WEEK header, fact
         assert.ok(!/\bhonest\b/i.test(html), k + ': never that word');
         assert.ok(!/updated our systems|apolog/i.test(html), k + ': no apology framing');
     }
-    assert.ok(kinds.combined.includes('&euro;300.00') && kinds.combined.includes('2 Gala seats') && kinds.combined.includes('GALA26-0041'), 'combined: amount, seats, invoice');
+    assert.ok(kinds.combined.includes('&euro;300.00') && kinds.combined.includes('Gala Evening (2 seats)') && kinds.combined.includes('GALA26-0041'), 'combined: amount, seats, invoice');
     assert.ok(kinds.combined.includes('Gala Evening: black tie') && kinds.combined.includes('Assigned closer to the Gala'), 'combined: dress + table');
     assert.ok(kinds.combined.includes('the <b>Conference program</b>') && kinds.combined.includes('the <b>Building Bridges date and venue</b>'), 'combined: program note');
     assert.ok(kinds['gala-guest'].includes('Guest of Ana Franceschi') && kinds['gala-guest'].includes('Your seat is paid for'), 'guest: host + paid');
@@ -76,7 +76,7 @@ t('the ticket page: the email\'s twin — legs, party per leg, QR + code, wallet
     assert.ok(html.includes(QR) && html.includes('GALA26-0041') && html.includes('code 88EE6223'));
     assert.ok(html.includes('Add to Apple Wallet') && html.includes('Add to Google Wallet') && html.includes('Add to calendar'));
     assert.ok(html.includes('CONFIRMED &amp; PAID · 2 SEATS') && html.includes('you + 1 guest'));
-    assert.ok(html.includes('Emeric du Mas de Paysac') && html.includes('their own ticket went to e@x.org'));
+    assert.ok(html.includes('Emeric du Mas de Paysac') && html.includes('Their own ticket was emailed to <b>e@x.org</b>'));
     assert.ok(html.includes('background:#f7f1e6') && html.includes('#1b1613'), 'cream page, ink band');
     assert.ok(!html.includes('http-equiv="refresh"'));
     const pending = pt.ticketPageHtml({ state: 'pending', headline: 'Finalizing', sub: 's', fullName: 'A', legs: ['gala'], party: {}, seats: 1 });
@@ -104,7 +104,8 @@ t('server.js: every Plexus ticket email and page goes through the family; the .i
     const galaBranch = src.slice(src.indexOf('let caCombined = { handled: false };'), src.indexOf('let caCombined = { handled: false };') + 4000);
     assert.ok(!galaBranch.includes("buildEmailTemplate('Payment Confirmed'"), 'and so is the standalone gala receipt');
     const gp = fs.readFileSync(path.join(__dirname, '..', 'user-portal', 'backend', 'gala-paylink.js'), 'utf8');
-    assert.ok(gp.includes("plexusTicket.ticketEmail('combined'") && gp.includes("plexusTicket.ticketEmail('gala-guest'"), 'gala-paylink delegates to the family');
+    // the guest copy picks its kind per guest since 2026-09-16 ('gala-guest' or 'free'), still through the family
+    assert.ok(gp.includes("plexusTicket.ticketEmail('combined'") && /plexusTicket\.ticketEmail\([\s\S]{0,80}'gala-guest'/.test(gp), 'gala-paylink delegates to the family');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

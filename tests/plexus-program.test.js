@@ -135,7 +135,7 @@ const to = e => sent.filter(m => m.to === e);
         assert.ok(paid.includes('YOUR PROGRAM &amp; TICKET') || paid.includes('YOUR PROGRAM & TICKET'), 'kicker');
         assert.ok(paid.includes('your events and your ticket'), 'headline');
         assert.ok(paid.includes('Your <b>program</b> is attached'), 'program note');
-        assert.ok(paid.includes('2 Gala seats') && paid.includes('GALA26-0041') && paid.includes('Emeric du Mas de Paysac'), 'party, invoice, guests');
+        assert.ok(paid.includes('Gala Evening (2 seats)') && paid.includes('GALA26-0041') && paid.includes('Emeric du Mas de Paysac'), 'party, invoice, guests');
         assert.ok(paid.includes(`/qr/${ANA_G}.png`) && paid.includes(`/api/plexus/pass/gala-${ANA_G}.pkpass`) && paid.includes('ADD TO CALENDAR'), 'QR, wallet, calendar');
         assert.ok(!/updated our systems|apolog|\bhonest\b/i.test(paid), 'no apology framing, never that word');
 
