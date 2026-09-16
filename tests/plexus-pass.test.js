@@ -173,6 +173,41 @@ function qrRouteShape(ca) {
         assert.strictEqual(pp.resolveTicket(query, 'ca', CA6), null, 'a held row is not released — no pass');
     });
 
+    await t('ONE identity across payment: the free pass and the later combined pass share caRegId, regId, serial and objectKey', () => {
+        // Before: approved, unpaid → the free-events pass under the gala row's identity.
+        const before = pp.resolveTicket(query, 'ca', CA2);
+        const qBefore = JSON.parse(before.qr);
+        // Then Toi pays.
+        run(`UPDATE gala_registrations SET status = 'confirmed', payment_status = 'paid' WHERE id = ?`, [GALA2]);
+        run(`UPDATE croatians_abroad_registrations SET gala_status = 'confirmed', gala_payment_status = 'paid', amount_paid = 300 WHERE id = ?`, [CA2]);
+        try {
+            const after = pp.resolveTicket(query, 'ca', CA2);           // the same token the free email carried
+            const afterGala = pp.resolveTicket(query, 'gala', GALA2);   // the token the combined email carries
+            const qAfter = JSON.parse(after.qr);
+            assert.strictEqual(after.kind, 'gala', 'the old free-pass token now resolves to the combined ticket');
+            assert.strictEqual(qBefore.caRegId, qAfter.caRegId, 'same CA row in the QR');
+            assert.strictEqual(qBefore.regId, qAfter.regId, 'same gala row in the QR');
+            assert.strictEqual(qBefore.regId, GALA2);
+            assert.strictEqual(before.serial, after.serial, 'Apple serial unchanged → the wallet card is replaced, not duplicated');
+            assert.strictEqual(before.objectKey, after.objectKey, 'Google object id unchanged');
+            assert.strictEqual(after.serial, afterGala.serial); assert.strictEqual(after.objectKey, afterGala.objectKey);
+            // the ONLY difference the doors could see is the amount — and doors admit by row + DB state, never by the QR's events list
+            const strip = o => { const c = { ...o }; delete c.amt; return c; };
+            assert.deepStrictEqual(strip(qBefore), strip(qAfter), 'the QR payload is the same identity before and after payment');
+        } finally {
+            run(`UPDATE gala_registrations SET status = 'approved', payment_status = 'pending' WHERE id = ?`, [GALA2]);
+            run(`UPDATE croatians_abroad_registrations SET gala_status = 'awaiting_payment', gala_payment_status = 'pending', amount_paid = NULL WHERE id = ?`, [CA2]);
+        }
+    });
+
+    await t('source contract — the admin doors resolve a CA scan by its ids and DB state, never by the events list inside the QR', () => {
+        const adminSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'admin-portal', 'backend', 'server.js'), 'utf8');
+        assert.ok(/parsed\.regId \|\| parsed\.caRegId/.test(adminSrc), 'universal check-in reads regId / caRegId');
+        const doors = adminSrc.slice(adminSrc.indexOf("app.post('/api/admin/checkin/verify'"), adminSrc.indexOf("app.post('/api/checkin'"));
+        assert.ok(doors.length > 2000, 'verify route found');
+        assert.ok(!/parsed\.events\.includes|qr\.events\.includes|payload\.events\.includes/.test(doors), 'admissibility never keys off the QR events array');
+    });
+
     await t('guest kind = the named guest\'s copy: their name, "guest of", the SAME party QR', () => {
         const g = pp.resolveTicket(query, 'guest', GUEST);
         assert.ok(g);
@@ -206,11 +241,12 @@ function qrRouteShape(ca) {
         assert.ok(m.fields.auxiliary.some(f => f.label === 'NAME' && f.value === 'Ana Franceschi'));
         assert.ok(m.fields.auxiliary.some(f => f.label === 'N°' && f.value === 'GALA26-0041'), 'invoice as the ref');
         const inc = m.fields.back.find(f => f.key === 'included').value;
-        assert.ok(/Plexus Conference — 4 December 2026, Novinarski dom, Zagreb/.test(inc) && /Building Bridges Zagreb/.test(inc) && /Gala Evening — 5 December 2026 · 19:00, Hotel Esplanade, Zagreb/.test(inc), inc);
-        assert.ok(m.fields.back.some(f => f.label === 'DRESS CODE' && f.value === 'Black tie'));
+        assert.ok(/Plexus Conference — 4 December 2026 · 17:00–21:00, Novinarski dom, Zagreb/.test(inc) && /Building Bridges Zagreb/.test(inc) && /Gala Evening — 5 December 2026 · 19:00, Hotel Esplanade, Zagreb/.test(inc), inc);
+        assert.ok(m.fields.back.some(f => f.label === 'DRESS CODE' && f.value === 'Gala Evening: black tie · Conference and Building Bridges: business casual'), 'both dress codes when free legs are held');
+        assert.ok(pp.applePassModel(pp.resolveTicket(query, 'gala', GALA4)).fields.back.some(f => f.label === 'DRESS CODE' && f.value === 'Black tie'), 'gala only → black tie');
         assert.ok(m.fields.back.some(f => f.label === 'INVOICE' && f.value === 'GALA26-0041'));
         assert.strictEqual(m.qrMessage, pp.resolveTicket(query, 'gala', GALA).qr, 'barcode = the emailed QR payload');
-        assert.strictEqual(m.relevantDate, '2026-12-04T09:00:00+01:00', 'relevant from the conference morning');
+        assert.strictEqual(m.relevantDate, '2026-12-04T17:00:00+01:00', 'relevant from the conference start (17:00, Alen 2026-09-16)');
         assert.ok(!m.stripFiles && !m.logoFiles, 'the default Plexus strip + wordmark — Boston\'s skyline stays in Boston');
 
         const solo = pp.applePassModel(pp.resolveTicket(query, 'ca', CA3));
@@ -261,7 +297,7 @@ function qrRouteShape(ca) {
         const txt = Object.fromEntries(object.textModulesData.map(m => [m.id, m.body]));
         assert.strictEqual(txt.category, 'Plexus Week 2026 · admits 2');
         assert.strictEqual(txt.events, 'Plexus Conference · Building Bridges Zagreb · Gala Evening');
-        assert.strictEqual(txt.dress, 'Black tie');
+        assert.strictEqual(txt.dress, 'Gala Evening: black tie · Conference and Building Bridges: business casual');
         assert.strictEqual(txt.status, 'Paid');
         const g = pp.googleObjects(pp.resolveTicket(query, 'guest', GUEST), 'https://x');
         assert.strictEqual(g.object.id, '3388000000012345678.tkt_g-' + GUEST, 'the guest gets their own object');

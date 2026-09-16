@@ -322,7 +322,8 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.ok(!/confirm .*seat with you separately/i.test(msg.html),
             'the old guest-seat sentence is gone');
         assert.ok(msg.html.includes('laura.rodman@medx.hr'), 'Laura footer');
-        assert.ok(msg.html.includes('background:#120e0a'), 'house dark shell');
+        // 2026-09-16: the registrant-facing gate emails moved to the cream family (same shell as the tickets)
+        assert.ok(!msg.html.includes('background:#120e0a') && msg.html.includes('background:#e9e2d2') && msg.html.includes('PLEXUS WEEK 2026 · ZAGREB'), 'cream family shell, Plexus header label');
 
         const g = gala(galaId);
         assert.strictEqual(g.status, 'approved', "/pay/gala refuses anything but status='approved'");
@@ -533,7 +534,7 @@ const allTo = to => sent.filter(m => m.to === to);
         assert.ok(/(€|&euro;)300\.00/.test(msg.html), 'states the party total actually charged');
         assert.ok(msg.html.includes('Gala Evening (2 seats)'), 'says how many seats were bought — in brackets after the event');
         assert.ok(msg.html.includes('Gala Evening — 2 seats, paid'), 'the TICKET line reads as a party');
-        assert.ok(msg.html.includes('Gala Evening: black tie'), 'dress code for the Gala leg');
+        assert.ok(msg.html.includes('<strong>Gala Evening</strong> — black tie') && msg.html.includes('— business casual'), 'dress code for the Gala leg and the free legs');
         // Boston parity: the three buttons, keyed to THIS gala row, right under the QR card
         assert.ok(msg.html.includes('ADD TO APPLE WALLET') && msg.html.includes('ADD TO GOOGLE WALLET') && msg.html.includes('ADD TO CALENDAR'), 'wallet + calendar buttons');
         assert.ok(msg.html.includes(`/api/plexus/pass/gala-${galaId}.pkpass`) && msg.html.includes(`/api/plexus/wallet/gala-${galaId}`), 'the gala kind for this row');

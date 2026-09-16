@@ -31,10 +31,13 @@ const esc = s => String(s == null ? '' : s)
 
 // ---------------------------------------------------------------- the legs (one source for dates/venues)
 const LEG = {
-    conference: { name: 'Plexus Conference', when: '4 December 2026', venue: 'Novinarski dom, Zagreb',
-                  start: '20261204T090000', end: '20261204T180000' },
+    // Conference: Friday 4 December, 17:00–21:00 (Alen 2026-09-16). Bridges: tentatively Saturday
+    // 5 December, 11:00–14:00 — the calendar entry carries the slot as TENTATIVE while every
+    // line of copy still says 'to be confirmed' (confirmed flips only when the admin sets it).
+    conference: { name: 'Plexus Conference', when: '4 December 2026 · 17:00–21:00', venue: 'Novinarski dom, Zagreb',
+                  start: '20261204T170000', end: '20261204T210000' },
     bridges:    { name: 'Building Bridges Zagreb', when: '4 or 5 December 2026 · date and venue to be confirmed', venue: 'Zagreb',
-                  start: '20261204T180000', end: '20261204T210000' },
+                  start: '20261205T110000', end: '20261205T140000' },
     gala:       { name: 'Gala Evening', when: '5 December 2026 · 19:00 · arrival from 7:00 PM', venue: 'Hotel Esplanade, Zagreb',
                   start: '20261205T190000', end: '20261205T233000' }
 };
@@ -52,6 +55,18 @@ function partyByLeg(legs, guests, seats) {
     for (const l of legs || []) party[l] = l === 'gala' ? Math.max(1, Number(seats) || 1) : 1 + (guests || []).filter(g => legsOfGuest(g).includes(l)).length;
     return party;
 }
+// Dress code for the legs a person holds (Alen 2026-09-16: 'Conference and Building Bridges:
+// business casual' was missing next to the Gala's black tie). One line per rule, event name
+// bold before the dash — the same WHEN-line rendering the facts card already uses.
+function dressLabelFor(legs, facts) {
+    const F = facts || LEG;
+    const free = (legs || []).filter(l => l !== 'gala');
+    const hasGala = (legs || []).includes('gala');
+    if (hasGala && free.length) return ['Gala Evening — black tie', `${joinAnd(free.map(l => F[l].name))} — business casual`];
+    if (hasGala) return 'Black tie';
+    return free.length ? 'Business casual' : null;
+}
+const dressLine = (legs, facts) => { const d = dressLabelFor(legs, facts); return Array.isArray(d) ? d.join(' · ') : d; };
 const legNamesWithParty = (legs, facts, party) => legs.map(l => {
     const n = party && Number(party[l]);
     return (facts || LEG)[l].name + (n > 1 ? ` (${n} seats)` : '');
@@ -70,9 +85,9 @@ function legFacts(settings) {
     const hhmm = t => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? m[1].padStart(2, '0') + m[2] : null; };
     if (st.conference_venue) f.conference.venue = String(st.conference_venue).trim();
     if (st.conference_start_date && longDate(st.conference_start_date)) {
-        f.conference.when = longDate(st.conference_start_date);
-        f.conference.start = compact(st.conference_start_date) + 'T090000';
-        f.conference.end = compact(st.conference_start_date) + 'T180000';
+        f.conference.when = longDate(st.conference_start_date) + ' · 17:00–21:00';
+        f.conference.start = compact(st.conference_start_date) + 'T170000';
+        f.conference.end = compact(st.conference_start_date) + 'T210000';
     }
     if (st.bridges_zagreb_venue) f.bridges.venue = String(st.bridges_zagreb_venue).trim();
     if (st.bridges_zagreb_date && longDate(st.bridges_zagreb_date)) {
@@ -103,8 +118,8 @@ function icsFor(legs, facts) {
         `DTEND;TZID=Europe/Zagreb:${LEG[l].end}`,
         `SUMMARY:${escIcs('Plexus Week 2026 — ' + LEG[l].name)}`,
         `LOCATION:${escIcs(LEG[l].venue)}`,
-        `DESCRIPTION:${escIcs(l === 'bridges' && !LEG[l].confirmed ? 'Date and venue to be confirmed — we will email you.' : 'Your entry QR is in your ticket email and wallet pass.')}`,
-        'STATUS:CONFIRMED', 'END:VEVENT'
+        `DESCRIPTION:${escIcs(l === 'bridges' && !LEG[l].confirmed ? 'Tentative slot — the date, time and venue will be confirmed by email.' : 'Your entry QR is in your ticket email and wallet pass.')}`,
+        (l === 'bridges' && !LEG[l].confirmed) ? 'STATUS:TENTATIVE' : 'STATUS:CONFIRMED', 'END:VEVENT'
     ].join('\r\n'));
     return [
         'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Med&X//Plexus Week 2026//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
@@ -183,7 +198,7 @@ function ticketEmail(kind, f) {
     }
     if (f.programAttached) noteParts.push('Your <b>program</b> is attached to this email as a PDF.');
     if (f.extraNote) noteParts.push(f.extraNote);
-    if (kind === 'free' && !f.guestOf) {
+    if (kind === 'free' && !f.guestOf && !f.ctaUrl && !f.noGalaInvite) {
         noteParts.push('Would you also like to join the <b>Gala Evening</b> (5 December 2026, Hotel Esplanade)? Just reply to this email and we will send you the ticket link.');
     }
 
@@ -191,10 +206,10 @@ function ticketEmail(kind, f) {
         firstName: f.firstName, eventName,
         headlineHtml: f.headlineHtml || headlineHtml, introHtml: f.introHtml || introHtml, kicker: f.kicker || kicker,
         whenLines: whenLinesFor(legs, F), venue: whereFor(legs, F),
-        passUrl: f.ctaUrl || undefined, ctaLabel: f.ctaLabel || undefined,
+        passUrl: f.ctaUrl || undefined, ctaLabel: f.ctaLabel || undefined, ctaPosition: f.ctaPosition || undefined, ctaNote: f.ctaNote || undefined,
         guestLabel: f.fullName, ticketNumber: f.invoice || (f.ticketCode || ''),
         ticketLabel, priceLabel,
-        dressLabel: hasGala ? (legs.length > 1 ? 'Gala Evening: black tie' : 'Black tie') : null,
+        dressLabel: dressLabelFor(legs, F),
         tableLabel: hasGala ? (f.seat ? `Table ${f.seat}` : 'Assigned closer to the Gala — shown at the door') : null,
         qrPngUrl: f.qrPngUrl,
         appleWalletUrl: f.wallet && f.wallet.apple, walletSaveUrl: f.wallet && f.wallet.google,
@@ -300,6 +315,7 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
   <div class="sheet">
     <p class="slabel">Your Plexus Week 2026 reservations</p>
     <table class="res">${legs.map((l, i) => legRow(l, i === legs.length - 1)).join('')}</table>
+    ${dressLine(legs, LEG) ? `<p style="margin:12px 0 0;font-size:12.5px;line-height:1.6;color:#6e6455;"><b style="color:#191512;">Dress code:</b> ${esc(dressLine(legs, LEG))}</p>` : ''}
   </div>
   ${ticketCard}
   ${guestsBlock}
@@ -309,7 +325,7 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
 }
 
 module.exports = {
-    LEG, LEG_ORDER, legFacts, legNames, legNamesWithParty, partyByLeg, whenLinesFor, whereFor, joinAnd,
+    LEG, LEG_ORDER, legFacts, legNames, legNamesWithParty, partyByLeg, dressLabelFor, dressLine, whenLinesFor, whereFor, joinAnd,
     icsFor, calendarUrl, parseLegs,
     ticketEmail, guestsHtml, guestLegs, guestEvents,
     pageSig, galaPageSig, safeEq, ticketPageHtml

@@ -186,7 +186,7 @@ function resolveTicket(query, kind, id) {
 
 // ---------------------------------------------------------------- copy shared by both wallets
 const LEG = {
-    conference: { name: 'Plexus Conference', when: '4 December 2026', where: 'Novinarski dom, Zagreb' },
+    conference: { name: 'Plexus Conference', when: '4 December 2026 · 17:00–21:00', where: 'Novinarski dom, Zagreb' },
     bridges:    { name: 'Building Bridges Zagreb', when: '4 or 5 December 2026', where: 'Zagreb · venue to be confirmed' },
     gala:       { name: 'Gala Evening', when: '5 December 2026 · 19:00', where: 'Hotel Esplanade, Zagreb' }
 };
@@ -215,7 +215,7 @@ function applePassModel(t) {
     if (t.guestOf) back.push({ key: 'guestof', label: 'GUEST OF', value: t.guestOf });
     if (t.party > 1) back.push({ key: 'party', label: 'ONE QR, WHOLE PARTY', value: `This code admits your party of ${t.party}, arriving together or separately.` });
     if (t.gala) {
-        back.push({ key: 'dress', label: 'DRESS CODE', value: 'Black tie' });
+        back.push({ key: 'dress', label: 'DRESS CODE', value: t.legs.some(l => l !== 'gala') ? 'Gala Evening: black tie · Conference and Building Bridges: business casual' : 'Black tie' });
         back.push({ key: 'table', label: 'TABLE', value: t.seat ? `Table ${t.seat}` : 'Assigned closer to the Gala — show this pass at the door.' });
     }
     if (t.invoice) back.push({ key: 'invoice', label: 'INVOICE', value: t.invoice });
@@ -224,7 +224,7 @@ function applePassModel(t) {
         style: 'eventTicket',
         serial: t.serial,
         description: 'Med&X — Plexus Week 2026',
-        relevantDate: t.legs.includes('conference') ? '2026-12-04T09:00:00+01:00' : '2026-12-05T19:00:00+01:00',
+        relevantDate: t.legs.includes('conference') ? '2026-12-04T17:00:00+01:00' : '2026-12-05T19:00:00+01:00',
         fields: {
             header: [{ key: 'event', label: 'PLEXUS WEEK 2026', value: 'Zagreb' }],
             primary: [],
@@ -256,7 +256,7 @@ function googleObjects(t, base) {
         category: t.party > 1 ? `Plexus Week 2026 · admits ${t.party}` : 'Plexus Week 2026',
         statusLabel: t.guestOf ? `Guest of ${t.guestOf}` : (t.gala ? 'Paid' : 'Confirmed'),
         events: t.legs.map(l => LEG[l].name),
-        dressCode: t.gala ? 'Black tie' : undefined,
+        dressCode: t.gala ? (t.legs.some(l => l !== 'gala') ? 'Gala Evening: black tie · Conference and Building Bridges: business casual' : 'Black tie') : 'Business casual',
         galaTable: t.seat ? `Table ${t.seat}` : undefined,
         logoUri: base + '/assets/images/medx-logo.png', hexBackgroundColor: '#14100d'
     });
