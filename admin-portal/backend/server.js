@@ -32962,8 +32962,15 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             if (!reg) reg = query.get('SELECT * FROM gala_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
             if (!reg) { reg = prefixMatch('gala_registrations'); if (!reg) { const caP = prefixMatch('croatians_abroad_registrations'); if (caP && caP.gala_registration_id) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [caP.gala_registration_id]); } }
             if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No Gala registration found for this code.' });
+            if (['cancelled', 'rejected', 'pending-review'].includes(String(reg.status || ''))) {
+                return res.json({
+                    valid: false, event, code, reason: reg.status === 'pending-review' ? 'pending_review' : 'cancelled',
+                    message: reg.status === 'pending-review' ? 'This registration is still under review. Do NOT admit.' : 'This Gala registration was cancelled. Do NOT admit.',
+                    registrant: { name: `${reg.first_name} ${reg.last_name || ''}`.trim(), email: reg.email, institution: reg.institution || '' }
+                });
+            }
             const isPaid = reg.payment_status === 'paid';
-            const isVip = reg.payment_status === 'vip-comp';
+            const isVip = reg.payment_status === 'vip-comp' || reg.payment_status === 'comp';   // 'comp' = Plexus Fellowship laureates
             if (!isPaid && !isVip) {
                 return res.json({
                     valid: false, event, code, reason: 'not_paid',
@@ -33101,6 +33108,23 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             return res.json({
                 valid: false, event, code, reason: 'not_registered_for_event',
                 message: `Not registered for the ${event === 'conference' ? 'Conference' : 'Bridges'} event.`,
+                registrant: { name: `${caReg.first_name} ${caReg.last_name || ''}`.trim(), email: caReg.email, institution: caReg.institution || '' }
+            });
+        }
+        // The leg itself must be live (audit 2026-09-16: a row still HELD by the review gate, or one
+        // whose leg was cancelled/rejected, keeps selected_* = 1 and walked straight through here).
+        const legStatus = String(caReg[event === 'conference' ? 'conference_status' : 'bridges_status'] || '');
+        if (legStatus === 'pending-review') {
+            return res.json({
+                valid: false, event, code, reason: 'pending_review',
+                message: 'This registration is still under review and has not been approved. Do NOT admit.',
+                registrant: { name: `${caReg.first_name} ${caReg.last_name || ''}`.trim(), email: caReg.email, institution: caReg.institution || '' }
+            });
+        }
+        if (legStatus === 'cancelled' || legStatus === 'rejected') {
+            return res.json({
+                valid: false, event, code, reason: 'cancelled',
+                message: 'This registration was cancelled. Do NOT admit.',
                 registrant: { name: `${caReg.first_name} ${caReg.last_name || ''}`.trim(), email: caReg.email, institution: caReg.institution || '' }
             });
         }
@@ -33759,6 +33783,19 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         const checkinFor = (table, lookupSql, lookupParams, eventName) => {
             const record = query.get(lookupSql, lookupParams);
             if (!record) return false;
+            // Admissibility (audit 2026-09-16): this cascade admitted ANY gala row by id/email —
+            // unpaid, held by the review gate, or cancelled. Same rules as /api/admin/checkin/verify.
+            if (table === 'gala_registrations') {
+                const st = String(record.status || ''), ps = String(record.payment_status || '');
+                if (['cancelled', 'rejected', 'pending-review'].includes(st) || !['paid', 'vip-comp', 'comp'].includes(ps)) {
+                    res.status(403).json({ success: false, error: st === 'pending-review' ? 'Registration still under review — do NOT admit.' : (st === 'cancelled' || st === 'rejected') ? 'Registration cancelled — do NOT admit.' : 'Gala seat not paid — do NOT admit.', event: eventName, attendee: { first_name: record.first_name, last_name: record.last_name, email: record.email } });
+                    return true;
+                }
+            }
+            if (table === 'bridges_registrations' && String(record.status || '') === 'cancelled') {
+                res.status(403).json({ success: false, error: 'Registration cancelled — do NOT admit.', event: eventName, attendee: { first_name: record.first_name, last_name: record.last_name, email: record.email } });
+                return true;
+            }
             if (record.checked_in) { res.json({ success: true, already_checked_in: true, attendee: record, event: eventName, qr_info: qrInfo }); return true; }
             db.run(`UPDATE ${table} SET checked_in = 1, checked_in_at = datetime('now') WHERE id = ?`, [record.id]);
             saveDb();
