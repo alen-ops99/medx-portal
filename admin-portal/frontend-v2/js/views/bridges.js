@@ -123,7 +123,56 @@ export const COPY = {
     sentAll: n => n ? `${n} UPLOAD LINK${n === 1 ? '' : 'S'} SENT` : 'EVERYONE ALREADY HAD THEIR LINK',
     added: mail => `PRESENTER ADDED — LINK SENT TO ${String(mail).toUpperCase()}`,
     addedPending: 'PRESENTER ADDED — THE LINK GOES OUT WITHIN A MINUTE',
-    needBoth: 'TYPE A NAME AND AN EMAIL FIRST'
+    needBoth: 'TYPE A NAME AND AN EMAIL FIRST',
+    // ---- team controls (Alen 2026-09-16: "email them … remove people or add people") ----
+    // Every one of these is a real deed done on the member side; this card only asks and confirms.
+    team: {
+      email: 'EMAIL', release: 'RELEASE SEAT', releaseBusy: 'RELEASING…', emailBusy: 'SENDING…',
+      nudged: (tpl, day) => `emailed ${day} · ${tpl === 'slides' ? 'slides' : tpl === 'panel' ? 'panel' : 'note'}`,
+      bulkSlides: n => `EMAIL EVERYONE WITHOUT SLIDES (${n})`, bulkSlidesNone: 'EVERY PRESENTER HAS SENT SLIDES',
+      bulkPanel: n => `EMAIL EVERYONE AWAITING REPLY (${n})`, bulkPanelNone: 'EVERY PANELIST HAS ANSWERED',
+      // the composer
+      eyebrow: 'EMAIL FROM THE TEAM · BOSTON',
+      title: (who) => `Email ${who}`,
+      tplLabel: 'TEMPLATE', tpl: { slides: 'Slides missing', panel: 'Panel reply missing', general: 'General note' },
+      subjLabel: 'SUBJECT', bodyLabel: 'MESSAGE', bodyHint: 'Blank line = new paragraph. The greeting, the personal-page button and the sign-off are added for you.',
+      greetingNote: (g) => `Opens with <b>${g}</b> — never a first name.`,
+      ccNote: 'Sent immediately, Laura in CC — this is not the Outbox.',
+      typeFirst: 'TYPE THE MESSAGE FIRST',
+      send: 'SEND IT', sent: mail => `EMAIL SENT TO ${String(mail).toUpperCase()}`,
+      draftBusy: 'PREPARING…',
+      // bulk confirms
+      cBulkTitle: (kind, n) => kind === 'slides-missing' ? `Email ${n} presenter${n === 1 ? '' : 's'} without slides?` : `Email ${n} panelist${n === 1 ? '' : 's'} who ${n === 1 ? 'has' : 'have'} not answered?`,
+      cBulkBody: (kind, names) => `<p style="margin:0 0 8px">${kind === 'slides-missing' ? 'The <b>slides missing</b> note' : 'The <b>panel reply missing</b> note'} goes to: ${names}.</p><p style="margin:0;color:#6d6459">Formal greeting each (Prof. / Dr. / full name), their own personal-page link, Laura in CC. Anyone already emailed with this note <b>today</b> is skipped, so a second click cannot double-email the room.</p>`,
+      goBulk: 'SEND THEM',
+      bulkSent: (n, skipped) => (n ? `${n} EMAIL${n === 1 ? '' : 'S'} SENT` : 'NOBODY TO EMAIL') + (skipped ? ` · ${skipped} EMAILED TODAY, SKIPPED` : ''),
+      // release
+      cRelTitle: who => `Release ${who}’s seat?`,
+      cRelBody: (who, mail, role) => `<p style="margin:0 0 8px">Exactly what happens when a guest taps “I can’t make it”: <b>${who}</b> is out of every count, their QR and personal page stop working, the sheet row reads <b>Cancelled by team</b>, and Laura and Alen get the FYI.</p>${role ? `<p style="margin:0 0 8px;color:#9b1b22">They are <b>${role}</b> — that decision is reset to undecided and the slot is free again.</p>` : ''}<p style="margin:0;color:#6d6459">No email goes to <b>${mail}</b>. The seat can be restored from the released list below.</p>`,
+      goRelease: 'RELEASE IT',
+      released: (mail, n) => `SEAT RELEASED — ${String(mail).toUpperCase()}${n == null ? '' : ` · ${n} REGISTERED NOW`}`,
+      roleOf: r => r.presenter_status === 'confirmed' ? 'presenting' : r.presenter_status === 'panel' ? 'on the panel' : (r.presentation_requested && !r.presenter_status) ? 'presenting (undecided offer)' : '',
+      // add a guest
+      addGuest: '+ ADD A GUEST', addGuestClose: 'CLOSE',
+      phFirst: 'First name', phLast: 'Last name', phMail: 'Email address', phInst: 'Institution', phPos: 'Position — e.g. Assistant Professor',
+      tickPresenter: 'presents (5-minute talk)', tickPanel: 'on the panel',
+      addGuestGo: 'ADD TO THE LIST',
+      needGuest: 'FIRST NAME, LAST NAME AND EMAIL, PLEASE',
+      cAddGuestTitle: 'Add this guest?',
+      cAddGuestBody: (who, mail, role) => `<p style="margin:0 0 8px"><b>${who}</b> (${mail}) joins the Boston list as registered${role ? ` — <b>${role}</b>` : ''}, and gets a row on the sheet.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this. Next you are offered to send their Boston email — the one with the ticket and the wallet passes.</p>`,
+      goAddGuest: 'ADD',
+      guestAdded: mail => `ADDED — ${String(mail).toUpperCase()}`,
+      guestExists: 'ALREADY ON THE LIST — NOTHING ADDED',
+      cSendNowTitle: who => `Send ${who} the Boston email now?`,
+      cSendNowBody: (mail, shape) => `<p style="margin:0 0 8px">The <b>${shape}</b> email — program PDF, their ticket and wallet passes, the catering questions and their personal page — goes to <b>${mail}</b> right now.</p><p style="margin:0;color:#6d6459">Or later, from their row in THE BOSTON EMAIL table below.</p>`,
+      goSendNow: 'SEND IT NOW', later: 'LATER',
+      // the flipped-decision hint
+      hint: shape => `already received the <b>${shape}</b> email — send the updated one?`,
+      resend: 'RESEND', resendBusy: 'SENDING…',
+      cResendTitle: who => `Send ${who} the updated Boston email?`,
+      cResendBody: (mail, from, to) => `<p style="margin:0 0 8px">They received the <b>${from}</b> shape; their row now reads <b>${to}</b>. The <b>${to}</b> email goes to <b>${mail}</b> right now.</p><p style="margin:0;color:#6d6459">Same ticket, same personal page — only the asks change.</p>`,
+      resent: mail => `UPDATED EMAIL SENT TO ${String(mail).toUpperCase()}`
+    }
   },
   // THE Boston email (2026-09-13, reworked from the see-you-next-week reminder). One personalized
   // email per guest: the program PDF attached, their ticket, the two catering questions, the
@@ -157,7 +206,7 @@ export const COPY = {
     // released seats — collapsed, because on a good week the section is empty and silent
     relTitle: n => `RELEASED SEATS (${n})`, relOpen: 'SHOW', relClose: 'HIDE',
     relWhen: d => d ? `released ${d}` : 'released',
-    relWhy: 'They tapped “I can’t make it” in the Boston email. Everything they told us is still on the row — restoring a seat brings it all back.',
+    relWhy: 'They tapped “I can’t make it” in the Boston email — or the team released the seat for them. Everything they told us is still on the row — restoring a seat brings it all back (a freed talk or panel decision too).',
     restore: 'RESTORE SEAT', restoreBusy: 'RESTORING…',
     cRestoreTitle: 'Put this seat back?',
     cRestoreBody: (who, mail) => `<p style="margin:0 0 8px"><b>${who}</b> goes back on the Boston list as registered, and the sheet row returns to Confirmed.</p><p style="margin:0;color:#6d6459">No email is sent to <b>${mail}</b> — tell them yourself, or send the Boston email again from the row.</p>`,
@@ -498,6 +547,12 @@ function blockBoston() {
     const on = f === k; const n = countOf(k);
     return `<span data-act="bpFilter" data-filter="${k}" role="radio" aria-checked="${on}" style="padding:6px 10px;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;cursor:pointer;white-space:nowrap;${on ? 'background:#201b16;color:#fff;border:1px solid #201b16' : 'background:#fff;color:#6d6459;border:1px solid rgba(32,27,22,.2)'}" data-hover="border-color:#201b16">${c.filters[k]} · ${n}</span>`;
   }).join('');
+  // The two bulk nudges, counted from the SAME rows the member wing will target: presenters with
+  // no deck (a share link counts), panelists with no answer — released seats excluded.
+  const tm = c.team;
+  const slidesMissing = rows.filter(r => r.presenter && !r.upload && !r.released);
+  const panelAwaiting = rows.filter(r => r.panel && !r.panel_reply && !r.released);
+  const bulkBusy = !!st.bpBulkBusy;
   return `
     <!-- v2: BOSTON — 5-minute presentations (member portal owns the links, files and the email) -->
     <div data-block="boston" id="boston-presentations" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;margin-top:22px">
@@ -514,12 +569,25 @@ function blockBoston() {
         ${P && (P.summaries || 0) ? `<a href="${esc(P.summaries_zip_url || '/api/v2/boston/onepagers.zip?all=1')}" title="${esc(c.zipHint)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.sumZip(P.summaries))}</a>`
         : P ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.sumZipNone}</span>` : ''}
         ${P ? `<span data-act="bpAddToggle" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.bpOpen ? c.addClose : c.add}</span>` : ''}
+        ${P ? `<span data-act="bpGuestToggle" data-v2="boston-add-guest" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.bpGuestOpen ? tm.addGuestClose : tm.addGuest}</span>` : ''}
       </div>
       ${st.bpOpen && P ? `
         <div style="display:flex;gap:8px;align-items:center;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);flex-wrap:wrap">
           <input data-role="bpName" value="${esc(st.bpName)}" placeholder="${esc(c.phName)}" aria-label="Presenter name" style="flex:1;min-width:160px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
           <input data-role="bpEmail" value="${esc(st.bpEmail)}" type="email" placeholder="${esc(c.phEmail)}" aria-label="Presenter email" style="flex:1;min-width:170px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
           ${btn('bpAdd', st.bpBusy ? c.busy : c.addSend, !st.bpBusy)}
+        </div>` : ''}
+      ${st.bpGuestOpen && P ? `
+        <!-- v2: ADD A GUEST — someone who never used the form (Alen 2026-09-16). No email from here. -->
+        <div data-v2="boston-add-guest-form" style="display:flex;gap:8px;align-items:center;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);flex-wrap:wrap">
+          <input data-role="bgFirst" value="${esc(st.bg.first)}" placeholder="${esc(tm.phFirst)}" aria-label="First name" style="flex:1;min-width:120px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
+          <input data-role="bgLast" value="${esc(st.bg.last)}" placeholder="${esc(tm.phLast)}" aria-label="Last name" style="flex:1;min-width:120px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
+          <input data-role="bgEmail" value="${esc(st.bg.email)}" type="email" placeholder="${esc(tm.phMail)}" aria-label="Email address" style="flex:1.2;min-width:170px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
+          <input data-role="bgInst" value="${esc(st.bg.inst)}" placeholder="${esc(tm.phInst)}" aria-label="Institution" style="flex:1.2;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
+          <input data-role="bgPos" value="${esc(st.bg.pos)}" placeholder="${esc(tm.phPos)}" aria-label="Position" style="flex:1;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#201b16;white-space:nowrap;cursor:pointer"><input data-role="bgPresenter" type="checkbox" ${st.bg.presenter ? 'checked' : ''}> ${esc(tm.tickPresenter)}</label>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#201b16;white-space:nowrap;cursor:pointer"><input data-role="bgPanel" type="checkbox" ${st.bg.panel ? 'checked' : ''}> ${esc(tm.tickPanel)}</label>
+          ${btn('bpGuestAdd', st.bgBusy ? c.busy : tm.addGuestGo, !st.bgBusy)}
         </div>` : ''}
       ${lockErr && lockErr.status === 403 ? ui.lockedBlock('Building Bridges') : ''}
       ${!P && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
@@ -528,6 +596,9 @@ function blockBoston() {
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08)">
         ${filterChips}
         <div style="flex:1"></div>
+        <!-- v2: the two bulk nudges (Alen 2026-09-16) — real emails, confirmed first, "emailed today" skipped -->
+        ${btn('bpBulkEmail', bulkBusy === 'slides-missing' ? tm.emailBusy : slidesMissing.length ? tm.bulkSlides(slidesMissing.length) : tm.bulkSlidesNone, slidesMissing.length > 0 && !bulkBusy, 'data-kind="slides-missing"', 'ghost')}
+        ${btn('bpBulkEmail', bulkBusy === 'panel-awaiting' ? tm.emailBusy : panelAwaiting.length ? tm.bulkPanel(panelAwaiting.length) : tm.bulkPanelNone, panelAwaiting.length > 0 && !bulkBusy, 'data-kind="panel-awaiting"', 'ghost')}
         <a href="${esc((D.cat && D.cat.program_csv_url) || '/api/v2/boston/program.csv')}" style="padding:7px 12px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${c.programCsv}</a>
       </div>
       <div style="overflow-x:auto">
@@ -536,13 +607,20 @@ function blockBoston() {
           <tbody>
           ${shown.map(r => {
             const busy = st.bpSending === r.registration_id;
+            const releasing = st.bpReleasing === r.registration_id;
+            const resending = st.bpResending === r.registration_id;
+            // "they already received the <shape> email": the wing says so when the stored shape
+            // differs from today's; rows emailed before the shape was stored show it once a
+            // decision is flipped in this session (bpFlipped).
+            const hintShape = r.reminder_sent && !r.released && (r.shape_changed ? r.sent_shape : (st.bpFlipped[r.registration_id] && !r.sent_shape ? st.bpFlipped[r.registration_id] : null));
             return `
-            <tr data-row="${esc(r.registration_id)}">
-              <td style="${cell}"><span style="display:block;font-weight:600">${esc(r.name || r.email)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.email)}${r.added_by_team ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">${c.byTeam}</span>` : ''}</span></td>
+            <tr data-row="${esc(r.registration_id)}" ${r.released ? 'style="opacity:.55"' : ''}>
+              <td style="${cell}"><span style="display:block;font-weight:600">${esc(r.name || r.email)}${r.released ? ` <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#9b1b22">RELEASED${r.released_by === 'team' ? ' BY TEAM' : ''}</span>` : ''}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.email)}${r.added_by_team ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">${c.byTeam}</span>` : ''}</span>${nudgedLine(r)}</td>
               <td style="${cell};color:#6d6459">${esc(r.institution || '—')}</td>
               <td style="${cell};white-space:nowrap">${(r.presentation_requested || r.panel)
                 ? pickChip(r, 'confirmed', c.pick.yes) + pickChip(r, 'panel', c.pick.panel) + pickChip(r, 'declined', c.pick.no) + pickChip(r, null, c.pick.unset)
                   + (r.panel ? `<span style="display:block;margin-top:4px;font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:${r.panel_reply === 'yes' ? '#1e6e42' : r.panel_reply === 'no' ? '#9b1b22' : '#b7791f'}">${c.panelReply[r.panel_reply === 'yes' ? 'yes' : r.panel_reply === 'no' ? 'no' : 'none']}</span>` : '')
+                  + (hintShape ? `<span data-v2="boston-resend-hint" style="display:block;margin-top:5px;font-size:11px;color:#8a5a12;white-space:normal;max-width:260px">${tm.hint(esc(hintShape))} <span data-act="${resending ? '' : 'bpResendShape'}" data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}" data-from="${esc(hintShape)}" data-to="${esc(r.current_shape || '')}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#9b1b22;cursor:pointer;margin-left:4px" data-hover="color:#201b16">${resending ? tm.resendBusy : tm.resend}</span></span>` : '')
                 : `<span style="color:#9a9086">${c.deckNo}</span>`}</td>
               <td style="${cell};white-space:nowrap">${r.upload
                 ? (r.upload.external_url
@@ -558,7 +636,7 @@ function blockBoston() {
                 ? `<span title="${esc(r.guest_requests)}" style="display:block;font-size:11.5px;color:#201b16;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✎ ${esc(r.guest_requests)}</span>`
                 : `<span style="color:#9a9086">${c.reqNone}</span>`}</td>
               <td style="${cell};white-space:nowrap;color:${r.invited_at == null ? '#b7791f' : '#6d6459'}">${r.invited_at == null ? c.notSent : esc(r.invited_at || '✓')}</td>
-              <td style="${cell};text-align:right;white-space:nowrap">${btn('bpSendOne', busy ? c.busy : (r.invited_at == null ? c.send : c.resend), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}</td>
+              <td style="${cell};text-align:right;white-space:nowrap">${r.released ? '' : btn('bpSendOne', busy ? c.busy : (r.invited_at == null ? c.send : c.resend), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}${rowTeamActions(r, releasing)}</td>
             </tr>`;
           }).join('')}
           ${!shown.length ? `<tr><td colspan="9" style="${cell};color:#6d6459;font-style:italic">Nobody in this group.</td></tr>` : ''}
@@ -567,6 +645,29 @@ function blockBoston() {
       </div>` : ''}
       ${sectionCatering(btn, cell, head)}
     </div>`;
+}
+// ---- the team controls shared by both tables (Alen 2026-09-16) ----
+// "18 Sep" from "2026-09-18" — the card's own short date, no library.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function dayOf(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1] || ''}`.trim() : String(iso || '');
+}
+// The latest nudge under the email — one line, the newest template wins.
+function nudgedLine(r) {
+  const n = r && r.nudged;
+  if (!n) return '';
+  const last = ['slides', 'panel', 'general'].map(k => n[k] ? { k, d: n[k] } : null).filter(Boolean).sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0)[0];
+  return last ? `<span data-v2="boston-nudged" style="display:block;font-size:10.5px;color:#8a5a12;margin-top:2px">${esc(COPY.boston.team.nudged(last.k, dayOf(last.d)))}</span>` : '';
+}
+// EMAIL · RELEASE SEAT under the row's main button. Quiet text, not buttons: the primary action
+// on each table stays the send. A released row gets neither (restore lives in the released list).
+function rowTeamActions(r, releasing) {
+  const tm = COPY.boston.team;
+  if (r.released) return '';
+  const link = (act, label, extra, on) => `<span data-act="${on ? act : ''}" ${extra} style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:${on ? '#6d6459' : '#b7a89a'};cursor:${on ? 'pointer' : 'progress'};white-space:nowrap" ${on ? 'data-hover="color:#9b1b22"' : 'aria-disabled="true"'}>${esc(label)}</span>`;
+  const who = `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`;
+  return `<span data-v2="boston-row-team" style="display:block;margin-top:6px;text-align:right">${link('bpEmail', tm.email, who, st.bpMsgBusy !== r.registration_id)}<span style="color:#d6cfc4;margin:0 6px">·</span>${link('bpRelease', releasing ? tm.releaseBusy : tm.release, who, !releasing)}</span>`;
 }
 // Second section of the same card: THE Boston email and everything it brings back. Every guest is
 // here (presenters included) because the email — the program, the food, the booklet — is for
@@ -649,7 +750,7 @@ function sectionCatering(btn, cell, head) {
                 : `<span style="color:#9a9086">${c.opNo}</span>`;
               return `
               <tr data-row="${esc(r.registration_id)}">
-                <td style="${cell}"><span style="display:block;font-weight:600">${esc(r.name || r.email)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.email)}${r.presenter ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">PRESENTING</span>` : ''}</span></td>
+                <td style="${cell}"><span style="display:block;font-weight:600">${esc(r.name || r.email)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.email)}${r.presenter ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">PRESENTING</span>` : ''}${r.added_by_team ? ` · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">${COPY.boston.byTeam}</span>` : ''}</span>${nudgedLine(r)}</td>
                 <td style="${cell};color:#6d6459">${esc(r.institution || '—')}</td>
                 <td style="${cell};white-space:nowrap;color:${r.preference ? '#201b16' : '#9a9086'}">${r.preference ? esc(r.preference) : c.noPref}</td>
                 <td style="${cell};color:${r.allergy_state === 'yes' ? '#9b1b22' : r.allergy_state === 'none' ? '#6d6459' : '#9a9086'}">${allergy}</td>
@@ -660,7 +761,7 @@ function sectionCatering(btn, cell, head) {
                   : '<span style="color:#9a9086">–</span>'}${r.finished ? `<span style="display:block;font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#1e6e42">${c.finishedMark}</span>` : ''}</td>
                 <td style="${cell};max-width:200px">${r.guest_requests ? `<span title="${esc(r.guest_requests)}" style="display:block;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✎ ${esc(r.guest_requests)}</span>` : '<span style="color:#9a9086">–</span>'}</td>
                 <td style="${cell};white-space:nowrap;color:${r.reminder_sent ? '#6d6459' : '#b7791f'}">${r.reminder_sent ? esc(r.reminder_sent_at || '✓') : c.notSent}</td>
-                <td style="${cell};text-align:right;white-space:nowrap">${btn('bpRemindOne', busy ? c.busy : (r.reminder_sent ? c.resend : c.send), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}</td>
+                <td style="${cell};text-align:right;white-space:nowrap">${btn('bpRemindOne', busy ? c.busy : (r.reminder_sent ? c.resend : c.send), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}${rowTeamActions(r, st.bpReleasing === r.registration_id)}</td>
               </tr>`;
             }).join('')}
             </tbody>
@@ -729,7 +830,7 @@ function sectionReleased(btn) {
                 <span style="font-weight:600;font-size:12.5px">${esc(r.name || r.email)}</span>
                 <span style="font-size:11px;color:#6d6459">${esc(r.email)}${r.institution ? ' · ' + esc(r.institution) : ''}${r.presenter ? ' · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">WAS PRESENTING</span>' : ''}</span>
                 <div style="flex:1"></div>
-                <span style="font-size:11px;color:#8a5a12;white-space:nowrap">${esc(c.relWhen(r.released_on))}</span>
+                <span style="font-size:11px;color:#8a5a12;white-space:nowrap">${esc(c.relWhen(r.released_on))}${r.released_by === 'team' ? ' · by the team' : ''}</span>
                 ${btn('bpRestore', busy ? c.restoreBusy : c.restore, !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`, 'ghost')}
               </div>`;
             }).join('')}
@@ -825,6 +926,21 @@ async function refreshCatering() {
     if (c && c.ok) { D.cat = c; if (D.errors) delete D.errors.cat; }
   } catch (e) { /* keep the last read on screen */ }
   rerender('[data-block="boston"]', blockBoston());
+}
+// A team deed touches both tables (a nudge date, a released seat, a new guest) — re-read both,
+// draw once.
+async function refreshBostonAll() {
+  try {
+    const [p, c] = await Promise.all([api.get('/api/v2/boston/presenters').catch(() => null), api.get('/api/v2/boston/catering').catch(() => null)]);
+    if (p && p.ok) { D.pres = p; if (D.errors) delete D.errors.pres; }
+    if (c && c.ok) { D.cat = c; if (D.errors) delete D.errors.cat; }
+  } catch (e) { /* keep the last read on screen */ }
+  rerender('[data-block="boston"]', blockBoston());
+}
+// The add-a-guest fields survive a re-render (a toggle, a toast) — read them into state first.
+function readGuestForm() {
+  if (!rootEl || !rootEl.querySelector('[data-role="bgFirst"]')) return;
+  st.bg = { first: val('bgFirst'), last: val('bgLast'), email: val('bgEmail').toLowerCase(), inst: val('bgInst'), pos: val('bgPos'), presenter: checked('bgPresenter'), panel: checked('bgPanel') };
 }
 function copyText(t) { try { navigator.clipboard.writeText(t); } catch (e) { /* clipboard blocked — the toast still confirms intent */ } }
 async function queueKind(el, id, kind) {
@@ -1023,9 +1139,152 @@ const handlers = {
     try {
       await api.post('/api/v2/boston/presenters/' + encodeURIComponent(id) + '/status', { status });
       st.bpPicking = null;
+      // The Boston email already went to them → the row will offer "send the updated one". Rows
+      // emailed before the shape was stored carry no sent_shape; remember what they most likely
+      // got (the shape their row read a moment ago) so the hint still appears.
+      if (row && row.reminder_sent && !st.bpFlipped[id]) st.bpFlipped[id] = row.current_shape || 'previous';
       await refreshBoston();
       ui.toast(c.picked(who, status));
     } catch (e) { st.bpPicking = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
+  },
+  // ---- Boston · team controls (Alen 2026-09-16) — every one a real deed on the member side ----
+  // The composer: three drafts fetched for THIS person (greeting included), a template picker that
+  // swaps subject + body, both editable; SEND IT posts exactly what is on screen.
+  bpEmail: async (el) => {
+    const tm = COPY.boston.team;
+    const id = el.dataset.id, who = el.dataset.who || '', mail = el.dataset.mail || '';
+    if (st.bpMsgBusy) return;
+    st.bpMsgBusy = id; rerender('[data-block="boston"]', blockBoston());
+    let d = null;
+    try { d = await api.get('/api/v2/boston/message/draft?id=' + encodeURIComponent(id)); }
+    catch (e) { st.bpMsgBusy = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); return; }
+    st.bpMsgBusy = null; rerender('[data-block="boston"]', blockBoston());
+    const drafts = (d && d.drafts) || {};
+    const tpl0 = ['slides', 'panel', 'general'].includes(d && d.suggested) ? d.suggested : 'general';
+    const field = 'width:100%;box-sizing:border-box;border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 10px;font-size:12.5px;color:#201b16;font-family:Inter,sans-serif';
+    const lab = 'display:block;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;margin:12px 0 5px';
+    const body = `
+      <div data-v2="boston-composer">
+        <div style="font-size:12px;color:#6d6459">${esc(mail)} · ${tm.greetingNote(esc(d.greeting || 'Dear colleague,'))}</div>
+        <label style="${lab}">${tm.tplLabel}</label>
+        <select data-role="bmTpl" style="${field}">${['slides', 'panel', 'general'].map(k => `<option value="${k}" ${k === tpl0 ? 'selected' : ''}>${esc(tm.tpl[k])}</option>`).join('')}</select>
+        <label style="${lab}">${tm.subjLabel}</label>
+        <input data-role="bmSubj" value="${esc((drafts[tpl0] || {}).subject || '')}" style="${field}">
+        <label style="${lab}">${tm.bodyLabel}</label>
+        <textarea data-role="bmBody" rows="9" style="${field};line-height:1.55;resize:vertical">${esc((drafts[tpl0] || {}).body || '')}</textarea>
+        <div style="font-size:11px;color:#9a9086;margin-top:6px">${esc(tm.bodyHint)}</div>
+        <div style="font-size:11px;color:#8a5a12;margin-top:8px">${esc(tm.ccNote)}</div>
+      </div>`;
+    let sending = false;
+    const m = ui.modal({
+      eyebrow: tm.eyebrow, title: esc(tm.title(who)), body, closeOnScrim: false,
+      actions: [
+        { label: COPY.boston.keep },
+        { label: tm.send, kind: 'primary', onClick: () => {
+          if (sending) return false;
+          const root = m.el;
+          const template = root.querySelector('[data-role="bmTpl"]').value;
+          const subject = root.querySelector('[data-role="bmSubj"]').value.trim();
+          const text = root.querySelector('[data-role="bmBody"]').value.trim();
+          if (!text) { ui.toast(tm.typeFirst, { kind: 'error' }); return false; }
+          sending = true;
+          (async () => {
+            try {
+              const r = await api.post('/api/v2/boston/message', { to: id, template, subject, body: text });
+              ui.toast(tm.sent((r && r.sent && r.sent[0]) || mail));
+              await refreshBostonAll();
+            } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+          })();
+          return undefined;                                   // closes the sheet; the toast reports
+        } }
+      ]
+    });
+    const sheet = m.el.querySelector('.mx-modal-sheet'); if (sheet) sheet.style.width = '580px';
+    // picking another template swaps the draft in — the team's edits are theirs to redo
+    m.el.addEventListener('change', e => {
+      if (!e.target || e.target.getAttribute('data-role') !== 'bmTpl') return;
+      const k = e.target.value; const dr = drafts[k] || { subject: '', body: '' };
+      m.el.querySelector('[data-role="bmSubj"]').value = dr.subject || '';
+      m.el.querySelector('[data-role="bmBody"]').value = dr.body || '';
+    });
+    const first = m.el.querySelector('[data-role="bmBody"]'); if (first && !first.value) first.focus();
+  },
+  bpBulkEmail: async (el) => {
+    const tm = COPY.boston.team;
+    const kind = el.dataset.kind === 'panel-awaiting' ? 'panel-awaiting' : 'slides-missing';
+    const template = kind === 'panel-awaiting' ? 'panel' : 'slides';
+    const rows = (D.pres && D.pres.rows) || [];
+    const group = kind === 'slides-missing' ? rows.filter(r => r.presenter && !r.upload && !r.released) : rows.filter(r => r.panel && !r.panel_reply && !r.released);
+    if (!group.length || st.bpBulkBusy) return;
+    const names = group.map(r => `<b>${esc(r.name || r.email)}</b>`).join(', ');
+    if (!await ui.confirm({ title: tm.cBulkTitle(kind, group.length), body: tm.cBulkBody(kind, names), ok: tm.goBulk, cancel: COPY.boston.keep })) return;
+    st.bpBulkBusy = kind; rerender('[data-block="boston"]', blockBoston());
+    try {
+      const r = await api.post('/api/v2/boston/message', { to: kind, template });
+      st.bpBulkBusy = null;
+      await refreshBostonAll();
+      ui.toast(tm.bulkSent((r && r.sent && r.sent.length) || 0, (r && r.skipped && r.skipped.length) || 0));
+    } catch (e) { st.bpBulkBusy = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
+  },
+  bpRelease: async (el) => {
+    const tm = COPY.boston.team;
+    const id = el.dataset.id, who = el.dataset.who || '', mail = el.dataset.mail || '';
+    if (st.bpReleasing) return;
+    const row = ((D.pres && D.pres.rows) || []).find(r => r.registration_id === id) || ((D.cat && D.cat.rows) || []).find(r => r.registration_id === id) || {};
+    const role = tm.roleOf(row);
+    if (!await ui.confirm({ title: tm.cRelTitle(esc(who)), body: tm.cRelBody(esc(who), esc(mail), esc(role)), ok: tm.goRelease, cancel: COPY.boston.keep })) return;
+    st.bpReleasing = id; rerender('[data-block="boston"]', blockBoston());
+    try {
+      const r = await api.post('/api/v2/boston/registrations/' + encodeURIComponent(id) + '/release', {});
+      st.bpReleasing = null; st.bpRelOpen = true;
+      await refreshBostonAll();
+      ui.toast(tm.released(mail, r && r.registered_now));
+    } catch (e) { st.bpReleasing = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
+  },
+  bpGuestToggle: () => { readGuestForm(); st.bpGuestOpen = !st.bpGuestOpen; rerender('[data-block="boston"]', blockBoston()); },
+  bpGuestAdd: async () => {
+    const tm = COPY.boston.team;
+    readGuestForm();
+    const g = st.bg;
+    if (!g.first || !g.last || !g.email) { ui.toast(tm.needGuest, { kind: 'error' }); return; }
+    const who = `${g.first} ${g.last}`;
+    const role = g.presenter ? 'presenting (5-minute talk)' : g.panel ? 'on the panel' : '';
+    if (!await ui.confirm({ title: tm.cAddGuestTitle, body: tm.cAddGuestBody(esc(who), esc(g.email), esc(role)), ok: tm.goAddGuest, cancel: COPY.boston.keep })) return;
+    st.bgBusy = true; rerender('[data-block="boston"]', blockBoston());
+    let r = null;
+    try {
+      r = await api.post('/api/v2/boston/guests/add', { first_name: g.first, last_name: g.last, email: g.email, institution: g.inst, position: g.pos, presenter: !!g.presenter, panel: !!g.panel });
+    } catch (e) {
+      st.bgBusy = false; rerender('[data-block="boston"]', blockBoston());
+      ui.toast(e.status === 409 || /already on the/i.test(e.message || '') ? (e.message || tm.guestExists) : e.message, { kind: 'error' });
+      return;
+    }
+    st.bgBusy = false; st.bpGuestOpen = false; st.bg = { first: '', last: '', email: '', inst: '', pos: '', presenter: false, panel: false };
+    await refreshBostonAll();
+    ui.toast(tm.guestAdded(g.email));
+    // the offer: their Boston email, now — the one with the ticket and the wallet passes
+    const progOn = !!(D.cat && D.cat.program && D.cat.program.present);
+    if (!progOn) { ui.toast(COPY.cat.needProgram, { kind: 'error' }); return; }
+    const id = r && r.registration_id; if (!id) return;
+    if (!await ui.confirm({ title: tm.cSendNowTitle(esc(who)), body: tm.cSendNowBody(esc(g.email), esc((r && r.shape) || 'attendee')), ok: tm.goSendNow, cancel: tm.later })) return;
+    try {
+      const s = await api.post('/api/v2/boston/reminders/' + encodeURIComponent(id) + '/send', {});
+      await refreshBostonAll();
+      ui.toast(COPY.cat.sent((s && s.sent && s.sent[0]) || g.email));
+    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  },
+  bpResendShape: async (el) => {
+    const tm = COPY.boston.team;
+    const id = el.dataset.id, who = el.dataset.who || '', mail = el.dataset.mail || '';
+    if (st.bpResending) return;
+    if (!await ui.confirm({ title: tm.cResendTitle(esc(who)), body: tm.cResendBody(esc(mail), esc(el.dataset.from || 'previous'), esc(el.dataset.to || 'current')), ok: tm.goSendNow, cancel: COPY.boston.keep })) return;
+    st.bpResending = id; rerender('[data-block="boston"]', blockBoston());
+    try {
+      const r = await api.post('/api/v2/boston/reminders/' + encodeURIComponent(id) + '/send', {});
+      st.bpResending = null; delete st.bpFlipped[id];
+      await refreshBostonAll();
+      ui.toast(tm.resent((r && r.sent && r.sent[0]) || mail));
+    } catch (e) { st.bpResending = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
   },
   bpDeclineAll: async (el) => {
     const c = COPY.boston;
@@ -1128,7 +1387,10 @@ export default {
     rootEl = root;
     st = { scope: 'bridges', copied: false, newCityOpen: false, ncCity: '', ncWhen: '', editEvent: null, recapEdit: null, fuName: '', fuWhy: '', uploading: null,
            bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null, bpReminding: null, bpPicking: null,
-           bpProgramBusy: false, bpPreviewing: null, bpRelOpen: false, bpRestoring: null, bpFilter: 'all' };
+           bpProgramBusy: false, bpPreviewing: null, bpRelOpen: false, bpRestoring: null, bpFilter: 'all',
+           // team controls (2026-09-16)
+           bpMsgBusy: null, bpBulkBusy: null, bpReleasing: null, bpResending: null, bpFlipped: {},
+           bpGuestOpen: false, bgBusy: false, bg: { first: '', last: '', email: '', inst: '', pos: '', presenter: false, panel: false } };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();

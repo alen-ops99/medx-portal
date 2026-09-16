@@ -179,6 +179,29 @@ const RESTORED_MARK = 'RESTORED-BY-TEAM';
 // three emails for one visit was two too many.)
 const FINISHED_MARK = 'ME-FINISHED';
 const hasMark = (r, mark) => new RegExp(mark).test(String((r && r.notes) || ''));
+// Team controls on the Boston card (Alen 2026-09-16: "email them … easily remove people or add
+// people … some people tell us via email they can't make it"). All of it is the same dated-marker
+// bookkeeping: a seat released BY THE TEAM, a guest added BY THE TEAM, a nudge email per template
+// (the latest date wins, so the card can say "nudged 18 Sep" and a bulk send can skip today's), and
+// the SHAPE the Boston email went out in — so a decision flipped after the send can be noticed.
+const TEAM_CANCELLED_MARK = 'CANCELLED-BY-TEAM';
+const TEAM_ADDED_MARK = 'Added by team';                 // the admin wing already reads /added by team/i
+const NUDGE_TEMPLATES = ['slides', 'panel', 'general'];
+const NUDGE_MARK = { slides: 'NUDGE-SLIDES', panel: 'NUDGE-PANEL', general: 'NUDGE-GENERAL' };
+const SHAPE_MARK = 'EMAIL-SHAPE';                        // "EMAIL-SHAPE presenter 2026-09-16"
+const EMAIL_SHAPES = ['presenter', 'attendee', 'panel', 'declined'];
+const DATE_RE = '(\\d{4}-\\d{2}-\\d{2})';
+/** The LAST date a marker was stamped with, or null. */
+function markDateOf(r, mark) {
+    const re = new RegExp(mark + '(?:\\s+\\S+)?\\s+' + DATE_RE, 'g');
+    let m, last = null;
+    while ((m = re.exec(String((r && r.notes) || ''))) !== null) last = m[1];
+    return last;
+}
+function shapeSentOf(r) {
+    const m = new RegExp(SHAPE_MARK + '\\s+(' + EMAIL_SHAPES.join('|') + ')\\s+' + DATE_RE).exec(String((r && r.notes) || ''));
+    return m ? m[1] : null;
+}
 // "Any special requests?" — the free-text box on the personal page; capped so a paste never
 // becomes a document. Stored on its own column (guest_requests), read back by the admin card, the
 // program CSV and the Finish recap.
@@ -308,8 +331,16 @@ const isPanelRow = r => presenterStatusOf(r) === PRESENTER_PANEL;
 // rejection) — so every reader can say "released" without ever printing "undefined".
 const isReleasedRow = r => String((r && r.status) || '').toLowerCase() === 'cancelled';
 const releasedByGuest = r => new RegExp(CANCELLED_MARK).test(String((r && r.notes) || ''));
+const releasedByTeam = r => new RegExp(TEAM_CANCELLED_MARK).test(String((r && r.notes) || ''));
+// A seat that was actually held and then given back — by the guest or by the team. A review-gate
+// rejection is cancelled too but carries neither marker, so it never shows as a released seat.
+const releasedSeat = r => releasedByGuest(r) || releasedByTeam(r);
+const releasedBy = r => releasedByTeam(r) && !releasedByGuest(r) ? 'team' : releasedByGuest(r) ? 'guest' : null;
+// The shape of the Boston email this row gets today (panel · declined · presenter · attendee) —
+// the same precedence perRegistrantOpts + reminderEmailHtml apply, named once so it can be stored.
+const shapeOf = r => isPanelRow(r) ? 'panel' : wasDeclinedPresenter(r) ? 'declined' : isPresenterRow(r) ? 'presenter' : 'attendee';
 function releasedOn(reg) {
-    const m = new RegExp(CANCELLED_MARK + '\\s+(\\d{4}-\\d{2}-\\d{2})').exec(String((reg && reg.notes) || ''));
+    const m = new RegExp('(?:' + CANCELLED_MARK + '|' + TEAM_CANCELLED_MARK + ')\\s+(\\d{4}-\\d{2}-\\d{2})').exec(String((reg && reg.notes) || ''));
     if (m) return m[1];
     let ca = {};
     try { ca = JSON.parse((reg && reg.custom_answers) || '{}') || {}; } catch (e) { ca = {}; }
@@ -1668,6 +1699,17 @@ module.exports = function mountBoston(app, deps) {
             [(notes ? notes + ' | ' : '') + mark + ' ' + new Date().toISOString().slice(0, 10), regId]);
         flushDb();
     }
+    // The re-stampable cousin: "MARK[ token] YYYY-MM-DD" is REPLACED when present, appended when
+    // not — one marker per kind, always carrying the latest date. Nudges and the email shape use it.
+    function stampDated(regId, mark, token, extra) {
+        const fresh = query.get('SELECT notes FROM bridges_registrations WHERE id = ?', [regId]);
+        const notes = String((fresh && fresh.notes) || '');
+        const stamp = mark + (token ? ' ' + token : '') + ' ' + new Date().toISOString().slice(0, 10) + (extra ? ' ' + extra : '');
+        const re = new RegExp(mark + '(?:\\s+[^\\s|]+)?\\s+\\d{4}-\\d{2}-\\d{2}(?:\\s+[^|]*?)?(?=\\s*\\||$)');
+        const next = re.test(notes) ? notes.replace(re, stamp) : (notes ? notes + ' | ' : '') + stamp;
+        query.run('UPDATE bridges_registrations SET notes = ? WHERE id = ?', [next, regId]);
+        flushDb();
+    }
     const receiptShell = (title, preheader, bodyHtml) => emailTemplates.shell({
         title, preheader, headerRightLabel: 'BUILDING BRIDGES · BOSTON', rule: 'crimson', bodyHtml
     });
@@ -2048,6 +2090,20 @@ module.exports = function mountBoston(app, deps) {
     });
 
     // ------------------------------------------------------------ team data (page + JSON share it)
+    // The team-control facts every admin row carries (presenters table and the Boston-email table
+    // alike): when each nudge template last went to them, the shape their Boston email went out in
+    // versus the shape they would get today, and whether those two differ.
+    function teamFacts(r) {
+        const sentShape = shapeSentOf(r);
+        const currentShape = shapeOf(r);
+        return {
+            nudged: { slides: markDateOf(r, NUDGE_MARK.slides), panel: markDateOf(r, NUDGE_MARK.panel), general: markDateOf(r, NUDGE_MARK.general) },
+            sent_shape: sentShape,
+            current_shape: currentShape,
+            shape_changed: !!(wasReminded(r) && sentShape && sentShape !== currentShape),
+            added_by_team: new RegExp(TEAM_ADDED_MARK, 'i').test(String(r.notes || ''))
+        };
+    }
     function presentationAdminData() {
         ensurePresentationsTable();
         ensurePresenterStatusColumn();
@@ -2086,11 +2142,13 @@ module.exports = function mountBoston(app, deps) {
                 finished: hasMark(r, FINISHED_MARK),
                 guest_requests: guestRequestsOf(r) || null,
                 reminder_sent: wasReminded(r),
+                ...teamFacts(r),
                 // A presenter who gave the seat back stays visible here (their deck is still on
                 // file) but is marked, so nobody sends slides chasers to somebody who is not coming.
                 status: r.status || null,
                 released: isReleasedRow(r),
                 released_on: isReleasedRow(r) ? releasedOn(r) : null,
+                released_by: isReleasedRow(r) ? releasedBy(r) : null,
                 upload_url: `${base}/boston/upload/${uploadToken(r.id)}`,
                 // The link the team should actually hand out now: one address carrying all three
                 // asks. upload_url stays beside it — it is in inboxes already and still works.
@@ -2609,13 +2667,216 @@ module.exports = function mountBoston(app, deps) {
             const stamped = new RegExp(RESTORED_MARK).test(notes) ? notes
                 : (notes ? notes + ' | ' : '') + RESTORED_MARK + ' ' + today;
             query.run(`UPDATE bridges_registrations SET status = 'registered', notes = ? WHERE id = ?`, [stamped, reg.id]);
+            // a seat the TEAM released carries the decision it had ("was:panel") — bring it back
+            // with the seat, so a restored panelist is a panelist again without a second click
+            const wasM = new RegExp(TEAM_CANCELLED_MARK + '\\s+\\d{4}-\\d{2}-\\d{2}\\s+was:(' + PRESENTER_STATES.join('|') + ')').exec(notes);
+            const restoredDecision = wasM && presenterStatusOf(reg) == null ? wasM[1] : null;
+            if (restoredDecision) { ensurePresenterStatusColumn(); query.run('UPDATE bridges_registrations SET presenter_status = ? WHERE id = ?', [restoredDecision, reg.id]); }
             flushDb();
             updateBostonSheetStatus(reg.id, 'Confirmed');
-            console.log(`[Boston] seat restored by the team: ${reg.id} (${reg.email})`);
-            res.json({ success: true, status: 'registered', restored_on: today, email: reg.email });
+            console.log(`[Boston] seat restored by the team: ${reg.id} (${reg.email})${restoredDecision ? ' — decision back to ' + restoredDecision : ''}`);
+            res.json({ success: true, status: 'registered', restored_on: today, email: reg.email, presenter_status: restoredDecision || presenterStatusOf(reg) });
         } catch (e) {
             console.error('[Boston] restore failed:', e.message);
             res.status(500).json({ error: 'Could not restore that seat just now.' });
+        }
+    });
+
+    // ============================================================ TEAM CONTROLS (Alen 2026-09-16)
+    // "If somebody doesn't fill out a specific aspect we can email them … easily remove people or
+    // add people … some people tell us via email they can't make it." Three key-gated deeds the
+    // admin card proxies to: a message from the team (three templates, per row or in bulk), a seat
+    // released BY the team (the guest's own "I can't make it", done for them), and a guest added by
+    // hand. Every send is a real email through the same sendEmail (Laura in CC), stamped in notes.
+    const teamRegOf = id => query.get('SELECT * FROM bridges_registrations WHERE id = ? AND event_id = ?', [String(id || ''), EVENT_ID]);
+    const SLIDES_DEADLINE_SHORT = 'Sunday, 20 September';
+    // The three drafts. Plain paragraphs (blank line between) — the composer shows them as text the
+    // team can edit, and the send wraps them in the light Boston shell with "Dear Prof. X," in front,
+    // so the greeting is never typed and never wrong.
+    function nudgeDraft(reg, template) {
+        const me = `${baseUrl()}/boston/me/${meToken(reg.id)}`;
+        if (template === 'slides') {
+            return {
+                subject: 'Your presentation slides — Building Bridges Boston, 21 September',
+                headline: 'Your slides, please',
+                body: `A short note from the Building Bridges team: we do not yet have your presentation slides for ${DATE_LONG}.\n\n`
+                    + `Could you upload them on your personal page by ${SLIDES_DEADLINE_SHORT}? Five minutes, 5 to 8 slides, PowerPoint 16:9 in English (PDF also accepted), up to 25 MB — or paste a share link if the file is larger. All talks run from one laptop, so the deck has to be with us before the evening.\n\n`
+                    + `Thank you — and if anything is unclear, simply reply to this email.`
+            };
+        }
+        if (template === 'panel') {
+            return {
+                subject: 'Can you join the panel? — Building Bridges Boston, 21 September',
+                headline: 'One question — the panel',
+                body: `We have not yet heard whether you can join the panel discussion on ${DATE_LONG}.\n\n`
+                    + `Could you let us know on your personal page — accept or decline, one click? If it is easier, simply reply to this email and we will note it for you.\n\n`
+                    + `Thank you.`
+            };
+        }
+        return { subject: 'Building Bridges Boston — a note from the team', headline: 'A note from the team', body: '', personal_page: me };
+    }
+    const paragraphsHtml = text => String(text || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean)
+        .map(p => `<p style="margin:0 0 10px;">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+    function nudgeEmailHtml(reg, draft) {
+        return receiptShell(draft.subject, draft.subject, receiptBody(reg, esc(draft.headline || draft.subject), paragraphsHtml(draft.body)));
+    }
+    // Who a bulk template goes to — computed from the SAME rows the card counts, so the button's
+    // number and the send agree: presenters without a deck (link counts as a deck), panelists
+    // without an answer. Released seats are never in cateringRows(), so they cannot be nudged.
+    function nudgeTargets(kind) {
+        const seats = cateringRows();
+        if (kind === 'slides-missing') return seats.filter(r => isPresenterRow(r) && !latestPresentation(r.id));
+        if (kind === 'panel-awaiting') return seats.filter(r => isPanelRow(r) && !String(r.panel_reply || '').trim());
+        return [];
+    }
+
+    // GET /api/boston/team/message/draft?id=…  → the three drafts for this person + the greeting
+    app.get('/api/boston/team/message/draft', (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            const reg = teamRegOf(req.query.id);
+            if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
+            const drafts = {};
+            for (const tpl of NUDGE_TEMPLATES) drafts[tpl] = nudgeDraft(reg, tpl);
+            res.set('Cache-Control', 'private, no-store');
+            res.json({
+                success: true, id: reg.id, email: reg.email, greeting: `Dear ${salutationFor(reg)},`,
+                // the template the row most plausibly needs, so the composer opens on it
+                suggested: isPresenterRow(reg) && !latestPresentation(reg.id) ? 'slides'
+                    : isPanelRow(reg) && !String(reg.panel_reply || '').trim() ? 'panel' : 'general',
+                released: isReleasedRow(reg),
+                drafts, counts: { 'slides-missing': nudgeTargets('slides-missing').length, 'panel-awaiting': nudgeTargets('panel-awaiting').length }
+            });
+        } catch (e) {
+            console.error('[Boston] message draft failed:', e.message);
+            res.status(500).json({ error: 'Could not prepare the message.' });
+        }
+    });
+
+    // POST /api/boston/team/message  { to: id | 'slides-missing' | 'panel-awaiting', template, subject?, body? }
+    // One row: the (possibly edited) subject/body go out to that person. Bulk: the template goes to
+    // everyone in the group EXCEPT anyone already nudged with it today — a second click on the same
+    // afternoon must not double-email the room. Each success stamps "NUDGE-<TEMPLATE> <date>".
+    app.post('/api/boston/team/message', async (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            const b = req.body || {};
+            const to = String(b.to || '').trim();
+            const template = String(b.template || '').trim().toLowerCase();
+            if (!NUDGE_TEMPLATES.includes(template)) return res.status(400).json({ error: 'template must be "slides", "panel" or "general".' });
+            const bulk = to === 'slides-missing' || to === 'panel-awaiting';
+            if (!to) return res.status(400).json({ error: 'Say who: a registration id, "slides-missing" or "panel-awaiting".' });
+            const today = new Date().toISOString().slice(0, 10);
+            let targets, skipped = [];
+            if (bulk) {
+                const all = nudgeTargets(to);
+                targets = all.filter(r => markDateOf(r, NUDGE_MARK[template]) !== today);
+                skipped = all.filter(r => markDateOf(r, NUDGE_MARK[template]) === today).map(r => ({ id: r.id, email: r.email, reason: 'nudged today' }));
+            } else {
+                const reg = teamRegOf(to);
+                if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
+                if (isReleasedRow(reg)) return res.status(409).json({ error: 'Their seat was released — restore it first if they are coming after all.' });
+                targets = [reg];
+            }
+            const subjectOverride = String(b.subject || '').trim().slice(0, 200);
+            const bodyOverride = String(b.body || '').trim().slice(0, 6000);
+            if (template === 'general' && !bodyOverride) return res.status(400).json({ error: 'Type the message first.' });
+            const sent = [];
+            for (const r of targets) {
+                const draft = nudgeDraft(r, template);
+                const subject = subjectOverride || draft.subject;
+                const body = bodyOverride || draft.body;
+                const out = await sendEmail(r.email, subject, nudgeEmailHtml(r, { subject, headline: draft.headline, body }));
+                if (out && out.success !== false) { stampDated(r.id, NUDGE_MARK[template]); sent.push(r.email); }
+            }
+            console.log(`[Boston] team message (${template}) sent: ${sent.length}/${targets.length}${skipped.length ? ', ' + skipped.length + ' nudged today skipped' : ''}`);
+            res.json({ success: true, template, sent, skipped, targeted: targets.length, nudged_on: today });
+        } catch (e) {
+            console.error('[Boston] team message failed:', e.message);
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // POST /api/boston/registrations/:id/release — the team does the guest's "I can't make it"
+    // for them (they told us by email). Same effect as the guest's own tap, marker says TEAM: status
+    // cancelled, QR refused, seat out of every count, sheet 'Cancelled by team', FYI to Laura and
+    // Alen. A presenter or panelist is freed too — the decision goes back to undecided and the
+    // previous one is kept in the marker ("was:panel") so the restore knows what it was.
+    app.post('/api/boston/registrations/:id/release', async (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            ensurePresenterStatusColumn();
+            const reg = teamRegOf(req.params.id);
+            if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
+            if (isReleasedRow(reg)) return res.json({ success: true, already: true, released_on: releasedOn(reg), released_by: releasedBy(reg) });
+            const today = new Date().toISOString().slice(0, 10);
+            const was = presenterStatusOf(reg);
+            query.run(`UPDATE bridges_registrations SET status = 'cancelled', presenter_status = NULL WHERE id = ?`, [reg.id]);
+            // re-stamped (not once-only like the guest's): a seat released, restored and released
+            // again must carry the latest date and the decision it had at THAT moment
+            stampDated(reg.id, TEAM_CANCELLED_MARK, null, was ? 'was:' + was : '');
+            stampCateringAnswers(reg, { cannot_attend_at: new Date().toISOString(), released_by: 'team' }, { touchAnsweredAt: false });
+            flushDb();
+            updateBostonSheetStatus(reg.id, 'Cancelled by team');
+            const stillHeld = Number((query.get(`SELECT COUNT(*) AS n FROM bridges_registrations
+                WHERE event_id = ? AND status IN ('registered','confirmed')`, [EVENT_ID]) || {}).n || 0);
+            const who = `${reg.first_name || ''} ${reg.last_name || ''}`.trim() || reg.email;
+            const fyi = releasedFyiHtml(who, reg.institution || '', stillHeld, { byTeam: true, was });
+            const subject = `Seat released by the team — ${who}`;
+            for (const to of [process.env.CONFIRMATION_CC || SUPPORT_EMAIL, reviewGate.REVIEW_TO]) {
+                try { await sendEmail(to, subject, fyi); }
+                catch (e) { console.warn('[Boston] team-release FYI failed for ' + to + ':', e.message); }
+            }
+            console.log(`[Boston] seat released by the team: ${reg.id} (${reg.email})${was ? ' — was ' + was : ''} — ${stillHeld} registered now`);
+            res.json({ success: true, released_on: today, released_by: 'team', registered_now: stillHeld, was_presenter_status: was, email: reg.email });
+        } catch (e) {
+            console.error('[Boston] team release failed:', e.message);
+            res.status(500).json({ error: 'Could not release that seat just now.' });
+        }
+    });
+
+    // POST /api/boston/guests/add — a guest who never used the form (told us by email, a late
+    // invitation). A registered row like any other (status registered, 'Added by team <date>' in
+    // notes), the sheet row pushed, the decision set straight away if the team ticked presenter or
+    // panel — and NO email from here: the card offers "send their Boston email now" as the next
+    // click, and that one email carries the ticket, the wallet passes and every ask.
+    app.post('/api/boston/guests/add', (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            ensurePresenterStatusColumn();
+            const b = req.body || {};
+            const clean = (v, max) => String(v == null ? '' : v).trim().replace(/\s+/g, ' ').slice(0, max);
+            const first_name = clean(b.first_name, 80), last_name = clean(b.last_name, 80);
+            const email = clean(b.email, 160).toLowerCase();
+            const institution = clean(b.institution, 200) || null, position = clean(b.position, 120) || null;
+            if (!first_name || !last_name) return res.status(400).json({ error: 'First and last name, please.' });
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'That email address does not look right.' });
+            const presenter = !!b.presenter, panel = !!b.panel && !presenter;
+            const dup = query.all('SELECT * FROM bridges_registrations WHERE event_id = ?', [EVENT_ID])
+                .find(r => String(r.email || '').trim().toLowerCase() === email);
+            if (dup) {
+                return res.status(409).json({
+                    error: isReleasedRow(dup) ? `${email} is already on the list with a released seat — restore that seat instead.`
+                        : `${email} is already on the Boston list.`,
+                    exists: true, registration_id: dup.id, status: dup.status || null, released: isReleasedRow(dup)
+                });
+            }
+            const id = crypto.randomUUID();
+            const today = new Date().toISOString().slice(0, 10);
+            const notes = (presenter ? '5-minute presentation requested | ' : '') + TEAM_ADDED_MARK + ' ' + today;
+            query.run(`INSERT INTO bridges_registrations
+                (id, event_id, first_name, last_name, email, institution, position, notes, status, payment_status, confirmation_sent, registered_at, presenter_status)
+                VALUES (?,?,?,?,?,?,?,?,'registered','n/a',0,CURRENT_TIMESTAMP,?)`,
+                [id, EVENT_ID, first_name, last_name, email, institution, position, notes,
+                 presenter ? PRESENTER_CONFIRMED : panel ? PRESENTER_PANEL : null]);
+            flushDb();
+            const fresh = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || { id, first_name, last_name, email, institution, position, notes };
+            pushToBostonSheet(fresh, presenter, 'Confirmed');
+            console.log(`[Boston] guest added by the team: ${id} (${email})${presenter ? ' — presenter' : panel ? ' — panel' : ''}`);
+            res.json({ success: true, registration_id: id, email, shape: shapeOf(fresh), salutation: salutationFor(fresh), added_on: today });
+        } catch (e) {
+            console.error('[Boston] add guest failed:', e.message);
+            res.status(500).json({ error: 'Could not add that guest just now.' });
         }
     });
 
@@ -2646,7 +2907,7 @@ module.exports = function mountBoston(app, deps) {
     function releasedSeatRows() {
         return query.all(`SELECT * FROM bridges_registrations
             WHERE event_id = ? AND status = 'cancelled'
-            ORDER BY registered_at, rowid`, [EVENT_ID]).filter(releasedByGuest);
+            ORDER BY registered_at, rowid`, [EVENT_ID]).filter(releasedSeat);
     }
     function cateringData() {
         const regs = cateringRows();
@@ -2695,7 +2956,8 @@ module.exports = function mountBoston(app, deps) {
                 onepager_at: onePager ? onePager.uploaded_at : null,
                 onepager_download_url: onePager ? `${baseUrl()}/api/boston/onepagers/${onePager.id}/download?key=${adminKey()}` : null,
                 reminder_sent: wasReminded(r),
-                reminder_sent_at: remindedOn(r)
+                reminder_sent_at: remindedOn(r),
+                ...teamFacts(r)
             };
         });
         const preferenceUnanswered = rows.filter(r => !r.preference_key).length;
@@ -2705,7 +2967,8 @@ module.exports = function mountBoston(app, deps) {
             email: r.email,
             institution: r.institution || '',
             presenter: isPresenterRow(r),
-            released_on: releasedOn(r)
+            released_on: releasedOn(r),
+            released_by: releasedBy(r)
         }));
         return {
             event: EVENT_ID, event_name: EVENT_NAME,
@@ -2885,6 +3148,9 @@ module.exports = function mountBoston(app, deps) {
                     const stamped = new RegExp(REMINDER_MARK).test(notes) ? notes
                         : (notes ? notes + ' | ' : '') + REMINDER_MARK + ' ' + today;
                     query.run('UPDATE bridges_registrations SET reminder_sent = 1, notes = ? WHERE id = ?', [stamped, r.id]);
+                    // which SHAPE went out — re-stamped on every send, so a decision flipped
+                    // afterwards can be noticed on the card ("they already got the panel email")
+                    stampDated(r.id, SHAPE_MARK, shapeOf(r));
                     sent.push(r.email);
                 }
             }
@@ -4348,12 +4614,18 @@ function releasedPage(reg) {
 }
 
 // One line to the two people who run the room. Same dark house shell as every other FYI.
-function releasedFyiHtml(who, institution, registeredNow) {
+function releasedFyiHtml(who, institution, registeredNow, opts) {
     const T = emailTemplates.T;
+    const o = opts || {};
+    // the team's release reads differently: nobody tapped anything — a colleague recorded what
+    // the guest told us, and a freed talk or panel seat is worth one extra line
+    const line = o.byTeam
+        ? `<b style="color:#f2e7d6;">${esc(who)}</b>${institution ? ` (${esc(institution)})` : ''} can&rsquo;t attend Boston &mdash; seat released <b style="color:#f2e7d6;">by the team</b> from the admin card${o.was ? ` (they were ${o.was === 'panel' ? 'on the panel' : o.was === 'confirmed' ? 'presenting' : o.was}; that decision is open again)` : ''}. <b style="color:#f2e7d6;">${registeredNow}</b> registered now.`
+        : `<b style="color:#f2e7d6;">${esc(who)}</b>${institution ? ` (${esc(institution)})` : ''} can&rsquo;t attend Boston &mdash; seat released. <b style="color:#f2e7d6;">${registeredNow}</b> registered now.`;
     const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">
       <div style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#d7b56c;">For your information</div>
-      <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:#f2e7d6;margin-top:10px;">Seat released</div>
-      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:14px;"><b style="color:#f2e7d6;">${esc(who)}</b>${institution ? ` (${esc(institution)})` : ''} can&rsquo;t attend Boston &mdash; seat released. <b style="color:#f2e7d6;">${registeredNow}</b> registered now.</div>
+      <div style="font-family:${T.serif};font-weight:500;font-size:26px;line-height:1.2;color:#f2e7d6;margin-top:10px;">Seat released${o.byTeam ? ' by the team' : ''}</div>
+      <div style="font-family:${T.sans};font-size:14px;line-height:1.7;color:#d3c5b2;margin-top:14px;">${line}</div>
     </td></tr></table>`;
     return emailTemplates.shell({
         tone: 'dark',

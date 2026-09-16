@@ -938,13 +938,15 @@ async function t(name, fn) {
     // The email, the catering answers and the exports never touch the owner's sheet. The two
     // seat-STATE changes do — a released seat that still reads "Confirmed" in the sheet is how a
     // room gets over-catered — so they are named here one by one. Anything else is a regression.
-    await t('nothing in this feature touches the Google sheet except the two seat-state writes', () => {
+    await t('nothing in this feature touches the Google sheet except the four seat-state writes', () => {
         const src = require('node:fs').readFileSync(require.resolve('../user-portal/backend/boston.js'), 'utf8');
         const feature = src.slice(src.indexOf('THE ONE BOSTON EMAIL'), src.indexOf('GET /api/boston/presentations/:id/download'));
         assert.ok(feature.length > 2000, 'found the feature block');
         const allowed = [
             "updateBostonSheetStatus(reg.id, 'Cancelled by guest');",   // the guest released the seat
-            "updateBostonSheetStatus(reg.id, 'Confirmed');"             // the team put it back
+            "updateBostonSheetStatus(reg.id, 'Confirmed');",            // the team put it back
+            "updateBostonSheetStatus(reg.id, 'Cancelled by team');",    // the team released it for them (2026-09-16)
+            "pushToBostonSheet(fresh, presenter, 'Confirmed');"         // a guest added by hand gets a sheet row (2026-09-16)
         ];
         let rest = feature;
         for (const line of allowed) {

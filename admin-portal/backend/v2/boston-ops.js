@@ -30,6 +30,15 @@
  *   GET  /api/v2/boston/catering.csv              auth+adminOnly  302 → the member CSV with the key.
  *   POST /api/v2/boston/registrations/:id/restore auth+adminOnly  put back a seat a guest released
  *        from the one email — the member wing flips the status and stamps the notes and the sheet.
+ *   GET  /api/v2/boston/message/draft?id=         auth+adminOnly  the three team-message drafts for one
+ *        guest (slides · panel · general) with the greeting the send will use.
+ *   POST /api/v2/boston/message                   auth+adminOnly  { to: id | 'slides-missing' |
+ *        'panel-awaiting', template, subject?, body? } → the member wing sends, Laura in CC, and
+ *        stamps NUDGE-<TEMPLATE> <date>; a bulk send skips anyone nudged with it today.
+ *   POST /api/v2/boston/registrations/:id/release auth+adminOnly  the guest's "I can't make it", done
+ *        by the team — cancelled, marker CANCELLED-BY-TEAM, decision reset, sheet, FYI to Laura + Alen.
+ *   POST /api/v2/boston/guests/add                auth+adminOnly  a guest who never used the form —
+ *        registered row, 'Added by team', optional presenter/panel decision, sheet row; no email.
  *   GET  /api/v2/boston/onepagers                 auth+adminOnly  who sent a one-slide summary, with
  *        headlines and whether each one may be shared with all participants.
  *   GET  /api/v2/boston/onepagers.zip             auth+adminOnly  302 → the member archive with the key
@@ -433,11 +442,14 @@ module.exports = function mountBostonOps(app, ctx) {
     app.post('/api/v2/boston/reminders/:id/send', auth, adminOnly, async (req, res) => {
         try {
             const id = cleanStr(req.params.id, 64);
-            const reg = id ? q.get('SELECT id, email, status, notes, reminder_sent FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]) : null;
-            if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
-            const again = Number(reg.reminder_sent) === 1 || new RegExp(REMINDER_MARK).test(String(reg.notes || ''));
+            if (!id) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
+            // The local replica may not have a guest added a moment ago (REPLICA LAG above) — the
+            // member wing owns the row, so it is asked either way; it answers not_found itself.
+            const reg = q.get('SELECT id, email, status, notes, reminder_sent FROM bridges_registrations WHERE id = ? AND event_id = ?', [id, EVENT_ID]);
+            const again = !!reg && (Number(reg.reminder_sent) === 1 || new RegExp(REMINDER_MARK).test(String(reg.notes || '')));
             const out = await memberCall('POST', '/api/boston/reminders/send', { to: String(id) });
             const sent = Array.isArray(out.sent) ? out.sent : [];
+            if (!sent.length && out.not_found) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
             if (!sent.length) return res.status(409).json({ error: 'The member portal did not send it — check that the registration is still active.' });
             audit(req, 'boston.reminder_sent', (again ? 're-sent to ' : 'sent to ') + sent.join(', '));
             res.json({ success: true, sent, resent: again });
@@ -472,10 +484,97 @@ module.exports = function mountBostonOps(app, ctx) {
             if (!reg) return res.status(404).json({ error: 'That guest is not on the Boston list.' });
             const out = await memberCall('POST', '/api/boston/registrations/' + encodeURIComponent(id) + '/restore');
             audit(req, 'boston.seat_restored', (out.already ? 'already active — ' : 'restored ') + (reg.email || id));
-            res.json({ success: true, already: !!out.already, email: reg.email || null, status: out.status || 'registered' });
+            res.json({ success: true, already: !!out.already, email: reg.email || null, status: out.status || 'registered', presenter_status: out.presenter_status || null });
         } catch (e) {
             log('restore failed:', e.message);
             res.status(502).json({ error: e.message || 'The seat could not be restored.' });
+        }
+    });
+
+    // ---------------------------------------------------------------- team controls (Alen 2026-09-16)
+    // A message from the team (three templates, one row or a whole group), a seat released BY the
+    // team (the guest told us by email), a guest added by hand. Same doctrine as everything above:
+    // the member wing owns the email, the markers and the sheet; this side is the button + audit.
+    // These look nobody up in the local replica first — a guest added a moment ago may not have
+    // replicated here yet, and the member wing is the one that has the row either way.
+    const TEMPLATES = ['slides', 'panel', 'general'];
+    const GROUPS = ['slides-missing', 'panel-awaiting'];
+
+    app.get('/api/v2/boston/message/draft', auth, adminOnly, async (req, res) => {
+        try {
+            const id = cleanStr(req.query && req.query.id, 64);
+            if (!id) return res.status(400).json({ error: 'Which guest?' });
+            const out = await memberCall('GET', '/api/boston/team/message/draft?id=' + encodeURIComponent(id));
+            res.set('Cache-Control', 'private, no-store');
+            res.json(Object.assign({ ok: true }, out));
+        } catch (e) {
+            log('message draft failed:', e.message);
+            res.status(e.status === 404 ? 404 : 502).json({ error: e.message || 'Could not prepare the message.' });
+        }
+    });
+
+    app.post('/api/v2/boston/message', auth, adminOnly, async (req, res) => {
+        try {
+            const b = req.body || {};
+            const to = cleanStr(b.to, 64);
+            const template = cleanStr(b.template, 20).toLowerCase();
+            if (!to) return res.status(400).json({ error: 'Say who: a guest, "slides-missing" or "panel-awaiting".' });
+            if (!TEMPLATES.includes(template)) return res.status(400).json({ error: 'Pick a template: slides, panel or general.' });
+            const bulk = GROUPS.includes(to);
+            const out = await memberCall('POST', '/api/boston/team/message', {
+                to, template,
+                subject: String(b.subject == null ? '' : b.subject).trim().slice(0, 200),
+                body: String(b.body == null ? '' : b.body).trim().slice(0, 6000)
+            });
+            const sent = Array.isArray(out.sent) ? out.sent : [];
+            const skipped = Array.isArray(out.skipped) ? out.skipped : [];
+            audit(req, bulk ? 'boston.team_message_bulk' : 'boston.team_message',
+                template + (bulk ? ' → ' + to + ': ' : ': ') + (sent.length ? sent.join(', ') : 'nobody') + (skipped.length ? ' (' + skipped.length + ' nudged today, skipped)' : ''));
+            if (!bulk && !sent.length) return res.status(409).json({ error: 'The member portal did not send it — check that the seat is still active.' });
+            res.json({ success: true, template, sent, skipped, targeted: Number(out.targeted) || sent.length, nudged_on: out.nudged_on || null });
+        } catch (e) {
+            log('team message failed:', e.message);
+            res.status(e.status && e.status < 500 ? e.status : 502).json({ error: e.message || 'The message could not be sent.' });
+        }
+    });
+
+    app.post('/api/v2/boston/registrations/:id/release', auth, adminOnly, async (req, res) => {
+        try {
+            const id = cleanStr(req.params.id, 64);
+            if (!id) return res.status(400).json({ error: 'Which guest?' });
+            const out = await memberCall('POST', '/api/boston/registrations/' + encodeURIComponent(id) + '/release');
+            audit(req, 'boston.seat_released_by_team',
+                (out.already ? 'already released — ' : 'released ') + (out.email || id) + (out.was_presenter_status ? ' (was ' + out.was_presenter_status + ')' : ''));
+            res.json({
+                success: true, already: !!out.already, email: out.email || null,
+                released_on: out.released_on || null, registered_now: out.registered_now == null ? null : Number(out.registered_now),
+                was_presenter_status: out.was_presenter_status || null
+            });
+        } catch (e) {
+            log('release failed:', e.message);
+            res.status(e.status === 404 ? 404 : 502).json({ error: e.message || 'The seat could not be released.' });
+        }
+    });
+
+    app.post('/api/v2/boston/guests/add', auth, adminOnly, async (req, res) => {
+        try {
+            const b = req.body || {};
+            const first_name = cleanStr(b.first_name, 80), last_name = cleanStr(b.last_name, 80);
+            const email = cleanStr(b.email, 160).toLowerCase();
+            if (!first_name || !last_name) return res.status(400).json({ error: 'First and last name, please.' });
+            if (!validEmail(email)) return res.status(400).json({ error: 'That email address does not look right.' });
+            const out = await memberCall('POST', '/api/boston/guests/add', {
+                first_name, last_name, email,
+                institution: cleanStr(b.institution, 200), position: cleanStr(b.position, 120),
+                presenter: !!b.presenter, panel: !!b.panel
+            });
+            audit(req, 'boston.guest_added', email + (b.presenter ? ' — presenter' : b.panel ? ' — panel' : '') + ' (' + (out.shape || 'attendee') + ' shape)');
+            res.json({ success: true, registration_id: out.registration_id, email, shape: out.shape || 'attendee', salutation: out.salutation || null });
+        } catch (e) {
+            log('add guest failed:', e.message);
+            // 409 = already on the list; the member wing says which row, so the card can point at it
+            if (e.status === 409) return res.status(409).json(Object.assign({ error: e.message }, e.data || {}));
+            res.status(e.status && e.status < 500 ? e.status : 502).json({ error: e.message || 'Could not add the guest.' });
         }
     });
 
