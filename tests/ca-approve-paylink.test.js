@@ -308,8 +308,14 @@ const allTo = to => sent.filter(m => m.to === to);
             'lists what they selected');
         assert.ok(msg.html.includes('To complete your registration for everything'), 'owner wording: the ask');
         assert.ok(msg.html.includes('the payment for the Gala Evening'), 'names the last step');
-        assert.ok(msg.html.includes('2 seats · €300 (€150 per seat, early-bird until 15 September)'),
+        // The early-bird clause is calendar-dependent (it disappears the day after the deadline),
+        // so the assertion pins the party total + per-seat figure and checks the clause only while
+        // the deadline is still ahead — the test must not start failing on 16 September.
+        assert.ok(msg.html.includes('2 seats · €300 (€150 per seat'),
             'states the TOTAL for the party, not a per-seat price');
+        if ('2026-09-15' >= new Date().toISOString().slice(0, 10)) {
+            assert.ok(msg.html.includes('early-bird until 15 September'), 'names the early-bird deadline while it is still ahead');
+        }
         assert.ok(msg.html.includes('Complete my registration'), 'the button label the owner asked for');
         assert.ok(/one ticket/.test(msg.html) && /covers all your events/.test(msg.html),
             'promises the one ticket after payment');
