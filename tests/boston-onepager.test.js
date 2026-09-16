@@ -405,7 +405,7 @@ async function t(name, fn) {
         assert.strictEqual(missing.statusCode, 404);
     });
 
-    await t('the ZIP names every entry Last_First__file and holds one file per guest', async () => {
+    await t('the ZIP names every entry Last_First_summary.ext (after the PERSON, never the guest\'s file name) and holds one file per guest', async () => {
         const r = await call(app, 'GET', '/api/boston/onepagers.zip', { query: { key: ADMIN_KEY } });
         assert.strictEqual(r.statusCode, 200);
         assert.strictEqual(r.headers['content-type'], 'application/zip');
@@ -413,13 +413,15 @@ async function t(name, fn) {
         const zip = r.body;
         assert.ok(Buffer.isBuffer(zip) && zip.slice(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])), 'a real zip');
         const text = zip.toString('latin1');
-        assert.ok(text.includes('Horvat_Ana__Ana_v2.pdf'), 'Ana, newest file: ' + text.slice(0, 120));
-        assert.ok(text.includes('Babic_Luka__luka4.pdf'), 'Luka, newest file');
+        assert.ok(text.includes('Horvat_Ana_summary.pdf'), 'Ana, named after her: ' + text.slice(0, 120));
+        assert.ok(text.includes('Babic_Luka_summary.pdf'), 'Luka, named after him');
+        assert.ok(!text.includes('Horvat_Ana__') && !text.includes('Babic_Luka__'), 'the guests\' own file names are not the entry names');
+        assert.ok(text.includes('_index.csv') && /Horvat_Ana_summary\.pdf","Ana Horvat","[^"]*","yes","Ana v2\.pdf"/.test(text.replace(/\r/g, '')), 'but they survive in the index: ' + text.slice(text.indexOf('file,name'), text.indexOf('file,name') + 260).replace(/[^\x20-\x7e\n]/g, '.'));
         assert.ok(!text.includes('luka.pdf"'), 'older versions stay out of the archive');
         // one local header per guest with a file — two guests, two entries
         let entries = 0, at = 0;
         while ((at = text.indexOf('PK', at)) !== -1) { entries++; at += 4; }
-        assert.strictEqual(entries, 2, 'exactly one entry per guest');
+        assert.strictEqual(entries, 3, 'one entry per guest + _index.csv');
     });
 
     // ================================================================ PowerPoint + the consent
@@ -475,10 +477,15 @@ async function t(name, fn) {
         assert.strictEqual(String(zip.headers['x-summaries-excluded-private']), '1', 'the archive says what it left out');
         const text = zip.body.toString('latin1');
         assert.ok(!text.includes('Babic_Luka'), 'not one byte of the private summary is in the archive');
-        assert.ok(text.includes('Horvat_Ana__Ana_v2.pdf') && text.includes('Guest_Quiet'), 'the shared ones are all there');
+        assert.ok(text.includes('Horvat_Ana_summary.pdf') && text.includes('Guest_Quiet_summary.ppt'), 'the shared ones are all there (Quiet\'s newest is old.ppt): ' + (text.match(/[A-Za-z_]+_summary\.[a-z]+/g) || []).join(','));
+        // the TEAM archive (?all=1) has the private one too, flagged in the index
+        const all = await call(app, 'GET', '/api/boston/onepagers.zip', { query: { key: ADMIN_KEY, all: '1' } });
+        const allText = all.body.toString('latin1');
+        assert.ok(allText.includes('Babic_Luka_summary.pdf'), 'the team archive carries the private summary');
+        assert.ok(/Babic_Luka_summary\.pdf","Luka Babic","[^"]*","no"/.test(allText.replace(/\r/g, '')), 'and the index says it is not shared');
         let entries = 0, at = 0;
         while ((at = text.indexOf('PK', at)) !== -1) { entries++; at += 4; }
-        assert.strictEqual(entries, 2, 'two shared summaries, two entries');
+        assert.strictEqual(entries, 3, 'two shared summaries + _index.csv, three entries');
     });
 
     await t('the page reads a private answer back — the box comes up unticked, and says so', async () => {
@@ -495,7 +502,7 @@ async function t(name, fn) {
         assert.strictEqual(d.private, 0);
         assert.strictEqual(d.zip_excluded, 0);
         const zip = await call(app, 'GET', '/api/boston/onepagers.zip', { query: { key: ADMIN_KEY } });
-        assert.ok(zip.body.toString('latin1').includes('Babic_Luka__luka-shared-again.pdf'), 'back in');
+        assert.ok(zip.body.toString('latin1').includes('Babic_Luka_summary.pdf'), 'back in');
         assert.strictEqual(String(zip.headers['x-summaries-excluded-private']), '0');
     });
 
@@ -542,16 +549,10 @@ async function t(name, fn) {
     });
 
     // ================================================================ nothing leaked
-    await t('the only emails are first-upload receipts, and the Google sheet was never touched', () => {
+    await t('uploads email nobody (the Finish recap is the one email), and the Google sheet was never touched', () => {
         // Since 2026-09-15 the FIRST summary a guest sends earns one short receipt; replacements
         // stay silent. So every email out of this suite must be that receipt — nothing else.
-        for (const m of sentEmails) {
-            assert.strictEqual(m.subject, 'Your one-slide summary is in — Building Bridges Boston',
-                'unexpected email: ' + m.subject + ' -> ' + m.to);
-        }
-        const perGuest = {};
-        for (const m of sentEmails) perGuest[m.to] = (perGuest[m.to] || 0) + 1;
-        for (const [to, n] of Object.entries(perGuest)) assert.strictEqual(n, 1, to + ' got ' + n + ' receipts — replacements must be silent');
+        assert.strictEqual(sentEmails.length, 0, 'unexpected email(s): ' + sentEmails.map(m => m.subject + ' -> ' + m.to).join('; '));
         const src = require('node:fs').readFileSync(require.resolve('../user-portal/backend/boston.js'), 'utf8');
         const feature = src.slice(src.indexOf('ONE-SLIDE SUMMARIES (every guest)'), src.indexOf('team data (page + JSON share it)'));
         assert.ok(feature.length > 2000, 'found the feature block');

@@ -485,9 +485,9 @@ async function t(name, fn) {
         const zip = await call(app, 'GET', '/api/boston/presentations.zip', { query: { key: ADMIN_KEY } });
         assert.strictEqual(zip.statusCode, 200, JSON.stringify(zip.body).slice(0, 200));
         const bytes = Buffer.isBuffer(zip.body) ? zip.body : Buffer.from(zip.body);
-        assert.ok(bytes.includes(Buffer.from('links.txt')), 'the archive carries links.txt');
-        assert.ok(bytes.includes(Buffer.from('Ivo Kos')) && bytes.includes(Buffer.from(BIGLINK)), 'listing name + URL');
-        assert.ok(bytes.includes(Buffer.from('Babic_Luka__')), 'alongside the stored decks');
+        assert.ok(bytes.includes(Buffer.from('_links.txt')), 'the archive carries _links.txt');
+        assert.ok(bytes.includes(Buffer.from('Kos_Ivo \u2014 ' + BIGLINK)), 'listing LastName_FirstName \u2014 URL');
+        assert.ok(bytes.includes(Buffer.from('Babic_Luka.')) && bytes.includes(Buffer.from('_index.csv')), 'alongside the stored decks, named after the person, plus the index');
     });
 
     // ================================================================ progress
@@ -1036,6 +1036,17 @@ async function t(name, fn) {
     });
 
     // ================================================================ the guard rails
+    await t('team downloads are named after the PERSON: diacritics folded, _summary suffix, _2 for a namesake', () => {
+        const mod = require('../user-portal/backend/boston.js');
+        const nf = mod._personFileNamer();
+        assert.strictEqual(nf({ first_name: 'Katarina', last_name: 'Ruščić' }, 'Rogulja Lab v2.pptx'), 'Ruscic_Katarina.pptx');
+        assert.strictEqual(nf({ first_name: 'Katarina', last_name: 'Ruščić' }, 'again.pdf'), 'Ruscic_Katarina_2.pdf', 'a second file for the same name gets _2');
+        assert.strictEqual(nf({ first_name: 'Đuro', last_name: 'Šarić-Kos' }, 'deck.KEY'), 'Saric-Kos_Duro.key', 'đ → d, š/ć folded, hyphen kept, extension lower-cased');
+        assert.strictEqual(nf({ first_name: 'Ana', last_name: 'Horvat' }, 'Ana v2.pdf', '_summary'), 'Horvat_Ana_summary.pdf');
+        assert.strictEqual(nf({ first_name: 'Ana', last_name: 'Horvat' }, 'noext', '_summary'), 'Horvat_Ana_summary_2.bin', 'no extension → .bin, and the namesake counter is per stem');
+        assert.strictEqual(mod._asciiName('  Mass General  Brigham / HMS '), 'Mass-General-Brigham-HMS');
+    });
+
     await t('guests hear ONLY the finish recap, and no network was touched', () => {
         const GUEST_OK = ["You're all set — Building Bridges Boston"];
         for (const m of sentEmails) {

@@ -310,6 +310,7 @@ const zipSafe = str => String(str || '').normalize('NFKD').replace(/[^\w.\- ]+/g
 // index / links file, so nothing is lost — it just is not what the team has to search for.
 const asciiName = str => String(str || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[đĐ]/g, m => m === 'đ' ? 'd' : 'D').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').replace(/-+/g, '-') || 'x';
+const csvCell = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
 const extOf = (original, fallback = 'bin') => { const m = /\.([A-Za-z0-9]{1,6})$/.exec(String(original || '')); return m ? m[1].toLowerCase() : fallback; };
 function personFileNamer() {
     const seen = new Map();
@@ -2047,6 +2048,9 @@ module.exports = function mountBoston(app, deps) {
                 // What has come back from them, in the same read the decision chips are drawn from,
                 // so the presenters table answers "who is done" without a second screen.
                 onepager: !!latestOnepager(r.id),
+                // the summary's own download, named after the person — the presenters table used
+                // to show only "✓ summary" with no way to open it (Alen 2026-09-16)
+                onepager_download_url: (() => { const op = latestOnepager(r.id); return op ? `${base}/api/boston/onepagers/${op.id}/download?key=${adminKey()}` : null; })(),
                 finished: hasMark(r, FINISHED_MARK),
                 guest_requests: guestRequestsOf(r) || null,
                 reminder_sent: wasReminded(r),
@@ -2975,6 +2979,8 @@ module.exports._s3 = s3;
 // rather than keeping a second, quietly diverging copy of the signer and the sniffing rules.
 module.exports._magicOk = magicOk;
 module.exports._sanitizeFilename = sanitizeFilename;
+module.exports._personFileNamer = personFileNamer;
+module.exports._asciiName = asciiName;
 
 // ---------------------------------------------------------------- shared page chrome
 // Same premium ink/cream/crimson/gold language as the portal's public shells (premiumPage):

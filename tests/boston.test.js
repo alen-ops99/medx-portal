@@ -660,7 +660,7 @@ async function t(name, fn) {
         assert.ok(loc.includes('X-Amz-Algorithm=AWS4-HMAC-SHA256'), 'algorithm param');
         assert.ok(loc.includes('X-Amz-Expires=900'), '15-minute expiry');
         assert.ok(/X-Amz-Signature=[0-9a-f]{64}/.test(loc), 'hex signature');
-        assert.ok(loc.includes('response-content-disposition=') && loc.includes('Rogulja%20Lab%20v2.pptx'), 'friendly filename');
+        assert.ok(loc.includes('response-content-disposition=') && /filename%3D%22[A-Za-z-]+_Ana\.pptx%22/.test(loc) && !loc.includes('Rogulja%20Lab'), 'downloads as LastName_FirstName.pptx, not as the guest named it: ' + loc.slice(loc.indexOf('response-content-disposition'), loc.indexOf('response-content-disposition') + 90));
     });
     await t('download: unknown presentation id -> 404', async () => {
         const r = await call(app, 'GET', '/api/boston/presentations/:id/download', { params: { id: crypto.randomUUID() }, query: { key: ADMIN_KEY } });

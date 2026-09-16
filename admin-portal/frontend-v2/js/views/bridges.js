@@ -73,7 +73,10 @@ export const COPY = {
   boston: {
     title: 'BOSTON · 5-MINUTE PRESENTATIONS', sub: 'the slides link is already inside the Boston email — this is the separate, presenters-only send',
     sendAll: n => `SLIDES LINK ONLY (PRESENTERS · ${n})`, allInvited: 'EVERYONE HAS THEIR LINK',
-    zip: n => `DOWNLOAD ALL DECKS (ZIP · ${n})`, zipNone: 'NO DECKS UPLOADED YET',
+    zip: n => `DOWNLOAD ALL PRESENTATIONS (ZIP · ${n} ${n === 1 ? 'deck' : 'decks'})`, zipNone: 'NO PRESENTATIONS YET',
+    // named after the person inside: Ruscic_Katarina.pptx / Ruscic_Katarina_summary.pdf
+    sumZip: n => `DOWNLOAD ALL SUMMARIES (ZIP · ${n} ${n === 1 ? 'summary' : 'summaries'})`, sumZipNone: 'NO SUMMARIES YET',
+    zipHint: 'files inside are named LastName_FirstName',
     add: '+ ADD A PRESENTER', addClose: 'CLOSE',
     phName: 'Full name — e.g. Dr. Ivana Kovač', phEmail: 'Email address', addSend: 'ADD & SEND THE LINK',
     cWho: 'PRESENTER', cInst: 'INSTITUTION', cPresents: 'DECISION', cDeck: 'DECK', cSummary: 'SUMMARY', cDone: 'FINISHED', cReq: 'REQUESTS', cSent: 'LINK SENT',
@@ -506,8 +509,10 @@ function blockBoston() {
         ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.pickCounts(confirmedN, panelN, declinedN, undecidedN))}</span>` : ''}
         ${P ? btn('bpDeclineAll', undecidedN ? c.declineAll(undecidedN) : c.declineAllNone, undecidedN > 0, '', 'ghost') : ''}
         ${P ? btn('bpSendAll', notInvited ? c.sendAll(notInvited) : c.allInvited, notInvited > 0, '', 'ghost') : ''}
-        ${P && uploaded ? `<a href="${esc(P.zip_url)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.zip(uploaded))}</a>`
+        ${P && uploaded ? `<a href="${esc(P.zip_url)}" title="${esc(c.zipHint)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.zip(uploaded))}</a>`
         : P ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.zipNone}</span>` : ''}
+        ${P && (P.summaries || 0) ? `<a href="${esc(P.summaries_zip_url || '/api/v2/boston/onepagers.zip?all=1')}" title="${esc(c.zipHint)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.sumZip(P.summaries))}</a>`
+        : P ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.sumZipNone}</span>` : ''}
         ${P ? `<span data-act="bpAddToggle" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.bpOpen ? c.addClose : c.add}</span>` : ''}
       </div>
       ${st.bpOpen && P ? `
@@ -545,7 +550,9 @@ function blockBoston() {
                   ? `<a href="${esc(r.upload.external_url)}" target="_blank" rel="noopener" title="${esc(r.upload.external_url)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px" data-hover="background:#1e6e42;color:#fff">✓ ${c.deckLink}</a>`
                   : `<a href="${esc(r.upload.download_url)}" title="${esc(r.upload.filename || '')}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px" data-hover="background:#1e6e42;color:#fff">✓ ${c.deckYes}</a>`)
                 : `<span style="color:#9a9086">${c.deckNo}</span>`}</td>
-              <td style="${cell};white-space:nowrap;color:${r.onepager ? '#1e6e42' : '#9a9086'}">${r.onepager ? c.summaryYes : c.deckNo}</td>
+              <td style="${cell};white-space:nowrap;color:${r.onepager ? '#1e6e42' : '#9a9086'}">${r.onepager && r.onepager_download_url
+                ? `<a href="${esc(r.onepager_download_url)}" title="download the one-slide summary" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px;text-decoration:none" data-hover="background:#1e6e42;color:#fff">${c.summaryYes}</a>`
+                : r.onepager ? c.summaryYes : c.deckNo}</td>
               <td style="${cell};white-space:nowrap;color:${r.finished ? '#1e6e42' : '#9a9086'}">${r.finished ? c.finishedYes : c.deckNo}</td>
               <td style="${cell};max-width:220px">${r.guest_requests
                 ? `<span title="${esc(r.guest_requests)}" style="display:block;font-size:11.5px;color:#201b16;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✎ ${esc(r.guest_requests)}</span>`

@@ -239,6 +239,10 @@ module.exports = function mountBostonOps(app, ctx) {
                 invited: rows.filter(r => r.invited_at != null).length,
                 not_invited: notInvited,
                 zip_url: keyed('/api/boston/presentations.zip'),
+                // the TEAM archive of one-slide summaries (every summary, private ones flagged in
+                // its _index.csv) — the booklet archive (shared only) stays on the catering card
+                summaries_zip_url: keyed('/api/boston/onepagers.zip?all=1'),
+                summaries: rows.filter(r => r.onepager).length,
                 rows
             });
         } catch (e) {
@@ -378,7 +382,8 @@ module.exports = function mountBostonOps(app, ctx) {
         }
     });
     app.get('/api/v2/boston/onepagers.zip', auth, adminOnly, (req, res) => {
-        res.redirect(302, keyed('/api/boston/onepagers.zip'));
+        // ?all=1 → the team archive (every summary, private flagged); default → the booklet (shared only)
+        res.redirect(302, keyed('/api/boston/onepagers.zip' + (String(req.query.all || '') === '1' ? '?all=1' : '')));
     });
 
     // ---------------------------------------------------------------- the program PDF
