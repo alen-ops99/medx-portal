@@ -339,6 +339,7 @@ module.exports = function mountBostonOps(app, ctx) {
             res.set('Cache-Control', 'private, no-store');
             res.json(Object.assign({ ok: true }, data, {
                 csv_url: keyed('/api/boston/catering.csv'),
+                program_csv_url: keyed('/api/boston/program.csv'),
                 onepagers_zip_url: keyed('/api/boston/onepagers.zip'),
                 program
             }));
@@ -353,8 +354,8 @@ module.exports = function mountBostonOps(app, ctx) {
     app.post('/api/v2/boston/reminders/preview', auth, adminOnly, async (req, res) => {
         try {
             const variant = cleanStr((req.body || {}).variant, 20).toLowerCase();
-            if (variant && variant !== 'presenter' && variant !== 'attendee') {
-                return res.status(400).json({ error: 'Preview as "presenter" or as "attendee".' });
+            if (variant && !['presenter', 'attendee', 'declined', 'panel'].includes(variant)) {
+                return res.status(400).json({ error: 'Preview as "presenter", "attendee", "declined" or "panel".' });
             }
             const out = await memberCall('POST', '/api/boston/reminders/send', variant ? { to: 'preview', variant } : { to: 'preview' });
             audit(req, 'boston.email_preview', (out.variants || []).join(' + ') + ' → ' + (out.preview_to || 'reviewer'));
@@ -527,6 +528,11 @@ module.exports = function mountBostonOps(app, ctx) {
     // The caterer's list, as a file. 302 with the key in the URL, exactly like the deck archive.
     app.get('/api/v2/boston/catering.csv', auth, adminOnly, (req, res) => {
         res.redirect(302, keyed('/api/boston/catering.csv'));
+    });
+    // The one program sheet (Alen 2026-09-16): decision, panel answer, deck, summary, food, requests,
+    // finished — every guest, one file. Same 302 shape as the caterer's list.
+    app.get('/api/v2/boston/program.csv', auth, adminOnly, (req, res) => {
+        res.redirect(302, keyed('/api/boston/program.csv'));
     });
 
     // ---------------------------------------------------------------- every deck, one archive

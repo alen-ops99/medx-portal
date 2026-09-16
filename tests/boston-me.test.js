@@ -248,19 +248,27 @@ async function t(name, fn) {
         assert.ok(luka.includes('Your presentation slides'), 'presenter: the slides card');
     });
 
-    await t('the three asks are marked optional / optional / required, in that order', async () => {
+    await t('a presenter\'s page runs dietary · slides · summary · requests · Finish, marked optional / required / optional', async () => {
         const html = String((await page(LUKA)).body);
         const at = s => { const i = html.indexOf(s); assert.ok(i > -1, 'missing: ' + s); return i; };
-        const s1 = at('id="step1"'), s2 = at('id="step2"'), s3 = at('id="step3"'), tick = at('Your ticket for the door');
-        assert.ok(s1 < s2 && s2 < s3, 'dietary, then summary, then slides');
-        assert.ok(s3 < tick, 'and the ticket last');
+        const s1 = at('id="step1"'), s2 = at('id="step2"'), s3 = at('id="step3"'), rq = at('id="requests"'), fin = at('id="finishcard"'), tick = at('Your ticket for the door');
+        // Alen 2026-09-16: the deck comes straight after the catering question — the DOM ids stay
+        // (step3 is still the slides card, so every #step3 link in an inbox still lands there),
+        // only the order and the printed numbers change.
+        assert.ok(s1 < s3 && s3 < s2, 'dietary, then slides, then summary');
+        assert.ok(s2 < rq && rq < fin && fin < tick, 'then special requests, then Finish, then the ticket last');
         const card = (from, to) => html.slice(from, to);
-        assert.ok(/tag opt">Optional</.test(card(s1, s2)), 'step 1 is optional (Alen 2026-09-15: dietary is not required)');
-        assert.ok(!/id="s2_headline"|One line about you/.test(card(s2, s3)), 'no headline text field — file upload only');
-        assert.ok(/Please keep it to one slide/.test(card(s2, s3)), 'and the one-slide note');
-        assert.ok(/Larger than 25 MB\?/.test(card(s3, tick)) && /id="s3_link"/.test(card(s3, tick)), 'the share-link lane under the uploader');
-        assert.ok(/tag opt">Optional</.test(card(s2, s3)), 'step 2 is optional');
-        assert.ok(/tag req">Required</.test(card(s3, tick)), 'step 3 is required');
+        assert.ok(/tag opt">Optional</.test(card(s1, s3)), 'dietary is optional');
+        assert.ok(/tag req">Required</.test(card(s3, s2)), 'slides are required');
+        assert.ok(/aria-label="Step 2 — your presentation slides"/.test(card(s3, s2)), 'and printed as step 2');
+        assert.ok(/aria-label="Step 3 — your one-slide summary"/.test(card(s2, rq)), 'the summary is printed as step 3');
+        assert.ok(/running order of the presentations once everybody has confirmed, most likely on the day of the event/.test(card(s3, s2)), 'the running-order sentence lives in the slides step');
+        assert.ok(!/id="s2_headline"|One line about you/.test(card(s2, rq)), 'no headline text field — file upload only');
+        assert.ok(/Please keep it to one slide/.test(card(s2, rq)), 'and the one-slide note');
+        assert.ok(/Larger than 25 MB\?/.test(card(s3, s2)) && /id="s3_link"/.test(card(s3, s2)), 'the share-link lane under the uploader');
+        assert.ok(/tag opt">Optional</.test(card(s2, rq)), 'the summary is optional');
+        assert.ok(/Any special requests\?/.test(card(rq, fin)) && /id="rq_text"/.test(card(rq, fin)) && !/<span class="snum[^>]*>\d<\/span>/.test(card(rq, fin)), 'special requests: a free-text box, never a numbered step');
+        assert.ok(/Done here\? Great &mdash; please click Finish and you&rsquo;re all set\./.test(card(fin, tick)) && !/one tap/i.test(card(fin, tick)), 'the Finish card in the owner\'s words');
     });
 
     await t('the page carries the ticket, the wallet/calendar buttons and the quiet way out', async () => {
@@ -920,11 +928,16 @@ async function t(name, fn) {
         const m = sentEmails[sentEmails.length - 1];
         assert.ok(m.subject.startsWith('[PREVIEW · panel]'), m.subject);
         assert.ok(/join the <b>panel discussion<\/b> instead/.test(m.html), 'the invitation');
-        assert.ok(/7:05&nbsp;PM, about 25 minutes, moderated by Alen Juginovic together with a few other senior guests/.test(m.html), 'time, length, moderator');
-        assert.ok(/challenges and opportunities in biomedical collaboration/.test(m.html), 'what they will be asked about');
-        assert.ok(/No slides are needed/.test(m.html) && /whether you can join the panel/.test(m.html), 'no slides; answer on the page');
-        assert.ok(/Tell us whether you can join the panel/.test(m.html), 'the answer is a numbered ask');
-        assert.ok(m.html.indexOf('Tell us whether you can join the panel') < m.html.indexOf('dietary preference'), 'and it comes first');
+        assert.ok(!/7:05|\d:\d\d\s*(&nbsp;)?PM.*panel/i.test(m.html.replace(/doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM/, '')), 'no clock for the panel — the running order is set on the day');
+        assert.ok(/about 25 minutes, moderated by Alen Juginovic together with a few other senior guests/.test(m.html), 'length, moderator');
+        assert.ok(/present your work and share your thoughts on the challenges and opportunities in international biomedical collaboration/.test(m.html), 'what the panel is about');
+        assert.ok(/No slides are needed for the panel discussion, but we would still love to receive a one-slide summary of your work/.test(m.html), 'no slides; the summary still welcome');
+        assert.ok(/accept or decline the panel seat on your personal page \(button below\)/.test(m.html), 'the answer is given on the page');
+        assert.ok(!/panel questions/.test(m.html), 'nobody is promised panel questions');
+        assert.ok(/Accept or decline the panel seat/.test(m.html), 'the answer is a numbered ask');
+        const i = k => m.html.indexOf(k);
+        assert.ok(i('Accept or decline the panel seat') < i('Tell us your dietary preference') && i('Tell us your dietary preference') < i('Send us a one-slide summary of your work') && i('Send us a one-slide summary of your work') < i('Have a look at the attached program'), 'panel · dietary · summary · program, in that order');
+        assert.ok(/Even though you are on the panel, we would like every participant/.test(m.html), 'the summary ask says why a panelist is asked');
         assert.ok(!/Send us your presentation slides/.test(m.html), 'no slides ask');
         assert.ok(!/could not accommodate your presentation/.test(m.html), 'never the declined wording');
         assert.ok(!/happy to offer you a <b>5-minute slot<\/b>/.test(m.html), 'never the presenter wording');
@@ -933,8 +946,10 @@ async function t(name, fn) {
 
     await t('panel: the page opens on the question, Finish waits for the answer, the team hears both ways', async () => {
         const html = (await page(PAN)).body;
-        assert.ok(/You are on the panel at 7:05 PM/.test(html), 'the calm line under the name');
-        assert.ok(/id="stepP"/.test(html) && /The panel: will you join us\?/.test(html), 'step 1 is the panel question');
+        assert.ok(!/7:05/.test(html) && !/You are on the panel at/.test(html), 'no clock, no header line — the running order is set on the day');
+        assert.ok(/id="stepP"/.test(html) && /The panel &mdash; will you join us\?/.test(html), 'step 1 is the panel question');
+        assert.ok(!/panel questions/.test(html), 'nobody is promised panel questions');
+        assert.ok(/aria-label="Step 2 — dietary preferences and allergies"/.test(html) && /aria-label="Step 3 — your one-slide summary"/.test(html), 'dietary is 2, the summary 3');
         assert.ok(/Yes, I&rsquo;ll join the panel/.test(html) && /I&rsquo;d rather not/.test(html), 'two buttons');
         assert.ok(html.indexOf('id="stepP"') < html.indexOf('id="step1"'), 'and it sits above dietary');
         assert.ok(/data-total="4"/.test(html), 'four numbered steps for a panelist');
@@ -968,6 +983,49 @@ async function t(name, fn) {
         assert.strictEqual(fin.statusCode, 200, 'answered (either way) → Finish works');
         const cat = await call(app, 'GET', '/api/boston/catering', { query: { key: ADMIN_KEY } });
         assert.strictEqual(cat.body.panel_count, 1); assert.strictEqual(cat.body.panel_declined, 1); assert.strictEqual(cat.body.panel_accepted, 0);
+    });
+
+    // ================================================================ any special requests?
+    await t('special requests: a free-text box for everyone — saved, capped, clearable, never a step, and in the recap', async () => {
+        const saveReq = (token, text) => call(app, 'POST', '/api/boston/me/:token/requests', { params: { token }, body: { text } });
+        assert.strictEqual((await saveReq('forged.' + ANA, 'x')).statusCode, 404, 'a forged token is a 404');
+        const html0 = String((await page(ANA)).body);
+        assert.ok(/id="requests"/.test(html0) && /Any special requests\?/.test(html0), 'the box is on the page');
+        assert.ok(/We will do our best to accommodate it/.test(html0), 'in the owner\'s words');
+        const prog0 = html0.match(/id="prog"[^>]*>([^<]*<b>\d<\/b>[^<]*)/);
+        const ok = await saveReq(meToken(ANA), '  Wheelchair access for my   colleague, please.  ');
+        assert.strictEqual(ok.statusCode, 200, JSON.stringify(ok.body));
+        assert.strictEqual(rowOf(ANA).guest_requests, 'Wheelchair access for my colleague, please.', 'whitespace collapsed, stored on its own column');
+        assert.ok(rowOf(ANA).guest_requests_at, 'dated');
+        assert.ok(!String(rowOf(ANA).special_requests || '').includes('Wheelchair'), 'the allergy column is untouched');
+        const html1 = String((await page(ANA)).body);
+        assert.ok(/Wheelchair access for my colleague, please\./.test(html1), 'read back on the page');
+        const prog1 = html1.match(/id="prog"[^>]*>([^<]*<b>\d<\/b>[^<]*)/);
+        assert.strictEqual(prog1 && prog1[1], prog0 && prog0[1], 'a request never moves the step count');
+        const long = await saveReq(meToken(ANA), 'x'.repeat(501));
+        assert.strictEqual(long.statusCode, 400, 'capped at 500 characters');
+        assert.strictEqual((await saveReq(meToken(ANA), { nope: 1 })).statusCode, 400, 'text only');
+        const cat = (await call(app, 'GET', '/api/boston/catering', { query: { key: ADMIN_KEY } })).body;
+        const ana = cat.rows.find(r => r.registration_id === ANA);
+        assert.strictEqual(ana.guest_requests, 'Wheelchair access for my colleague, please.', 'the admin row carries it');
+        assert.ok(cat.catering && cat.catering.requests.some(x => x.name === 'Ana Horvat' && /Wheelchair/.test(x.text)), 'and the CATERING block lists it');
+        assert.strictEqual(cat.requests_count, cat.rows.filter(r => r.guest_requests).length, 'counted');
+        const pres = (await call(app, 'GET', '/api/boston/presentations', { query: { key: ADMIN_KEY } })).body;
+        assert.ok(pres.rows.every(r => 'guest_requests' in r && 'finished' in r && 'onepager' in r), 'the presenters table has what came back too');
+        const csv = await call(app, 'GET', '/api/boston/program.csv', { query: { key: ADMIN_KEY } });
+        assert.strictEqual(csv.statusCode, 200);
+        const body = String(csv.body || csv.text || '');
+        assert.ok(/"Name","Email","Institution","Decision","Panel reply","Slides","Slides file or link","One-slide summary","Summary shared","Dietary","Allergies","Special requests","Finished","Email sent","Seat"/.test(body), 'one program sheet, all the columns');
+        assert.ok(/"Wheelchair access for my colleague, please\."/.test(body), 'the request is in the sheet');
+        assert.strictEqual((await call(app, 'GET', '/api/boston/program.csv', { query: {} })).statusCode, 403, 'keyed');
+        // the recap the Finish button sends carries it
+        const fin = await call(app, 'POST', '/api/boston/me/:token/finish', { params: { token: meToken(ANA) }, body: {} });
+        assert.strictEqual(fin.statusCode, 200);
+        const recap = [...sentEmails].reverse().find(m => m.to === 'ana@example.com' && /all set/.test(m.subject));
+        if (recap && fin.body.already === false) assert.ok(/Special requests/.test(recap.html) && /Wheelchair access/.test(recap.html), 'the recap lists the request');
+        const cleared = await saveReq(meToken(ANA), '');
+        assert.strictEqual(cleared.statusCode, 200);
+        assert.strictEqual(rowOf(ANA).guest_requests, null, 'an empty save clears it');
     });
 
     // ================================================================ the guard rails

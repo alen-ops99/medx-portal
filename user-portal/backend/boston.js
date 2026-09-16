@@ -181,6 +181,11 @@ const RECEIPT_SLIDES_MARK = 'RECEIPT-SLIDES-SENT';
 const RECEIPT_SUMMARY_MARK = 'RECEIPT-SUMMARY-SENT';
 const FINISHED_MARK = 'ME-FINISHED';
 const hasMark = (r, mark) => new RegExp(mark).test(String((r && r.notes) || ''));
+// "Any special requests?" — the free-text box on the personal page; capped so a paste never
+// becomes a document. Stored on its own column (guest_requests), read back by the admin card, the
+// program CSV and the Finish recap.
+const MAX_REQUEST_CHARS = 500;
+const guestRequestsOf = r => String((r && r.guest_requests) || '').trim();
 // The one sentence every released-seat surface says — page notice and API refusal alike, so a
 // guest who taps an old link and a guest who forces the form behind it read the same thing.
 const RELEASED_LINE = when => `Your seat was released${when ? ' on ' + when : ''} — write to Laura if plans change.`;
@@ -248,7 +253,8 @@ function cateringStateOf(reg) {
 const PRESENTER_CONFIRMED = 'confirmed';
 const PRESENTER_DECLINED = 'declined';
 // Alen 2026-09-16: a fourth answer. 'panel' = not on the running order (no slides, nothing
-// required), seat confirmed, invited to the 7:05 PM panel discussion instead — its own email shape.
+// required), seat confirmed, invited to the panel discussion instead — its own email shape. No
+// clock is ever printed for the panel: the running order is set on the day.
 const PRESENTER_PANEL = 'panel';
 const PRESENTER_STATES = [PRESENTER_CONFIRMED, PRESENTER_DECLINED, PRESENTER_PANEL];
 const requestedPresentation = r => /5-minute presentation/.test(String((r && r.notes) || ''));
@@ -527,6 +533,14 @@ module.exports = function mountBoston(app, deps) {
                 query.run('ALTER TABLE bridges_registrations ADD COLUMN panel_reply TEXT');
                 query.run('ALTER TABLE bridges_registrations ADD COLUMN panel_replied_at TEXT');
                 console.log('[Boston] panel_reply columns added to bridges_registrations');
+            }
+            // "Any special requests?" — the free-text box on the personal page (Alen 2026-09-16).
+            // Its OWN column: special_requests already carries the allergy answer ("Allergies: …")
+            // and whatever the registration form collected, and the two must never be parsed apart.
+            if (!cols.some(c => String(c.name) === 'guest_requests')) {
+                query.run('ALTER TABLE bridges_registrations ADD COLUMN guest_requests TEXT');
+                query.run('ALTER TABLE bridges_registrations ADD COLUMN guest_requests_at TEXT');
+                console.log('[Boston] guest_requests columns added to bridges_registrations');
             }
             presenterStatusReady = true;
         } catch (e) { console.warn('[Boston] presenter_status migration skipped:', e.message); }
@@ -1567,9 +1581,20 @@ module.exports = function mountBoston(app, deps) {
         const finishNo = (presenter || panel) ? 4 : 3;
         const total = finishNo;
         const done = (panel && stepP ? 1 : 0) + (step1 ? 1 : 0) + (step2 ? 1 : 0) + (presenter && step3 ? 1 : 0) + (finished ? 1 : 0);
+        // The step NUMBERS as the page prints them (Alen 2026-09-16): a presenter's slides come
+        // straight after the catering question — 1 dietary · 2 slides · 3 summary · 4 Finish; a
+        // panelist answers first — 1 panel · 2 dietary · 3 summary · 4 Finish; everyone else
+        // 1 · 2 · 3. The DOM ids (step1 = dietary, step2 = summary, step3 = slides) never move, so
+        // every deep link already in an inbox still lands on the right card.
+        const numbers = presenter
+            ? { diet: 1, slides: 2, summary: 3 }
+            : panel ? { panel: 1, diet: 2, summary: 3 } : { diet: 1, summary: 2 };
+        // "Any special requests?" is asked of everyone and never counted — it is not one of the
+        // numbered asks in the email, so it cannot be one on the page either.
+        const requests = guestRequestsOf(reg);
         return {
-            presenter, declined, panel, panelReply, stepP, cat, summary, slides,
-            step1, step2, step3, total, done, finishNo,
+            presenter, declined, panel, panelReply, stepP, cat, summary, slides, requests,
+            step1, step2, step3, total, done, finishNo, numbers,
             // "All set" is the guest's own word — the Finish click — and nothing else. It used to be
             // derived from "nothing required", which made an attendee's page open already finished
             // before they had touched anything (Alen saw exactly that on 2026-09-16).
@@ -1650,8 +1675,10 @@ module.exports = function mountBoston(app, deps) {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
             ${row('Dietary', cat.prefLabel ? esc(cat.prefLabel) : 'no preference given')}
             ${row('Allergies', cat.allergyState === 'yes' ? esc(cat.allergyText) : cat.allergyState === 'none' ? 'none' : 'not told')}
-            ${row('One-slide summary', st.summary ? '&#10003; ' + esc(st.summary.original_name) : 'not sent (optional)')}
+            ${st.panel ? row('Panel', st.panelReply === 'yes' ? '&#10003; joining the panel discussion' : st.panelReply === 'no' ? 'not joining the panel' : 'not answered') : ''}
             ${st.presenter ? row('Presentation slides', st.slides ? '&#10003; ' + esc(st.slides.original_name) : '&mdash;') : ''}
+            ${row('One-slide summary', st.summary ? '&#10003; ' + esc(st.summary.original_name) : 'not sent (optional)')}
+            ${st.requests ? row('Special requests', esc(st.requests)) : ''}
           </table>
         </td></tr></table>`;
         const ticket = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:${T.cardCream};border:1px solid ${T.hairline};"><tr><td align="center" style="padding:16px 18px;">
@@ -1816,10 +1843,34 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // ------------------------------------------------------------ POST /api/boston/me/:token/requests
+    // "Any special requests?" — one free-text box for everyone, optional, never counted as a step.
+    // {text} up to 500 characters; an empty string clears it. Saved on its own column so the
+    // allergy answer living in special_requests is never touched.
+    app.post('/api/boston/me/:token/requests', (req, res) => {
+        try {
+            const reg = meRegOf(req.params.token);
+            if (!reg) return res.status(404).json({ error: 'This link is not valid. Please use the exact link you were sent.' });
+            if (isReleasedRow(reg)) return res.status(409).json({ error: RELEASED_LINE(releasedOn(reg)) });
+            ensurePresenterStatusColumn();
+            const raw = (req.body || {}).text;
+            if (raw != null && typeof raw !== 'string') return res.status(400).json({ error: 'Please type your request as text.' });
+            const text = String(raw || '').replace(/\s+/g, ' ').trim();
+            if (text.length > MAX_REQUEST_CHARS) return res.status(400).json({ error: `Please keep it under ${MAX_REQUEST_CHARS} characters.` });
+            query.run('UPDATE bridges_registrations SET guest_requests = ?, guest_requests_at = ? WHERE id = ?',
+                [text || null, text ? new Date().toISOString() : null, reg.id]);
+            flushDb();
+            res.json({ success: true, text });
+        } catch (e) {
+            console.error('[Boston] special request save failed:', e.message);
+            res.status(500).json({ error: 'We could not save that just now. Please try again.' });
+        }
+    });
+
     // ------------------------------------------------------------ POST /api/boston/me/:token/finish
     // The guest's own full stop. A confirmed presenter without a deck (file or link) is turned
-    // back to step 3 instead of finishing; everyone else is stamped ME-FINISHED and gets ONE
-    // recap email — diet, summary, slides, the ticket QR — ever. A second click re-emails nothing.
+    // back to the slides step instead of finishing; everyone else is stamped ME-FINISHED and gets
+    // ONE recap email — diet, summary, slides, the ticket QR — ever. A second click re-emails nothing.
     app.post('/api/boston/me/:token/finish', async (req, res) => {
         try {
             const reg = meRegOf(req.params.token);
@@ -1829,7 +1880,7 @@ module.exports = function mountBoston(app, deps) {
             if (st.presenter && !st.step3) {
                 return res.status(409).json({
                     incomplete: 'slides',
-                    error: 'One thing left — your presentation slides. Upload them (or paste a share link) in step 3 and you are done.'
+                    error: `One thing left — your presentation slides. Upload them (or paste a share link) in step ${st.numbers.slides} and you are done.`
                 });
             }
             if (st.panel && !st.stepP) {
@@ -1983,6 +2034,12 @@ module.exports = function mountBoston(app, deps) {
                 declined_presenter: wasDeclinedPresenter(r),
                 panel: isPanelRow(r),
                 panel_reply: isPanelRow(r) ? (String(r.panel_reply || '').toLowerCase() || null) : null,
+                // What has come back from them, in the same read the decision chips are drawn from,
+                // so the presenters table answers "who is done" without a second screen.
+                onepager: !!latestOnepager(r.id),
+                finished: hasMark(r, FINISHED_MARK),
+                guest_requests: guestRequestsOf(r) || null,
+                reminder_sent: wasReminded(r),
                 // A presenter who gave the seat back stays visible here (their deck is still on
                 // file) but is marked, so nobody sends slides chasers to somebody who is not coming.
                 status: r.status || null,
@@ -2313,19 +2370,31 @@ module.exports = function mountBoston(app, deps) {
         const ink = T.ink, soft = T.soft, gold = T.goldDark;
         const line = (n, html) => `<tr><td style="width:30px;vertical-align:top;padding:7px 0;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:${T.crimson};color:#fff;font-family:${T.sans};font-weight:700;font-size:12px;">${n}</span></td><td style="padding:7px 0 7px 8px;font-family:${T.sans};font-size:14.5px;line-height:1.55;color:${ink};">${html}</td></tr>`;
         const tag = t => `<span style="font-family:${T.sans};font-weight:600;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:${gold};border:1px solid ${T.gold};padding:2px 6px;margin-left:6px;vertical-align:1px;">${t}</span>`;
+        // The numbered asks, in the order each shape does them (Alen 2026-09-16) — the same numbers
+        // the personal page prints, so "point 2" means the same thing in both places:
+        //   presenter  1 dietary · 2 slides (required) · 3 summary · 4 program
+        //   panel      1 the panel answer (required) · 2 dietary · 3 summary · 4 program
+        //   everyone   1 dietary · 2 summary · 3 program
         const asks = [];
-        const off = o.panel ? 1 : 0;
-        if (o.panel) asks.push(line(1, `<b>Tell us whether you can join the panel</b>${tag('required')}<br><span style="color:${soft};font-size:13px;">One tap on your personal page &mdash; yes or no. We will send the panel questions a few days before the evening.</span>`));
-        asks.push(line(1 + off, `<b>Tell us your dietary preference and any food allergies</b>${tag('optional')}<br><span style="color:${soft};font-size:13px;">Finger food and drinks will be served.</span>`));
-        asks.push(line(2 + off, `<b>Send us a one-slide summary of your work</b>${tag('optional')}<br><span style="color:${soft};font-size:13px;">We would like every participant to leave with the key information about everyone else in the room. If you would like to take part, please share one slide: who you are, a bit about your work and where you do it, what you are looking for in collaborators or partners, and your contact details. We compile all the slides into one document and share it with every participant after the event. PDF or PowerPoint, by ${esc(SLIDES_DEADLINE)}.</span>`));
-        if (o.presenter) asks.push(line(3, `<b>Send us your presentation slides</b>${tag('required')}<br><span style="color:${soft};font-size:13px;">5 minutes, 5 to 8 slides, PowerPoint 16:9. Introduce your lab, department or institution (whichever you are representing), what you or your group do, and how you would like to collaborate. We will load all presentations onto one laptop, so there is no need to bring your own. Q&amp;A is reserved for the networking reception, given the number of presentations. Full instructions in the attached program. By ${esc(SLIDES_DEADLINE)}.</span>`));
-        asks.push(line((o.presenter ? 4 : 3) + off, `<b>Have a look at the attached program</b><br><span style="color:${soft};font-size:13px;">Running order, presentation instructions and practical notes (PDF).${o.programMissing ? ' <b style="color:#b45309;">(program PDF not uploaded yet)</b>' : ''}</span>`));
+        let n = 0;
+        const summaryLead = o.panel
+            ? 'Even though you are on the panel, we would like every participant to leave with the key information about everyone else in the room.'
+            : o.presenter
+                ? 'We would like every participant to leave with the key information about everyone else in the room.'
+                : 'Even though you are not presenting, we would like every participant to leave with the key information about everyone else in the room.';
+        if (o.panel) asks.push(line(++n, `<b>Accept or decline the panel seat</b>${tag('required')}<br><span style="color:${soft};font-size:13px;">Yes or no, on your personal page &mdash; the button below takes you straight there.</span>`));
+        asks.push(line(++n, `<b>Tell us your dietary preference and any food allergies</b>${tag('optional')}<br><span style="color:${soft};font-size:13px;">Finger food and drinks will be served.</span>`));
+        if (o.presenter) asks.push(line(++n, `<b>Send us your presentation slides</b>${tag('required')}<br><span style="color:${soft};font-size:13px;">5 minutes, 5 to 8 slides, PowerPoint 16:9. Introduce your lab, department or institution (whichever you are representing), what you or your group do, and how you would like to collaborate. We will load all presentations onto one laptop, so there is no need to bring your own. Q&amp;A is reserved for the networking reception, given the number of presentations. We will send you the running order of the presentations once everybody has confirmed, most likely on the day of the event. Full instructions in the attached program. By ${esc(SLIDES_DEADLINE)}.</span>`));
+        asks.push(line(++n, `<b>Send us a one-slide summary of your work</b>${tag('optional')}<br><span style="color:${soft};font-size:13px;">${summaryLead} If you would like to take part, please share one slide: who you are, a bit about your work and where you do it, what you are looking for in collaborators or partners, and your contact details. We compile all the slides into one document and share it with every participant after the event. PDF or PowerPoint, by ${esc(SLIDES_DEADLINE)}.</span>`));
+        asks.push(line(++n, `<b>Have a look at the attached program</b><br><span style="color:${soft};font-size:13px;">Event program, presentation instructions and practical notes (PDF).${o.programMissing ? ' <b style="color:#b45309;">(program PDF not uploaded yet)</b>' : ''}</span>`));
+        // The declined note below points at the summary by number — read it off the list, never hard-code it.
+        const summaryNo = o.presenter ? 3 : (o.panel ? 3 : 2);
 
         const declinedNoteLight = o.declined ? `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background:${T.cardCream};border-left:3px solid ${T.gold};"><tr><td style="padding:14px 18px;font-family:${T.sans};font-size:14.5px;line-height:1.65;color:${ink};">
         <b>Your seat on Monday is confirmed and we very much look forward to seeing you.</b><br><br>
         Thank you for offering to give one of the 5-minute presentations. We received many more requests than the evening can hold, and sadly we could not accommodate your presentation this time. We are sorry about that, and we look forward to welcoming you regardless &mdash; your seat is confirmed. We hope to have you present at one of the next editions.<br><br>
-        We would warmly encourage you to send us your <b>one-slide summary</b> (point 2 below). The summaries of everyone&rsquo;s work are compiled into one document and shared with all participants, so your work is still presented to the room &mdash; with your contact details, for anyone who wants to follow up.
+        We would warmly encourage you to send us your <b>one-slide summary</b> (point ${summaryNo} below). The summaries of everyone&rsquo;s work are compiled into one document and shared with all participants, so your work is still presented to the room &mdash; with your contact details, for anyone who wants to follow up.
       </td></tr></table>` : '';
 
         const ticketLight = `
@@ -2343,8 +2412,8 @@ module.exports = function mountBoston(app, deps) {
       <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:16px;">
         <p style="margin:0 0 10px;">Dear ${esc(first)},</p>
         <p style="margin:0;">We look forward to welcoming you to <b>Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b>${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
-        ${o.presenter ? `<p style="margin:12px 0 0;">Thank you for your interest in presenting &mdash; we are happy to offer you a <b>5-minute slot</b>. The order of presentations will be set once everyone has confirmed, and we will send you the schedule before the evening.</p>` : ''}
-        ${o.panel ? `<p style="margin:12px 0 0;">Thank you for your interest in presenting. We would like to invite you to join the <b>panel discussion</b> instead &mdash; 7:05&nbsp;PM, about 25 minutes, moderated by Alen Juginovic together with a few other senior guests. You will be asked about your work in general and your thoughts on the challenges and opportunities in biomedical collaboration. No slides are needed. Please let us know on your personal page whether you can join the panel.</p>` : ''}
+        ${o.presenter ? `<p style="margin:12px 0 0;">Thank you for your interest in presenting &mdash; we are happy to offer you a <b>5-minute slot</b>. We will send you the running order of the presentations once everybody has confirmed, most likely on the day of the event.</p>` : ''}
+        ${o.panel ? `<p style="margin:12px 0 0;">Thank you for your interest in presenting. We would like to ask you to join the <b>panel discussion</b> instead &mdash; about 25 minutes, moderated by Alen Juginovic together with a few other senior guests. You will be able to present your work and share your thoughts on the challenges and opportunities in international biomedical collaboration. No slides are needed for the panel discussion, but we would still love to receive a one-slide summary of your work. Please accept or decline the panel seat on your personal page (button below).</p>` : ''}
       </div>
       ${declinedNoteLight}
       <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:18px;">Before then, we would ask you to do the following <b>by clicking the button below</b>:</div>
@@ -2546,9 +2615,12 @@ module.exports = function mountBoston(app, deps) {
             return {
                 slides: !!deck,
                 slides_link: isLinkRow(deck),
+                slides_name: deck ? (isLinkRow(deck) ? String(deck.external_url) : String(deck.original_name || '')) : null,
                 finished: hasMark(r, FINISHED_MARK),
                 panel: isPanelRow(r),
                 panel_reply: isPanelRow(r) ? (String(r.panel_reply || '').toLowerCase() || null) : null,
+                guest_requests: guestRequestsOf(r) || null,
+                guest_requests_at: guestRequestsOf(r) ? (r.guest_requests_at || null) : null,
                 registration_id: r.id,
                 name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
                 first_name: r.first_name || '',
@@ -2615,9 +2687,63 @@ module.exports = function mountBoston(app, deps) {
             panel_count: rows.filter(r => r.panel).length,
             panel_accepted: rows.filter(r => r.panel && r.panel_reply === 'yes').length,
             panel_declined: rows.filter(r => r.panel && r.panel_reply === 'no').length,
+            requests_count: rows.filter(r => r.guest_requests).length,
+            // The CATERING block (Alen 2026-09-16: "how many vegan, how many whatever"): every
+            // preference with its head count — the unset ones counted too, so the kitchen's numbers
+            // add up to the room — and the allergy list with names, ready to hand to the caterer.
+            catering: {
+                by_preference: preferences.concat([{ key: 'unset', label: 'No preference given', count: preferenceUnanswered }]),
+                allergies: rows.filter(r => r.allergy_state === 'yes').map(r => ({ name: r.name, institution: r.institution, allergies: r.allergies })),
+                no_allergies: noAllergies,
+                allergies_unanswered: rows.length - withAllergies - noAllergies,
+                requests: rows.filter(r => r.guest_requests).map(r => ({ name: r.name, institution: r.institution, text: r.guest_requests, at: r.guest_requests_at }))
+            },
             rows
         };
     }
+
+    // ------------------------------------------------------------ GET /api/boston/program.csv?key=…
+    // ONE sheet for the whole evening (Alen 2026-09-16): every guest with the decision, the panel
+    // answer, what has come back (deck · link · summary), the food answers, their special requests
+    // and whether they clicked Finish. The caterer's list stays its own, narrower file.
+    app.get('/api/boston/program.csv', (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(403).json({ error: 'Forbidden' });
+            const data = cateringData();
+            const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+            const decision = r => r.presenter_status === PRESENTER_CONFIRMED ? 'Presents'
+                : r.presenter_status === PRESENTER_PANEL ? 'Panel'
+                : r.presenter_status === PRESENTER_DECLINED ? 'Not this time'
+                : (r.presentation_requested ? 'Undecided (offered)' : 'Guest');
+            const lines = [['Name', 'Email', 'Institution', 'Decision', 'Panel reply', 'Slides', 'Slides file or link',
+                'One-slide summary', 'Summary shared', 'Dietary', 'Allergies', 'Special requests', 'Finished', 'Email sent', 'Seat'].map(q).join(',')];
+            for (const r of data.rows) {
+                lines.push([r.name, r.email, r.institution, decision(r),
+                    r.panel ? (r.panel_reply === 'yes' ? 'Accepted' : r.panel_reply === 'no' ? 'Declined' : 'Awaiting') : '',
+                    r.presenter ? (r.slides ? (r.slides_link ? 'Link' : 'Deck') : 'None') : '',
+                    r.presenter && r.slides ? (r.slides_name || '') : '',
+                    r.onepager ? 'Yes' : 'No',
+                    r.onepager ? (r.onepager_share_ok ? 'Shared' : 'Private') : '',
+                    r.preference || '',
+                    r.allergy_state === 'none' ? 'None' : (r.allergies || ''),
+                    r.guest_requests || '',
+                    r.finished ? 'Yes' : 'No',
+                    r.reminder_sent ? (r.reminder_sent_at || 'Yes') : 'No',
+                    'Coming'].map(q).join(','));
+            }
+            for (const r of data.released) {
+                lines.push([r.name, r.email, r.institution, r.presenter ? 'Was presenting' : 'Guest', '', '', '', '', '', '', '', '', '', '',
+                    'Released seat' + (r.released_on ? ' ' + r.released_on : '')].map(q).join(','));
+            }
+            res.set('Content-Type', 'text/csv; charset=utf-8');
+            res.set('Content-Disposition', 'attachment; filename="boston-program.csv"');
+            res.set('Cache-Control', 'private, no-store');
+            res.send('\ufeff' + lines.join('\r\n') + '\r\n');
+        } catch (e) {
+            console.error('[Boston] program CSV failed:', e.message);
+            res.status(500).json({ error: 'Export failed.' });
+        }
+    });
 
     // ------------------------------------------------------------ POST /api/boston/reminders/send
     // {to:'preview'}                       → BOTH shapes of the email to the reviewer, nothing stamped.
@@ -3409,24 +3535,26 @@ function mePage(reg, st, s3ok, tok, links) {
         `<button type="button" class="chip${cat.allergyState === 'none' ? ' on' : ''}" data-allergy="none">No allergies</button>`
         + `<button type="button" class="chip${cat.allergyState === 'yes' ? ' on' : ''}" data-allergy="yes">I have allergies</button>`;
 
-    // Panel rows: the answer is step 1 and the others move down by one.
-    const off = st.panel ? 1 : 0;
+    // The step numbers each shape prints — see meStateOf(). The DOM ids never move.
+    const N = st.numbers || {};
+    const PANEL_YES = 'Thank you &mdash; we look forward to having you on the panel.';
+    const PANEL_NO = 'Thank you for letting us know &mdash; your seat for the evening is of course confirmed.';
     const stepP = st.panel ? `
-    <section class="sheet step" id="stepP" aria-label="Step 1 — the panel">
-      ${head(1, st.stepP, 'The panel: will you join us?', tag('req', 'Required'))}
-      <p class="sbody">We would like to invite you to join the <b>panel discussion</b> &mdash; 7:05&nbsp;PM, about 25 minutes, moderated by Alen Juginovic together with a few other senior guests. You will be asked about your work in general and your thoughts on the challenges and opportunities in biomedical collaboration. No slides are needed.</p>
+    <section class="sheet step" id="stepP" aria-label="Step ${N.panel} — the panel">
+      ${head(N.panel, st.stepP, 'The panel &mdash; will you join us?', tag('req', 'Required'))}
+      <p class="sbody">We would like to ask you to join the <b>panel discussion</b> &mdash; about 25 minutes, moderated by Alen Juginovic together with a few other senior guests. You will be able to present your work and share your thoughts on the challenges and opportunities in international biomedical collaboration. No slides are needed for the panel discussion, but we would still love to receive a one-slide summary of your work.</p>
       <p class="qlabel">Can you join the panel?</p>
       <div class="chips" id="panelrow">
         <button type="button" class="chip${st.panelReply === 'yes' ? ' on' : ''}" data-panel="yes">Yes, I&rsquo;ll join the panel</button>
         <button type="button" class="chip${st.panelReply === 'no' ? ' on' : ''}" data-panel="no">I&rsquo;d rather not</button>
       </div>
-      <p class="sbody" id="panel_note" style="margin-top:12px;font-size:13px;color:#6f6256;">${st.panelReply === 'yes' ? 'Thank you &mdash; we will send you the panel questions a few days before the evening. You can change your answer here any time.' : st.panelReply === 'no' ? 'Noted &mdash; your seat for the evening stays confirmed. You can change your answer here any time.' : 'One tap saves your answer; you can change it any time.'}</p>
+      <p class="sbody" id="panel_note" style="margin-top:12px;font-size:13px;color:#6f6256;">${st.panelReply === 'yes' ? PANEL_YES : st.panelReply === 'no' ? PANEL_NO : 'You can change your answer any time.'}</p>
       <p class="err" id="p_err"></p>
     </section>` : '';
 
     const step1 = `
-    <section class="sheet step" id="step1" aria-label="Step ${1 + off} — dietary preferences and allergies">
-      ${head(1 + off, st.step1, 'Dietary preferences and allergies', tag('opt', 'Optional'))}
+    <section class="sheet step" id="step1" aria-label="Step ${N.diet} — dietary preferences and allergies">
+      ${head(N.diet, st.step1, 'Dietary preferences and allergies', tag('opt', 'Optional'))}
       <p class="sbody">Finger food and drinks will be served during the networking part of the evening. If you have a preference or an allergy, one tap in each row tells the kitchen &mdash; nothing to type, nothing to sign in to.</p>
 
       <p class="qlabel">What should we put on your plate?</p>
@@ -3447,9 +3575,9 @@ function mePage(reg, st, s3ok, tok, links) {
     // ---- step 2 · the one-slide summary — the one genuinely optional ask ----
     const shareOn = !st.summary || st.summary.share_ok == null || Number(st.summary.share_ok) !== 0;
     const step2 = `
-    <section class="sheet step" id="step2" aria-label="Step 2 — your one-slide summary">
-      ${head(2 + off, st.step2, 'One-slide summary of your work', tag('opt', 'Optional'))}
-      <p class="sbody">One slide about your work: your institution and group, what you work on, and what kind of collaboration you are looking for &mdash; with your contact details. After the event we compile every summary into one document and send it to all participants.</p>
+    <section class="sheet step" id="step2" aria-label="Step ${N.summary} — your one-slide summary">
+      ${head(N.summary, st.step2, 'One-slide summary of your work', tag('opt', 'Optional'))}
+      <p class="sbody">${st.panel ? 'Even though you are on the panel, we' : st.presenter ? 'We' : 'Even though you are not presenting, we'} would like every participant to leave with the key information about everyone else in the room. One slide about your work: your institution and group, what you work on, and what kind of collaboration you are looking for &mdash; with your contact details. After the event we compile every summary into one document and send it to all participants.</p>
       <p class="sbody" style="margin-top:8px;"><b>Please keep it to one slide</b> &mdash; a single PowerPoint slide or a one-page PDF.</p>
       ${onFileCard('s2_file_card', st.summary, `<p class="fmeta" id="s2_share_line">${st.summary ? (shareOn ? 'Shared with all participants after the event.' : 'Kept private &mdash; only the Med&amp;X team sees it.') : ''}</p>`)}
       ${s3ok ? `
@@ -3467,9 +3595,9 @@ function mePage(reg, st, s3ok, tok, links) {
 
     // ---- step 3 · the deck — presenters only, and required of them ----
     const step3 = st.presenter ? `
-    <section class="sheet step" id="step3" aria-label="Step 3 — your presentation slides">
-      ${head(3, st.step3, 'Your presentation slides', tag('req', 'Required'))}
-      <p class="sbody">You are giving one of the <b>5-minute presentations</b>. Introduce your lab, clinic or department at a broad level, show one project or result, and use your <b>last slide</b> to say how you would like to collaborate. Talks run back to back from one laptop, so the deck has to be with us in advance.</p>
+    <section class="sheet step" id="step3" aria-label="Step ${N.slides} — your presentation slides">
+      ${head(N.slides, st.step3, 'Your presentation slides', tag('req', 'Required'))}
+      <p class="sbody">You are giving one of the <b>5-minute presentations</b>. Introduce your lab, clinic or department at a broad level, show one project or result, and use your <b>last slide</b> to say how you would like to collaborate. Talks run back to back from one laptop, so the deck has to be with us in advance. We will send you the running order of the presentations once everybody has confirmed, most likely on the day of the event.</p>
       ${onFileCard('s3_file_card', st.slides)}
       ${s3ok ? `
       <label class="filepick" for="s3_file">
@@ -3495,13 +3623,31 @@ function mePage(reg, st, s3ok, tok, links) {
     // A declined presenter's page carries NO note about the decision (Alen 2026-09-16: the email
     // already said it) — they simply see the attendee steps.
 
+    // ---- any special requests? — one free-text box for everyone, optional, unnumbered (it is not
+    //      one of the asks in the email, so it is not one of the numbered steps here) ----
+    const requestsCard = `
+    <section class="sheet step" id="requests" aria-label="Any special requests?">
+      <div class="shead">
+        <span class="snum req" aria-hidden="true">&#9998;</span>
+        <div class="sh"><h2>Any special requests?</h2>${tag('opt', 'Optional')}</div>
+      </div>
+      <p class="sbody">Anything else we should know &mdash; accessibility, seating, a plus-one question, anything at all. We will do our best to accommodate it.</p>
+      <div class="abox" style="margin-top:14px;">
+        <label for="rq_text">Your request</label>
+        <textarea id="rq_text" maxlength="${MAX_REQUEST_CHARS}" rows="3" placeholder="Type it here" style="width:100%;padding:13px 14px;border:1px solid rgba(43,33,25,.18);border-radius:11px;background:#fff;color:#241d18;font-size:16px;font-family:inherit;line-height:1.5;resize:vertical;">${esc(st.requests || '')}</textarea>
+        <button type="button" class="save" id="rq_save">${st.requests ? 'Update my request' : 'Save my request'}</button>
+      </div>
+      <p class="ok" id="rq_ok"${st.requests ? '' : ' hidden'}>Saved &#10003;</p>
+      <p class="err" id="rq_err"></p>
+    </section>`;
+
     // ---- last numbered step · Finish — their word that they're done (above the ticket, so nobody
     //      scrolls past it; the QR is the very last thing on the page) ----
     const finishStep = `
     <section class="sheet step" id="finishcard" aria-label="Step ${st.finishNo} — finish">
       ${head(st.finishNo, st.finished, 'Finish &mdash; I&rsquo;m all set', '')}
       <div id="finish_pending"${st.finished ? ' hidden' : ''}>
-        <p class="sbody">Done here? Tell us with one tap &mdash; it helps us keep count for the evening. You can still come back and change anything afterwards.</p>
+        <p class="sbody">Done here? Great &mdash; please click Finish and you&rsquo;re all set. You can still come back and change anything afterwards.</p>
         <button type="button" class="go" id="finish_go">Finish &mdash; I&rsquo;m all set</button>
         <p class="err" id="finish_err"></p>
       </div>
@@ -3604,7 +3750,6 @@ main{max-width:640px;}
   <p class="kicker">Building Bridges — Boston &middot; Your personal page</p>
   <h1>Hi ${esc(first)}!</h1>
   <p class="who"><b>${esc(fullName)}</b>${reg.institution ? ' &middot; ' + esc(reg.institution) : ''}</p>
-  ${st.panel ? '<p class="who" style="margin-top:6px">You are on the panel at 7:05 PM &mdash; no slides needed.</p>' : ''}
   <p class="prog${st.finished ? ' allset' : ''}" id="prog"
      data-total="${st.total}" data-presenter="${st.presenter ? 1 : 0}" data-panel="${st.panel ? 1 : 0}" data-sp="${st.stepP ? 1 : 0}" data-fin="${st.finished ? 1 : 0}"
      data-s1="${st.step1 ? 1 : 0}" data-s2="${st.step2 ? 1 : 0}" data-s3="${st.step3 ? 1 : 0}">${st.finished
@@ -3615,8 +3760,8 @@ main{max-width:640px;}
 <main>
   ${stepP}
   ${step1}
-  ${step2}
-  ${step3}
+  ${st.presenter ? step3 + step2 : step2 + step3}
+  ${requestsCard}
   ${finishStep}
 
   <section class="sheet" aria-label="Your ticket">
@@ -3680,7 +3825,7 @@ ${FOOTER_HTML}
       if(res.ok&&res.j.success){
         prog.setAttribute('data-sp','1');
         var c=$('stepP'),n=c&&c.querySelector('.snum');if(n){n.classList.add('on');n.innerHTML='&#10003;';}
-        if(pnote)pnote.innerHTML=v==='yes'?'Thank you &mdash; we will send you the panel questions a few days before the evening. You can change your answer here any time.':'Noted &mdash; your seat for the evening stays confirmed. You can change your answer here any time.';
+        if(pnote)pnote.innerHTML=v==='yes'?'${PANEL_YES}':'${PANEL_NO}';
         render();
       }else show(perr,res.j.error||'We could not save that. Please try again.');
     },function(){show(perr,'We could not reach the server. Please try again.');});
@@ -3821,6 +3966,20 @@ ${FOOTER_HTML}
   }
   if(linkSave){linkSave.addEventListener('click',saveLink);
     linkIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();saveLink();}});}
+
+  /* ---- any special requests? — free text, saved in place, never counted ---- */
+  var rqText=$('rq_text'),rqSave=$('rq_save'),rqErr=$('rq_err'),rqOk=$('rq_ok');
+  function saveRequest(){
+    var t=(rqText.value||'').trim();
+    hide(rqErr);rqOk.setAttribute('hidden','');
+    rqSave.disabled=true;var lab=rqSave.textContent;rqSave.textContent='Saving…';
+    post(ME+'/requests',{text:t}).then(function(res){
+      rqSave.disabled=false;
+      if(res.ok&&res.j.success){rqSave.textContent=t?'Update my request':'Save my request';if(t)rqOk.removeAttribute('hidden');}
+      else{rqSave.textContent=lab;show(rqErr,res.j.error||'We could not save that. Please try again.');}
+    },function(){rqSave.disabled=false;rqSave.textContent=lab;show(rqErr,'We could not reach the server. Please try again.');});
+  }
+  if(rqSave)rqSave.addEventListener('click',saveRequest);
 
   /* ---- the Finish button: their word that they're done ---- */
   var fgo=$('finish_go'),ferr=$('finish_err');
@@ -4122,7 +4281,7 @@ function panelFyiHtml(who, institution, email, reply, before) {
     const yes = reply === 'yes';
     const headline = yes ? 'Panel seat accepted' : 'Panel seat declined';
     const line = yes
-        ? `<b style="color:#f2e7d6;">${esc(who)}</b>${institution ? ` (${esc(institution)})` : ''} will join the panel at 7:05&nbsp;PM.`
+        ? `<b style="color:#f2e7d6;">${esc(who)}</b>${institution ? ` (${esc(institution)})` : ''} will join the panel discussion.`
         : `<b style="color:#f2e7d6;">${esc(who)}</b>${institution ? ` (${esc(institution)})` : ''} would rather not be on the panel &mdash; they keep their seat as a guest. A replacement panelist can be invited from the Boston card.`;
     const changed = before ? `<br><span style="color:#c9b89f;">They had answered &ldquo;${esc(before)}&rdquo; before and changed it.</span>` : '';
     const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 40px 30px;">

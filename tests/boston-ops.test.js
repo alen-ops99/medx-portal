@@ -465,6 +465,16 @@ const notesOf = id => String((query.get('SELECT notes FROM bridges_registrations
         assert.equal(r.headers.location, MEMBER + '/api/boston/catering.csv?key=' + ADMIN_KEY);
     });
 
+    await t('the program sheet (one CSV for the whole evening) hops the same way, and the card is told its url', async () => {
+        assert.ok(app.routes['GET /api/v2/boston/program.csv'], 'route mounted');
+        assert.equal(app.routes['GET /api/v2/boston/program.csv'].length, 3, '[auth, adminOnly, handler]');
+        const r = await app.call('GET', '/api/v2/boston/program.csv', {});
+        assert.equal(r.status, 302);
+        assert.equal(r.headers.location, MEMBER + '/api/boston/program.csv?key=' + ADMIN_KEY);
+        const c = await app.call('GET', '/api/v2/boston/catering', {});
+        assert.equal(c.body.program_csv_url, MEMBER + '/api/boston/program.csv?key=' + ADMIN_KEY);
+    });
+
     // -------- one-pagers, the program PDF, and the owner's two previews
     await t('the one-pager list and archive come through the same keyed hop', async () => {
         const r = await app.call('GET', '/api/v2/boston/onepagers', {});

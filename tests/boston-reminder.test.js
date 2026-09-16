@@ -468,8 +468,8 @@ async function t(name, fn) {
 
     await t('the program line names what is attached, in the owner\'s words', () => {
         const html = sentEmails[sentEmails.length - 1].html;
-        assert.ok(html.includes('Running order, presentation instructions and practical notes'),
-            'the program line names what is attached');
+        assert.ok(html.includes('Event program, presentation instructions and practical notes (PDF).'),
+            'the program line names what is attached — no "running order" there (that belongs to the slides ask)');
         assert.ok(!html.includes('(program PDF not uploaded yet)'), 'and not marked as missing');
     });
 
@@ -955,8 +955,42 @@ async function t(name, fn) {
             'the reminder, the catering answers and the exports must leave the owner\'s sheet alone');
     });
 
+    // ================================================================ the QR gate (Alen 2026-09-16)
+    // "Make sure the QR code really is each person's QR code." Every ticket surface in the one email
+    // — the QR image, the personal-page link, the wallet pass token — must be derived from THAT
+    // row's id, and no other seated row's id may appear anywhere in it.
+    await t('QR GATE: every guest\'s email carries their own QR, their own page token, their own pass — and nobody else\'s', async () => {
+        const seats = query.all(`SELECT id, email FROM bridges_registrations WHERE event_id = ? AND status IN ('registered','confirmed')`, [EVENT_ID]);
+        assert.ok(seats.length >= 3, 'needs several seats to prove uniqueness');
+        const before = sentEmails.length;
+        for (const r of seats) {
+            const resp = await call(app, 'POST', '/api/boston/reminders/send', { query: { key: ADMIN_KEY }, body: { to: r.id } });
+            assert.strictEqual(resp.statusCode, 200, r.email + ': ' + JSON.stringify(resp.body));
+        }
+        const mails = sentEmails.slice(before);
+        assert.strictEqual(mails.length, seats.length, 'one email per seat');
+        const seen = new Set();
+        for (const r of seats) {
+            const m = mails.find(x => x.to === r.email);
+            assert.ok(m, 'no email for ' + r.email);
+            const qr = `/api/boston/qr/${r.id}.png`;
+            assert.ok(m.html.includes(qr), r.email + ': the QR image is their own row');
+            assert.ok(m.html.includes('/boston/me/' + meToken(r.id)), r.email + ': the personal-page token is their own row');
+            const passHit = m.html.match(/\/api\/boston\/pass\/([^"'.]+)\.pkpass/);
+            if (passHit) assert.ok(passHit[1].endsWith('.' + r.id), r.email + ': the wallet pass token is their own row');
+            for (const other of seats) {
+                if (other.id === r.id) continue;
+                assert.ok(!m.html.includes(other.id), r.email + ': another seat\'s id (' + other.id.slice(0, 8) + ') appears in this email');
+            }
+            const allQr = m.html.match(/\/api\/boston\/qr\/[0-9a-f-]+\.png/g) || [];
+            assert.ok(allQr.length >= 1 && allQr.every(u => u === qr), r.email + ': every QR URL in the email is the same, own, one');
+            assert.ok(!seen.has(qr), 'two guests share a QR: ' + qr); seen.add(qr);
+        }
+    });
+
     await t('no email went anywhere except the seats, Laura and the reviewer', () => {
-        const allowed = new Set(['ana@example.com', 'luka@example.com', 'mia@example.com', 'quiet@example.com',
+        // petra: her seat was restored above, so the QR gate rightly addressed her too
+        const allowed = new Set(['ana@example.com', 'luka@example.com', 'mia@example.com', 'quiet@example.com', 'petra@example.com',
             SUPPORT_EMAIL, REVIEW_TO]);
         for (const m of sentEmails) assert.ok(allowed.has(m.to), 'unexpected recipient: ' + m.to);
         assert.ok(!sentEmails.some(m => m.to === 'bot@example.com' || m.to === 'gone@example.com'),

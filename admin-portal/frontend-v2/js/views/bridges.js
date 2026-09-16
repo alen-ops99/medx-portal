@@ -76,9 +76,13 @@ export const COPY = {
     zip: n => `DOWNLOAD ALL DECKS (ZIP · ${n})`, zipNone: 'NO DECKS UPLOADED YET',
     add: '+ ADD A PRESENTER', addClose: 'CLOSE',
     phName: 'Full name — e.g. Dr. Ivana Kovač', phEmail: 'Email address', addSend: 'ADD & SEND THE LINK',
-    cWho: 'PRESENTER', cInst: 'INSTITUTION', cPresents: 'PRESENTS?', cDeck: 'DECK', cSent: 'LINK SENT',
+    cWho: 'PRESENTER', cInst: 'INSTITUTION', cPresents: 'DECISION', cDeck: 'DECK', cSummary: 'SUMMARY', cDone: 'FINISHED', cReq: 'REQUESTS', cSent: 'LINK SENT',
     send: 'SEND LINK', resend: 'RESEND', busy: 'SENDING…',
     deckYes: 'UPLOADED', deckLink: 'LINK ↗', deckNo: '–', notSent: 'not sent', byTeam: 'ADDED BY TEAM',
+    summaryYes: '✓', finishedYes: '✓', reqNone: '–',
+    // the filter chips over the presenters table (Alen 2026-09-16: "who accepted, who didn't, easy")
+    filters: { all: 'ALL', confirmed: 'PRESENTS', panel: 'PANEL', declined: 'NOT THIS TIME', awaiting: 'AWAITING PANEL REPLY', requests: 'HAS REQUESTS' },
+    programCsv: 'PROGRAM SHEET (CSV)',
     counts: (r, u, i) => `${r} presenting · ${u} uploaded · ${i} invited`,
     // The owner's pick. Far more people offered than the evening holds, so each row is his call:
     // presents, not this time, or still undecided — and the three counts always add up to the
@@ -92,7 +96,7 @@ export const COPY = {
         : s === 'panel' ? `Invite ${who} to the panel?`
         : s === 'declined' ? `Tell ${who} there was no room?` : `Leave ${who} undecided again?`,
     cPickBody: s => s === 'panel'
-        ? '<p style="margin:0 0 8px">Their Boston email invites them to the <b>7:05 PM panel</b> instead of a talk — no slides step; their personal page asks them to accept or decline the seat.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape they get.</p>'
+        ? '<p style="margin:0 0 8px">Their Boston email invites them to the <b>panel discussion</b> instead of a talk — no slides step; their personal page asks them to accept or decline the seat.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape they get.</p>'
         : s === 'confirmed'
         ? '<p style="margin:0 0 8px">They keep the slides step on their personal page and the Boston email asks them for a deck.</p><p style="margin:0;color:#6d6459">Nothing is emailed by this — it only decides which shape their Boston email takes.</p>'
         : s === 'declined'
@@ -142,6 +146,11 @@ export const COPY = {
     stripFinished: n => `finished ${n}`,
     stripCancelled: n => `cancelled ${n}`,
     cDone: 'SLIDES · DONE', deckLink: 'LINK', finishedMark: 'FINISHED ✓',
+    cReq: 'REQUESTS',
+    // the CATERING block: head counts the kitchen can cook from, and the allergy list with names
+    kitchen: { title: 'CATERING', sub: 'head counts by preference, then every allergy with a name — hand this to the caterer',
+      notAnswered: n => `Not answered ${n}`, noAllergies: n => `${n} said no allergies`, allergiesUnanswered: n => `${n} have not answered the allergy question`,
+      allergyTitle: 'ALLERGIES', allergyNone: 'No allergies reported yet.', reqTitle: 'SPECIAL REQUESTS', reqNone: 'No special requests yet.' },
     // released seats — collapsed, because on a good week the section is empty and silent
     relTitle: n => `RELEASED SEATS (${n})`, relOpen: 'SHOW', relClose: 'HIDE',
     relWhen: d => d ? `released ${d}` : 'released',
@@ -172,7 +181,7 @@ export const COPY = {
     progBad: 'PDF ONLY, UP TO 10 MB',
     needProgram: 'UPLOAD THE PROGRAM PDF FIRST',
     // the owner's two previews
-    prevTitle: 'PREVIEW', prevPresenter: 'PREVIEW AS PRESENTER', prevAttendee: 'PREVIEW AS ATTENDEE', prevBusy: 'SENDING…',
+    prevTitle: 'PREVIEW', prevPresenter: 'PRESENTER', prevAttendee: 'ATTENDEE', prevPanel: 'PANEL', prevDeclined: 'NOT THIS TIME', prevBusy: 'SENDING…',
     prevSent: v => `${String(v).toUpperCase()} PREVIEW SENT TO YOUR INBOX`
   },
   stats: {
@@ -471,6 +480,21 @@ function blockBoston() {
     : `<span data-act="${act}" ${extra || ''} style="padding:8px 13px;${on ? 'background:#9b1b22;color:#fff;' : 'border:1px solid rgba(32,27,22,.25);background:#fff;color:#6d6459;'}font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap;${on ? 'cursor:pointer' : 'cursor:default'}" ${on ? `data-hover="background:#7e151b"` : 'aria-disabled="true"'}>${esc(label)}</span>`;
   const cell = 'padding:9px 12px;border-bottom:1px solid rgba(32,27,22,.07);vertical-align:middle';
   const head = 'padding:8px 12px;text-align:left;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;border-bottom:1px solid rgba(32,27,22,.12);white-space:nowrap';
+  // The filter chips: one glance answers "who presents / who is on the panel / who still owes a
+  // panel answer / who asked for something" — the table below shows only that group.
+  const f = st.bpFilter || 'all';
+  const matches = r => f === 'all' ? true
+    : f === 'confirmed' ? r.presenter_status === 'confirmed'
+    : f === 'panel' ? !!r.panel
+    : f === 'declined' ? r.presenter_status === 'declined'
+    : f === 'awaiting' ? (!!r.panel && !r.panel_reply)
+    : f === 'requests' ? !!r.guest_requests : true;
+  const shown = rows.filter(matches);
+  const countOf = k => k === 'all' ? rows.length : rows.filter(r => (k === 'confirmed' ? r.presenter_status === 'confirmed' : k === 'panel' ? !!r.panel : k === 'declined' ? r.presenter_status === 'declined' : k === 'awaiting' ? (!!r.panel && !r.panel_reply) : !!r.guest_requests)).length;
+  const filterChips = Object.keys(c.filters).map(k => {
+    const on = f === k; const n = countOf(k);
+    return `<span data-act="bpFilter" data-filter="${k}" role="radio" aria-checked="${on}" style="padding:6px 10px;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;cursor:pointer;white-space:nowrap;${on ? 'background:#201b16;color:#fff;border:1px solid #201b16' : 'background:#fff;color:#6d6459;border:1px solid rgba(32,27,22,.2)'}" data-hover="border-color:#201b16">${c.filters[k]} · ${n}</span>`;
+  }).join('');
   return `
     <!-- v2: BOSTON — 5-minute presentations (member portal owns the links, files and the email) -->
     <div data-block="boston" id="boston-presentations" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;margin-top:22px">
@@ -496,11 +520,16 @@ function blockBoston() {
       ${!P && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
       ${P && !rows.length ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
       ${P && rows.length ? `
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08)">
+        ${filterChips}
+        <div style="flex:1"></div>
+        <a href="${esc((D.cat && D.cat.program_csv_url) || '/api/v2/boston/program.csv')}" style="padding:7px 12px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${c.programCsv}</a>
+      </div>
       <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px">
-          <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPresents}</th><th style="${head}">${c.cDeck}</th><th style="${head}">${c.cSent}</th><th style="${head}"></th></tr></thead>
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:900px">
+          <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPresents}</th><th style="${head}">${c.cDeck}</th><th style="${head}">${c.cSummary}</th><th style="${head}">${c.cDone}</th><th style="${head}">${c.cReq}</th><th style="${head}">${c.cSent}</th><th style="${head}"></th></tr></thead>
           <tbody>
-          ${rows.map(r => {
+          ${shown.map(r => {
             const busy = st.bpSending === r.registration_id;
             return `
             <tr data-row="${esc(r.registration_id)}">
@@ -516,10 +545,16 @@ function blockBoston() {
                   ? `<a href="${esc(r.upload.external_url)}" target="_blank" rel="noopener" title="${esc(r.upload.external_url)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px" data-hover="background:#1e6e42;color:#fff">✓ ${c.deckLink}</a>`
                   : `<a href="${esc(r.upload.download_url)}" title="${esc(r.upload.filename || '')}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6efe8;color:#1e6e42;padding:3px 8px" data-hover="background:#1e6e42;color:#fff">✓ ${c.deckYes}</a>`)
                 : `<span style="color:#9a9086">${c.deckNo}</span>`}</td>
+              <td style="${cell};white-space:nowrap;color:${r.onepager ? '#1e6e42' : '#9a9086'}">${r.onepager ? c.summaryYes : c.deckNo}</td>
+              <td style="${cell};white-space:nowrap;color:${r.finished ? '#1e6e42' : '#9a9086'}">${r.finished ? c.finishedYes : c.deckNo}</td>
+              <td style="${cell};max-width:220px">${r.guest_requests
+                ? `<span title="${esc(r.guest_requests)}" style="display:block;font-size:11.5px;color:#201b16;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✎ ${esc(r.guest_requests)}</span>`
+                : `<span style="color:#9a9086">${c.reqNone}</span>`}</td>
               <td style="${cell};white-space:nowrap;color:${r.invited_at == null ? '#b7791f' : '#6d6459'}">${r.invited_at == null ? c.notSent : esc(r.invited_at || '✓')}</td>
               <td style="${cell};text-align:right;white-space:nowrap">${btn('bpSendOne', busy ? c.busy : (r.invited_at == null ? c.send : c.resend), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}</td>
             </tr>`;
           }).join('')}
+          ${!shown.length ? `<tr><td colspan="9" style="${cell};color:#6d6459;font-style:italic">Nobody in this group.</td></tr>` : ''}
           </tbody>
         </table>
       </div>` : ''}
@@ -567,7 +602,9 @@ function sectionCatering(btn, cell, head) {
           <div style="flex:1"></div>
           <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${c.prevTitle}</span>
           ${btn('bpPreview', st.bpPreviewing === 'presenter' ? c.prevBusy : c.prevPresenter, !st.bpPreviewing, 'data-variant="presenter"', 'ghost')}
+          ${btn('bpPreview', st.bpPreviewing === 'panel' ? c.prevBusy : c.prevPanel, !st.bpPreviewing, 'data-variant="panel"', 'ghost')}
           ${btn('bpPreview', st.bpPreviewing === 'attendee' ? c.prevBusy : c.prevAttendee, !st.bpPreviewing, 'data-variant="attendee"', 'ghost')}
+          ${btn('bpPreview', st.bpPreviewing === 'declined' ? c.prevBusy : c.prevDeclined, !st.bpPreviewing, 'data-variant="declined"', 'ghost')}
         </div>` : ''}
         ${C ? `<div style="display:flex;gap:8px 20px;flex-wrap:wrap;padding:11px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);font-size:11.5px;color:#6d6459">
           <span><b style="color:#201b16">${esc(c.stripReg(C.total || 0))}</b></span>
@@ -579,13 +616,14 @@ function sectionCatering(btn, cell, head) {
           ${C.released_count ? `<span style="color:#9b1b22"><b style="color:#9b1b22">${esc(c.stripCancelled(C.released_count))}</b></span>` : ''}
           ${prefLine ? `<span>${prefLine}</span>` : ''}
         </div>` : ''}
+        ${sectionKitchen()}
         ${sectionReleased(btn)}
         ${!C && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
         ${C && !rows.length ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
         ${C && rows.length ? `
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px">
-            <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPref}</th><th style="${head}">${c.cAllergy}</th><th style="${head}">${c.cOnePager}</th><th style="${head}">${c.cAnswered}</th><th style="${head}">${c.cDone}</th><th style="${head}">${c.cRem}</th><th style="${head}"></th></tr></thead>
+            <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPref}</th><th style="${head}">${c.cAllergy}</th><th style="${head}">${c.cOnePager}</th><th style="${head}">${c.cAnswered}</th><th style="${head}">${c.cDone}</th><th style="${head}">${c.cReq}</th><th style="${head}">${c.cRem}</th><th style="${head}"></th></tr></thead>
             <tbody>
             ${rows.map(r => {
               const busy = st.bpReminding === r.registration_id;
@@ -613,6 +651,7 @@ function sectionCatering(btn, cell, head) {
                 <td style="${cell};white-space:nowrap">${r.presenter
                   ? (r.slides ? `<span style="color:#1e6e42">✓ ${r.slides_link ? c.deckLink : 'DECK'}</span>` : '<span style="color:#b7791f">no deck</span>')
                   : '<span style="color:#9a9086">–</span>'}${r.finished ? `<span style="display:block;font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#1e6e42">${c.finishedMark}</span>` : ''}</td>
+                <td style="${cell};max-width:200px">${r.guest_requests ? `<span title="${esc(r.guest_requests)}" style="display:block;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">✎ ${esc(r.guest_requests)}</span>` : '<span style="color:#9a9086">–</span>'}</td>
                 <td style="${cell};white-space:nowrap;color:${r.reminder_sent ? '#6d6459' : '#b7791f'}">${r.reminder_sent ? esc(r.reminder_sent_at || '✓') : c.notSent}</td>
                 <td style="${cell};text-align:right;white-space:nowrap">${btn('bpRemindOne', busy ? c.busy : (r.reminder_sent ? c.resend : c.send), !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`)}</td>
               </tr>`;
@@ -621,6 +660,41 @@ function sectionCatering(btn, cell, head) {
           </table>
         </div>` : ''}
       </div>`;
+}
+// The CATERING block (Alen 2026-09-16): "how many vegan, how many whatever" — head counts per
+// preference the kitchen can cook from (unset and unanswered counted too, so the numbers add up to
+// the room), every allergy with a name, and every special request with a name.
+function sectionKitchen() {
+  const c = COPY.cat.kitchen;
+  const C = D.cat;
+  if (!C || !C.catering) return '';
+  const K = C.catering;
+  const total = Number(C.total) || 0;
+  const pills = (K.by_preference || []).map(p => `<span style="display:inline-flex;align-items:baseline;gap:6px;padding:7px 11px;border:1px solid rgba(32,27,22,.14);background:#fff"><b style="font:600 18px Fraunces,serif;color:#201b16">${Number(p.count) || 0}</b><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#6d6459">${esc(String(p.label).toUpperCase())}</span></span>`).join('');
+  const answered = (K.by_preference || []).filter(p => p.key !== 'unset').reduce((n, p) => n + (Number(p.count) || 0), 0);
+  const al = K.allergies || [];
+  const rq = K.requests || [];
+  return `
+        <div data-v2="boston-catering" style="border-bottom:1px solid rgba(32,27,22,.08);background:#fffdf8">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;flex-wrap:wrap">
+            <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#8a5a12">${c.title}</span>
+            <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
+            <div style="flex:1"></div>
+            <span style="font-size:11px;color:#6d6459">${esc(String(answered))} of ${esc(String(total))} chose a preference</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 20px 12px">${pills}</div>
+          <div class="mx-two" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:0 20px 14px">
+            <div>
+              <div style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;margin-bottom:6px">${c.allergyTitle} · ${al.length}</div>
+              ${al.length ? al.map(a => `<div style="display:flex;gap:10px;padding:5px 0;border-top:1px solid rgba(32,27,22,.07);font-size:12.5px"><span style="font-weight:600;min-width:150px">${esc(a.name)}</span><span style="color:#9b1b22">${esc(a.allergies)}</span></div>`).join('') : `<div style="font-size:12px;color:#6d6459;font-style:italic">${c.allergyNone}</div>`}
+              <div style="font-size:11px;color:#6d6459;margin-top:8px">${esc(c.noAllergies(Number(K.no_allergies) || 0))} · ${esc(c.allergiesUnanswered(Number(K.allergies_unanswered) || 0))}</div>
+            </div>
+            <div>
+              <div style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#7a6432;margin-bottom:6px">${c.reqTitle} · ${rq.length}</div>
+              ${rq.length ? rq.map(r => `<div style="padding:5px 0;border-top:1px solid rgba(32,27,22,.07);font-size:12.5px"><span style="font-weight:600">${esc(r.name)}</span><span style="display:block;color:#201b16;margin-top:2px">${esc(r.text)}</span></div>`).join('') : `<div style="font-size:12px;color:#6d6459;font-style:italic">${c.reqNone}</div>`}
+            </div>
+          </div>
+        </div>`;
 }
 // Seats handed back from the one email. Collapsed by default and absent entirely when nobody has
 // released one — the good state is silence. Open, it is the shortest possible list (who, when) plus
@@ -1001,9 +1075,10 @@ const handlers = {
   },
   // The owner's own read-through: the two shapes of the one email, to his inbox and nowhere else.
   // No confirm — nothing reaches a guest — but only one at a time so a double click cannot double-send.
+  bpFilter: (el) => { st.bpFilter = el.dataset.filter || 'all'; rerender('[data-block="boston"]', blockBoston()); },
   bpPreview: async (el) => {
     const c = COPY.cat;
-    const variant = el.dataset.variant === 'presenter' ? 'presenter' : 'attendee';
+    const variant = ['presenter', 'attendee', 'panel', 'declined'].includes(el.dataset.variant) ? el.dataset.variant : 'attendee';
     if (st.bpPreviewing) return;
     st.bpPreviewing = variant; rerender('[data-block="boston"]', blockBoston());
     try {
@@ -1046,7 +1121,7 @@ export default {
     rootEl = root;
     st = { scope: 'bridges', copied: false, newCityOpen: false, ncCity: '', ncWhen: '', editEvent: null, recapEdit: null, fuName: '', fuWhy: '', uploading: null,
            bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null, bpReminding: null, bpPicking: null,
-           bpProgramBusy: false, bpPreviewing: null, bpRelOpen: false, bpRestoring: null };
+           bpProgramBusy: false, bpPreviewing: null, bpRelOpen: false, bpRestoring: null, bpFilter: 'all' };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();
