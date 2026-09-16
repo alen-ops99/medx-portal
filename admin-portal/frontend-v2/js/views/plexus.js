@@ -30,6 +30,7 @@ import router from '../router.js';
 // own data, drawer and handlers, so it lives in its own module and this file delegates: one
 // import, one row in TAB_ORDER, one branch in template(), and its handler map merged below.
 import * as awards from './plexus-awards.js';
+import * as program from './plexus-program.js';
 
 export const SOURCE = 'Admin Plexus Hub.dc.html';
 
@@ -142,7 +143,7 @@ export const COPY = {
   locked: sec => `${perms.label(sec) || 'That section'} is locked for you — ask Alen.`,
 
   // ---- v2 2026-09-11: tab strip ----------------------------------------------------------------
-  tabs: { hub: 'THE WEEK', meetups: 'MEETUPS', meetupsLocked: 'MEETUPS · LOCKED', awards: 'AWARDS', awardsLocked: 'AWARDS · LOCKED' },
+  tabs: { hub: 'THE WEEK', meetups: 'MEETUPS', meetupsLocked: 'MEETUPS · LOCKED', awards: 'AWARDS', awardsLocked: 'AWARDS · LOCKED', program: 'PROGRAM & TICKETS', programLocked: 'PROGRAM & TICKETS · LOCKED' },
 
   // ---- v2 2026-09-11: edition switcher ---------------------------------------------------------
   ed: {
@@ -262,15 +263,15 @@ const FIG_KEYS = ['registered', 'gala_paid', 'speakers_confirmed', 'days_to_go']
 // LIVE deep links (chrome PALETTE, facts.js SECTION_ROUTES, eventday.js) that pre-open an inline
 // hub panel, so they map to the hub tab and set openPanel exactly as before.
 const PANEL_SLUGS = ['speakers', 'schedule', 'qa'];
-const SLUG_TO_TAB = { '': 'hub', meetups: 'meetups', awards: 'awards', speakers: 'hub', schedule: 'hub', qa: 'hub' };
-const TAB_TO_SLUG = { hub: '', meetups: 'meetups', awards: 'awards' };
-const TAB_ORDER = ['hub', 'meetups', 'awards'];
+const SLUG_TO_TAB = { '': 'hub', meetups: 'meetups', awards: 'awards', program: 'program', speakers: 'hub', schedule: 'hub', qa: 'hub' };
+const TAB_TO_SLUG = { hub: '', meetups: 'meetups', awards: 'awards', program: 'program' };
+const TAB_ORDER = ['hub', 'meetups', 'awards', 'program'];
 const MEET_SECTION = 'plexus-meetups';
 const AW_SECTION = awards.AW_SECTION;
 // Which tab is gated behind which permission section — blockTabs() reads exactly this, so a new
 // tab never needs a second `id === '…'` branch in the markup.
-const TAB_SECTION = { meetups: MEET_SECTION, awards: AW_SECTION };
-const TAB_LOCKED_COPY = { meetups: 'meetupsLocked', awards: 'awardsLocked' };
+const TAB_SECTION = { meetups: MEET_SECTION, awards: AW_SECTION, program: program.PG_SECTION };
+const TAB_LOCKED_COPY = { meetups: 'meetupsLocked', awards: 'awardsLocked', program: 'programLocked' };
 const CAP_MIN = 1, CAP_MAX = 60;
 
 // ---- shared inline vocabulary (same values the other screens use; look stays inline) ----
@@ -331,6 +332,11 @@ async function load(tab, editionId) {
   }
   if (tab === 'awards') {
     if (perms.can(AW_SECTION)) want.aw = awards.loadAwards(editionId);
+    return shape(await api.settle(want));
+  }
+  if (tab === 'program') {
+    // the November "program & ticket" send — reads only its own panel (member portal via the proxy)
+    if (perms.can(program.PG_SECTION)) want.pg = program.loadProgram();
     return shape(await api.settle(want));
   }
   Object.assign(want, {
@@ -400,7 +406,8 @@ function shape(r) {
     eds: (r.eds && Array.isArray(r.eds.editions)) ? r.eds.editions : [],
     edActive: (r.eds && r.eds.active) || null,
     meet: r.meet || null,
-    aw: r.aw || null
+    aw: r.aw || null,
+    pg: r.pg || null
   };
 }
 
@@ -1222,7 +1229,7 @@ function template() {
   <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:34px 28px 60px">
     ${blockTitle()}
     ${blockTabs()}
-    ${st.tab === 'meetups' ? blockMeetups() : st.tab === 'awards' ? awards.blockAwards(D.errors.aw) : blockHub()}
+    ${st.tab === 'meetups' ? blockMeetups() : st.tab === 'awards' ? awards.blockAwards(D.errors.aw) : st.tab === 'program' ? program.blockProgram(D.errors.pg) : blockHub()}
     ${blockFooterEdition()}
   </div>
 </div>`;
@@ -1813,10 +1820,12 @@ async function addAttendee(body, who) {
 const RO_SAFE = new Set(['edToggle', 'msFocus', 'openSpeakers', 'openSchedule', 'openQa', 'copyStats', 'peOpen', 'editionsOpen', 'cmeExport', 'editList', 'archiveNote', 'start2027',
   'mAtt', 'mInv', 'mHostLink', 'mCsv', 'mAttCsv', 'mDrawerClose',
   // the AWARDS tab's read-only-safe actions — everything that only LOOKS
-  ...awards.AW_RO_SAFE]);
+  ...awards.AW_RO_SAFE,
+  // the PROGRAM & TICKETS tab's read-only-safe actions (filter, refresh, preview-to-me)
+  ...program.PG_RO_SAFE]);
 // The awards tab's handlers are merged in here, so they get the SAME archived-edition refusal as
 // every other write on this screen: hidden in the markup AND refused in the handler.
-const ALL_HANDLERS = Object.assign({}, handlers, awards.awardsHandlers);
+const ALL_HANDLERS = Object.assign({}, handlers, awards.awardsHandlers, program.programHandlers);
 function bindHandlers(root) {
   const wrapped = {};
   Object.keys(ALL_HANDLERS).forEach(k => {
@@ -1913,19 +1922,22 @@ export default {
       drawer: null, form: null, att: null, inv: null
     };
     // The awards tab keeps its own state; this is the only contract between the two modules.
-    awards.initAwards({
+    const host = {
       paint: () => paint(),
       paintPart: (sel, html) => paintPart(sel, html),
       rootEl: () => rootEl,
       editionId: () => st.editionId,
       readOnly: () => isArchived()
-    });
+    };
+    awards.initAwards(host);
+    program.initProgram(host);
     D = await load(tab, st.editionId);
     if (rootEl !== root) return; // navigated away while loading
     // an unknown ?edition= falls back to the active year (the server resolves the same way)
     if (st.editionId && !D.eds.some(e => e.id === st.editionId)) st.editionId = null;
     if (!st.editionId && D.edActive) st.editionId = D.edActive.id;
     awards.setAwardsData(D.aw);
+    program.setProgramData(D.pg);
     root.innerHTML = template();
     unbind = bindHandlers(root);
     onChangeBound = onChange; root.addEventListener('change', onChangeBound);

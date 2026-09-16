@@ -974,7 +974,7 @@ const UPLOAD_EXEMPT_SUFFIXES = ['/import', '/prospects/preview'];
 // Big Ideas attachments never touch local disk (multer memoryStorage → the private S3 bucket in
 // v2/big-ideas.js), so the ephemeral-disk guard does not apply to them — exempt by prefix, the same
 // way the member portal exempts the Boston upload lanes.
-const UPLOAD_EXEMPT_PREFIXES = ['/api/v2/big-ideas/'];
+const UPLOAD_EXEMPT_PREFIXES = ['/api/v2/big-ideas/', '/api/v2/plexus-program/'];   // program PDF is relayed to the member portal's S3, never written here
 app.use((req, res, next) => {
     if (!STORAGE_IS_EPHEMERAL) return next();
     if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') return next();
@@ -1218,6 +1218,9 @@ const SECTION_ROUTE_MAP = [
     //   allowed_sections NULL means full access, every admin on the team sees it by default. A
     //   scoped admin (an explicit section list) needs `big-ideas` added to their list.
     ['/api/v2/big-ideas', 'big-ideas'],
+    // — Plexus Week PROGRAM & TICKETS (2026-09-15, admin-portal/backend/v2/plexus-program-ops.js):
+    //   the November one-touch re-send. Part of the Plexus project — whoever runs the week sends it.
+    ['/api/v2/plexus-program', 'plexus'],
     // — Plexus Week (incl. Gala, ticketing, check-in, sponsors, volunteers, auctions, event ops) —
     ['/api/plexus', 'plexus'], ['/api/admin/plexus', 'plexus'], ['/api/admin/plexus-experience', 'plexus'],
     ['/api/gala', 'plexus'], ['/api/admin/gala', 'plexus'],
