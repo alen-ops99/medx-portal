@@ -2277,6 +2277,7 @@ module.exports = function mountBoston(app, deps) {
       <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:16px;">
         <p style="margin:0 0 10px;">Dear ${esc(first)},</p>
         <p style="margin:0;">We look forward to welcoming you to <b>Building Bridges in Biomedicine: Croatia &amp; the US</b> on <b>${esc(DATE_LONG)}</b> in the Waterhouse Room, Gordon Hall, Harvard Medical School &mdash; doors open at 5:30&nbsp;PM, the program runs 6:00&ndash;9:00&nbsp;PM, business attire.</p>
+        ${o.presenter ? `<p style="margin:12px 0 0;">Thank you for your interest in presenting &mdash; we are happy to offer you a <b>5-minute slot</b>. The order of presentations will be set once everyone has confirmed, and we will send you the schedule before the evening.</p>` : ''}
       </div>
       ${declinedNoteLight}
       <div style="font-family:${T.sans};font-size:14.5px;line-height:1.7;color:${ink};margin-top:18px;">Before then, we would ask you to do the following <b>by clicking the button below</b>:</div>
