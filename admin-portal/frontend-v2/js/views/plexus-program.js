@@ -19,7 +19,7 @@ export const PG_SECTION = 'plexus';
 // ---- COPY ----------------------------------------------------------------------------------------
 export const COPY_PG = {
   title: 'PROGRAM & TICKETS',
-  sub: 'one email per registrant — program PDF, final venues, their ticket, Apple · Google · calendar. Sent in November, by hand, from here.',
+  sub: 'one email per registrant — their events and their ticket (Apple · Google · calendar), program PDF attached; gala-only payers included. Sent in November, by hand, from here.',
   err: 'The program panel could not be read.',
   stats: { eligible: 'ELIGIBLE', sent: 'SENT', paid: 'GALA PAID', unpaid: 'GALA UNPAID', free: 'FREE EVENTS ONLY',
     skipped: (h, c, u) => `never emailed: ${h} held · ${c} cancelled · ${u} gala-only unpaid` },
@@ -105,7 +105,7 @@ function blockStats() {
       <div class="mx-kpi" style="display:grid;grid-template-columns:repeat(5,1fr)">
         ${cell(t.eligible, c.eligible, t.skipped(c.skipped_held || 0, c.skipped_cancelled || 0, c.skipped_unpaid_gala_only || 0))}
         ${cell(t.sent, c.sent, `${c.unsent == null ? '' : c.unsent + ' still to send'}`)}
-        ${cell(t.paid, c.paid, 'combined ticket')}
+        ${cell(t.paid, c.paid, `${c.paid_seats != null ? c.paid_seats + ' seats incl. guests' : 'combined ticket'}${c.paid_standalone ? ' · ' + c.paid_standalone + ' gala-only' : ''}`)}
         ${cell(t.unpaid, c.unpaid_gala, 'free-events ticket + pay button')}
         ${cell(t.free, c.free, 'free-events ticket', true)}
       </div>
