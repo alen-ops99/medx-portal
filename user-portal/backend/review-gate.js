@@ -589,49 +589,57 @@ function verifyFormPage(vtoken, firstName) {
 // ---------------------------------------------------------------- registrant-facing emails
 // Polite and unsuspicious — a legitimate guest reads a routine "one more step"; the emails
 // never mention review, holds or fraud.
+// 2026-09-16: the registrant-facing shell moved from the espresso look to the cream family
+// (Alen: the soft ack 'has a different background from all the other ones') — same shell,
+// same 28px column, same header rules as the ticket emails, so a person's whole thread reads
+// as one. The internal review / FYI / finance notes keep the dark shell.
+const LT = { ink: '#191512', soft: '#4a4239', gold: '#6e5626', hair: 'rgba(25,21,18,.14)', factBg: '#fdfaf3', factBorder: 'rgba(201,169,98,.65)' };
+const headerLabelFor = ev => /plexus/i.test(String(ev || '')) ? 'PLEXUS WEEK 2026 · ZAGREB' : /boston/i.test(String(ev || '')) ? 'BUILDING BRIDGES · BOSTON' : 'REGISTRATION';
 function emailShell(headline, bodyHtml, buttonLabel, buttonUrl, opts) {
     const T = tpl.T;
     const o = opts || {};
+    const DT = LT;
     const factsHtml = (o.facts && o.facts.length) ? `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-fact" style="margin-top:16px;background:${DT.factBg};border:1px solid ${DT.factBorder};"><tr><td style="padding:4px 18px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
         ${o.facts.map(([label, value], i) => {
             const sep = i ? `border-top:1px solid ${DT.hair};` : '';
             return `<tr>
-              <td class="em-goldlab em-hair" style="${sep}padding:9px 14px 9px 0;font-family:${T.sans};font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:${DT.gold};vertical-align:middle;white-space:nowrap;">${esc(label)}</td>
-              <td class="em-ink em-hair" style="${sep}padding:9px 0;font-family:${T.sans};font-size:12.5px;line-height:1.45;color:${DT.ink};word-break:break-word;">${esc(value)}</td>
+              <td class="em-goldlab em-hair" style="${sep}padding:9px 14px 9px 0;font-family:${T.sans};font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:${DT.ink};vertical-align:middle;white-space:nowrap;">${esc(label)}</td>
+              <td class="em-ink em-hair" style="${sep}padding:9px 0;font-family:${T.sans};font-size:13px;line-height:1.5;color:${DT.ink};word-break:break-word;">${esc(value)}</td>
             </tr>`;
         }).join('\n')}
         </table>
       </td></tr></table>` : '';
-    const noteHtml = o.footNote ? `<div class="em-soft" style="font-family:${T.sans};font-size:12px;line-height:1.65;color:${DT.soft};margin-top:14px;">${o.footNote}</div>` : '';
-    const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:36px 40px 32px;">
+    const noteHtml = o.footNote ? `<div class="em-soft" style="font-family:${T.sans};font-size:12.5px;line-height:1.65;color:${DT.soft};margin-top:14px;">${o.footNote}</div>` : '';
+    const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:32px 28px 26px;">
       <div class="em-goldlab" style="font-family:${T.sans};font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${DT.gold};">${o.eyebrow || 'Your registration'}</div>
       <div class="em-ink" style="font-family:${T.serif};font-weight:500;font-size:27px;line-height:1.18;letter-spacing:-.01em;color:${DT.ink};margin-top:10px;">${headline}</div>
-      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${DT.soft};margin-top:16px;">${bodyHtml}</div>${factsHtml}
-      ${(buttonLabel && buttonUrl) ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:24px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;background:#a8232b;')}</td></tr></table>` : ''}${noteHtml}
-      <div class="em-soft em-hair" style="margin-top:24px;padding-top:14px;border-top:1px solid ${DT.hair};font-family:${T.sans};font-size:11.5px;line-height:1.7;color:${DT.soft};">Questions? Just reply to this email — or write to Laura Rodman at laura.rodman@medx.hr.</div>
+      <div class="em-soft" style="font-family:${T.sans};font-size:14px;line-height:1.7;color:${DT.soft};margin-top:14px;">${bodyHtml}</div>${factsHtml}
+      ${(buttonLabel && buttonUrl) ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:22px;">${tpl.btn(buttonLabel, buttonUrl, 'solid', 'width:300px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;')}</td></tr></table>` : ''}${noteHtml}
+      <div class="em-soft em-hair" style="margin-top:22px;padding-top:14px;border-top:1px solid ${DT.hair};font-family:${T.sans};font-size:12px;line-height:1.7;color:${DT.soft};">Questions? Just reply to this email — or write to Laura Rodman at laura.rodman@medx.hr.</div>
     </td></tr></table>`;
     return tpl.shell({
-        tone: 'dark',
         title: headline + ' — Med&X',
         preheader: o.preheader || '',
-        headerRightLabel: 'REGISTRATION',
-        rule: 'crimson',
-        bodyHtml: body
+        headerRightLabel: o.headerRightLabel || headerLabelFor(o.eventLabel),
+        headerPadX: 28,
+        rule: 'gold',
+        bodyHtml: body,
+        footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Questions? Reply to this email or write to laura.rodman@medx.hr']
     });
 }
 
 // Held registrants get a soft acknowledgment — so nobody thinks the click already
 // registered them, and nobody learns they tripped a review. No ticket assets in it.
 function buildPendingEmail({ firstName, eventLabel }) {
-    const forEvent = eventLabel ? ` for <b class="em-ink" style="color:#f2e7d6;">${esc(eventLabel)}</b>` : '';
+    const forEvent = eventLabel ? ` for <b class="em-ink">${esc(eventLabel)}</b>` : '';
     return emailShell('We received your registration',
         `<p style="margin:0 0 10px;">Dear ${esc(firstName || 'guest')},</p>
          <p style="margin:0 0 10px;">We received your registration${forEvent} and are completing a quick review.</p>
          <p style="margin:0;">You will receive a <b>confirmation email</b> shortly to complete your registration. Please note — <b>your registration is not finished yet</b>.</p>`,
         null, null,
-        { eyebrow: 'Registration received', preheader: 'Your registration is in review — a confirmation email will follow.' });
+        { eyebrow: 'Registration received', eventLabel, preheader: 'Your registration is in review — a confirmation email will follow.' });
 }
 
 function buildVerifyAskEmail({ firstName, confirmUrl, eventLabel }) {
@@ -641,7 +649,7 @@ function buildVerifyAskEmail({ firstName, confirmUrl, eventLabel }) {
          <p style="margin:0 0 10px;">Thank you for registering${forEvent} — we are delighted you will be joining us.</p>
          <p style="margin:0;">To complete your registration, please confirm it from your <b>institutional email address</b> (your university, hospital, institute or company). It takes under a minute — and your ticket will be delivered to that address:</p>`,
         'Confirm my registration', confirmUrl,
-        { preheader: 'One quick step and your ticket is on its way.' });
+        { eventLabel, preheader: 'One quick step and your ticket is on its way.' });
 }
 
 function buildFyiEmail({ name, instEmail, evidence }) {
@@ -683,7 +691,7 @@ function buildInstConfirmEmail({ firstName, confirmUrl, eventLabel, name, instEm
          <p style="margin:0 0 10px;">We are happy to have you at <b class="em-ink">${esc(ev)}</b>.</p>
          <p style="margin:0;">Confirming from this address completes your registration — your ticket will arrive right here, moments later.</p>`,
         'Confirm my registration', confirmUrl,
-        { facts,
+        { facts, eventLabel,
           preheader: 'Confirm your registration — your ticket follows to this address.',
           footNote: 'If this wasn&#39;t you, simply ignore this email — nothing will be issued.' });
 }

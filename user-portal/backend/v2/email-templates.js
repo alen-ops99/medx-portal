@@ -112,8 +112,12 @@ const DARK_CSS = `<style>
 // tone:'dark' renders the single-look espresso/cappuccino shell: the same warm dark design
 // in every client and both themes — nothing left for Outlook/Gmail dark transforms to mangle
 // (dark backgrounds pass through those transforms untouched).
-function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, bodyHtml, footerItems, lang, darkReady, tone }) {
+function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, bodyHtml, footerItems, lang, darkReady, tone, headerPadX }) {
     const dark = tone === 'dark';
+    // The wordmark sits flush with the body's text column and the right label flush with the
+    // facts card's right edge (Alen 2026-09-16) — so a builder whose body uses a 28px column
+    // passes headerPadX: 28. Default stays 40 for every other email.
+    const padX = Number(headerPadX) || 40;
     const canvasBg = dark ? '#120e0a' : T.canvas;
     const cardBg = dark ? '#291e14' : T.cream;
     const footColor = dark ? '#cbbca7' : T.soft;
@@ -145,7 +149,7 @@ ${darkReady ? DARK_CSS : ''}
 ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${esc(preheader)}</div>` : ''}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-canvas" style="background:${canvasBg};padding:32px 12px;"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" class="em-cardbg" style="max-width:600px;width:100%;background:${cardBg};box-shadow:0 10px 34px rgba(25,21,18,.18);">
-  <tr><td style="background:${T.ink};padding:${headerExtraHtml ? '26px 40px 22px' : '22px 40px'};">
+  <tr><td style="background:${T.ink};padding:${headerExtraHtml ? `26px ${padX}px 22px` : `22px ${padX}px`};">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
       <td align="left" style="vertical-align:middle;"><img src="${escUrl(logoUrl())}" alt="med&amp;X" height="20" style="height:20px;width:auto;display:block;border:0;"></td>
       <td align="right" style="vertical-align:middle;${microStyle(T.gold, 9, '.2em')}">${headerRightLabel || 'MEMBER PORTAL'}</td>
@@ -204,9 +208,9 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
 function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue, qrPngUrl, passUrl, walletUrl,
                               calendarUrl, ticketLabel, priceLabel, guestLabel, ticketNumber,
                               dressLabel, tableLabel, headlineHtml, introHtml, note, ctaLabel, replyLine, walletSaveUrl, appleWalletUrl,
-                              headerRightLabel, kicker, extraHtml, subjectTitle, preheader } = {}) {
+                              headerRightLabel, kicker, extraHtml, subjectTitle, preheader, ctaPosition, ctaNote } = {}) {
     const fieldRow = (label, valueHtml) => `
-        <tr><td style="padding:5px 0;vertical-align:baseline;width:76px;${microStyle(T.soft, 9, '.12em')}">${label}</td>
+        <tr><td style="padding:5px 0;vertical-align:baseline;width:76px;${microStyle(T.ink, 9, '.12em')}font-weight:700;">${label}</td>
             <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
     const guestLine = guestLabel
         ? esc(guestLabel) + (ticketNumber ? ` · N° ${esc(ticketNumber)}` : '')
@@ -254,11 +258,16 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
             </td>
           </tr></table>` : '';
     const ctaUrl = passUrl || walletUrl;
+    // One CTA block, placed where the caller wants it: 'top' = right under the intro sentence
+    // that asks for it (Alen 2026-09-16: the Gala pay button must not sit under the QR). The
+    // calendar twin only appears when the QR block has no calendar button of its own.
+    const ctaBlock = ctaUrl ? `<div style="text-align:center;margin:${ctaPosition === 'top' ? '18px 0 6px' : '22px 0 4px'};">${btn(ctaLabel || 'OPEN MY TICKETS →', ctaUrl)}${(calendarUrl && !qrPngUrl) ? `<span style="display:inline-block;width:8px;">&nbsp;</span>${btn('ADD TO CALENDAR', calendarUrl, 'ghost')}` : ''}</div>${ctaNote ? `<div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:8px;">${ctaNote}</div>` : ''}` : '';
     const body = `
     <div style="padding:32px 28px 26px;">
       <span style="${microStyle(T.gold)}">${kicker || "YOU'RE GOING"}</span>
       <div style="font-family:${T.serif};font-size:26px;line-height:1.18;color:${T.ink};margin-top:10px;">${headlineHtml || `${esc(eventName || 'Your seat')} — seat <i>confirmed</i>.`}</div>
       ${introHtml ? `<div style="font-family:${T.sans};font-size:13.5px;color:${T.soft};line-height:1.65;margin-top:12px;">${introHtml}</div>` : ''}
+      ${ctaPosition === 'top' ? ctaBlock : ''}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border:1px solid rgba(201,169,98,.65);background:${T.cardCream};">
         <tr><td style="padding:18px 20px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
@@ -268,12 +277,13 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
       ${extraHtml || ''}
       <div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:14px;">${note || 'Present the QR above at the door — it admits you to everything you are registered for.'}</div>
       <div style="font-family:${T.sans};font-size:12.5px;color:${T.soft};line-height:1.6;margin-top:10px;">${replyLine || `Questions? Just reply to this email, or write to <a href="mailto:laura.rodman@medx.hr" style="color:${T.soft};">laura.rodman@medx.hr</a>.`}</div>
-      ${ctaUrl ? `<div style="text-align:center;margin:22px 0 4px;">${btn(ctaLabel || 'OPEN MY TICKETS →', ctaUrl)}${calendarUrl ? `<span style="display:inline-block;width:8px;">&nbsp;</span>${btn('ADD TO CALENDAR', calendarUrl, 'ghost')}` : ''}</div>` : ''}
+      ${ctaPosition === 'top' ? '' : ctaBlock}
     </div>`;
     return shell({
         title: subjectTitle || `${eventName || 'Ticket'} — confirmed`,
         preheader: preheader || `${eventName || 'Your seat'} is confirmed — your QR is inside.`,
         headerRightLabel,                       // omitted → the shell's default (Boston unchanged)
+        headerPadX: 28,                         // wordmark flush with this body's 28px column
         rule: 'gold',
         bodyHtml: body,
         footerItems: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Questions? Reply to this email or write to laura.rodman@medx.hr']

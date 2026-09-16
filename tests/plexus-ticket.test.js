@@ -36,17 +36,19 @@ t('the four emails share one Boston-style shell: light, PLEXUS WEEK header, fact
         assert.ok(!/updated our systems|apolog/i.test(html), k + ': no apology framing');
     }
     assert.ok(kinds.combined.includes('&euro;300.00') && kinds.combined.includes('Gala Evening (2 seats)') && kinds.combined.includes('GALA26-0041'), 'combined: amount, seats, invoice');
-    assert.ok(kinds.combined.includes('Gala Evening: black tie') && kinds.combined.includes('Assigned closer to the Gala'), 'combined: dress + table');
+    // dress code per legs held (Alen 2026-09-16): the Gala's black tie AND business casual for the free legs
+    assert.ok(kinds.combined.includes('<strong>Gala Evening</strong> — black tie') && kinds.combined.includes('Plexus Conference and Building Bridges Zagreb</strong> — business casual') && kinds.combined.includes('Assigned closer to the Gala'), 'combined: dress + table');
+    assert.ok(kinds.gala.includes('Black tie') && !kinds.gala.includes('business casual'), 'gala only: black tie alone');
     assert.ok(kinds.combined.includes('the <b>Conference program</b>') && kinds.combined.includes('the <b>Building Bridges date and venue</b>'), 'combined: program note');
     assert.ok(kinds['gala-guest'].includes('Guest of Ana Franceschi') && kinds['gala-guest'].includes('Your seat is paid for'), 'guest: host + paid');
     assert.ok(kinds.gala.includes('Table 7') && kinds.gala.includes('complimentary'), 'standalone comp: table + label');
     assert.ok(kinds.free.includes("YOU'RE IN") && kinds.free.includes('nothing to pay') && kinds.free.includes('join the <b>Gala Evening</b>'), 'free: kicker, free, the Gala invitation');
-    assert.ok(!kinds.free.includes('DRESS CODE'), 'free: no dress code without a Gala');
+    assert.ok(kinds.free.includes('DRESS CODE') && kinds.free.includes('Business casual') && !kinds.free.includes('black tie'), 'free: business casual, no black tie');
 });
 
 t('WHEN lines carry each leg with its own date and venue; WHERE collapses to the single venue when one leg', () => {
     assert.deepStrictEqual(pt.whenLinesFor(['conference', 'gala']), [
-        'Plexus Conference — 4 December 2026 · Novinarski dom, Zagreb',
+        'Plexus Conference — 4 December 2026 · 17:00–21:00 · Novinarski dom, Zagreb',
         'Gala Evening — 5 December 2026 · 19:00 · arrival from 7:00 PM · Hotel Esplanade, Zagreb'
     ]);
     assert.strictEqual(pt.whereFor(['gala']), 'Hotel Esplanade, Zagreb');
@@ -57,7 +59,10 @@ t('WHEN lines carry each leg with its own date and venue; WHERE collapses to the
 t('the calendar file: one VEVENT per leg held, Europe/Zagreb, parseLegs tolerant', () => {
     const ics = pt.icsFor(['conference', 'gala']);
     assert.strictEqual((ics.match(/BEGIN:VEVENT/g) || []).length, 2);
-    assert.ok(ics.includes('DTSTART;TZID=Europe/Zagreb:20261204T090000') && ics.includes('DTSTART;TZID=Europe/Zagreb:20261205T190000'));
+    assert.ok(ics.includes('DTSTART;TZID=Europe/Zagreb:20261204T170000') && ics.includes('DTEND;TZID=Europe/Zagreb:20261204T210000') && ics.includes('DTSTART;TZID=Europe/Zagreb:20261205T190000'), 'conference 17:00–21:00 (Alen 2026-09-16)');
+    const withBridges = pt.icsFor(['bridges']);
+    assert.ok(withBridges.includes('DTSTART;TZID=Europe/Zagreb:20261205T110000') && withBridges.includes('STATUS:TENTATIVE') && /Tentative slot/.test(withBridges), 'Bridges: tentative Saturday 11:00 until confirmed');
+    assert.ok(!ics.includes('STATUS:TENTATIVE'), 'confirmed legs stay CONFIRMED');
     assert.ok(ics.includes('SUMMARY:Plexus Week 2026 — Gala Evening') && ics.includes('LOCATION:Hotel Esplanade\\, Zagreb'));
     assert.ok(!ics.includes('Building Bridges'), 'only the legs asked for');
     assert.deepStrictEqual(pt.parseLegs('gala,conference'), ['conference', 'gala'], 'canonical order');

@@ -202,7 +202,7 @@ function buildPayLinkEmail({ firstName, payUrl, quote, earlyBirdDeadline, galaDa
          <p style="margin:0;">To complete your registration for everything, please finish the last step — the payment for the Gala Evening:</p>`,
         'Complete my registration', payUrl,
         {
-            eyebrow: 'Registration approved',
+            eyebrow: 'Registration approved', headerRightLabel: 'PLEXUS WEEK 2026 · ZAGREB',
             preheader: 'Your registration is approved — one step left to complete it.',
             facts,
             footNote: 'As soon as the payment is done you will receive <b class="em-ink">one ticket</b> that covers all your events.'
@@ -233,7 +233,7 @@ function buildNudgeEmail({ firstName, payUrl, quote, earlyBirdDeadline, galaDate
          <p style="margin:0;">You can complete it here whenever suits you:</p>`,
         'Complete my Gala reservation', payUrl,
         {
-            eyebrow: 'A gentle reminder',
+            eyebrow: 'A gentle reminder', headerRightLabel: 'PLEXUS WEEK 2026 · ZAGREB',
             preheader: 'Your Gala seat is still held — the payment is the last step.',
             facts,
             footNote: fallback

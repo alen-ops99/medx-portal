@@ -220,11 +220,15 @@ module.exports = function mountPlexusProgram(app, deps) {
                 try { saveDb && saveDb(); } catch (e) {}
             }
             const payUrl = g && g.pay_token ? `${base}/pay/gala/${g.pay_token}` : null;
+            // The pay button sits DIRECTLY under the sentence that asks for it (Alen 2026-09-16), the
+            // free-events QR + passes stay, and the copy says plainly that the Gala joins this same
+            // ticket on payment — same QR identity, the wallet pass upgrades in place, never a second one.
             return plexusTicket.ticketEmail('free', {
                 ...common,
-                introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here are your Plexus Week 2026 events and your ticket for ${escapeHtml(legsText)}. The program is attached as a PDF. Your Gala Evening seat is still reserved for you — one step completes it (the button below).`,
-                ctaUrl: payUrl || undefined, ctaLabel: payUrl ? 'COMPLETE MY GALA RESERVATION →' : undefined,
-                extraNote: 'Your Gala Evening seat is held but not yet confirmed — the button above opens the secure card payment; your Gala entry follows the moment it is done.'
+                introHtml: `Dear ${escapeHtml(ca.first_name || 'there')} — here are your Plexus Week 2026 events and your ticket for ${escapeHtml(legsText)}. The program is attached as a PDF. Your Gala Evening seat is still reserved for you — one step completes it:`,
+                ctaUrl: payUrl || undefined, ctaLabel: payUrl ? 'COMPLETE MY GALA RESERVATION →' : undefined, ctaPosition: 'top',
+                ctaNote: 'Secure card payment via Stripe. Your Gala entry is added the moment it is done.',
+                extraNote: 'This ticket already covers ' + escapeHtml(plexusTicket.joinAnd(plexusTicket.legNames(r.legs, F))) + '. When your Gala payment is done, the Gala is added to this same ticket — the QR stays the same and your wallet pass updates itself; you will not get a second pass.'
             });
         }
         return plexusTicket.ticketEmail('free', {
