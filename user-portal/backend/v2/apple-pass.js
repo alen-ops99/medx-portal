@@ -182,8 +182,12 @@ function buildPkpass(model) {
         backgroundColor: COLORS.background,
         foregroundColor: COLORS.foreground,
         labelColor: COLORS.label,
-        barcode: { format: 'PKBarcodeFormatQR', message: model.qrMessage, messageEncoding: 'iso-8859-1', altText: model.altText || undefined },
-        barcodes: [{ format: 'PKBarcodeFormatQR', message: model.qrMessage, messageEncoding: 'iso-8859-1', altText: model.altText || undefined }],
+        // The declared encoding MUST be able to represent the message, or iOS silently refuses the
+        // whole pass (Safari just stays on its last tab — found 2026-09-16 with an em dash in the
+        // Plexus event name; č/ć/š/ž/đ in a Croatian name trip the same wire). Latin-1 when it
+        // fits, UTF-8 otherwise — our own scanners decode both.
+        barcode: { format: 'PKBarcodeFormatQR', message: model.qrMessage, messageEncoding: barcodeEncoding(model.qrMessage), altText: model.altText || undefined },
+        barcodes: [{ format: 'PKBarcodeFormatQR', message: model.qrMessage, messageEncoding: barcodeEncoding(model.qrMessage), altText: model.altText || undefined }],
         [model.style]: {
             headerFields: model.fields.header || undefined,
             primaryFields: model.fields.primary,
@@ -590,6 +594,12 @@ function respondTicketPass(req, res, { item, user, qrMessage }) {
 }
 
 // ---------------------------------------------------------------- registry mount (routes only)
+// iso-8859-1 can only carry code points 0x00–0xFF; anything beyond needs utf-8 (see barcode below).
+function barcodeEncoding(message) {
+    for (const ch of String(message || '')) if (ch.codePointAt(0) > 0xff) return 'utf-8';
+    return 'iso-8859-1';
+}
+
 module.exports = function mountApplePass(app, ctx) {
     state.ctx = ctx;
     const { auth, log } = ctx;
