@@ -254,20 +254,44 @@ module.exports = function mountBridgesOps(app, ctx) {
         return count(`SELECT COUNT(*) AS c FROM scheduled_emails WHERE source_engine = ? AND status IN ('pending_approval','scheduled','sent') AND payload_json LIKE ?`,
             [sourceEngine, '%' + eventId + '%']) > 0;
     }
+    // ---- per-event head counts. The home (Zagreb) edition is the exception: its guests register
+    // through the Plexus Week / Croatians-abroad form, so they live in croatians_abroad_registrations
+    // (selected_bridges + bridges_status), not in bridges_registrations — counting the latter alone
+    // showed Zagreb as 0. Same home-edition resolution as v2/event-day.js homeBridgesId(): the
+    // bridges_events row whose slug is 'building-bridges' (rename-safe). Every other city — Boston
+    // included — is counted exactly as before.
+    function homeBridgesId() {
+        try { return (q.get("SELECT id FROM bridges_events WHERE slug = 'building-bridges'") || {}).id || null; } catch (e) { return null; }
+    }
+    function eventCounts(eventId, homeId) {
+        const registered = count(`SELECT COUNT(*) AS c FROM bridges_registrations WHERE event_id = ? AND COALESCE(status,'registered') <> 'cancelled'`, [eventId]);
+        const checkedIn = count(`SELECT COUNT(*) AS c FROM bridges_registrations WHERE event_id = ? AND checked_in = 1`, [eventId]);
+        if (!homeId || String(eventId) !== String(homeId)) return { registration_count: registered, checked_in_count: checkedIn };
+        // Home edition: add the diaspora rows as distinct people (lower-cased email), leaving out
+        // anyone already holding a bridges_registrations row for this event — so a person in both
+        // tables counts once. `email IS NOT NULL` keeps NOT IN from going null-blind.
+        const diasporaRegistered = count(`SELECT COUNT(DISTINCT lower(email)) AS c FROM croatians_abroad_registrations
+            WHERE selected_bridges = 1 AND bridges_status IN ('pre-registered','confirmed')
+              AND lower(email) NOT IN (SELECT lower(email) FROM bridges_registrations WHERE event_id = ? AND COALESCE(status,'registered') <> 'cancelled' AND email IS NOT NULL)`, [eventId]);
+        const diasporaCheckedIn = count(`SELECT COUNT(DISTINCT lower(email)) AS c FROM croatians_abroad_registrations
+            WHERE selected_bridges = 1 AND bridges_checked_in = 1
+              AND lower(email) NOT IN (SELECT lower(email) FROM bridges_registrations WHERE event_id = ? AND checked_in = 1 AND email IS NOT NULL)`, [eventId]);
+        return { registration_count: registered + diasporaRegistered, checked_in_count: checkedIn + diasporaCheckedIn };
+    }
 
     // ================================================================ routes (all admin-only)
 
     // GET /api/v2/bridges/hub — one read for the whole screen
     app.get('/api/v2/bridges/hub', auth, adminOnly, (req, res) => {
         try {
+            const homeId = homeBridgesId();
             const events = q.all(`SELECT * FROM bridges_events ORDER BY (event_date IS NULL) ASC, event_date DESC, created_at DESC`).map(e => ({
                 id: e.id, name: e.name, city: e.city, venue_name: e.venue_name || null, venue_address: e.venue_address || null,
                 event_date: e.event_date || null, event_time: e.event_time || null, end_time: e.end_time || null,
                 description: e.description || null, capacity: e.capacity || null, registration_open: !!e.registration_open,
                 registration_deadline: e.registration_deadline || null, status: e.status || 'upcoming', is_published: !!e.is_published,
                 notes: e.notes || null, price: e.price || 0,
-                registration_count: count(`SELECT COUNT(*) AS c FROM bridges_registrations WHERE event_id = ? AND COALESCE(status,'registered') <> 'cancelled'`, [e.id]),
-                checked_in_count: count(`SELECT COUNT(*) AS c FROM bridges_registrations WHERE event_id = ? AND checked_in = 1`, [e.id]),
+                ...eventCounts(e.id, homeId),                       // registration_count · checked_in_count
                 speakers_count: count(`SELECT COUNT(*) AS c FROM bridges_speakers WHERE event_id = ?`, [e.id]),
                 invitation_queued: eventQueued('bridges-invitation', e.id),
                 reminder_queued: eventQueued('bridges-reminder', e.id),

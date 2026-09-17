@@ -32,6 +32,11 @@ export const COPY = {
     upcoming: 'UPCOMING', draft: 'DRAFT', manage: 'MANAGE →', close: 'CLOSE', recap: 'RECAP', edition: n => `EDITION ${String(n).padStart(2, '0')}`,
     venueTBA: 'Venue announced soon · exact date TBA', planTBA: 'Venue to scout',
     signups: (n, cap) => `${n} sign-up${n === 1 ? '' : 's'}${cap ? ' of ' + cap : ''}`,
+    // The Boston row: MANAGE opens the Boston block below (presenters · the Boston email · catering);
+    // the inline venue/date editor stays reachable as EDIT DETAILS. One line of counts on the row —
+    // the numbers the row already has (sign-ups · checked in) plus the presenters read when it answered.
+    editDetails: 'EDIT DETAILS',
+    bostonLine: (n, cap, presenting, checkedIn) => `${n} sign-up${n === 1 ? '' : 's'}${cap ? ' of ' + cap : ''}` + (presenting == null ? '' : ` · ${presenting} presenting`) + ` · ${checkedIn} checked in`,
     recapMissing: 'guest count — add on recap', recapLine: (g, c) => `${g} guests${c == null ? '' : ' · ' + c + ' connections'}`,
     ev: { lVenue: 'VENUE', lDate: 'DATE', lTime: 'TIME', lCap: 'CAPACITY', lOpen: 'Registration open', lPub: 'Published to members', save: 'SAVE', saved: 'EVENT SAVED — LIVE EVERYWHERE' },
     rc: {
@@ -67,6 +72,9 @@ export const COPY = {
     body: 'Upload a few photos, type the guest count, press publish — the city card on the member page updates itself. Thank-you notes go out the next morning.',
     cta: 'PREPARE THANK-YOU EMAIL →', queueThanks: city => `QUEUE THANK-YOUS · ${city.toUpperCase()}`
   },
+  // The fold around the Boston block (2026-09-17): closed by default, opened by MANAGE on the
+  // Boston row or by /projects/bridges/boston, closed again from its own eyebrow bar.
+  bostonBar: { eyebrow: 'BOSTON — MANAGE', close: 'CLOSE ✕' },
   // Boston's 5-minute presentations (2026-09-12). The member portal owns the upload links, the
   // files and the invite email (user-portal/backend/boston.js); this card is the organizer's door
   // to them — /api/v2/boston/presenters and friends.
@@ -274,6 +282,17 @@ function nextRange(n) {
   }
   return fmt.rangeLabel(FACTS.bridges.next.start, FACTS.bridges.next.end);
 }
+// The row the Boston block belongs to: the event id the presenters read names (boston-ops fixes
+// it) when that row is on the list — otherwise (read locked or down, or a database without that
+// row) the live Boston row by city.
+function bostonRowId() {
+  const events = D.hub.events || [];
+  const id = D.pres && D.pres.event;
+  if (id && events.some(e => String(e.id) === String(id))) return String(id);
+  const live = events.find(e => String(e.city || '').toLowerCase() === 'boston' && e.status !== 'cancelled');
+  return live ? String(live.id) : null;
+}
+const isBostonRow = e => String(e.id) === bostonRowId();
 
 // ---------------------------------------------------------------- data
 async function load() {
@@ -408,8 +427,14 @@ function blockEvents() {
             <span style="font:600 9px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;width:76px;flex:none">${esc(dateLabel(e))}</span>
             <span style="flex:1;min-width:0"><span style="display:block;font-size:13.5px;font-weight:600">${esc(e.city)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(e.venue_name || c.venueTBA)}</span></span>
             ${e.is_published ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e7ecf3;color:#31517e;padding:3px 8px;white-space:nowrap">${c.upcoming}</span>` : `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:3px 8px;white-space:nowrap">${c.draft}</span>`}
+            ${isBostonRow(e) ? `
+            <!-- v2: the Boston row — MANAGE opens the Boston block below; EDIT DETAILS is the inline editor -->
+            <span style="font-size:11.5px;color:#6d6459;white-space:nowrap">${esc(c.bostonLine(e.registration_count || 0, e.capacity, D.pres ? Number(D.pres.confirmed) || 0 : null, e.checked_in_count || 0))}</span>
+            <span data-act="bostonOpen" data-v2="boston-manage" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${c.manage}</span>
+            <span data-act="evEdit" data-id="${esc(e.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.editEvent === e.id ? c.close : c.editDetails}</span>`
+            : `
             <span style="font-size:11.5px;color:#6d6459;white-space:nowrap">${esc(c.signups(e.registration_count || 0, e.capacity))}</span>
-            <span data-act="evEdit" data-id="${esc(e.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.editEvent === e.id ? c.close : c.manage}</span>
+            <span data-act="evEdit" data-id="${esc(e.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.editEvent === e.id ? c.close : c.manage}</span>`}
           </div>
           ${st.editEvent === e.id ? eventEditor(e) : ''}`).join('')}
         ${editions.map(ed => `
@@ -872,6 +897,25 @@ function blockStats() {
     </div>
     <!-- /dc -->`;
 }
+// The fold around the Boston block (2026-09-17). The block is the heaviest thing on the screen
+// (presenters · the Boston email · catering · released seats), so it stays folded until the Boston
+// row's MANAGE opens it — /projects/bridges/boston deep-links to it open, CLOSE on its eyebrow
+// folds it again. Nothing inside blockBoston() changes; this is only where and when it is drawn.
+// Folded = an empty, hidden slot, so the column's gap does not open up around nothing.
+function blockBostonSlot() {
+  const c = COPY.bostonBar;
+  if (!st.bostonOpen) return `<div data-block="boston-slot" id="boston-block" hidden></div>`;
+  return `
+    <!-- v2: BOSTON — folded behind MANAGE on the Boston row; the block itself is untouched -->
+    <div data-block="boston-slot" id="boston-block" data-v2="boston-slot">
+      <div style="display:flex;align-items:center;gap:10px;padding:0 2px;margin-top:22px">
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${c.eyebrow}</span>
+        <div style="flex:1"></div>
+        <span data-act="bostonClose" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${c.close}</span>
+      </div>
+      ${blockBoston()}
+    </div>`;
+}
 function template() {
   return `
 <div data-screen-label="Admin Bridges Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
@@ -887,7 +931,7 @@ function template() {
         ${blockAfter()}
       </div>
     </div>
-    ${blockBoston()}
+    ${blockBostonSlot()}
     ${blockStats()}
   </div>
 </div>`;
@@ -906,8 +950,20 @@ function rerenderAll() {
   rerender('[data-block="ready"]', blockReady());
   rerender('[data-block="fu"]', blockFollowups());
   rerender('[data-block="after"]', blockAfter());
-  rerender('[data-block="boston"]', blockBoston());
+  rerender('[data-block="boston-slot"]', blockBostonSlot());
   rerender('[data-block="stats"]', blockStats());
+}
+// Open / fold the Boston block in place and keep the URL truthful (/projects/bridges/boston is
+// the deep link), the way member-pages syncs its tab — no route round-trip, so nothing reloads
+// and the page does not jump to the top first.
+function setBostonOpen(open) {
+  st.bostonOpen = !!open;
+  try { history.replaceState(history.state, '', st.bostonOpen ? '/projects/bridges/boston' : '/projects/bridges'); } catch (e) {}
+  rerender('[data-block="boston-slot"]', blockBostonSlot());
+}
+function scrollToBoston() {
+  const el = rootEl && rootEl.querySelector('#boston-block');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 // The presenter list is the member portal's own answer — always re-read it after a send rather
 // than patching a row locally, so the invited date on screen is the date in the notes.
@@ -1030,6 +1086,10 @@ const handlers = {
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
   evEdit: (el) => { st.editEvent = st.editEvent === el.dataset.id ? null : el.dataset.id; st.recapEdit = null; rerender('[data-block="events"]', blockEvents()); },
+  // ---- the Boston fold: MANAGE on the Boston row opens the block and goes to it; CLOSE on its
+  // eyebrow folds it. Already open → just go to it.
+  bostonOpen: () => { if (!st.bostonOpen) setBostonOpen(true); scrollToBoston(); },
+  bostonClose: () => { setBostonOpen(false); const row = rootEl && rootEl.querySelector('[data-block="events"]'); if (row) row.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   evSave: async (el) => {
     const id = el.dataset.id;
     const body = { venue_name: val('evVenue') || null, event_time: val('evTime') || null, registration_open: checked('evOpen') ? 1 : 0, is_published: checked('evPub') ? 1 : 0 };
@@ -1382,10 +1442,13 @@ const handlers = {
 
 export default {
   title: 'Building Bridges',
-  async render(root) {
+  async render(root, ctx) {
     ensureCss();
     rootEl = root;
+    // `:tab?` — /projects/bridges/boston lands with the Boston block open (and in view).
+    const tab = String((ctx && ctx.params && ctx.params.tab) || '').toLowerCase();
     st = { scope: 'bridges', copied: false, newCityOpen: false, ncCity: '', ncWhen: '', editEvent: null, recapEdit: null, fuName: '', fuWhy: '', uploading: null,
+           bostonOpen: tab === 'boston',
            bpOpen: false, bpName: '', bpEmail: '', bpBusy: false, bpSending: null, bpReminding: null, bpPicking: null,
            bpProgramBusy: false, bpPreviewing: null, bpRelOpen: false, bpRestoring: null, bpFilter: 'all',
            // team controls (2026-09-16)
@@ -1395,6 +1458,9 @@ export default {
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
+    // The router scrolls to the top once render resolves; a deep link to the Boston block goes
+    // there right after (next frame). Back/forward (`popped`) keeps the router's restored scroll.
+    if (st.bostonOpen && !(ctx && ctx.popped)) requestAnimationFrame(() => { if (rootEl === root) scrollToBoston(); });
     changeHandler = (e) => {
       const t = e.target;
       if (t && t.matches && t.matches('input[data-stat]')) saveStat(t);
