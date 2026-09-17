@@ -6045,11 +6045,32 @@ function sumComponentPrices(eventType, componentKeys) {
     return resolved ? Math.round(total * 100) / 100 : null;
 }
 
+// Forum members pay the early-bird Gala price whatever the date — the membership benefit the
+// Forum page states (2026-09-17). A member is an approved/active forum_members row that is not
+// banned and not past valid_until, found by the row's own email or through users.email when the
+// row is linked by user_id. Server data only (the registration's email), never a client claim.
+function forumGalaPriceApplies(purchaserEmail) {
+    const e = String(purchaserEmail || '').trim().toLowerCase();
+    if (!e) return false;
+    let row = null;
+    try {
+        row = query.get(`SELECT fm.membership_status, fm.banned, fm.valid_until
+                         FROM forum_members fm LEFT JOIN users u ON u.id = fm.user_id
+                         WHERE LOWER(COALESCE(fm.email, '')) = ? OR LOWER(COALESCE(u.email, '')) = ?
+                         ORDER BY CASE WHEN LOWER(COALESCE(fm.membership_status, '')) IN ('approved', 'active') THEN 0 ELSE 1 END
+                         LIMIT 1`, [e, e]);
+    } catch (err) { return false; }
+    if (!forumIsMember(row) || Number(row.banned)) return false;
+    if (row.valid_until && String(row.valid_until).slice(0, 10) < new Date().toISOString().slice(0, 10)) return false;
+    return true;
+}
+
 // Effective Gala-only ticket price: early-bird until the deadline, then the regular price.
 // Date-driven + admin-editable via gala_settings. Used by BOTH the standalone Gala checkout
 // and the Plexus multi-event flow so the Gala price is identical regardless of entry point.
-// Always server-computed — never trusts a client-sent amount.
-function effectiveGalaPrice() {
+// Always server-computed — never trusts a client-sent amount. Pass the purchaser's email (from
+// the registration row) and a Forum member keeps the early-bird price after the deadline.
+function effectiveGalaPrice(purchaserEmail) {
     const s = query.get("SELECT price_gala_only, price_gala_early_bird, price_gala_regular, early_bird_deadline FROM gala_settings WHERE id = 'default'") || {};
     // ONE Gala price source: the editable Gala component price (what admins set in the Live
     // Editor's price box) is the early-bird price, so an edit there reflects on EVERY entry point
@@ -6062,7 +6083,7 @@ function effectiveGalaPrice() {
     const deadline = s.early_bird_deadline || '2026-09-15';
     if (Number.isFinite(eb)) {
         const today = new Date().toISOString().slice(0, 10);
-        return today <= deadline ? eb : reg;
+        return (today <= deadline || forumGalaPriceApplies(purchaserEmail)) ? eb : reg;
     }
     return Number(s.price_gala_only) || 150; // legacy fallback
 }
@@ -9404,6 +9425,9 @@ async function initializeApp() {
         registered_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES bridges_events(id) ON DELETE CASCADE
     )`);
+    // The "Phase 6B" ALTER above runs before this CREATE, so a member-only fresh database never got
+    // qr_code and POST /api/bridges/events/:id/register failed on it. Idempotent; prod already has it.
+    try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
 
     // Seed the two invitation-only Plexus Week 2026 public events (Building Bridges + Donor Night).
     // Guarded on an immutable SLUG (mirroring the forum-event seeds above), NOT the display name —
@@ -14907,9 +14931,21 @@ By applying to this program, I provide the following consents:
         res.json({ ...program, document_types: DOCUMENT_TYPES });
     });
 
-    // Get all partner institutions
+    // Get all partner institutions — with the current program year's accelerator_institution_details
+    // row folded in (program type, duration, mentors, requirements, stipend, accommodation, visa,
+    // contact) so the member page's host drawer can show every field the admin has filled in.
+    // Public and read-only, like before; details columns are null when no row exists for the year.
     app.get('/api/accelerator/institutions', (req, res) => {
-        res.json(query.all('SELECT * FROM accelerator_institutions WHERE is_active = 1 ORDER BY sort_order'));
+        const program = query.get('SELECT year FROM accelerator_programs WHERE is_active = 1 ORDER BY year DESC LIMIT 1');
+        const year = program ? Number(program.year) : new Date().getFullYear();
+        res.json(query.all(`
+            SELECT i.*, d.year AS details_year, d.program_type, d.available_spots AS year_spots, d.internship_duration,
+                   d.mentors, d.visa_requirements, d.accommodation_info, d.stipend_info, d.requirements,
+                   d.contact_email, d.contact_person
+            FROM accelerator_institutions i
+            LEFT JOIN accelerator_institution_details d ON d.institution_id = i.id AND d.year = ? AND COALESCE(d.is_active, 1) = 1
+            WHERE i.is_active = 1
+            ORDER BY i.sort_order`, [year]));
     });
 
     // Get user's application
@@ -16808,11 +16844,15 @@ By applying to this program, I provide the following consents:
     // ========== BUILDING BRIDGES ROUTES ==========
 
     // Get published bridges events (user-facing)
+    // registration_count = HELD seats only ('registered' / 'confirmed'). A cancelled row used to be
+    // counted here and in the capacity check below, so Boston read FULLY BOOKED with two empty seats
+    // — and the button still opened the form (audit 2026-09-17, item 1). Same predicate as boston.js.
+    const BRIDGES_HELD_SEATS = "status IN ('registered','confirmed')";
     app.get('/api/bridges/events', auth, (req, res) => {
         try {
             const events = query.all(`
                 SELECT e.*,
-                       (SELECT COUNT(*) FROM bridges_registrations WHERE event_id = e.id) as registration_count,
+                       (SELECT COUNT(*) FROM bridges_registrations WHERE event_id = e.id AND ${BRIDGES_HELD_SEATS}) as registration_count,
                        (SELECT COUNT(*) FROM bridges_registrations WHERE event_id = e.id AND checked_in = 1) as checked_in_count
                 FROM bridges_events e
                 WHERE e.is_published = 1
@@ -16829,7 +16869,7 @@ By applying to this program, I provide the following consents:
     app.get('/api/bridges/events/:id', auth, (req, res) => {
         const event = query.get('SELECT * FROM bridges_events WHERE id = ? AND is_published = 1', [req.params.id]);
         if (!event) return res.status(404).json({ error: 'Event not found' });
-        event.registration_count = query.get('SELECT COUNT(*) as c FROM bridges_registrations WHERE event_id = ?', [req.params.id])?.c || 0;
+        event.registration_count = query.get(`SELECT COUNT(*) as c FROM bridges_registrations WHERE event_id = ? AND ${BRIDGES_HELD_SEATS}`, [req.params.id])?.c || 0;
         res.json(event);
     });
 
@@ -16853,8 +16893,14 @@ By applying to this program, I provide the following consents:
                 return res.status(409).json({ error: 'This event requires paid registration. Please use the official registration link to complete payment.' });
             }
 
-            // Check capacity
-            const regCount = query.get('SELECT COUNT(*) as c FROM bridges_registrations WHERE event_id = ?', [req.params.id])?.c || 0;
+            // The admin's switch closes this door too — the card used to ignore it and take
+            // registrations for an event the admin had closed.
+            if (event.registration_open !== null && event.registration_open !== undefined && !Number(event.registration_open)) {
+                return res.status(400).json({ error: 'Registration for this event is not open.' });
+            }
+
+            // Check capacity — held seats only; a cancelled registration has given its seat back.
+            const regCount = query.get(`SELECT COUNT(*) as c FROM bridges_registrations WHERE event_id = ? AND ${BRIDGES_HELD_SEATS}`, [req.params.id])?.c || 0;
             if (event.capacity && regCount >= event.capacity) {
                 return res.status(400).json({ error: 'Event is at full capacity' });
             }
@@ -28265,8 +28311,10 @@ By applying to this program, I provide the following consents:
             // ONE Gala price: effectiveGalaPrice() (early-bird → regular by date), identical on
             // every entry point. The legacy 'bundle' tier is abolished (2026-07-25, Alen: the
             // conference is free, nothing to bundle) — old rows with pricing='bundle' charge the
-            // same single Gala price.
-            const price = effectiveGalaPrice();
+            // same single Gala price. reg.email is the signed-in member's own address (matched in
+            // the SELECT above); a Forum member keeps the early-bird price whatever the date.
+            const forumMember = forumGalaPriceApplies(reg.email);
+            const price = effectiveGalaPrice(reg.email);
 
             // Generate invoice number
             const year = new Date().getFullYear();
@@ -28290,7 +28338,7 @@ By applying to this program, I provide the following consents:
                         currency: 'eur',
                         product_data: {
                             name: `Plexus 2026 — ${ticketLabel}`,
-                            description: `Gala Evening Ticket (Invoice: ${invoiceNumber})`
+                            description: `Gala Evening Ticket (Invoice: ${invoiceNumber})${forumMember ? ' · Forum member price' : ''}`
                         },
                         unit_amount: Math.round(price * 100)
                     },
@@ -28456,7 +28504,7 @@ By applying to this program, I provide the following consents:
                 adaptive_pricing: { enabled: false },
                 mode: 'payment',
                 payment_method_types: ['card'],
-                line_items: [{ price_data: { currency: 'eur', product_data: { name: quote.lineName, description: `Gala Evening ${quote.seats > 1 ? quote.seats + ' seats' : 'Ticket'} (Invoice: ${invoiceNumber})` }, unit_amount: quote.lineUnitAmount }, quantity: quote.lineQuantity }],
+                line_items: [{ price_data: { currency: 'eur', product_data: { name: quote.lineName, description: `Gala Evening ${quote.seats > 1 ? quote.seats + ' seats' : 'Ticket'} (Invoice: ${invoiceNumber})${quote.forumMember ? ' · Forum member price' : ''}` }, unit_amount: quote.lineUnitAmount }, quantity: quote.lineQuantity }],
                 metadata: { gala_registration_id: reg.id, invoice_number: invoiceNumber, type: 'gala-ticket' },
                 customer_email: reg.email,
                 success_url: galaTicketPageUrl(baseUrl, reg.id),

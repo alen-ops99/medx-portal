@@ -171,6 +171,9 @@ module.exports = function mountNetwork(app, ctx) {
         const fmBanned = c.forum.has('banned') ? ' AND COALESCE(fm.banned,0) = 0' : '';
         const fmValid = c.forum.has('valid_until') ? " AND (fm.valid_until IS NULL OR fm.valid_until >= date('now'))" : '';
         const fmVisible = c.forum.has('profile_visibility') ? " AND lower(COALESCE(fm.profile_visibility,'members')) <> 'private'" : '';
+        // Only accounts that confirmed their address are listed — an unverified sign-up cannot log
+        // in, yet it used to appear in the directory and in suggestions (audit 2026-09-17, item 3).
+        const verified = c.users.has('email_verified') ? ' AND COALESCE(u.email_verified,0) = 1' : '';
         // active forum membership — same gates as GET /api/v2/forum/members-public (the Forum builder's endpoint)
         const fmJoin = `fm.user_id = u.id AND lower(COALESCE(fm.membership_status,'')) IN ('approved','active')${fmBanned}${fmValid}${fmVisible}`;
         // quiet = senior-only affiliations (gala/forum) and no general-member signal — mirrors deriveAffiliationClass()
@@ -209,7 +212,7 @@ module.exports = function mountNetwork(app, ctx) {
           LEFT JOIN user_profiles up ON up.user_id = u.id
           LEFT JOIN networking_profiles np ON np.user_id = u.id
           LEFT JOIN forum_members fm ON ${fmJoin}
-          WHERE u.id <> ? AND u.deleted_at IS NULL AND COALESCE(u.is_public_profile,1) = 1
+          WHERE u.id <> ? AND u.deleted_at IS NULL AND COALESCE(u.is_public_profile,1) = 1${verified}
             AND (COALESCE(TRIM(u.first_name),'') <> '' OR COALESCE(TRIM(u.last_name),'') <> '')
             AND NOT (${quiet} AND fm.id IS NULL)
         )`;

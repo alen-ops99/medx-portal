@@ -141,18 +141,23 @@ const partySeats = row => 1 + Math.max(0, parseInt(row && row.guest_count, 10) |
  */
 function quoteGalaSeats(effectiveGalaPrice, galaRow) {
     const seats = partySeats(galaRow);
-    const seatPrice = round2(typeof effectiveGalaPrice === 'function' ? effectiveGalaPrice() : 0);
+    const price = typeof effectiveGalaPrice === 'function' ? effectiveGalaPrice : () => 0;
+    // The purchaser's own price — effectiveGalaPrice(email) keeps a Forum member on the early-bird
+    // amount whatever the date — beside today's list price; when the two differ, membership set
+    // the amount and the emails say so ("Forum member price").
+    const seatPrice = round2(price(galaRow && galaRow.email));
+    const forumMember = seatPrice < round2(price());
     const quoted = Number(galaRow && galaRow.amount_paid);
     if (galaRow && galaRow.invoice_number && Number.isFinite(quoted) && quoted > 0) {
         return {
-            seats, seatPrice, total: round2(quoted), honoured: true,
+            seats, seatPrice, total: round2(quoted), honoured: true, forumMember: false,
             lineName: 'Plexus 2026 — Gala Evening',
             lineQuantity: 1,
             lineUnitAmount: Math.round(round2(quoted) * 100)
         };
     }
     return {
-        seats, seatPrice, total: round2(seats * seatPrice), honoured: false,
+        seats, seatPrice, total: round2(seats * seatPrice), honoured: false, forumMember,
         lineName: 'Plexus 2026 — Gala Evening' + (seats > 1 ? ` — ${seats} seats` : ''),
         lineQuantity: seats,
         lineUnitAmount: Math.round(seatPrice * 100)
@@ -161,13 +166,15 @@ function quoteGalaSeats(effectiveGalaPrice, galaRow) {
 
 // "2 seats · €300 (€150 per seat, early-bird until 15 September)" — the owner's line.
 // One seat drops the redundant per-seat figure; an honoured quote states only the amount the
-// link will actually charge, because its per-seat arithmetic no longer holds.
+// link will actually charge, because its per-seat arithmetic no longer holds. A Forum member
+// past the deadline reads "Forum member price" where the early-bird clause would have been.
 function seatsLine(quote, earlyBirdDeadline) {
     const seatsWord = `${quote.seats} seat${quote.seats === 1 ? '' : 's'}`;
     if (quote.honoured) return `${seatsWord} · ${fmtEur(quote.total)}`;
     const early = earlyBirdDeadline && String(earlyBirdDeadline) >= todayIso()
         ? `early-bird until ${fmtDayMonth(earlyBirdDeadline)}` : '';
-    const inner = [quote.seats > 1 ? `${fmtEur(quote.seatPrice)} per seat` : '', early].filter(Boolean).join(', ');
+    const basis = quote.forumMember ? 'Forum member price' : early;
+    const inner = [quote.seats > 1 ? `${fmtEur(quote.seatPrice)} per seat` : '', basis].filter(Boolean).join(', ');
     return `${seatsWord} · ${fmtEur(quote.total)}${inner ? ` (${inner})` : ''}`;
 }
 

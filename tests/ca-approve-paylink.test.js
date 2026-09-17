@@ -250,6 +250,56 @@ const allTo = to => sent.filter(m => m.to === to);
             'an honoured quote states only what the link charges — its per-seat maths no longer holds');
     });
 
+    await t('Forum members keep the early-bird seat price after the deadline, and the facts line says so', () => {
+        // effectiveGalaPrice(purchaserEmail) in server.js: €150 early-bird, €175 after the deadline —
+        // unless the purchaser is an approved Forum member, who keeps €150 whatever the date.
+        const afterDeadline = email => (String(email || '').toLowerCase() === 'member@forum.example' ? 150 : 175);
+        const member = payLink.quoteGalaSeats(afterDeadline, { guest_count: 1, email: 'Member@forum.example' });
+        assert.strictEqual(member.seatPrice, 150, 'the member is priced with their own email');
+        assert.strictEqual(member.total, 300);
+        assert.strictEqual(member.forumMember, true, 'the quote knows membership set the amount');
+        assert.strictEqual(member.lineUnitAmount, 15000);
+        assert.strictEqual(payLink.seatsLine(member, '2020-01-01'), '2 seats · €300 (€150 per seat, Forum member price)',
+            'the emailed facts line prints "Forum member price" instead of a stale early-bird clause');
+        assert.strictEqual(payLink.seatsLine(payLink.quoteGalaSeats(afterDeadline, { guest_count: 0, email: 'member@forum.example' }), '2020-01-01'),
+            '1 seat · €150 (Forum member price)');
+
+        const guest = payLink.quoteGalaSeats(afterDeadline, { guest_count: 1, email: 'guest@example.com' });
+        assert.strictEqual(guest.seatPrice, 175, 'everyone else pays the date price');
+        assert.strictEqual(guest.forumMember, false);
+        assert.strictEqual(payLink.seatsLine(guest, '2020-01-01'), '2 seats · €350 (€175 per seat)');
+
+        // Before the deadline the two prices coincide: no membership label, the early-bird clause stands.
+        const earlyBird = () => 150;
+        const early = payLink.quoteGalaSeats(earlyBird, { guest_count: 0, email: 'member@forum.example' });
+        assert.strictEqual(early.forumMember, false);
+        assert.strictEqual(payLink.seatsLine(early, '2030-09-15'), '1 seat · €150 (early-bird until 15 September)');
+
+        // An honoured quote is never relabelled.
+        const honoured = payLink.quoteGalaSeats(afterDeadline, { guest_count: 1, email: 'member@forum.example', invoice_number: 'GALA26-0099', amount_paid: 150 });
+        assert.strictEqual(honoured.honoured, true);
+        assert.strictEqual(honoured.forumMember, false);
+        assert.strictEqual(payLink.seatsLine(honoured, '2020-01-01'), '2 seats · €150');
+
+        // A price function that ignores the email (the legacy stub shape) still works — no member label.
+        const legacy = payLink.quoteGalaSeats(effectiveGalaPrice, { guest_count: 1, email: 'member@forum.example' });
+        assert.strictEqual(legacy.total, 300);
+        assert.strictEqual(legacy.forumMember, false);
+    });
+
+    await t('server.js prices the Gala for the purchaser: effectiveGalaPrice(email) + the Forum-member rule', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'user-portal', 'backend', 'server.js'), 'utf8');
+        assert.ok(/function effectiveGalaPrice\(purchaserEmail\)/.test(src), 'effectiveGalaPrice takes the purchaser\'s email');
+        assert.ok(/return \(today <= deadline \|\| forumGalaPriceApplies\(purchaserEmail\)\) \? eb : reg;/.test(src),
+            'early-bird holds past the deadline for a Forum member');
+        assert.ok(/function forumGalaPriceApplies\(purchaserEmail\)/.test(src), 'the membership rule is one named function');
+        assert.ok(/IN \('approved', 'active'\)/.test(src.slice(src.indexOf('function forumGalaPriceApplies'), src.indexOf('function effectiveGalaPrice'))),
+            'and it reads the same approved/active statuses the Forum uses');
+        assert.ok(/const price = effectiveGalaPrice\(reg\.email\);/.test(src), '/api/gala/checkout-session prices with the registration\'s email');
+        assert.ok(/\$\{forumMember \? ' · Forum member price' : ''\}/.test(src), 'and the Stripe description says so');
+        assert.ok(/\$\{quote\.forumMember \? ' · Forum member price' : ''\}/.test(src), '/pay/gala says so too');
+    });
+
     await t('partyNote: party size stated, and whether the guests already hold a copy', () => {
         // A party of one has nobody to admit but themselves — the ticket says nothing.
         assert.strictEqual(payLink.partyNote(1, 0), '');
