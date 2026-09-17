@@ -1,6 +1,6 @@
 // Med&X member portal v2 — service worker.
 // Keep the CACHE_NAME line shape: scripts/stamp-sw.sh rewrites '…-vN' → '…-vN-<sha>' on deploy.
-const CACHE_NAME = 'medx-portal-v2-2';   // bumped for the brand-lockup fix in css/app.css + js/chrome.js
+const CACHE_NAME = 'medx-portal-v2-3';   // bumped 2026-09-17: Forum/Accelerator/Bridges views + new hero assets (cache-first JS must roll)
 
 // App shell (same-origin only — cross-origin entries make cache.addAll() reject and the SW never installs).
 const SHELL = [
