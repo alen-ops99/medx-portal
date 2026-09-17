@@ -12,6 +12,7 @@ const fs = require('fs');
 const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
+const caMerge = require('../../shared/ca-merge'); // merged duplicate /plexus registrations follow their survivor
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
 const faqKb = require('./faq-kb'); // Member FAQ Assistant grounding corpus + deterministic retrieval (queue 5a6)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
@@ -4375,6 +4376,7 @@ app.get('/qr/:id.png', async (req, res) => {
         //    so the same QR verifies in all three scanner modes (conference / bridges / gala)
         let ca = null;
         try { ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ? OR gala_registration_id = ?', [id, id]); } catch(e) {}
+        if (ca) ca = caMerge.followMerge(query.get, ca);   // an older duplicate's QR admits the survivor
         if (ca) {
             const events = [
                 ca.selected_conference ? 'conference' : null,
@@ -9148,6 +9150,7 @@ async function initializeApp() {
     // Per-event check-in tracking for Croatians Abroad registrations (Gala check-in
     // lives on the linked gala_registrations row; Conference + Bridges check-in
     // live here directly).
+    caMerge.ensureColumn(sql => db.run(sql));
     try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in_at TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN bridges_checked_in INTEGER DEFAULT 0`); } catch(e) {}
@@ -28441,8 +28444,9 @@ By applying to this program, I provide the following consents:
         res.set('X-Robots-Tag', 'noindex, nofollow');
         res.set('Cache-Control', 'private, no-store');
         const id = String(req.params.id || '');
-        const ca = plexusTicket.safeEq(String(req.params.sig || ''), plexusTicket.pageSig(JWT_SECRET, 'ca', id)) ? query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]) : null;
+        let ca = plexusTicket.safeEq(String(req.params.sig || ''), plexusTicket.pageSig(JWT_SECRET, 'ca', id)) ? query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]) : null;
         if (!ca) return galaPayPage(res, 404, 'Nothing here', 'This link is not valid. Please use the link from your email.');
+        ca = caMerge.followMerge(query.get, ca);                    // a merged duplicate's link shows the survivor's ticket
         const live = s => ['pre-registered', 'confirmed'].includes(String(s || ''));
         if (!live(ca.conference_status) && !live(ca.bridges_status)) {
             return galaPayPage(res, 200, 'Still under review', 'Your registration is being reviewed. You will receive an email as soon as it is confirmed.');

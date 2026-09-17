@@ -13,6 +13,7 @@ const fs = require('fs');
 const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
+const caMerge = require('../../shared/ca-merge');
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const XLSX = require('xlsx');
@@ -8229,6 +8230,7 @@ async function initializeApp() {
     // Variant: 'croatian' (default — diaspora) or 'international' (non-Croatian collaborators)
     try { db.run(`ALTER TABLE croatians_abroad_invite_links ADD COLUMN variant TEXT DEFAULT 'croatian'`); } catch(e) {}
     // Per-event check-in tracking for Croatians Abroad
+    caMerge.ensureColumn(sql => db.run(sql));
     try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in_at TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN bridges_checked_in INTEGER DEFAULT 0`); } catch(e) {}

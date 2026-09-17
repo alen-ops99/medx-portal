@@ -37,6 +37,7 @@ const crypto = require('crypto');
 const path = require('path');
 const applePass = require('./v2/apple-pass');
 const wallet = require('../../shared/wallet');
+const caMerge = require('../../shared/ca-merge');
 const tpl = require('./v2/email-templates');
 
 const SUPPORT_EMAIL = 'laura.rodman@medx.hr';
@@ -122,8 +123,9 @@ function resolveTicket(query, kind, id) {
     if (kind === 'guest') {
         const guest = query.get('SELECT * FROM ca_registration_guests WHERE id = ?', [id]);
         if (!guest) return null;
-        const ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [guest.registration_id]);
+        let ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [guest.registration_id]);
         if (!ca) return null;
+        ca = caMerge.followMerge(query.get, ca);
         const g = ca.gala_registration_id ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [ca.gala_registration_id]) : null;
         const galaOk = !!(g && String(g.status || '') !== 'cancelled' && galaPaid(g));
         const hostLegs = legsOf(ca);
@@ -159,8 +161,9 @@ function resolveTicket(query, kind, id) {
         };
     }
     // kind === 'ca' — the free-events ticket (no gala leg on this row)
-    const ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
+    let ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [id]);
     if (!ca) return null;
+    ca = caMerge.followMerge(query.get, ca);                        // merged duplicate → the survivor's pass
     const legs = legsOf(ca);
     if (!legs.length) return null;
     let unpaidGalaId = null;

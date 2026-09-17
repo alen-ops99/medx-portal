@@ -38,6 +38,7 @@
 const crypto = require('crypto');
 const meetCore = require('../../../shared/meetups-core');
 const meetEditions = require('../../../shared/editions');
+const caMerge = require('../../../shared/ca-merge');
 
 const UUID_RE = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
 // 'meetup' (2026-09-11) is a door of a different shape: its list is ONE Plexus Week meetup picked
@@ -264,7 +265,7 @@ module.exports = function mountEventDay(app, ctx) {
         try { r = q.get('SELECT * FROM gala_registrations WHERE id = ?', [id]); if (r) return { table: 'gala_registrations', row: r }; } catch (e) {}
         try {
             r = q.get('SELECT * FROM croatians_abroad_registrations WHERE id = ? OR gala_registration_id = ?', [id, id]);
-            if (r) return { table: 'croatians_abroad_registrations', row: r };
+            if (r) return { table: 'croatians_abroad_registrations', row: caMerge.followMerge(q.get, r) };   // an older duplicate's QR → the survivor
         } catch (e) {}
         try { r = q.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]); if (r) return { table: 'bridges_registrations', row: r }; } catch (e) {}
         return null;
@@ -291,17 +292,17 @@ module.exports = function mountEventDay(app, ctx) {
         };
         if (eventKey === 'conference') {
             let r = tryOne('registrations', '', [], 'created_at'); if (r) return { table: 'registrations', row: r };
-            r = tryOne('croatians_abroad_registrations', 'AND selected_conference = 1', [], 'created_at'); if (r) return { table: 'croatians_abroad_registrations', row: r };
+            r = tryOne('croatians_abroad_registrations', 'AND selected_conference = 1 AND merged_into IS NULL', [], 'created_at'); if (r) return { table: 'croatians_abroad_registrations', row: r };
         } else if (eventKey === 'gala') {
             let r = tryOne('gala_registrations', '', [], 'created_at'); if (r) return { table: 'gala_registrations', row: r };
-            r = tryOne('croatians_abroad_registrations', 'AND selected_gala = 1', [], 'created_at'); if (r) return { table: 'croatians_abroad_registrations', row: r };
+            r = tryOne('croatians_abroad_registrations', 'AND selected_gala = 1 AND merged_into IS NULL', [], 'created_at'); if (r) return { table: 'croatians_abroad_registrations', row: r };
         } else if (eventKey === 'donor') {
             const w = donorId ? 'AND event_id = ?' : '', a = donorId ? [donorId] : [];
             const r = tryOne('bridges_registrations', w, a, 'registered_at'); if (r) return { table: 'bridges_registrations', row: r };
         } else { // bridges
             const w = donorId ? 'AND event_id != ?' : '', a = donorId ? [donorId] : [];
             let r = tryOne('bridges_registrations', w, a, 'registered_at'); if (r) return { table: 'bridges_registrations', row: r };
-            r = tryOne('croatians_abroad_registrations', 'AND selected_bridges = 1', [], 'created_at'); if (r) return { table: 'croatians_abroad_registrations', row: r };
+            r = tryOne('croatians_abroad_registrations', 'AND selected_bridges = 1 AND merged_into IS NULL', [], 'created_at'); if (r) return { table: 'croatians_abroad_registrations', row: r };
         }
         return null;
     }
