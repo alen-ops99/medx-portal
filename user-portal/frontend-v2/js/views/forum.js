@@ -30,19 +30,30 @@ export const COPY = {
     badge: 'AN INVITATION-ONLY NETWORK · GATHERS ONCE A YEAR',
     headline: 'The Biomedical <i style="color:#c9a962">Forum</i>',
     line: (label, where) => `Annual gathering · ${label} · ${where} — venue announced with your invitation`,
-    blurb: 'A standing network of leaders in medicine, science, and industry. Members stay connected in the portal all year — and meet in person once a year, over two days closing with a gala evening.',
+    blurb: 'A standing network of leaders in medicine, science, and industry. Members stay connected in the portal all year — and meet in person once a year, over two days each May, closing with a dinner and the Forum\'s annual awards.',
     join: 'JOIN WITH YOUR CODE →', member: 'YOUR MEMBERSHIP →'
   },
-  band: ['SPLIT OR ZAGREB · MEMBERS VOTE ON THE VENUE', '150–200 SENIOR GUESTS', 'ANNUAL MEMBERSHIP · RENEWED EACH YEAR', 'GALA DINNER &amp; ANNUAL AWARDS'],
+  band: ['SPLIT OR ZAGREB · MEMBERS VOTE ON THE VENUE', '150–200 SENIOR GUESTS', 'ANNUAL MEMBERSHIP · RENEWED EACH YEAR', 'MAY GATHERING · DINNER &amp; ANNUAL AWARDS'],
   network: {
     n: '01', title: 'THE NETWORK',
     intro: cap => `The Forum is a network, not just an event — the leadership of Croatian and international biomedicine, limited to ${cap} members so every relationship stays personal. Membership is by invitation: your code arrives by email, and joining unlocks the member circle here in the portal along with registration for the annual gathering.`,
     directory: 'Forum members appear alongside your connections in <a href="/app/network">the member network</a> — message and connect year-round.',
     cards: cap => [
       { tag: 'THE CIRCLE', title: `${cap} members, by invitation`, body: 'The leadership of Croatian and international biomedicine — heads of clinics, labs, and companies, reachable in the portal year-round.' },
-      { tag: 'THE GATHERING', title: 'Two days, once a year', body: 'Every May the Forum meets in person, closing with a gala evening. Members register first.' },
+      { tag: 'THE GATHERING', title: 'Two days, once a year', body: 'Every May the Forum meets in person, closing with a dinner and the Forum\'s annual awards. Members register first.' },
       { tag: 'THE MEMBERSHIP', title: 'Annual, renewable', body: `Membership runs for one year and renews annually — the full terms arrive with your registration. The cap stays at ${cap} so every relationship stays personal.` }
-    ]
+    ],
+    // What a member actually gets — stated once, in plain terms, so nobody reads the Forum's
+    // dinner as a Plexus Gala ticket or expects a Gala seat with their membership (2026-09-17).
+    includes: {
+      title: 'WHAT MEMBERSHIP INCLUDES',
+      points: [
+        'The members\' network and directory here in the portal — message and connect year-round.',
+        'First call on seats at the Forum\'s annual May gathering.',
+        '<strong style="color:#191512">Plexus Gala Evening: Forum members always pay the early-bird price (€150), whatever the date.</strong>'
+      ],
+      note: 'Membership does not include a free Gala seat; the Gala is a separate ticket.'
+    }
   },
   feed: {
     mark: '◆', title: 'FROM THE FORUM', sub: 'New highlights from the network — posted by the Med&amp;X team.',
@@ -53,16 +64,11 @@ export const COPY = {
   },
   gathering: {
     n: '02', title: 'THE ANNUAL GATHERING',
-    sub: 'Two days each May · the closing gala evening runs like this — the full program follows with your invitation.',
-    // Shown only when GET /api/v2/forum/state carries no schedule rows (the artboard's default evening run-of-show)
-    fallback: [
-      { time: '18:00', title: 'Welcome Reception', note: 'Champagne reception and networking' },
-      { time: '19:00', title: 'Opening Remarks', note: 'Alen Juginović, MD — President of Med&X' },
-      { time: '19:30', title: 'Keynote Address', note: 'The Future of Biomedicine · Vision 2030' },
-      { time: '20:30', title: 'Gala Dinner', note: 'Four-course dinner with wine pairing' },
-      { time: '22:00', title: 'Awards Ceremony', note: 'Recognition of outstanding achievements' },
-      { time: '23:00', title: 'Evening Entertainment', note: 'Live music and continued networking' }
-    ]
+    sub: 'Two days each May · the full program follows with your invitation.',
+    // The run-of-show rows (18:00 reception … 23:00 entertainment) read as a gala ticket and were
+    // never the gathering's real program. A description stands here now: gathering.description
+    // from GET /api/v2/forum/state when the admin has written one, else this text (2026-09-17).
+    fallback: 'Once a year the Forum leaves the portal and meets in person — two days each May, for the members and guests who lead Croatian and international biomedicine. The days are built for conversation rather than lectures: closed sessions on where medicine and science are heading, time with colleagues you would otherwise only read about, and a closing evening of dinner and the Forum\'s annual awards. Members register first. The venue and the full program follow with your invitation.'
   },
   speakers: {
     n: '03', title: 'GATHERING SPEAKERS', sub: 'Announced with the program — Forum members hear first.',
@@ -98,7 +104,7 @@ export const COPY = {
     termsBody: cap => `Forum membership is annual and renewable — it runs for one year from the day you join and renews each year with your invitation. Registering confirms your seat at the gathering; the circle stays capped at ${cap} members so every relationship stays personal.`,
     termsAccept: 'I accept the annual, renewable membership terms.',
     termsNeeded: 'Please accept the annual membership terms to register.',
-    cancel: 'NOT NOW', submit: 'CONFIRM MY SEAT →', busy: 'CONFIRMING…',
+    cancel: 'NOT NOW', submit: 'REGISTER FOR THE MAY GATHERING →', busy: 'REGISTERING…',
     done: 'Your seat at the gathering is confirmed.'
   },
   vote: {
@@ -174,7 +180,7 @@ async function load() {
     gatherLabel: g && g.start_date ? fmt.longRange(g.start_date, g.end_date) : FACTS.forum.gathering.label,
     gatherWhere: (g && g.location_name && g.location_name.split('—')[0].trim()) || FACTS.forum.gathering.where,
     gatherYear: String((g && g.start_date) || FACTS.forum.gathering.start).slice(0, 4),
-    schedule: (state.schedule && state.schedule.length) ? state.schedule : COPY.gathering.fallback,
+    gatherAbout: (g && g.description && String(g.description).trim()) || COPY.gathering.fallback,
     first: (state.user && state.user.first_name) || (session.user || {}).first_name || ''
   };
 }
@@ -195,7 +201,7 @@ function blockHero() {
   return `
   <!-- dc: Biomedical Forum.dc.html › "Hero" -->
   <div style="position:relative;overflow:hidden">
-    <img src="/assets/photo-bridges.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    <img src="/assets/photo-forum.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 35%">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.74) 0%,rgba(25,21,18,.58) 55%,rgba(25,21,18,.86) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:56px 36px 46px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em;text-align:center">${COPY.hero.badge}</span>
@@ -240,6 +246,12 @@ function blockNetwork() {
     </div>
     <div class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:18px 0 8px;max-width:960px">
       ${COPY.network.cards(D.cap).map(card).join('')}
+    </div>
+    <!-- v2: what membership includes — the three benefits and the one thing it is not (2026-09-17) -->
+    <div data-block="includes" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:18px 22px;margin-top:8px;max-width:960px;display:flex;flex-direction:column;gap:10px">
+      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${COPY.network.includes.title}</span>
+      ${COPY.network.includes.points.map(t => `<span style="display:flex;gap:10px;align-items:baseline;font-size:13px;color:#4a4239;line-height:1.55"><span style="width:6px;height:6px;background:#c9a962;flex:none;align-self:center"></span><span>${t}</span></span>`).join('')}
+      <span style="font-size:12px;color:#6d6459;font-style:italic;border-top:1px solid rgba(25,21,18,.1);padding-top:9px">${COPY.network.includes.note}</span>
     </div>
     <!-- /dc -->`;
 }
@@ -300,13 +312,8 @@ function blockSchedule() {
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.gathering.title}</span>
       <span style="font-size:12.5px;color:#4a4239">${COPY.gathering.sub}</span>
     </div>
-    <div style="max-width:860px">
-      ${D.schedule.map(row => `
-        <div class="mx-forum-schedrow" style="display:flex;gap:20px;align-items:baseline;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#c9a962;flex:none;width:48px">${esc(row.time)}</span>
-          <span style="font-family:Fraunces,serif;font-size:16.5px;flex:none;min-width:210px" class="mx-forum-schedtitle">${esc(row.title)}</span>
-          <span style="font-size:12.5px;color:#4a4239">${esc(row.note)}</span>
-        </div>`).join('')}
+    <div style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:20px 24px;max-width:860px">
+      <div style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.6;color:#191512;text-wrap:pretty">${esc(D.gatherAbout)}</div>
     </div>
     <!-- /dc -->`;
 }
