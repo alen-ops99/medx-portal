@@ -26,6 +26,13 @@
  *                                                 for all active members ({ year?, dry_run?,
  *                                                 limit? }); runs in the background
  *
+ * ⛔ OWNER RULE (Alen, 2026-09-17): attendance cards are NEVER EMAILED — not for Plexus, the Gala,
+ *    Building Bridges, the Forum or the year card, no matter what a guest registers for. Between
+ *    11 and 17 Sept the sweep mailed 27 real registrants "I'm attending … — your card is inside"
+ *    before he saw one himself. emailCard() is now a hard no-op that records why, the timers never
+ *    start, and the sweep only generates images for the wallet page. Re-enabling needs his word
+ *    in writing AND a code change here — no env flag turns it back on.
+ *
  * Env: V2_CARDS_DISABLED=1 stops the timers (routes stay). V2_CARDS_EMAIL_SINCE=<ISO date>
  * generates but does NOT email cards for registrations created before that date (deploy-day
  * guard against retroactively mailing an old guest list). PNG output appears automatically if
@@ -192,6 +199,10 @@ module.exports = function mountAttendanceCards(app, ctx) {
     }
 
     async function emailCard(card, meta) {
+        // Owner rule (see header): cards live on the member's wallet page only, they are never emailed.
+        try { q.run('UPDATE v2_attendance_cards SET last_error = ? WHERE id = ? AND emailed_at IS NULL', ['not emailed: cards are never emailed (owner rule 2026-09-17)', card.id]); } catch (e) {}
+        return false;
+        // eslint-disable-next-line no-unreachable
         if (!card.email_to) { q.run('UPDATE v2_attendance_cards SET last_error = ?, email_attempts = email_attempts + 1 WHERE id = ?', ['no recipient address', card.id]); return false; }
         if (!meta.firstName) {
             try { const u = q.get('SELECT first_name FROM users WHERE LOWER(email) = ?', [card.email_to]); if (u && u.first_name) meta.firstName = u.first_name; } catch (e) {}
@@ -367,7 +378,8 @@ module.exports = function mountAttendanceCards(app, ctx) {
         return summary;
     }
 
-    if (process.env.V2_CARDS_DISABLED !== '1') {
+    // No automatic sweep: images are generated on demand (admin POST /sweep) for the wallet page only.
+    if (false && process.env.V2_CARDS_DISABLED !== '1') {
         const t0 = setTimeout(() => { sweep('boot').catch(() => {}); }, 30 * 1000);
         const ti = setInterval(() => { sweep('interval').catch(() => {}); }, 5 * 60 * 1000);
         if (t0.unref) t0.unref();
