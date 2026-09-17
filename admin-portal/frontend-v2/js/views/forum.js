@@ -6,9 +6,14 @@
 // Data: /api/v2/forum/hub (admin v2 — shared v2_forum_* tables with the member portal; carries
 // `nominations`: members' put-a-colleague-forward rows, rendered INSIDE the recruitment pipeline
 // as NOMINATED stage rows with SHORTLIST / DECLINE + the statement expandable) +
-// /api/admin/forum/candidates (legacy pipeline) + /api/admin/forum/events/:id (gathering edit).
+// /api/admin/forum/candidates (legacy pipeline) + /api/admin/forum/events/:id (gathering edit) +
+// /api/admin/forum/considerations?status=pending (the public "Request consideration" form —
+// forum_considerations rows, rendered INSIDE the pipeline as REQUESTED rows with APPROVE / DECLINE).
 // SEND CODE queues the personal invitation in the approval Outbox — nothing emails without the OK there.
 // SHORTLIST on a nomination writes the same forum_candidates row ADD does, and emails the nominating member.
+// APPROVE on a form request does NOT go through the Outbox: the server (forumAdmitAndInvite) creates the
+// passwordless account + approved forum_members row, mints a 14-day magic link and emails the invitation
+// at once. DECLINE records the decision (+ optional note) and emails a courteous regret.
 import cfg from '../config.js';
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -47,13 +52,32 @@ export const COPY = {
     title: 'RECRUITMENT PIPELINE', sub: 'from shortlist to member, one row each',
     waiting: n => `${n} form request${n === 1 ? '' : 's'} waiting`,
     sendCode: 'SEND CODE', addPh: 'Add a candidate — e.g. Prof. Ivica Grković, igrkovic@mefst.hr', add: 'ADD',
-    foot: 'SEND CODE mints a personal invitation code and queues the email in the Outbox — one OK there sends it from president@medx.hr, no copy-pasting into Gmail.',
+    foot: 'SEND CODE mints a personal invitation code and queues the email in the Outbox — one OK there sends it from president@medx.hr, no copy-pasting into Gmail. APPROVE on a form request is different: it admits the person at once and emails their invitation link directly.',
     roleFallback: 'Add details on their profile', typeFirst: 'TYPE A NAME AND EMAIL FIRST',
     queued: 'CODE QUEUED — APPROVE IT IN THE OUTBOX', added: 'CANDIDATE ADDED TO THE PIPELINE',
     needEmail: 'ADD AN EMAIL FOR THIS CANDIDATE FIRST — EDIT THE ROW IN PEOPLE',
-    showAll: n => `SHOW ALL ${n} →`, showFewer: 'SHOW FEWER', empty: 'The pipeline is clear.', emptyWhy: 'Add a candidate below or wait for the public form — requests land here.',
-    waitingOnly: n => `${n === 1 ? 'One request' : n + ' requests'} from the public form, and nobody in the pipeline yet.`,
-    waitingOnlyWhy: 'Open Considerations to read them, or add a candidate below.',
+    showAll: n => `SHOW ALL ${n} →`, showFewer: 'SHOW FEWER', empty: 'The pipeline is clear.', emptyWhy: 'Add a candidate below — public form requests and member nominations appear here the moment they arrive.',
+    consUnavailable: n => `${n === 1 ? 'One request' : n + ' requests'} from the public form ${n === 1 ? 'is' : 'are'} waiting, but the list could not be loaded.`,
+    consUnavailableWhy: 'Reload the page — if it persists, the admin backend is the place to look.',
+    // form requests (forum_considerations, status 'pending') — REQUESTED rows in the same list
+    consStage: 'REQUESTED',
+    consVia: src => src === 'website' || !src ? 'via the public form' : 'via ' + src,
+    consBehalf: who => `put forward by ${who}`,
+    consSubmitted: when => `submitted ${when}`,
+    consRead: 'THEIR NOTE ▾', consHide: 'THEIR NOTE ▴',
+    consNoteTag: 'WHY THEY ASK — IN THEIR OWN WORDS',
+    consApprove: 'APPROVE — SENDS THE INVITATION', consDecline: 'DECLINE',
+    consApproveTitle: who => `Admit ${who} to the Forum?`,
+    consApproveBody: email => `This creates their member account and emails the personal invitation link (valid 14 days) to ${email} straight away — it does not wait in the Outbox.`,
+    consApproveOk: 'APPROVE — SEND THE INVITATION', consApproveCancel: 'NOT YET',
+    consNoEmail: 'THIS REQUEST HAS NO EMAIL — IT CANNOT BE APPROVED',
+    consApproved: email => `APPROVED — MEMBER CREATED, INVITATION SENT TO ${email}`,
+    consApprovedDev: 'APPROVED — MEMBER CREATED · MAIL IS OFF ON THIS SERVER, THE INVITATION LINK IS ON YOUR CLIPBOARD',
+    consDeclineTitle: who => `Decline ${who}?`,
+    consDeclineBody: email => `The decision is recorded for the audit trail${email ? ' and a courteous regret is emailed to ' + email : ''}. The note below stays internal — it is never sent.`,
+    consDeclineLabel: 'INTERNAL NOTE (OPTIONAL)', consDeclinePh: 'e.g. not yet senior enough — revisit in 2028',
+    consDeclineOk: email => email ? 'DECLINE — SENDS THE REGRET' : 'DECLINE', consDeclineKeep: 'KEEP',
+    consDeclined: email => email ? `DECLINED — RECORDED, REGRET EMAILED TO ${email}` : 'DECLINED — RECORDED',
     nomWaiting: n => `${n} member nomination${n === 1 ? '' : 's'} waiting`,
     nomBy: who => `put forward by ${who}`,
     nomStage: 'NOMINATED',
@@ -87,7 +111,7 @@ export const COPY = {
   },
   form: {
     title: 'REQUEST-CONSIDERATION FORM', customise: '✎ CUSTOMISE', customiseTitle: 'Add, remove or reorder the questions candidates answer',
-    explain: 'The public "Request consideration" form on medx.hr — submissions land in the pipeline above as candidates.',
+    explain: 'The public "Request consideration" form on medx.hr. Each submission waits as a REQUESTED row in the pipeline until you decide — APPROVE creates the member and emails their personal invitation, DECLINE records the decision and sends a courteous regret.',
     remove: 'REMOVE', addPh: 'New question — e.g. LinkedIn profile', add: 'ADD',
     copyLink: 'COPY PUBLIC LINK', linkCopied: '✓ LINK COPIED', url: 'medx.hr/forum/request-consideration', fullUrl: 'https://medx.hr/forum/request-consideration',
     qAdded: 'QUESTION ADDED — LIVE ON THE PUBLIC FORM', qRemoved: 'QUESTION REMOVED', typeFirst: 'TYPE THE QUESTION FIRST', lastQ: 'THE FORM NEEDS AT LEAST ONE QUESTION',
@@ -127,6 +151,7 @@ function rel(ts) {
 const chip = on => on ? { bg: '#201b16', fg: '#fff', bd: '#201b16' } : { bg: '#f6f2ea', fg: '#6d6459', bd: 'rgba(32,27,22,.25)' };
 const STAGE_STYLE = {
   NOMINATED: { bg: '#201b16', fg: '#c9a962' }, // member-nominated — the ink chip marks the fresh arrivals
+  REQUESTED: { bg: '#f8f1e2', fg: '#7a6432' }, // asked via the public form — same tone as the "form request waiting" chip
   SHORTLIST: { bg: '#eee9df', fg: '#4a4239' }, CONTACTED: { bg: '#f8f1e2', fg: '#7a6432' }, REPLIED: { bg: '#f8f1e2', fg: '#7a6432' },
   'CODE SENT': { bg: '#e4efe7', fg: '#22563a' }, ACCEPTED: { bg: '#e4efe7', fg: '#22563a' }, JOINED: { bg: '#e4efe7', fg: '#22563a' },
   ESCALATED: { bg: '#f7e3e4', fg: '#9b1b22' }, DECLINED: { bg: '#eee9df', fg: '#9a9086' }
@@ -148,15 +173,21 @@ async function load() {
   const r = await api.settle({
     hub: api.get('/api/v2/forum/hub'),
     cands: api.get('/api/admin/forum/candidates?status=all'),
+    cons: api.get('/api/admin/forum/considerations?status=pending'),   // { considerations: rows, counts: { pending, approved, declined } }
     questions: api.get('/api/v2/forum/consideration-questions')
   });
   return {
     errors: r.$errors,
     hub: r.hub || { cap: FACTS.forum.cap, members: [], expired_members: [], countries: [], invites: [], codes_out: 0, vote: { counts: { split: 0, zagreb: 0 }, total: 0 }, feed: [], gathering: null, considerations_pending: 0, members_count: 0, nominations: [] },
     cands: (r.cands && Array.isArray(r.cands.candidates)) ? r.cands.candidates : [],
+    cons: (r.cons && Array.isArray(r.cons.considerations)) ? r.cons.considerations : [],
+    consLoaded: !!(r.cons && Array.isArray(r.cons.considerations)),
     questions: (r.questions && r.questions.questions) || []
   };
 }
+// the pending count the chip shows: the loaded list is the truth (it is the full pending set);
+// only when that call failed do we fall back to the hub's own count
+function consPending() { return D.consLoaded ? D.cons.length : (D.hub.considerations_pending || 0); }
 
 // ---------------------------------------------------------------- blocks
 function blockSubnav() {
@@ -279,7 +310,27 @@ function blockPipeline() {
   const c = COPY.pipeline;
   const rows = st.candsAll ? D.cands : D.cands.slice(0, TOP_ROWS);
   const noms = D.hub.nominations || [];
-  const pending = D.hub.considerations_pending || 0;
+  const pending = consPending();
+  const consUnavailable = !D.consLoaded && pending > 0;   // the hub counted them but the list call failed
+  // v2: public form requests (forum_considerations, status 'pending') sit in the SAME pipeline list as
+  // REQUESTED rows — name · field · institution · via the form · submitted when · their note expandable ·
+  // APPROVE (server admits + emails the invitation at once) / DECLINE (records + emails a regret).
+  const consRow = cn => {
+    const s = STAGE_STYLE.REQUESTED;
+    const open = st.consOpen === cn.id;
+    const line = [cn.field, cn.institution, c.consVia(cn.source), cn.on_behalf_of ? c.consBehalf(cn.on_behalf_of) : '', c.consSubmitted(rel(cn.created_at))].filter(Boolean).join(' · ');
+    return `
+          <div data-row="${esc(cn.id)}" data-v2="consideration" style="border-bottom:1px solid rgba(32,27,22,.07)">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;flex-wrap:wrap">
+              <span style="flex:1;min-width:180px"><span style="display:block;font-size:13.5px;font-weight:600">${esc(cn.name || cn.email || 'Request')}</span><span style="display:block;font-size:11px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(line)}">${esc(line)}</span>${cn.email ? `<span style="display:block;font-size:11px;color:#9a9086">${esc(cn.email)}</span>` : ''}</span>
+              ${cn.note ? `<span data-act="consNote" data-id="${esc(cn.id)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:${open ? '#201b16' : '#7a6432'};cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${open ? c.consHide : c.consRead}</span>` : ''}
+              <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 8px;background:${s.bg};color:${s.fg};white-space:nowrap">${c.consStage}</span>
+              <span data-act="consApprove" data-id="${esc(cn.id)}" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.consApprove}</span>
+              <span data-act="consDecline" data-id="${esc(cn.id)}" style="font:600 9px Inter,sans-serif;letter-spacing:.06em;color:#9a9086;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${c.consDecline}</span>
+            </div>
+            ${open ? `<div style="margin:0 20px 12px;border:1px solid rgba(201,169,98,.5);background:#fdfbf6;padding:10px 12px"><span style="display:block;font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#7a6432;margin-bottom:5px">${c.consNoteTag}</span><span style="font-size:12.5px;line-height:1.6;color:#4a4239;white-space:pre-wrap">${esc(cn.note)}</span></div>` : ''}
+          </div>`;
+  };
   // v2: member nominations (v2_forum_nominations, status 'new') open the SAME pipeline list as
   // NOMINATED rows — nominee · "put forward by <member>" · the statement expandable · SHORTLIST/DECLINE.
   const nomRow = nm => {
@@ -305,20 +356,20 @@ function blockPipeline() {
             <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
             <div style="flex:1"></div>
             ${noms.length ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#201b16;color:#c9a962;padding:3px 8px;white-space:nowrap">${esc(c.nomWaiting(noms.length))}</span>` : ''}
-            ${pending ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f8f1e2;color:#7a6432;padding:3px 8px;white-space:nowrap">${esc(c.waiting(pending))}</span>` : ''}
+            ${pending ? `<a href="#forum-requests" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f8f1e2;color:#7a6432;padding:3px 8px;white-space:nowrap">${esc(c.waiting(pending))}</a>` : ''}
           </div>
           ${noms.map(nomRow).join('')}
+          <div id="forum-requests" data-v2="considerations">${D.cons.map(consRow).join('')}${consUnavailable ? `<div class="empty" style="padding:16px 20px;border-bottom:1px solid rgba(32,27,22,.07)"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${esc(c.consUnavailable(pending))}</span><span class="empty-why" style="font-size:11px;color:#6d6459">${c.consUnavailableWhy}</span></div>` : ''}</div>
           ${rows.map(cd => { const stage = candStage(cd); const s = STAGE_STYLE[stage] || STAGE_STYLE.SHORTLIST; const canInvite = !!cd.email && !['CODE SENT', 'JOINED', 'DECLINED'].includes(stage); return `
           <div data-row="${esc(cd.id)}" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
             <span style="flex:1;min-width:0"><span style="display:block;font-size:13.5px;font-weight:600">${esc(cd.name || cd.email || 'Candidate')}</span><span style="display:block;font-size:11px;color:#6d6459;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc([cd.institution, cd.field].filter(Boolean).join(' · ') || c.roleFallback)}</span></span>
             <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 8px;background:${s.bg};color:${s.fg};white-space:nowrap">${stage}</span>
             ${canInvite ? `<span data-act="sendCode" data-id="${esc(cd.id)}" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.sendCode}</span>` : ''}
           </div>`; }).join('')}
-          ${/* "The pipeline is clear." cannot sit under a "1 form request waiting" chip: the chip
-                counts pending forum_considerations, the rows count candidates and nominations, and
-                the empty state ignored the third table entirely. */''}
+          ${/* "The pipeline is clear." only when all THREE sources are empty: candidates, member
+                nominations and pending form requests (the requests are rows now, so the chip and the
+                list can no longer disagree). */''}
           ${!D.cands.length && !noms.length && !pending ? `<div class="empty" style="padding:22px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:15px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
-          ${!D.cands.length && !noms.length && pending ? `<div class="empty" style="padding:22px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:15px">${esc(c.waitingOnly(pending))}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.waitingOnlyWhy}</span></div>` : ''}
           ${D.cands.length > TOP_ROWS ? `<div style="padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.07)"><span data-act="candsAll" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${st.candsAll ? c.showFewer : c.showAll(D.cands.length)}</span></div>` : ''}
           <div style="display:flex;gap:10px;padding:14px 20px 6px">
             <input data-role="candDraft" value="${esc(st.candDraft)}" placeholder="${esc(c.addPh)}" aria-label="Add a candidate" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-width:0">
@@ -474,6 +525,17 @@ async function refreshHub() {
 async function refreshCands() {
   try { const r = await api.get('/api/admin/forum/candidates?status=all'); D.cands = (r && Array.isArray(r.candidates)) ? r.candidates : D.cands; } catch (e) { /* keep */ }
 }
+async function refreshCons() {
+  try { const r = await api.get('/api/admin/forum/considerations?status=pending'); if (r && Array.isArray(r.considerations)) { D.cons = r.considerations; D.consLoaded = true; } } catch (e) { /* keep */ }
+}
+// optimistic removal of a REQUESTED row: returns an undo that puts it back in place
+function takeCons(id) {
+  const i = D.cons.findIndex(x => x.id === id);
+  if (i < 0) return null;
+  const [row] = D.cons.splice(i, 1);
+  return { row, restore() { D.cons.splice(Math.min(i, D.cons.length), 0, row); } };
+}
+function rerenderPipelineAll() { if (!rootEl) return; rerender('[data-block="pipeline"]', blockPipeline()); rerender('[data-block="band"]', blockBand()); }
 function copyText(t) { try { navigator.clipboard.writeText(t); } catch (e) { /* clipboard blocked — the toast still confirms intent */ } }
 async function saveQuestions(list, toastMsg) {
   try { const r = await api.put('/api/v2/forum/consideration-questions', { questions: list }); D.questions = r.questions || list; ui.toast(toastMsg); }
@@ -563,6 +625,75 @@ const handlers = {
       ui.toast(COPY.pipeline.nomDeclined);
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
+  // ---- public form requests (forum_considerations) — REQUESTED rows
+  consNote: (el) => { st.consOpen = st.consOpen === el.dataset.id ? null : el.dataset.id; st.candDraft = val('candDraft'); rerender('[data-block="pipeline"]', blockPipeline()); },
+  consApprove: async (el) => {
+    const c = COPY.pipeline;
+    const cn = D.cons.find(x => x.id === el.dataset.id); if (!cn) return;
+    if (!cn.email) { ui.toast(c.consNoEmail, { kind: 'error' }); return; }
+    // confirm-before-execute: the server admits AND emails at once — this one does not wait in the Outbox
+    const ok = await ui.confirm({ eyebrow: 'BIOMEDICAL FORUM', title: esc(c.consApproveTitle(cn.name || cn.email)), body: `<div style="font-size:13px;line-height:1.6;color:#4a4239">${esc(c.consApproveBody(cn.email))}</div>`, ok: c.consApproveOk, cancel: c.consApproveCancel });
+    if (!ok || !rootEl) return;
+    st.candDraft = val('candDraft');
+    const taken = takeCons(cn.id);                       // optimistic: the row leaves the list now
+    if (st.consOpen === cn.id) st.consOpen = null;
+    rerenderPipelineAll();
+    try {
+      // → forumAdmitAndInvite: users row (passwordless) + approved forum_members row + 14-day magic link + invitation email
+      const r = await api.post('/api/admin/forum/considerations/' + encodeURIComponent(cn.id) + '/approve', {});
+      if (r && r.invite_link) copyText(r.invite_link);   // only returned when the server has no mail provider
+      ui.toast(r && r.emailDelivery === 'dev' ? c.consApprovedDev : c.consApproved(cn.email));
+      await refreshHub(); await refreshCons();
+      if (!rootEl) return;
+      rerenderPipelineAll(); rerender('[data-block="members"]', blockMembers());
+    } catch (e) {
+      if (taken) taken.restore();
+      rerenderPipelineAll();
+      ui.toast(e.message, { kind: 'error' });
+    }
+  },
+  consDecline: (el) => {
+    const c = COPY.pipeline;
+    const cn = D.cons.find(x => x.id === el.dataset.id); if (!cn) return;
+    const body = `
+      <div style="font-size:13px;line-height:1.6;color:#4a4239">${esc(c.consDeclineBody(cn.email))}</div>
+      <label style="display:block;margin-top:12px;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${c.consDeclineLabel}
+        <textarea data-role="consNote" rows="3" maxlength="500" placeholder="${esc(c.consDeclinePh)}" style="display:block;width:100%;box-sizing:border-box;margin-top:5px;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;resize:vertical"></textarea>
+      </label>`;
+    let busy = false;
+    const m = ui.modal({
+      eyebrow: 'BIOMEDICAL FORUM', title: esc(c.consDeclineTitle(cn.name || cn.email || 'this request')), body, closeOnScrim: false,
+      actions: [
+        { label: c.consDeclineKeep },
+        { label: c.consDeclineOk(cn.email), kind: 'primary', onClick: () => {
+          if (busy) return false;
+          if (!rootEl) return undefined;                 // view gone while the sheet was open — just close it
+          busy = true;
+          const ta = m.el.querySelector('[data-role="consNote"]');
+          const note = ta ? ta.value.trim().slice(0, 500) : '';
+          (async () => {
+            st.candDraft = val('candDraft');
+            const taken = takeCons(cn.id);               // optimistic: the row leaves the list now
+            if (st.consOpen === cn.id) st.consOpen = null;
+            rerenderPipelineAll();
+            try {
+              // → status 'declined' + decided_by + decision_note (internal), nag item resolved, regret emailed if there is an address
+              await api.post('/api/admin/forum/considerations/' + encodeURIComponent(cn.id) + '/decline', note ? { note } : {});
+              ui.toast(c.consDeclined(cn.email));
+              await refreshHub(); await refreshCons();
+              rerenderPipelineAll();
+            } catch (e) {
+              if (taken) taken.restore();
+              rerenderPipelineAll();
+              ui.toast(e.message, { kind: 'error' });
+            }
+          })();
+          return undefined;                              // closes the sheet; the toast reports
+        } }
+      ]
+    });
+    const ta = m.el.querySelector('[data-role="consNote"]'); if (ta) ta.focus();
+  },
   membersAll: () => { st.membersAll = !st.membersAll; rerender('[data-block="members"]', blockMembers()); },
   renew: async (el) => {
     el.setAttribute('aria-disabled', 'true');
@@ -624,7 +755,7 @@ export default {
   async render(root) {
     ensureCss();
     rootEl = root;
-    st = { kind: 'spotlight', fName: '', fRole: '', fTitle: '', fBody: '', unpubConfirm: null, candDraft: '', candsAll: false, membersAll: false, copiedCode: null, formEditing: false, formDraft: '', linkCopied: false, gatherEdit: false, nomOpen: null, nomDeclineConfirm: null };
+    st = { kind: 'spotlight', fName: '', fRole: '', fTitle: '', fBody: '', unpubConfirm: null, candDraft: '', candsAll: false, membersAll: false, copiedCode: null, formEditing: false, formDraft: '', linkCopied: false, gatherEdit: false, nomOpen: null, nomDeclineConfirm: null, consOpen: null };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();
