@@ -27786,7 +27786,8 @@ By applying to this program, I provide the following consents:
             if (isUuid) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [codeClean]);
             // If code is actually a Croatians Abroad registration ID, follow the linkage to the gala row
             if (!reg && isUuid) {
-                const caForGala = query.get('SELECT gala_registration_id FROM croatians_abroad_registrations WHERE id = ?', [codeClean]);
+                let caForGala = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [codeClean]);
+                if (caForGala) caForGala = caMerge.followMerge(query.get, caForGala);   // merged duplicate → survivor
                 if (caForGala && caForGala.gala_registration_id) {
                     reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [caForGala.gala_registration_id]);
                 }
@@ -27901,7 +27902,8 @@ By applying to this program, I provide the following consents:
                 [codeClean, codeClean]
             );
         }
-        if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+        if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1', [codeClean]);
+        if (caReg) caReg = caMerge.followMerge(query.get, caReg);             // an older duplicate's QR admits the survivor
         if (!caReg && event === 'bridges') {
             // Standalone fallback (mirrors the admin portal): guests from the public
             // /building-bridges page live ONLY in bridges_registrations, never in Croatians
