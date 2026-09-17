@@ -28849,6 +28849,9 @@ By applying to this program, I provide the following consents:
     const caGuestsMod = require('./ca-guests');
     const caNormalizeGuests = caGuestsMod.normalizeGuests;
     const caGuestsSummary = caGuestsMod.summary;
+    // ---- one person = one registration (audit item D, 2026-09-17) — a resubmission that adds
+    // or drops a leg UPDATES the live prior row; the decision + writes live in ca-resubmit.js ----
+    const caResubmit = require('./ca-resubmit');
     const caGuestRows = regId => { try { return query.all('SELECT * FROM ca_registration_guests WHERE registration_id = ? ORDER BY created_at, rowid', [regId]) || []; } catch (e) { return []; } };
     // Guests holding at least one FREE leg get their own copy of the free-events ticket — the same
     // party QR, their name on the card, their own wallet passes. Gala-leg guests get their Gala
@@ -29223,7 +29226,8 @@ By applying to this program, I provide the following consents:
             const caCf = collectCustomAnswers('croatians-abroad', null, req.body.custom_answers);
             if (!caCf.ok) return res.status(400).json({ error: caCf.error });
             const caCustomAnswersJson = Object.keys(caCf.answers).length ? JSON.stringify(caCf.answers) : null;
-            const caAppliedFor = [wantConf ? 'Plexus Conference' : null, wantBridges ? 'Croatian Biomedical Bridges' : null, wantGala ? 'Gala Evening' : null].filter(Boolean).join(', ');
+            // `let`: a resubmission recomputes this from the legs the prior row holds AFTER the change.
+            let caAppliedFor = [wantConf ? 'Plexus Conference' : null, wantBridges ? 'Croatian Biomedical Bridges' : null, wantGala ? 'Gala Evening' : null].filter(Boolean).join(', ');
 
             // Validate invite link (if provided)
             let caInvite = null;
@@ -29236,10 +29240,13 @@ By applying to this program, I provide the following consents:
                 }
             }
 
-            // Each event is independently selectable — no auto-bundling.
-            const finalConf = wantConf;
-            const finalBridges = wantBridges;
-            const finalGala = wantGala;
+            // Each event is independently selectable — no auto-bundling. `let`: when this turns out
+            // to be a resubmission onto a live row, finalConf/finalBridges become the legs that row
+            // holds afterwards (the Stripe metadata's bundle_* flags feed the paid ticket) and
+            // finalGala becomes "a Gala seat is being ADDED now" (the only case Path B may run).
+            let finalConf = wantConf;
+            let finalBridges = wantBridges;
+            let finalGala = wantGala;
             // "I need an official invoice made out to my company or institution" — only meaningful
             // with the paid item, so it is ignored unless the Gala is selected. Persisted on both
             // rows; acted on when the seat is PAID (gala-paylink.notifyInvoiceNeeded tells the
@@ -29292,12 +29299,19 @@ By applying to this program, I provide the following consents:
                 if (priorHeld) return res.json({ success: true, id: priorHeld.id, status: 'pending-review', held: true });
             }
 
-            // ONE person = ONE registration (audit 2026-09-16). Someone who submits the form again
-            // for events they already hold — lost the email, double-clicked, came back — must not
-            // become a second row (two QRs, two seats in every headcount, two Sheet rows). When the
-            // new request adds nothing beyond what a live prior row already holds, that row is the
-            // registration: answer with it (its ticket page), re-send the free-events ticket if
-            // nothing is owed, and write nothing. A request that ADDS a leg still creates its row.
+            // ONE person = ONE registration (audit 2026-09-16, extended 2026-09-17 — audit item D).
+            // Someone who submits the form again — lost the email, double-clicked, came back — must
+            // not become a second row (two QRs, two seats in every headcount, two Sheet rows).
+            //   • adds nothing beyond what a live prior row holds → that row is the registration:
+            //     answer with it (its ticket page), re-send the free-events ticket if nothing is
+            //     owed, write nothing (unchanged below);
+            //   • ADDS a leg → the prior row is UPDATED, never a twin inserted (this is how 14
+            //     e-mails ended up with 2–3 rows and 9 abandoned Gala seats next to paid ones);
+            //   • leaves the Gala out while the prior row owes an UNPAID seat → that seat is
+            //     cancelled and the ticket for the remaining legs re-sent. A PAID seat is never touched.
+            // The decision and the writes are ca-resubmit.js (hermetic tests); the route only wires.
+            let resub = null;          // { prior, priorGala, decision } when this submission changes a live prior row
+            let priorLive = null;      // the live prior row, if any — named in the review email when the gate holds
             {
                 const liveLeg = st => ['pre-registered', 'confirmed'].includes(String(st || ''));
                 const prior = query.get(`SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?)
@@ -29305,12 +29319,10 @@ By applying to this program, I provide the following consents:
                          OR gala_status IN ('awaiting_payment','approved','confirmed'))
                     ORDER BY rowid DESC LIMIT 1`, [email]);
                 if (prior) {
-                    const priorGala = prior.gala_registration_id ? query.get('SELECT status, payment_status FROM gala_registrations WHERE id = ?', [prior.gala_registration_id]) : null;
-                    const galaLive = !!(priorGala && String(priorGala.status || '') !== 'cancelled' && String(priorGala.status || '') !== 'pending-review');
-                    const covered = (!wantConf || (Number(prior.selected_conference) && liveLeg(prior.conference_status)))
-                        && (!wantBridges || (Number(prior.selected_bridges) && liveLeg(prior.bridges_status)))
-                        && (!wantGala || (Number(prior.selected_gala) && galaLive));
-                    if (covered) {
+                    priorLive = prior;
+                    const priorGala = prior.gala_registration_id ? query.get('SELECT * FROM gala_registrations WHERE id = ?', [prior.gala_registration_id]) : null;
+                    const decision = caResubmit.decide({ prior, priorGala, want: { conference: wantConf, bridges: wantBridges, gala: wantGala } });
+                    if (decision.covered) {
                         const base = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
                         const galaPaid = !!(priorGala && ['paid', 'vip-comp', 'comp'].includes(String(priorGala.payment_status || '').toLowerCase()));
                         if (Number(prior.selected_gala) && !galaPaid) {
@@ -29327,57 +29339,92 @@ By applying to this program, I provide the following consents:
                         return res.json({ success: true, id: prior.id, status: 'pre-registered', duplicate: true,
                             ticket_url: galaPaid && prior.gala_registration_id ? `${base}/gala/ticket/${plexusTicket.galaPageSig(JWT_SECRET, prior.gala_registration_id)}/${prior.gala_registration_id}` : plexusTicketPageUrl(base, prior.id) });
                     }
+                    // Something changes on a live row. A payload the review gate would HOLD never
+                    // rewrites that row: it falls through to the untouched held path below (a new
+                    // held row, decided by the owner from the review email, which names the live
+                    // one) — a live registration is never expanded on a submission the gate distrusts.
+                    if (!gateHeld) {
+                        resub = { prior, priorGala, decision };
+                        finalConf = decision.legsAfter.conference;
+                        finalBridges = decision.legsAfter.bridges;
+                        finalGala = decision.adds.gala;              // Path B only for a seat ADDED now — a kept seat is never re-priced
+                        caAppliedFor = caResubmit.appliedFor(decision.legsAfter);
+                    }
                 }
             }
 
-            const regId = require('crypto').randomUUID();
+            const regId = resub ? resub.prior.id : require('crypto').randomUUID();
             let galaRegistrationId = null;
-
-            // If Gala selected, create a gala_registrations row too (status='awaiting_payment')
-            // so QR/check-in works through the existing Gala scanner once payment confirms.
             const linkedUserId = (req.user && req.user.id) || null; // account linking (optionalAuth)
-            if (finalGala) {
-                galaRegistrationId = require('crypto').randomUUID();
-                db.run(
-                    `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id, needs_invoice, invoice_details)
-                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
-                    [galaRegistrationId, first_name, last_name || '', email, institution || '',
-                     gateHeld ? 'pending-review' : 'awaiting_payment',      // review gate: held gala rows wait for Alen
-                     dietary || null, notes || null, linkedUserId, needsInvoice, invoiceDetailsJson]
-                );
-            }
 
-            db.run(
-                `INSERT INTO croatians_abroad_registrations
-                 (id, invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
-                  selected_conference, selected_bridges, selected_gala,
-                  conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, source, user_id, needs_invoice, invoice_details)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [regId, invite_link_id || null, first_name, last_name || '', email, institution || '', country || '', role || '', dietary || '', notes || '',
-                 finalConf ? 1 : 0, finalBridges ? 1 : 0, finalGala ? 1 : 0,
-                 finalConf ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
-                 finalBridges ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
-                 finalGala ? (gateHeld ? 'pending-review' : 'awaiting_payment') : null,
-                 finalGala ? 'pending' : null,
-                 galaRegistrationId, regSource, linkedUserId, needsInvoice, invoiceDetailsJson]
-            );
-            // E2E fix 2026-08-29: link the row to an existing member account by e-mail even
-            // without the ?mxt hand-off, so the portal (My Plexus / wallet / cards) sees it.
-            try {
-                if (!linkedUserId) db.run('UPDATE croatians_abroad_registrations SET user_id = (SELECT id FROM users WHERE lower(email) = lower(?)) WHERE id = ? AND user_id IS NULL', [email, regId]);
-            } catch (e) { /* linking is best-effort */ }
-            saveDb();
-
-            // Denormalize answers + what they applied for onto the CA row (and the linked gala row)
-            // so the scanner + Sheets read it directly without a reverse lookup.
-            try {
-                db.run('UPDATE croatians_abroad_registrations SET custom_answers = ?, applied_for = ?, reg_link_token = ? WHERE id = ?',
-                    [caCustomAnswersJson, caAppliedFor, invite_link_id || null, regId]);
+            if (resub) {
+                // ---- RESUBMISSION: the prior row IS the registration — updated in place, never a twin ----
+                // Added legs get the same initial statuses a fresh row gets; an added Gala mints (or
+                // reuses) its gala_registrations row and is linked; a dropped unpaid Gala is cancelled on
+                // both rows and its abandoned checkout expired; profile fields refresh; applied_for /
+                // custom_answers / the notes marker are written here (the denormalize block below is
+                // the fresh path's). Guests, Path A/B and the emails continue below with regId = prior.id.
+                const applied = await caResubmit.apply({
+                    query, db,
+                    expireCheckout: stripe ? id => stripe.checkout.sessions.expire(id) : null,
+                    log: msg => console.warn(msg)
+                }, {
+                    prior: resub.prior, priorGala: resub.priorGala, decision: resub.decision, linkedUserId,
+                    form: { institution, country, role, dietary, notes, appliedFor: caAppliedFor, customAnswersJson: caCustomAnswersJson,
+                            inviteLinkId: invite_link_id || null, needsInvoice, invoiceDetailsJson }
+                });
+                resub.applied = applied;
+                galaRegistrationId = applied.galaRegistrationId;
                 if (galaRegistrationId) {
-                    db.run('UPDATE gala_registrations SET custom_answers = ?, applied_for = ? WHERE id = ?',
-                        [caCustomAnswersJson, caAppliedFor, galaRegistrationId]);
+                    try { db.run('UPDATE gala_registrations SET custom_answers = ?, applied_for = ? WHERE id = ?', [caCustomAnswersJson, caAppliedFor, galaRegistrationId]); } catch (e) {}
                 }
-            } catch(e) { console.warn('[CA register] denormalize failed:', e.message); }
+                console.log(`[CA register] resubmission for ${email} → existing ${regId} updated (${applied.changes.join(' ') || 'no change'}), no new row`);
+            } else {
+                // If Gala selected, create a gala_registrations row too (status='awaiting_payment')
+                // so QR/check-in works through the existing Gala scanner once payment confirms.
+                if (finalGala) {
+                    galaRegistrationId = require('crypto').randomUUID();
+                    db.run(
+                        `INSERT INTO gala_registrations (id, first_name, last_name, email, institution, status, payment_status, dietary, requests, user_id, needs_invoice, invoice_details)
+                         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+                        [galaRegistrationId, first_name, last_name || '', email, institution || '',
+                         gateHeld ? 'pending-review' : 'awaiting_payment',      // review gate: held gala rows wait for Alen
+                         dietary || null, notes || null, linkedUserId, needsInvoice, invoiceDetailsJson]
+                    );
+                }
+
+                db.run(
+                    `INSERT INTO croatians_abroad_registrations
+                     (id, invite_link_id, first_name, last_name, email, institution, country, role, dietary, notes,
+                      selected_conference, selected_bridges, selected_gala,
+                      conference_status, bridges_status, gala_status, gala_payment_status, gala_registration_id, source, user_id, needs_invoice, invoice_details)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                    [regId, invite_link_id || null, first_name, last_name || '', email, institution || '', country || '', role || '', dietary || '', notes || '',
+                     finalConf ? 1 : 0, finalBridges ? 1 : 0, finalGala ? 1 : 0,
+                     finalConf ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
+                     finalBridges ? (gateHeld ? 'pending-review' : 'pre-registered') : null,
+                     finalGala ? (gateHeld ? 'pending-review' : 'awaiting_payment') : null,
+                     finalGala ? 'pending' : null,
+                     galaRegistrationId, regSource, linkedUserId, needsInvoice, invoiceDetailsJson]
+                );
+                // E2E fix 2026-08-29: link the row to an existing member account by e-mail even
+                // without the ?mxt hand-off, so the portal (My Plexus / wallet / cards) sees it.
+                try {
+                    if (!linkedUserId) db.run('UPDATE croatians_abroad_registrations SET user_id = (SELECT id FROM users WHERE lower(email) = lower(?)) WHERE id = ? AND user_id IS NULL', [email, regId]);
+                } catch (e) { /* linking is best-effort */ }
+                saveDb();
+
+                // Denormalize answers + what they applied for onto the CA row (and the linked gala row)
+                // so the scanner + Sheets read it directly without a reverse lookup.
+                try {
+                    db.run('UPDATE croatians_abroad_registrations SET custom_answers = ?, applied_for = ?, reg_link_token = ? WHERE id = ?',
+                        [caCustomAnswersJson, caAppliedFor, invite_link_id || null, regId]);
+                    if (galaRegistrationId) {
+                        db.run('UPDATE gala_registrations SET custom_answers = ?, applied_for = ? WHERE id = ?',
+                            [caCustomAnswersJson, caAppliedFor, galaRegistrationId]);
+                    }
+                } catch(e) { console.warn('[CA register] denormalize failed:', e.message); }
+            }
             saveDb();
             flushDb(); // durability: the CA registration row is final now — push to Turso immediately
 
@@ -29394,8 +29441,21 @@ By applying to this program, I provide the following consents:
             // conference-only guest must exist even when nobody pays anything.
             const persistGuests = () => {
                 try {
-                    db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [galaGuestCount, regId]);
+                    // A resubmission re-prices Gala seats only when the Gala is the leg being ADDED
+                    // now (finalGala) — a kept seat, paid or awaiting payment, keeps its party. Its
+                    // guests are merged by identity: a guest already on the row gains the legs ticked
+                    // now, a new one is added; re-listing the same people never duplicates them.
+                    if (!resub || finalGala) db.run('UPDATE croatians_abroad_registrations SET guest_count = ? WHERE id = ?', [galaGuestCount, regId]);
+                    const existing = resub ? caGuestRows(regId) : [];
+                    const sameGuest = (a, g) => (String(a.email || '').toLowerCase() && String(a.email || '').toLowerCase() === String(g.email || '').toLowerCase())
+                        || (String(a.name || '').trim().toLowerCase() && String(a.name || '').trim().toLowerCase() === String(g.name || '').trim().toLowerCase());
                     for (const g of caGuests) {
+                        const known = existing.find(a => sameGuest(a, g));
+                        if (known) {
+                            db.run('UPDATE ca_registration_guests SET conference = MAX(COALESCE(conference,0), ?), bridges = MAX(COALESCE(bridges,0), ?), gala = MAX(COALESCE(gala,0), ?) WHERE id = ?',
+                                [g.conference ? 1 : 0, g.bridges ? 1 : 0, g.gala ? 1 : 0, known.id]);
+                            continue;
+                        }
                         db.run('INSERT INTO ca_registration_guests (id, registration_id, name, institution, email, conference, bridges, gala) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                             [uuidv4(), regId, g.name, g.institution, g.email, g.conference ? 1 : 0, g.bridges ? 1 : 0, g.gala ? 1 : 0]);
                     }
@@ -29437,7 +29497,10 @@ By applying to this program, I provide the following consents:
                                     'VAT / tax number': invoiceDetails.vat || 'not provided'
                                 } : {}),
                                 'Dietary': dietary || '', 'Allergies': galaAllergies, 'Notes': notes || '',
-                                'Custom answers': customAnswersSummary(caCf.answers), 'Source': regSource
+                                'Custom answers': customAnswersSummary(caCf.answers), 'Source': regSource,
+                                // A live row under this e-mail was deliberately NOT expanded on a held
+                                // payload — the owner sees that approving this creates a second row.
+                                ...(priorLive ? { 'Already registered': `YES — live registration ${priorLive.id} (${priorLive.applied_for || 'legs on file'}); approving this creates a SECOND row for this e-mail` } : {})
                             },
                             approveUrl: urls.approveUrl, rejectUrl: urls.rejectUrl, verifyUrl: urls.verifyUrl
                         }));
@@ -29448,6 +29511,27 @@ By applying to this program, I provide the following consents:
                 } catch (e) { console.warn('[ReviewGate] Zagreb pending-ack email failed:', e.message); }
                 console.log(`[ReviewGate] Zagreb registration ${regId} (${email}) held for review — ${gateReason}`);
                 return res.json({ success: true, id: regId, status: 'pending-review', held: true });
+            }
+
+            // ---------- RESUBMISSION, no Gala seat added: the prior row, now with its changes ----------
+            // The ticket for every leg the row holds is re-sent (a paid Gala rides along, exactly as
+            // the covered branch sends it); while a Gala the person still wants is unpaid, nothing
+            // goes out — the combined ticket after payment is the one ticket (approve-handler
+            // doctrine). Sheet tabs get a row for the legs added NOW only. Link-use counters are
+            // not incremented: a resubmission is not a new use. A resubmission that ADDS a Gala seat
+            // continues into Path B below with regId = the prior row's id, so the Stripe metadata —
+            // and therefore the webhook — settle that same row.
+            if (resub && !finalGala) {
+                const base = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
+                const body = await caResubmit.finishFree({
+                    sendPreRegConfirmation: caSendPreRegConfirmation, mirrorToSheets: caMirrorPreRegToSheets,
+                    ticketPageUrl: plexusTicketPageUrl, galaTicketPageUrl, log: msg => console.warn(msg)
+                }, {
+                    prior: resub.prior, decision: resub.decision, applied: resub.applied, base, regSource: resub.prior.source || regSource,
+                    sheet: { institution: institution || resub.prior.institution, country: country || resub.prior.country, role: role || resub.prior.role,
+                             dietary: dietary || resub.prior.dietary, notes: notes || '', caAppliedFor, customAnswers: caCf.answers, inviteLabel: caInvite?.label || '' }
+                });
+                return res.json(body);
             }
 
             // ---------- PATH A: Free-only (no Gala) → confirm immediately ----------
@@ -29542,7 +29626,8 @@ By applying to this program, I provide the following consents:
             saveDb();
             flushDb(); // durability: pending CA gala registration must survive a redeploy
             // used_count for Gala path increments only on successful payment (in webhook below)
-            return res.json({ success: true, id: regId, checkout_url: session.url });
+            // updated:true tells the caller the seat was added to an existing registration (id = that row).
+            return res.json({ success: true, id: regId, checkout_url: session.url, ...(resub ? { updated: true, changes: resub.applied.changes } : {}) });
 
         } catch (err) {
             console.error('[Croatians Abroad] register error:', err.message);
