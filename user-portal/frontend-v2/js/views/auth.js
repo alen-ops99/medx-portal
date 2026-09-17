@@ -15,7 +15,6 @@ import router from '../router.js';
 
 export const SOURCE = 'Auth.dc.html';
 export const COPY = {
-  lang: { en: 'EN', hr: 'HR', hrSoon: 'Croatian (HR) arrives with the translations — English for now.' },
   welcome: {
     kicker: 'MEMBER PORTAL',
     headline: 'Where Croatian medicine and science <i style="color:#c9a962">meet the world</i>.',
@@ -84,7 +83,6 @@ function blockWelcome() {
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.86) 100%)"></div>
     <div style="position:relative;display:flex;align-items:center;padding:22px 36px">
       <div style="flex:1"></div>
-      <span style="display:flex;gap:2px;font:600 10px Inter,sans-serif;letter-spacing:.14em"><span style="padding:5px 9px;background:#c9a962;color:#191512;cursor:pointer">${COPY.lang.en}</span><span data-act="hr" style="padding:5px 9px;color:rgba(247,241,230,.6);border:1px solid rgba(247,241,230,.25);cursor:pointer" data-hover="color:#f7f1e6">${COPY.lang.hr}</span></span>
     </div>
     <div style="position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 36px 70px;color:#f7f1e6">
       <img src="/assets/logo-white.png" alt="med&amp;X" style="height:34px;display:block">
@@ -250,7 +248,6 @@ function blockPanel(inner) {
     <div style="background:#f7f1e6;display:flex;flex-direction:column;padding:30px 0">
       <div style="display:flex;align-items:center;padding:0 clamp(20px,5vw,44px)">
         <div style="flex:1"></div>
-        <span style="display:flex;gap:2px;font:600 9.5px Inter,sans-serif;letter-spacing:.14em"><span style="padding:4px 8px;background:#191512;color:#f7f1e6;cursor:pointer">${COPY.lang.en}</span><span data-act="hr" style="padding:4px 8px;color:#4a4239;border:1px solid rgba(25,21,18,.25);cursor:pointer" data-hover="border-color:#191512">${COPY.lang.hr}</span></span>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:30px clamp(20px,5vw,44px);max-width:430px;width:100%;margin:0 auto;box-sizing:border-box">
 ${inner}
@@ -281,7 +278,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function nextTarget(query) { return query.next && query.next.startsWith('/app') && !query.next.startsWith('/app/auth') ? query.next : '/app/home'; }
 
 const handlers = {
-  hr: () => ui.toast(COPY.lang.hrSoon),
   tgTerms: (el) => { st.terms = !st.terms; el.setAttribute('aria-checked', String(st.terms)); const box = el.querySelector('[data-role="termsBox"]'); if (box) { box.style.borderColor = st.terms ? '#9b1b22' : 'rgba(25,21,18,.35)'; box.style.background = st.terms ? '#9b1b22' : 'transparent'; box.textContent = st.terms ? '✓' : ''; } },
   signin: async (el, ev, query) => {
     const email = val('email'), password = q('password') ? q('password').value : '';

@@ -61,8 +61,6 @@ export const COPY = {
     suggestions: ['Neuroscience', 'Sleep Medicine', 'Oncology', 'Public Health', 'Biotech', 'AI in Medicine', 'Mental Health', 'Genetics'],
     dir: { t: 'Directory visibility', s: 'Let other members find you and send connection requests.' },
     upd: { t: 'Event updates', s: 'News from projects you follow · Plexus, Gala, the Accelerator.' },
-    lang: { t: 'Language', s: 'Portal interface language.', en: 'EN', hr: 'HR' },
-    hrSaved: 'Croatian is saved as your preference — the portal switches when the translations land.',
     save: 'SAVE CHANGES', saving: 'SAVING…', saved: '✓ SAVED',
     saveNote: 'Changes apply across the portal and the member directory.',
     savedToast: 'CHANGES SAVED — VISIBLE ACROSS THE PORTAL',
@@ -265,13 +263,6 @@ function prefRows() {
         <div class="mx-cardrow" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
           <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.upd.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.upd.s}</span></span>
           ${toggle('tgUpd', d.updates_opt_in, a.upd.t)}
-        </div>
-        <div class="mx-cardrow" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
-          <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.lang.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.lang.s}</span></span>
-          <span style="display:flex">
-            <span data-act="setEN" role="button" tabindex="0" aria-pressed="${d.locale === 'en'}" style="padding:7px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;border:1px solid rgba(25,21,18,.3);background:${d.locale === 'en' ? '#191512' : 'transparent'};color:${d.locale === 'en' ? '#f7f1e6' : '#4a4239'}">${a.lang.en}</span>
-            <span data-act="setHR" role="button" tabindex="0" aria-pressed="${d.locale === 'hr'}" data-v2="HR ships with the translations — the preference persists now" style="padding:7px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;border:1px solid rgba(25,21,18,.3);border-left:none;background:${d.locale === 'hr' ? '#191512' : 'transparent'};color:${d.locale === 'hr' ? '#f7f1e6' : '#4a4239'}">${a.lang.hr}</span>
-          </span>
         </div>`;
 }
 // The three settings that moved here from My Med&X. They save immediately (own routes), so they sit
@@ -587,8 +578,6 @@ const handlers = {
   addSpec: () => addSpecFromInput(),
   tgDir: () => { D.draft.is_public_profile = !D.draft.is_public_profile; refreshPrefs(); schedulePreview(); },
   tgUpd: () => { D.draft.updates_opt_in = !D.draft.updates_opt_in; refreshPrefs(); schedulePreview(); },
-  setEN: () => { D.draft.locale = 'en'; refreshPrefs(); },
-  setHR: () => { D.draft.locale = 'hr'; refreshPrefs(); ui.toast(COPY.account.hrSaved); },
   save: () => doSave(),
   resend: async el => {
     const email = D.profile.email || (session.user || {}).email;

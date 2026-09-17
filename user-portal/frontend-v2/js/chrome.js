@@ -16,10 +16,9 @@ import { FACTS, routeFor } from './facts.js';
 import router from './router.js';
 
 export const COPY = {
-  menu: 'MENU', search: 'SEARCH', alerts: 'ALERTS', en: 'EN', hr: 'HR',
+  menu: 'MENU', search: 'SEARCH', alerts: 'ALERTS',
   memberLabel: 'Med&amp;X Member',
   banner: { lead: 'Confirm your email to unlock everything. Link sent to ', leadShort: 'Confirm your email to unlock everything.', resend: 'RESEND LINK', resendShort: 'RESEND', sent: 'Link sent — check your inbox (and spam).' },
-  hrSoon: 'Croatian (HR) arrives with the translations — English for now.',
   stats: { registrations: 'REGISTRATIONS', following: 'FOLLOWING', since: 'MEMBER SINCE' },
   drawer: { portal: 'PORTAL', projects: 'Projects', quick: 'QUICK LINKS', website: 'Website ↗' },
   searchPanel: { placeholder: 'Search events, people, tickets…', hint: 'Type at least two characters.', none: 'Nothing matched — try a name, a city or an event.', groups: { events: 'EVENTS', members: 'PEOPLE', talks: 'TALKS', mine: 'MINE' } },
@@ -55,7 +54,6 @@ const QUICK = [
   { label: 'Member directory', to: '/app/network' },
   { label: 'My wallet', to: '/app/me' },
   { label: 'Certificates', to: '/app/me/certificates' },
-  { label: 'Forum eligibility', to: '/app/forum' },
   { label: 'Messages', to: '/app/messages', v2: true }
 ];
 // nav styles — verbatim from the artboard's renderVals()
@@ -86,7 +84,6 @@ function topBar() {
     <span data-act="search" aria-label="Search" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">${COPY.search}</span>
     <span data-act="alerts" aria-label="Alerts" style="display:flex;align-items:center;gap:6px;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">${COPY.alerts}<span data-role="unread-dot" style="width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'inline-block' : 'none'}"></span></span>
     <span style="width:1px;height:18px;background:rgba(25,21,18,.16)"></span>
-    <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.14em"><span style="color:#191512">${COPY.en}</span><span data-act="hr" title="${esc(COPY.hrSoon)}" style="color:#4a4239;opacity:.55;cursor:pointer"> · ${COPY.hr}</span></span>
     <a href="/app/me" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#191512" data-hover="color:#191512">
       <span style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(session.initials())}</span>
       <span class="mx-identity-text" style="display:flex;flex-direction:column;line-height:1.25"><span style="font-size:12.5px;font-weight:600">${esc(session.displayName())}</span><span style="font-size:10.5px;color:#4a4239">${COPY.memberLabel}</span></span>
@@ -168,7 +165,6 @@ function mobileTop() {
       : `<span data-act="back" aria-label="Back" style="font-size:17px;cursor:pointer;color:#9b1b22;min-width:44px;min-height:24px;display:inline-flex;align-items:center">←</span>`}
     <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${esc(title)}</span>
     <div style="flex:1"></div>
-    <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#4a4239;white-space:nowrap">EN · <span data-act="hr" style="color:rgba(25,21,18,.4)">HR</span></span>
     <a href="/app/me" aria-label="My Med&X" style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 10.5px Fraunces,serif;text-decoration:none">${esc(session.initials())}</a>
   </div>
   <!-- /dc -->
@@ -262,7 +258,6 @@ const handlers = {
   tg: () => chrome.toggleDrawer(),
   cl: () => chrome.closeDrawer(),
   back: () => (history.length > 1 ? history.back() : router.navigate('/app/home')),
-  hr: () => ui.toast(COPY.hrSoon),
   search: () => { popover = popover === 'search' ? null : 'search'; renderPopover(); },
   alerts: async () => { popover = popover === 'alerts' ? null : 'alerts'; renderPopover(); if (popover === 'alerts') { await chrome.refresh({ only: 'notifications' }); renderPopover(); } },
   closePop: (el, e) => { if (e && e.target.closest && e.target.closest('[data-stop]')) return; closePopover(); },
