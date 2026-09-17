@@ -13904,15 +13904,27 @@ By applying to this program, I provide the following consents:
     });
 
     // Update base institution fields
+    // Partial update (COALESCE — omitted fields keep their value). Also the ONLY writer the
+    // admin Accelerator card has for the institution list, so it takes city, available_spots
+    // and is_active too (is_active=0 is the soft remove: GET /api/accelerator/institutions
+    // filters on it, so the row simply leaves every list without losing its applications).
     app.put('/api/accelerator/institutions/:id', auth, (req, res) => {
-        const { name, description, website_url, logo_url } = req.body;
+        const { name, short_name, city, country, description, website_url, logo_url, available_spots, is_active } = req.body || {};
+        const row = query.get('SELECT id FROM accelerator_institutions WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ error: 'Institution not found' });
+        if (name !== undefined && !String(name || '').trim()) return res.status(400).json({ error: 'Name cannot be empty' });
+        const spots = available_spots === undefined || available_spots === null || available_spots === '' ? null : parseInt(available_spots, 10);
+        if (spots !== null && (!Number.isFinite(spots) || spots < 0)) return res.status(400).json({ error: 'Available spots must be a whole number of 0 or more' });
+        const active = is_active === undefined || is_active === null ? null : (is_active === true || is_active === 1 || is_active === '1' || is_active === 'true' ? 1 : 0);
         db.run(`UPDATE accelerator_institutions SET
-            name = COALESCE(?, name), description = COALESCE(?, description),
-            website_url = COALESCE(?, website_url), logo_url = COALESCE(?, logo_url)
+            name = COALESCE(?, name), short_name = COALESCE(?, short_name), city = COALESCE(?, city), country = COALESCE(?, country),
+            description = COALESCE(?, description), website_url = COALESCE(?, website_url), logo_url = COALESCE(?, logo_url),
+            available_spots = COALESCE(?, available_spots), is_active = COALESCE(?, is_active)
             WHERE id = ?`,
-            [name || null, description || null, website_url || null, logo_url || null, req.params.id]);
+            [name ? String(name).trim() : null, short_name || null, city !== undefined ? String(city || '').trim() : null, country || null,
+             description || null, website_url || null, logo_url || null, spots, active, req.params.id]);
         saveDb();
-        res.json({ success: true });
+        res.json({ success: true, institution: query.get('SELECT * FROM accelerator_institutions WHERE id = ?', [req.params.id]) });
     });
 
     // Add new institution
@@ -17731,15 +17743,23 @@ By applying to this program, I provide the following consents:
         const dmName1 = `dm:${member.id}:${target_member_id}`;
         const dmName2 = `dm:${target_member_id}:${member.id}`;
 
-        let channel = query.get('SELECT * FROM chat_channels WHERE name = ? OR name = ?', [dmName1, dmName2]);
+        let channel = query.get('SELECT * FROM chat_channels WHERE name = ? OR name = ? OR (is_dm = 1 AND ((dm_a = ? AND dm_b = ?) OR (dm_a = ? AND dm_b = ?)))',
+            [dmName1, dmName2, member.id, target_member_id, target_member_id, member.id]);
 
         if (!channel) {
-            // Create new DM channel
+            // Create new DM channel. is_dm/dm_a/dm_b are what Team Chat (tcOpenChannels + the
+            // overview's dms query) keys on — a DM created without them used to surface as a
+            // workspace channel for every admin.
             const id = uuidv4();
-            db.run(`INSERT INTO chat_channels (id, name, description, project, is_default, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
-                [id, dmName1, `DM between ${member.name} and ${targetMember.name}`, 'dm', 0, member.id]);
+            db.run(`INSERT INTO chat_channels (id, name, description, project, is_default, created_by, is_dm, dm_a, dm_b) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+                [id, dmName1, `DM between ${member.name} and ${targetMember.name}`, 'dm', 0, member.id, member.id, target_member_id]);
             saveDb();
             channel = query.get('SELECT * FROM chat_channels WHERE id = ?', [id]);
+        } else if (Number(channel.is_dm) !== 1) {
+            // Legacy row (pre is_dm) — stamp it now so it stops leaking into the open-channel list.
+            db.run('UPDATE chat_channels SET is_dm = 1, dm_a = COALESCE(dm_a, ?), dm_b = COALESCE(dm_b, ?) WHERE id = ?', [member.id, target_member_id, channel.id]);
+            saveDb();
+            channel = query.get('SELECT * FROM chat_channels WHERE id = ?', [channel.id]);
         }
 
         res.json({
@@ -17824,10 +17844,14 @@ By applying to this program, I provide the following consents:
         return !!query.get("SELECT id FROM channel_members WHERE channel_id = ? AND member_id = ?", [channelId, memberId]);
     };
     // Every channel an admin may open in Team Chat: their team channels + all open workspace
-    // channels. DMs are handled separately.
+    // channels. DMs are handled separately — and that includes the LEGACY DMs the old
+    // /api/chat/dm route created with project='dm' + name 'dm:<a>:<b>' and is_dm unset: they
+    // leaked in here as "workspace" channels, so every admin saw (and was counted unread on)
+    // other people's private conversations — the TEAM CHAT badge sat at 9 for everyone.
     const tcOpenChannels = () => query.all(
         `SELECT * FROM chat_channels
          WHERE COALESCE(is_team_channel, 0) != 1 AND COALESCE(is_dm, 0) != 1
+           AND COALESCE(project, '') != 'dm' AND name NOT LIKE 'dm:%'
          ORDER BY COALESCE(project, '') ASC, COALESCE(is_default, 0) DESC, name ASC`);
     const tcUnread = (channelId, memberId) => {
         const lr = query.get("SELECT last_read_at FROM channel_read_status WHERE user_id = ? AND channel_id = ?", [memberId, channelId]);
@@ -18294,13 +18318,27 @@ By applying to this program, I provide the following consents:
 
     // ========== DASHBOARD SUMMARY ==========
 
+    // ONE predicate for "how many people are registered for the Plexus Conference": the /plexus
+    // form table (croatians_abroad_registrations), live conference legs only, ONE PER PERSON.
+    // /api/dashboard/summary, /api/dashboard/portal-stats and /api/admin/editions used to carry
+    // three different answers (this table by rows, the legacy paid `registrations` table by
+    // conference_id, and the rows-not-people count) — the People page said 4, the edition card
+    // something else. Resubmissions left 103 rows for 89 people, so it is DISTINCT lower(email).
+    // (A hoisted function declaration on purpose — editionStats() far below calls it, and a
+    // `const` here would be a TDZ trap for any caller that runs before this line at boot.)
+    function plexusRegistrantCount(extraWhere, args) {
+        const sql = "SELECT COUNT(DISTINCT lower(email)) AS c FROM croatians_abroad_registrations WHERE selected_conference = 1 AND conference_status IN ('pre-registered','confirmed','registered')";
+        try { return query.get(sql + (extraWhere ? ' AND ' + extraWhere : ''), args || [])?.c || 0; }
+        catch (e) { return 0; }
+    }
+
     app.get('/api/dashboard/summary', auth, adminOnly, (req, res) => {
         const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
         const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
 
         const summary = {
             plexus: {
-                registrations: query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations WHERE conference_status IN ('pre-registered','confirmed','registered')")?.c || 0,   // Plexus conference = the /plexus form table, not the legacy paid-registrations table
+                registrations: plexusRegistrantCount(),   // Plexus conference = the /plexus form table, not the legacy paid-registrations table
                 speakers: query.get('SELECT COUNT(*) as c FROM speakers WHERE conference_id = ?', [conf?.id])?.c || 0,
                 pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE project = 'plexus' AND status != 'done'")?.c || 0
             },
@@ -18487,8 +18525,8 @@ By applying to this program, I provide the following consents:
         const thisWeekUsers = query.get("SELECT COUNT(*) as c FROM users WHERE created_at > date('now', '-7 days')")?.c || 0;
         const lastWeekUsers = query.get("SELECT COUNT(*) as c FROM users WHERE created_at > date('now', '-14 days') AND created_at <= date('now', '-7 days')")?.c || 0;
 
-        const thisWeekRegs = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations WHERE conference_status IN ('pre-registered','confirmed','registered') AND created_at > date('now', '-7 days')")?.c || 0;
-        const lastWeekRegs = query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations WHERE conference_status IN ('pre-registered','confirmed','registered') AND created_at > date('now', '-14 days') AND created_at <= date('now', '-7 days')")?.c || 0;
+        const thisWeekRegs = plexusRegistrantCount("created_at > date('now', '-7 days')");
+        const lastWeekRegs = plexusRegistrantCount("created_at > date('now', '-14 days') AND created_at <= date('now', '-7 days')");
 
         const thisWeekApps = query.get("SELECT COUNT(*) as c FROM accelerator_applications WHERE program_id = ? AND created_at > date('now', '-7 days')", [program?.id])?.c || 0;
         const lastWeekApps = query.get("SELECT COUNT(*) as c FROM accelerator_applications WHERE program_id = ? AND created_at > date('now', '-14 days') AND created_at <= date('now', '-7 days')", [program?.id])?.c || 0;
@@ -18530,7 +18568,8 @@ By applying to this program, I provide the following consents:
                 trend: thisWeekUsers > lastWeekUsers ? 'up' : thisWeekUsers < lastWeekUsers ? 'down' : 'stable'
             },
             plexus: {
-                registrations: query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ?', [conf?.id])?.c || 0,
+                registrations: plexusRegistrantCount(),   // same predicate as /api/dashboard/summary (people, not rows)
+                legacy_paid_registrations: query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ?', [conf?.id])?.c || 0,
                 paid: query.get("SELECT COUNT(*) as c FROM registrations WHERE conference_id = ? AND payment_status = 'paid'", [conf?.id])?.c || 0,
                 pending: query.get("SELECT COUNT(*) as c FROM registrations WHERE conference_id = ? AND (payment_status IS NULL OR payment_status != 'paid')", [conf?.id])?.c || 0,
                 revenue: query.get("SELECT COALESCE(SUM(amount_paid), 0) as c FROM registrations WHERE conference_id = ? AND payment_status = 'paid'", [conf?.id])?.c || 0,
@@ -32479,6 +32518,15 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 out.tickets_valid = out.registrations;
             }
         }
+        if (ed.project === 'plexus') {
+            // The Plexus Conference registers through the /plexus form (croatians_abroad_registrations),
+            // not the legacy paid `registrations` table — so the edition card carries the SAME
+            // people-count as /api/dashboard/summary and /api/dashboard/portal-stats, whichever
+            // branch above ran. A carried-over edition still honours its reg_watermark.
+            out.legacy_registrations = out.registrations;
+            out.registrations = ed.reg_watermark ? plexusRegistrantCount("COALESCE(created_at, '') > ?", [ed.reg_watermark]) : plexusRegistrantCount();
+            out.tickets_valid = out.registrations;
+        }
         return out;
     }
     // Snapshot the edition's then-current config as data, so history is preserved verbatim.
@@ -35195,11 +35243,25 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             safe('Tech tools password', () => has('TECH_PASSWORD')
                 ? { detail: 'Set (DB-export tools enabled)' }
                 : { status: 'warn', detail: 'TECH_PASSWORD not set — the DB-export tech tools are disabled (safe default).', fix: 'Set TECH_PASSWORD in Render env to enable them.' }),
-            safe('Bank transfer IBAN', () => {
-                const iban = (process.env.MEDX_IBAN || '').replace(/\s+/g, '');
-                if (!iban) return { status: 'warn', detail: 'MEDX_IBAN not set — bank-transfer instructions are hidden (guests can only pay by card).', fix: 'Set MEDX_IBAN to the real Med&X account.' };
-                if (PLACEHOLDER_IBANS.has(iban) || !/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(iban)) return { status: 'fail', detail: 'MEDX_IBAN looks like a placeholder/invalid (' + iban.slice(0, 6) + '…) — bank-transfer instructions are hidden.', fix: 'Set a valid Croatian IBAN (HR + 19 digits).' };
-                return { detail: iban.slice(0, 4) + '…' + iban.slice(-4) };
+            safe('Bank transfer IBAN (service environment)', () => {
+                // Two IBANs exist: MEDX_IBAN in the service env (what guests are actually shown) and
+                // the team's saved reference in v2_org_settings (Settings › Organisation & payments).
+                // The row judges BOTH with the same mod-97 check so the team can see when the
+                // reference is right but ops has not yet put it into the environment.
+                const { ibanCheck, ibanMask } = require('./v2/settings-ops.js');
+                const live = ibanCheck(process.env.MEDX_IBAN);
+                let savedNote = '';
+                try {
+                    const saved = query.get("SELECT iban FROM v2_org_settings WHERE id = 'default'");
+                    const savedIban = saved && String(saved.iban || '').replace(/\s+/g, '');
+                    if (savedIban) {
+                        const s = ibanCheck(savedIban);
+                        savedNote = ' Saved reference ' + ibanMask(s.iban) + ' ' + (s.valid ? 'is valid (mod-97)' : 'FAILS mod-97 (' + s.reason + ')') + '.';
+                    } else savedNote = ' No saved reference in Settings › Organisation & payments yet.';
+                } catch (e) { /* table may not exist on a fresh scratch DB */ }
+                if (!live.iban) return { status: 'warn', detail: 'MEDX_IBAN not set — bank-transfer instructions are hidden (guests can only pay by card).' + savedNote, fix: 'Ops must set MEDX_IBAN on the service' + (savedNote.includes('is valid') ? ' to the saved reference.' : ' to the real Med&X account.') };
+                if (PLACEHOLDER_IBANS.has(live.iban) || !live.valid) return { status: 'fail', detail: 'Live service still runs a placeholder/invalid MEDX_IBAN (' + live.iban.slice(0, 6) + '…, ' + (live.reason || 'placeholder') + ') — bank-transfer instructions are hidden.' + savedNote, fix: 'Ops must set MEDX_IBAN to a valid Croatian IBAN (HR + 19 digits)' + (savedNote.includes('is valid') ? ' — the saved reference passes.' : '.') };
+                return { detail: ibanMask(live.iban) + ' valid (mod-97).' + savedNote };
             }),
             safe('Cloud database (Turso)', () => has('TURSO_DATABASE_URL')
                 ? { detail: 'Turso sync configured' }
@@ -36797,6 +36859,24 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             res.json(links);
         } catch (error) {
             res.status(500).json({ error: 'Failed to fetch links' });
+        }
+    });
+
+    // Rename a registration link (the label is the only thing the Links card edits in place —
+    // the token, bundle and expiry are baked into every URL already sent, so they never change).
+    app.put('/api/admin/registration-links/:id', auth, adminOnly, (req, res) => {
+        try {
+            const label = String((req.body || {}).label || '').trim().slice(0, 120);
+            if (!label) return res.status(400).json({ error: 'Give the link a name.' });
+            const row = query.get('SELECT id FROM registration_links WHERE id = ?', [req.params.id]);
+            if (!row) return res.status(404).json({ error: 'Link not found' });
+            try { db.run('ALTER TABLE registration_links ADD COLUMN label TEXT'); } catch (e) {}   // same guarded ALTER the generators use, for fresh DBs
+            db.run('UPDATE registration_links SET label = ? WHERE id = ?', [label, req.params.id]);
+            saveDb();
+            try { logAudit(req, 'registration_link.rename', label); } catch (e) {}
+            res.json({ success: true, label });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to rename link' });
         }
     });
 

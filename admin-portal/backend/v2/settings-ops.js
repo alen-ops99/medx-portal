@@ -16,6 +16,24 @@
 
 const crypto = require('crypto');
 
+// ---------------------------------------------------------------- ONE IBAN check (ISO 13616 mod-97)
+// Used by the PUT below AND by the system-health "Bank transfer IBAN" row in server.js, so the
+// saved reference and the live MEDX_IBAN are judged by the same rule. A length regex let
+// "HR12345678901234567890"-shaped typos through; mod-97 catches a single wrong digit.
+// Returns { iban: <compact uppercase>, valid, reason } — never throws.
+function ibanCheck(raw) {
+    const iban = String(raw == null ? '' : raw).replace(/\s+/g, '').toUpperCase();
+    if (!iban) return { iban, valid: false, reason: 'empty' };
+    if (!/^[A-Z]{2}[0-9]{2}[0-9A-Z]{11,30}$/.test(iban)) return { iban, valid: false, reason: 'shape' };
+    if (iban.startsWith('HR') && iban.length !== 21) return { iban, valid: false, reason: 'HR IBANs are HR + 19 digits' };
+    // Move the first four characters to the end, letters → 10..35, then mod 97 must be 1.
+    const digits = (iban.slice(4) + iban.slice(0, 4)).replace(/[A-Z]/g, ch => String(ch.charCodeAt(0) - 55));
+    let rem = 0;
+    for (let i = 0; i < digits.length; i++) rem = (rem * 10 + (digits.charCodeAt(i) - 48)) % 97;
+    return { iban, valid: rem === 1, reason: rem === 1 ? null : 'checksum' };
+}
+const ibanMask = (iban) => (iban && iban.length > 8) ? iban.slice(0, 4) + '…' + iban.slice(-4) : (iban || '');
+
 module.exports = function mountSettingsOps(app, ctx) {
     const { db, auth, adminOnly, saveDb, log } = ctx;
 
@@ -97,7 +115,12 @@ module.exports = function mountSettingsOps(app, ctx) {
             const clean = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
             const oib = clean(b.oib, 20), iban = clean(b.iban, 40).replace(/\s+/g, ' '), fira = clean(b.fira_key, 120);
             if (oib && !/^\d{11}$/.test(oib)) return res.status(400).json({ error: 'An OIB has exactly 11 digits.' });
-            if (iban && !/^[A-Z]{2}[0-9A-Z ]{13,40}$/i.test(iban)) return res.status(400).json({ error: 'That does not look like an IBAN (HR + digits).' });
+            if (iban) {
+                const chk = ibanCheck(iban);
+                if (!chk.valid) return res.status(400).json({ error: chk.reason === 'checksum'
+                    ? 'That IBAN fails its checksum (mod-97) — one digit is probably off. Check it against the bank statement.'
+                    : 'That does not look like an IBAN (HR + 19 digits, e.g. HR12 3456 7890 1234 5678 9).' });
+            }
             const now = new Date().toISOString();
             if (q.get("SELECT 1 x FROM v2_org_settings WHERE id = 'default'")) {
                 q.run("UPDATE v2_org_settings SET oib = ?, iban = ?, fira_key = ?, updated_at = ?, updated_by = ? WHERE id = 'default'",
@@ -113,3 +136,5 @@ module.exports = function mountSettingsOps(app, ctx) {
 
     log('settings-ops: health sentinel + org settings ready');
 };
+module.exports.ibanCheck = ibanCheck;
+module.exports.ibanMask = ibanMask;
