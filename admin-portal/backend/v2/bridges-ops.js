@@ -285,7 +285,10 @@ module.exports = function mountBridgesOps(app, ctx) {
     app.get('/api/v2/bridges/hub', auth, adminOnly, (req, res) => {
         try {
             const homeId = homeBridgesId();
-            const events = q.all(`SELECT * FROM bridges_events ORDER BY (event_date IS NULL) ASC, event_date DESC, created_at DESC`).map(e => ({
+            // Cancelled / superseded rows (the June "[superseded] Boston Symposium" seed) stay in the table for
+            // history but have no place on the working screen.
+            const events = q.all(`SELECT * FROM bridges_events WHERE COALESCE(status,'upcoming') <> 'cancelled' AND name NOT LIKE '[superseded]%'
+                                  ORDER BY (event_date IS NULL) ASC, event_date DESC, created_at DESC`).map(e => ({
                 id: e.id, name: e.name, city: e.city, venue_name: e.venue_name || null, venue_address: e.venue_address || null,
                 event_date: e.event_date || null, event_time: e.event_time || null, end_time: e.end_time || null,
                 description: e.description || null, capacity: e.capacity || null, registration_open: !!e.registration_open,
