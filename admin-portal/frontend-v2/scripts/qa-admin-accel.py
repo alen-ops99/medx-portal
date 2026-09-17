@@ -144,10 +144,14 @@ with sync_playwright() as pw:
     api('/api/v2/accelerator-review/scores', 'PUT', TOK2, {'application_id': app1['id'], 'criterion_id': c1, 'score': 2})
     api('/api/v2/accelerator-review/scores', 'PUT', TOK2, {'application_id': app1['id'], 'criterion_id': c2, 'score': 3})
     page.reload(wait_until='networkidle'); page.wait_for_timeout(900)
-    expected = round(((4 + 2) / 2 + (5 + 3) / 2) / len(crits), 1)    # per-criterion averages, unscored count 0
+    # TOTAL is the weighted share of max points on a 0–100 scale (2026-09-17 audit F):
+    # Σ(team-avg_i / max_points_i × weight_i) / Σweight × 100, unscored criteria count 0.
+    avg = {c1: (4 + 2) / 2, c2: (5 + 3) / 2}
+    wsum = sum(float(c.get('weight') or 1) for c in crits) or 1
+    expected = round(sum(avg.get(c['id'], 0) / float(c.get('max_points') or 10) * float(c.get('weight') or 1) for c in crits) / wsum * 100, 1)
     total = page.inner_text(f'[data-role="total-{app1["id"]}"]').strip()
-    assert total == f'{expected:.1f}', f'team average must be {expected:.1f}, saw {total}'
-    print(f'flow → two reviewers scored, average shows {total}')
+    assert total == f'{expected:.1f}', f'weighted total must be {expected:.1f}, saw {total}'
+    print(f'flow → two reviewers scored, weighted total shows {total} / 100')
     shot(page, 'review-scored.png')
 
     # -- SEND INTERVIEW LINK → two outbox rows, pending approval --

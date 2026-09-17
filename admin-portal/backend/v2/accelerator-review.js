@@ -19,8 +19,17 @@
  *
  *   PER-REVIEWER SCORES (legacy accelerator_evaluations is UNIQUE(application, criterion) — one
  *   shared score; the Review Room needs reviewer × application × criterion, averaged):
- *     GET /api/v2/accelerator-review/scores?year=         admin — all rows for that year's program
- *     PUT /api/v2/accelerator-review/scores               admin — { application_id, criterion_id, score } (0–5, reviewer = the signed-in admin)
+ *     GET /api/v2/accelerator-review/scores?year=         admin — all rows for that year's program + `totals`
+ *                                                          { [application_id]: { total, n } } on the 0–100 weighted scale
+ *     PUT /api/v2/accelerator-review/scores               admin — { application_id, criterion_id, score }
+ *                                                          (0–max_points of THAT criterion, reviewer = the signed-in admin)
+ *
+ *   WEIGHTED TOTAL (module.exports.computeWeightedTotal — pure, tested in tests/accelerator-review-score.test.js):
+ *     total = Σ(score / max_points × weight) / Σ(weight) × 100, unscored criteria count 0 and the
+ *     denominator is the whole active rubric. Same monotone ordering as the legacy
+ *     recalculateApplicationScores Σ(score × weight) whenever max_points is uniform (it is: 10), so
+ *     the Review Room ranking and the legacy total_score / ranking PDF agree. The front-end twin is
+ *     frontend-v2/js/views/_accel-criteria.js › weightedTotal.
  *
  *   REVIEWER NOTE (writes the legacy accelerator_applications.reviewer_notes column so the old
  *   admin surfaces see the same note; the legacy review route always flips status, so a note-only PUT):
@@ -47,6 +56,29 @@
  */
 'use strict';
 const crypto = require('crypto');
+
+// ---------------------------------------------------------------- weighted total (pure)
+const TOTAL_SCALE = 100;
+const maxPointsOf = (c) => { const m = Number(c && c.max_points); return m > 0 ? m : 10; };
+const weightOf = (c) => { const w = Number(c && c.weight); return Number.isFinite(w) && w >= 0 ? w : 1; };
+/**
+ * computeWeightedTotal(criteria, scoreFor) → number on 0–100.
+ *   criteria : [{ id, max_points, weight }] — the ACTIVE rubric (every row counts in the denominator)
+ *   scoreFor : (criterion) → score | null, or a plain { [criterion.id]: score } map
+ * Unscored criteria contribute 0 (a half-scored file ranks below a fully scored one). Σweight = 0 → 0.
+ */
+function computeWeightedTotal(criteria, scoreFor) {
+    const lookup = typeof scoreFor === 'function' ? scoreFor : (c) => (scoreFor && c ? scoreFor[c.id] : null);
+    let num = 0, den = 0;
+    (criteria || []).forEach((c) => {
+        const w = weightOf(c);
+        den += w;
+        const s = lookup(c);
+        const n = s == null || s === '' ? NaN : Number(s);
+        if (Number.isFinite(n)) num += (n / maxPointsOf(c)) * w;
+    });
+    return den > 0 ? (num / den) * TOTAL_SCALE : 0;
+}
 
 module.exports = function mountAcceleratorReview(app, ctx) {
     const { db, auth, adminOnly, saveDb, log } = ctx;
@@ -253,20 +285,38 @@ module.exports = function mountAcceleratorReview(app, ctx) {
         } catch (e) { res.json({ count: 0, unavailable: true }); }
     });
 
-    // ---------------------------------------------------------------- PER-REVIEWER SCORES (0–5, averaged client-side)
+    // ---------------------------------------------------------------- PER-REVIEWER SCORES (0–max_points per criterion, averaged; weighted 0–100 total)
+    const activeCriteria = (year) => q.all('SELECT id, max_points, weight FROM accelerator_evaluation_criteria WHERE year = ? AND is_active = 1', [year]);
+    // { [application_id]: { total, n } } — per-criterion team averages folded through computeWeightedTotal.
+    function weightedTotals(rows, criteria) {
+        const acc = {};
+        rows.forEach((r) => {
+            const a = acc[r.application_id] || (acc[r.application_id] = { sums: {}, counts: {}, n: 0 });
+            a.sums[r.criterion_id] = (a.sums[r.criterion_id] || 0) + Number(r.score || 0);
+            a.counts[r.criterion_id] = (a.counts[r.criterion_id] || 0) + 1;
+            a.n = Math.max(a.n, a.counts[r.criterion_id]);
+        });
+        const out = {};
+        Object.keys(acc).forEach((appId) => {
+            const a = acc[appId];
+            out[appId] = { total: computeWeightedTotal(criteria, (c) => (a.counts[c.id] ? a.sums[c.id] / a.counts[c.id] : null)), n: a.n };
+        });
+        return out;
+    }
     app.get('/api/v2/accelerator-review/scores', auth, adminOnly, (req, res) => {
         try {
             const year = parseInt(req.query.year, 10);
-            let rows;
+            let rows, totals = null;
             if (Number.isFinite(year)) {
                 rows = q.all(`SELECT s.* FROM v2_accel_scores s
                               JOIN accelerator_applications a ON a.id = s.application_id
                               JOIN accelerator_programs p ON p.id = a.program_id
                               WHERE p.year = ?`, [year]);
+                totals = weightedTotals(rows, activeCriteria(year));
             } else {
                 rows = q.all('SELECT * FROM v2_accel_scores');
             }
-            res.json({ scores: rows, reviewer: req.user && req.user.email ? req.user.email : null });
+            res.json({ scores: rows, reviewer: req.user && req.user.email ? req.user.email : null, totals, scale: TOTAL_SCALE });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
     app.put('/api/v2/accelerator-review/scores', auth, adminOnly, (req, res) => {
@@ -279,7 +329,7 @@ module.exports = function mountAcceleratorReview(app, ctx) {
             const criterion = q.get('SELECT * FROM accelerator_evaluation_criteria WHERE id = ?', [critId]);
             if (!criterion) return res.status(400).json({ error: 'Invalid criterion' });
             const n = Number(String(b.score).replace(',', '.'));
-            const cap = Math.min(5, Number(criterion.max_points) || 5);
+            const cap = maxPointsOf(criterion); // the criterion's own max_points (10 on the seeded rubric), never a constant
             if (!Number.isFinite(n) || n < 0 || n > cap) return res.status(400).json({ error: `Score for "${criterion.name}" must be between 0 and ${cap}` });
             const reviewer = (req.user && req.user.email) || 'admin';
             const reviewerName = (req.user && (req.user.name || req.user.email)) || 'admin';
@@ -288,7 +338,12 @@ module.exports = function mountAcceleratorReview(app, ctx) {
             else q.run('INSERT INTO v2_accel_scores (id, application_id, criterion_id, reviewer_email, reviewer_name, score) VALUES (?,?,?,?,?,?)', [uuid(), appId, critId, reviewer, reviewerName, n]);
             persist();
             const agg = q.get('SELECT AVG(score) AS avg, COUNT(*) AS n FROM v2_accel_scores WHERE application_id = ? AND criterion_id = ?', [appId, critId]);
-            res.json({ success: true, avg: agg ? agg.avg : n, n: agg ? agg.n : 1 });
+            let total = null;
+            try {
+                const appRows = q.all('SELECT criterion_id, score FROM v2_accel_scores WHERE application_id = ?', [appId]);
+                total = weightedTotals(appRows.map(r => ({ ...r, application_id: appId })), activeCriteria(criterion.year))[appId] || null;
+            } catch (e) { /* the total is a courtesy — the score itself is saved */ }
+            res.json({ success: true, avg: agg ? agg.avg : n, n: agg ? agg.n : 1, max_points: cap, total: total ? total.total : null, scale: TOTAL_SCALE });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
@@ -498,3 +553,6 @@ module.exports = function mountAcceleratorReview(app, ctx) {
 
     log('accelerator-review: alumni, intake, scores, notes, decisions, interview-invite routes mounted');
 };
+// Pure helpers for tests and for backend/v2 siblings (gala-ops exposes computeSummary the same way).
+module.exports.computeWeightedTotal = computeWeightedTotal;
+module.exports.TOTAL_SCALE = TOTAL_SCALE;

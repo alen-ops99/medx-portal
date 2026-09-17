@@ -1,15 +1,21 @@
 // Source: Admin Accelerator Hub.dc.html — the ACCELERATOR HUB destination (/projects/accelerator).
 // Blocks (artboard order): "Sub-nav" › "Title row" › "Stats + key dates" › "HOST INSTITUTIONS" ›
 // "THE REVIEW ROOM" › "Wizard note". v2 additions per README note 0c rows (marked data-v2):
-// EVALUATION CRITERIA (markup vocabulary from Admin Accelerator Review.dc.html › "SCORING CRITERIA"),
-// ALUMNI (v2_accelerator_alumni list + edit), GET-NOTIFIED count line, intake-window editor on the
+// EVALUATION CRITERIA (card body + handlers shared with the Review Room via _accel-criteria.js —
+// name, max points and weight all editable, scale text derived from max_points), ALUMNI
+// (v2_accelerator_alumni list + edit), GET-NOTIFIED count line, intake-window editor on the
 // key-dates strip (PUT /api/v2/accelerator-review/intake-window — member-route semantics).
+// HOST INSTITUTIONS is the union GET /api/admin/accelerator-sites returns: curated accelerator_sites
+// rows (source 'site' → the sites CRUD) plus accelerator_institutions rows with no site of their own
+// (source 'institution' → PUT /api/accelerator/institutions/:id for name/city/spots, is_active 0 to
+// remove) — both edit in place here, one list for the admin as for the member page.
 // Every number is a live read; every status is a door (note 0b). No public close/interview/result
 // dates anywhere — only the opening date (canonical facts, README).
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
 import cfg from '../config.js';
+import { criteriaCardBody, criteriaHandlers, onCriteriaChange } from './_accel-criteria.js';
 
 export const SOURCE = 'Admin Accelerator Hub.dc.html';
 
@@ -39,10 +45,9 @@ export const COPY = {
     title: 'HOST INSTITUTIONS', sub: 'add one here — it appears on the member portal instantly',
     placeholder: 'Institution name — e.g. “Mayo Clinic, Rochester”', add: 'ADD',
     edit: 'EDIT', save: 'SAVE', cancel: 'CANCEL', remove: 'REMOVE', removeSure: 'SURE? REMOVE',
-    namePh: 'Institution', placePh: 'City · lab or clinic', spotsPh: 'e.g. 2',
+    namePh: 'Institution', placePh: 'City · lab or clinic', cityPh: 'City', spotsPh: 'e.g. 2',
     spots: n => n == null || n === '' ? 'SPOTS TBC' : `${n} ${Number(n) === 1 ? 'SPOT' : 'SPOTS'}`,
     footer: 'This is the same list the member page shows — adding or editing here updates it instantly.',
-    fromInst: 'FROM THE INSTITUTION LIST', fromInstTitle: 'Entered as a host institution — edit it there, or add a site row here to give it a lab, a mentor and a cycle year.',
     emptyLine: 'No host sites entered yet.',
     emptyWhy: hosts => `The 2026 cycle hosts are ${hosts.slice(0, -1).join(', ')} and the ${hosts[hosts.length - 1]} — add them here and the member page follows.`,
     added: 'ADDED — FILL CITY & FIELD, IT SYNCS TO THE MEMBER PAGE',
@@ -54,13 +59,7 @@ export const COPY = {
     chips: [['REVIEW', '/accelerator-review'], ['SCORE', '/accelerator-review'], ['INTERVIEW', '/accelerator-review#interviews'], ['RANK', '/accelerator-review#ranking']],
     chipGold: ['PLACE', '/accelerator-review#ranking'], open: 'OPEN THE REVIEW ROOM →'
   },
-  crit: {
-    title: 'EVALUATION CRITERIA', tag: 'yours to define', add: 'ADD',
-    placeholder: 'Add a criterion — e.g. English fluency',
-    note: 'Scale is 0–5 · every applicant is scored on every criterion.',
-    added: 'CRITERION ADDED — EVERY APPLICANT GETS A CELL FOR IT', renamed: 'CRITERION RENAMED — SCORES STAY ATTACHED',
-    removed: 'CRITERION REMOVED FROM THE RUBRIC', needName: 'TYPE THE CRITERION FIRST'
-  },
+  crit: { title: 'EVALUATION CRITERIA' },     // the rest of the card's copy lives in _accel-criteria.js › CRIT_COPY (shared with the Review Room)
   alumni: {
     title: 'ALUMNI', sub: 'the fellows record — drives the member page rotator',
     placeholder: 'Fellow’s name — e.g. “Dr. Iva Kovačić”', add: 'ADD',
@@ -214,23 +213,23 @@ function blockInstitutions() {
         </div>
         ${rows.length ? rows.map(s => {
           const place = [s.city, s.lab_or_clinic].filter(Boolean).join(' · ');
-          // A row that comes from accelerator_institutions (no site row of its own) is shown here so
-          // the hub agrees with Today, Settings health and the member page, but it is edited in the
-          // institution list — editing it here would write to the wrong table.
+          // Rows from accelerator_institutions (source 'institution', no site row of their own) edit
+          // in place too — instSave/instRemove route them to PUT /api/accelerator/institutions/:id
+          // (name · city · available_spots · is_active) instead of the sites CRUD, so the write
+          // lands in the table the row came from. Institution rows carry no lab line, hence the
+          // narrower "City" placeholder.
           const fromInst = s.source === 'institution';
-          const editing = !fromInst && st.instEdit === s.id;
+          const editing = st.instEdit === s.id;
           return `
-          <div data-row="${esc(s.id)}" style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
+          <div data-row="${esc(s.id)}" data-source="${esc(s.source || 'site')}" style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
             <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">${esc(s.institution)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(place) || '—'}</span></span>
             <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e4efe7;color:#22563a;padding:3px 7px;white-space:nowrap">${esc(COPY.inst.spots(s.spots))}</span>
-            ${fromInst
-              ? `<span title="${esc(COPY.inst.fromInstTitle)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#9a9086;white-space:nowrap">${COPY.inst.fromInst}</span>`
-              : `<span data-act="instEdit" data-id="${esc(s.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.inst.edit}</span>`}
+            <span data-act="instEdit" data-id="${esc(s.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.inst.edit}</span>
           </div>
           ${editing ? `
             <div style="display:flex;gap:8px;align-items:center;padding:10px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.07);flex-wrap:wrap">
               <input data-role="eName" value="${esc(st.eName)}" placeholder="${COPY.inst.namePh}" style="flex:2;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
-              <input data-role="ePlace" value="${esc(st.ePlace)}" placeholder="${COPY.inst.placePh}" style="flex:2;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
+              <input data-role="ePlace" value="${esc(st.ePlace)}" placeholder="${fromInst ? COPY.inst.cityPh : COPY.inst.placePh}" style="flex:2;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
               <input data-role="eSpots" value="${esc(st.eSpots)}" placeholder="${COPY.inst.spotsPh}" style="width:90px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
               <span data-act="instSave" data-id="${esc(s.id)}" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer">${COPY.inst.save}</span>
               <span data-act="instCancel" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer" data-hover="color:#201b16">${COPY.inst.cancel}</span>
@@ -308,25 +307,10 @@ function blockReviewCard() {
 }
 
 function blockCriteria() {
-  // Unnamed rows would render as an empty field plus a bare ✕ — skip them (same rule as the
-  // Review room's crits()).
-  const crits = ((D && D.criteria) || []).filter(c => c && String(c.name || '').trim());
   return `
         <div data-block="crit" data-v2="criteria-card" style="border:1px solid rgba(32,27,22,.14);background:#fff">
-          <!-- v2: EVALUATION CRITERIA — note 0c row; vocabulary from Admin Accelerator Review.dc.html › "SCORING CRITERIA" -->
-          <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.crit.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${COPY.crit.tag}</span></div>
-          <div style="padding:10px 18px 14px;display:flex;flex-direction:column;gap:8px">
-            ${crits.map(c => `
-            <div style="display:flex;align-items:center;gap:8px" data-row="${esc(c.id)}">
-              <input value="${esc(c.name)}" data-change="critRename" data-id="${esc(c.id)}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;min-width:0">
-              <span data-act="critRemove" data-id="${esc(c.id)}" title="Remove criterion" style="font:600 12px Inter,sans-serif;color:#9a9086;cursor:pointer;padding:4px" data-hover="color:#9b1b22">✕</span>
-            </div>`).join('')}
-            <div style="display:flex;gap:8px">
-              <input data-role="critDraft" placeholder="${COPY.crit.placeholder}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;min-width:0">
-              <span data-act="addCrit" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;display:flex;align-items:center" data-hover="background:#7e151b">${COPY.crit.add}</span>
-            </div>
-            <span style="font-size:11px;color:#6d6459">${COPY.crit.note}</span>
-          </div>
+          <!-- v2: EVALUATION CRITERIA — note 0c row; card body shared with the Review Room (_accel-criteria.js), vocabulary from Admin Accelerator Review.dc.html › "SCORING CRITERIA" -->
+          ${criteriaCardBody(D && D.criteria, { title: COPY.crit.title })}
         </div>`;
 }
 
@@ -372,6 +356,9 @@ function splitPlace(place) {
   const parts = String(place || '').split('·').map(s => s.trim()).filter(Boolean);
   return { city: parts[0] || null, lab: parts.slice(1).join(' · ') || null };
 }
+const isInstitutionRow = s => !!s && s.source === 'institution';
+// the shared criteria card reads and writes D.criteria through this host
+const critHost = { year: YEAR, rows: () => D && D.criteria, setRows: rows => { if (D) D.criteria = rows; }, rerender, val };
 
 // ---------------------------------------------------------------- handlers
 const handlers = {
@@ -390,7 +377,7 @@ const handlers = {
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
 
-  // — host institutions (accelerator_sites CRUD) —
+  // — host institutions (accelerator_sites CRUD · accelerator_institutions rows via the legacy institutions PUT) —
   instEdit: (el) => {
     const id = el.dataset.id;
     if (st.instEdit === id) { st.instEdit = null; rerender(); return; }
@@ -402,9 +389,16 @@ const handlers = {
   instCancel: () => { st.instEdit = null; st.instRemoveConfirm = false; rerender(); },
   instSave: async (el) => {
     const id = el.dataset.id;
-    const name = val('eName'), place = splitPlace(val('ePlace')), spots = val('eSpots').replace(/[^\d]/g, '');
+    const s = sites().find(x => x.id === id);
+    const name = val('eName'), spots = val('eSpots').replace(/[^\d]/g, '');
     try {
-      await api.put('/api/admin/accelerator-sites/' + id, { institution: name || undefined, city: place.city, lab_or_clinic: place.lab, spots: spots === '' ? null : parseInt(spots, 10) });
+      if (isInstitutionRow(s)) {
+        // COALESCE-partial on the server: a blank name leaves the name alone, blank spots leave the count alone.
+        await api.put('/api/accelerator/institutions/' + id, { name: name || undefined, city: val('ePlace'), available_spots: spots === '' ? undefined : parseInt(spots, 10) });
+      } else {
+        const place = splitPlace(val('ePlace'));
+        await api.put('/api/admin/accelerator-sites/' + id, { institution: name || undefined, city: place.city, lab_or_clinic: place.lab, spots: spots === '' ? null : parseInt(spots, 10) });
+      }
       D.sites = await api.get('/api/admin/accelerator-sites');
       st.instEdit = null; st.instRemoveConfirm = false; rerender();
       ui.toast(COPY.inst.saved);
@@ -414,13 +408,20 @@ const handlers = {
     if (!st.instRemoveConfirm) { st.instRemoveConfirm = true; rerender(); return; }
     const id = el.dataset.id;
     const snap = sites().find(x => x.id === id);
+    const fromInst = isInstitutionRow(snap);
     try {
-      await api.del('/api/admin/accelerator-sites/' + id);
+      // institution rows soft-remove (is_active 0 — the GET filters them out, undo flips it back);
+      // site rows hard-delete and undo re-creates the row from the snapshot.
+      if (fromInst) await api.put('/api/accelerator/institutions/' + id, { is_active: 0 });
+      else await api.del('/api/admin/accelerator-sites/' + id);
       D.sites = await api.get('/api/admin/accelerator-sites');
       st.instEdit = null; st.instRemoveConfirm = false; rerender();
       ui.toast(COPY.inst.removed, { undo: async () => {
-        try { await api.post('/api/admin/accelerator-sites', { institution: snap.institution, city: snap.city, country: snap.country, lab_or_clinic: snap.lab_or_clinic, mentor_line: snap.mentor_line, spots: snap.spots, year: snap.year, active: 1 });
-          D.sites = await api.get('/api/admin/accelerator-sites'); rerender(); } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+        try {
+          if (fromInst) await api.put('/api/accelerator/institutions/' + id, { is_active: 1 });
+          else await api.post('/api/admin/accelerator-sites', { institution: snap.institution, city: snap.city, country: snap.country, lab_or_clinic: snap.lab_or_clinic, mentor_line: snap.mentor_line, spots: snap.spots, year: snap.year, active: 1 });
+          D.sites = await api.get('/api/admin/accelerator-sites'); rerender();
+        } catch (e) { ui.toast(e.message, { kind: 'error' }); }
       } });
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
@@ -494,43 +495,14 @@ const handlers = {
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
 
-  // — evaluation criteria (existing per-year routes, 0–5 scale) —
-  addCrit: async () => {
-    const name = val('critDraft');
-    if (!name) { ui.toast(COPY.crit.needName, { kind: 'error' }); return; }
-    try {
-      await api.post(`/api/accelerator/years/${YEAR()}/criteria`, { name, max_points: 5, weight: 1, category: 'objective' });
-      D.criteria = await api.get(`/api/accelerator/years/${YEAR()}/criteria`);
-      rerender();
-      ui.toast(COPY.crit.added);
-    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-  },
-  critRemove: async (el) => {
-    const id = el.dataset.id;
-    try {
-      await api.del('/api/accelerator/criteria/' + id);
-      D.criteria = await api.get(`/api/accelerator/years/${YEAR()}/criteria`);
-      rerender();
-      ui.toast(COPY.crit.removed, { undo: async () => {
-        try { await api.put('/api/accelerator/criteria/' + id, { is_active: 1 });
-          D.criteria = await api.get(`/api/accelerator/years/${YEAR()}/criteria`); rerender(); } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-      } });
-    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-  }
+  // — evaluation criteria (addCrit · critRemove — shared with the Review Room, per-year routes, max_points + weight aware) —
+  ...criteriaHandlers(critHost)
 };
 
 async function onFieldChange(e) {
   const el = e.target.closest && e.target.closest('[data-change]');
   if (!el || !rootEl || !rootEl.contains(el)) return;
-  if (el.dataset.change === 'critRename') {
-    const name = el.value.trim();
-    if (!name) return;
-    try {
-      await api.put('/api/accelerator/criteria/' + el.dataset.id, { name });
-      const c = (D.criteria || []).find(x => x.id === el.dataset.id); if (c) c.name = name;
-      ui.toast(COPY.crit.renamed);
-    } catch (err) { ui.toast(err.message, { kind: 'error' }); }
-  }
+  await onCriteriaChange(el, critHost);       // critRename · critMax · critWeight
 }
 function onKeydown(e) {
   if (e.key !== 'Enter' || !rootEl) return;

@@ -1,19 +1,24 @@
 // Source: Admin Accelerator Review.dc.html — the REVIEW ROOM (/accelerator-review), README note 19.
 // Blocks (artboard order): "Sub-nav" › "Title row" › applications stream (per-app card with the
-// expandable APPLICANT FILE drawer + DECISION column + per-criteria 0–5 scoring row) › dashed note ›
-// "SCORING CRITERIA" › "INTERVIEWS" › match note. v2 additions (marked data-v2): status filter chips
-// (statuses are doors), the RANKING card + CSV export feeding the institution match, interviewer
-// email field (send-link needs an address) and per-interviewer remove.
+// expandable APPLICANT FILE drawer + DECISION column + per-criteria scoring row, each cell capped at
+// that criterion's max_points) › dashed note › "SCORING CRITERIA" (card body shared with the hub via
+// _accel-criteria.js — name, max points, weight) › "INTERVIEWS" › match note. v2 additions (marked
+// data-v2): status filter chips (statuses are doors), the RANKING card + CSV export feeding the
+// institution match, interviewer email field (send-link needs an address) and per-interviewer remove.
 // Real data: applications stream in from the member wizard (accelerator_applications — program_id is
 // set on create, so year-scoped admin lists see them); scores are per-reviewer (v2_accel_scores,
-// averaged; the average is mirrored into the legacy evaluate-batch route so total_score/ranking/PDF
-// stay truthful); SEND INTERVIEW LINK and ACCEPT/DECLINE queue in the scheduled_emails outbox —
-// nothing emails anyone without an approval on /inbox/outbox.
+// averaged per criterion; the average is mirrored into the legacy evaluate-batch route so
+// total_score/ranking/PDF stay truthful). TOTAL is the weighted share of max points on 0–100
+// (Σ(avg/max_points × weight)/Σweight × 100 — _accel-criteria.js › weightedTotal), which orders the
+// cohort exactly like the legacy Σ(score × weight) while max_points is uniform. SEND INTERVIEW LINK
+// and ACCEPT/DECLINE queue in the scheduled_emails outbox — nothing emails anyone without an approval
+// on /inbox/outbox.
 import { api } from '../api.js';
 import { ui, esc } from '../ui.js';
 import { session } from '../state.js';
 import { FACTS } from '../facts.js';
 import cfg from '../config.js';
+import { TOTAL_SCALE, activeCriteria, maxOf, weightOf, weightedTotal, fmtTotal, criteriaCardBody, criteriaHandlers, onCriteriaChange } from './_accel-criteria.js';
 
 export const SOURCE = 'Admin Accelerator Review.dc.html';
 
@@ -35,7 +40,12 @@ export const COPY = {
     undone: 'DECISION UNDONE — THE QUEUED LETTER WAS CANCELLED',
     noteSaved: 'NOTE SAVED — TEAM-VISIBLE, NEVER THE APPLICANT'
   },
-  score: { total: 'TOTAL', of: '/ 5', reviewers: n => n === 1 ? '1 reviewer' : `${n} reviewers`, saved: 'SCORE SAVED — TEAM AVERAGE UPDATED', bad: 'SCORES RUN 0–5' },
+  score: {
+    total: 'TOTAL', of: `/ ${TOTAL_SCALE}`, reviewers: n => n === 1 ? '1 reviewer' : `${n} reviewers`,
+    cellTitle: (max, avg, who) => `0–${max} · team avg ${avg} · ${who}`,
+    totalTitle: who => `${who} · weighted share of max points, 0–${TOTAL_SCALE} · averaged per criterion`,
+    saved: 'SCORE SAVED — TEAM AVERAGE UPDATED', bad: cap => `SCORES FOR THIS CRITERION RUN 0–${cap}`
+  },
   send: {
     idle: 'SEND INTERVIEW LINK', sent: '✓ INTERVIEW LINK SENT', booked: '✓ INTERVIEW BOOKED',
     modalTitle: 'Send the interview link?',
@@ -47,12 +57,7 @@ export const COPY = {
   },
   note: 'Applications stream in from the member wizard automatically. Scores are per-reviewer and averaged; the ranking updates live.',
   empty: { line: 'No applications yet.', why: opens => `The wizard opens to members on ${opens} — the moment someone submits, their file appears here.`, cta: 'SEE THE MEMBER SIDE ↗' },
-  crit: {
-    title: 'SCORING CRITERIA', tag: 'yours to define', placeholder: 'Add a criterion — e.g. English fluency', add: 'ADD',
-    note: 'Scale is 0–5 · every applicant is scored on every criterion.',
-    added: 'CRITERION ADDED — EVERY APPLICANT GETS A CELL FOR IT', renamed: 'CRITERION RENAMED — SCORES STAY ATTACHED',
-    removed: 'CRITERION REMOVED FROM THE RUBRIC', needName: 'TYPE THE CRITERION FIRST'
-  },
+  crit: { title: 'SCORING CRITERIA' },        // the rest of the card's copy lives in _accel-criteria.js › CRIT_COPY (shared with the hub)
   int: {
     title: 'INTERVIEWS',
     quote: '“Send interview link” emails the applicant a booking link and notifies the interviewer — you never leave this page.',
@@ -61,7 +66,7 @@ export const COPY = {
     needBoth: 'NAME AND EMAIL — THE LINK NEEDS AN ADDRESS', slots: 'GETS THE LINK PER INTERVIEW'
   },
   match: h => `Ranked fellows are matched to the <a href="/projects/accelerator">host institutions</a> by preference and spots — the match proposal appears here after ranking.`,
-  rank: { title: 'RANKING — LIVE', tag: 'feeds the institution match', export: 'EXPORT CSV', empty: 'Scores rank the cohort here the moment the first one lands.', cols: { rank: 'RANK', name: 'APPLICANT', uni: 'UNIVERSITY', choice: 'HOST CHOICE', avg: 'AVG' } },
+  rank: { title: 'RANKING — LIVE', tag: 'feeds the institution match', export: 'EXPORT CSV', empty: 'Scores rank the cohort here the moment the first one lands.', cols: { rank: 'RANK', name: 'APPLICANT', uni: 'UNIVERSITY', choice: 'HOST CHOICE', avg: `TOTAL /${TOTAL_SCALE}` }, csvTotal: `Weighted total (0–${TOTAL_SCALE})` },
   filters: [['', 'ALL'], ['submitted', 'NEW'], ['under_review', 'IN REVIEW'], ['interview', 'INTERVIEW'], ['accepted', 'ACCEPTED'], ['rejected', 'DECLINED']],
   program: {
     line: 'No accelerator program for this cycle yet.', why: 'The Review Room hangs off a program year — create it and the wizard, criteria and ranking all attach to it.',
@@ -101,10 +106,9 @@ async function load() {
 
 // ---- derived ----
 const apps = () => ((D && D.apps) || []).filter(a => a.status !== 'draft');
-// A criterion with no name renders as an empty field plus a bare ✕ (and an unlabelled 0–5 box on
-// every applicant row), so unnamed rows are dropped here — the one chokepoint the card, the score
-// grid and the CSV header all read.
-const crits = () => ((D && D.criteria) || []).filter(c => c && String(c.name || '').trim());
+// Unnamed criteria are dropped in one place (_accel-criteria.js › activeCriteria) — the card, the
+// score grid, the totals and the CSV header all read this.
+const crits = () => activeCriteria(D && D.criteria);
 const interviewers = () => ((D && D.interviewers) || []).filter(i => i.is_active !== 0);
 const invites = () => (D && D.invites && D.invites.invites) || [];
 const inviteFor = id => invites().find(v => v.application_id === id && (v.status === 'queued' || v.status === 'booked'));
@@ -115,12 +119,11 @@ function scoreCell(appId, critId) {
   const avg = n ? rows.reduce((x, y) => x + Number(y.score || 0), 0) / n : null;
   return { mine: mineRow ? mineRow.score : null, avg, n };
 }
-function teamAvg(appId) {
-  const cs = crits();
-  if (!cs.length) return { avg: 0, n: 0 };
+// { total (0–100, weighted share of max points over the per-criterion team averages), n (most reviewers on any one criterion) }
+function teamTotal(appId) {
   let reviewers = 0;
-  const sum = cs.reduce((acc, c) => { const cell = scoreCell(appId, c.id); reviewers = Math.max(reviewers, cell.n); return acc + (cell.avg == null ? 0 : cell.avg); }, 0);
-  return { avg: sum / cs.length, n: reviewers };
+  const total = weightedTotal(crits(), c => { const cell = scoreCell(appId, c.id); reviewers = Math.max(reviewers, cell.n); return cell.avg; });
+  return { total, n: reviewers };
 }
 function stageOf(a) {
   if (a.status === 'accepted') return STAGES.accepted;
@@ -143,7 +146,7 @@ function filtered() {
   return apps().filter(a => a.status === f);
 }
 function ranked() {
-  return apps().map(a => ({ a, t: teamAvg(a.id) })).sort((x, y) => y.t.avg - x.t.avg || String(x.a.last_name || '').localeCompare(String(y.a.last_name || '')));
+  return apps().map(a => ({ a, t: teamTotal(a.id) })).sort((x, y) => y.t.total - x.t.total || String(x.a.last_name || '').localeCompare(String(y.a.last_name || '')));
 }
 
 // ---------------------------------------------------------------- blocks
@@ -235,7 +238,7 @@ function appCard(a) {
   const uni = [a.current_institution, a.year_of_study ? 'Y' + String(a.year_of_study).replace(/^y/i, '') : null].filter(Boolean).join(' · ') || a.degree_program || '—';
   const stg = stageOf(a);
   const inv = inviteFor(a.id);
-  const t = teamAvg(a.id);
+  const t = teamTotal(a.id);
   const open = st.open === a.id;
   return `
           <div class="card" data-row="${esc(a.id)}" style="border:1px solid rgba(32,27,22,.14);background:#fff">
@@ -250,10 +253,11 @@ function appCard(a) {
             <div class="mxa-scores" style="display:flex;align-items:center;gap:10px 18px;padding:12px 18px;flex-wrap:wrap">
               ${crits().map(c => {
                 const cell = scoreCell(a.id, c.id);
-                return `<span style="display:flex;align-items:center;gap:7px;white-space:nowrap"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">${esc(String(c.name || '').split(' ')[0].toUpperCase())}</span><input value="${cell.mine == null ? '' : esc(cell.mine)}" placeholder="–" data-change="score" data-app="${esc(a.id)}" data-crit="${esc(c.id)}" title="0–5 · team avg ${cell.avg == null ? '—' : (Math.round(cell.avg * 10) / 10)} · ${COPY.score.reviewers(cell.n)}" style="width:36px;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:6px 0;font:600 12px Inter,sans-serif;color:#201b16;text-align:center;box-sizing:border-box"></span>`;
+                const max = maxOf(c);
+                return `<span style="display:flex;align-items:center;gap:7px;white-space:nowrap"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">${esc(String(c.name || '').split(' ')[0].toUpperCase())}</span><input value="${cell.mine == null ? '' : esc(cell.mine)}" placeholder="–" data-change="score" data-app="${esc(a.id)}" data-crit="${esc(c.id)}" data-max="${esc(max)}" title="${esc(COPY.score.cellTitle(max, cell.avg == null ? '—' : (Math.round(cell.avg * 10) / 10), COPY.score.reviewers(cell.n)))}" style="width:${max >= 100 ? 44 : 36}px;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:6px 0;font:600 12px Inter,sans-serif;color:#201b16;text-align:center;box-sizing:border-box"></span>`;
               }).join('')}
               <div style="flex:1"></div>
-              <span style="display:flex;align-items:baseline;gap:6px;white-space:nowrap" title="${COPY.score.reviewers(t.n)} · averaged per criterion"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">${COPY.score.total}</span><span data-role="total-${esc(a.id)}" style="font-family:Fraunces,serif;font-size:21px;color:#9b1b22">${(Math.round(t.avg * 10) / 10).toFixed(1)}</span><span style="font-size:10.5px;color:#9a9086">${COPY.score.of}</span></span>
+              <span style="display:flex;align-items:baseline;gap:6px;white-space:nowrap" title="${esc(COPY.score.totalTitle(COPY.score.reviewers(t.n)))}"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">${COPY.score.total}</span><span data-role="total-${esc(a.id)}" style="font-family:Fraunces,serif;font-size:21px;color:#9b1b22">${fmtTotal(t.total)}</span><span style="font-size:10.5px;color:#9a9086">${COPY.score.of}</span></span>
               <span data-act="send" data-id="${esc(a.id)}" style="padding:8px 12px;background:${inv ? '#1e6e42' : '#201b16'};color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${inv ? (inv.status === 'booked' ? COPY.send.booked : COPY.send.sent) : COPY.send.idle}</span>
             </div>
           </div>`;
@@ -286,20 +290,8 @@ function blockStream() {
 function blockCriteria() {
   return `
         <div data-block="crit" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff">
-          <!-- dc: Admin Accelerator Review.dc.html › "SCORING CRITERIA" -->
-          <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.crit.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${COPY.crit.tag}</span></div>
-          <div style="padding:10px 18px 14px;display:flex;flex-direction:column;gap:8px">
-            ${crits().map(c => `
-              <div style="display:flex;align-items:center;gap:8px" data-row="${esc(c.id)}">
-                <input value="${esc(c.name)}" data-change="critRename" data-id="${esc(c.id)}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;min-width:0">
-                <span data-act="critRemove" data-id="${esc(c.id)}" title="Remove criterion" style="font:600 12px Inter,sans-serif;color:#9a9086;cursor:pointer;padding:4px" data-hover="color:#9b1b22">✕</span>
-              </div>`).join('')}
-            <div style="display:flex;gap:8px">
-              <input data-role="critDraft" placeholder="${COPY.crit.placeholder}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;min-width:0">
-              <span data-act="addCrit" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;display:flex;align-items:center" data-hover="background:#7e151b">${COPY.crit.add}</span>
-            </div>
-            <span style="font-size:11px;color:#6d6459">${COPY.crit.note}</span>
-          </div>
+          <!-- dc: Admin Accelerator Review.dc.html › "SCORING CRITERIA" — card body shared with the hub (_accel-criteria.js): name · max points · weight -->
+          ${criteriaCardBody(D && D.criteria, { title: COPY.crit.title })}
           <!-- /dc -->
         </div>`;
 }
@@ -351,7 +343,7 @@ function blockRanking() {
             <span style="flex:1.2;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">${COPY.rank.cols.name}</span>
             <span style="flex:1.4;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">${COPY.rank.cols.uni}</span>
             <span style="flex:1;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">${COPY.rank.cols.choice}</span>
-            <span style="width:52px;text-align:right;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459">${COPY.rank.cols.avg}</span>
+            <span style="width:72px;text-align:right;font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;white-space:nowrap">${COPY.rank.cols.avg}</span>
             <span style="width:86px"></span>
           </div>
           ${rows.map((r, i) => {
@@ -363,7 +355,7 @@ function blockRanking() {
               <span data-act="file" data-id="${esc(r.a.id)}" style="flex:1.2;font-size:13px;font-weight:600;color:#201b16;cursor:pointer;min-width:0" data-hover="color:#9b1b22">${esc(name)}</span>
               <span style="flex:1.4;font-size:11.5px;color:#6d6459;min-width:0">${esc(r.a.current_institution || '—')}</span>
               <span style="flex:1;font-size:11.5px;color:#6d6459;min-width:0">${esc(instName(r.a.selected_institution) || '—')}</span>
-              <span style="width:52px;text-align:right;font-family:Fraunces,serif;font-size:17px;color:#9b1b22">${(Math.round(r.t.avg * 10) / 10).toFixed(1)}</span>
+              <span style="width:72px;text-align:right;font-family:Fraunces,serif;font-size:17px;color:#9b1b22">${fmtTotal(r.t.total)}</span>
               <span style="width:86px;text-align:right"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:${stg.bg};color:${stg.fg};padding:3px 7px;white-space:nowrap">${stg.label}</span></span>
             </div>`;
           }).join('')}
@@ -421,6 +413,8 @@ function rerender() { if (rootEl) rootEl.innerHTML = template(); }
 const val = role => { const el = rootEl && rootEl.querySelector(`[data-role="${role}"]`); return el ? el.value.trim() : ''; };
 
 function localApp(id) { return ((D && D.apps) || []).find(a => a.id === id); }
+// the shared criteria card reads and writes D.criteria through this host
+const critHost = { year: YEAR, rows: () => D && D.criteria, setRows: rows => { if (D) D.criteria = rows; }, rerender, val };
 
 async function decide(id, decision) {
   const r = await api.post(`/api/v2/accelerator-review/applications/${id}/decision`, { decision });
@@ -514,12 +508,13 @@ const handlers = {
     if (!rows.length) { ui.toast(COPY.exportEmpty, { kind: 'error' }); return; }
     const cs = crits();
     const safe = v => { const s = String(v == null ? '' : v); return '"' + (/^[=+\-@\t\r]/.test(s) ? "'" + s : s).replace(/"/g, '""') + '"'; };
-    const header = ['Rank', 'Name', 'University', 'Choice 1', 'Choice 2'].concat(cs.map(c => c.name)).concat(['Average', 'Status']);
+    // per-criterion columns carry the scale + weight in the header so the sheet is self-describing
+    const header = ['Rank', 'Name', 'University', 'Choice 1', 'Choice 2'].concat(cs.map(c => `${c.name} (0–${maxOf(c)}, w ${weightOf(c)})`)).concat([COPY.rank.csvTotal, 'Status']);
     const lines = [header.map(safe).join(',')].concat(rows.map((r, i) => {
       const name = [r.a.first_name, r.a.last_name].filter(Boolean).join(' ') || r.a.email || '';
       const per = cs.map(c => { const cell = scoreCell(r.a.id, c.id); return cell.avg == null ? '' : (Math.round(cell.avg * 100) / 100); });
       return [i + 1, name, r.a.current_institution || '', instName(r.a.selected_institution) || '', instName(r.a.alternative_institution) || '']
-        .concat(per).concat([(Math.round(r.t.avg * 100) / 100).toFixed(2), stageOf(r.a).label]).map(safe).join(',');
+        .concat(per).concat([(Math.round(r.t.total * 100) / 100).toFixed(2), stageOf(r.a).label]).map(safe).join(',');
     }));
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -527,28 +522,8 @@ const handlers = {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
     ui.toast(COPY.exported);
   },
-  addCrit: async () => {
-    const name = val('critDraft');
-    if (!name) { ui.toast(COPY.crit.needName, { kind: 'error' }); return; }
-    try {
-      await api.post(`/api/accelerator/years/${YEAR()}/criteria`, { name, max_points: 5, weight: 1, category: 'objective' });
-      D.criteria = await api.get(`/api/accelerator/years/${YEAR()}/criteria`);
-      rerender();
-      ui.toast(COPY.crit.added);
-    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-  },
-  critRemove: async (el) => {
-    const id = el.dataset.id;
-    try {
-      await api.del('/api/accelerator/criteria/' + id);
-      D.criteria = await api.get(`/api/accelerator/years/${YEAR()}/criteria`);
-      rerender();
-      ui.toast(COPY.crit.removed, { undo: async () => {
-        try { await api.put('/api/accelerator/criteria/' + id, { is_active: 1 });
-          D.criteria = await api.get(`/api/accelerator/years/${YEAR()}/criteria`); rerender(); } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-      } });
-    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-  },
+  // addCrit · critRemove — shared with the hub (_accel-criteria.js): new rows take the prevailing max_points and 1/(n+1) weight
+  ...criteriaHandlers(critHost),
   intToggle: () => { st.intAdd = !st.intAdd; rerender(); },
   addInt: async () => {
     const name = val('intName'), email = val('intEmail');
@@ -574,21 +549,12 @@ const handlers = {
   }
 };
 
-// ---- change-driven controls (scores, note, criterion rename) ----
+// ---- change-driven controls (scores, note, criterion name / max points / weight) ----
 async function onFieldChange(e) {
   const el = e.target.closest && e.target.closest('[data-change]');
   if (!el || !rootEl || !rootEl.contains(el)) return;
   const kind = el.dataset.change;
-  if (kind === 'critRename') {
-    const name = el.value.trim();
-    if (!name) return;
-    try {
-      await api.put('/api/accelerator/criteria/' + el.dataset.id, { name });
-      const c = crits().find(x => x.id === el.dataset.id); if (c) c.name = name;
-      ui.toast(COPY.crit.renamed);
-    } catch (err) { ui.toast(err.message, { kind: 'error' }); }
-    return;
-  }
+  if (await onCriteriaChange(el, critHost)) return;     // critRename · critMax · critWeight
   if (kind === 'note') {
     const id = el.dataset.id;
     try {
@@ -603,7 +569,9 @@ async function onFieldChange(e) {
     const appId = el.dataset.app, critId = el.dataset.crit;
     let v = Number(String(el.value).replace(',', '.'));
     if (el.value.trim() === '') return;
-    if (!Number.isFinite(v) || v < 0 || v > 5) { ui.toast(COPY.score.bad, { kind: 'error' }); const cell = scoreCell(appId, critId); el.value = cell.mine == null ? '' : cell.mine; return; }
+    // the cap is THAT criterion's max_points (the server enforces the same bound)
+    const cap = maxOf(crits().find(c => c.id === critId) || { max_points: el.dataset.max });
+    if (!Number.isFinite(v) || v < 0 || v > cap) { ui.toast(COPY.score.bad(cap), { kind: 'error' }); const cell = scoreCell(appId, critId); el.value = cell.mine == null ? '' : cell.mine; return; }
     v = Math.round(v * 10) / 10;
     try {
       await api.put('/api/v2/accelerator-review/scores', { application_id: appId, criterion_id: critId, score: v });
