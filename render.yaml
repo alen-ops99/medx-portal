@@ -54,9 +54,9 @@ services:
       - key: MEDX_IBAN
         sync: false
       - key: MEDX_BANK_NAME
-        value: "Zagrebačka banka d.d."
+        value: "Privredna banka Zagreb d.d."
       - key: MEDX_SWIFT
-        value: ZABAHR2X
+        value: PBZGHR2X
       - key: MEDX_COMPANY_NAME
         value: "Med&X"
       - key: MEDX_VAT_ID
