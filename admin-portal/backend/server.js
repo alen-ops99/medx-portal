@@ -13,6 +13,7 @@ const fs = require('fs');
 const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
+const caMerge = require('../../shared/ca-merge');
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const XLSX = require('xlsx');
@@ -8161,6 +8162,7 @@ async function initializeApp() {
     // Variant: 'croatian' (default — diaspora) or 'international' (non-Croatian collaborators)
     try { db.run(`ALTER TABLE croatians_abroad_invite_links ADD COLUMN variant TEXT DEFAULT 'croatian'`); } catch(e) {}
     // Per-event check-in tracking for Croatians Abroad
+    caMerge.ensureColumn(sql => db.run(sql));
     try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in INTEGER DEFAULT 0`); } catch(e) {}
     try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN conference_checked_in_at TEXT`); } catch(e) {}
     try { db.run(`ALTER TABLE croatians_abroad_registrations ADD COLUMN bridges_checked_in INTEGER DEFAULT 0`); } catch(e) {}
@@ -32954,7 +32956,8 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             if (isUuid) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [codeClean]);
             // If not found directly, the code might be a Croatians Abroad registration ID — follow the linkage
             if (!reg && isUuid) {
-                const caForGala = query.get('SELECT gala_registration_id FROM croatians_abroad_registrations WHERE id = ?', [codeClean]);
+                let caForGala = query.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [codeClean]);
+                if (caForGala) caForGala = caMerge.followMerge(query.get, caForGala);   // merged duplicate → survivor
                 if (caForGala && caForGala.gala_registration_id) {
                     reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [caForGala.gala_registration_id]);
                 }
@@ -33012,8 +33015,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                     [codeClean, codeClean]
                 );
             }
-            if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+            if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1', [codeClean]);
             if (!caReg && isShort) caReg = prefixMatch('croatians_abroad_registrations');
+            if (caReg) caReg = caMerge.followMerge(query.get, caReg);         // an older duplicate's QR admits the survivor
         }
         if (!caReg) {
             // Fallback: standalone (non-diaspora) registrants live in their own tables, not

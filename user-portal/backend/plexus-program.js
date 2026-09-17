@@ -61,6 +61,7 @@ const pdfMagicOk = buf => !!(buf && buf.length > 8 && buf.slice(0, 1024).include
  * @returns {{state:'paid'|'unpaid-gala'|'free'|'held'|'cancelled'|'unpaid-only', legs:string[], paid:boolean, payLink:boolean}}
  */
 function classify(ca, g) {
+    if (ca.merged_into) return { state: 'merged', legs: [], paid: false, payLink: false };   // duplicate folded into another row
     const sel = { conference: !!Number(ca.selected_conference), bridges: !!Number(ca.selected_bridges), gala: !!Number(ca.selected_gala) };
     const statuses = [sel.conference ? ca.conference_status : null, sel.bridges ? ca.bridges_status : null, sel.gala ? ca.gala_status : null].filter(Boolean);
     if (statuses.includes('pending-review')) return { state: 'held', legs: [], paid: false, payLink: false };
