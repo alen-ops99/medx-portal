@@ -50,10 +50,12 @@ export const COPY = {
     n: '02', title: 'NEXT EVENT',
     venueLabel: venue => (venue || '').toUpperCase(),
     cardTitle: (city, year) => `Building Bridges — ${city} ${year}`,
-    desc: city => `An evening connecting the Croatian biomedical community of greater ${city} with colleagues at the city's leading institutions. Keynotes, structured networking, and a shared table.`,
+    // Generic line for any city the admin adds; the confirmed edition prints the admin's own description
+    // (the Boston evening is a panel + five-minute presentations + reception, not keynotes).
+    desc: city => `An evening connecting the Croatian biomedical community of greater ${city} with colleagues at the city's leading institutions. Short presentations, a panel, and a shared table.`,
     goal: '<strong style="color:#191512">The goal:</strong> every guest leaves with at least one collaboration worth continuing — a co-author, a mentor, a clinical exchange.',
     spots: n => `ONLY ${n} SPOTS`, full: 'FULLY BOOKED',
-    chip2: 'KEYNOTES · NETWORKING · RECEPTION',
+    chip2: 'PRESENTATIONS · PANEL · RECEPTION',
     starts: 'EVENT STARTS IN', units: ['DAYS', 'HOURS', 'MINS'],
     register: `${CTA.register} →`, registered: 'REGISTERED ✓ · MY TICKET →',
     closed: 'Registration opens soon — follow Building Bridges above and we tell you first.',
@@ -266,7 +268,7 @@ function nextCard() {
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${esc(fmt.upper(n.city))} · ${esc(fmt.upper(n.dateLabel))}</span>
         ${n.venue ? `<span style="font-size:12.5px;color:#4a4239">${esc(n.venue)}</span>` : ''}
         <span style="font-family:Fraunces,serif;font-size:26px;line-height:1.15">${esc(COPY.next.cardTitle(n.city, n.year))}</span>
-        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${esc(COPY.next.desc(n.city))}</span>
+        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${esc((n.ev && n.ev.description) || COPY.next.desc(n.city))}</span>
         <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${COPY.next.goal}</span>
         <span style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
           ${n.spots !== null ? `<span style="padding:4px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${n.spots > 0 ? esc(COPY.next.spots(n.spots)) : COPY.next.full}</span>` : ''}
