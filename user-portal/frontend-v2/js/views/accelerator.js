@@ -31,6 +31,8 @@ export const COPY = {
     pillOpen: placement => `APPLICATIONS OPEN NOW · ${placement} PLACEMENTS`,
     pillClosed: placement => `APPLICATIONS CLOSED · ${placement} PLACEMENTS`,
     title: 'The Med&amp;X <i style="color:#c9a962">Accelerator</i>',
+    // 2026-09-17: the 2026 cohort on the Gordon Hall steps replaces the stock hall photo.
+    photo: { src: '/assets/ax-hero-boston-2026.jpg', alt: 'The 2026 Accelerator fellows at Harvard Medical School, Boston' },
     // The intro named four institutions while the tiles below listed eight (audit C2). It now
     // derives from the same host data the tiles render: a short list is named, a long one is
     // counted — never a second, drifting copy of the roster.
@@ -65,7 +67,14 @@ export const COPY = {
     chips: ['SENIOR MEDICAL STUDENTS', 'BIOCHEMISTRY &amp; BIOMEDICAL ENGINEERING STUDENTS', 'EARLY-CAREER RESEARCHERS · 0–3 YRS POST-GRADUATION'],
     chipGold: 'CROATIAN CITIZENSHIP REQUIRED',
     hostsTitle: 'HOST LABS &amp; CLINICS', hostsSub: 'Click an institution to learn more · specific placements depend on mentor availability.',
-    positions: n => `${n} ${Number(n) === 1 ? 'position' : 'positions'}`, positionsTbc: 'Positions TBC', site: 'Website →'
+    positions: n => `${n} ${Number(n) === 1 ? 'position' : 'positions'}`, positionsTbc: 'Positions TBC', site: 'Website →',
+    // The host drawer (2026-09-17): every field the public endpoints carry, one row each. A field
+    // nobody has filled in reads "Details coming" — never a blank row, never invented text.
+    detail: {
+      soon: 'Details coming', close: 'CLOSE',
+      rows: [['about', 'ABOUT'], ['lab', 'LAB / CLINIC'], ['mentor', 'MENTOR'], ['fields', 'PROGRAM TYPE'], ['duration', 'DURATION'], ['spots', 'SPOTS'], ['year', 'YEAR'], ['website', 'WEBSITE']],
+      extra: [['requirements', 'REQUIREMENTS'], ['stipend', 'STIPEND'], ['accommodation', 'ACCOMMODATION'], ['visa', 'VISA'], ['contact', 'CONTACT']]
+    }
   },
   included: {
     n: '02', title: 'WHAT’S INCLUDED', stipend: '€800–1,000',
@@ -126,19 +135,24 @@ export const COPY = {
   },
   cohorts: {
     title: 'PREVIOUS COHORTS', sub: 'The people who went — and where.',
-    // UXFIX-M2 #7 (2026-09-02): real photos replace the striped placeholders. Sources: medx.hr
-    // live-site mirror (acc_25_2 = MGH Boston arrival, acc_25 = lab day), recompressed ≤300KB.
-    photo1: { src: '/assets/ax-cohort-arrival.jpg', alt: 'A fellow arriving at Massachusetts General Hospital, Boston' },
-    photo2: { src: '/assets/ax-lab-day.jpg', alt: 'Two fellows in the lab at their host institution' },
+    // 2026-09-17: the list of fellows (from v2_accelerator_alumni, grouped by year) is the block;
+    // the photos sit in a small gallery row beneath it. Sources: medx.hr live-site mirror
+    // (acc_25_2 = MGH Boston arrival, acc_25 = lab day) + the 2026 cohort's Boston lounge shot.
+    photos: [
+      { src: '/assets/ax-boston-2026-lounge.jpg', alt: 'The 2026 cohort with hosts and mentors in Boston', pos: 'center 50%' },
+      { src: '/assets/ax-cohort-arrival.jpg', alt: 'A fellow arriving at Massachusetts General Hospital, Boston', pos: 'center 30%' },
+      { src: '/assets/ax-lab-day.jpg', alt: 'Two fellows in the lab at their host institution', pos: 'center 30%' }
+    ],
     // Shown only when v2_accelerator_alumni has rows — no names and no cohort size are ever
     // invented here (audit W6). The years and the count come from the table itself.
     subNoNames: 'Where our fellows have worked.',
-    fellowsLabel: range => `FELLOWS ${range}`, range: '2024–2026',
+    fellowsLabel: range => `FELLOWS${range ? ' ' + range : ''}`,
     foot: (n, years) => {
       const span = years ? (years.from === years.to ? `the ${years.from} cohort` : `the ${years.from}–${years.to} cohorts`) : 'our cohorts';
       return `${n} ${n === 1 ? 'fellow' : 'fellows'} across ${span} · placed at our host institutions.`;
     },
-    classOf: y => `CLASS OF ${y}`
+    classOf: y => `CLASS OF ${y}`, unknownYear: 'EARLIER COHORTS',
+    where: a => [a.placement_institution, a.city].filter(Boolean).join(', ')
   },
   faq: {
     n: '06', title: 'FREQUENTLY ASKED',
@@ -289,9 +303,9 @@ async function load(force) {
     // Empty stays EMPTY (never null): an empty alumni table means the block is hidden, not that a
     // hardcoded list of names should stand in for it (audit W6).
     alumni: r.alumni && Array.isArray(r.alumni.alumni)
-      ? r.alumni.alumni.map(a => ({ name: a.name, where: a.year ? COPY.cohorts.classOf(a.year) : (a.placement_institution || '') }))
+      ? r.alumni.alumni.map(a => ({ name: a.name, year: numOrNull(a.year), where: COPY.cohorts.where(a) }))
       : [],
-    alumniYears: r.alumni && r.alumni.years ? r.alumni.years : null
+    alumniYears: alumniYears(r.alumni)
   };
   cache = { at: Date.now(), data };
   return data;
@@ -302,6 +316,13 @@ async function load(force) {
 function hostNames() { return ((D && D.hosts) || []).map(h => String(h.name || '').trim()).filter(Boolean); }
 // True only when the alumni table has rows — no hardcoded names stand in (audit W6).
 function hasAlumni() { return !!(D && Array.isArray(D.alumni) && D.alumni.length); }
+// The year span comes from the rows themselves (the API's `years` first, else derived) — never a literal.
+function alumniYears(res) {
+  if (res && res.years && res.years.from && res.years.to) return res.years;
+  const ys = ((res && res.alumni) || []).map(a => numOrNull(a.year)).filter(y => y !== null);
+  return ys.length ? { from: Math.min.apply(null, ys), to: Math.max.apply(null, ys) } : null;
+}
+const yearRange = y => y ? (y.from === y.to ? String(y.from) : `${y.from}–${y.to}`) : '';
 
 // Host cards: accelerator_sites (admin "Where you could go" board) merged with
 // accelerator_institutions (blurb/logo/website/positions) by name; institutions without a site
@@ -316,29 +337,47 @@ function buildHosts(sitesRes, instRes) {
   sites.forEach(s => {
     const inst = instByName.get(String(s.institution || '').toLowerCase()) || null;
     if (inst) usedInst.add(inst.id);
-    cards.push({
+    const d = details(inst);
+    cards.push(Object.assign({
       key: 's:' + s.id,
       abbr: (inst && inst.short_name) || abbrOf(s.institution),
       name: s.institution || '',
       city: [s.city, s.country].filter(Boolean).join(', '),
       blurb: (inst && inst.description) || '',
-      lab: s.lab_or_clinic || '', mentor: mentorOk(s.mentor_line) ? s.mentor_line : '',
-      spots: (s.spots === null || s.spots === undefined || s.spots === '') ? null : Number(s.spots),
+      lab: s.lab_or_clinic || '', mentor: mentorOk(s.mentor_line) ? s.mentor_line : d.mentor,
+      spots: numOrNull(s.spots) !== null ? numOrNull(s.spots) : d.spots,
+      year: numOrNull(s.year) !== null ? numOrNull(s.year) : d.year,
       logo: (inst && inst.logo_url) || null, website: (inst && inst.website_url) || null,
       instId: inst ? inst.id : null
-    });
+    }, d.rest));
   });
   insts.forEach(i => {
     if (usedInst.has(i.id)) return;
-    cards.push({
+    const d = details(i);
+    cards.push(Object.assign({
       key: 'i:' + i.id, abbr: i.short_name || abbrOf(i.name), name: i.name || '',
       city: [i.city, i.country].filter(Boolean).join(', '), blurb: i.description || '',
-      lab: '', mentor: '', spots: (i.available_spots === null || i.available_spots === undefined) ? null : Number(i.available_spots),
+      lab: '', mentor: d.mentor, spots: d.spots !== null ? d.spots : numOrNull(i.available_spots), year: d.year,
       logo: i.logo_url || null, website: i.website_url || null, instId: i.id
-    });
+    }, d.rest));
   });
   if (cards.length) return cards;
-  return FACTS.accelerator.hosts.map(n => ({ key: 'f:' + n, abbr: abbrOf(n), name: n, city: '', blurb: '', lab: '', mentor: '', spots: null, logo: null, website: null, instId: null }));
+  return FACTS.accelerator.hosts.map(n => ({ key: 'f:' + n, abbr: abbrOf(n), name: n, city: '', blurb: '', lab: '', mentor: '', spots: null, year: null, logo: null, website: null, instId: null }));
+}
+const numOrNull = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
+// The current year's accelerator_institution_details row, folded into GET /api/accelerator/institutions.
+function details(inst) {
+  const i = inst || {};
+  const mentorOk = m => m && !/example|tbd/i.test(m);
+  return {
+    mentor: mentorOk(i.mentors) ? String(i.mentors) : '',
+    spots: numOrNull(i.year_spots), year: numOrNull(i.details_year),
+    rest: {
+      fields: i.program_type || '', duration: i.internship_duration || '',
+      requirements: i.requirements || '', stipend: i.stipend_info || '', accommodation: i.accommodation_info || '', visa: i.visa_requirements || '',
+      contact: [i.contact_person, i.contact_email].filter(Boolean).join(' · ')
+    }
+  };
 }
 function abbrOf(name) {
   const words = String(name || '').replace(/[^A-Za-z ]/g, '').split(/\s+/).filter(w => w && !/^(of|the|and)$/i.test(w));
@@ -460,7 +499,7 @@ function blockHero() {
   return `
   <!-- dc: Accelerator.dc.html › "Hero" -->
   <div data-block="hero" style="position:relative;overflow:hidden">
-    <img src="/assets/photo-hall.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    <img src="${COPY.hero.photo.src}" alt="${COPY.hero.photo.alt}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 85%">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${pill}</span>
@@ -504,19 +543,35 @@ function hostCards() {
         <span style="min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:14.5px;line-height:1.2">${esc(h.name)}</span><span style="display:block;font-size:11px;color:#4a4239;margin-top:2px">${esc(h.city)}</span></span>
       </div>`).join('');
   const h = st.host !== null ? D.hosts[st.host] : null;
-  const detailBits = h ? [
-    h.blurb ? esc(h.blurb) : '',
-    h.lab ? esc(h.lab) : '',
-    h.mentor ? esc(h.mentor) : '',
-    h.spots !== null && !isNaN(h.spots) ? esc(COPY.program.positions(h.spots)) : COPY.program.positionsTbc
-  ].filter(Boolean).join(' · ') : '';
-  const detail = h ? `
-    <div style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:14px 18px;margin-bottom:14px;display:flex;gap:14px;align-items:baseline">
-      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">${esc(h.name)}</span>
-      <span style="font-size:12.5px;color:#4a4239;line-height:1.55;flex:1">${detailBits}${h.website ? ` · <a href="${esc(h.website)}" target="_blank" rel="noopener">${COPY.program.site}</a>` : ''}</span>
-      <span data-act="closeHost" aria-label="Close" style="color:#4a4239;cursor:pointer;flex:none">×</span>
-    </div>` : '';
-  return `<div class="mx-ax-hosts" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding-bottom:14px">${cards}</div>${detail}`;
+  return `<div class="mx-ax-hosts" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding-bottom:14px">${cards}</div>${h ? hostDetail(h) : ''}`;
+}
+// One drawer per host: the eight rows the page promises (blank → "Details coming") plus any of the
+// year-detail extras the admin has actually filled in.
+function hostDetail(h) {
+  const c = COPY.program.detail;
+  const soon = `<span style="color:#9b8f80;font-style:italic">${c.soon}</span>`;
+  const value = key => {
+    if (key === 'about') return h.blurb ? esc(h.blurb) : '';
+    if (key === 'spots') return h.spots !== null && !isNaN(h.spots) ? esc(COPY.program.positions(h.spots)) : '';
+    if (key === 'year') return h.year ? esc(String(h.year)) : '';
+    if (key === 'website') return h.website ? `<a href="${esc(h.website)}" target="_blank" rel="noopener" style="color:#9b1b22">${esc(h.website.replace(/^https?:\/\//, '').replace(/\/$/, ''))} ↗</a>` : '';
+    return h[key] ? esc(h[key]) : '';
+  };
+  const row = ([key, label], v) => `
+      <div style="display:flex;gap:16px;align-items:baseline;padding:8px 0;border-top:1px solid rgba(25,21,18,.1)">
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;flex:none;width:120px">${label}</span>
+        <span style="font-size:12.5px;color:#191512;line-height:1.55;flex:1;min-width:0;overflow-wrap:anywhere">${v || soon}</span>
+      </div>`;
+  const rows = c.rows.map(r => row(r, value(r[0]))).join('');
+  const extras = c.extra.map(r => [r, value(r[0])]).filter(x => x[1]).map(([r, v]) => row(r, v)).join('');
+  return `
+    <div data-block="host-detail" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:16px 20px 12px;margin-bottom:14px">
+      <div style="display:flex;gap:14px;align-items:baseline;padding-bottom:8px">
+        <span style="font-family:Fraunces,serif;font-size:17px;flex:1;min-width:0">${esc(h.name)}${h.city ? `<span style="font-family:Inter,sans-serif;font-size:11.5px;color:#4a4239"> · ${esc(h.city)}</span>` : ''}</span>
+        <span data-act="closeHost" role="button" aria-label="Close" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;flex:none">${c.close} ×</span>
+      </div>
+      <div class="mx-ax-hostrows">${rows}${extras}</div>
+    </div>`;
 }
 function blockProgram() {
   const about = (D.overview && D.overview.aboutProgram) ? esc(D.overview.aboutProgram) : COPY.program.body;
@@ -672,25 +727,33 @@ function blockApplication() {
 // of eight names plus a hardcoded "18 fellows" footer, so the member page named four real people
 // and claimed a cohort size while the admin's own list said "No fellows entered yet" (audit W6).
 // The block is hidden entirely when the table is empty — see blockTeam().
+// Every fellow, grouped by cohort year (newest first), "Name — Institution, City". The API already
+// orders by year DESC, sort_order, name; the grouping here only adds the year headings.
 function fellowsList() {
   const list = D.alumni || [];
-  const pages = Math.max(1, Math.ceil(list.length / 4));
-  const pg = st.cohortPage % pages;
-  const slice = list.slice(pg * 4, pg * 4 + 4);
+  const groups = [];
+  list.forEach(f => {
+    const key = f.year === null ? '' : String(f.year);
+    let g = groups.find(x => x.key === key);
+    if (!g) { g = { key, rows: [] }; groups.push(g); }
+    g.rows.push(f);
+  });
   return `
             <div style="display:flex;align-items:baseline;gap:10px">
-              <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.cohorts.fellowsLabel(D.alumniYears ? (D.alumniYears.from === D.alumniYears.to ? String(D.alumniYears.from) : `${D.alumniYears.from}–${D.alumniYears.to}`) : COPY.cohorts.range)}</span>
-              <div style="flex:1"></div>
-              <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.55)">${pg + 1} / ${pages}</span>
+              <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.cohorts.fellowsLabel(yearRange(D.alumniYears))}</span>
             </div>
-            <div class="mx-ax-fellows" style="display:flex;flex-direction:column;margin-top:10px">
-              ${slice.map(f => `
-              <div style="display:flex;gap:12px;align-items:baseline;padding:6px 0;border-bottom:1px solid rgba(247,241,230,.12)">
-                <span style="font-family:Fraunces,serif;font-size:14px;flex:1">${esc(f.name)}</span>
-                <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:rgba(247,241,230,.6);white-space:nowrap">${esc(f.where)}</span>
+            <div class="mx-ax-fellows mx-ax-cohortcols" style="display:grid;grid-template-columns:repeat(${Math.min(groups.length, 4) || 1},1fr);gap:0 28px;margin-top:12px">
+              ${groups.map(g => `
+              <div>
+                <div style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.55);padding-bottom:4px;border-bottom:1px solid rgba(201,169,98,.45)">${g.key ? COPY.cohorts.classOf(g.key) : COPY.cohorts.unknownYear}</div>
+                ${g.rows.map(f => `
+                <div style="padding:7px 0;border-bottom:1px solid rgba(247,241,230,.1);line-height:1.35">
+                  <span style="font-family:Fraunces,serif;font-size:14px;display:block">${esc(f.name)}</span>
+                  ${f.where ? `<span style="font-size:11px;color:rgba(247,241,230,.6);display:block">${esc(f.where)}</span>` : ''}
+                </div>`).join('')}
               </div>`).join('')}
             </div>
-            <div style="margin-top:auto;font-size:10.5px;color:rgba(247,241,230,.5);padding-top:10px">${esc(COPY.cohorts.foot(list.length, D.alumniYears))}</div>`;
+            <div style="font-size:10.5px;color:rgba(247,241,230,.5);padding-top:12px">${esc(COPY.cohorts.foot(list.length, D.alumniYears))}</div>`;
 }
 function blockTeam() {
   return `
@@ -712,13 +775,13 @@ function blockTeam() {
           <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.cohorts.title}</span>
           <span style="font-size:12px;color:#4a4239">${hasAlumni() ? COPY.cohorts.sub : COPY.cohorts.subNoNames}</span>
         </div>
-        <div class="mx-ax-cohorts" style="display:grid;grid-template-columns:${hasAlumni() ? '1fr 1fr 1.2fr' : '1fr 1fr'};grid-auto-rows:220px;gap:12px;padding-bottom:24px">
-          <div style="position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px)"><img data-role="cohort-photo" src="${COPY.cohorts.photo1.src}" alt="${COPY.cohorts.photo1.alt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;display:block"></div>
-          <div style="position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px)"><img data-role="cohort-photo" src="${COPY.cohorts.photo2.src}" alt="${COPY.cohorts.photo2.alt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;display:block"></div>
-          ${hasAlumni() ? `
-          <div style="background:#191512;color:#f7f1e6;padding:18px 22px;display:flex;flex-direction:column">
-            <div data-block="fellows" style="display:flex;flex-direction:column;flex:1;min-height:0">${fellowsList()}</div>
-          </div>` : ''}
+        ${hasAlumni() ? `
+        <div style="background:#191512;color:#f7f1e6;padding:20px 24px 16px;margin-bottom:12px">
+          <div data-block="fellows" style="display:flex;flex-direction:column">${fellowsList()}</div>
+        </div>` : ''}
+        <div class="mx-ax-cohorts" style="display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:${hasAlumni() ? '150px' : '220px'};gap:12px;padding-bottom:24px">
+          ${COPY.cohorts.photos.map(p => `
+          <div style="position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px)"><img data-role="cohort-photo" src="${p.src}" alt="${p.alt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${p.pos};display:block"></div>`).join('')}
         </div>
         <!-- /dc -->
       </div>
@@ -1416,14 +1479,6 @@ function startTimers(applyTab) {
         const el = rootEl && rootEl.querySelector('[data-cd="opendays"]');
         if (el) el.textContent = daysTo(cd.target);
       }, 60000));
-    }
-    const list = D.alumni || [];
-    if (list.length > 4) {
-      const id = setInterval(() => {
-        st.cohortPage++;
-        rerender('[data-block="fellows"]', `<div data-block="fellows" style="display:flex;flex-direction:column;flex:1;min-height:0">${fellowsList()}</div>`);
-      }, 4500);
-      timers.push(() => clearInterval(id));
     }
   }
 }

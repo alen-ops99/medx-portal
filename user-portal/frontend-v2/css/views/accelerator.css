@@ -35,6 +35,7 @@
   .mx-ax-cohorts { grid-template-columns: 1fr 1fr !important; grid-auto-rows: minmax(180px, auto) !important; }
   .mx-ax-cohorts > div:last-child { grid-column: 1 / -1; }
   .mx-ax-hosts { grid-template-columns: 1fr 1fr !important; }
+  .mx-ax-cohortcols { grid-template-columns: 1fr 1fr !important; }
   .mx-ax-selection { grid-template-columns: 1fr 1fr !important; }
   .mx-ax-wizard { grid-template-columns: 1fr !important; }
   .mx-ax-stepper > div { padding: 0 10px 12px !important; }
@@ -51,7 +52,7 @@
   .mx-ax-band > span[style*="width:1px"] { display: none !important; }
 }
 @media (max-width: 500px) {
-  .mx-ax-hosts, .mx-ax-selection { grid-template-columns: 1fr !important; }
+  .mx-ax-hosts, .mx-ax-selection, .mx-ax-cohortcols { grid-template-columns: 1fr !important; }
   .mx-ax-stepper > div { padding: 0 6px 10px !important; }
   .mx-ax-stepper > div > span:nth-child(2) { font-size: 7.5px !important; letter-spacing: .08em !important; }
   .mx-ax-panel-pad { padding-left: 16px !important; padding-right: 16px !important; }
