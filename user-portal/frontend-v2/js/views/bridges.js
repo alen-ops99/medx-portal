@@ -57,6 +57,7 @@ export const COPY = {
     starts: 'EVENT STARTS IN', units: ['DAYS', 'HOURS', 'MINS'],
     register: `${CTA.register} →`, registered: 'REGISTERED ✓ · MY TICKET →',
     closed: 'Registration opens soon — follow Building Bridges above and we tell you first.',
+    fullToast: 'This evening is fully booked — follow Building Bridges above and we tell you if a seat opens.',
     emptyLine: 'The next evening is being planned.',
     emptyWhy: 'Follow Building Bridges and we tell you the moment the next city and date are confirmed.',
     emptyCta: 'GET UPDATES →'
@@ -138,7 +139,7 @@ async function load() {
     let mine = null;
     try { mine = await api.get(`/api/bridges/events/${encodeURIComponent(nextEv.id)}/my-registration`); } catch (e) { mine = null; }
     next = {
-      ev: nextEv, id: nextEv.id, city: nextEv.city || f.city, date,
+      ev: nextEv, id: nextEv.id, city: nextEv.city || f.city, date, isNext,
       year: date.slice(0, 4),
       dateLabel: isNext ? f.label : fmt.longRange(date),
       venue: isNext ? f.venue : (nextEv.venue || ''),
@@ -245,14 +246,22 @@ function blockMission() {
 function registerButton() {
   const n = D.next;
   if (n.registered) return `<a href="/app/me" style="padding:11px 0;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;text-align:center;display:block;white-space:nowrap" data-hover="background:#7e151b">${COPY.next.registered}</a>`;
+  // A full room is closed too: the chip beside the card already says FULLY BOOKED, so the button
+  // must not open the form for a seat the server will refuse (audit 2026-09-17, item 1).
+  if (n.spots === 0) return `<span data-act="regFull" aria-disabled="true" style="padding:11px 0;border:1px solid rgba(247,241,230,.35);color:rgba(247,241,230,.7);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:default;white-space:nowrap">${COPY.next.full}</span>`;
   if (!n.open) return `<span data-act="regClosed" style="padding:11px 0;background:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.next.register}</span>`;
   return `<span data-act="register" style="padding:11px 0;background:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.next.register}</span>`;
 }
 
 function nextCard() {
   const n = D.next;
+  // The confirmed edition carries its real photo (the Boston hero); any other event the admin adds
+  // keeps the striped venue plate until it has a picture of its own.
+  const plate = n.isNext
+    ? `<div style="position:relative;overflow:hidden;min-height:150px"><img src="/assets/bb-boston-hero-wide.jpg" alt="${esc(COPY.next.cardTitle(n.city, n.year))}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></div>`
+    : `<div style="position:relative;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239;text-align:center;padding:0 14px">${esc(COPY.next.venueLabel(n.venue) || fmt.upper(n.city))}</div>`;
   return `<div data-block="next" data-eid="${esc(n.id)}" class="mx-bb-next" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:grid;grid-template-columns:230px 1fr 260px;align-items:stretch">
-      <div style="position:relative;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239;text-align:center;padding:0 14px">${esc(COPY.next.venueLabel(n.venue) || fmt.upper(n.city))}</div>
+      ${plate}
       <div style="padding:24px 28px;display:flex;flex-direction:column;gap:8px">
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${esc(fmt.upper(n.city))} · ${esc(fmt.upper(n.dateLabel))}</span>
         ${n.venue ? `<span style="font-size:12.5px;color:#4a4239">${esc(n.venue)}</span>` : ''}
@@ -445,6 +454,7 @@ const handlers = {
   },
   register: () => { if (D.next) openRegisterModal(); },
   regClosed: () => ui.toast(COPY.next.closed),
+  regFull: () => ui.toast(COPY.next.fullToast),
   gallery: (el) => {
     const e = D.editions.find(x => String(x.id) === el.dataset.id);
     if (!e) return;
