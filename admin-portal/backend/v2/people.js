@@ -12,8 +12,13 @@
  *   GET  /api/v2/people/directory   → { people: [...], generated_at }
  *       one row per person (merged by lowercased email; rows with no email stay separate),
  *       each { key, name, email, country, institution, user_id, member:{since,last_login},
- *              team:{role,last_login,sections}, gala:{id,status,payment_status,amount_paid,pricing,created_at},
- *              plexus:{id,status,payment_status,created_at}, bridges:{id,city,event_name,status,registered_at},
+ *              team:{role,last_login,sections}, gala:{id,status,payment_status,amount_paid,pricing,created_at,
+ *              bucket,bucket_label} (bucket = 'paid' | gala-ops GALA_BUCKETS key | null; the tag reads
+ *              'GALA PAID' or 'GALA — <bucket tag>' — audit 2026-09-17 A),
+ *              plexus:{id,status,payment_status,created_at,source?} (registrations table OR a live
+ *              conference leg of croatians_abroad_registrations — audit 2026-09-17 C),
+ *              bridges:{id,city,event_name,status,registered_at,form_leg?} (form_leg = the Zagreb leg
+ *              of the public form; tagged BRIDGES ZAGREB, never in the BOSTON segment),
  *              forum:{status}, passes:[{id,token,event_key,modules,created_at,last_viewed_at,page_views,revoked}],
  *              contact:{id,type,organization}, tags:[...], segs:[...],
  *              flags:{unsubscribed,unsub_source,unsubscribed_at,consent,consent_note,updated_by,updated_at},
@@ -25,7 +30,7 @@
  *       kind 'member'  → users INSERT (email required, unique) + portal invitation staged in the
  *                        approval outbox (scheduled_emails, status pending_approval — NOTHING sends
  *                        without the one human approve click in Inbox → Outbox)
- *       kind 'gala'    → gala_registrations INSERT (status 'pending' — surfaces as GALA — TO CHASE)
+ *       kind 'gala'    → gala_registrations INSERT (status 'pending', no pay link — surfaces as GALA — NO LINK YET)
  *       kind 'plexus'  → registrations INSERT against the active conference (status 'confirmed', free entry)
  *       kind 'contact' → contacts INSERT (internal only, no invite)
  *   POST /api/v2/people/flags       ← { email, unsubscribed?, consent?, consent_note? }
@@ -55,8 +60,16 @@
 'use strict';
 const crypto = require('crypto');
 
+// Gala open-payment vocabulary — gala-ops.js GALA_BUCKETS + bucketGalaRows, the SAME classifier
+// the Gala KPI strip and the Registrations stat count with, so a person's gala tag names the
+// state those tallies put them in (audit 2026-09-17 A). Optional: without it the tag falls back
+// to a plain "GALA — PAYMENT OPEN".
+let galaTruth = null;
+try { galaTruth = require('./gala-ops.js'); } catch (e) { galaTruth = null; }
+
 const CAP = 1500;                       // per-table read cap — the seed has dozens, production hundreds
 const lc = v => String(v || '').trim().toLowerCase();
+const CA_LIVE = ['pre-registered', 'confirmed'];   // a public-form leg that counts (held / cancelled do not)
 
 module.exports = function mountPeople(app, ctx) {
     const { auth, adminOnly, saveDb, log } = ctx;
@@ -77,6 +90,16 @@ module.exports = function mountPeople(app, ctx) {
     };
     const galaPaid = r => r.payment_status === 'paid' || ['confirmed', 'paid'].includes(lc(r.status));
     const galaDead = r => ['rejected', 'cancelled'].includes(lc(r.status));
+    const GALA_BUCKETS = (galaTruth && galaTruth.GALA_BUCKETS) || {};
+    const galaStatesOf = rows => (galaTruth && galaTruth.bucketGalaRows) ? galaTruth.bucketGalaRows(rows).states : {};
+    // The tag for an open (unpaid, live) gala row: 'GALA — LINK SENT' / 'GALA — CHECKOUT NOT
+    // COMPLETED' / 'GALA — NO LINK YET' / 'GALA — HELD FOR REVIEW'; null for a paid twin (nothing
+    // to chase — the paid row is the truth) and a generic fallback when gala-ops is unavailable.
+    const galaOpenTag = bucket => {
+        if (bucket === 'paid_twins') return null;
+        const b = GALA_BUCKETS[bucket];
+        return b && b.tag ? 'GALA — ' + b.tag : 'GALA — PAYMENT OPEN';
+    };
 
     // ---- schema (shared DB — v2_ prefix, idempotent) ----
     try {
@@ -151,13 +174,22 @@ module.exports = function mountPeople(app, ctx) {
                 }
             });
 
-        // 2) gala guests
-        tryAll(`SELECT id, first_name, last_name, email, institution, status, payment_status, amount_paid, pricing, created_at
-                FROM gala_registrations ORDER BY created_at DESC LIMIT ${CAP}`)
-            .forEach(g => {
-                const p = person(g.email, full(g), g);
-                if (!p.gala || (galaPaid(g) && !galaPaid(p.gala))) p.gala = { id: g.id, status: g.status || '', payment_status: g.payment_status || '', amount_paid: g.amount_paid || null, pricing: g.pricing || '', created_at: g.created_at || null };
-            });
+        // 2) gala guests — the paid row wins the person's gala slot, so someone with an abandoned
+        //    first attempt AND a paid seat reads as paid (their twin never surfaces as a tag).
+        //    `bucket` = 'paid' | link_sent | checkout_abandoned | no_link_yet | held | paid_twins |
+        //    null (inactive), from the shared classifier; `bucket_label` is its sentence.
+        const galaRows = tryAll(`SELECT id, first_name, last_name, email, institution, status, payment_status, amount_paid, pricing, created_at,
+                                        stripe_session_id, pay_token, guest_count
+                                 FROM gala_registrations ORDER BY created_at DESC LIMIT ${CAP}`);
+        const galaStates = galaStatesOf(galaRows);
+        galaRows.forEach(g => {
+            const p = person(g.email, full(g), g);
+            const bucket = galaStates[g.id] || null;
+            if (!p.gala || (galaPaid(g) && !galaPaid(p.gala))) p.gala = {
+                id: g.id, status: g.status || '', payment_status: g.payment_status || '', amount_paid: g.amount_paid || null, pricing: g.pricing || '', created_at: g.created_at || null,
+                bucket, bucket_label: (GALA_BUCKETS[bucket] && GALA_BUCKETS[bucket].label) || (bucket === 'paid' ? 'Paid' : null)
+            };
+        });
 
         // 3) plexus conference registrations (active conference; names/emails fall back to the
         //    linked users row — member self-registrations keep their identity there)
@@ -214,14 +246,47 @@ module.exports = function mountPeople(app, ctx) {
                 if (!p.contact) p.contact = { id: c.id, type: c.contact_type || 'general', organization: c.organization || '' };
             });
 
+        // 8) the public Plexus Experience / Croatians Abroad form (croatians_abroad_registrations) —
+        //    audit 2026-09-17 C: the directory read only the legacy `registrations` table, so the
+        //    ~90 conference registrants who came through the public form had no PLEXUS tag at all.
+        //    One row = up to three legs; a leg counts when it was selected AND its status is live
+        //    ('pre-registered' / 'confirmed' — held and cancelled legs stay out). The Building
+        //    Bridges leg here is the ZAGREB edition (Plexus Week), never the Boston list: it is
+        //    marked form_leg so the tag/segment block below keeps it out of the BOSTON segment.
+        const deadPlexus = x => ['rejected', 'cancelled'].includes(lc(x.status));
+        tryAll(`SELECT id, first_name, last_name, email, country, institution, created_at,
+                       selected_conference, conference_status, selected_bridges, bridges_status
+                FROM croatians_abroad_registrations ORDER BY created_at DESC LIMIT ${CAP}`)
+            .forEach(r => {
+                const conf = Number(r.selected_conference) === 1 && CA_LIVE.includes(lc(r.conference_status));
+                const bridges = Number(r.selected_bridges) === 1 && CA_LIVE.includes(lc(r.bridges_status));
+                if (!conf && !bridges) return;
+                const p = person(r.email, full(r), r);
+                if (conf && (!p.plexus || deadPlexus(p.plexus)))
+                    p.plexus = { id: r.id, status: r.conference_status || 'pre-registered', payment_status: 'free', created_at: r.created_at || null, source: 'plexus-form' };
+                if (bridges && !p.bridges)
+                    p.bridges = { id: r.id, city: 'Zagreb', event_name: 'Building Bridges Zagreb', status: r.bridges_status || 'pre-registered', registered_at: r.created_at || null, form_leg: true };
+            });
+
         // tags + segments, artboard vocabulary + the stable key
         const people = Object.values(byEmail).concat(loose).map(p => {
             const tags = [], segs = [];
             if (p.team) { tags.push(p.team.role === 'staff' ? 'TEAM — STAFF' : 'TEAM — ADMIN'); segs.push('TEAM'); }
             if (p.member) { tags.push('MEMBER'); segs.push('MEMBERS'); }
-            if (p.gala && !galaDead(p.gala)) { tags.push(galaPaid(p.gala) ? 'GALA PAID' : 'GALA — TO CHASE'); if (lc(p.gala.pricing) === 'vip') tags.push('VIP'); segs.push('GALA'); }
+            if (p.gala && !galaDead(p.gala)) {
+                // paid → GALA PAID · open → the bucket's own words (GALA — LINK SENT / CHECKOUT NOT
+                // COMPLETED / NO LINK YET / HELD FOR REVIEW) · paid twin → no payment tag at all
+                const paidRow = p.gala.bucket ? p.gala.bucket === 'paid' : galaPaid(p.gala);   // the classifier decides when present
+                tags.push(paidRow ? 'GALA PAID' : (galaOpenTag(p.gala.bucket) || 'GALA'));
+                if (lc(p.gala.pricing) === 'vip') tags.push('VIP');
+                segs.push('GALA');
+            }
             if (p.plexus && !['rejected', 'cancelled'].includes(lc(p.plexus.status))) { tags.push('PLEXUS'); segs.push('REGISTRANTS'); }
-            if (p.bridges) { tags.push((p.bridges.city || 'BRIDGES').toUpperCase()); segs.push('BOSTON'); }
+            if (p.bridges) {
+                // the Zagreb form leg is a Plexus Week registrant, not a Boston guest
+                if (p.bridges.form_leg) { tags.push('BRIDGES ZAGREB'); segs.push('REGISTRANTS'); }
+                else { tags.push((p.bridges.city || 'BRIDGES').toUpperCase()); segs.push('BOSTON'); }
+            }
             if (p.forum) { tags.push('FORUM'); segs.push('FORUM'); }
             if (p.passes.length) tags.push('GUEST PASS');
             if (p.contact && !tags.length) tags.push('CONTACT');

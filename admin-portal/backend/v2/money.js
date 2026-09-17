@@ -1193,8 +1193,14 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
         //    the fallback for a broken gala-ops module.
         let galaSum = null;
         try { galaSum = galaTruth && galaTruth.computeSummary ? galaTruth.computeSummary(db) : null; } catch (e) { galaSum = null; }
+        // Owed = the seats eur.outstanding is built from (payment link sent + checkout started, not
+        // completed). "No link yet" and "held for review" seats are chased elsewhere but owe nothing
+        // yet, and a paid person's abandoned first attempt owes nothing at all (audit item A, 2026-09-17).
+        const owedSeats = galaSum && galaSum.buckets
+            ? (Number(galaSum.buckets.link_sent.seats) || 0) + (Number(galaSum.buckets.checkout_abandoned.seats) || 0)
+            : null;
         const galaUnpaid = galaSum
-            ? { c: galaSum.seats.chase }
+            ? { c: owedSeats != null ? owedSeats : galaSum.seats.chase }
             : sumRow(`SELECT COUNT(*) AS c FROM gala_registrations
                       WHERE payment_status != 'paid' AND COALESCE(status,'') NOT IN ('rejected','cancelled')`, []);
         const price = galaSum ? (Number(galaSum.price.current) || 0) : galaPriceByClock();
@@ -1217,7 +1223,7 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
         ].filter(s => s.amount > 0 || s.key === 'legacy_tx');
         const owedSources = [
             src('expected', 'Expected income — entered by hand', expOpen.t, expOpen.c),
-            src('gala_unpaid', `Unpaid Gala seats × ${price} € · plus-ones included`, galaOwedEur, galaUnpaid.c),
+            src('gala_unpaid', `Gala seats with payment open (link sent · checkout not completed) × ${price} € · plus-ones included`, galaOwedEur, galaUnpaid.c),
             src('book_out_open', 'Outgoing invoices — unsettled', bookOutOpen.t, bookOutOpen.c),
             src('legacy_invoices', 'Legacy invoices still open', legacyInvOpen.t, legacyInvOpen.c),
             src('sponsor_ledger', 'Sponsor pledges at invoiced', ledgerInvoiced.t, ledgerInvoiced.c)
@@ -1263,7 +1269,7 @@ button:hover{background:#7e151b}.foot{margin-top:34px;font-size:11px;color:#8a81
             spent: { total: total(spentSources), sources: spentSources },
             owed: { total: total(owedSources), sources: owedSources },
             payment_orders: { total: num2(payOrders.t), count: payOrders.c || 0 },
-            gala: { unpaid_count: galaUnpaid.c || 0, price, basis: 'seats', shared: !!galaSum },   // one truth: gala-ops computeSummary (audit #1)
+            gala: { unpaid_count: galaUnpaid.c || 0, open_seats: galaSum ? galaSum.seats.chase : (galaUnpaid.c || 0), buckets: galaSum ? galaSum.buckets : null, price, basis: 'seats', shared: !!galaSum },   // one truth: gala-ops computeSummary (audit #1); unpaid_count = owed seats
             recent_in: recent.slice(0, 25)
         };
     }

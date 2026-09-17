@@ -46,7 +46,7 @@ export const COPY = {
   open: 'OPEN →', emptyList: 'No one matches — try fewer words.',
   rowsNote: (n, total) => `Showing ${n} of ${total} people · everyone in the database, live`,
   showAll: n => `SHOW ALL ${n}`,
-  panelNote: 'Actions match the person — unpaid guests get payment tools, team members get access tools.',
+  panelNote: 'Actions match the person — guests with a payment still open get payment tools, team members get access tools.',
   actions: { message: 'MESSAGE', markPaid: 'MARK PAID', chase: 'CHASE PAYMENT', resend: 'RESEND TICKET', copyPass: 'COPY PASS LINK', perms: 'PERMISSIONS →', regs: 'REGISTRATIONS →' },
   toasts: {
     markPaid: 'MARKED PAID — LEDGER & MONEY UPDATE TOO', chased: 'REMINDER QUEUED IN THE OUTBOX FOR YOUR OK',
@@ -229,9 +229,18 @@ function dupGroups() {
     .sort((a, b) => a.people[0].name.localeCompare(b.people[0].name));
 }
 
+// Gala open-payment tags come from the server as 'GALA — <state>' (LINK SENT · CHECKOUT NOT
+// COMPLETED · NO LINK YET · HELD FOR REVIEW — audit 2026-09-17 A); held reads calmer than the rest.
+const galaOpenTag = t => /^GALA — /.test(t);
+function galaOpen(p) {
+  if (!p || !p.gala) return false;
+  if (p.gala.bucket) return !['paid', 'paid_twins'].includes(p.gala.bucket);
+  return p.tags.some(galaOpenTag);
+}
 function tagStyle(t) {
   return t === 'UNSUBSCRIBED' ? { bg: '#4a2023', fg: '#f2d9da' }
-    : t.includes('CHASE') ? { bg: '#f7e3e4', fg: '#7e151b' }
+    : t === 'GALA — HELD FOR REVIEW' ? { bg: '#e9eef6', fg: '#28466f' }
+    : galaOpenTag(t) ? { bg: '#f7e3e4', fg: '#7e151b' }
     : t.includes('PAID') || t === 'VIP' ? { bg: '#e4efe7', fg: '#22563a' }
     : t.includes('TEAM') ? { bg: '#e9e4f2', fg: '#4a3a72' }
     : t === 'GUEST PASS' ? { bg: '#f1e7d4', fg: '#7a6432' }
@@ -255,8 +264,8 @@ function factsFor(p) {
   if (p.gala) {
     rows.push([F.galaSeat, p.tags.includes('GALA PAID')
       ? 'Paid' + (p.gala.amount_paid ? ' · ' + fmt.eur(p.gala.amount_paid) : '') + (p.tags.includes('VIP') ? ' · VIP' : '') + ' · ' + FACTS.gala.venue
-      : F.pending]);
-    if (p.tags.includes('GALA — TO CHASE')) rows.push([F.reminder, nagFor(p) && nagFor(p).status === 'actioned' ? F.reminderStaged : F.reminderReady]);
+      : (p.gala.bucket_label || F.pending)]);   // the server's state sentence ("Checkout started, not completed") when it sent one
+    if (galaOpen(p) && p.gala.bucket !== 'held') rows.push([F.reminder, nagFor(p) && nagFor(p).status === 'actioned' ? F.reminderStaged : F.reminderReady]);
   }
   if (p.plexus) rows.push([F.plexus, F.free]);
   if (p.bridges) rows.push([F.bridges, [p.bridges.event_name || p.bridges.city, p.bridges.status || 'registered'].filter(Boolean).join(' · ')]);
@@ -281,7 +290,9 @@ function nagFor(p) {
 function actionsFor(p) {
   const A = COPY.actions, solid = { bg: '#9b1b22', bd: '#9b1b22', fg: '#fff' }, ghost = { bg: 'transparent', bd: 'rgba(32,27,22,.2)', fg: '#201b16' };
   const out = [{ label: A.message, ...solid, act: 'goMessages' }];
-  if (p.tags.includes('GALA — TO CHASE')) { out.push({ label: A.markPaid, ...ghost, act: 'markPaid' }); out.push({ label: A.chase, ...ghost, act: 'chase' }); }
+  // an open seat gets the payment tools; a held row gets MARK PAID only — the review gate, not a
+  // reminder, is what moves it (nothing is ever chased before the owner released it)
+  if (galaOpen(p)) { out.push({ label: A.markPaid, ...ghost, act: 'markPaid' }); if (p.gala.bucket !== 'held') out.push({ label: A.chase, ...ghost, act: 'chase' }); }
   if (p.tags.includes('GALA PAID') || p.plexus) out.push({ label: A.resend, ...ghost, act: 'resend' });
   if (p.passes.length) out.push({ label: A.copyPass, ...ghost, act: 'copyPass' });
   if (p.team) out.push({ label: A.perms, ...ghost, act: 'goPerms' });
@@ -661,8 +672,8 @@ const handlers = {
     el.setAttribute('aria-disabled', 'true');
     try {
       await api.post('/api/admin/registrant/gala/' + encodeURIComponent(p.gala.id) + '/mark-paid');
-      p.gala.payment_status = 'paid'; p.gala.status = 'confirmed';
-      p.tags = p.tags.map(t => t === 'GALA — TO CHASE' ? 'GALA PAID' : t);
+      p.gala.payment_status = 'paid'; p.gala.status = 'confirmed'; p.gala.bucket = 'paid'; p.gala.bucket_label = 'Paid';
+      p.tags = p.tags.map(t => galaOpenTag(t) ? 'GALA PAID' : t);
       redraw('list'); redraw('panel');
       ui.toast(COPY.toasts.markPaid);
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }

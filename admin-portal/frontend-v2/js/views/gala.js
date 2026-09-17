@@ -54,7 +54,14 @@ export const COPY = {
     // and the numbers come from the shared /api/v2/gala-ops/summary, the same read Money uses.
     reserved: 'RESERVED', reservedSub: 'seats spoken for · incl. plus-ones',
     paid: 'PAID', paidSub: v => `seats paid · ${fmt.eur(v)} collected`,
-    chase: 'TO CHASE', chaseSub: v => `seats unpaid · ${fmt.eur(v)} outstanding`,
+    // Audit 2026-09-17 A: "unpaid / to chase" was four real states plus abandoned first attempts
+    // of guests who had paid. The number is seats still expected to pay; the € is ONE figure
+    // (link sent + checkout not completed, × the price by the clock); the split reads off the
+    // server's buckets — the words are the server's, never re-derived here.
+    chase: 'PAYMENT OPEN', chaseSub: v => `seats · ${fmt.eur(v)} outstanding`,
+    chaseSplit: b => b ? ['link_sent', 'checkout_abandoned', 'no_link_yet', 'held', 'paid_twins']
+      .filter(k => b[k] && Number(b[k].seats))
+      .map(k => `${b[k].seats} ${String(b[k].tag || k).toLowerCase()}`).join(' · ') : '',
     seated: 'SEATED', seatedSub: r => `of ${r} seats · rest unassigned`,
     room: 'ROOM', roomSub: 'tables × seats · limited by design'
   },
@@ -71,14 +78,17 @@ export const COPY = {
     groupNote: 'Group bookings (the table of four, the group of five) hold their seats under one payer — split them from the row when names arrive.',
     emptyLine: 'No guests yet.', emptyWhy: 'The first reservations land here the moment they come in — invitations go out from the Plexus hub.',
     noneMatch: q => `No guest matches “${q}”.`,
-    filterTag: { paid: 'PAID ONLY', unpaid: 'TO CHASE ONLY', requested: 'REQUESTS ONLY' },
+    filterTag: { paid: 'PAID ONLY', unpaid: 'PAYMENT OPEN ONLY', requested: 'HELD FOR REVIEW ONLY', twin: 'PAID UNDER SAME EMAIL ONLY' },
     tableTag: t => `TABLE ${t}`, clear: '✕',
-    subPending: d => `reserved ${d} · payment pending`,
+    subPending: d => `reserved ${d} · payment pending`,          // fallback wording when the server sent no state for the row
+    subState: (d, label) => `reserved ${d} · ${String(label || '').toLowerCase()}`,
     subPaid: amt => amt ? `paid · ${fmt.eur(amt)}` : 'paid',
     seats: n => `${n} seats`,
     cancelled: n => `${n} cancelled seat${n === 1 ? '' : 's'}`, showCancelled: 'SHOW', hideCancelled: 'HIDE',
     reinstate: 'REINSTATE', cancelledChip: 'CANCELLED'
   },
+  // Open-payment chips read the server's bucket tag (LINK SENT · CHECKOUT NOT COMPLETED · NO LINK
+  // YET · HELD FOR REVIEW · PAID UNDER SAME EMAIL); pending/requested are the no-state fallbacks.
   chips: { paid: 'PAID', pending: 'PENDING', requested: 'REQUESTED' },   // category chips come from the live set
   chase: {
     label: 'CHASE', queued: 'QUEUED ✓', toast: 'REMINDER QUEUED IN THE OUTBOX',
@@ -332,11 +342,35 @@ function mealOptionOf(r) {
   return deriveOption(r);
 }
 
+// The server's per-row open-payment state (summary.states: id → 'paid' | link_sent |
+// checkout_abandoned | no_link_yet | held | paid_twins) — the SAME classifier the KPI strip counts
+// with, so the chip on a row and the number above it can never disagree. null = no state sent
+// (older backend) → the pre-audit PENDING / REQUESTED fallback below.
+function stateOf(r) {
+  const s = D.ops && D.ops.summary && D.ops.summary.states;
+  return (s && s[r.id]) || null;
+}
+function bucketInfo(state) {
+  const b = D.ops && D.ops.summary && D.ops.summary.buckets;
+  return (b && b[state]) || null;
+}
+const CHASEABLE = ['link_sent', 'checkout_abandoned', 'no_link_yet'];   // = the server's chase set
+const isChaseable = r => { const s = stateOf(r); return s ? CHASEABLE.includes(s) : !isPaid(r); };
+// Filter keys stay the historical ones (kpiChase sets 'unpaid'): paid · unpaid (= payment open,
+// the chase set) · requested (= held for review) · twin (= paid under the same email).
 function bucketOf(r) {
   if (isPaid(r)) return 'paid';
+  const s = stateOf(r);
+  if (s === 'held') return 'requested';
+  if (s === 'paid_twins') return 'twin';
+  if (s) return 'unpaid';
   if (String(r.status || '').toLowerCase() === 'pending') return 'requested';
   return 'unpaid';
 }
+const STATE_CHIP = {
+  link_sent: { bg: '#f7e3e4', fg: '#7e151b' }, checkout_abandoned: { bg: '#fbf1d9', fg: '#7a5a0b' },
+  no_link_yet: { bg: '#f1e7d4', fg: '#7a6432' }, held: { bg: '#e9eef6', fg: '#28466f' }, paid_twins: { bg: '#eee9df', fg: '#4a4239' }
+};
 function chipOf(r) {
   const p = String(r.pricing || '').toLowerCase();
   if (isPaid(r)) {
@@ -347,6 +381,9 @@ function chipOf(r) {
     }
     return { label: COPY.chips.paid, bg: '#e4efe7', fg: '#22563a', bucket: 'paid' };   // invoice + legacy keys ('bundle', …)
   }
+  const s = stateOf(r);
+  const info = s && bucketInfo(s);
+  if (info && STATE_CHIP[s]) return { label: esc(info.tag || info.label || s), ...STATE_CHIP[s], bucket: bucketOf(r) };
   if (bucketOf(r) === 'requested') return { label: COPY.chips.requested, bg: '#f1e7d4', fg: '#7a6432', bucket: 'requested' };
   return { label: COPY.chips.pending, bg: '#f7e3e4', fg: '#7e151b', bucket: 'unpaid' };
 }
@@ -362,7 +399,8 @@ function stats() {
       reserved: sv.seats.reserved, paidSeats: sv.seats.paid, chaseSeats: sv.seats.chase,
       seated: sv.seats.seated,
       collected: (sv.eur && sv.eur.collected) || 0,
-      owed: (sv.eur && sv.eur.outstanding) || 0
+      owed: (sv.eur && sv.eur.outstanding) || 0,
+      buckets: sv.buckets || null                            // the split behind chaseSeats (audit 2026-09-17 A)
     };
   }
   const act = D.regs.filter(isActive);
@@ -376,7 +414,8 @@ function stats() {
     chaseSeats: chaseRows.reduce((n, r) => n + seatsOf(r), 0),
     seated: act.filter(r => am[r.id]).reduce((n, r) => n + seatsOf(r), 0),
     collected: paidRows.reduce((n, r) => n + (Number(r.amount_paid) || 0), 0),
-    owed: chaseRows.reduce((n, r) => n + seatsOf(r), 0) * D.price
+    owed: chaseRows.reduce((n, r) => n + seatsOf(r), 0) * D.price,
+    buckets: null                                              // no server split on the degraded path
   };
 }
 function visibleRows() {
@@ -432,7 +471,7 @@ function blockKpis() {
   <div data-block="kpis" class="mx-kpi" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(5,1fr)">
     <span data-act="kpiAll" title="Show the full guest list" style="${cell};cursor:pointer"><div style="${k}">${COPY.kpi.reserved}</div><div style="${n}">${s.reserved}</div><div style="${sub}">${COPY.kpi.reservedSub}</div></span>
     <span data-act="kpiPaid" title="Show only paid seats" style="${cell};cursor:pointer"><div style="${k}">${COPY.kpi.paid}</div><div style="${n};color:#1e6e42">${s.paidSeats}</div><div style="${sub}">${esc(COPY.kpi.paidSub(s.collected))}</div></span>
-    <span data-act="kpiChase" title="Show only seats with payment pending" style="${cell};cursor:pointer"><div style="${k}">${COPY.kpi.chase}</div><div style="${n};color:#9b1b22">${s.chaseSeats}</div><div style="${sub}">${esc(COPY.kpi.chaseSub(s.owed))}</div></span>
+    <span data-act="kpiChase" title="Show only seats still expected to pay" style="${cell};cursor:pointer"><div style="${k}">${COPY.kpi.chase}</div><div style="${n};color:#9b1b22">${s.chaseSeats}</div><div style="${sub}">${esc(COPY.kpi.chaseSub(s.owed))}</div>${s.buckets ? `<div data-v2="gala-open-split" style="${sub};font-size:10px;margin-top:2px">${esc(COPY.kpi.chaseSplit(s.buckets))}</div>` : ''}</span>
     <span data-act="kpiSeated" title="Jump to the seating board" style="${cell};cursor:pointer"><div style="${k}">${COPY.kpi.seated}</div><div style="${n}">${s.seated}</div><div style="${sub}">${esc(COPY.kpi.seatedSub(s.reserved))}</div></span>
     <span data-act="kpiRoom" title="Jump to the seating board" style="padding:15px 18px;display:block;cursor:pointer"><div style="${k}">${COPY.kpi.room}</div><div style="${n}">${room.table_count || 10} × ${room.seats_per_table || 8}</div><div style="${sub}">${COPY.kpi.roomSub}</div></span>
   </div>
@@ -460,7 +499,10 @@ function guestRow(r) {
   const subBits = [];
   if (seats > 1) subBits.push(COPY.list.seats(seats));
   if (r.institution) subBits.push(esc(r.institution));
-  subBits.push(isPaid(r) ? esc(COPY.list.subPaid(Number(r.amount_paid) || 0)) : esc(COPY.list.subPending(fmt.dayShort(r.created_at))));
+  const info = !isPaid(r) && bucketInfo(stateOf(r));
+  subBits.push(isPaid(r) ? esc(COPY.list.subPaid(Number(r.amount_paid) || 0))
+    : info ? esc(COPY.list.subState(fmt.dayShort(r.created_at), info.label))
+    : esc(COPY.list.subPending(fmt.dayShort(r.created_at))));
   const nagItem = D.nagByReg[r.id];
   const chased = (nagItem && nagItem.status === 'actioned') || st.chasedLocal[r.id];
   const sure = st.cancelConfirm === r.id;
@@ -478,10 +520,10 @@ function guestRow(r) {
         ${st.catEdit === r.id
           ? `<select data-role="catSel" data-id="${esc(r.id)}" data-v2="category-edit" aria-label="Category for ${esc(nameOf(r))}" style="border:1px solid rgba(32,27,22,.2);background:#f6f2ea;padding:4px;font:600 10px Inter,sans-serif;color:#201b16;max-width:150px">${catOptions(r)}</select>`
           : `<span data-act="chipFilter" data-bucket="${chip.bucket}" title="Filter the list by this status" style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:${chip.bg};color:${chip.fg};white-space:nowrap;cursor:pointer">${chip.label}</span><span data-act="catEdit" data-id="${esc(r.id)}" data-v2="category-edit" title="${COPY.cat.editTitle}" style="font:400 10px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#201b16">✎</span>`}
-        ${!isPaid(r) ? (chased
+        ${isChaseable(r) ? (chased
           ? `<span title="Approve it on the Inbox → Outbox tab" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;white-space:nowrap">${COPY.chase.queued}</span>`
           : `<span data-act="chase" data-id="${esc(r.id)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.chase.label}</span>`) : ''}
-        ${!isPaid(r) ? `<span data-act="pay" data-id="${esc(r.id)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#1e6e42;cursor:pointer;white-space:nowrap">${COPY.pay.label}</span>` : ''}
+        ${!isPaid(r) && stateOf(r) !== 'paid_twins' ? `<span data-act="pay" data-id="${esc(r.id)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#1e6e42;cursor:pointer;white-space:nowrap">${COPY.pay.label}</span>` : ''}
       </span>
       <span data-act="cancel" data-id="${esc(r.id)}" title="${COPY.cancel.title}" style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:${sure ? '#9b1b22' : '#9a9086'};cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${sure ? COPY.cancel.sure : COPY.cancel.label}</span>
     </div>`;

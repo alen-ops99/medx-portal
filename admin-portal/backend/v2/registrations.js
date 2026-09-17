@@ -6,6 +6,8 @@
  *        ?q= &event=all|conference|gala|boston|donor|bridges|forum|signup &status=ALL|PAID|PENDING|FREE
  *        &link=<reg_link_token or invite-link id> &limit= &offset=
  *        → { rows, total, grand_total, stats } — unions registrations + gala_registrations +
+ *          (gala rows carry gala_state + gala_seats; stats carries gala_unpaid = rows still to
+ *          chase and gala_buckets = the split behind it, both from gala-ops.js GALA_BUCKETS) +
  *          bridges_registrations + forum_event_registrations + croatians_abroad_registrations
  *          (source='plexus' rows are the public Plexus Experience form; one sub-row per selected
  *          event, the gala sub-row skipped when a linked gala_registrations row exists) +
@@ -30,10 +32,20 @@
  */
 'use strict';
 
+// The gala open-payment vocabulary lives in gala-ops.js (GALA_BUCKETS + bucketGalaRows) — the
+// SAME classifier the Gala screen's summary counts with, so the GALA stat here and the KPI there
+// can never name a different set of rows (audit 2026-09-17 A). Loaded like money.js loads it;
+// a broken gala-ops module degrades to "no buckets", never to a crash of this module.
+let galaTruth = null;
+try { galaTruth = require('./gala-ops.js'); } catch (e) { galaTruth = null; }
+
 module.exports = function mountRegistrations(app, ctx) {
     const { db, auth, adminOnly, saveDb } = ctx;
     const log = ctx.log || ((...a) => console.log('[v2/registrations]', ...a));
     const uuid = () => require('crypto').randomUUID();
+    const GALA_BUCKETS = (galaTruth && galaTruth.GALA_BUCKETS) || {};
+    const bucketGala = (rows) => (galaTruth && galaTruth.bucketGalaRows) ? galaTruth.bucketGalaRows(rows) : { buckets: {}, states: {} };
+    const galaStateLabel = (state) => (GALA_BUCKETS[state] && GALA_BUCKETS[state].label) || null;
 
     // ---- sql.js-compatible read helpers (shared/db.js idioms) ----
     function all(sql, params) {
@@ -67,6 +79,18 @@ module.exports = function mountRegistrations(app, ctx) {
         const linkTag = (token) => { const l = token && regLinks[token]; if (!l) return null; return { ref: token, kind: l.link_type === 'vip' ? 'VIP' : 'LINK', label: l.label || l.event_name || 'Invitation link' }; };
         const rows = [];
 
+        // Gala open-payment states, decided ONCE over every gala seat this union will show:
+        // the gala_registrations rows plus the public-form gala legs that have no linked gala row
+        // (keyed 'ca:<id>:gala' like their union key). One pass so the paid-twin rule sees every
+        // paid email — a form leg abandoned by someone who then paid through Stripe is a twin too.
+        const galaAll = all('SELECT * FROM gala_registrations');
+        const caAll = all('SELECT * FROM croatians_abroad_registrations');
+        const galaStates = bucketGala(galaAll.concat(
+            caAll.filter(r => Number(r.selected_gala) === 1 && !trim(r.gala_registration_id))
+                .map(r => ({ id: 'ca:' + r.id + ':gala', email: r.email, status: r.gala_status, payment_status: r.gala_payment_status,
+                             stripe_session_id: r.stripe_session_id, pay_token: null, guest_count: r.guest_count }))
+        )).states;
+
         // --- Plexus conference (registrations ⋈ users ⋈ ticket_types) ---
         all(`SELECT r.*, COALESCE(NULLIF(r.first_name,''), u.first_name) AS fn, COALESCE(NULLIF(r.last_name,''), u.last_name) AS ln,
                     COALESCE(NULLIF(r.email,''), u.email) AS em, COALESCE(NULLIF(r.institution,''), u.institution) AS inst, t.name AS ticket_name
@@ -96,18 +120,21 @@ module.exports = function mountRegistrations(app, ctx) {
         });
 
         // --- Gala Evening (gala_registrations) ---
-        all('SELECT * FROM gala_registrations').forEach(r => {
+        galaAll.forEach(r => {
             const cancelled = isCancelled(r.status);
             const paid = r.payment_status === 'paid';
             const vip = r.payment_status === 'vip-comp';
             const gl = r.invite_link_id ? galaLinks[r.invite_link_id] : null;
             const lt = linkTag(r.reg_link_token) || (gl ? { ref: r.invite_link_id, kind: gl.link_type === 'vip' ? 'VIP' : 'LINK', label: gl.label || 'Gala invite link' } : null);
+            // gala_state: 'paid' | link_sent | checkout_abandoned | no_link_yet | held | paid_twins | null (inactive)
+            const state = galaStates[r.id] || null;
+            const chase = !!(GALA_BUCKETS[state] && GALA_BUCKETS[state].chase);
             const facts = [];
-            facts.push(['SEAT', cancelled ? 'Cancelled — the seat is freed' : vip ? 'VIP · free · named guest' : paid ? `Paid ${eur(r.amount_paid || 150)}${r.stripe_session_id ? ' · card' : ''}${r.seat_number ? ' · seat ' + r.seat_number : ' · table unassigned'}` : (r.status === 'pending' ? 'Requested · awaiting approval' : 'Reserved · payment pending')]);
+            facts.push(['SEAT', cancelled ? 'Cancelled — the seat is freed' : vip ? 'VIP · free · named guest' : paid ? `Paid ${eur(r.amount_paid || 150)}${r.stripe_session_id ? ' · card' : ''}${r.seat_number ? ' · seat ' + r.seat_number : ' · table unassigned'}` : (galaStateLabel(state) || (r.status === 'pending' ? 'Requested · awaiting approval' : 'Reserved · payment pending'))]);
             if (trim(r.dietary)) facts.push(['MEAL', trim(r.dietary)]);
             if (trim(r.requests)) facts.push(['REQUESTS', trim(r.requests)]);
             if (r.invoice_number) facts.push(['INVOICE', r.invoice_number]);
-            if (!paid && !vip && !cancelled) facts.push(['REMINDER', 'Queues to the Outbox from here']);
+            if (chase) facts.push(['REMINDER', 'Queues to the Outbox from here']);
             rows.push({
                 key: 'gala:' + r.id, type: 'gala', id: r.id,
                 name: [trim(r.first_name), trim(r.last_name)].filter(Boolean).join(' ') || trim(r.email) || 'Guest',
@@ -117,7 +144,8 @@ module.exports = function mountRegistrations(app, ctx) {
                 when: r.created_at, amount: r.amount_paid, checked_in: Number(r.checked_in) === 1,
                 link: lt, source_kind: lt ? 'link' : (r.user_id ? 'member' : 'public'),
                 source: lt ? lt.label : (r.user_id ? 'Member portal — Gala section' : 'Public registration form'),
-                facts, can_mark_paid: !cancelled && !paid && !vip, reg_type: 'gala'
+                facts, can_mark_paid: !cancelled && !paid && !vip, reg_type: 'gala',
+                gala_state: state, gala_seats: 1 + (Number(r.guest_count) || 0)   // additive (audit 2026-09-17 A) — public keys above unchanged
             });
         });
 
@@ -174,7 +202,7 @@ module.exports = function mountRegistrations(app, ctx) {
         // --- Public Plexus Experience form + Croatians Abroad (croatians_abroad_registrations) ---
         // One sub-row per selected event; the gala sub-row is skipped when a linked
         // gala_registrations row exists (that row already appears above — no double counting).
-        all('SELECT * FROM croatians_abroad_registrations').forEach(r => {
+        caAll.forEach(r => {
             const isPublicForm = r.source === 'plexus';
             const cl = r.invite_link_id ? caLinks[r.invite_link_id] : null;
             const lt = linkTag(r.reg_link_token) || (cl ? { ref: r.invite_link_id, kind: 'DIASPORA', label: cl.label || 'Diaspora invite link' } : null);
@@ -212,11 +240,13 @@ module.exports = function mountRegistrations(app, ctx) {
             if (Number(r.selected_gala) === 1 && !trim(r.gala_registration_id)) {
                 const cancelled = isCancelled(r.gala_status);
                 const paid = r.gala_payment_status === 'paid';
+                const state = galaStates['ca:' + r.id + ':gala'] || null;
                 rows.push({ ...base, key: 'ca:' + r.id + ':gala', ca_event: 'gala',
                     event: 'Gala Evening', event_key: 'gala',
                     status: cancelled ? 'CANCELLED' : paid ? 'PAID' : 'PENDING', amount: r.amount_paid,
-                    facts: [['SEAT', cancelled ? 'Cancelled' : paid ? `Paid ${eur(r.amount_paid || 150)}` : 'Reserved · payment pending'], ...commonFacts],
-                    can_mark_paid: !cancelled && !paid });
+                    facts: [['SEAT', cancelled ? 'Cancelled' : paid ? `Paid ${eur(r.amount_paid || 150)}` : (galaStateLabel(state) || 'Reserved · payment pending')], ...commonFacts],
+                    can_mark_paid: !cancelled && !paid,
+                    gala_state: state, gala_seats: 1 + (Number(r.guest_count) || 0) });
             } else if (Number(r.selected_gala) === 1 && trim(r.gala_registration_id)) {
                 // annotate the linked gala row so the panel can jump to it
                 const g = rows.find(x => x.key === 'gala:' + r.gala_registration_id);
@@ -249,12 +279,23 @@ module.exports = function mountRegistrations(app, ctx) {
         const conf = one("SELECT max_capacity FROM conferences WHERE slug = 'plexus-2026'") || {};
         const boston = one("SELECT capacity FROM bridges_events WHERE city LIKE '%Boston%' ORDER BY event_date DESC LIMIT 1") || {};
         const gala = live.filter(r => r.event_key === 'gala');
+        // gala_buckets: the open-payment split of the gala rows above — { rows, seats, label } per
+        // GALA_BUCKETS key (link_sent · checkout_abandoned · no_link_yet · held · paid_twins).
+        // gala_unpaid keeps its key but means CHASE now: link_sent + checkout_abandoned +
+        // no_link_yet rows — held rows and paid twins are out (audit 2026-09-17 A).
+        const gala_buckets = {};
+        for (const k of Object.keys(GALA_BUCKETS)) gala_buckets[k] = { rows: 0, seats: 0, label: GALA_BUCKETS[k].label, tag: GALA_BUCKETS[k].tag };
+        gala.forEach(r => { const b = gala_buckets[r.gala_state]; if (b) { b.rows++; b.seats += Number(r.gala_seats) || 1; } });
+        const gala_unpaid = Object.keys(GALA_BUCKETS).length
+            ? Object.keys(GALA_BUCKETS).filter(k => GALA_BUCKETS[k].chase).reduce((n, k) => n + gala_buckets[k].rows, 0)
+            : gala.filter(r => r.status === 'PENDING').length;   // gala-ops missing: the pre-audit row count, never 0 by accident
         return {
             all: live.length,
             conference: live.filter(r => r.event_key === 'conference').length,
             conference_cap: Number(conf.max_capacity) || null,
             gala: gala.length,
-            gala_unpaid: gala.filter(r => r.status === 'PENDING').length,
+            gala_unpaid,
+            gala_buckets,
             boston: live.filter(r => r.event_key === 'boston').length,
             boston_cap: Number(boston.capacity) || null
         };

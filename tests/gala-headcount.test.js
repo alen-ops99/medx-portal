@@ -89,8 +89,9 @@ const todayUtc = () => new Date().toISOString().split('T')[0];
         boot('admin-portal/backend', 3251);
         await waitUp(ADMIN);
 
-        // --- admin login ---
-        let r = await api(ADMIN, '/api/auth/login', { method: 'POST', body: { email: 'juginovic.alen@gmail.com', password: 'admin123' } });
+        // --- admin login: vp@medx.hr, not the founder — the boot's one-time founder unlock resets
+        //     juginovic.alen@gmail.com to a temp password on a fresh DB (same as announcements.test.js) ---
+        let r = await api(ADMIN, '/api/auth/login', { method: 'POST', body: { email: 'vp@medx.hr', password: 'admin123' } });
         const atok = r.d && r.d.token;
         check('scratch boot: seeded admin login works', r.status === 200 && !!atok, JSON.stringify(r.d).slice(0, 120));
 

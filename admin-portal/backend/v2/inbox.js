@@ -58,6 +58,11 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { randomUUID } = require('crypto');
+// The gala payment-state classifier (paid · link_sent · checkout_abandoned · no_link_yet · held ·
+// paid_twins) — ONE truth shared with gala-ops / registrations / people / money, so the audience
+// tag, the "payment open" sub-label and the compose filter agree with the Gala card (audit item A).
+let galaTruth = null;
+try { galaTruth = require('./gala-ops.js'); } catch (e) { galaTruth = null; }
 
 const NL_TOPICS = ['all', 'plexus', 'gala', 'accelerator', 'bridges', 'forum'];
 const NL_LABELS = { all: 'All Med&X', plexus: 'Plexus', gala: 'Gala Evening', accelerator: 'Accelerator', bridges: 'Building Bridges', forum: 'Biomedical Forum' };
@@ -212,7 +217,10 @@ ${paragraphs(body)}
         email: cleanEmail(email),
         tag,
         paid: flags && 'paid' in flags ? !!flags.paid : null,
-        checked_in: flags && 'checked_in' in flags ? !!flags.checked_in : null
+        checked_in: flags && 'checked_in' in flags ? !!flags.checked_in : null,
+        // gala rows only: the payment-state bucket; 'payment open' = a bucket the team chases
+        state: flags && flags.state ? flags.state : null,
+        payment_open: flags && 'payment_open' in flags ? !!flags.payment_open : null
     });
     function buildAudiences() {
         const groups = [];
@@ -231,13 +239,21 @@ ${paragraphs(body)}
                 .map(r => person(r.fn, r.ln, r.em, 'PLEXUS', { paid: true, checked_in: !!Number(r.checked_in) }));
         }
         // Gala
-        const galaPeople = all(
-            `SELECT first_name, last_name, email, payment_status, checked_in FROM gala_registrations
-              WHERE COALESCE(status, '') NOT IN ('rejected', 'cancelled')`)
+        const galaRows = all(
+            `SELECT id, first_name, last_name, email, status, payment_status, stripe_session_id, pay_token, guest_count, checked_in
+               FROM gala_registrations WHERE COALESCE(status, '') NOT IN ('rejected', 'cancelled')`);
+        // One classification pass over the whole set (the paid-twin rule needs every row): a person
+        // whose abandoned first attempt sits beside their paid seat is 'paid_twins' — never chased.
+        const galaStates = galaTruth && galaTruth.bucketGalaRows ? galaTruth.bucketGalaRows(galaRows).states : {};
+        const BUCKETS = (galaTruth && galaTruth.GALA_BUCKETS) || {};
+        const galaPeople = galaRows
             .filter(r => isRealRecipient(cleanEmail(r.email)))
             .map(r => {
-                const paid = String(r.payment_status || '') === 'paid';
-                return person(r.first_name, r.last_name, r.email, paid ? 'GALA' : 'GALA · UNPAID', { paid, checked_in: !!Number(r.checked_in) });
+                const paid = ['paid', 'vip-comp'].includes(String(r.payment_status || ''));
+                const state = galaStates[r.id] || (paid ? 'paid' : 'no_link_yet');
+                const open = !!(BUCKETS[state] && BUCKETS[state].chase);
+                const tag = state === 'paid' ? 'GALA' : 'GALA · ' + ((BUCKETS[state] && BUCKETS[state].tag) || 'PAYMENT OPEN');
+                return person(r.first_name, r.last_name, r.email, tag, { paid, checked_in: !!Number(r.checked_in), state, payment_open: open });
             });
         // Building Bridges — one group per upcoming event
         const bridgeGroups = [];
@@ -274,9 +290,10 @@ ${paragraphs(body)}
         [...confPeople, ...galaPeople, ...bridgeGroups.flatMap(g => g.people)].forEach(p => { if (!seen.has(p.key)) seen.set(p.key, p); });
         const everyone = Array.from(seen.values());
         const paidN = galaPeople.filter(p => p.paid).length;
+        const openN = galaPeople.filter(p => p.payment_open).length;
         groups.push({ key: 'everyone', label: 'Everyone (all events)', people: everyone });
         groups.push({ key: 'conference', label: conf ? conf.name : 'Plexus Conference', people: confPeople });
-        groups.push({ key: 'gala', label: `Gala Evening`, sub: `${paidN} paid · ${galaPeople.length - paidN} unpaid`, people: galaPeople });
+        groups.push({ key: 'gala', label: `Gala Evening`, sub: `${paidN} paid · ${openN} payment open`, people: galaPeople });
         bridgeGroups.forEach(g => groups.push(g));
         groups.push({ key: 'newsletter', label: 'Newsletter subscribers', people: nlPeople });
         groups.forEach(g => { g.count = g.people.length; g.people.sort((a, b) => a.name.localeCompare(b.name)); });
@@ -311,7 +328,10 @@ ${paragraphs(body)}
             const group = groups.find(g => g.key === String(b.audience || 'everyone')) || groups[0];
             let people = group.people.slice();
             const filter = String(b.filter || '');
-            if (filter === 'unpaid') people = people.filter(p => p.paid === false);
+            // 'unpaid' = "Payment still open": a chaseable gala bucket (link sent · checkout not
+            // completed · no link yet) — never a held-for-review seat or a paid person's twin row.
+            // Non-gala people (no state) keep the plain paid===false rule.
+            if (filter === 'unpaid') people = people.filter(p => p.state ? p.payment_open === true : p.paid === false);
             else if (filter === 'checked_in') people = people.filter(p => p.checked_in === true);
             else if (filter === 'not_checked_in') people = people.filter(p => p.checked_in === false);
             if (b.manual) {

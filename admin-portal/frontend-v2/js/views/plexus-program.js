@@ -21,8 +21,10 @@ export const COPY_PG = {
   title: 'PROGRAM & TICKETS',
   sub: 'one email per registrant — their events and their ticket (Apple · Google · calendar), program PDF attached; gala-only payers included. Sent in November, by hand, from here.',
   err: 'The program panel could not be read.',
-  stats: { eligible: 'ELIGIBLE', sent: 'SENT', paid: 'GALA PAID', unpaid: 'GALA UNPAID', free: 'FREE EVENTS ONLY',
-    skipped: (h, c, u) => `never emailed: ${h} held · ${c} cancelled · ${u} gala-only unpaid` },
+  // Audit 2026-09-17 A: display words only — the 'unpaid-gala' / 'unpaid-only' classification KEYS
+  // below are what the November send is keyed on and stay exactly as they are.
+  stats: { eligible: 'ELIGIBLE', sent: 'SENT', paid: 'GALA PAID', unpaid: 'GALA PAYMENT OPEN', free: 'FREE EVENTS ONLY',
+    skipped: (h, c, u) => `never emailed: ${h} held · ${c} cancelled · ${u} gala-only, payment open` },
   program: {
     title: 'THE PROGRAM PDF', none: 'Not uploaded yet — sends stay locked until it is here. Previews work without it.',
     present: (size, at) => `On file · ${fmt.bytes ? fmt.bytes(size) : Math.round(size / 1024) + ' KB'}${at ? ' · uploaded ' + String(at).slice(0, 10) : ''}`,
@@ -35,7 +37,7 @@ export const COPY_PG = {
   },
   actions: {
     preview: 'PREVIEW TO ME (3 SHAPES)', previewing: 'SENDING…',
-    previewDone: to => `Three previews are on their way to ${to} — paid, unpaid gala, free only.`,
+    previewDone: to => `Three previews are on their way to ${to} — paid, gala payment open, free only.`,
     sendAll: n => `SEND TO EVERYONE NOT YET SENT (${n})`, sendAllLocked: 'Upload the program PDF to unlock sending',
     confirmTitle: n => `Send the program & ticket email to ${n} registrant${n === 1 ? '' : 's'}?`,
     confirmBody: 'Each person gets ONE email with the program PDF and their ticket; guests with an email get their copy. Already-sent rows are skipped. This cannot be recalled.',
@@ -46,9 +48,9 @@ export const COPY_PG = {
   },
   table: {
     title: 'REGISTRANTS', empty: 'No Zagreb registrations yet.',
-    filters: { all: 'ALL', unsent: 'NOT YET SENT', sent: 'SENT', paid: 'GALA PAID', 'unpaid-gala': 'GALA UNPAID', free: 'FREE ONLY', skipped: 'NEVER EMAILED' },
+    filters: { all: 'ALL', unsent: 'NOT YET SENT', sent: 'SENT', paid: 'GALA PAID', 'unpaid-gala': 'GALA PAYMENT OPEN', free: 'FREE ONLY', skipped: 'NEVER EMAILED' },
     cols: { who: 'REGISTRANT', inst: 'INSTITUTION', state: 'STATE', legs: 'EVENTS', party: 'PARTY', inv: 'REF', sent: 'SENT', acts: '' },
-    state: { paid: 'GALA PAID', 'unpaid-gala': 'GALA UNPAID', free: 'FREE ONLY', held: 'HELD · REVIEW', cancelled: 'CANCELLED', 'unpaid-only': 'GALA ONLY · UNPAID' },
+    state: { paid: 'GALA PAID', 'unpaid-gala': 'GALA PAYMENT OPEN', free: 'FREE ONLY', held: 'HELD · REVIEW', cancelled: 'CANCELLED', 'unpaid-only': 'GALA ONLY · PAYMENT OPEN' },
     legs: { conference: 'Conference', bridges: 'Bridges', gala: 'Gala' },
     notSendable: 'This registration is never emailed by this tool.'
   }

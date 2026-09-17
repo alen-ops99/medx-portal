@@ -25,7 +25,7 @@ import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
-import { chrome } from '../chrome.js';
+import { chrome, chatChannelsOf, chatUnreadOf } from '../chrome.js';
 import router from '../router.js';
 
 export const SOURCE = 'Admin Inbox.dc.html';
@@ -60,7 +60,7 @@ export const COPY = {
   },
   compose: {
     title: 'EMAIL EVERYONE REGISTERED', who: 'WHO', filter: 'ONLY THOSE WHO…',
-    filters: [['', 'No filter — everyone'], ['unpaid', 'Haven’t paid yet'], ['checked_in', 'Are checked in'], ['not_checked_in', 'Are not checked in']],
+    filters: [['', 'No filter — everyone'], ['unpaid', 'Payment still open'], ['checked_in', 'Are checked in'], ['not_checked_in', 'Are not checked in']],
     manual: '✓ PICK PEOPLE BY HAND', manualOff: 'or tick exactly who gets it, person by person',
     manualOn: (p, t) => `${p} of ${t} picked by hand — ticks override the dropdowns`,
     subject: 'SUBJECT', subjectPh: 'e.g. Plexus 2026 — final details',
@@ -239,7 +239,7 @@ async function load(tab) {
   if (tab === 'announce') want.memberAnns = api.get('/api/admin/member-announcements');
   if (tab === 'news') want.nl = api.get('/api/v2/inbox/newsletter');
   const r = await api.settle(want);
-  const chatChannels = r.chat ? [...(r.chat.channels || [])].filter(c => String(c.name || '').indexOf('dm:') !== 0) : [];
+  const chatChannels = chatChannelsOf(r.chat);   // legacy 'dm:' channel rows never render (chrome.js owns the rule)
   const threads = r.threads && Array.isArray(r.threads.threads) ? r.threads.threads : [];
   return {
     errors: r.$errors,
@@ -250,7 +250,7 @@ async function load(tab) {
       : (r.threads ? countNeedsReply(threads) : Number((r.badges || {}).unread_messages) || 0),
     chat: r.chat || null,
     chatChannels,
-    chatUnread: r.chat ? [...(r.chat.channels || []), ...(r.chat.dms || [])].reduce((n, c) => n + Number(c.unread || 0), 0) : 0,
+    chatUnread: chatUnreadOf(r.chat),   // audit 2026-09-17 B: the SAME filtered list the header pill sums, never the raw channel array
     pending: r.pending && Array.isArray(r.pending.batches) ? r.pending.batches : [],
     deferred: r.scheduled ? futureBatches(r.scheduled.batches) : [],
     audiences: r.audiences && Array.isArray(r.audiences.groups) ? r.audiences.groups : [],
@@ -388,7 +388,14 @@ function currentAudience() {
 }
 function filteredPeople() {
   let people = currentAudience().people.slice();
-  if (st.filter === 'unpaid') people = people.filter(p => p.paid === false);
+  if (st.filter === 'unpaid') {
+    // "Payment still open" (audit 2026-09-17 A): gala entries carry the server's payment-state
+    // bucket (`state` + `payment_open`, v2/inbox.js via the gala-ops classifier) — a chaseable
+    // bucket only, never a held-for-review seat or a paid person's abandoned twin. Entries without
+    // a state (older backend, non-gala audiences) fall back to paid === false minus paid twins.
+    const paidKeys = new Set(people.filter(p => p.paid === true).map(p => p.key));
+    people = people.filter(p => p.state ? p.payment_open === true : (p.paid === false && !paidKeys.has(p.key)));
+  }
   else if (st.filter === 'checked_in') people = people.filter(p => p.checked_in === true);
   else if (st.filter === 'not_checked_in') people = people.filter(p => p.checked_in === false);
   return people;
@@ -941,9 +948,11 @@ async function loadChat(channelId) {
     const msgs = await api.get('/api/teamchat/messages?channel_id=' + encodeURIComponent(open.id));
     if (!rootEl || st.chOpen !== open.id) return;
     st.chMsgs = Array.isArray(msgs) ? msgs : [];
-    api.post('/api/teamchat/read', { channel_id: open.id }).catch(() => {});
+    // Mark read, then re-read the header badge so the TEAM CHAT pill drops the moment the channel
+    // is open — not on the next unrelated refresh (audit 2026-09-17 B). Best-effort both ways.
+    api.post('/api/teamchat/read', { channel_id: open.id }).then(() => chrome.refresh()).catch(() => {});
     open.unread = 0;
-    D.chatUnread = [...D.chatChannels, ...((D.chat && D.chat.dms) || [])].reduce((n, c) => n + Number(c.unread || 0), 0);
+    D.chatUnread = chatUnreadOf({ channels: D.chatChannels, dms: (D.chat && D.chat.dms) || [] });
     rerender('[data-block="chat"]', tabChat());
     rerender('[data-block="tabs"]', blockTabs());
   } catch (e) { ui.toast(e.message, { kind: 'error' }); }
@@ -953,8 +962,8 @@ async function reloadChatOverview(openId) {
     const o = await api.get('/api/teamchat/overview');
     if (!rootEl) return;
     D.chat = o;
-    D.chatChannels = [...(o.channels || [])].filter(c => String(c.name || '').indexOf('dm:') !== 0);
-    D.chatUnread = [...(o.channels || []), ...(o.dms || [])].reduce((n, c) => n + Number(c.unread || 0), 0);
+    D.chatChannels = chatChannelsOf(o);
+    D.chatUnread = chatUnreadOf(o);
     await loadChat(openId || st.chOpen);
   } catch (e) { /* overview refresh is best-effort */ }
 }
@@ -1170,10 +1179,13 @@ const handlers = {
     if (!st.subject && !st.body.trim()) { ui.toast(COPY.compose.writeFirst); return; }
     el.setAttribute('aria-disabled', 'true');
     try {
+      // "Payment still open" hands the server the exact keys the note counted (filteredPeople), so
+      // the queued list can never drift from the shown count even if the two predicates diverge.
+      const openList = st.filter === 'unpaid' && !st.manual;
       const r = await api.post('/api/v2/inbox/compose', {
         subject: st.subject, body: st.body.trim(),
         audience: currentAudience().key, filter: st.filter,
-        manual: st.manual, picked: st.manual ? Array.from(st.picked) : []
+        manual: st.manual || openList, picked: st.manual ? Array.from(st.picked) : openList ? filteredPeople().map(p => p.key) : []
       });
       st.subject = ''; st.body = ''; st.manual = false; st.picked = new Set();
       ui.toast(COPY.compose.queued + (r && r.queued ? ` · ${r.queued}` : ''));

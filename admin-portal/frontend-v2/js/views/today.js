@@ -33,8 +33,12 @@ export const COPY = {
     // never interchangeable.
     kGala: {
       k: 'GALA SEATS PAID (INCL. GUESTS)', kFallback: 'GALA BOOKINGS PAID', label: 'Gala seats paid',
-      chase: (n, eur, tail) => `${n} seat${n === 1 ? '' : 's'} unpaid · ${eur} outstanding · ${tail}`,
-      chaseBookings: (n, tail) => `${n} payment${n === 1 ? '' : 's'} to chase · ${tail}`,
+      // Audit 2026-09-17 A: "unpaid" hid four states and counted abandoned twins of paid guests.
+      // seats.chase = seats still expected to pay; eur.outstanding = link sent + checkout not
+      // completed × price; the split (server bucket words) rides the card's title.
+      chase: (n, eur, tail) => `${n} seat${n === 1 ? '' : 's'} payment open · ${eur} outstanding · ${tail}`,
+      chaseSplit: b => b ? ['link_sent', 'checkout_abandoned', 'no_link_yet', 'held', 'paid_twins'].filter(k => b[k] && Number(b[k].seats)).map(k => `${b[k].seats} ${String(b[k].tag || k).toLowerCase()}`).join(' · ') : '',
+      chaseBookings: (n, tail) => `${n} payment${n === 1 ? '' : 's'} still open · ${tail}`,
       clear: tail => `all seats paid · ${tail}`,
       ebEnds: eb => `early bird ends ${eb}`, after: 'regular price now'
     },
@@ -226,7 +230,8 @@ function kpiDefs() {
     // the fallback for a backend that has no conference yet (audit W7).
     { on: p.kDays, k: c.kDays.k, v: String(D.plexusDays), sub: `${fmt.longRange(conf.start_date || FACTS.plexus.start, conf.end_date || FACTS.plexus.end)} · ${conf.venue_name || FACTS.plexus.venue}, ${conf.venue_city || FACTS.plexus.city}`, subColor: '#6d6459', href: '/projects/plexus' },
     { on: p.kConf, k: c.kConf.k, v: regs == null ? '—' : String(regs), sub: c.kConf.sub(D.cap), subColor: '#6d6459', href: '/registrations' },
-    { on: p.kGala, k: ops ? c.kGala.k : c.kGala.kFallback, v: galaLocked ? '—' : String(galaPaid), sub: galaSub, subColor: !galaLocked && chasing ? '#9b1b22' : '#6d6459', href: '/gala' },
+    { on: p.kGala, k: ops ? c.kGala.k : c.kGala.kFallback, v: galaLocked ? '—' : String(galaPaid), sub: galaSub, subColor: !galaLocked && chasing ? '#9b1b22' : '#6d6459', href: '/gala',
+      title: !galaLocked && ops && ops.buckets ? c.kGala.chaseSplit(ops.buckets) : '' },   // the open-payment split behind the seat count
     { on: p.kMoney, k: c.kMoney.k, v: collected == null ? '—' : fmt.eur(collected), sub: collected == null ? c.locked : (confRevenue ? c.kMoney.subWithConf(galaPayments, fmt.eur(confRevenue)) : c.kMoney.sub(galaPayments)), subColor: '#6d6459', href: '/money' }
   ].filter(k => k.on);
 }
@@ -398,7 +403,7 @@ function blockHero() {
     <div data-block="hero" style="border:1px solid rgba(32,27,22,.14);background:#fff">
     <div class="mx-kpi" style="display:grid;grid-template-columns:repeat(${Math.max(1, kpis.length)},1fr)">
       ${kpis.map(k => `
-        <a href="${k.href}" style="padding:18px 22px;border-right:1px solid rgba(32,27,22,.12);display:block;color:#201b16" data-hover="background:#fdfbf6;color:#201b16">
+        <a href="${k.href}"${k.title ? ` title="${esc(k.title)}"` : ''} style="padding:18px 22px;border-right:1px solid rgba(32,27,22,.12);display:block;color:#201b16" data-hover="background:#fdfbf6;color:#201b16">
           <div style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${k.k}</div>
           <div class="mx-display-34" style="font-family:Fraunces,serif;font-size:34px;margin-top:4px">${esc(k.v)}</div>
           <div style="font-size:11.5px;color:${k.subColor}">${esc(k.sub)}</div>

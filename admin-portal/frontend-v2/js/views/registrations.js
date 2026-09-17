@@ -29,7 +29,11 @@ export const COPY = {
   inclCancelled: n => `incl. ${n} cancelled`,
   // Audit W11: name the unit. This counts gala REGISTRATION ROWS (bookings) — not seats, which
   // include plus-ones (Gala screen), and not distinct guests (People).
-  stats: { all: 'ALL REGISTRATIONS', conference: 'CONFERENCE', gala: 'GALA REGISTRATIONS', boston: 'BOSTON', of: n => `of ${n}`, unpaid: n => `${n} unpaid`, cancelled: n => `+ ${n} cancelled` },
+  // Audit 2026-09-17 A: "unpaid" was four states plus abandoned twins of guests who had paid. The
+  // stat says how many rows still expect a payment; its title carries the split (the words are
+  // the server's stats.gala_buckets labels — held rows and paid twins are named, never chased).
+  stats: { all: 'ALL REGISTRATIONS', conference: 'CONFERENCE', gala: 'GALA REGISTRATIONS', boston: 'BOSTON', of: n => `of ${n}`, unpaid: n => `${n} payment open`, cancelled: n => `+ ${n} cancelled`,
+    split: b => b ? ['link_sent', 'checkout_abandoned', 'no_link_yet', 'held', 'paid_twins'].filter(k => b[k] && Number(b[k].rows)).map(k => `${b[k].rows} ${String(b[k].tag || b[k].label || k).toLowerCase()}`).join(' · ') : '' },
   searchPh: 'Name, email, note — e.g. “vegan”, “pending”, “kbc”',
   events: [['all', 'ALL EVENTS'], ['conference', 'PLEXUS CONFERENCE'], ['gala', 'GALA EVENING'], ['boston', 'BOSTON'], ['donor', 'DONOR NIGHT'], ['bridges', 'BUILDING BRIDGES'], ['forum', 'FORUM'], ['signup', 'SIGN-UP FORMS']],   // first five per the artboard; the rest are live data (v2)
   chips: ['ALL', 'PAID', 'PENDING', 'FREE'],
@@ -134,8 +138,9 @@ function blockTitle() {
 function blockStats() {
   const s = (D && D.stats) || {};
   const cap = s.conference_cap || FACTS.plexus.cap;
-  const cell = (act, label, num, sub, subColor, last) => `
-      <span data-act="${act}" role="button" style="padding:14px 18px;${last ? '' : 'border-right:1px solid rgba(32,27,22,.1);'}cursor:pointer;display:block" data-hover="background:#fdfbf6"><span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${label}</span><span style="display:block;font-family:Fraunces,serif;font-size:26px;margin-top:2px">${num} ${sub ? `<span style="font-size:13px;color:${subColor}">${sub}</span>` : ''}</span></span>`;
+  const cell = (act, label, num, sub, subColor, last, note) => `
+      <span data-act="${act}" role="button" style="padding:14px 18px;${last ? '' : 'border-right:1px solid rgba(32,27,22,.1);'}cursor:pointer;display:block" data-hover="background:#fdfbf6"><span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${label}</span><span style="display:block;font-family:Fraunces,serif;font-size:26px;margin-top:2px">${num} ${sub ? `<span style="font-size:13px;color:${subColor}">${sub}</span>` : ''}</span>${note ? `<span data-v2="gala-open-split" style="display:block;font-size:10px;color:#6d6459;margin-top:2px">${note}</span>` : ''}</span>`;
+  const galaSplit = esc(COPY.stats.split(s.gala_buckets));
   // audit #11: the ALL stat counts LIVE rows; the cancelled remainder is named right on the stat,
   // so it can no longer silently disagree with the export button (which lists cancelled too).
   const cxAll = D && D.grand_total != null && s.all != null ? Math.max(0, D.grand_total - s.all) : 0;
@@ -144,7 +149,7 @@ function blockStats() {
   <div data-block="stats" class="mx-grid-4" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(4,1fr)">
     ${cell('statAll', COPY.stats.all, s.all == null ? '—' : s.all, cxAll ? COPY.stats.cancelled(cxAll) : '', '#9a9086')}
     ${cell('statConf', COPY.stats.conference, s.conference == null ? '—' : s.conference, cap ? COPY.stats.of(cap) : '', '#6d6459')}
-    ${cell('statGala', COPY.stats.gala, s.gala == null ? '—' : s.gala, s.gala_unpaid ? COPY.stats.unpaid(s.gala_unpaid) : '', '#9b1b22')}
+    ${cell('statGala', COPY.stats.gala, s.gala == null ? '—' : s.gala, s.gala_unpaid ? COPY.stats.unpaid(s.gala_unpaid) : '', '#9b1b22', false, galaSplit)}
     ${cell('statBoston', COPY.stats.boston, s.boston == null ? '—' : s.boston, s.boston_cap ? COPY.stats.of(s.boston_cap) : '', '#6d6459', true)}
   </div>
   <!-- /dc -->`;

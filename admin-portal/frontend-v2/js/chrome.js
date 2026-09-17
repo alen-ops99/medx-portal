@@ -22,6 +22,18 @@ import { FACTS, routeForSection } from './facts.js';
 import { perms } from './perms.js';
 import router from './router.js';
 
+// ONE rule for what a TEAM CHAT unread is (audit 2026-09-17 B): the header pill, the Inbox tab badge
+// and the chat tab's own count all sum the SAME list — real channels (legacy 'dm:…' channel rows are
+// the pre-DM era's private threads and never render anywhere) plus MY dms. Summing the unfiltered
+// channel list counted unread that no screen could ever clear.
+export function chatChannelsOf(overview) {
+  return overview && Array.isArray(overview.channels) ? overview.channels.filter(c => String(c.name || '').indexOf('dm:') !== 0) : [];
+}
+export function chatUnreadOf(overview) {
+  if (!overview) return 0;
+  return [...chatChannelsOf(overview), ...(Array.isArray(overview.dms) ? overview.dms : [])].reduce((n, c) => n + Number(c.unread || 0), 0);
+}
+
 export const COPY = {
   admin: 'ADMIN',
   nav: { today: 'TODAY', projects: 'PROJECTS', bigIdeas: 'BIG IDEAS', inbox: 'INBOX', people: 'PEOPLE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', menu: 'MENU' },
@@ -342,7 +354,7 @@ export const chrome = {
     });
     const batches = r.outbox && Array.isArray(r.outbox.batches) ? r.outbox.batches.length : 0;
     const unread = r.pstats && r.pstats.pending ? Number(r.pstats.pending.unreadMessages || 0) : 0;
-    const chatUnread = r.chat ? [...(r.chat.channels || []), ...(r.chat.dms || [])].reduce((n, c) => n + Number(c.unread || 0), 0) : 0;
+    const chatUnread = chatUnreadOf(r.chat);   // filtered channels + my dms — the same list the Inbox chat tab shows
     state.set({ badges: { inbox: batches + unread, chat: chatUnread, outboxBatches: batches, unreadMessages: unread }, eventDay: isEventDay(r.conf, r.bridges) });
     return r;
   }

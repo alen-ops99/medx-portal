@@ -10,8 +10,10 @@
  *        { tables, assignments, meals, waitlist, cancellations, meta, room, price, summary, now }
  *   GET  /api/v2/gala-ops/summary                        auth+adminOnly  ONE TRUTH for the gala
  *        tallies (audit 2026-09-02 #1): { basis:'seats', price, seats:{reserved,paid,chase,seated,
- *        capacity}, bookings, eur:{collected,outstanding}, cancelled }. Also embedded in the
- *        overview and exported as module.exports.computeSummary for backend/v2/money.js.
+ *        capacity}, bookings, eur:{collected,outstanding}, buckets:{link_sent,checkout_abandoned,
+ *        no_link_yet,held,paid_twins → {rows,seats,label}}, states:{<reg id>: 'paid'|bucket},
+ *        cancelled }. Also embedded in the overview and exported as module.exports.computeSummary
+ *        for backend/v2/money.js. The bucket vocabulary is GALA_BUCKETS below (audit 2026-09-17 A).
  *   PUT  /api/v2/gala-ops/registrations/:id/meal         auth+adminOnly  { option_id } ('' clears the override)
  *   POST /api/v2/gala-ops/registrations                  auth+adminOnly  ADD GUEST { name, email?, institution?, kind: invoice|vip|sponsor }
  *        invoice → status 'approved' + pay_token + a payment-request email staged into the
@@ -104,6 +106,72 @@ const crypto = require('crypto');
 const GALA_INACTIVE = ['cancelled', 'rejected', 'declined', 'expired'];
 const GALA_DEFAULT_DEADLINE = '2026-09-15';
 const GALA_DEFAULT_ROOM = 10 * 8;
+
+// ---------------------------------------------------------------- the "not paid yet" vocabulary
+// (audit 2026-09-17 item A: every screen said "unpaid" / "TO CHASE" for rows in four different
+// real states, and counted abandoned first attempts of guests who HAD paid.) One classifier,
+// one label set, exported for backend/v2/registrations.js and backend/v2/people.js — the
+// frontend reads the labels off the payload, never re-derives them.
+//   link_sent           status approved (or pending with a pay_token / checkout) — the guest
+//                       holds a payment link; the money is expected.
+//   checkout_abandoned  status awaiting_payment WITH a stripe_session_id — Stripe checkout was
+//                       opened and never completed; the money is expected once they return.
+//   no_link_yet         status awaiting_payment WITHOUT a stripe session — reserved, but nobody
+//                       has been handed a way to pay yet (also: a bare 'pending' member request
+//                       nobody approved — approving is what mints and emails the link, so
+//                       "link sent" would be a lie on that row).
+//   held                status pending-review — the review gate holds it; NOT chased, NOT owed.
+//   paid_twin           an unpaid row whose lowercased email also has an ACTIVE PAID row — the
+//                       abandoned first attempt of someone who then paid; never chased, never owed.
+// chase = link_sent + checkout_abandoned + no_link_yet · outstanding € = (link_sent +
+// checkout_abandoned) seats × the price by the clock (no_link_yet has nothing to complete yet).
+const GALA_BUCKETS = Object.freeze({
+    link_sent:          { label: 'Approved, payment link sent',       tag: 'LINK SENT',              chase: true,  owed: true },
+    checkout_abandoned: { label: 'Checkout started, not completed',   tag: 'CHECKOUT NOT COMPLETED', chase: true,  owed: true },
+    no_link_yet:        { label: 'Reserved, no payment link yet',     tag: 'NO LINK YET',            chase: true,  owed: false },
+    held:               { label: 'Held for review',                   tag: 'HELD FOR REVIEW',        chase: false, owed: false },
+    paid_twins:         { label: 'Already paid under the same email', tag: 'PAID UNDER SAME EMAIL',  chase: false, owed: false }
+});
+const GALA_SETTLED = ['paid', 'vip-comp'];   // vip-comp = the legacy complimentary seat: nothing to collect
+const lcEmail = (v) => String(v == null ? '' : v).trim().toLowerCase();
+// One row → 'paid' | a GALA_BUCKETS key (paid_twin excepted — that needs the whole set) | null (inactive).
+function galaStateOf(r) {
+    const status = String(r.status || '').toLowerCase();
+    if (GALA_INACTIVE.includes(status)) return null;
+    if (GALA_SETTLED.includes(String(r.payment_status || ''))) return 'paid';
+    if (status === 'pending-review') return 'held';
+    const hasStripe = !!String(r.stripe_session_id || '').trim();
+    const hasToken = !!String(r.pay_token || '').trim();
+    if (status === 'awaiting_payment') return hasStripe ? 'checkout_abandoned' : 'no_link_yet';
+    if (status === 'approved') return 'link_sent';
+    // 'pending' (a member-portal seat request) and any status this file does not know: the
+    // closest bucket is decided by whether a way to pay exists on the row at all.
+    return (hasToken || hasStripe) ? 'link_sent' : 'no_link_yet';
+}
+// Whole set → per-row state with the paid-twin rule applied. Rows need status, payment_status,
+// email, stripe_session_id, pay_token, guest_count (id is echoed back for the states map).
+function bucketGalaRows(rows) {
+    const seatsOf = (r) => 1 + (Number(r.guest_count) || 0);
+    const live = [];
+    for (const r of rows) { const state = galaStateOf(r); if (state) live.push({ r, state }); }
+    const paidEmails = new Set(live.filter(x => x.state === 'paid').map(x => lcEmail(x.r.email)).filter(Boolean));
+    for (const x of live) if (x.state !== 'paid' && paidEmails.has(lcEmail(x.r.email))) x.state = 'paid_twins';
+    const buckets = {};
+    for (const k of Object.keys(GALA_BUCKETS)) buckets[k] = { rows: 0, seats: 0, label: GALA_BUCKETS[k].label, tag: GALA_BUCKETS[k].tag };
+    const states = {};
+    for (const x of live) {
+        if (x.r.id != null) states[x.r.id] = x.state;
+        if (buckets[x.state]) { buckets[x.state].rows++; buckets[x.state].seats += seatsOf(x.r); }
+    }
+    const pick = (test) => live.filter(x => test(x.state)).map(x => x.r);
+    return {
+        buckets, states,
+        paidRows: pick(s => s === 'paid'),
+        activeRows: live.map(x => x.r),
+        chaseRows: pick(s => !!(GALA_BUCKETS[s] && GALA_BUCKETS[s].chase)),
+        owedRows: pick(s => !!(GALA_BUCKETS[s] && GALA_BUCKETS[s].owed))
+    };
+}
 function sqlOne(db, sql, params) {
     let st = null;
     try { st = db().prepare(sql); st.bind(params || []); return st.step() ? st.getAsObject() : null; }
@@ -133,10 +201,14 @@ function computeGalaSummary(db) {
     const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
     const seatsOf = (r) => 1 + (Number(r.guest_count) || 0);
     let regs = [];
-    try { regs = sqlAll(db, 'SELECT id, status, payment_status, amount_paid, guest_count FROM gala_registrations'); } catch (e) {}
-    const act = regs.filter(r => !GALA_INACTIVE.includes(String(r.status || '').toLowerCase()));
-    const paidRows = act.filter(r => r.payment_status === 'paid');
-    const chaseRows = act.filter(r => r.payment_status !== 'paid');
+    try { regs = sqlAll(db, 'SELECT id, email, status, payment_status, amount_paid, guest_count, stripe_session_id, pay_token FROM gala_registrations'); } catch (e) {}
+    // The bucket pass (see GALA_BUCKETS): active rows split into paid / the four open states /
+    // paid twins. `reserved` and bookings.total still count EVERY active row (a twin still holds
+    // a row until someone cancels it); chase and outstanding no longer do.
+    const b = bucketGalaRows(regs);
+    const act = b.activeRows;
+    const paidRows = b.paidRows;
+    const chaseRows = b.chaseRows;
     const assigned = new Set();
     try { sqlAll(db, 'SELECT registration_id FROM gala_seat_assignments').forEach(a => assigned.add(a.registration_id)); } catch (e) {}
     let capacity = 0, tableCount = 0;
@@ -150,19 +222,25 @@ function computeGalaSummary(db) {
     const reserved = sum(act);
     const paidSeats = sum(paidRows);
     const chaseSeats = sum(chaseRows);
+    const owedSeats = sum(b.owedRows);
     return {
         basis: 'seats',                                     // every seat count includes plus-ones (1 + guest_count)
         price,
         seats: {
-            reserved, paid: paidSeats, chase: chaseSeats,
+            reserved, paid: paidSeats, chase: chaseSeats,   // chase = link_sent + checkout_abandoned + no_link_yet (no held, no paid twins)
             seated: sum(act.filter(r => assigned.has(r.id))),
             capacity: tableCount ? capacity : GALA_DEFAULT_ROOM
         },
         bookings: { total: act.length, paid: paidRows.length, chase: chaseRows.length },   // registration rows = payments
         eur: {
             collected: round2(paidRows.reduce((n, r) => n + (Number(r.amount_paid) || 0), 0)),
-            outstanding: round2(chaseSeats * (Number(price.current) || 0))
+            outstanding: round2(owedSeats * (Number(price.current) || 0))                 // (link_sent + checkout_abandoned) seats × price
         },
+        // The split behind `chase` — { rows, seats, label } per GALA_BUCKETS key; `states` maps
+        // every active registration id → 'paid' | bucket key, so a screen holding the raw rows
+        // shows the same word per row that the tallies count.
+        buckets: b.buckets,
+        states: b.states,
         cancelled: regs.length - act.length,
         now: new Date().toISOString()
     };
@@ -460,7 +538,8 @@ module.exports = function mountGalaOps(app, ctx) {
 
     // ONE truth for the gala tallies (audit #1) — the same computation the overview embeds and
     // backend/v2/money.js imports. Every screen that states a gala number reads this shape:
-    // { basis:'seats', price, seats:{reserved,paid,chase,seated,capacity}, bookings, eur:{collected,outstanding}, cancelled }.
+    // { basis:'seats', price, seats:{reserved,paid,chase,seated,capacity}, bookings, eur:{collected,outstanding},
+    //   buckets:{link_sent,checkout_abandoned,no_link_yet,held,paid_twins}, states:{id:state}, cancelled }.
     app.get('/api/v2/gala-ops/summary', auth, adminOnly, (req, res) => {
         try { res.json(computeGalaSummary(db)); }
         catch (e) { log('summary failed:', e.message); res.status(500).json({ error: 'The Gala summary is unavailable right now.' }); }
@@ -1067,3 +1146,8 @@ module.exports = function mountGalaOps(app, ctx) {
 // screen's gala line can never diverge from the Gala screen again — audit #1).
 module.exports.computeSummary = computeGalaSummary;
 module.exports.computePrice = computeGalaPrice;
+// The open-payment vocabulary (audit 2026-09-17 A): registrations.js buildStats and people.js tags
+// classify rows with THESE, so "checkout not completed" means the same row everywhere.
+module.exports.GALA_BUCKETS = GALA_BUCKETS;
+module.exports.galaStateOf = galaStateOf;
+module.exports.bucketGalaRows = bucketGalaRows;

@@ -56,7 +56,7 @@ export const COPY = {
     // cancelled ones, and called the result seats. Canonical numbers now come from
     // /api/v2/gala-ops/summary (seats incl. plus-ones, cancelled/rejected/declined/expired out);
     // an older backend falls back to the local rows and says BOOKINGS, which is what rows are.
-    gala: 'GALA SEATS', galaFallback: 'GALA BOOKINGS', galaSub: (p, c) => `${p} PAID · ${c} TO CHASE →`,
+    gala: 'GALA SEATS', galaFallback: 'GALA BOOKINGS', galaSub: (p, c) => `${p} PAID · ${c} PAYMENT OPEN →`,
     speakers: 'SPEAKERS', speakersLive: n => `${n} live for members · manage →`, speakersDraft: 'program in draft · manage →',
     money: 'COLLECTED', moneySub: 'OPEN MONEY →', calendar: 'CALENDAR →'
   },
@@ -108,7 +108,7 @@ export const COPY = {
   },
   gala: {
     title: 'THE GALA EVENING', when: (d, v) => [d, v].filter(Boolean).join(' · '), full: 'FULL VIEW →',
-    seats: { name: 'Guest list & seating', tag: n => `${n} PAID`, status: (r, c) => `${r} reserved · ${c} to chase · seating chart open`, action: 'SEAT' },
+    seats: { name: 'Guest list & seating', tag: n => `${n} PAID`, status: (r, c) => `${r} reserved · ${c} payment open · seating chart open`, action: 'SEAT' },
     waitlist: { tag: 'AUTO', name: 'Waitlist', status: n => `${n} waiting · auto-offers a freed seat · 24 h to accept`, action: 'VIEW' },
     donor: { name: 'Donor Night — Croatians Abroad', none: '0 INVITED', tag: n => `${n} SIGNED UP`, status: d => `${d} · the diaspora list from the Croatians Abroad flow`, emptyStatus: d => `${d} · guest list empty`, action: 'INVITE' },
     onday: { tag: 'ON THE DAY', name: 'Check-in, ops map & stage Q&A', status: 'Live tools in the Event Day room', action: 'REHEARSE' },
