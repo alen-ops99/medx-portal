@@ -564,7 +564,11 @@ module.exports = function mountBoston(app, deps) {
 
     // ------------------------------------------------------------ GET /boston — public page
     app.get('/boston', (req, res) => {
-        res.send(bostonPage());
+        // Registration closed 2026-09-18 (Alen): the page keeps the evening's details and swaps the form for
+        // a note that points to Laura — nobody can register from the link; the POST refuses too.
+        let open = true;
+        try { const evt = ensureEventRow(); open = !evt || !!Number(evt.registration_open); } catch (e) {}
+        res.send(bostonPage({ open }));
     });
 
     // ------------------------------------------------------------ POST /api/boston/register
@@ -596,7 +600,7 @@ module.exports = function mountBoston(app, deps) {
 
             const evt = ensureEventRow();
             if (!evt) return res.status(500).json({ error: 'Registration is momentarily unavailable. Please try again.' });
-            if (!evt.registration_open) return res.status(403).json({ error: `Registration for this evening has closed. Write to ${SUPPORT_EMAIL} and we will help.` });
+            if (!evt.registration_open) return res.status(403).json({ error: `Registration for this evening has closed. If you would like to join us, please email ${SUPPORT_EMAIL} and we will check whether a seat is still available.` });
 
             // Dedupe by email (held seats only, same predicate as the sibling public-events route):
             // a duplicate submit RE-SENDS the confirmation instead of creating a second seat.
@@ -1247,7 +1251,8 @@ const FOOTER_HTML = `<footer class="foot">
 </footer>`;
 
 // ---------------------------------------------------------------- the registration page
-function bostonPage() {
+function bostonPage(opts) {
+    const open = !opts || opts.open !== false;
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Building Bridges in Biomedicine: Croatia and the US — Boston · Med&amp;X</title>
 <meta name="description" content="Building Bridges in Biomedicine: Croatia and the US — Boston. 21 September 2026 · 6:00–9:00 PM (doors from 5:30 PM) · Waterhouse Room, Gordon Hall (25 Shattuck St), Harvard Medical School. Free, by registration.">
@@ -1331,7 +1336,12 @@ input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,
   </section>
 
   <section class="sheet" aria-label="Registration">
-    <div id="formwrap">
+    <div id="formwrap">${open ? '' : `
+      <p class="slabel">Registration has closed</p><div class="rule"></div>
+      <p class="prose">Thank you for your interest — registration for the evening has now closed. If you would like to join us, please email <a href="mailto:${SUPPORT_EMAIL}?subject=Building%20Bridges%20Boston%20%E2%80%94%20seat%20request" style="color:var(--gold);font-weight:600">${SUPPORT_EMAIL}</a> and we will check whether a seat is still available.</p>
+      <p class="prose" style="margin-top:12px;color:var(--muted);font-size:13.5px;">Already registered? Your confirmation email holds your QR ticket and your personal page.</p>
+    </div>
+    <div hidden>`}
       <p class="slabel">Reserve your place</p><div class="rule"></div>
       <form id="regform" novalidate>
         <div class="field"><label for="f_name">Full name</label>
