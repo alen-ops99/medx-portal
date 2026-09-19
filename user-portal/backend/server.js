@@ -1482,7 +1482,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
 
         const clientJs = `<script>
         var PLEX_TOKEN = ${JSON.stringify(token || '')};
-        var plexDiscount = 0, plexDiscountType = '';
+        var plexDiscount = 0, plexDiscountType = '', plexSeatPrice = 0;
         function plexEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
         // Account linking: this page is served from the portal origin, so a member logged in to
         // the portal on this device is recognised via localStorage. Their registration links to
@@ -1565,7 +1565,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             if (galaSel) {
                 var galaSub = galaUnit * (1 + guests);
                 if (plexDiscount > 0) {
-                    var disc = plexDiscountType === 'fixed' ? plexDiscount : Math.round(galaSub * plexDiscount / 100 * 100) / 100;
+                    var disc = plexDiscountType === 'fixed' ? plexDiscount : plexDiscountType === 'seat' ? Math.min(galaSub, plexSeatPrice * plexDiscount) : Math.round(galaSub * plexDiscount / 100 * 100) / 100;
                     galaSub = Math.max(0, galaSub - disc);
                 }
                 total += Math.round(galaSub * 100) / 100;
@@ -1584,7 +1584,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             var cb = document.getElementById('pf_invoice');
             if (box) box.style.display = (cb && cb.checked) ? 'block' : 'none';
         }
-        function plexClearCoupon(){ plexDiscount = 0; plexDiscountType = ''; var m = document.getElementById('pf_couponMsg'); if (m) m.style.display = 'none'; plexRecompute(); }
+        function plexClearCoupon(){ plexDiscount = 0; plexDiscountType = ''; plexSeatPrice = 0; var m = document.getElementById('pf_couponMsg'); if (m) m.style.display = 'none'; plexRecompute(); }
         async function plexApplyCoupon(){
             var code = ((document.getElementById('pf_coupon') || {}).value || '').trim();
             var m = document.getElementById('pf_couponMsg');
@@ -1593,7 +1593,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             try {
                 var r = await fetch('/api/invite/validate-coupon', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: code, event_type: 'gala' }) });
                 var d = await r.json();
-                if (d.valid) { plexDiscount = Number(d.discount_value) || 0; plexDiscountType = d.discount_type; if (m) { m.style.display = 'block'; m.style.color = '#6e5626'; m.textContent = (d.discount_type === 'fixed' ? ('\\u20AC' + d.discount_value + ' off') : (d.discount_value + '% off')) + ' applied to the Gala'; } }
+                if (d.valid) { plexDiscount = Number(d.discount_value) || 0; plexDiscountType = d.discount_type; plexSeatPrice = Number(d.seat_price) || 0; if (m) { m.style.display = 'block'; m.style.color = '#6e5626'; m.textContent = d.discount_type === 'seat' ? (d.discount_value + ' Gala seat' + (Number(d.discount_value) > 1 ? 's' : '') + ' already paid by bank transfer \\u2014 applied') : ((d.discount_type === 'fixed' ? ('\\u20AC' + d.discount_value + ' off') : (d.discount_value + '% off')) + ' applied to the Gala'); } }
                 else { plexDiscount = 0; plexDiscountType = ''; if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = d.error || 'Invalid or expired code'; } }
             } catch(e) { if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = 'Could not validate'; } }
             b.disabled = false; b.textContent = 'Apply';
@@ -6067,11 +6067,15 @@ function lookupPromo(eventType, code, ctx) {
 }
 
 // Discount (in currency units) a promo yields against a base price, clamped to [0, price].
-function promoDiscount(promo, price) {
+function promoDiscount(promo, price, seatPrice) {
     if (!promo) return 0;
+    // 'seat' = N Gala seats already settled outside Stripe (bank transfer), priced at whatever the
+    // Gala costs on the day of registration — so the code stays exact when the early-bird ends.
     const d = promo.discount_type === 'fixed'
         ? (Number(promo.discount_value) || 0)
-        : Math.round(price * (Number(promo.discount_value) || 0) / 100 * 100) / 100;
+        : promo.discount_type === 'seat'
+            ? (Number(seatPrice) || 0) * (Number(promo.discount_value) || 0)
+            : Math.round(price * (Number(promo.discount_value) || 0) / 100 * 100) / 100;
     return Math.max(0, Math.min(price, d));
 }
 
@@ -28691,7 +28695,9 @@ By applying to this program, I provide the following consents:
             const ctxPrice = Number(req.body.amount != null ? req.body.amount : req.body.price);
             const promo = lookupPromo(event_type, code, { email: req.body.email, price: Number.isFinite(ctxPrice) ? ctxPrice : undefined });
             if (!promo) return res.json({ valid: false, error: 'Invalid or expired code' });
-            res.json({ valid: true, discount_type: promo.discount_type, discount_value: promo.discount_value });
+            const out = { valid: true, discount_type: promo.discount_type, discount_value: promo.discount_value };
+            if (promo.discount_type === 'seat') out.seat_price = effectiveGalaPrice();
+            res.json(out);
         } catch(e) { res.json({ valid: false, error: 'Validation error' }); }
     });
 
@@ -29337,10 +29343,57 @@ By applying to this program, I provide the following consents:
             const guests = galaGuestCount;                                           // +guests, max 2 (hoisted above)
             const subtotal = Math.round(galaBase * (1 + guests) * 100) / 100;
             const galaPromo = lookupPromo('gala', req.body.coupon || req.body.coupon_code || '', { email, price: subtotal });
-            const galaDiscount = galaPromo ? promoDiscount(galaPromo, subtotal) : 0;
+            const galaDiscount = galaPromo ? promoDiscount(galaPromo, subtotal, galaBase) : 0;
             const galaPrice = Math.max(0, Math.round((subtotal - galaDiscount) * 100) / 100);
             // Persist guests + allergies on the gala row (allergies folded into requests) + CA row.
             persistGalaExtras();
+            // ---------- PATH B0: the code settles the whole Gala (seats paid outside Stripe — the
+            // SLOVENIA-PLEXUS bank-transfer guests, 2026-09-19) → confirmed as paid, no checkout ----------
+            if (galaPromo && galaPrice < 0.5) {
+                const couponCode = String(req.body.coupon || req.body.coupon_code || '').trim().toUpperCase();
+                const paidNote = `Gala paid by bank transfer — code ${couponCode}`;
+                const baseUrl0 = process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`;
+                db.run(`UPDATE gala_registrations SET status = 'confirmed', payment_status = 'paid', amount_paid = ?,
+                        requests = TRIM(COALESCE(requests,'') || ' | ' || ?, ' |') WHERE id = ?`, [galaDiscount, paidNote, galaRegistrationId]);
+                db.run(`UPDATE croatians_abroad_registrations SET gala_status = 'confirmed', gala_payment_status = 'paid', amount_paid = ?,
+                        notes = TRIM(COALESCE(notes,'') || ' | ' || ?, ' |') WHERE id = ?`, [galaDiscount, paidNote, regId]);
+                db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR max_uses = 0 OR used_count < max_uses)', [galaPromo.id]);
+                saveDb(); flushDb();
+                const fullName0 = `${first_name} ${last_name || ''}`.trim();
+                const seats0 = 1 + guests;
+                const hostLegs0 = [finalConf ? 'conference' : null, finalBridges ? 'bridges' : null, 'gala'].filter(Boolean);
+                // The SAME combined party ticket the payment webhook sends after a card payment.
+                try {
+                    const named0 = caGuestRows(regId);
+                    const legsOf0 = g => plexusTicket.guestLegs(g).filter(l => hostLegs0.includes(l));
+                    const qrAtts0 = await qrPngAttachment({ type: 'MEDX_MEMBER', caRegId: regId, regId: galaRegistrationId, email, name: fullName0,
+                        evt: 'gala', evtName: 'Plexus 2026 — Gala Evening', events: hostLegs0, amt: galaDiscount, diet: dietary || '' });
+                    const sent0 = await sendEventConfirmation(email, 'Your ticket — Plexus Week 2026', galaPayLink.buildCombinedTicketEmail({
+                        firstName: first_name, fullName: fullName0, amount: galaDiscount, seats: seats0, invoiceNumber: null,
+                        wantConf: !!finalConf, wantBridges: !!finalBridges, source: regSource,
+                        qrPngUrl: qrImageUrl(galaRegistrationId), wallet: plexusPass.walletLinks('gala', galaRegistrationId),
+                        ticketCode: String(galaRegistrationId).slice(0, 8).toUpperCase(),
+                        partyNoteText: galaPayLink.partyNote(seats0, named0.filter(g => String(g.email || '').trim() && legsOf0(g).includes('gala')).length),
+                        guests: named0
+                    }), qrAtts0);
+                    if (!sent0 || sent0.success === false || sent0.mock) console.error(`[CA register][EMAIL-FAIL] bank-transfer Gala guest ${email} (reg ${galaRegistrationId}) did NOT receive the ticket email`);
+                    for (const pg of named0.filter(g => String(g.email || '').trim())) {
+                        const own = legsOf0(pg);
+                        if (!own.length || (!own.includes('gala') && pg.ticket_sent_at)) continue;
+                        const gs = await sendEventConfirmation(pg.email, own.includes('gala') ? 'Your Gala Evening entry — Plexus Week 2026' : 'Your Plexus Week 2026 entry',
+                            galaPayLink.buildGuestEntryEmail({ guestFirst: String(pg.name || 'there').split(' ')[0], guestName: String(pg.name || '').trim(), registrantName: fullName0,
+                                qrPngUrl: qrImageUrl(galaRegistrationId), wallet: plexusPass.walletLinks('guest', pg.id), ticketCode: String(galaRegistrationId).slice(0, 8).toUpperCase(), legs: own, source: regSource }));
+                        if (gs && gs.success === true && !gs.mock) { try { db.run('UPDATE ca_registration_guests SET ticket_sent_at = ? WHERE id = ?', [new Date().toISOString(), pg.id]); } catch (e) {} }
+                    }
+                } catch (e) { console.error('[CA register] bank-transfer Gala ticket failed (non-blocking):', e.message); }
+                caMirrorPreRegToSheets({
+                    regId, first_name, last_name, email, institution, country, role, dietary, notes: [notes, paidNote].filter(Boolean).join(' | '),
+                    events: hostLegs0, regSource, caAppliedFor, customAnswers: caCf.answers, inviteLabel: caInvite?.label || '', needsInvoice, invoiceDetails
+                });
+                if (plexusLinkRow) { db.run('UPDATE registration_links SET uses = COALESCE(uses,0) + 1 WHERE id = ? AND (max_uses IS NULL OR max_uses = 0 OR COALESCE(uses,0) < max_uses)', [plexusLinkRow.id]); saveDb(); }
+                console.log(`[CA register] ${email} — Gala settled by code ${couponCode} (€${galaDiscount}, bank transfer), reg ${regId}`);
+                return res.json({ success: true, id: regId, status: 'paid', ticket_url: galaTicketPageUrl(baseUrl0, galaRegistrationId) });
+            }
             // Stripe needs a real charge; a 100%-off / sub-€0.50 result can't be charged.
             if (galaPrice < 0.5) {
                 return res.status(400).json({ error: 'That code brings the Gala to €0 — please email info@medx.hr to be added as a complimentary guest.' });
