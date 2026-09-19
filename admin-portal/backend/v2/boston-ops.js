@@ -566,10 +566,11 @@ module.exports = function mountBostonOps(app, ctx) {
             const out = await memberCall('POST', '/api/boston/guests/add', {
                 first_name, last_name, email,
                 institution: cleanStr(b.institution, 200), position: cleanStr(b.position, 120),
-                presenter: !!b.presenter, panel: !!b.panel
+                presenter: !!b.presenter, panel: !!b.panel,
+                send_confirmation: !!b.send_confirmation      // the "You are in" ticket email, when the team wants it sent
             });
             audit(req, 'boston.guest_added', email + (b.presenter ? ' — presenter' : b.panel ? ' — panel' : '') + ' (' + (out.shape || 'attendee') + ' shape)');
-            res.json({ success: true, registration_id: out.registration_id, email, shape: out.shape || 'attendee', salutation: out.salutation || null });
+            res.json({ success: true, registration_id: out.registration_id, email, shape: out.shape || 'attendee', salutation: out.salutation || null, confirmation_sent: out.confirmation_sent == null ? null : !!out.confirmation_sent });
         } catch (e) {
             log('add guest failed:', e.message);
             // 409 = already on the list; the member wing says which row, so the card can point at it

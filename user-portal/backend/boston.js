@@ -2844,7 +2844,7 @@ module.exports = function mountBoston(app, deps) {
     // notes), the sheet row pushed, the decision set straight away if the team ticked presenter or
     // panel — and NO email from here: the card offers "send their Boston email now" as the next
     // click, and that one email carries the ticket, the wallet passes and every ask.
-    app.post('/api/boston/guests/add', (req, res) => {
+    app.post('/api/boston/guests/add', async (req, res) => {
         try {
             if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
             ensurePresenterStatusColumn();
@@ -2877,7 +2877,17 @@ module.exports = function mountBoston(app, deps) {
             const fresh = query.get('SELECT * FROM bridges_registrations WHERE id = ?', [id]) || { id, first_name, last_name, email, institution, position, notes };
             pushToBostonSheet(fresh, presenter, 'Confirmed');
             console.log(`[Boston] guest added by the team: ${id} (${email})${presenter ? ' — presenter' : panel ? ' — panel' : ''}`);
-            res.json({ success: true, registration_id: id, email, shape: shapeOf(fresh), salutation: salutationFor(fresh), added_on: today });
+            // send_confirmation: the team wants this guest to hold exactly what a form registrant holds —
+            // the "You are in" email with the QR ticket, wallet passes and calendar (2026-09-19, Chatterjee).
+            let confirmation = null;
+            if (b.send_confirmation === true || b.send_confirmation === 'true') {
+                try {
+                    const send = await sendConfirmation(fresh, presenter);
+                    confirmation = !!(send && send.success !== false && !send.mock);
+                    if (confirmation) query.run('UPDATE bridges_registrations SET confirmation_sent = 1 WHERE id = ?', [id]);
+                } catch (e) { console.error('[Boston] team-added guest confirmation failed:', e.message); confirmation = false; }
+            }
+            res.json({ success: true, registration_id: id, email, shape: shapeOf(fresh), salutation: salutationFor(fresh), added_on: today, confirmation_sent: confirmation });
         } catch (e) {
             console.error('[Boston] add guest failed:', e.message);
             res.status(500).json({ error: 'Could not add that guest just now.' });
