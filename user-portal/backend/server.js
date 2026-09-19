@@ -1565,7 +1565,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             if (galaSel) {
                 var galaSub = galaUnit * (1 + guests);
                 if (plexDiscount > 0) {
-                    var disc = plexDiscountType === 'fixed' ? plexDiscount : plexDiscountType === 'seat' ? Math.min(galaSub, plexSeatPrice * plexDiscount) : Math.round(galaSub * plexDiscount / 100 * 100) / 100;
+                    var disc = plexDiscountType === 'fixed' ? plexDiscount : plexDiscountType === 'seat' ? Math.min(galaSub, plexSeatPrice * Math.min(1 + guests, plexDiscount)) : Math.round(galaSub * plexDiscount / 100 * 100) / 100;
                     galaSub = Math.max(0, galaSub - disc);
                 }
                 total += Math.round(galaSub * 100) / 100;
@@ -1593,7 +1593,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             try {
                 var r = await fetch('/api/invite/validate-coupon', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: code, event_type: 'gala' }) });
                 var d = await r.json();
-                if (d.valid) { plexDiscount = Number(d.discount_value) || 0; plexDiscountType = d.discount_type; plexSeatPrice = Number(d.seat_price) || 0; if (m) { m.style.display = 'block'; m.style.color = '#6e5626'; m.textContent = d.discount_type === 'seat' ? (d.discount_value + ' Gala seat' + (Number(d.discount_value) > 1 ? 's' : '') + ' already paid by bank transfer \\u2014 applied') : ((d.discount_type === 'fixed' ? ('\\u20AC' + d.discount_value + ' off') : (d.discount_value + '% off')) + ' applied to the Gala'); } }
+                if (d.valid) { plexDiscount = d.discount_type === 'seat' ? (Number(d.seats_left) || 0) : (Number(d.discount_value) || 0); plexDiscountType = d.discount_type; plexSeatPrice = Number(d.seat_price) || 0; if (m) { m.style.display = 'block'; m.style.color = '#6e5626'; m.textContent = d.discount_type === 'seat' ? (d.seats_left + ' Gala seat' + (Number(d.seats_left) > 1 ? 's' : '') + ' already paid by bank transfer \\u2014 covers you' + (Number(d.seats_left) > 1 ? ' and up to ' + (Number(d.seats_left) - 1) + ' guest' + (Number(d.seats_left) > 2 ? 's' : '') : '')) : ((d.discount_type === 'fixed' ? ('\\u20AC' + d.discount_value + ' off') : (d.discount_value + '% off')) + ' applied to the Gala'); } }
                 else { plexDiscount = 0; plexDiscountType = ''; if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = d.error || 'Invalid or expired code'; } }
             } catch(e) { if (m) { m.style.display = 'block'; m.style.color = '#9b1b22'; m.textContent = 'Could not validate'; } }
             b.disabled = false; b.textContent = 'Apply';
@@ -6049,6 +6049,8 @@ function lookupPromo(eventType, code, ctx) {
     if (!promo) return null;
     if (promo.valid_until && new Date(promo.valid_until) < new Date()) return null;
     if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) return null;
+    // 'seat' codes are a POOL: discount_value = seats paid for, used_count = seats already taken.
+    if (promo.discount_type === 'seat' && seatPoolLeft(promo) <= 0) return null;
     // Rewards redemption coupons are member-bound and basket-gated. bound_user_id / min_purchase are
     // NULL on ordinary admin coupons, which therefore skip both checks unchanged. A bound coupon only
     // resolves for its owner (matched by the checkout user id, else the checkout email) and only once
@@ -6067,14 +6069,19 @@ function lookupPromo(eventType, code, ctx) {
 }
 
 // Discount (in currency units) a promo yields against a base price, clamped to [0, price].
-function promoDiscount(promo, price, seatPrice) {
+// Seats a 'seat' code can still cover (discount_value = seats paid for outside Stripe, used_count = taken).
+function seatPoolLeft(promo) { return Math.max(0, (Number(promo.discount_value) || 0) - (Number(promo.used_count) || 0)); }
+// Seats of THIS registration a 'seat' code covers: the party (registrant + Gala guests) up to what is left
+// in the pool — so four paid seats can be four singles, two couples or one party of four.
+function seatPoolCovered(promo, seats) { return Math.min(Math.max(1, Number(seats) || 1), seatPoolLeft(promo)); }
+function promoDiscount(promo, price, seatPrice, seats) {
     if (!promo) return 0;
-    // 'seat' = N Gala seats already settled outside Stripe (bank transfer), priced at whatever the
-    // Gala costs on the day of registration — so the code stays exact when the early-bird ends.
+    // 'seat' = Gala seats already settled outside Stripe (bank transfer), priced at whatever the Gala
+    // costs on the day of registration — so the code stays exact when the early-bird ends.
     const d = promo.discount_type === 'fixed'
         ? (Number(promo.discount_value) || 0)
         : promo.discount_type === 'seat'
-            ? (Number(seatPrice) || 0) * (Number(promo.discount_value) || 0)
+            ? (Number(seatPrice) || 0) * seatPoolCovered(promo, seats)
             : Math.round(price * (Number(promo.discount_value) || 0) / 100 * 100) / 100;
     return Math.max(0, Math.min(price, d));
 }
@@ -21295,7 +21302,8 @@ By applying to this program, I provide the following consents:
                     // Burn the coupon use now that payment succeeded (deferred from checkout so
                     // abandoned carts don't consume a use). Guarded so a duplicate webhook can't double-count.
                     if (metadata.promo_id && !alreadyPaid) {
-                        try { db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)', [metadata.promo_id]); } catch(e) {}
+                        const burn = Math.max(1, parseInt(metadata.promo_seats, 10) || 1);   // 'seat' pools burn the seats covered
+                        try { db.run('UPDATE promo_codes SET used_count = used_count + ? WHERE id = ? AND (max_uses IS NULL OR max_uses = 0 OR used_count < max_uses)', [burn, metadata.promo_id]); } catch(e) {}
                     }
                     // Loyalty points: award for this now-paid registration (and pick up any check-in
                     // already recorded). Server-authoritative + idempotent per registration id, so a
@@ -28696,7 +28704,7 @@ By applying to this program, I provide the following consents:
             const promo = lookupPromo(event_type, code, { email: req.body.email, price: Number.isFinite(ctxPrice) ? ctxPrice : undefined });
             if (!promo) return res.json({ valid: false, error: 'Invalid or expired code' });
             const out = { valid: true, discount_type: promo.discount_type, discount_value: promo.discount_value };
-            if (promo.discount_type === 'seat') out.seat_price = effectiveGalaPrice();
+            if (promo.discount_type === 'seat') { out.seat_price = effectiveGalaPrice(); out.seats_left = seatPoolLeft(promo); }
             res.json(out);
         } catch(e) { res.json({ valid: false, error: 'Validation error' }); }
     });
@@ -29343,7 +29351,8 @@ By applying to this program, I provide the following consents:
             const guests = galaGuestCount;                                           // +guests, max 2 (hoisted above)
             const subtotal = Math.round(galaBase * (1 + guests) * 100) / 100;
             const galaPromo = lookupPromo('gala', req.body.coupon || req.body.coupon_code || '', { email, price: subtotal });
-            const galaDiscount = galaPromo ? promoDiscount(galaPromo, subtotal, galaBase) : 0;
+            const galaDiscount = galaPromo ? promoDiscount(galaPromo, subtotal, galaBase, 1 + guests) : 0;
+            const promoSeats = (galaPromo && galaPromo.discount_type === 'seat') ? seatPoolCovered(galaPromo, 1 + guests) : 1;   // burned on settlement
             const galaPrice = Math.max(0, Math.round((subtotal - galaDiscount) * 100) / 100);
             // Persist guests + allergies on the gala row (allergies folded into requests) + CA row.
             persistGalaExtras();
@@ -29357,7 +29366,7 @@ By applying to this program, I provide the following consents:
                         requests = TRIM(COALESCE(requests,'') || ' | ' || ?, ' |') WHERE id = ?`, [galaDiscount, paidNote, galaRegistrationId]);
                 db.run(`UPDATE croatians_abroad_registrations SET gala_status = 'confirmed', gala_payment_status = 'paid', amount_paid = ?,
                         notes = TRIM(COALESCE(notes,'') || ' | ' || ?, ' |') WHERE id = ?`, [galaDiscount, paidNote, regId]);
-                db.run('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR max_uses = 0 OR used_count < max_uses)', [galaPromo.id]);
+                db.run('UPDATE promo_codes SET used_count = used_count + ? WHERE id = ? AND (max_uses IS NULL OR max_uses = 0 OR used_count < max_uses)', [promoSeats, galaPromo.id]);
                 saveDb(); flushDb();
                 const fullName0 = `${first_name} ${last_name || ''}`.trim();
                 const seats0 = 1 + guests;
@@ -29432,6 +29441,8 @@ By applying to this program, I provide the following consents:
                     guest_count: String(guests),
                     needs_invoice: needsInvoice ? '1' : '0',
                     coupon_code: galaPromo ? (req.body.coupon || req.body.coupon_code || '') : '',
+                    promo_id: galaPromo ? galaPromo.id : '',
+                    promo_seats: String(promoSeats),
                     discount_amount: String(galaDiscount),
                     notes: (notes || '').substring(0, 200),
                     bundle_conference: finalConf ? '1' : '0',
