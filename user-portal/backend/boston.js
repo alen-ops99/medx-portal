@@ -3154,8 +3154,12 @@ module.exports = function mountBoston(app, deps) {
             const targets = to === 'all' ? everyone.filter(r => !wasReminded(r)) : everyone.filter(r => String(r.id) === to);
             const today = new Date().toISOString().slice(0, 10);
             const sent = [];
+            // body.reminder (Alen, Sun 20 Sept): the SAME email again, only the subject says "Reminder:" —
+            // and only for people who already had it; a first-time recipient gets the plain subject.
+            const reminderMode = body.reminder === true || body.reminder === 'true';
             for (const r of targets) {
-                const out = await sendEmail(r.email, ACTION_SUBJECT(r),
+                const subject = (reminderMode && wasReminded(r) ? 'Reminder: ' : '') + ACTION_SUBJECT(r);
+                const out = await sendEmail(r.email, subject,
                     reminderEmailHtml(r, perRegistrantOpts(r, false)), [program]);
                 if (out && out.success !== false) {
                     const notes = String(r.notes || '');
