@@ -313,10 +313,11 @@ Steps to add/replace a destination:
 | `/projects/accelerator/:tab?` | accelerator (stub) | Projects | `accelerator` | |
 | `/projects/forum/:tab?` | forum (stub) | Projects | `forum` | |
 | `/projects/bridges/:tab?` | bridges (stub) | Projects | `bridges` | |
+| `/tasks/:id?` | tasks | Tasks | — (unmapped on the server) | the shared board (2026-09-20): TO DO · IN PROGRESS · DONE — FOR <who asked> · SEEN; `/tasks/<id>` opens the drawer; `?new=1` focuses quick-add |
 | `/inbox/:tab?` | inbox (stub) | Inbox | `member-ops`, `pr-media` | `outbox·email·messages·announcements·newsletter·chat` |
 | `/people/:tab?` | people (stub) | People | `member-ops`, `guest-passes`, `team`, `contacts` | |
 | `/money/:tab?` | money (stub) | Money | `finances` | |
-| `/calendar/:tab?` | calendar (stub) | Calendar | — | `tasks`; tasks are unmapped → every signed-in admin |
+| `/calendar/:tab?` | calendar (stub) | Calendar | — | `tasks` scrolls to the TEAM TASKS card — a door to `/tasks` |
 | `/event-day` | eventday (stub) | Event Day | `gameday`, `plexus` | nav item auto-appears on event dates; always reachable |
 | `/settings/:tab?` | settings (**health built**) | Settings | — (blocks lock individually) | `health·team·audit·library·org` |
 | `/studio/:tab?` | studio (stub) | Studio | `pr-media`, `plexus`, `signup-forms` | |
@@ -389,7 +390,8 @@ node ../../scripts/design-diff.js design/handoff/admin-portal-2026-08-28 ~/Downl
 | Today | `GET /api/finance/dashboard` | collected-this-year cross-check (`totalIncome`, `byProject`) |
 | Today | `GET /api/admin/nag/items` | Action Center rows (kind, title, `action_payload`, status) |
 | Today | `POST /api/admin/nag/items/:id/act` | the one-click DO — stages an approval-gated reminder in the Outbox, never sends |
-| Today | `GET /api/admin/tasks` · `POST /api/admin/tasks` · `PUT /api/admin/tasks/:id {done}` | the shared team To Do list (`project_tasks` — the same rows Calendar shows, note 17) |
+| Today | `GET /api/v2/tasks` · `GET /api/v2/tasks/badge` | the board's compact read: done-unseen for me (red) + my open cards (`project_tasks` — the same rows the board and Calendar show) |
+| Tasks | `GET/POST /api/v2/tasks` · `GET/PUT /api/v2/tasks/:id` · `PUT /:id/result` · `POST /:id/seen` · `POST /:id/archive`·`/unarchive` · `GET/POST /:id/comments` · `GET/POST /:id/files` · `GET /api/v2/tasks/files/:fid` (signed) · `DELETE /api/v2/tasks/files/:fid` · `DELETE /api/admin/tasks/:id` | backend/v2/tasks.js — the shared board; legacy `/api/admin/tasks` lives there too |
 | Today | `GET /api/team` | task assignee dropdown (team_members) |
 | Today | `GET /api/admin/advisors/latest` | THE WEEKLY READ — real observations per seat (CMO/CFO/COO/CLO) + `week_key` + `is_mock` |
 | Today | `GET /api/dashboard-preferences/today-v2` · `PUT /api/dashboard-preferences/today-v2` | ✎ CUSTOMISE, per admin, server-side (note 16) |

@@ -66,10 +66,18 @@ body[data-layout="signin"] #chrome { display: none; }
      · gaps tighten (26→20 bar, 22→16 nav) once the desktop nav is showing — frees 90px
      · below 1190px the nav collapses behind MENU (the drawer that already existed at ≤760px)
    That leaves the search field ~90–135px of width to give back, and nothing overflows.
-   IF YOU ADD A NAV ITEM: re-measure. Each one costs ~73px and the budget is already spent. */
+   IF YOU ADD A NAV ITEM: re-measure. Each one costs ~73px and the budget is already spent.
+   2026-09-20 — TASKS (label + red/grey badges ≈ 88px) joined the row; measured at 1440px: nav 875
+   with EVENT DAY showing, bar content 1291 in a 1180 box. Rebalanced: bar gap 20→14, nav gap 16→12,
+   search floor 70→56, and on an EVENT DAY the TEAM CHAT pill drops its label (dot + badge stay,
+   title tells) — the same chat is one click away under INBOX. Measured after: fits with room on a
+   normal day, and on an event day. */
 @media (min-width: 1191px) {
-  .mx-topbar { gap: 20px !important; }
-  .mx-topbar .mx-nav { gap: 16px !important; }
+  .mx-topbar { gap: 14px !important; }
+  .mx-topbar .mx-nav { gap: 12px !important; }
+  .mx-search { min-width: 56px !important; }
+  .mx-topbar.event-day .mx-chat-label { display: none; }
+  .mx-topbar.event-day .mx-chat { padding: 7px 9px !important; }
 }
 
 /* ---- collapsed nav (≤1190px: the nav row collapses behind MENU — note 0a) ----

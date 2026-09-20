@@ -36,7 +36,8 @@ export function chatUnreadOf(overview) {
 
 export const COPY = {
   admin: 'ADMIN',
-  nav: { today: 'TODAY', projects: 'PROJECTS', bigIdeas: 'BIG IDEAS', inbox: 'INBOX', people: 'PEOPLE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', menu: 'MENU' },
+  nav: { today: 'TODAY', projects: 'PROJECTS', bigIdeas: 'BIG IDEAS', inbox: 'INBOX', tasks: 'TASKS', people: 'PEOPLE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', menu: 'MENU' },
+  tasksBadge: { red: 'Finished tasks waiting for you to see', grey: 'Your open tasks' },
   chat: { label: 'TEAM CHAT', title: 'Team chat — straight to the chat tab' },
   search: { placeholder: 'Search or type a task…', none: 'No matches — try a screen, a person, or a project.', hint: 'Type a name, a screen, or an instruction — Enter asks the assistant.', asking: 'Asking the assistant…', ask: 'ASK', confirm: 'CONFIRM', done: 'Done.', gated: 'The do-it-for-me assistant needs ANTHROPIC_API_KEY on the admin service — search and live numbers still work.' },
   menu: { displayName: 'DISPLAY NAME', save: 'SAVE', saved: '✓ SAVED', team: 'TEAM ACCESS →', signOut: 'SIGN OUT', profileTitle: 'Your profile', locked: 'Locked — ask Alen, he grants access per section' },
@@ -54,6 +55,9 @@ const NAV = [
   // ≤760px MENU drawer (both render this NAV array).
   { key: 'Big Ideas', label: COPY.nav.bigIdeas, to: '/big-ideas', sections: ['big-ideas'] },
   { key: 'Inbox', label: COPY.nav.inbox, to: '/inbox', badge: 'inbox', sections: ['member-ops', 'pr-media'] },
+  // TASKS — the shared board (2026-09-20), between INBOX and PEOPLE for everyone (unmapped on the
+  // server). Red badge = tasks I gave that are done and waiting for me to see; grey = my open tasks.
+  { key: 'Tasks', label: COPY.nav.tasks, to: '/tasks', badge: 'tasks', badge2: 'tasksOpen' },
   { key: 'People', label: COPY.nav.people, to: '/people', sections: ['member-ops', 'guest-passes', 'team', 'contacts'] },
   { key: 'Money', label: COPY.nav.money, to: '/money', sections: ['finances'] },
   { key: 'Calendar', label: COPY.nav.calendar, to: '/calendar' },
@@ -95,14 +99,15 @@ const PALETTE = [
   { kind: 'SCREEN', label: 'People', syn: 'ljudi članovi members kontakti directory imenik', href: '/people' },
   { kind: 'SCREEN', label: 'Registrations — all events', syn: 'prijave registracije sign-ups sudionici attendees', href: '/registrations' },
   { kind: 'SCREEN', label: 'Money', syn: 'novac finance financije knjige računi bookkeeping', href: '/money' },
-  { kind: 'SCREEN', label: 'Calendar & tasks', syn: 'kalendar zadaci rokovi deadlines', href: '/calendar' },
+  { kind: 'SCREEN', label: 'Tasks — the shared board', syn: 'task tasks zadatak zadaci board ploča laura result rezultat todo done seen', href: '/tasks' },
+  { kind: 'SCREEN', label: 'Calendar & key dates', syn: 'kalendar rokovi deadlines', href: '/calendar' },
   { kind: 'SCREEN', label: 'Studio', href: '/studio' },
   { kind: 'SCREEN', label: 'Settings', syn: 'postavke team tim pristup access', href: '/settings' },
   { kind: 'SCREEN', label: 'System health', syn: 'env keys zdravlje provjere checks', href: '/settings/health' },
   { kind: 'SCREEN', label: 'Event Day room', syn: 'door vrata check-in kontrola live', href: '/event-day' },
   { kind: 'SCREEN', label: 'What members see', syn: 'member pages publish objavi', href: '/member-pages' },
   { kind: 'SCREEN', label: 'Invitation links', syn: 'qr link poveznica invite pozivnica registration', href: '/links' },
-  { kind: 'ACTION', label: 'New task', syn: 'zadatak todo', href: '/calendar/tasks' },
+  { kind: 'ACTION', label: 'New task — on the board', syn: 'zadatak todo add dodaj new novi task laura', href: '/tasks?new=1' },
   { kind: 'ACTION', label: 'Open the check-in scanner', syn: 'scan qr skener skeniraj check in door vrata ulaz', href: '/event-day' },
   { kind: 'ACTION', label: 'Email registrants', syn: 'send mail pošalji poruka bulk', href: '/inbox/email' },
   { kind: 'ACTION', label: 'Post news to members', syn: 'announcement obavijest novosti', href: '/inbox/announcements' },
@@ -149,7 +154,8 @@ function navItem(n) {
   const on = s.active === n.key;
   const locked = n.sections && !perms.canAny(n.sections);
   const badge = n.badge ? (s.badges[n.badge] || 0) : 0;
-  const inner = `${n.label}${n.badge ? `<span data-role="badge-${n.badge}" style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:${badge > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center;box-sizing:border-box">${badge}</span>` : ''}${n.dropdown ? `<span style="font-size:8px;margin-left:5px;opacity:.7">▾</span>` : ''}`;
+  const badge2 = n.badge2 ? (s.badges[n.badge2] || 0) : 0;   // the grey twin (TASKS: my open count)
+  const inner = `${n.label}${n.badge ? `<span data-role="badge-${n.badge}" title="${n.badge === 'tasks' ? esc(COPY.tasksBadge.red) : ''}" style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:${badge > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center;box-sizing:border-box">${badge}</span>` : ''}${n.badge2 ? `<span data-role="badge-${n.badge2}" title="${esc(COPY.tasksBadge.grey)}" style="min-width:15px;height:16px;padding:0 3px;margin-left:-2px;background:#e6e0d4;color:#4a4239;font:600 10px Inter,sans-serif;display:${badge2 > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center;box-sizing:border-box">${badge2}</span>` : ''}${n.dropdown ? `<span style="font-size:8px;margin-left:5px;opacity:.7">▾</span>` : ''}`;
   const style = (on ? NAV_ON : NAV_OFF) + (n.badge ? ';gap:6px' : '');
   const title = locked ? ` title="${esc(COPY.menu.locked)}"` : (n.eventDayOnly ? ' title="Event Day — the control room is live today"' : '');
   if (n.dropdown) return `<span class="mx-nav-item${locked ? ' locked' : ''}${on ? ' active' : ''}" style="height:100%;display:flex;align-items:stretch"><a href="${n.to}" data-act="projects" data-nav-key="${esc(n.key)}" aria-haspopup="true" aria-expanded="${popover === 'projects'}" style="${style}"${title} data-hover="color:#201b16">${inner}</a><div data-role="projects-pop"></div></span>`;
@@ -204,14 +210,14 @@ function header() {
   return `
   <!-- dc: Admin Home.dc.html › "Header" -->
   <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14);position:relative;z-index:50">
-    <div class="mx-topbar mx-gutter" style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px;position:relative">
+    <div class="mx-topbar mx-gutter${s.eventDay ? ' event-day' : ''}" style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px;position:relative">
       <a href="/today" class="mx-brand" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:18px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">${COPY.admin}</span></a>
       <span id="mx-menu-btn" data-act="menu" aria-label="Menu" style="align-items:center;gap:8px;font:600 10.5px Inter,sans-serif;letter-spacing:.18em;cursor:pointer"><span style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#201b16"></span><span style="width:18px;height:2px;background:#201b16"></span><span style="width:12px;height:2px;background:#201b16"></span></span>${COPY.nav.menu}</span>
       <div class="mx-nav" style="display:flex;gap:22px;align-items:center;height:100%">
         ${NAV.map(navItem).join('\n        ')}
       </div>
       <div style="flex:1"></div>
-      <a href="/inbox/chat" title="${esc(COPY.chat.title)}" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" data-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span>${COPY.chat.label}<span data-role="badge-chat" style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:${s.badges.chat > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center">${s.badges.chat || 0}</span></a>
+      <a href="/inbox/chat" class="mx-chat" title="${esc(COPY.chat.title)}" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" data-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span><span class="mx-chat-label">${COPY.chat.label}</span><span data-role="badge-chat" style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:${s.badges.chat > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center">${s.badges.chat || 0}</span></a>
       <span class="mx-search" style="position:relative;flex:0 1 200px;min-width:70px">
         <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;box-sizing:border-box"><span style="color:#6d6459">⌕</span><input data-role="q" value="${esc(searchState.q)}" placeholder="${esc(COPY.search.placeholder)}" aria-label="Search or type a task" autocomplete="off" style="border:none;background:transparent;font-size:12px;color:#201b16;width:100%;padding:0"></span>
         <div data-role="search-pop">${popover === 'search' ? searchResults() : ''}</div>
@@ -350,12 +356,15 @@ export const chrome = {
       pstats: api.get('/api/dashboard/portal-stats'),
       chat: api.get('/api/teamchat/overview'),
       conf: api.get('/api/conferences/active', { noAuth: true }),
-      bridges: api.get('/api/bridges/events')
+      bridges: api.get('/api/bridges/events'),
+      tasks: api.get('/api/v2/tasks/badge')   // TASKS: done-unseen (red) · my open (grey)
     });
     const batches = r.outbox && Array.isArray(r.outbox.batches) ? r.outbox.batches.length : 0;
     const unread = r.pstats && r.pstats.pending ? Number(r.pstats.pending.unreadMessages || 0) : 0;
     const chatUnread = chatUnreadOf(r.chat);   // filtered channels + my dms — the same list the Inbox chat tab shows
-    state.set({ badges: { inbox: batches + unread, chat: chatUnread, outboxBatches: batches, unreadMessages: unread }, eventDay: isEventDay(r.conf, r.bridges) });
+    const tasksDone = r.tasks ? Number(r.tasks.done_unseen || 0) : 0;
+    const tasksOpen = r.tasks ? Number(r.tasks.assigned_open || 0) : 0;
+    state.set({ badges: { inbox: batches + unread, chat: chatUnread, outboxBatches: batches, unreadMessages: unread, tasks: tasksDone, tasksOpen }, eventDay: isEventDay(r.conf, r.bridges) });
     return r;
   }
 };

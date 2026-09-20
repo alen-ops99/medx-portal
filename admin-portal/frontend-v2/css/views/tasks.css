@@ -1,0 +1,59 @@
+/* css/views/tasks.css — the shared TASK BOARD (js/views/tasks.js). No artboard: the look stays
+   inline in the view (the admin workspace vocabulary); this file carries what inline styles cannot —
+   the board's column behaviour, drag-and-drop states, the right-side drawer, and the phone layout
+   (columns stack, the drawer goes full-screen — Laura works from her phone). */
+
+/* ---- board ---- */
+.mx-board { min-width: 0; }
+.mx-col { min-width: 0; }
+.mx-col-body { transition: background .15s ease; padding: 2px; margin: -2px; }
+.mx-col.over .mx-col-body { background: rgba(201,169,98,.14); outline: 1px dashed #c9a962; outline-offset: 2px; }
+.mx-task { transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease; user-select: none; -webkit-user-select: none; }
+.mx-task:hover { border-color: #201b16 !important; }
+.mx-task.open { border-color: #9b1b22 !important; box-shadow: inset 3px 0 0 #9b1b22; }
+.mx-task.dragging { opacity: .45; transform: rotate(-1deg); }
+.mx-task.mine { box-shadow: inset 0 0 0 0 transparent; }
+[data-col="done"] .mx-task { border-left: 3px solid #9b1b22 !important; }
+[data-col="seen"] .mx-task { opacity: .82; }
+[data-col="seen"] .mx-task:hover { opacity: 1; }
+
+/* ---- drawer (right side on desktop; no scrim — the board stays live, a click on another card
+   switches the drawer, × or Escape closes it) ---- */
+.mx-drawer { position: fixed; inset: 0; z-index: 55; display: flex; justify-content: flex-end; pointer-events: none; }
+.mx-drawer-sheet { position: relative; width: 520px; max-width: 100%; height: 100%; background: #fff; border-left: 1px solid rgba(32,27,22,.18); box-shadow: -12px 0 30px rgba(32,27,22,.16); overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; animation: mx-drawer-in .18s ease-out; -webkit-overflow-scrolling: touch; }
+@keyframes mx-drawer-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.mx-drawer textarea[data-role="title"]:focus { outline: none; border-bottom-color: #9b1b22 !important; }
+.mx-drawer select, .mx-drawer input, .mx-drawer textarea { max-width: 100%; }
+.mx-drawer a { overflow-wrap: anywhere; }
+.mx-drop.over .mx-drop-zone { border-color: #9b1b22 !important; background: #f8f1e2 !important; }
+.mx-drop-zone { position: relative; }
+
+/* ---- responsive ---- */
+@media (max-width: 1100px) {
+  .mx-board { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 760px) {
+  .mx-board { grid-template-columns: minmax(0, 1fr) !important; gap: 20px !important; }
+  .mx-col-body { min-height: 0 !important; }
+  .mx-tasks-add { padding: 10px 12px !important; }
+  .mx-tasks-add input[data-role="addTitle"] { flex-basis: 100% !important; }
+  /* second line: WHO · date · ADD on one row */
+  .mx-tasks-add select[data-role="addWho"] { flex: 1 1 80px !important; min-width: 0; }
+  .mx-tasks-add label { flex: 1 1 120px !important; min-width: 0; }
+  .mx-tasks-add label > span { display: none; }
+  .mx-tasks-add label > input { width: 100%; box-sizing: border-box; }
+  .mx-tasks-filters { gap: 6px !important; }
+  .mx-tasks-search { flex: 1 1 100% !important; min-width: 0 !important; }
+  /* the drawer becomes the whole screen; the page underneath stops scrolling */
+  .mx-drawer-sheet { width: 100%; border-left: 0; box-shadow: none; animation: mx-drawer-up .18s ease-out; }
+  @keyframes mx-drawer-up { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .mx-drawer-fields { grid-template-columns: 1fr 1fr !important; }
+  .mx-drawer-fields > div:first-child { grid-column: 1 / -1; }
+  body.mx-drawer-open { overflow: hidden; }
+  /* a card is a tap target on a phone — no drag affordance, comfortable padding */
+  .mx-task { padding: 13px 14px 12px !important; }
+}
+@media (max-width: 420px) {
+  .mx-drawer-status { gap: 6px !important; }
+  .mx-drawer-status > span:last-child { flex-basis: 100%; margin-left: 0 !important; }
+}

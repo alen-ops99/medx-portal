@@ -7,7 +7,7 @@ const KEYS = Object.freeze({ token: 'medx_token', user: 'medx_user', displayName
 const store = {
   token: null,
   user: null,            // { id, email, first_name, last_name, institution, is_admin, is_staff, is_founder, allowed_sections (array|null), must_change_password }
-  badges: { inbox: 0, chat: 0 },   // top-nav INBOX badge (outbox batches + unread member messages) · TEAM CHAT pill
+  badges: { inbox: 0, chat: 0, tasks: 0, tasksOpen: 0 },   // top-nav INBOX badge (outbox batches + unread member messages) · TEAM CHAT pill · TASKS (done-unseen red · my open grey)
   health: null,          // { state:'ok'|'warn'|'fail'|'unknown', ok, warn, fail, label, probes } — see js/health.js
   eventDay: false,       // true on an event date → EVENT DAY appears in the top nav
   active: 'Today',       // top-nav highlight key
@@ -52,7 +52,7 @@ export const session = {
     emit(['user']);
   },
   clear() {
-    store.token = null; store.user = null; store.badges = { inbox: 0, chat: 0 }; store.health = null;
+    store.token = null; store.user = null; store.badges = { inbox: 0, chat: 0, tasks: 0, tasksOpen: 0 }; store.health = null;
     try { localStorage.removeItem(KEYS.token); localStorage.removeItem(KEYS.user); } catch (e) {}
     emit(['token', 'user', 'badges', 'health']);
   },

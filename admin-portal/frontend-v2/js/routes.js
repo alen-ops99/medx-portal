@@ -22,6 +22,9 @@ export const ROUTES = [
   // BIG IDEAS — a primary destination of its own (never a tab inside PROJECTS): the long-term
   // projects book. '/big-ideas' is the list, '/big-ideas/<id>' the detail.
   { path: '/big-ideas/:id?',   view: () => import('./views/big-ideas.js'),   active: 'Big Ideas', title: 'Big Ideas',    sections: S.bigideas },
+  // TASKS — the shared board (2026-09-20): '/tasks' is the board, '/tasks/<id>' opens that card's
+  // drawer. Unmapped on the server (tasks are for the whole team) → no `sections`.
+  { path: '/tasks/:id?',       view: () => import('./views/tasks.js'),       active: 'Tasks',     title: 'Tasks' },
   { path: '/inbox/:tab?',      view: () => import('./views/inbox.js'),       active: 'Inbox',     title: 'Inbox',        sections: S.inbox },      // outbox|email|messages|announcements|newsletter|chat
   { path: '/people/:tab?',     view: () => import('./views/people.js'),      active: 'People',    title: 'People',       sections: S.people },
   { path: '/money/:tab?',      view: () => import('./views/money.js'),       active: 'Money',     title: 'Money',        sections: S.money },

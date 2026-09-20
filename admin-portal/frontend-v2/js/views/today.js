@@ -1,7 +1,7 @@
 // Source: Admin Home.dc.html (Today)
 // Blocks (artboard order): "Greeting row" (greeting · todayLabel · ✎ CUSTOMISE · status pill) ›
 // "Customise panel" › "Hero numbers" (open stat row + "REGISTRATIONS — LAST 30 DAYS" sparkline) ›
-// "YOUR PROJECTS" › "NEEDS YOUR ATTENTION" + "DO IT NOW" › "COMING UP" + "TEAM TASKS" ›
+// "YOUR PROJECTS" › "NEEDS YOUR ATTENTION" + "DO IT NOW" › "COMING UP" + "TASKS" (the board's compact read, 2026-09-20) ›
 // "THE WEEKLY READ" › "ADMIN:" footer row. The header is NOT in this file — js/chrome.js.
 // Data: every number/label is a live read (see load()); FACTS only fills gaps and wording.
 import cfg from '../config.js';
@@ -86,11 +86,11 @@ export const COPY = {
     // UXFIX-A1 #5 (2026-09-02): the six "IN OUTBOX →" echo rows collapse into this ONE row
     drafts: { title: n => `${n} draft${n === 1 ? '' : 's'} waiting in the Outbox`, sub: 'Reminders and digests you already actioned — approve or discard them there, nothing sends without you', cta: 'REVIEW →' },
     plan: 'PLAN THE MONTH WITH AI →',   // UXFIX-A1 #5: the AI-planner promo, demoted to the quiet footer
-    tasks: { title: n => `${n} overdue task${n === 1 ? '' : 's'}`, sub: d => `Oldest is ${d} day${d === 1 ? '' : 's'} — one shared list with Calendar`, cta: 'OPEN TASKS' },
+    tasks: { title: n => `${n} overdue task${n === 1 ? '' : 's'}`, sub: d => `Oldest is ${d} day${d === 1 ? '' : 's'} — on the board`, cta: 'OPEN THE BOARD' },
     nag: {
       galaSub: (date, days) => `Reserved ${date} · ${days} day${days === 1 ? '' : 's'} waiting · reminder queues to the Outbox for your OK`,
       // (the per-row "IN OUTBOX →" echo state is gone — actioned nags collapse into the drafts row, UXFIX-A1 #5)
-      subs: { monthly_digest: 'Review the digest, then approve it in the Outbox', forum_consideration: who => `${who} asked to be considered — review in the Forum hub`, forum_candidate_escalated: who => `${who} needs a decision — Forum hub`, task_overdue: 'One shared list with Calendar', task_due_soon: 'Due soon — one shared list with Calendar' },
+      subs: { monthly_digest: 'Review the digest, then approve it in the Outbox', forum_consideration: who => `${who} asked to be considered — review in the Forum hub`, forum_candidate_escalated: who => `${who} needs a decision — Forum hub`, task_overdue: 'On the board', task_due_soon: 'Due soon — on the board' },
       ctas: { payment_reminder: 'CHASE PAYMENT', dietary_reminder: 'SEND REMINDER', nudge_assignee: 'NUDGE', digest_review: 'REVIEW DIGEST', open_link: 'OPEN', default: 'OPEN' },
       queued: 'REMINDER QUEUED — APPROVE IT IN THE OUTBOX', nudged: 'NUDGE QUEUED'
     }
@@ -110,7 +110,9 @@ export const COPY = {
     sFind: { label: 'FIND A PERSON', href: '/people', pick: 'Find a person' }
   },
   comingUp: { title: 'COMING UP', full: 'FULL CALENDAR →', empty: 'Nothing on the year board yet — add dates in Calendar.', earlyBird: (price, days) => `Gala early-bird ends — price moves to ${price} · ${days} day${days === 1 ? '' : 's'} away` },
-  tasks: { title: 'TEAM TASKS', add: '+ ADD TASK', placeholder: 'What needs doing?', addBtn: 'ADD', empty: 'All clear — nothing open.', all: 'ALL TASKS →', tickTitle: 'Tick = done for the whole team — undo appears for a few seconds', done: 'DONE — REMOVED FOR THE WHOLE TEAM', added: 'TASK ADDED — VISIBLE TO THE WHOLE TEAM', typeFirst: 'TYPE THE TASK FIRST', team: 'TEAM', overdue: d => `${d}D OVERDUE`, today: 'DUE TODAY', due: d => `DUE ${d}` },
+  // TASKS (2026-09-20): the tick-list became the shared board (/tasks). This card is the compact
+  // read — what is waiting for ME to see (done, unseen — red) and my own open tasks, each a door.
+  tasks: { title: 'TASKS', waiting: n => `${n} waiting for you to see`, waitingWhy: 'finished — the result is on the card', mine: 'YOURS', empty: 'Nothing on your plate.', emptyWhy: 'Add the next thing on the board — the person you pick gets one short email.', all: 'OPEN THE BOARD →', more: n => `+ ${n} more`, overdue: d => `${d}D OVERDUE`, today: 'DUE TODAY', due: d => `DUE ${d}`, doing: 'IN PROGRESS' },
   weekly: {
     title: 'THE WEEKLY READ', read: 'READ THIS WEEK →', hide: 'HIDE', open: 'OPEN →', all: n => `ALL ${n} LINES →`, fewer: 'TOP LINE PER ADVISOR',
     seats: { CMO: { tag: 'GROW', color: '#9b1b22' }, CFO: { tag: 'MONEY', color: '#b7791f' }, COO: { tag: 'OPS', color: '#2f7d4f' }, CLO: { tag: 'LEGAL', color: '#6d6459' } },
@@ -153,7 +155,8 @@ async function load(days) {
     galaOps: api.get('/api/v2/gala-ops/summary'),   // UXFIX closing: ONE truth for the gala tallies (seats incl. plus-ones)
     finance: api.get('/api/finance/dashboard'),
     nag: api.get('/api/admin/nag/items'),
-    tasks: api.get('/api/admin/tasks'),
+    tasks: api.get('/api/v2/tasks'),                  // the board: every live card + who I am on it
+    tasksBadge: api.get('/api/v2/tasks/badge'),      // done-unseen for me · my open count
     outbox: api.get('/api/admin/outbox?status=pending_approval'),
     threads: api.get('/api/v2/inbox/threads'),   // UXFIX-A1 #4: member threads needing a reply
     advisors: api.get('/api/admin/advisors/latest'),
@@ -163,7 +166,6 @@ async function load(days) {
     bridges: api.get('/api/bridges/events'),
     forumCand: api.get('/api/admin/forum/candidates?status=all'),
     institutions: api.get('/api/accelerator/institutions', { noAuth: true }),
-    team: api.get('/api/team'),
     bigIdeas: api.get('/api/v2/big-ideas/due?days=14')   // Big Ideas — next steps due or overdue
   });
   if (r.me) session.update(r.me);
@@ -181,7 +183,12 @@ async function load(days) {
   const bridges = Array.isArray(r.bridges) ? r.bridges : [];
   const dated = bridges.filter(b => b.event_date && /^\d{4}-\d{2}-\d{2}/.test(b.event_date)).map(b => Object.assign({}, b, { d: String(b.event_date).slice(0, 10) }));
   const nextBridges = dated.filter(b => b.d >= today).sort((a, b) => a.d.localeCompare(b.d))[0] || null;
-  const tasks = (Array.isArray(r.tasks) ? r.tasks : []).filter(t => t.status !== 'done');
+  // the board's cards: open = todo/doing (the overdue attention row counts everyone's); mine = assigned to me
+  const boardRows = r.tasks && Array.isArray(r.tasks.tasks) ? r.tasks.tasks : [];
+  const myMember = r.tasks && r.tasks.me ? r.tasks.me.member_id : null;
+  const tasks = boardRows.filter(t => t.status === 'todo' || t.status === 'doing');
+  const myTasks = myMember ? tasks.filter(t => t.assigned_to === myMember) : [];
+  const tasksBadge = { done_unseen: r.tasksBadge ? Number(r.tasksBadge.done_unseen || 0) : 0, assigned_open: r.tasksBadge ? Number(r.tasksBadge.assigned_open || 0) : myTasks.length };
   // Canonical gala numbers (audit #1): /api/v2/gala-ops/summary counts SEATS (1 + guest_count,
   // plus-ones included) over non-cancelled rows — the same block the Gala and Money screens read.
   // The local row walk below survives only as the degraded path for an older backend.
@@ -190,7 +197,7 @@ async function load(days) {
     errors: r.$errors, me: session.user || r.me || {}, conf, summary: r.summary, trends: r.trends, pstats: r.pstats, finance: r.finance, galaSettings: gs,
     gala: { rows: galaRows, paid, toChase, price, ebDeadline, ebDays: fmt.daysUntil(ebDeadline), collected: paid.reduce((n, g) => n + (Number(g.amount_paid) || 0), 0), owed: toChase.length * price, ops },
     nag: (r.nag && Array.isArray(r.nag.items)) ? r.nag.items : [],
-    tasks, team: Array.isArray(r.team) ? r.team : [],
+    tasks, myTasks, tasksBadge,
     outbox: (r.outbox && Array.isArray(r.outbox.batches)) ? r.outbox.batches : [],
     // UXFIX-A1 #4: threads needing a reply — the Inbox tab's exact rule; null = endpoint unavailable (fall back to unread)
     msgNeedsReply: (r.threads && Array.isArray(r.threads.threads))
@@ -323,13 +330,13 @@ function attentionItems() {
     if (n.kind === 'gala_unpaid') { const g = D.gala.rows.find(x => x.id === (p.gala_id || n.subject_id)); const when = g ? fmt.longRange(g.created_at) : ''; const days = g ? Math.max(0, fmt.daysSince(g.created_at) || 0) : null; sub = g ? a.nag.galaSub(when, days) : 'Reserved · reminder queues to the Outbox for your OK'; }
     else { const s = a.nag.subs[n.kind]; sub = typeof s === 'function' ? s(who || 'A member') : (s || (who ? who + ' · ' : '') + String(n.kind || '').replace(/_/g, ' ')); }
     const act = ['payment_reminder', 'dietary_reminder', 'nudge_assignee'].includes(n.action_kind);
-    const href = n.action_kind === 'digest_review' ? routeForSection(p.open_section || 'newsletter', '/inbox/newsletter') : /^task_/.test(n.kind) ? '/calendar/tasks' : n.kind === 'gala_unpaid' ? '/gala' : routeForSection(p.open_section || n.kind, '/today');
+    const href = n.action_kind === 'digest_review' ? routeForSection(p.open_section || 'newsletter', '/inbox/newsletter') : /^task_/.test(n.kind) ? '/tasks' : n.kind === 'gala_unpaid' ? '/gala' : routeForSection(p.open_section || n.kind, '/today');
     items.push({ id: n.id, dot: NAG_DOT[n.kind] || '#c9a962', title: String(n.title || '').replace(/:\s+/, ' — '), sub,
       cta: a.nag.ctas[n.action_kind] || a.nag.ctas.default, href, act, nagId: n.id });
   });
   if (actionedCount) items.push({ id: 'nagOutbox', dot: '#c9a962', title: a.drafts.title(actionedCount), sub: a.drafts.sub, cta: a.drafts.cta, href: '/inbox/outbox' });
   const od = overdueTasks();
-  if (od.length) { const oldest = Math.max(...od.map(t => fmt.daysSince(t.due_date) || 0)); items.push({ id: 'tasks', dot: '#9b1b22', title: a.tasks.title(od.length), sub: a.tasks.sub(oldest), cta: a.tasks.cta, href: '/calendar/tasks' }); }
+  if (od.length) { const oldest = Math.max(...od.map(t => fmt.daysSince(t.due_date) || 0)); items.push({ id: 'tasks', dot: '#9b1b22', title: a.tasks.title(od.length), sub: a.tasks.sub(oldest), cta: a.tasks.cta, href: '/tasks' }); }
   const snoozed = readSnoozes();
   return items.filter(i => !snoozed[i.id]);
 }
@@ -340,13 +347,15 @@ function comingUp() {
   if (g.ebDays != null && g.ebDays >= 0 && !D.calendar.some(e => /early[- ]bird/i.test(e.title || '') && String(e.starts_on || '').slice(0, 10) === g.ebDeadline)) rows.push({ d: g.ebDeadline, label: fmt.dayLabel(g.ebDeadline), text: COPY.comingUp.earlyBird(fmt.eur(Number(D.galaSettings.price_gala_regular) || FACTS.gala.priceRegular), g.ebDays) });
   return rows.sort((a, b) => a.d.localeCompare(b.d)).slice(0, 3).map(r => Object.assign(r, { color: (fmt.daysUntil(r.d) || 0) <= 7 ? '#9b1b22' : '#6d6459' }));
 }
+// the card lists MY open tasks, so the meta is the state, not the name: IN PROGRESS · due/overdue
 function taskMeta(t) {
-  const who = t.assignee_name ? String(t.assignee_name).split(/\s+/)[0].toUpperCase() : COPY.tasks.team;
-  if (!t.due_date || !String(t.due_date).trim()) return { meta: who, dueColor: '#6d6459' };
+  const lead = t.status === 'doing' ? COPY.tasks.doing : '';
+  const join = due => [lead, due].filter(Boolean).join(' · ');
+  if (!t.due_date || !String(t.due_date).trim()) return { meta: lead, dueColor: '#6d6459' };
   const diff = fmt.daysUntil(t.due_date);
-  if (diff < 0) return { meta: who + ' · ' + COPY.tasks.overdue(Math.abs(diff)), dueColor: '#9b1b22' };
-  if (diff === 0) return { meta: who + ' · ' + COPY.tasks.today, dueColor: '#b7791f' };
-  return { meta: who + ' · ' + COPY.tasks.due(fmt.dayLabel(t.due_date)), dueColor: '#6d6459' };
+  if (diff < 0) return { meta: join(COPY.tasks.overdue(Math.abs(diff))), dueColor: '#9b1b22' };
+  if (diff === 0) return { meta: join(COPY.tasks.today), dueColor: '#b7791f' };
+  return { meta: join(COPY.tasks.due(fmt.dayLabel(t.due_date))), dueColor: '#6d6459' };
 }
 function weeklyRead() {
   const w = COPY.weekly; const adv = D.advisors; const seats = adv && adv.seats ? adv.seats : {};
@@ -552,26 +561,23 @@ function bigIdeasCard() {
         </div>`;
 }
 function tasksCard() {
-  const c = COPY.tasks; const open = D.tasks; const shown = open.slice(0, TOP_ROWS);
-  const who = D.team.length ? D.team : [];
+  const c = COPY.tasks; const b = D.tasksBadge || { done_unseen: 0 }; const mine = D.myTasks || []; const shown = mine.slice(0, 5);
   return `<div data-block="tasks" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
-        <div style="display:flex;align-items:center;gap:10px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span><span style="min-width:18px;height:18px;padding:0 5px;background:#201b16;color:#fff;font:600 11px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">${open.length}</span><div style="flex:1"></div><span data-act="addToggle" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer">${c.add}</span></div>
-        ${st.adding ? `
-        <div style="display:flex;gap:8px;align-items:center;padding:6px 0;flex-wrap:wrap">
-          <input data-role="taskDraft" value="${esc(st.taskDraft)}" placeholder="${esc(c.placeholder)}" aria-label="New task" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font-size:12.5px;color:#201b16;flex:1;min-width:140px">
-          <select data-role="taskWho" aria-label="Assignee" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px;font-size:12px;color:#201b16">
-            <option value="">${c.team}</option>${who.map(m => `<option value="${esc(m.id)}"${st.taskWho === m.id ? ' selected' : ''}>${esc(String(m.name || '').split(/\s+/)[0].toUpperCase())}</option>`).join('')}
-          </select>
-          <span data-act="addTask" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${c.addBtn}</span>
-        </div>` : ''}
+        <div style="display:flex;align-items:center;gap:10px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>${mine.length ? `<span style="min-width:18px;height:18px;padding:0 5px;background:#201b16;color:#fff;font:600 11px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center" title="${esc(c.mine)}">${mine.length}</span>` : ''}<div style="flex:1"></div><a href="/tasks" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22">${c.all}</a></div>
+        ${b.done_unseen > 0 ? `
+        <a href="/tasks" data-v2="done-unseen — the red line: what the other person finished, waiting for my eyes" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f7e3e4;border-left:3px solid #9b1b22;color:#201b16" data-hover="background:#f1d6d8">
+          <span style="min-width:18px;height:18px;padding:0 5px;background:#9b1b22;color:#fff;font:600 11px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">${b.done_unseen}</span>
+          <span style="font-size:12.5px;font-weight:600;flex:1;min-width:0">${esc(c.waiting(b.done_unseen))}</span>
+          <span style="font-size:11px;color:#7e151b;white-space:nowrap">${c.waitingWhy}</span>
+        </a>` : ''}
         ${shown.map(t => { const m = taskMeta(t); return `
-        <div data-task="${esc(t.id)}" style="display:flex;gap:11px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.08)">
-          <span data-act="taskDone" data-id="${esc(t.id)}" role="checkbox" aria-checked="false" aria-label="Done" title="${esc(c.tickTitle)}" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.35);flex:none;cursor:pointer" data-hover="border-color:#9b1b22"></span>
-          <span style="font-size:12.5px;flex:1;min-width:0">${esc(t.title)}</span>
+        <a href="/tasks/${encodeURIComponent(t.id)}" data-task="${esc(t.id)}" style="display:flex;gap:11px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16" data-hover="color:#9b1b22">
+          <span style="width:6px;height:6px;background:${t.status === 'doing' ? '#2c4a73' : (m.dueColor === '#9b1b22' ? '#9b1b22' : '#c9a962')};flex:none"></span>
+          <span style="font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:${m.dueColor};white-space:nowrap">${esc(m.meta)}</span>
-        </div>`; }).join('')}
-        ${!open.length ? `<div style="padding:8px 0;font-size:12.5px;color:#6d6459;font-style:italic">${c.empty}</div>` : ''}
-        <a href="/calendar/tasks" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${c.all}${open.length > TOP_ROWS ? ' · ' + open.length : ''}</a>
+        </a>`; }).join('')}
+        ${mine.length > shown.length ? `<a href="/tasks" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;padding-top:2px">${esc(c.more(mine.length - shown.length))}</a>` : ''}
+        ${!mine.length && !(b.done_unseen > 0) ? `<div style="padding:8px 0 2px"><div style="font-family:Fraunces,serif;font-style:italic;font-size:15px">${c.empty}</div><div style="font-size:11.5px;color:#6d6459;margin-top:3px">${c.emptyWhy}</div></div>` : ''}
       </div>`;
 }
 function blockComingTasks() {
@@ -650,12 +656,6 @@ async function savePrefs() {
   try { await api.put('/api/dashboard-preferences/' + PREFS_SECTION, { cards }); ui.toast(COPY.customise.saved); }
   catch (e) { ui.toast(COPY.customise.failed, { kind: 'error' }); }
 }
-async function reloadTasks() {
-  try { const rows = await api.get('/api/admin/tasks'); D.tasks = (Array.isArray(rows) ? rows : []).filter(t => t.status !== 'done'); } catch (e) {}
-  rerender('[data-block="tasks"]', tasksCard());
-  const attn = rootEl.querySelector('[data-block="attn"]'); if (attn) attn.outerHTML = attentionRows();
-}
-
 // Draw (or redraw) the chart into the block that is currently in the DOM, sized to the space it
 // actually has. Re-run after every re-render of the block and on any resize — that is what keeps
 // it from overflowing a phone and what keeps the tick labels unstretched.
@@ -759,30 +759,6 @@ const handlers = {
       chrome.refresh();
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
-  addToggle: () => { st.adding = !st.adding; rerender('[data-block="tasks"]', tasksCard()); if (st.adding) { const i = rootEl.querySelector('[data-role="taskDraft"]'); if (i) i.focus(); } },
-  addTask: async (el) => {
-    const input = rootEl.querySelector('[data-role="taskDraft"]'); const sel = rootEl.querySelector('[data-role="taskWho"]');
-    const title = input ? input.value.trim() : '';
-    if (!title) { ui.toast(COPY.tasks.typeFirst); return; }
-    st.taskWho = sel ? sel.value : '';
-    const d7 = new Date(); d7.setDate(d7.getDate() + 7);
-    el.setAttribute('aria-disabled', 'true');
-    try {
-      await api.post('/api/admin/tasks', { title, assigned_to: st.taskWho || null, due_date: fmt.ymd(d7), project: 'general' });
-      st.adding = false; st.taskDraft = '';
-      await reloadTasks(); ui.toast(COPY.tasks.added);
-    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
-  },
-  taskDone: async (el) => {
-    const id = el.dataset.id; const t = D.tasks.find(x => x.id === id); if (!t) return;
-    el.setAttribute('aria-disabled', 'true');
-    try {
-      await api.put('/api/admin/tasks/' + encodeURIComponent(id), { done: true });
-      D.tasks = D.tasks.filter(x => x.id !== id);
-      rerender('[data-block="tasks"]', tasksCard()); const attn = rootEl.querySelector('[data-block="attn"]'); if (attn) attn.outerHTML = attentionRows();
-      ui.toast(COPY.tasks.done, { undo: async () => { try { await api.put('/api/admin/tasks/' + encodeURIComponent(id), { done: false }); } catch (e) {} if (rootEl) reloadTasks(); } });
-    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
-  },
   wrToggle: () => { st.wrOpen = !st.wrOpen; rerender('[data-block="weekly"]', blockWeekly()); },
   wrAll: () => { st.wrAll = !st.wrAll; rerender('[data-block="weekly"]', blockWeekly()); }
 };
@@ -817,7 +793,7 @@ export default {
       const l = document.createElement('link'); l.id = 'mx-css-today'; l.rel = 'stylesheet'; l.href = '/css/views/today.css'; document.head.appendChild(l);
     }
     const tp = readTrendPrefs();
-    st = { custOpen: ctx.query.qa === 'customise', wrOpen: false, wrAll: false, showAll: false, adding: false, taskDraft: '', taskWho: '',
+    st = { custOpen: ctx.query.qa === 'customise', wrOpen: false, wrAll: false, showAll: false,
            trDays: tp.days, trMode: tp.mode, trHidden: tp.hidden };
     D = await load(st.trDays);
     if (rootEl !== root) return; // navigated away while loading

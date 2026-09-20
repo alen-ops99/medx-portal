@@ -12,7 +12,8 @@
 // exists where it earns its space — the printed A4 landscape board behind EXPORT PDF.
 // Data: entries ARE /api/admin/year-calendar (add = POST, ✕ = DELETE with UNDO re-create);
 // NEXT UP + KEY DATES compose the /api/v2/calendar/key-dates union (entries · conferences ·
-// bridges · live gala early-bird prices); TEAM TASKS is the SAME /api/admin/tasks list Today shows
+// bridges · live gala early-bird prices); TEAM TASKS is the board's open list (/api/v2/tasks — the
+// same cards /tasks shows; 2026-09-20: the tick-list moved to the board, this card is its door)
 // (note 17 — ticking here completes for everyone). Header comes from js/chrome.js.
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -39,11 +40,9 @@ export const COPY = {
     empty: 'Nothing dated yet — + ADD ENTRY puts the first thing on the calendar.'
   },
   tasks: {
-    title: 'TEAM TASKS', note: 'tick it and it disappears for everyone', ph: 'Add a task — e.g. “Book the Esplanade tasting menu call”',
-    add: 'ADD', team: 'TEAM', empty: 'All clear — nothing open.',
-    done: 'DONE — REMOVED FOR THE WHOLE TEAM', added: 'TASK ADDED — IT SHOWS ON TODAY TOO', typeFirst: 'TYPE THE TASK FIRST',
-    overdue: n => `Overdue — ${fmt.plural(n, 'day')}`, dueToday: 'Due today', due: d => `Due ${fmt.dayShort(d)}`,
-    tickTitle: 'Tick = done for the whole team — undo appears for a few seconds'
+    title: 'TEAM TASKS', note: 'open cards on the board — tap one to open it', team: 'TEAM', empty: 'All clear — nothing open.',
+    board: 'OPEN THE BOARD →', add: '+ NEW TASK', more: n => `+ ${n} more on the board`, doing: 'IN PROGRESS',
+    overdue: n => `Overdue — ${fmt.plural(n, 'day')}`, dueToday: 'Due today', due: d => `Due ${fmt.dayShort(d)}`
   },
   keyDates: {
     title: 'KEY DATES', thisYear: y => `THIS YEAR — ${y}`, nextYear: y => `NEXT YEAR — ${y}`,
@@ -77,15 +76,13 @@ async function load() {
   const r = await api.settle({
     cal: api.get('/api/admin/year-calendar'),
     kd: api.get('/api/v2/calendar/key-dates'),
-    tasks: api.get('/api/admin/tasks'),
-    team: api.get('/api/team')
+    tasks: api.get('/api/v2/tasks')
   });
   return {
     errors: r.$errors,
     cal: (Array.isArray(r.cal) ? r.cal : []).filter(e => /^\d{4}-\d{2}-\d{2}/.test(String(e.starts_on || ''))),
     kd: r.kd || { entries: [], conferences: [], bridges: [], gala: null },
-    tasks: (Array.isArray(r.tasks) ? r.tasks : []).filter(t => t.status !== 'done'),
-    team: Array.isArray(r.team) ? r.team : []
+    tasks: (r.tasks && Array.isArray(r.tasks.tasks) ? r.tasks.tasks : []).filter(t => t.status === 'todo' || t.status === 'doing')
   };
 }
 const entryColor = e => e.color || PROJ_COLOR[String(e.project || 'other').toLowerCase()] || '#201b16';
@@ -235,7 +232,7 @@ function blockAdd() {
 // and entry deletion moved to KEY DATES below, where the rows actually read.
 
 function taskMeta(t) {
-  const who = t.assignee_name ? String(t.assignee_name).split(/\s+/)[0].toUpperCase() : COPY.tasks.team;
+  const who = t.assignee_first ? String(t.assignee_first).toUpperCase() : (t.assignee_name ? String(t.assignee_name).split(/\s+/)[0].toUpperCase() : COPY.tasks.team);
   if (!t.due_date || !String(t.due_date).trim()) return { who, due: '', dueColor: '#6d6459' };
   const diff = fmt.daysUntil(t.due_date);
   if (diff < 0) return { who, due: COPY.tasks.overdue(Math.abs(diff)), dueColor: '#9b1b22' };
@@ -282,16 +279,18 @@ function blockTasksKeyDates() {
           <div style="flex:1"></div>
           <span style="font-size:11.5px;color:#6d6459">${c.note}</span>
         </div>
-        ${D.tasks.map(t => { const m = taskMeta(t); return `
-        <div data-task="${esc(t.id)}" class="mx-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
-          <span data-act="taskDone" data-id="${esc(t.id)}" role="checkbox" aria-checked="false" aria-label="Done" title="${esc(c.tickTitle)}" style="width:18px;height:18px;border:1.5px solid rgba(32,27,22,.35);cursor:pointer;flex:none" data-hover="border-color:#9b1b22"></span>
-          <span class="mx-row-text" style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">${esc(t.title)}</span>${m.due ? `<span style="display:block;font-size:11px;color:${m.dueColor};margin-top:1px">${esc(m.due)}</span>` : ''}</span>
+        ${D.tasks.slice(0, 8).map(t => { const m = taskMeta(t); return `
+        <a href="/tasks/${encodeURIComponent(t.id)}" data-task="${esc(t.id)}" class="mx-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07);color:#201b16" data-hover="background:#fdfbf6">
+          <span style="width:8px;height:8px;background:${t.status === 'doing' ? '#2c4a73' : (m.dueColor === '#9b1b22' ? '#9b1b22' : '#c9a962')};flex:none"></span>
+          <span class="mx-row-text" style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">${esc(t.title)}</span>${m.due || t.status === 'doing' ? `<span style="display:block;font-size:11px;color:${m.dueColor};margin-top:1px">${esc([t.status === 'doing' ? c.doing : '', m.due].filter(Boolean).join(' · '))}</span>` : ''}</span>
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;padding:3px 7px;background:#eee9df;color:#4a4239;white-space:nowrap">${esc(m.who)}</span>
-        </div>`; }).join('')}
+        </a>`; }).join('')}
         ${!D.tasks.length ? `<div style="padding:18px 20px;font-size:12.5px;color:#6d6459;font-style:italic">${c.empty}</div>` : ''}
-        <div style="display:flex;gap:10px;padding:14px 20px">
-          <input data-role="taskDraft" placeholder="${esc(c.ph)}" aria-label="New task" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16">
-          <span data-act="taskAdd" style="padding:9px 14px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;display:flex;align-items:center" data-hover="background:#000">${c.add}</span>
+        <div style="display:flex;gap:14px;align-items:center;padding:14px 20px;flex-wrap:wrap">
+          <a href="/tasks" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${c.board}</a>
+          ${D.tasks.length > 8 ? `<span style="font-size:11px;color:#6d6459">${esc(c.more(D.tasks.length - 8))}</span>` : ''}
+          <div style="flex:1"></div>
+          <a href="/tasks?new=1" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22">${c.add}</a>
         </div>
       </div>
     </div>
@@ -376,10 +375,6 @@ async function reloadCal() {
     if (r.kd) D.kd = r.kd; } catch (e) {}
   rerenderBoardBits();
 }
-async function reloadTasks() {
-  try { const rows = await api.get('/api/admin/tasks'); D.tasks = (Array.isArray(rows) ? rows : []).filter(t => t.status !== 'done'); } catch (e) {}
-  const wrap = rootEl.querySelector('#tasks'); if (wrap) wrap.outerHTML = blockTasksKeyDates();
-}
 const roleVal = r => { const el = rootEl.querySelector(`[data-role="${r}"]`); return el ? el.value.trim() : ''; };
 
 const handlers = {
@@ -457,24 +452,6 @@ const handlers = {
     const done = () => { document.body.classList.remove('mxc-printing'); window.removeEventListener('afterprint', done); };
     window.addEventListener('afterprint', done);
     setTimeout(() => { try { window.print(); } finally { setTimeout(done, 2000); } }, 150);
-  },
-  taskAdd: async el => {
-    const title = roleVal('taskDraft');
-    if (!title) { ui.toast(COPY.tasks.typeFirst); return; }
-    const d7 = new Date(); d7.setDate(d7.getDate() + 7);
-    el.setAttribute('aria-disabled', 'true');
-    try { await api.post('/api/admin/tasks', { title, due_date: fmt.ymd(d7), project: 'general' }); await reloadTasks(); ui.toast(COPY.tasks.added); }
-    catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
-  },
-  taskDone: async el => {
-    const id = el.dataset.id;
-    el.setAttribute('aria-disabled', 'true');
-    try {
-      await api.put('/api/admin/tasks/' + encodeURIComponent(id), { done: true });
-      D.tasks = D.tasks.filter(t => t.id !== id);
-      const wrap = rootEl.querySelector('#tasks'); if (wrap) wrap.outerHTML = blockTasksKeyDates();
-      ui.toast(COPY.tasks.done, { undo: async () => { try { await api.put('/api/admin/tasks/' + encodeURIComponent(id), { done: false }); } catch (e) {} if (rootEl) reloadTasks(); } });
-    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   }
 };
 
