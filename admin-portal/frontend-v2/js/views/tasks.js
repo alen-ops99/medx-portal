@@ -40,7 +40,7 @@ export const COPY = {
     missing: 'That task is not on the board any more.'
   },
   toast: {
-    moved: s => ({ todo: 'BACK TO TO DO', doing: 'STARTED', done: 'DONE — THE PERSON WHO ASKED HAS BEEN TOLD', seen: 'SEEN — FILED' }[s] || 'MOVED'),
+    moved: (s, own) => ({ todo: 'BACK TO TO DO', doing: 'STARTED', done: own ? 'DONE — IT WAITS IN YOUR DONE COLUMN' : 'DONE — THE PERSON WHO ASKED HAS BEEN TOLD', seen: 'SEEN — FILED' }[s] || 'MOVED'),
     saved: 'SAVED', resultSaved: 'RESULT SAVED — IT STAYS ON THE CARD', linkAdded: 'LINK ADDED', linkBad: 'PASTE A FULL LINK — STARTING WITH HTTPS://',
     uploaded: n => `${n.toUpperCase()} ATTACHED`, uploading: 'UPLOADING…', fileRemoved: 'FILE REMOVED', tooBig: 'THAT FILE IS OVER 25 MB — SHARE A LINK TO IT INSTEAD',
     commented: 'POSTED', commentEmpty: 'WRITE THE COMMENT FIRST', archived: 'ARCHIVED — FIND IT UNDER ARCHIVED', unarchived: 'BACK ON THE BOARD', deleted: 'DELETED',
@@ -388,7 +388,7 @@ async function setStatus(id, status, opts = {}) {
     if (st.open === id) await loadDetail(id);
     // a card leaves the MINE / <other>'s filter only when its assignee changes — status never hides it
     rerenderBoard(); if (st.open === id) rerenderDrawer();
-    if (!opts.quiet) ui.toast(COPY.toast.moved(status));
+    if (!opts.quiet) ui.toast(COPY.toast.moved(status, !t.created_by || t.created_by === me().id));   // your own task: no one else is told
     chrome.refresh();
   } catch (e) { patchLocal(Object.assign({}, t, { status: prev })); rerenderBoard(); if (st.open === id) rerenderDrawer(); ui.toast(e.message, { kind: 'error' }); }
 }
