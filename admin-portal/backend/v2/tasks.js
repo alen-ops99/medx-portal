@@ -160,7 +160,13 @@ module.exports = function mountTasks(app, ctx) {
         const members = q.all(`SELECT tm.id, tm.user_id, tm.name, tm.role, u.email, u.is_admin, u.is_founder
                                FROM team_members tm LEFT JOIN users u ON u.id = tm.user_id ORDER BY tm.name`);
         const linked = new Set(members.map(m => m.user_id).filter(Boolean));
-        const out = members.map(m => ({ id: m.id, user_id: m.user_id || null, name: m.name, first: firstOf(m.name), email: m.email || null, role: m.role || null, is_founder: !!Number(m.is_founder || 0) }));
+        // a stale team row with no account next to a linked row of the same name (the live DB has
+        // two "Laura Rodman") is not offered twice — the linked one is the person; old tasks on the
+        // stale row still show her name through the join
+        const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+        const linkedNames = new Set(members.filter(m => m.user_id).map(m => norm(m.name)));
+        const out = members.filter(m => m.user_id || !linkedNames.has(norm(m.name)))
+            .map(m => ({ id: m.id, user_id: m.user_id || null, name: m.name, first: firstOf(m.name), email: m.email || null, role: m.role || null, is_founder: !!Number(m.is_founder || 0) }));
         q.all('SELECT id, email, first_name, last_name, is_founder FROM users WHERE is_admin = 1 ORDER BY first_name, last_name, email')
             .filter(u => !linked.has(u.id))
             .forEach(u => out.push({ id: 'user:' + u.id, user_id: u.id, name: nameOfUser(u), first: firstOf(nameOfUser(u)), email: u.email, role: 'Admin', is_founder: !!Number(u.is_founder || 0) }));

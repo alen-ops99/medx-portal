@@ -4,8 +4,13 @@
    (columns stack, the drawer goes full-screen — Laura works from her phone). */
 
 /* ---- board ---- */
+/* every level between the page and the one-line result preview must be allowed to shrink: a
+   nowrap ellipsis line inside a stretched flex column otherwise sets the card's min-content
+   width and drags the whole page to 595px on a 390px phone (live check 2026-09-20). */
+.mx-tasks .mx-gutter > * { min-width: 0; }
 .mx-board { min-width: 0; }
 .mx-col { min-width: 0; }
+.mx-task, .mx-task > * { min-width: 0; max-width: 100%; }
 .mx-col-body { transition: background .15s ease; padding: 2px; margin: -2px; }
 .mx-col.over .mx-col-body { background: rgba(201,169,98,.14); outline: 1px dashed #c9a962; outline-offset: 2px; }
 .mx-task { transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease; user-select: none; -webkit-user-select: none; }

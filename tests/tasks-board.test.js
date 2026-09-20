@@ -456,6 +456,20 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         await call('DELETE', '/api/admin/tasks/:id', as.alen, { params: { id: r.body.id } });
     });
 
+    await t('a stale unlinked team row beside a linked row of the same name is offered once (the live DB has two Laura rows)', async () => {
+        q.run(`INSERT INTO team_members (id, user_id, name, role) VALUES ('tm-laura-stale', NULL, 'Laura Rodman', 'Executive Assistant')`);
+        const people = (await call('GET', '/api/v2/tasks', as.alen)).body.people;
+        const lauras = people.filter(p => /^laura rodman$/i.test(p.name));
+        assert.strictEqual(lauras.length, 1);
+        assert.strictEqual(lauras[0].id, M.laura, 'the linked row is the person');
+        assert.strictEqual(lauras[0].email, 'laura.rodman@medx.hr');
+        // a task already on the stale row still shows her name
+        q.run(`INSERT INTO project_tasks (id, project, title, status, assigned_to, created_by, updated_at) VALUES ('stale-task', 'general', 'Old task on the stale row', 'todo', 'tm-laura-stale', ?, ?)`, [U.alen, new Date().toISOString()]);
+        const row = (await call('GET', '/api/v2/tasks', as.alen)).body.tasks.find(x => x.id === 'stale-task');
+        assert.strictEqual(row.assignee_first, 'Laura');
+        q.run(`DELETE FROM project_tasks WHERE id = 'stale-task'`);
+    });
+
     await t('every write left an audit row', () => {
         const actions = q.all('SELECT DISTINCT action FROM audit_log').map(r => r.action);
         for (const a of ['task.create', 'task.update', 'task.result', 'task.comment', 'task.file.upload', 'task.file.remove', 'task.archive', 'task.unarchive', 'task.delete']) assert.ok(actions.includes(a), 'missing audit ' + a);
