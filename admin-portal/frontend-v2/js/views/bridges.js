@@ -29,7 +29,7 @@ export const COPY = {
     title: 'EVENTS', sub: 'one row per city — recaps publish to the member page',
     newCity: '+ NEW CITY', ncCity: 'City — e.g. Munich', ncWhen: 'When — e.g. Spring 2027', add: 'ADD',
     added: city => `${city.toUpperCase()} ADDED — A DRAFT UNTIL YOU PUBLISH IT`, typeCity: 'TYPE THE CITY FIRST',
-    upcoming: 'UPCOMING', draft: 'DRAFT', manage: 'MANAGE →', close: 'CLOSE', recap: 'RECAP', edition: n => `EDITION ${String(n).padStart(2, '0')}`,
+    upcoming: 'UPCOMING', draft: 'DRAFT', manage: 'MANAGE →', openBoston: 'OPEN BOSTON →', close: 'CLOSE', recap: 'RECAP', edition: n => `EDITION ${String(n).padStart(2, '0')}`,
     venueTBA: 'Venue announced soon · exact date TBA', planTBA: 'Venue to scout',
     signups: (n, cap) => `${n} sign-up${n === 1 ? '' : 's'}${cap ? ' of ' + cap : ''}`,
     // The Boston row: MANAGE opens the Boston block below (presenters · the Boston email · catering);
@@ -425,12 +425,12 @@ function blockEvents() {
         ${upcoming.map(e => `
           <div data-row="${esc(e.id)}" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
             <span style="font:600 9px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;width:76px;flex:none">${esc(dateLabel(e))}</span>
-            <span style="flex:1;min-width:0"><span style="display:block;font-size:13.5px;font-weight:600">${esc(e.city)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(e.venue_name || c.venueTBA)}</span></span>
+            <span ${isBostonRow(e) ? `data-act="bostonOpen" title="Open the Boston card" style="flex:1;min-width:0;cursor:pointer" data-hover="color:#9b1b22"` : `style="flex:1;min-width:0"`}><span style="display:block;font-size:13.5px;font-weight:600">${esc(e.city)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(e.venue_name || c.venueTBA)}</span></span>
             ${e.is_published ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e7ecf3;color:#31517e;padding:3px 8px;white-space:nowrap">${c.upcoming}</span>` : `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:3px 8px;white-space:nowrap">${c.draft}</span>`}
             ${isBostonRow(e) ? `
             <!-- v2: the Boston row — MANAGE opens the Boston block below; EDIT DETAILS is the inline editor -->
             <span style="font-size:11.5px;color:#6d6459;white-space:nowrap">${esc(c.bostonLine(e.registration_count || 0, e.capacity, D.pres ? Number(D.pres.confirmed) || 0 : null, e.checked_in_count || 0))}</span>
-            <span data-act="bostonOpen" data-v2="boston-manage" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${c.manage}</span>
+            <span data-act="bostonOpen" data-v2="boston-manage" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;white-space:nowrap;cursor:pointer" data-hover="background:#7d1119">${st.bostonOpen ? c.manage : c.openBoston}</span>
             <span data-act="evEdit" data-id="${esc(e.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.editEvent === e.id ? c.close : c.editDetails}</span>`
             : `
             <span style="font-size:11.5px;color:#6d6459;white-space:nowrap">${esc(c.signups(e.registration_count || 0, e.capacity))}</span>
