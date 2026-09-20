@@ -1205,6 +1205,8 @@ const PERMISSION_SECTIONS = [
 // routes, portal-member self-service like /api/registrations + /api/abstracts, cross-section
 // reads like /api/conferences) stays reachable for every signed-in admin. Correct-by-prefix,
 // not exhaustive-by-route.
+// The shared TASK BOARD (/api/v2/tasks + legacy /api/admin/tasks, v2/tasks.js) is deliberately
+// unmapped: tasks are for the whole team, like Today — never gated behind a project section.
 const SECTION_ROUTE_MAP = [
     ['/api/admin/export/forum-registrations', 'forum'],
     // — Plexus Week MEETUPS (2026-09-11): its own section so the founder can grant the meetups
@@ -1621,7 +1623,7 @@ function nagCollectDesired() {
             FROM project_tasks pt
             LEFT JOIN team_members tm ON pt.assigned_to = tm.id
             LEFT JOIN users u ON tm.user_id = u.id
-            WHERE pt.status != 'done' AND pt.due_date IS NOT NULL AND pt.due_date != ''`);
+            WHERE pt.status NOT IN ('done','seen') AND pt.archived_at IS NULL AND pt.due_date IS NOT NULL AND pt.due_date != ''`);
         for (const t of rows) {
             const days = nagDaysUntil(t.due_date);
             if (days === null) continue;
@@ -6594,6 +6596,10 @@ async function initializeApp() {
         uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE
     )`);
+    // Task board columns (v2/tasks.js, 2026-09-20): the result lives ON the task — text, links —
+    // plus seen/archived stamps. Guarded here too so the counters above never see a missing column.
+    ['result_text TEXT', 'result_links TEXT', 'seen_at TEXT', 'seen_by TEXT', 'updated_at TEXT', 'archived_at TEXT']
+        .forEach(col => { try { db.run('ALTER TABLE project_tasks ADD COLUMN ' + col); } catch (e) {} });
 
     // Project timeline events table
     db.run(`CREATE TABLE IF NOT EXISTS project_timeline_events (
@@ -12409,56 +12415,10 @@ async function initializeApp() {
     });
 
     // ================= ADMIN OPS: simple per-project task checklists =================
-    // Dead-simple checklist over project_tasks (title, assignee, due date, done). Shares the
-    // project_tasks table with the richer task board; these only touch top-level rows.
-    app.get('/api/admin/tasks', auth, adminOnly, (req, res) => {
-        const project = req.query.project;
-        const base = `SELECT pt.*, tm.name AS assignee_name FROM project_tasks pt LEFT JOIN team_members tm ON pt.assigned_to = tm.id`;
-        const tail = ` AND (pt.parent_id IS NULL OR pt.parent_id = '') ORDER BY (pt.status='done'), (pt.due_date IS NULL), pt.due_date, pt.created_at`;
-        const rows = project
-            ? query.all(base + ` WHERE pt.project = ?` + tail, [project])
-            : query.all(base + ` WHERE 1=1` + tail);
-        res.json(rows);
-    });
-
-    app.post('/api/admin/tasks', auth, adminOnly, (req, res) => {
-        const b = req.body || {};
-        const title = String(b.title || '').trim();
-        if (!title) return res.status(400).json({ error: 'Title is required' });
-        const id = uuidv4();
-        db.run(`INSERT INTO project_tasks (id, project, title, assigned_to, due_date, status, created_by)
-            VALUES (?,?,?,?,?, 'todo', ?)`,
-            [id, b.project || 'general', title, b.assigned_to || null, b.due_date || null, req.user.id]);
-        saveDb();
-        logAudit(req, 'task.create', title);
-        res.json({ success: true, id });
-    });
-
-    app.put('/api/admin/tasks/:id', auth, adminOnly, (req, res) => {
-        const existing = query.get('SELECT * FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!existing) return res.status(404).json({ error: 'Task not found' });
-        const b = req.body || {};
-        let status = existing.status;
-        if (b.done !== undefined) status = b.done ? 'done' : 'todo';
-        else if (b.status) status = b.status;
-        db.run(`UPDATE project_tasks SET title=?, assigned_to=?, due_date=?, status=?, completed_at=? WHERE id=?`,
-            [b.title !== undefined ? String(b.title).trim() : existing.title,
-             b.assigned_to !== undefined ? (b.assigned_to || null) : existing.assigned_to,
-             b.due_date !== undefined ? (b.due_date || null) : existing.due_date,
-             status,
-             status === 'done' ? (existing.completed_at || new Date().toISOString()) : null,
-             req.params.id]);
-        saveDb();
-        res.json({ success: true });
-    });
-
-    app.delete('/api/admin/tasks/:id', auth, adminOnly, (req, res) => {
-        const existing = query.get('SELECT id FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!existing) return res.status(404).json({ error: 'Task not found' });
-        db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
-        saveDb();
-        res.json({ success: true });
-    });
+    // GET/POST /api/admin/tasks and PUT/DELETE /api/admin/tasks/:id moved to v2/tasks.js
+    // (2026-09-20, the shared TASK BOARD): the same project_tasks rows, the same response shapes,
+    // now with the board's lifecycle (todo → doing → done → seen), results, comments and files.
+    // /extract and /bulk below still feed the same table.
 
     // ===== MEETING NOTES -> TASKS (AI INBOX #7, item 3) =====
     // Paste raw meeting notes, get back candidate action items (title + assignee guess + due
@@ -18342,7 +18302,7 @@ By applying to this program, I provide the following consents:
             plexus: {
                 registrations: plexusRegistrantCount(),   // Plexus conference = the /plexus form table, not the legacy paid-registrations table
                 speakers: query.get('SELECT COUNT(*) as c FROM speakers WHERE conference_id = ?', [conf?.id])?.c || 0,
-                pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE project = 'plexus' AND status != 'done'")?.c || 0
+                pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE project = 'plexus' AND status NOT IN ('done','seen') AND archived_at IS NULL")?.c || 0
             },
             accelerator: {
                 applications: query.get('SELECT COUNT(*) as c FROM accelerator_applications WHERE program_id = ?', [program?.id])?.c || 0,
@@ -18358,8 +18318,8 @@ By applying to this program, I provide the following consents:
                 events: query.get('SELECT COUNT(*) as c FROM bridges_events')?.c || 0
             },
             tasks: {
-                total: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done'")?.c || 0,
-                urgent: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND priority = 'high'")?.c || 0
+                total: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status NOT IN ('done','seen') AND archived_at IS NULL")?.c || 0,
+                urgent: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status NOT IN ('done','seen') AND archived_at IS NULL AND priority = 'high'")?.c || 0
             }
         };
 
@@ -18553,8 +18513,8 @@ By applying to this program, I provide the following consents:
         // Tasks WITHOUT a due date must never count as overdue: in SQLite '' < date('now')
         // is true, so the old predicate inflated the chip with every no-due-date task.
         // Same predicate as the advisor pack query at ~41238.
-        const overdueTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND due_date IS NOT NULL AND TRIM(due_date) <> '' AND date(due_date) < date('now')")?.c || 0;
-        const urgentTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND priority = 'high'")?.c || 0;
+        const overdueTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status NOT IN ('done','seen') AND archived_at IS NULL AND due_date IS NOT NULL AND TRIM(due_date) <> '' AND date(due_date) < date('now')")?.c || 0;
+        const urgentTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status NOT IN ('done','seen') AND archived_at IS NULL AND priority = 'high'")?.c || 0;
 
         // Content freshness: items created in last 7 days
         const recentRegistrations = query.get("SELECT COUNT(*) as c FROM registrations WHERE created_at > date('now', '-7 days')")?.c || 0;
@@ -39773,7 +39733,7 @@ ${extraCss || ''}
             let taskCompleted = false;
             if ((item.kind === 'task_overdue' || item.kind === 'task_due_soon') && item.subject_id) {
                 try {
-                    db.run("UPDATE project_tasks SET status='done', completed_at=datetime('now') WHERE id = ? AND status != 'done'", [item.subject_id]);
+                    db.run("UPDATE project_tasks SET status='done', completed_at=datetime('now') WHERE id = ? AND status NOT IN ('done','seen')", [item.subject_id]);
                     taskCompleted = db.getRowsModified() > 0;
                 } catch (e) {}
             }
@@ -42756,7 +42716,7 @@ ${extraCss || ''}
         pack.push(advVal('checklist_total', 'Content items total', 'Ukupno stavki sadržaja', advNum("SELECT COUNT(*) c FROM content_checklist")));
         pack.push(advVal('nag_open', 'Open Action Center items', 'Otvorenih stavki Akcijskog centra', advNum("SELECT COUNT(*) c FROM nag_items WHERE status IN ('open','actioned')")));
         pack.push(advVal('nag_oldest_days', 'Oldest open Action Center item (days)', 'Najstarija otvorena stavka Akcijskog centra (dana)', Math.floor(advNum("SELECT COALESCE(MAX(julianday('now')-julianday(created_at)),0) c FROM nag_items WHERE status IN ('open','actioned')")), 'days'));
-        pack.push(advVal('tasks_overdue', 'Overdue team tasks', 'Prekoračenih timskih zadataka', advNum("SELECT COUNT(*) c FROM project_tasks WHERE status NOT IN ('done','completed') AND due_date IS NOT NULL AND TRIM(due_date)<>'' AND date(due_date) < date('now')")));
+        pack.push(advVal('tasks_overdue', 'Overdue team tasks', 'Prekoračenih timskih zadataka', advNum("SELECT COUNT(*) c FROM project_tasks WHERE status NOT IN ('done','seen','completed') AND archived_at IS NULL AND due_date IS NOT NULL AND TRIM(due_date)<>'' AND date(due_date) < date('now')")));
         pack.push(advVal('health_ai_key', 'AI key configured', 'AI ključ postavljen', process.env.ANTHROPIC_API_KEY ? 1 : 0, 'bool'));
         pack.push(advVal('health_email', 'Email provider configured', 'Pružatelj e-pošte postavljen', mailProviderReady() ? 1 : 0, 'bool'));
         pack.push(advVal('health_storage', 'Media storage configured', 'Pohrana medija postavljena', process.env.CLOUDINARY_URL ? 1 : 0, 'bool'));

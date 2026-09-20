@@ -21,6 +21,7 @@
     "test:boston-me": "node tests/boston-me.test.js",
     "test:plexus-pass": "node tests/plexus-pass.test.js",
     "test:plexus-ticket": "node tests/plexus-ticket.test.js",
-    "test:plexus-program": "node tests/plexus-program.test.js"
+    "test:plexus-program": "node tests/plexus-program.test.js",
+    "test:tasks-board": "node tests/tasks-board.test.js"
   }
 }
