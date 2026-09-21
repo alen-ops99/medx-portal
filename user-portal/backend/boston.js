@@ -2047,7 +2047,8 @@ module.exports = function mountBoston(app, deps) {
     // so the venue laptop can pull them straight from the admin card.
     const HOST_DECKS = [
         { key: 'boston/decks/About_MedX_Boston_opening.pptx', label: 'OPENING DECK — About Med&X', filename: 'About_MedX_Boston_opening.pptx' },
-        { key: 'boston/decks/BB_Boston_background_slideshow.pptx', label: 'BACKGROUND SLIDESHOW (before we start)', filename: 'BB_Boston_background_slideshow.pptx' }
+        { key: 'boston/decks/BB_Boston_background_slideshow.pptx', label: 'BACKGROUND SLIDESHOW (before we start)', filename: 'BB_Boston_background_slideshow.pptx' },
+        { key: 'boston/decks/BB_Boston_MC_Run_Sheet.pdf', label: 'MC RUN SHEET (PDF)', filename: 'BB_Boston_MC_Run_Sheet.pdf' }
     ];
     app.get('/api/boston/decks', async (req, res) => {
         try {
