@@ -421,6 +421,11 @@ module.exports = function mountBostonOps(app, ctx) {
         }
     });
 
+    app.get('/api/v2/boston/decks', auth, adminOnly, async (req, res) => {
+        try { const out = await memberCall('GET', '/api/boston/decks'); res.set('Cache-Control', 'private, no-store'); res.json(Object.assign({ ok: true }, out)); }
+        catch (e) { log('decks failed:', e.message); res.status(502).json({ error: 'Could not list the decks.' }); }
+    });
+
     app.post('/api/v2/boston/program', auth, adminOnly, programParser, async (req, res) => {
         try {
             const f = req.file;

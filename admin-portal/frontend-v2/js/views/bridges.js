@@ -327,12 +327,13 @@ const chipsOrLine = (line, cls) => isPhone()
 
 // ---------------------------------------------------------------- data
 async function load() {
-  const r = await api.settle({ hub: api.get('/api/v2/bridges/hub'), pres: api.get('/api/v2/boston/presenters'), cat: api.get('/api/v2/boston/catering') });
+  const r = await api.settle({ hub: api.get('/api/v2/bridges/hub'), pres: api.get('/api/v2/boston/presenters'), cat: api.get('/api/v2/boston/catering'), decks: api.get('/api/v2/boston/decks') });
   return {
     errors: r.$errors,
     hub: r.hub || { events: [], editions: [], followups: [], stats: null, canonical_guests: FACTS.bridges.guests },
     pres: r.pres && r.pres.ok ? r.pres : null,
-    cat: r.cat && r.cat.ok ? r.cat : null
+    cat: r.cat && r.cat.ok ? r.cat : null,
+    decks: (r.decks && Array.isArray(r.decks.decks)) ? r.decks.decks : []
   };
 }
 
@@ -859,6 +860,13 @@ function sectionCatering(btn, cell, head) {
           ${btn('bpPreview', st.bpPreviewing === 'panel' ? c.prevBusy : c.prevPanel, !st.bpPreviewing, 'data-variant="panel" class="bh-act"', 'ghost')}
           ${btn('bpPreview', st.bpPreviewing === 'attendee' ? c.prevBusy : c.prevAttendee, !st.bpPreviewing, 'data-variant="attendee" class="bh-act"', 'ghost')}
           ${btn('bpPreview', st.bpPreviewing === 'declined' ? c.prevBusy : c.prevDeclined, !st.bpPreviewing, 'data-variant="declined" class="bh-act"', 'ghost')}
+        </div>` : ''}
+        ${(D.decks && D.decks.length) ? `
+        <!-- the host's own decks for the evening (S3 boston/decks/, presigned 1 h) — Alen 2026-09-21 -->
+        <div class="bh-bo-decks" style="display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:12px 20px;background:#fff;border-bottom:1px solid rgba(32,27,22,.08)">
+          <span class="bh-full" style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">HOST DECKS · TONIGHT</span>
+          ${D.decks.map(d => `<a href="${esc(d.url || '#')}" class="bh-act" download="${esc(d.filename || '')}" style="padding:9px 14px;background:#201b16;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap;text-decoration:none" data-hover="background:#9b1b22">⬇ ${esc(d.label)}${d.size ? ` · ${Math.round(d.size / 1048576)} MB` : ''}</a>`).join('')}
+          <span class="bh-full" style="font-size:11px;color:#9a9086">links valid for an hour after the page loads — reload for fresh ones</span>
         </div>` : ''}
         ${C ? `<div class="bh-bo-strip" style="display:flex;gap:8px 20px;flex-wrap:wrap;padding:11px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);font-size:11.5px;color:#6d6459">
           <span><b style="color:#201b16">${esc(c.stripReg(C.total || 0))}</b></span>

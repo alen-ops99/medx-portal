@@ -2042,6 +2042,29 @@ module.exports = function mountBoston(app, deps) {
         }
     });
 
+    // The host's own decks for the evening (uploaded to S3 by the team under boston/decks/ — the
+    // opening "About Med&X" deck and the background slideshow, 2026-09-21). Presigned for an hour
+    // so the venue laptop can pull them straight from the admin card.
+    const HOST_DECKS = [
+        { key: 'boston/decks/About_MedX_Boston_opening.pptx', label: 'OPENING DECK — About Med&X', filename: 'About_MedX_Boston_opening.pptx' },
+        { key: 'boston/decks/BB_Boston_background_slideshow.pptx', label: 'BACKGROUND SLIDESHOW (before we start)', filename: 'BB_Boston_background_slideshow.pptx' }
+    ];
+    app.get('/api/boston/decks', async (req, res) => {
+        try {
+            if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
+            res.set('Cache-Control', 'private, no-store');
+            if (!s3.isConfigured()) return res.json({ decks: [] });
+            const decks = [];
+            for (const d of HOST_DECKS) {
+                let size = null;
+                try { const h = await s3.headObject(d.key); size = h && (h.size || h.contentLength || h['content-length']) || null; } catch (e) { continue; }   // not uploaded → not listed
+                let url = null; try { url = s3.presignGet(d.key, { expires: 3600, filename: d.filename }); } catch (e) {}
+                decks.push({ key: d.key, label: d.label, filename: d.filename, size: size ? Number(size) : null, url });
+            }
+            res.json({ decks });
+        } catch (e) { console.error('[Boston] decks failed:', e.message); res.status(500).json({ error: 'Could not list the decks.' }); }
+    });
+
     app.post('/api/boston/program', programParser, async (req, res) => {
         try {
             if (!checkAdminKey(req.query && req.query.key)) return res.status(404).json({ error: 'Not found' });
