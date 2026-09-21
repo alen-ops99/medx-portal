@@ -1598,7 +1598,7 @@ export default {
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     // crossing the phone breakpoint (a rotation, a resized window) redraws in the other shape
-    if (MQ) { mqHandler = () => { if (rootEl === root && D && st) root.innerHTML = template(); }; MQ.addEventListener('change', mqHandler); }
+    if (MQ) { mqHandler = () => { if (rootEl === root && D && st) root.innerHTML = template(); }; try { MQ.addEventListener('change', mqHandler); } catch (e) { try { MQ.addListener(mqHandler); } catch (e2) { mqHandler = null; } } }
     // The router scrolls to the top once render resolves; a deep link to the Boston block goes
     // there right after (next frame). Back/forward (`popped`) keeps the router's restored scroll.
     if (st.bostonOpen && !(ctx && ctx.popped)) requestAnimationFrame(() => { if (rootEl === root) scrollToBoston(); });
@@ -1613,7 +1613,7 @@ export default {
   destroy() {
     if (changeHandler && rootEl) rootEl.removeEventListener('change', changeHandler);
     changeHandler = null;
-    if (mqHandler && MQ) MQ.removeEventListener('change', mqHandler); mqHandler = null;
+    if (mqHandler && MQ) { try { MQ.removeEventListener('change', mqHandler); } catch (e) { try { MQ.removeListener(mqHandler); } catch (e2) {} } } mqHandler = null;
     if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null;
   }
 };
