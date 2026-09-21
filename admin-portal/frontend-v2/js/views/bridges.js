@@ -18,7 +18,15 @@ export const SOURCE = 'Admin Bridges Hub.dc.html';
 export const COPY = {
   title: 'Building Bridges',
   sub: 'Evenings connecting Croatian and international biomedicine · open registration, 40–50 guests per city',
+  subShort: 'Evenings connecting Croatian & international biomedicine',   // the one-line phone subtitle
   manage: 'WHAT MEMBERS SEE — MANAGE ↗',
+  // Event day (2026-09-21): the door scanner lives on /event-day (the Bridges door pre-selects
+  // there) — on the day itself the hub and the Boston block both carry the shortcut to it.
+  scanner: { cta: 'TONIGHT · OPEN THE DOOR SCANNER →' },
+  // The phone cards (≤700 px) that stand in for the two Boston tables — same rows, same actions.
+  card: { slides: 'slides', summary: 'summary', finished: 'finished ✓', requests: 'requests 📝', yes: '✓', no: '—',
+    linkSent: d => `link sent ${d}`, linkNot: 'link not sent', emailSent: d => `Boston email ${d}`, emailNot: 'Boston email not sent',
+    pref: 'preference', allergy: 'allergies', deck: 'deck', open: 'tap for actions', close: 'CLOSE ▴', decision: 'DECISION', files: 'FILES', nobody: 'Nobody in this group.' },
   next: (city, range) => `NEXT · ${city.toUpperCase()} · ${range}`, noNext: 'NEXT CITY — NOT SET',
   band: {
     events: (e, c, k) => `EVENTS · ${c} CITIES, ${k} COUNTRIES`, guests: 'GUESTS HOSTED',
@@ -256,7 +264,7 @@ export const COPY = {
   }
 };
 
-let D = null, st = null, unbind = null, rootEl = null, changeHandler = null;
+let D = null, st = null, unbind = null, rootEl = null, changeHandler = null, mqHandler = null;
 
 function ensureCss() {
   if (!document.querySelector('link[href="/css/views/bridges-hub.css"]')) {
@@ -293,6 +301,29 @@ function bostonRowId() {
   return live ? String(live.id) : null;
 }
 const isBostonRow = e => String(e.id) === bostonRowId();
+// ---- phone (≤700 px) ----
+// The desktop artboard is untouched; on a phone a few blocks draw a different shape (cards for the
+// two Boston tables, folded side blocks). One media query decides, and crossing it redraws.
+const MQ = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width:700px)') : null;
+const isPhone = () => !!(MQ && MQ.matches);
+// Event day: a bridges_events row dated today (not cancelled). The door scanner is on /event-day.
+function eventTonight() {
+  const today = fmt.ymd(new Date());
+  return (D && D.hub && D.hub.events || []).find(e => isoDate(e.event_date) && String(e.event_date).slice(0, 10) === today && e.status !== 'cancelled') || null;
+}
+function scannerBtn(where) {
+  if (!eventTonight()) return '';
+  return `<a href="/event-day" class="bh-scan bh-scan-${where}" data-v2="door-scanner" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;background:#9b1b22;color:#fff;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap;text-decoration:none;${where === 'hub' ? 'align-self:flex-start' : ''}" data-hover="background:#7e151b">${COPY.scanner.cta}</a>`;
+}
+// The three side blocks fold behind their headers on a phone: the header carries the toggle,
+// the body carries the closed class (CSS ≤700 hides it — inline display:flex beats `hidden`).
+const foldHead = key => isPhone() ? ` data-act="bhFold" data-fold="${key}" role="button" aria-expanded="${!!st.fold[key]}" class="bh-fold-head"` : '';
+const foldBody = key => isPhone() && !st.fold[key] ? ' class="bh-fold-closed"' : '';
+const foldMark = key => isPhone() ? `<span class="bh-fold-mark" aria-hidden="true" style="margin-left:auto;font:600 12px Inter,sans-serif;color:#9b1b22">${st.fold[key] ? '▴' : '▾'}</span>` : '';
+// "28 presenting · 12 uploaded · 0 invited" → chips on a phone, the same line on a desktop
+const chipsOrLine = (line, cls) => isPhone()
+  ? `<span class="${cls} bh-chips">${String(line).split(' · ').map(x => `<span class="bh-chip">${esc(x)}</span>`).join('')}</span>`
+  : `<span class="${cls}" style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(line)}</span>`;
 
 // ---------------------------------------------------------------- data
 async function load() {
@@ -324,16 +355,16 @@ function blockTitle() {
   const n = nextEvent();
   return `
     <!-- dc: Admin Bridges Hub.dc.html › "Title row" -->
-    <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
-      <div>
+    <div class="bh-title" style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+      <div class="bh-title-main">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px">Building Bridges <i>in Biomedicine</i></span>
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;background:#e7ecf3;color:#31517e;padding:4px 8px;white-space:nowrap">${esc(n ? COPY.next(n.city, nextRange(n)) : COPY.noNext)}</span>
         </div>
-        <div style="font-size:12.5px;color:#6d6459;margin-top:4px">${COPY.sub}</div>
+        <div class="bh-sub" style="font-size:12.5px;color:#6d6459;margin-top:4px">${isPhone() ? COPY.subShort : COPY.sub}</div>
       </div>
-      <div style="flex:1"></div>
-      <a href="/member-pages/bridges" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
+      <div class="bh-sp" style="flex:1"></div>
+      <a href="/member-pages/bridges" class="bh-manage" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
     </div>
     <!-- /dc -->`;
 }
@@ -349,10 +380,10 @@ function blockBand() {
   return `
     <!-- dc: Admin Bridges Hub.dc.html › "Stat band" -->
     <div data-block="band" class="bh-band" style="display:flex;gap:36px;align-items:baseline;border-top:1px solid rgba(32,27,22,.18);border-bottom:1px solid rgba(32,27,22,.18);padding:16px 2px;flex-wrap:wrap">
-      <a href="#bridges-events" style="white-space:nowrap;color:#201b16" data-hover="color:#9b1b22"><span style="font-family:Fraunces,serif;font-size:26px">${eds.length}</span> <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.events(eds.length, cities, countries))}</span></a>
-      <span style="white-space:nowrap"><span style="font-family:Fraunces,serif;font-size:26px">${esc(guests)}</span> <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${b.guests}</span></span>
-      ${n ? `<a href="/registrations" style="white-space:nowrap;color:#201b16" data-hover="color:#9b1b22"><span style="font-family:Fraunces,serif;font-size:26px">${n.registration_count || 0}</span> <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.signups(n.city, n.capacity))}</span></a>` : ''}
-      ${n ? `<span style="white-space:nowrap"><span style="font-family:Fraunces,serif;font-size:26px">${days}</span> <span style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.days(n.city, nextRange(n)))}</span></span>` : ''}
+      <a href="#bridges-events" class="bh-stat" style="white-space:nowrap;color:#201b16" data-hover="color:#9b1b22"><span class="bh-stat-n" style="font-family:Fraunces,serif;font-size:26px">${eds.length}</span> <span class="bh-stat-l" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.events(eds.length, cities, countries))}</span></a>
+      <span class="bh-stat" style="white-space:nowrap"><span class="bh-stat-n" style="font-family:Fraunces,serif;font-size:26px">${esc(guests)}</span> <span class="bh-stat-l" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${b.guests}</span></span>
+      ${n ? `<a href="/registrations" class="bh-stat" style="white-space:nowrap;color:#201b16" data-hover="color:#9b1b22"><span class="bh-stat-n" style="font-family:Fraunces,serif;font-size:26px">${n.registration_count || 0}</span> <span class="bh-stat-l" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.signups(n.city, n.capacity))}</span></a>` : ''}
+      ${n ? `<span class="bh-stat" style="white-space:nowrap"><span class="bh-stat-n" style="font-family:Fraunces,serif;font-size:26px">${days}</span> <span class="bh-stat-l" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.days(n.city, nextRange(n)))}</span></span>` : ''}
     </div>
     <!-- /dc -->`;
 }
@@ -410,11 +441,11 @@ function blockEvents() {
   return `
       <!-- dc: Admin Bridges Hub.dc.html › "EVENTS" -->
       <div data-block="events" id="bridges-events" style="border:1px solid rgba(32,27,22,.14);background:#fff">
-        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
+        <div class="bh-ev-head" style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
           <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
-          <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
-          <div style="flex:1"></div>
-          <span data-act="newCityToggle" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.newCity}</span>
+          <span class="bh-ev-head-sub" style="font-size:11.5px;color:#6d6459">${c.sub}</span>
+          <div class="bh-sp" style="flex:1"></div>
+          <span data-act="newCityToggle" class="bh-act" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.newCity}</span>
         </div>
         ${st.newCityOpen ? `
           <div style="display:flex;gap:8px;align-items:center;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);flex-wrap:wrap">
@@ -423,26 +454,26 @@ function blockEvents() {
             <span data-act="ncAdd" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${c.add}</span>
           </div>` : ''}
         ${upcoming.map(e => `
-          <div data-row="${esc(e.id)}" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;width:76px;flex:none">${esc(dateLabel(e))}</span>
-            <span ${isBostonRow(e) ? `data-act="bostonOpen" title="Open the Boston card" style="flex:1;min-width:0;cursor:pointer" data-hover="color:#9b1b22"` : `style="flex:1;min-width:0"`}><span style="display:block;font-size:13.5px;font-weight:600">${esc(e.city)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(e.venue_name || c.venueTBA)}</span></span>
-            ${e.is_published ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e7ecf3;color:#31517e;padding:3px 8px;white-space:nowrap">${c.upcoming}</span>` : `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:3px 8px;white-space:nowrap">${c.draft}</span>`}
+          <div data-row="${esc(e.id)}" class="bh-ev-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
+            <span class="bh-ev-date" style="font:600 9px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;width:76px;flex:none">${esc(dateLabel(e))}</span>
+            <span class="bh-ev-main" ${isBostonRow(e) ? `data-act="bostonOpen" title="Open the Boston card" style="flex:1;min-width:0;cursor:pointer" data-hover="color:#9b1b22"` : `style="flex:1;min-width:0"`}><span style="display:block;font-size:13.5px;font-weight:600">${esc(e.city)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(e.venue_name || c.venueTBA)}</span></span>
+            ${e.is_published ? `<span class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e7ecf3;color:#31517e;padding:3px 8px;white-space:nowrap">${c.upcoming}</span>` : `<span class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:3px 8px;white-space:nowrap">${c.draft}</span>`}
             ${isBostonRow(e) ? `
             <!-- v2: the Boston row — MANAGE opens the Boston block below; EDIT DETAILS is the inline editor -->
-            <span style="font-size:11.5px;color:#6d6459;white-space:nowrap">${esc(c.bostonLine(e.registration_count || 0, e.capacity, D.pres ? Number(D.pres.confirmed) || 0 : null, e.checked_in_count || 0))}</span>
-            <span data-act="bostonOpen" data-v2="boston-manage" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;white-space:nowrap;cursor:pointer" data-hover="background:#7d1119">${st.bostonOpen ? c.manage : c.openBoston}</span>
-            <span data-act="evEdit" data-id="${esc(e.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.editEvent === e.id ? c.close : c.editDetails}</span>`
+            <span class="bh-ev-count" style="font-size:11.5px;color:#6d6459;white-space:nowrap">${esc(c.bostonLine(e.registration_count || 0, e.capacity, D.pres ? Number(D.pres.confirmed) || 0 : null, e.checked_in_count || 0))}</span>
+            <span data-act="bostonOpen" data-v2="boston-manage" class="bh-ev-go" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;white-space:nowrap;cursor:pointer" data-hover="background:#7d1119">${st.bostonOpen ? c.manage : c.openBoston}</span>
+            <span data-act="evEdit" data-id="${esc(e.id)}" class="bh-ev-edit" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.editEvent === e.id ? c.close : c.editDetails}</span>`
             : `
-            <span style="font-size:11.5px;color:#6d6459;white-space:nowrap">${esc(c.signups(e.registration_count || 0, e.capacity))}</span>
-            <span data-act="evEdit" data-id="${esc(e.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.editEvent === e.id ? c.close : c.manage}</span>`}
+            <span class="bh-ev-count" style="font-size:11.5px;color:#6d6459;white-space:nowrap">${esc(c.signups(e.registration_count || 0, e.capacity))}</span>
+            <span data-act="evEdit" data-id="${esc(e.id)}" class="bh-ev-go bh-ev-ghost" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.editEvent === e.id ? c.close : c.manage}</span>`}
           </div>
           ${st.editEvent === e.id ? eventEditor(e) : ''}`).join('')}
         ${editions.map(ed => `
-          <div data-row="${esc(ed.id)}" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07);${ed.is_published ? '' : 'opacity:.55'}">
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;width:76px;flex:none">${esc(c.edition(ed.edition_no))}</span>
-            <span style="flex:1;min-width:0"><span style="display:block;font-size:13.5px;font-weight:600">${esc(ed.city)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(ed.venue || '')}</span></span>
-            <span style="font-size:11.5px;color:${ed.guests == null ? '#b7791f' : '#6d6459'};white-space:nowrap">${esc(ed.guests == null ? c.recapMissing : c.recapLine(ed.guests, ed.connections))}</span>
-            <span data-act="recap" data-id="${esc(ed.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.recapEdit === ed.id ? c.close : c.recap}</span>
+          <div data-row="${esc(ed.id)}" class="bh-ev-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07);${ed.is_published ? '' : 'opacity:.55'}">
+            <span class="bh-ev-date" style="font:600 9px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;width:76px;flex:none">${esc(c.edition(ed.edition_no))}</span>
+            <span class="bh-ev-main" style="flex:1;min-width:0"><span style="display:block;font-size:13.5px;font-weight:600">${esc(ed.city)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(ed.venue || '')}</span></span>
+            <span class="bh-ev-count" style="font-size:11.5px;color:${ed.guests == null ? '#b7791f' : '#6d6459'};white-space:nowrap">${esc(ed.guests == null ? c.recapMissing : c.recapLine(ed.guests, ed.connections))}</span>
+            <span data-act="recap" data-id="${esc(ed.id)}" class="bh-ev-go bh-ev-ghost" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${st.recapEdit === ed.id ? c.close : c.recap}</span>
           </div>
           ${st.recapEdit === ed.id ? recapEditor(ed) : ''}`).join('')}
       </div>
@@ -464,8 +495,8 @@ function blockReady() {
   return `
         <!-- dc: Admin Bridges Hub.dc.html › "BOSTON — READY TO RUN" -->
         <div data-block="ready" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #3f5f8a;background:#fff">
-          <div style="padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${esc(n ? c.title(n.city) : c.title(FACTS.bridges.next.city))}</span></div>
-          <div style="padding:12px 20px 16px;display:flex;flex-direction:column;gap:10px">
+          <div${foldHead('ready')} style="padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${esc(n ? c.title(n.city) : c.title(FACTS.bridges.next.city))}</span>${foldMark('ready')}</div>
+          <div${foldBody('ready')} style="padding:12px 20px 16px;display:flex;flex-direction:column;gap:10px">
           ${rows.map(r => `
             <div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(32,27,22,.06)">
               <span style="width:16px;height:16px;border:1.5px solid ${r.done ? '#2f7d4f' : 'rgba(32,27,22,.35)'};background:${r.done ? '#2f7d4f' : 'transparent'};display:inline-flex;align-items:center;justify-content:center;color:#fff;font:700 10px Inter,sans-serif;flex:none">${r.done ? '✓' : ''}</span>
@@ -490,8 +521,8 @@ function blockFollowups() {
   return `
         <!-- dc: Admin Bridges Hub.dc.html › "FOLLOW-UPS" -->
         <div data-block="fu" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff">
-          <div style="display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${c.hint}</span></div>
-          <div style="padding:10px 20px 16px;display:flex;flex-direction:column;gap:6px">
+          <div${foldHead('fu')} style="display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span><div style="flex:1"></div><span class="bh-fu-hint" style="font-size:11px;color:#6d6459">${c.hint}</span>${foldMark('fu')}</div>
+          <div${foldBody('fu')} style="padding:10px 20px 16px;display:flex;flex-direction:column;gap:6px">
             ${fu.map(f => `
               <div data-row="${esc(f.id)}" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.07)">
                 <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">${esc(f.name)}</span><span style="display:block;font-size:11.5px;color:#6d6459;margin-top:1px">${esc(f.why || '')}</span></span>
@@ -516,10 +547,11 @@ function blockAfter() {
   return `
         <!-- dc: Admin Bridges Hub.dc.html › "AFTER EACH EVENING" -->
         <div data-block="after" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
-          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
+          ${isPhone() ? `<div${foldHead('after')}><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>${foldMark('after')}</div><div${foldBody('after')} style="display:flex;flex-direction:column;gap:8px">` : `<span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>`}
           <span style="font-size:12.5px;color:#6d6459;line-height:1.6">${c.body}</span>
           <a href="/inbox" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${c.cta}</a>
           ${lastPast ? `<!-- v2: one-click thank-you batch for the latest past evening --><span data-act="queueThanks" data-id="${esc(lastPast.id)}" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer" data-v2="queue-thanks" data-hover="color:#201b16">${esc(c.queueThanks(lastPast.city))}</span>` : ''}
+          ${isPhone() ? '</div>' : ''}
         </div>
         <!-- /dc -->`;
 }
@@ -540,12 +572,13 @@ function blockBoston() {
   // The three-state control, one row at a time. The state a row is IN reads as a solid chip; the
   // other two are quiet, clickable text — so the table can be scanned for "who is still open"
   // without reading a single word.
-  const pickChip = (r, value, label) => {
+  // `big` = the phone card's thumb-sized version of the same control (same data-* attributes).
+  const pickChip = (r, value, label, big) => {
     const on = (r.presenter_status || null) === value;
     const busy = st.bpPicking === r.registration_id;
     const tone = value === 'confirmed' ? { bg: '#1e6e42', fg: '#fff' } : value === 'panel' ? { bg: '#2f4f7a', fg: '#fff' } : value === 'declined' ? { bg: '#8a5a1c', fg: '#fff' } : { bg: '#eee9df', fg: '#4a4239' };
     return `<span data-act="${busy ? '' : 'bpPick'}" data-id="${esc(r.registration_id)}" data-status="${value === null ? '' : value}" data-who="${esc(r.name || r.email)}"
-      style="display:inline-block;padding:3px 8px;margin-right:5px;font:600 8px Inter,sans-serif;letter-spacing:.1em;white-space:nowrap;${on
+      style="${big ? 'display:flex;align-items:center;justify-content:center;min-height:44px;box-sizing:border-box;padding:10px 8px;font:600 10px Inter,sans-serif;text-align:center;' : 'display:inline-block;padding:3px 8px;margin-right:5px;font:600 8px Inter,sans-serif;'}letter-spacing:.1em;white-space:nowrap;${on
         ? `background:${tone.bg};color:${tone.fg};`
         : 'background:transparent;color:#9a9086;border:1px solid rgba(32,27,22,.18);'}${busy ? 'opacity:.5;cursor:progress' : 'cursor:pointer'}"
       ${busy ? 'aria-disabled="true"' : `data-hover="${on ? 'opacity:.85' : 'border-color:#201b16;color:#201b16'}"`}>${esc(busy ? c.pick.busy : label)}</span>`;
@@ -581,20 +614,21 @@ function blockBoston() {
   return `
     <!-- v2: BOSTON — 5-minute presentations (member portal owns the links, files and the email) -->
     <div data-block="boston" id="boston-presentations" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;margin-top:22px">
-      <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
-        <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
-        <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
-        <div style="flex:1"></div>
-        ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.counts(P.requested || 0, uploaded, P.invited || 0))}</span>` : ''}
-        ${P ? `<span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(c.pickCounts(confirmedN, panelN, declinedN, undecidedN))}</span>` : ''}
-        ${P ? btn('bpDeclineAll', undecidedN ? c.declineAll(undecidedN) : c.declineAllNone, undecidedN > 0, '', 'ghost') : ''}
-        ${P ? btn('bpSendAll', notInvited ? c.sendAll(notInvited) : c.allInvited, notInvited > 0, '', 'ghost') : ''}
-        ${P && uploaded ? `<a href="${esc(P.zip_url)}" title="${esc(c.zipHint)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.zip(uploaded))}</a>`
-        : P ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.zipNone}</span>` : ''}
-        ${P && (P.summaries || 0) ? `<a href="${esc(P.summaries_zip_url || '/api/v2/boston/onepagers.zip?all=1')}" title="${esc(c.zipHint)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.sumZip(P.summaries))}</a>`
-        : P ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.sumZipNone}</span>` : ''}
-        ${P ? `<span data-act="bpAddToggle" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.bpOpen ? c.addClose : c.add}</span>` : ''}
-        ${P ? `<span data-act="bpGuestToggle" data-v2="boston-add-guest" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.bpGuestOpen ? tm.addGuestClose : tm.addGuest}</span>` : ''}
+      <div class="bh-bo-head" style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
+        <span class="bh-bo-title" style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
+        <span class="bh-bo-sub" style="font-size:11.5px;color:#6d6459">${c.sub}</span>
+        ${scannerBtn('boston')}
+        <div class="bh-sp" style="flex:1"></div>
+        ${P ? chipsOrLine(c.counts(P.requested || 0, uploaded, P.invited || 0), 'bh-bo-count') : ''}
+        ${P ? chipsOrLine(c.pickCounts(confirmedN, panelN, declinedN, undecidedN), 'bh-bo-count') : ''}
+        ${P ? btn('bpDeclineAll', undecidedN ? c.declineAll(undecidedN) : c.declineAllNone, undecidedN > 0, 'class="bh-act"', 'ghost') : ''}
+        ${P ? btn('bpSendAll', notInvited ? c.sendAll(notInvited) : c.allInvited, notInvited > 0, 'class="bh-act"', 'ghost') : ''}
+        ${P && uploaded ? `<a href="${esc(P.zip_url)}" class="bh-act" title="${esc(c.zipHint)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.zip(uploaded))}</a>`
+        : P ? `<span class="bh-act" style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.zipNone}</span>` : ''}
+        ${P && (P.summaries || 0) ? `<a href="${esc(P.summaries_zip_url || '/api/v2/boston/onepagers.zip?all=1')}" class="bh-act" title="${esc(c.zipHint)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(c.sumZip(P.summaries))}</a>`
+        : P ? `<span class="bh-act" style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.sumZipNone}</span>` : ''}
+        ${P ? `<span data-act="bpAddToggle" class="bh-act bh-act-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.bpOpen ? c.addClose : c.add}</span>` : ''}
+        ${P ? `<span data-act="bpGuestToggle" data-v2="boston-add-guest" class="bh-act bh-act-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.bpGuestOpen ? tm.addGuestClose : tm.addGuest}</span>` : ''}
       </div>
       ${st.bpOpen && P ? `
         <div style="display:flex;gap:8px;align-items:center;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);flex-wrap:wrap">
@@ -618,14 +652,15 @@ function blockBoston() {
       ${!P && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
       ${P && !rows.length ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
       ${P && rows.length ? `
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08)">
-        ${filterChips}
-        <div style="flex:1"></div>
+      <div class="bh-bo-filters" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08)">
+        ${isPhone() ? `<div class="bh-chipscroll">${filterChips}</div>` : filterChips}
+        <div class="bh-sp" style="flex:1"></div>
         <!-- v2: the two bulk nudges (Alen 2026-09-16) — real emails, confirmed first, "emailed today" skipped -->
-        ${btn('bpBulkEmail', bulkBusy === 'slides-missing' ? tm.emailBusy : slidesMissing.length ? tm.bulkSlides(slidesMissing.length) : tm.bulkSlidesNone, slidesMissing.length > 0 && !bulkBusy, 'data-kind="slides-missing"', 'ghost')}
-        ${btn('bpBulkEmail', bulkBusy === 'panel-awaiting' ? tm.emailBusy : panelAwaiting.length ? tm.bulkPanel(panelAwaiting.length) : tm.bulkPanelNone, panelAwaiting.length > 0 && !bulkBusy, 'data-kind="panel-awaiting"', 'ghost')}
-        <a href="${esc((D.cat && D.cat.program_csv_url) || '/api/v2/boston/program.csv')}" style="padding:7px 12px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${c.programCsv}</a>
+        ${btn('bpBulkEmail', bulkBusy === 'slides-missing' ? tm.emailBusy : slidesMissing.length ? tm.bulkSlides(slidesMissing.length) : tm.bulkSlidesNone, slidesMissing.length > 0 && !bulkBusy, 'data-kind="slides-missing" class="bh-act"', 'ghost')}
+        ${btn('bpBulkEmail', bulkBusy === 'panel-awaiting' ? tm.emailBusy : panelAwaiting.length ? tm.bulkPanel(panelAwaiting.length) : tm.bulkPanelNone, panelAwaiting.length > 0 && !bulkBusy, 'data-kind="panel-awaiting" class="bh-act"', 'ghost')}
+        <a href="${esc((D.cat && D.cat.program_csv_url) || '/api/v2/boston/program.csv')}" class="bh-act" style="padding:7px 12px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${c.programCsv}</a>
       </div>
+      ${isPhone() ? presenterCards(shown, { pickChip, btn }) : `
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:900px">
           <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPresents}</th><th style="${head}">${c.cDeck}</th><th style="${head}">${c.cSummary}</th><th style="${head}">${c.cDone}</th><th style="${head}">${c.cReq}</th><th style="${head}">${c.cSent}</th><th style="${head}"></th></tr></thead>
@@ -667,9 +702,95 @@ function blockBoston() {
           ${!shown.length ? `<tr><td colspan="9" style="${cell};color:#6d6459;font-style:italic">Nobody in this group.</td></tr>` : ''}
           </tbody>
         </table>
-      </div>` : ''}
+      </div>`}` : ''}
       ${sectionCatering(btn, cell, head)}
     </div>`;
+}
+// ---- the phone shape of the two Boston tables (≤700 px) ----
+// One card per row: name · institution · the decision chip · a facts line; a tap opens the same
+// actions the table row carries (same data-act, same data-id/-who/-mail), sized for a thumb.
+const CARD_BTN = 'display:flex;align-items:center;justify-content:center;min-height:44px;box-sizing:border-box;padding:10px 12px;font:600 10.5px Inter,sans-serif;letter-spacing:.12em;text-align:center;white-space:normal;line-height:1.3;cursor:pointer;text-decoration:none';
+const cardBtn = (act, label, extra, kind) => kind === 'primary'
+  ? `<span data-act="${act}" ${extra || ''} style="${CARD_BTN};background:#9b1b22;color:#fff" data-hover="background:#7e151b">${esc(label)}</span>`
+  : `<span data-act="${act}" ${extra || ''} style="${CARD_BTN};border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16" data-hover="border-color:#201b16">${esc(label)}</span>`;
+const cardLink = (href, label, extra) => `<a href="${esc(href)}" ${extra || ''} style="${CARD_BTN};border:1px solid rgba(30,110,66,.4);background:#e6efe8;color:#1e6e42" data-hover="background:#1e6e42;color:#fff">${esc(label)}</a>`;
+const fact = (label, on, tone) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:${on ? (tone || '#1e6e42') : '#9a9086'}">${esc(label)} ${on ? COPY.card.yes : COPY.card.no}</span>`;
+const factWord = (word, color) => `<span style="font-size:13px;color:${color}">${esc(word)}</span>`;
+function decisionChip(r) {
+  const c = COPY.boston.pick;
+  if (!(r.presentation_requested || r.panel)) return '';
+  const s = r.presenter_status || null;
+  const tone = s === 'confirmed' ? { bg: '#1e6e42', fg: '#fff', l: c.yes } : s === 'panel' ? { bg: '#2f4f7a', fg: '#fff', l: c.panel } : s === 'declined' ? { bg: '#8a5a1c', fg: '#fff', l: c.no } : { bg: '#eee9df', fg: '#4a4239', l: c.unset };
+  return `<span style="flex:none;padding:5px 9px;font:600 9px Inter,sans-serif;letter-spacing:.1em;background:${tone.bg};color:${tone.fg};white-space:nowrap">${esc(tone.l)}</span>`;
+}
+function cardShell(key, r, head, body) {
+  const open = st.bpCardOpen === key;
+  return `
+        <div data-row="${esc(r.registration_id)}" class="bh-card" style="border-bottom:1px solid rgba(32,27,22,.1);${r.released ? 'opacity:.6' : ''}">
+          <div data-act="bpCard" data-key="${esc(key)}" role="button" aria-expanded="${open}" style="padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:5px;min-height:44px;box-sizing:border-box">${head}</div>
+          ${open ? `<div class="bh-card-body" style="padding:2px 16px 16px;display:flex;flex-direction:column;gap:12px;background:#fdfbf6;border-top:1px solid rgba(32,27,22,.06)">${body}</div>` : ''}
+        </div>`;
+}
+function presenterCards(shown, h) {
+  const c = COPY.boston, k = COPY.card, tm = c.team;
+  if (!shown.length) return `<div style="padding:16px;font-size:14px;color:#6d6459;font-style:italic">${k.nobody}</div>`;
+  return `<div class="bh-cards" data-v2="boston-presenter-cards">${shown.map(r => {
+    const key = 'p:' + r.registration_id;
+    const busy = st.bpSending === r.registration_id, releasing = st.bpReleasing === r.registration_id, resending = st.bpResending === r.registration_id;
+    const hintShape = r.reminder_sent && !r.released && (r.shape_changed ? r.sent_shape : (st.bpFlipped[r.registration_id] && !r.sent_shape ? st.bpFlipped[r.registration_id] : null));
+    const who = `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`;
+    const head = `
+            <div style="display:flex;align-items:flex-start;gap:10px"><span style="flex:1;min-width:0;font-size:16px;font-weight:600;line-height:1.3;overflow-wrap:anywhere">${esc(r.name || r.email)}${r.released ? ` <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;color:#9b1b22">RELEASED${r.released_by === 'team' ? ' BY TEAM' : ''}</span>` : ''}</span>${decisionChip(r)}</div>
+            <span style="font-size:13px;color:#6d6459;line-height:1.35">${esc(r.institution || '—')}</span>
+            <div style="display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center">${fact(k.slides, !!r.upload)}${fact(k.summary, !!r.onepager)}${r.finished ? factWord(k.finished, '#1e6e42') : ''}${r.guest_requests ? factWord(k.requests, '#8a5a12') : ''}${r.panel ? factWord('panel ' + c.panelReply[r.panel_reply === 'yes' ? 'yes' : r.panel_reply === 'no' ? 'no' : 'none'].toLowerCase().replace(/^[–✓✗] /, ''), r.panel_reply === 'yes' ? '#1e6e42' : r.panel_reply === 'no' ? '#9b1b22' : '#b7791f') : ''}</div>`;
+    const body = `
+            ${(r.presentation_requested || r.panel) ? `<div><div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;margin-bottom:6px">${k.decision}</div><div class="bh-card-picks" style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${h.pickChip(r, 'confirmed', c.pick.yes, true)}${h.pickChip(r, 'panel', c.pick.panel, true)}${h.pickChip(r, 'declined', c.pick.no, true)}${h.pickChip(r, null, c.pick.unset, true)}</div>
+              ${hintShape ? `<div data-v2="boston-resend-hint" style="margin-top:8px;font-size:13px;color:#8a5a12;line-height:1.45">${tm.hint(esc(hintShape))}</div>${cardBtn(resending ? '' : 'bpResendShape', resending ? tm.resendBusy : tm.resend, `${who} data-from="${esc(hintShape)}" data-to="${esc(r.current_shape || '')}"`, 'primary')}` : ''}</div>` : ''}
+            ${r.guest_requests ? `<div style="font-size:14px;line-height:1.5;color:#201b16;border-left:3px solid #c9a962;padding-left:10px">✎ ${esc(r.guest_requests)}</div>` : ''}
+            <div style="font-size:13px;color:#6d6459;line-height:1.5;overflow-wrap:anywhere">${esc(r.email)}${r.added_by_team ? ` · <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">${c.byTeam}</span>` : ''}<br>${r.invited_at == null ? `<span style="color:#b7791f">${k.linkNot}</span>` : esc(k.linkSent(r.invited_at === true ? '✓' : r.invited_at))}${nudgedLine(r)}</div>
+            ${(r.upload || (r.onepager && r.onepager_download_url)) ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              ${r.upload ? (r.upload.external_url ? cardLink(r.upload.external_url, '✓ ' + c.deckLink, 'target="_blank" rel="noopener"') : cardLink(r.upload.download_url, '✓ ' + c.deckYes)) : ''}
+              ${r.onepager && r.onepager_download_url ? cardLink(r.onepager_download_url, '✓ ' + c.cSummary) : ''}
+            </div>` : ''}
+            ${r.released ? '' : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              ${cardBtn(busy ? '' : 'bpSendOne', busy ? c.busy : (r.invited_at == null ? c.send : c.resend), who, 'primary')}
+              ${cardBtn(st.bpMsgBusy === r.registration_id ? '' : 'bpEmail', tm.email, who)}
+              ${cardBtn(releasing ? '' : 'bpRelease', releasing ? tm.releaseBusy : tm.release, who)}
+              ${cardBtn('bpCard', k.close, `data-key="${esc(key)}"`)}
+            </div>`}`;
+    return cardShell(key, r, head, body);
+  }).join('')}</div>`;
+}
+function guestCards(rows, h) {
+  const c = COPY.cat, k = COPY.card, tm = COPY.boston.team;
+  return `<div class="bh-cards" data-v2="boston-guest-cards">${rows.map(r => {
+    const key = 'c:' + r.registration_id;
+    const busy = st.bpReminding === r.registration_id, releasing = st.bpReleasing === r.registration_id;
+    const who = `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`;
+    const allergyOn = r.allergy_state === 'yes';
+    const opShared = r.onepager_share_ok !== false;
+    const head = `
+            <div style="display:flex;align-items:flex-start;gap:10px"><span style="flex:1;min-width:0;font-size:16px;font-weight:600;line-height:1.3;overflow-wrap:anywhere">${esc(r.name || r.email)}</span>${r.presenter ? `<span style="flex:none;padding:5px 9px;font:600 9px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#7a6432;white-space:nowrap">PRESENTING</span>` : ''}</div>
+            <span style="font-size:13px;color:#6d6459;line-height:1.35">${esc(r.institution || '—')}</span>
+            <div style="display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center">
+              ${factWord(r.preference || (k.pref + ' ' + c.noPref), r.preference ? '#201b16' : '#9a9086')}
+              ${allergyOn ? factWord('⚠ ' + (r.allergies || 'allergies'), '#9b1b22') : factWord(r.allergy_state === 'none' ? 'no allergies' : 'allergies ' + c.noAllergy, r.allergy_state === 'none' ? '#6d6459' : '#9a9086')}
+              ${fact(k.summary, !!r.onepager)}${r.presenter ? fact(k.slides, !!r.slides) : ''}${r.finished ? factWord(k.finished, '#1e6e42') : ''}${r.guest_requests ? factWord(k.requests, '#8a5a12') : ''}
+              ${factWord(r.reminder_sent ? k.emailSent(r.reminder_sent_at || '✓') : k.emailNot, r.reminder_sent ? '#6d6459' : '#b7791f')}
+            </div>`;
+    const body = `
+            ${r.guest_requests ? `<div style="font-size:14px;line-height:1.5;color:#201b16;border-left:3px solid #c9a962;padding-left:10px">✎ ${esc(r.guest_requests)}</div>` : ''}
+            ${r.onepager_headline ? `<div style="font-size:13px;color:#6d6459;line-height:1.45">${esc(r.onepager_headline)}</div>` : ''}
+            <div style="font-size:13px;color:#6d6459;line-height:1.5;overflow-wrap:anywhere">${esc(r.email)}${r.added_by_team ? ` · <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">${COPY.boston.byTeam}</span>` : ''}${r.answered ? `<br>answered${r.answered_at ? ' ' + esc(String(r.answered_at).slice(0, 10)) : ''}` : ''}${nudgedLine(r)}</div>
+            ${r.onepager && r.onepager_download_url ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${cardLink(r.onepager_download_url, (opShared ? c.opShared : c.opPrivate) + ' · ' + c.cOnePager)}</div>` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              ${cardBtn(busy ? '' : 'bpRemindOne', busy ? c.busy : (r.reminder_sent ? c.resend : c.send), who, 'primary')}
+              ${cardBtn(st.bpMsgBusy === r.registration_id ? '' : 'bpEmail', tm.email, who)}
+              ${cardBtn(releasing ? '' : 'bpRelease', releasing ? tm.releaseBusy : tm.release, who)}
+              ${cardBtn('bpCard', k.close, `data-key="${esc(key)}"`)}
+            </div>`;
+    return cardShell(key, r, head, body);
+  }).join('')}</div>`;
 }
 // ---- the team controls shared by both tables (Alen 2026-09-16) ----
 // "18 Sep" from "2026-09-18" — the card's own short date, no library.
@@ -714,32 +835,32 @@ function sectionCatering(btn, cell, head) {
     ? c.progOn(Math.max(1, Math.round(Number(prog.size || 0) / 1024)) + ' KB', String(prog.uploaded_at || '').slice(0, 10) || '—')
       + (prog.source === 'env' ? ' · ' + c.progEnv : '')
     : c.progNone;
-  const ghostLink = (href, label) => `<a href="${esc(href)}" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(label)}</a>`;
+  const ghostLink = (href, label) => `<a href="${esc(href)}" class="bh-act" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${esc(label)}</a>`;
   return `
       <div style="border-top:1px solid rgba(32,27,22,.14)">
-        <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
-          <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
-          <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
-          <div style="flex:1"></div>
-          ${C ? btn('bpRemindAll', !progOn ? c.needProgram : pending ? c.sendAll(pending) : c.allSent, progOn && pending > 0) : ''}
+        <div class="bh-bo-head" style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
+          <span class="bh-bo-title" style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
+          <span class="bh-bo-sub" style="font-size:11.5px;color:#6d6459">${c.sub}</span>
+          <div class="bh-sp" style="flex:1"></div>
+          ${C ? btn('bpRemindAll', !progOn ? c.needProgram : pending ? c.sendAll(pending) : c.allSent, progOn && pending > 0, 'class="bh-act"') : ''}
           ${C ? ghostLink(C.csv_url || '/api/v2/boston/catering.csv', c.csv) : ''}
           ${C && opShareable ? ghostLink(C.onepagers_zip_url || '/api/v2/boston/onepagers.zip', c.opZip(opShareable))
-            : C ? `<span style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.opZipNone}</span>` : ''}
+            : C ? `<span class="bh-act" style="padding:8px 13px;border:1px solid rgba(32,27,22,.15);color:#9a9086;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" aria-disabled="true">${c.opZipNone}</span>` : ''}
         </div>
         ${C ? `
         <!-- v2: the program PDF — the one attachment, and the gate on every real send -->
-        <div style="display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08)">
-          <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${c.progTitle}</span>
-          <span style="font-size:11.5px;color:${progOn ? '#1e6e42' : '#b7791f'}">${progOn ? '✓ ' : ''}${esc(progLine)}</span>
-          <label style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap;cursor:pointer" data-hover="border-color:#201b16">${st.bpProgramBusy ? c.progBusy : progOn ? c.progReplace : c.progUpload}<input data-role="bbProgramFile" type="file" accept="application/pdf,.pdf" style="display:none"></label>
-          <div style="flex:1"></div>
-          <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${c.prevTitle}</span>
-          ${btn('bpPreview', st.bpPreviewing === 'presenter' ? c.prevBusy : c.prevPresenter, !st.bpPreviewing, 'data-variant="presenter"', 'ghost')}
-          ${btn('bpPreview', st.bpPreviewing === 'panel' ? c.prevBusy : c.prevPanel, !st.bpPreviewing, 'data-variant="panel"', 'ghost')}
-          ${btn('bpPreview', st.bpPreviewing === 'attendee' ? c.prevBusy : c.prevAttendee, !st.bpPreviewing, 'data-variant="attendee"', 'ghost')}
-          ${btn('bpPreview', st.bpPreviewing === 'declined' ? c.prevBusy : c.prevDeclined, !st.bpPreviewing, 'data-variant="declined"', 'ghost')}
+        <div class="bh-bo-prog" style="display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08)">
+          <span class="bh-full" style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${c.progTitle}</span>
+          <span class="bh-full" style="font-size:11.5px;color:${progOn ? '#1e6e42' : '#b7791f'}">${progOn ? '✓ ' : ''}${esc(progLine)}</span>
+          <label class="bh-act" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);background:#fff;color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap;cursor:pointer" data-hover="border-color:#201b16">${st.bpProgramBusy ? c.progBusy : progOn ? c.progReplace : c.progUpload}<input data-role="bbProgramFile" type="file" accept="application/pdf,.pdf" style="display:none"></label>
+          <div class="bh-sp" style="flex:1"></div>
+          <span class="bh-full" style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${c.prevTitle}</span>
+          ${btn('bpPreview', st.bpPreviewing === 'presenter' ? c.prevBusy : c.prevPresenter, !st.bpPreviewing, 'data-variant="presenter" class="bh-act"', 'ghost')}
+          ${btn('bpPreview', st.bpPreviewing === 'panel' ? c.prevBusy : c.prevPanel, !st.bpPreviewing, 'data-variant="panel" class="bh-act"', 'ghost')}
+          ${btn('bpPreview', st.bpPreviewing === 'attendee' ? c.prevBusy : c.prevAttendee, !st.bpPreviewing, 'data-variant="attendee" class="bh-act"', 'ghost')}
+          ${btn('bpPreview', st.bpPreviewing === 'declined' ? c.prevBusy : c.prevDeclined, !st.bpPreviewing, 'data-variant="declined" class="bh-act"', 'ghost')}
         </div>` : ''}
-        ${C ? `<div style="display:flex;gap:8px 20px;flex-wrap:wrap;padding:11px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);font-size:11.5px;color:#6d6459">
+        ${C ? `<div class="bh-bo-strip" style="display:flex;gap:8px 20px;flex-wrap:wrap;padding:11px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);font-size:11.5px;color:#6d6459">
           <span><b style="color:#201b16">${esc(c.stripReg(C.total || 0))}</b></span>
           <span><b style="color:#201b16">${esc(c.strip(C.answered || 0, C.total || 0, C.with_allergies || 0, C.not_answered || 0))}</b></span>
           <span><b style="color:#201b16">${esc(c.stripOp(opGot, C.total || 0, opPriv))}</b></span>
@@ -753,7 +874,7 @@ function sectionCatering(btn, cell, head) {
         ${sectionReleased(btn)}
         ${!C && !lockErr ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">Not right now.</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.down}</span></div>` : ''}
         ${C && !rows.length ? `<div class="empty" style="padding:18px 20px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${c.empty}</span><span class="empty-why" style="font-size:11.5px;color:#6d6459">${c.emptyWhy}</span></div>` : ''}
-        ${C && rows.length ? `
+        ${C && rows.length ? (isPhone() ? guestCards(rows, { btn }) : `
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px">
             <thead><tr><th style="${head}">${c.cWho}</th><th style="${head}">${c.cInst}</th><th style="${head}">${c.cPref}</th><th style="${head}">${c.cAllergy}</th><th style="${head}">${c.cOnePager}</th><th style="${head}">${c.cAnswered}</th><th style="${head}">${c.cDone}</th><th style="${head}">${c.cReq}</th><th style="${head}">${c.cRem}</th><th style="${head}"></th></tr></thead>
@@ -791,7 +912,7 @@ function sectionCatering(btn, cell, head) {
             }).join('')}
             </tbody>
           </table>
-        </div>` : ''}
+        </div>`) : ''}
       </div>`;
 }
 // The CATERING block (Alen 2026-09-16): "how many vegan, how many whatever" — head counts per
@@ -803,28 +924,28 @@ function sectionKitchen() {
   if (!C || !C.catering) return '';
   const K = C.catering;
   const total = Number(C.total) || 0;
-  const pills = (K.by_preference || []).map(p => `<span style="display:inline-flex;align-items:baseline;gap:6px;padding:7px 11px;border:1px solid rgba(32,27,22,.14);background:#fff"><b style="font:600 18px Fraunces,serif;color:#201b16">${Number(p.count) || 0}</b><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#6d6459">${esc(String(p.label).toUpperCase())}</span></span>`).join('');
+  const pills = (K.by_preference || []).map(p => `<span class="bh-kit-pill" style="display:inline-flex;align-items:baseline;gap:6px;padding:7px 11px;border:1px solid rgba(32,27,22,.14);background:#fff"><b style="font:600 18px Fraunces,serif;color:#201b16">${Number(p.count) || 0}</b><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#6d6459">${esc(String(p.label).toUpperCase())}</span></span>`).join('');
   const answered = (K.by_preference || []).filter(p => p.key !== 'unset').reduce((n, p) => n + (Number(p.count) || 0), 0);
   const al = K.allergies || [];
   const rq = K.requests || [];
   return `
-        <div data-v2="boston-catering" style="border-bottom:1px solid rgba(32,27,22,.08);background:#fffdf8">
-          <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;flex-wrap:wrap">
+        <div data-v2="boston-catering" class="bh-kit" style="border-bottom:1px solid rgba(32,27,22,.08);background:#fffdf8">
+          <div class="bh-kit-head" style="display:flex;align-items:center;gap:10px;padding:12px 20px;flex-wrap:wrap">
             <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#8a5a12">${c.title}</span>
-            <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
-            <div style="flex:1"></div>
-            <span style="font-size:11px;color:#6d6459">${esc(String(answered))} of ${esc(String(total))} chose a preference</span>
+            <span class="bh-kit-sub" style="font-size:11.5px;color:#6d6459">${c.sub}</span>
+            <div class="bh-sp" style="flex:1"></div>
+            <span class="bh-kit-n" style="font-size:11px;color:#6d6459">${esc(String(answered))} of ${esc(String(total))} chose a preference</span>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 20px 12px">${pills}</div>
-          <div class="mx-two" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:0 20px 14px">
+          <div class="bh-kit-pills" style="display:flex;gap:8px;flex-wrap:wrap;padding:0 20px 12px">${pills}</div>
+          <div class="mx-two bh-kit-lists" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:0 20px 14px">
             <div>
               <div style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;margin-bottom:6px">${c.allergyTitle} · ${al.length}</div>
-              ${al.length ? al.map(a => `<div style="display:flex;gap:10px;padding:5px 0;border-top:1px solid rgba(32,27,22,.07);font-size:12.5px"><span style="font-weight:600;min-width:150px">${esc(a.name)}</span><span style="color:#9b1b22">${esc(a.allergies)}</span></div>`).join('') : `<div style="font-size:12px;color:#6d6459;font-style:italic">${c.allergyNone}</div>`}
-              <div style="font-size:11px;color:#6d6459;margin-top:8px">${esc(c.noAllergies(Number(K.no_allergies) || 0))} · ${esc(c.allergiesUnanswered(Number(K.allergies_unanswered) || 0))}</div>
+              ${al.length ? al.map(a => `<div class="bh-kit-row" style="display:flex;gap:10px;padding:5px 0;border-top:1px solid rgba(32,27,22,.07);font-size:12.5px"><span style="font-weight:600;min-width:150px">${esc(a.name)}</span><span style="color:#9b1b22">${esc(a.allergies)}</span></div>`).join('') : `<div style="font-size:12px;color:#6d6459;font-style:italic">${c.allergyNone}</div>`}
+              <div class="bh-kit-foot" style="font-size:11px;color:#6d6459;margin-top:8px">${esc(c.noAllergies(Number(K.no_allergies) || 0))} · ${esc(c.allergiesUnanswered(Number(K.allergies_unanswered) || 0))}</div>
             </div>
             <div>
               <div style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#7a6432;margin-bottom:6px">${c.reqTitle} · ${rq.length}</div>
-              ${rq.length ? rq.map(r => `<div style="padding:5px 0;border-top:1px solid rgba(32,27,22,.07);font-size:12.5px"><span style="font-weight:600">${esc(r.name)}</span><span style="display:block;color:#201b16;margin-top:2px">${esc(r.text)}</span></div>`).join('') : `<div style="font-size:12px;color:#6d6459;font-style:italic">${c.reqNone}</div>`}
+              ${rq.length ? rq.map(r => `<div class="bh-kit-row" style="padding:5px 0;border-top:1px solid rgba(32,27,22,.07);font-size:12.5px"><span style="font-weight:600">${esc(r.name)}</span><span style="display:block;color:#201b16;margin-top:2px">${esc(r.text)}</span></div>`).join('') : `<div style="font-size:12px;color:#6d6459;font-style:italic">${c.reqNone}</div>`}
             </div>
           </div>
         </div>`;
@@ -840,23 +961,23 @@ function sectionReleased(btn) {
   const open = !!st.bpRelOpen;
   return `
         <div data-v2="boston-released" style="border-bottom:1px solid rgba(32,27,22,.08);background:#fdf7f2">
-          <div style="display:flex;align-items:center;gap:10px;padding:11px 20px;flex-wrap:wrap">
+          <div class="bh-rel-head" style="display:flex;align-items:center;gap:10px;padding:11px 20px;flex-wrap:wrap">
             <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#8a5a12">${esc(c.relTitle(rel.length))}</span>
             <div style="flex:1"></div>
-            <span data-act="bpRelToggle" role="button" aria-expanded="${open}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${open ? c.relClose : c.relOpen}</span>
+            <span data-act="bpRelToggle" role="button" aria-expanded="${open}" class="bh-rel-toggle" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${open ? c.relClose : c.relOpen}</span>
           </div>
           ${open ? `
           <div style="padding:0 20px 14px">
-            <div style="font-size:11.5px;color:#6d6459;margin-bottom:10px">${esc(c.relWhy)}</div>
+            <div class="bh-rel-why" style="font-size:11.5px;color:#6d6459;margin-bottom:10px">${esc(c.relWhy)}</div>
             ${rel.map(r => {
               const busy = st.bpRestoring === r.registration_id;
               return `
-              <div data-row="${esc(r.registration_id)}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid rgba(32,27,22,.07)">
-                <span style="font-weight:600;font-size:12.5px">${esc(r.name || r.email)}</span>
-                <span style="font-size:11px;color:#6d6459">${esc(r.email)}${r.institution ? ' · ' + esc(r.institution) : ''}${r.presenter ? ' · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">WAS PRESENTING</span>' : ''}</span>
-                <div style="flex:1"></div>
-                <span style="font-size:11px;color:#8a5a12;white-space:nowrap">${esc(c.relWhen(r.released_on))}${r.released_by === 'team' ? ' · by the team' : ''}</span>
-                ${btn('bpRestore', busy ? c.restoreBusy : c.restore, !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}"`, 'ghost')}
+              <div data-row="${esc(r.registration_id)}" class="bh-rel-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid rgba(32,27,22,.07)">
+                <span class="bh-rel-name" style="font-weight:600;font-size:12.5px">${esc(r.name || r.email)}</span>
+                <span class="bh-rel-mail" style="font-size:11px;color:#6d6459">${esc(r.email)}${r.institution ? ' · ' + esc(r.institution) : ''}${r.presenter ? ' · <span style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432">WAS PRESENTING</span>' : ''}</span>
+                <div class="bh-sp" style="flex:1"></div>
+                <span class="bh-rel-when" style="font-size:11px;color:#8a5a12;white-space:nowrap">${esc(c.relWhen(r.released_on))}${r.released_by === 'team' ? ' · by the team' : ''}</span>
+                ${btn('bpRestore', busy ? c.restoreBusy : c.restore, !busy, `data-id="${esc(r.registration_id)}" data-who="${esc(r.name || r.email)}" data-mail="${esc(r.email)}" class="bh-act"`, 'ghost')}
               </div>`;
             }).join('')}
           </div>` : ''}
@@ -920,12 +1041,13 @@ function template() {
   return `
 <div data-screen-label="Admin Bridges Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
   ${blockSubnav()}
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:24px">
+  <div class="mx-gutter bh-col" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:24px">
+    ${scannerBtn('hub')}
     ${blockTitle()}
     ${blockBand()}
-    <div class="mx-two" style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:start">
+    <div class="mx-two bh-two" style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:start">
       ${blockEvents()}
-      <div style="display:flex;flex-direction:column;gap:22px">
+      <div class="bh-side" style="display:flex;flex-direction:column;gap:22px">
         ${blockReady()}
         ${blockFollowups()}
         ${blockAfter()}
@@ -1428,6 +1550,21 @@ const handlers = {
       ui.toast(c.restored(mail));
     } catch (e) { st.bpRestoring = null; rerender('[data-block="boston"]', blockBoston()); ui.toast(e.message, { kind: 'error' }); }
   },
+  // ---- phone only (≤700 px): the folded side blocks and the tap-to-open cards ----
+  bhFold: (el) => {
+    const k = el.dataset.fold; if (!k || !st.fold) return;
+    st.fold[k] = !st.fold[k];
+    if (k === 'ready') rerender('[data-block="ready"]', blockReady());
+    else if (k === 'fu') { st.fuName = val('fuName'); st.fuWhy = val('fuWhy'); rerender('[data-block="fu"]', blockFollowups()); }
+    else rerender('[data-block="after"]', blockAfter());
+  },
+  bpCard: (el) => {
+    const k = el.dataset.key || '';
+    st.bpCardOpen = st.bpCardOpen === k ? null : k;
+    readGuestForm(); st.bpName = val('bpName') || st.bpName; st.bpEmail = val('bpEmail') || st.bpEmail;
+    rerender('[data-block="boston"]', blockBoston());
+    if (st.bpCardOpen === k) { const row = rootEl && rootEl.querySelector(`.bh-card [data-key="${k.replace(/"/g, '')}"]`); if (row && row.getBoundingClientRect().top < 0) row.scrollIntoView({ block: 'start' }); }
+  },
   scBridges: () => { st.scope = 'bridges'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
   scAll: () => { st.scope = 'all'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
   scYear: () => { st.scope = 'y2026'; st.copied = false; rerender('[data-block="stats"]', blockStats()); },
@@ -1453,11 +1590,15 @@ export default {
            bpProgramBusy: false, bpPreviewing: null, bpRelOpen: false, bpRestoring: null, bpFilter: 'all',
            // team controls (2026-09-16)
            bpMsgBusy: null, bpBulkBusy: null, bpReleasing: null, bpResending: null, bpFlipped: {},
-           bpGuestOpen: false, bgBusy: false, bg: { first: '', last: '', email: '', inst: '', pos: '', presenter: false, panel: false } };
+           bpGuestOpen: false, bgBusy: false, bg: { first: '', last: '', email: '', inst: '', pos: '', presenter: false, panel: false },
+           // phone (≤700 px): the three side blocks start folded; one Boston card open at a time
+           fold: { ready: false, fu: false, after: false }, bpCardOpen: null };
     D = await load();
     if (rootEl !== root) return; // navigated away while loading
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
+    // crossing the phone breakpoint (a rotation, a resized window) redraws in the other shape
+    if (MQ) { mqHandler = () => { if (rootEl === root && D && st) root.innerHTML = template(); }; MQ.addEventListener('change', mqHandler); }
     // The router scrolls to the top once render resolves; a deep link to the Boston block goes
     // there right after (next frame). Back/forward (`popped`) keeps the router's restored scroll.
     if (st.bostonOpen && !(ctx && ctx.popped)) requestAnimationFrame(() => { if (rootEl === root) scrollToBoston(); });
@@ -1472,6 +1613,7 @@ export default {
   destroy() {
     if (changeHandler && rootEl) rootEl.removeEventListener('change', changeHandler);
     changeHandler = null;
+    if (mqHandler && MQ) MQ.removeEventListener('change', mqHandler); mqHandler = null;
     if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null;
   }
 };

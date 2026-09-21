@@ -123,7 +123,9 @@ export const COPY = {
     locked: 'The Weekly Read needs Executive Suite access — ask Alen.'
   },
   // UXFIX-A1 #15 (2026-09-02): the footer's SYSTEM HEALTH link duplicated the header pill — removed, header pill kept
-  footer: { admin: 'ADMIN:', audit: 'AUDIT LOG', member: 'VIEW MEMBER PORTAL ↗' }
+  footer: { admin: 'ADMIN:', audit: 'AUDIT LOG', member: 'VIEW MEMBER PORTAL ↗' },
+  // Event day (2026-09-21): a bridges_events row dated today puts the door scanner above everything.
+  tonight: { line: city => `${FACTS.bridges.name} ${city} is tonight —`, cta: 'OPEN THE DOOR SCANNER →' }
 };
 const KPI_KEYS = ['kDays', 'kConf', 'kGala', 'kMoney'];
 const TREND_KEY = 'kTrend';                          // the chart is its own Customise tick, not a KPI card
@@ -632,10 +634,25 @@ function blockFooter() {
     </div>
     <!-- /dc -->`;
 }
+// Event day: the bridges_events row dated today (the legacy /api/bridges/events read this view
+// already makes) → one crimson bar above everything, straight to /event-day where the Bridges
+// door pre-selects. Absent on every other day.
+function blockTonight() {
+  const today = fmt.ymd(new Date());
+  const ev = ((D.bridges && D.bridges.dated) || []).find(b => b.d === today && String(b.status || '') !== 'cancelled');
+  if (!ev) return '';
+  return `
+    <!-- v2: event day — the door scanner shortcut -->
+    <a href="/event-day" data-block="tonight" data-v2="door-scanner" class="mx-t-tonight" style="display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;padding:16px 20px;background:#9b1b22;color:#fff;text-decoration:none;min-height:56px;box-sizing:border-box" data-hover="background:#7e151b">
+      <span style="font-family:Fraunces,serif;font-size:18px;line-height:1.3">${esc(COPY.tonight.line(ev.city || FACTS.bridges.next.city))}</span>
+      <span style="font:600 12px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.tonight.cta}</span>
+    </a>`;
+}
 function template() {
   return `
 <div data-screen-label="Admin Home" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
   <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:26px">
+    ${blockTonight()}
     ${blockGreeting()}
     ${blockCustomise()}
     ${blockHero()}

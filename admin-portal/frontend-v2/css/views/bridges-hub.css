@@ -15,3 +15,144 @@
 @media (max-width: 620px) {
   .bh-band { gap: 14px 24px !important; }
 }
+
+/* ============================================================================================
+   PHONE (≤700 px) — event day 2026-09-21. The desktop artboard is untouched above 700 px; below
+   it the hub reads as a phone page: 2×2 stats, event cards, folded side blocks, the Boston block
+   with wrapping chips, a two-column action grid, tap-to-open presenter/guest cards, one-row
+   scrolling filter chips. Base type 14 px, targets 44 px, nothing wider than the viewport.
+   ============================================================================================ */
+@media (max-width: 700px) {
+  [data-screen-label="Admin Bridges Hub"] { font-size: 14px; }
+  .bh-col { padding-top: 16px !important; gap: 16px !important; }
+  .bh-col > *, .bh-col [data-block] { min-width: 0; max-width: 100%; }
+  .bh-sp { display: none !important; }
+
+  /* the door-scanner shortcut: full width, unmissable */
+  .bh-scan { display: flex !important; width: 100%; box-sizing: border-box; min-height: 54px; align-self: stretch !important;
+             font-size: 13px !important; letter-spacing: .12em !important; white-space: normal !important; text-align: center; padding: 14px 16px !important; }
+  .bh-bo-head > .bh-scan { grid-column: 1 / -1; order: -1; margin-bottom: 4px; font-size: 12px !important; letter-spacing: .1em !important; }
+
+  /* title · one-line subtitle · the manage link as a full-width ghost button */
+  .bh-title { gap: 12px !important; }
+  .bh-title-main { min-width: 0; flex: 1 1 100%; }
+  .bh-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px !important; margin-top: 6px !important; }
+  .bh-manage { flex: 1 1 100%; display: flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box; text-align: center; white-space: normal !important; font-size: 11px !important; }
+
+  /* the four stats as a 2×2 grid: number 22 px, label 11 px */
+  .bh-band { display: grid !important; grid-template-columns: 1fr 1fr; gap: 16px 14px !important; padding: 14px 2px !important; }
+  .bh-stat { white-space: normal !important; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .bh-stat-n { font-size: 22px !important; line-height: 1.05; }
+  .bh-stat-l { font-size: 11px !important; letter-spacing: .08em !important; line-height: 1.35; }
+
+  /* the page order: events → Boston block (when open) → the three folded blocks → stats */
+  .bh-col > .bh-two { display: contents !important; }
+  .bh-col > .bh-two > [data-block="events"] { order: 1; }
+  .bh-col > [data-block="boston-slot"] { order: 2; }
+  .bh-col > .bh-two > .bh-side { order: 3; gap: 12px !important; }
+  .bh-col > [data-block="stats"] { order: 4; margin-top: 0 !important; }
+  [data-block="boston-slot"] > div:first-child { margin-top: 0 !important; min-height: 44px; }
+  [data-block="boston"] { margin-top: 10px !important; }
+
+  /* EVENTS: one card per city */
+  .bh-ev-head { flex-wrap: wrap !important; padding: 14px 16px !important; }
+  .bh-ev-head-sub { flex: 1 1 100%; font-size: 13px !important; order: 3; }
+  .bh-ev-head > .bh-act { margin-left: auto; }
+  .bh-ev-row { flex-wrap: wrap !important; gap: 6px 10px !important; padding: 14px 16px !important; }
+  .bh-ev-date { width: auto !important; order: 0; font-size: 11px !important; }
+  .bh-ev-chip { order: 1; margin-left: auto; font-size: 9.5px !important; }
+  .bh-ev-main { order: 2; flex: 1 1 100% !important; }
+  .bh-ev-main > span:first-child { font-size: 17px !important; line-height: 1.25; }
+  .bh-ev-main > span:last-child { font-size: 13px !important; margin-top: 2px; }
+  .bh-ev-count { order: 3; flex: 1 1 100%; white-space: normal !important; font-size: 13px !important; line-height: 1.4; }
+  .bh-ev-go { order: 4; flex: 1 1 100%; display: flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box;
+              font-size: 11px !important; white-space: normal !important; text-align: center; margin-top: 6px; padding: 10px 12px !important; }
+  .bh-ev-ghost { border: 1.5px solid #9b1b22; }
+  .bh-ev-edit { order: 5; flex: 1 1 100%; display: flex; align-items: center; justify-content: center; min-height: 44px; font-size: 11px !important; }
+  [data-v2="event-edit"], [data-v2="recap-edit"] { padding: 12px 16px !important; }
+  [data-v2="event-edit"] input, [data-v2="recap-edit"] input, [data-v2="recap-edit"] textarea { font-size: 16px !important; min-height: 44px; }
+
+  /* READY-TO-RUN · FOLLOW-UPS · AFTER EACH EVENING fold behind their headers */
+  .bh-fold-head { display: flex !important; align-items: center; gap: 10px; cursor: pointer; min-height: 48px; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  .bh-fold-head > span:first-child { font-size: 12px !important; }
+  .bh-fold-head .bh-fu-hint { display: none; }
+  .bh-fold-closed { display: none !important; }
+  [data-block="ready"] .bh-fold-head + div, [data-block="fu"] .bh-fold-head + div { padding-left: 16px !important; padding-right: 16px !important; }
+  [data-block="ready"] span[style*="font-size:12.5px"], [data-block="fu"] span[style*="font-size:13px"], [data-block="after"] span[style*="font-size:12.5px"] { font-size: 14px !important; }
+  [data-block="ready"] [data-act], [data-block="fu"] input, [data-block="fu"] [data-act="fuAdd"] { min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; }
+  [data-block="fu"] input { font-size: 16px !important; }
+  [data-block="after"] { padding: 0 16px 0 !important; gap: 0 !important; }
+  [data-block="after"] .bh-fold-head { padding: 13px 4px; }
+  [data-block="after"] .bh-fold-head + div { padding: 4px 0 16px; }
+  [data-block="after"] a, [data-block="after"] [data-act="queueThanks"] { min-height: 44px; display: inline-flex; align-items: center; font-size: 11px !important; }
+
+  /* BOSTON block — header as a two-column grid: title · sub · chips span both, buttons one each */
+  .bh-bo-head { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; padding: 14px 16px !important; align-items: stretch !important; }
+  .bh-bo-head > .bh-bo-title { grid-column: 1 / -1; font-size: 12px !important; }
+  .bh-bo-head > .bh-bo-sub { grid-column: 1 / -1; font-size: 13px !important; line-height: 1.45; margin-bottom: 2px; }
+  .bh-bo-head > .bh-bo-count { grid-column: 1 / -1; }
+  .bh-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .bh-chip { display: inline-flex; align-items: center; padding: 6px 10px; border: 1px solid rgba(32,27,22,.14); background: #f6f2ea; font-size: 12.5px; color: #201b16; white-space: nowrap; }
+  .bh-act { min-height: 44px; display: flex !important; align-items: center; justify-content: center; text-align: center; box-sizing: border-box;
+            white-space: normal !important; padding: 10px 10px !important; font-size: 10.5px !important; letter-spacing: .1em !important; line-height: 1.3; text-decoration: none; }
+  .bh-act-link { border: 1px solid rgba(155,27,34,.45); }
+  .bh-bo-head > [data-act="bpRemindAll"] { grid-column: 1 / -1; }
+
+  /* the add-presenter / add-guest forms */
+  [data-block="boston"] input[data-role^="bp"], [data-block="boston"] input[data-role^="bg"] { flex: 1 1 100% !important; min-height: 44px; box-sizing: border-box; font-size: 16px !important; }
+  [data-block="boston"] [data-act="bpAdd"], [data-block="boston"] [data-act="bpGuestAdd"] { flex: 1 1 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+  [data-v2="boston-add-guest-form"] label { min-height: 44px; font-size: 14px !important; }
+
+  /* the filter row: chips scroll in ONE row, edge to edge; the bulk buttons + CSV below in two columns */
+  .bh-bo-filters { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; padding: 10px 16px !important; }
+  .bh-chipscroll { grid-column: 1 / -1; display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+                   margin: 0 -16px; padding: 2px 16px 6px; }
+  .bh-chipscroll::-webkit-scrollbar { display: none; }
+  .bh-chipscroll > [data-act] { flex: none; min-height: 44px; display: inline-flex; align-items: center; padding: 10px 14px !important; font-size: 11px !important; box-sizing: border-box; }
+  .bh-bo-filters > a.bh-act { grid-column: 1 / -1; }
+
+  /* the program PDF row */
+  .bh-bo-prog { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; padding: 12px 16px !important; }
+  .bh-bo-prog > .bh-full { grid-column: 1 / -1; font-size: 13px !important; }
+  .bh-bo-prog > .bh-full[style*="letter-spacing"] { font-size: 10px !important; margin-top: 4px; }
+  .bh-bo-prog > label.bh-act { grid-column: 1 / -1; }
+
+  /* the completion strip as chips */
+  .bh-bo-strip { gap: 6px !important; padding: 10px 16px !important; }
+  .bh-bo-strip > span { display: inline-flex; align-items: center; padding: 6px 10px; border: 1px solid rgba(32,27,22,.14); background: #fff; font-size: 12.5px !important; line-height: 1.3; }
+  .bh-bo-strip > span b { font-weight: 600; }
+
+  /* CATERING: counters as a wrapping chip row, the two lists stacked and readable */
+  .bh-kit-head { padding: 12px 16px !important; }
+  .bh-kit-sub { flex: 1 1 100%; font-size: 13px !important; }
+  .bh-kit-n { font-size: 13px !important; }
+  .bh-kit-pills { padding: 0 16px 12px !important; }
+  .bh-kit-pill b { font-size: 20px !important; }
+  .bh-kit-pill > span { font-size: 10px !important; }
+  .bh-kit-lists { padding: 0 16px 14px !important; gap: 14px !important; }
+  .bh-kit-row { font-size: 14px !important; flex-wrap: wrap; gap: 4px 10px !important; padding: 8px 0 !important; }
+  .bh-kit-row > span:first-child { min-width: 0 !important; flex: 1 1 100%; }
+  .bh-kit-foot { font-size: 12.5px !important; }
+
+  /* RELEASED SEATS: name · when · one restore button per row */
+  .bh-rel-head { padding: 11px 16px !important; }
+  .bh-rel-toggle { min-height: 44px; min-width: 64px; display: inline-flex; align-items: center; justify-content: flex-end; font-size: 11px !important; }
+  [data-block="boston-slot"] [data-act="bostonClose"] { min-height: 44px; min-width: 64px; display: inline-flex; align-items: center; justify-content: flex-end; font-size: 11px !important; }
+  .bh-rel-head + div { padding: 0 16px 14px !important; }
+  .bh-rel-why { font-size: 13px !important; line-height: 1.45; }
+  .bh-rel-row { flex-direction: column; align-items: stretch !important; gap: 4px !important; padding: 12px 0 !important; }
+  .bh-rel-name { font-size: 15px !important; }
+  .bh-rel-mail { font-size: 13px !important; overflow-wrap: anywhere; }
+  .bh-rel-when { white-space: normal !important; font-size: 12.5px !important; }
+  .bh-rel-row > .bh-act { margin-top: 6px; }
+
+  /* the cards (presenters · guests) */
+  .bh-cards { border-top: 1px solid rgba(32,27,22,.08); }
+  .bh-card-picks > [data-act] { margin: 0 !important; }
+  [data-v2="boston-resend-hint"] { max-width: none !important; }
+
+  /* the stats widget footer */
+  [data-block="stats"] [data-act="copyLine"] { min-height: 44px; display: inline-flex; align-items: center; }
+  [data-block="stats"] > div:first-child { padding: 14px 16px !important; }
+  [data-block="stats"] > div:first-child > span[role="radio"] { min-height: 40px; display: inline-flex; align-items: center; }
+}
