@@ -21,7 +21,29 @@ export const SOURCE = 'Admin Event Day.dc.html';
 
 export const COPY = {
   title: 'Event Day',
-  sub: 'the live control room — wakes up by itself on December 4',
+  sub: 'the live control room — wakes up by itself on every event date',
+  // DOOR MODE (2026-09-21) — the phone-first layout at ≤ 700px (see css/views/event-day.css)
+  phone: {
+    inOf: (a, b) => `${a} / ${b}`, inWord: 'IN',
+    more: 'settings', tabScan: 'SCAN', tabList: 'LIST',
+    scan: 'SCAN', stop: 'STOP', check: 'CHECK', admit: 'ADMIT',
+    manual: 'Type the code or the guest’s email',
+    camIdle: 'tap SCAN — the camera opens here',
+    counts: { in: 'IN', expected: 'EXPECTED', pres: 'PRESENTERS IN' },
+    filters: { out: 'NOT YET IN', in: 'IN', all: 'ALL' },
+    search: 'Search a name',
+    presentersFirst: 'PRESENTERS & PANEL', others: 'GUESTS',
+    role: { presenter: 'PRESENTER', panel: 'PANEL', guest: 'GUEST' },
+    partyOf: n => `PARTY OF ${n}`,
+    notYetIn: 'not yet in', alreadyIn: t => `ALREADY IN${t ? ' · ' + t : ''}`,
+    admitOne: (n) => n > 1 ? `ADMIT 1 OF ${n}` : 'ADMIT', admitAll: n => `ADMIT ALL ${n}`,
+    admitAt: label => `ADMIT · ${label}`,
+    notThisDoor: 'NOT ON THIS DOOR’S LIST', notThisDoorWhy: 'Registered for another door — admit there if that is where they belong.',
+    nothing: 'REGISTERED — BUT FOR NOTHING AT THESE DOORS',
+    admitted: 'ADMITTED', allIn: 'ALL IN', next: 'NEXT SCAN', done: 'DONE', close: 'CLOSE',
+    inNow: (a, b) => `${a} of ${b} in`,
+    brief: 'HOST BRIEF', hideBrief: 'HIDE THE BRIEF', desktop: 'STAFF LINK · MAP · NOTES ARE ON THE DESKTOP VIEW'
+  },
   toggle: 'REHEARSAL MODE',
   banner: 'REHEARSAL — TEST GUESTS ONLY, NOTHING IS REAL',
   bannerSide: 'On December 4 this banner disappears and the scanner goes live.',
@@ -122,13 +144,59 @@ const Q_KEY = () => 'medx_v2_scanq:' + ((session.user || {}).id || 'anon');
 let D = null, st = null, rootEl = null, unbind = null, timers = [];
 let camStream = null, camVideo = null, camRaf = 0;
 
+// ---------------------------------------------------------------- DOOR MODE (2026-09-21)
+// At ≤ 700px the view renders phoneTemplate() — scanner first, a result SHEET instead of the inline
+// card, a door list with big targets. Same data, same handlers, same scan/lookup calls; only the
+// presentation differs. isPhone() is read at render time and on a breakpoint crossing (resize).
+const PHONE_MQ = '(max-width: 700px)';
+const isPhone = () => { try { return window.matchMedia(PHONE_MQ).matches; } catch (e) { return false; } };
+const hhmm = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : ''; };
+// Per-guest enrichment for a Bridges edition (institution · position · presenter/panel) — read from
+// the existing GET /api/bridges/events/:id (auth only, so door staff can read it too). Keyed by
+// registration id AND lower(email) so a merged door row and a lookup card both resolve.
+const regOf = (ref, email) => {
+  if (!st || !st.regs) return null;
+  return (ref && st.regs['id:' + String(ref)]) || (email && st.regs['em:' + String(email).trim().toLowerCase()]) || null;
+};
+const roleOf = r => {
+  if (!r) return null;
+  const ps = String(r.presenter_status || '').toLowerCase();
+  if (ps === 'confirmed') return 'presenter';
+  if (ps === 'panel' || String(r.panel_reply || '').toLowerCase() === 'yes') return 'panel';
+  return null;
+};
+const isPresRow = d => !!roleOf(regOf(d.ref, d.email));
+async function loadBridgesEdition() {
+  st.regs = {}; st.venue = '';
+  if (st.gate !== 'bridges' || !st.bridgesEvent) return;
+  const id = st.bridgesEvent;
+  try {
+    const ev = await api.get('/api/bridges/events/' + encodeURIComponent(id));
+    if (!st || st.bridgesEvent !== id) return;
+    const venue = String((ev && ev.venue_name) || '');
+    // "Waterhouse Room, Gordon Hall" → the building is the part the guests know
+    st.venue = venue.includes(',') ? venue.split(',').pop().trim() : venue;
+    const regs = {};
+    ((ev && ev.registrations) || []).forEach(r => {
+      const slim = { institution: r.institution || '', position: r.position || '', presenter_status: r.presenter_status || null, panel_reply: r.panel_reply || null, checked_in_at: r.checked_in_at || null };
+      regs['id:' + String(r.id)] = slim;
+      if (r.email) { const k = 'em:' + String(r.email).trim().toLowerCase(); if (!regs[k]) regs[k] = slim; }
+    });
+    st.regs = regs;
+  } catch (e) { /* enrichment only — the door works without it */ }
+}
+
 // ---------------------------------------------------------------- offline queue
 function readQ() { try { return JSON.parse(localStorage.getItem(Q_KEY()) || '[]'); } catch (e) { return []; } }
 function writeQ(a) { try { localStorage.setItem(Q_KEY(), JSON.stringify(a)); } catch (e) {} paintQueue(); }
 function paintQueue() {
-  const el = rootEl && rootEl.querySelector('[data-role="queueBadge"]');
-  if (!el) return;
+  if (!rootEl) return;
   const n = readQ().length;
+  // door mode: a pill in the header shows queued scans even while the ⋯ row is closed
+  const pill = rootEl.querySelector('[data-role="queuePill"]');
+  if (pill) { pill.style.display = n ? 'inline-flex' : 'none'; pill.textContent = n ? COPY.scanner.queued(n) : ''; }
+  const el = rootEl.querySelector('[data-role="queueBadge"]');
+  if (!el) return;
   el.style.display = n ? 'inline-flex' : 'none';
   el.textContent = n ? COPY.scanner.queued(n) : '';
   const s = rootEl.querySelector('[data-act="syncNow"]');
@@ -170,7 +238,10 @@ async function load() {
   };
 }
 function gateInfo(key) { return (D.over.gates || []).find(g => g.event_key === key) || { event_key: key, label: key, expected: 0, admitted: 0 }; }
-function isLive() { return !!(D && D.over.is_event_day) || st.rehearsal || st.forced; }
+// The server judges "event day" on UTC; a Boston door at 20:00 ET is already tomorrow in UTC, so
+// a Bridges edition dated LOCAL today keeps the room live on its own (chrome.isEventDay does the same).
+const bridgesToday = () => { const t = fmt.ymd(new Date()); return (D && (D.over.bridges_events || []).find(e => e.date && String(e.date).slice(0, 10) === t)) || null; };
+function isLive() { return !!(D && D.over.is_event_day) || st.rehearsal || st.forced || !!bridgesToday(); }
 // ---- meetup door (2026-09-11) — the picker list rides on the overview payload
 const meetupList = () => (D && Array.isArray(D.over.meetups)) ? D.over.meetups : [];
 const meetupOn = () => st.gate === MEETUP_GATE && !st.rehearsal;
@@ -183,10 +254,15 @@ async function refreshCounts() {
     const o = await api.get('/api/v2/eventday/overview');
     if (!D || !rootEl) return;
     D.over = o;
-    paint('[data-block="counters"]', blockCounters());
+    paintCounts();
     // the meetup chips print live seats — repaint them with the fresh overview
     if (meetupOn()) { paint('[data-block="gateChips"]', gateChips()); paintQueue(); }
   } catch (e) {}
+}
+function paintCounts() {
+  paint('[data-block="counters"]', isPhone() ? phoneCounts() : blockCounters());
+  const h = rootEl && rootEl.querySelector('[data-role="hdrCount"]');
+  if (h) h.innerHTML = hdrCountHtml();
 }
 async function refreshDoor() {
   if (!rootEl) return;
@@ -195,8 +271,14 @@ async function refreshDoor() {
       + (st.gate === 'bridges' && st.bridgesEvent ? '&bridges_event=' + encodeURIComponent(st.bridgesEvent) : '')
       + (st.gate === MEETUP_GATE && st.meetupId ? '&meetup_id=' + encodeURIComponent(st.meetupId) : '');
     const d = await api.get('/api/v2/eventday/door?' + p);
+    if (!rootEl || !st) return;
     st.door = d.rows || [];
+    if (!st.doorQ) st.doorAll = st.door;   // the unfiltered list feeds the phone's filter counts + presenters-in
     paint('[data-block="doorRows"]', doorRowsHtml());
+    if (isPhone()) {
+      paint('[data-block="listFilter"]', phoneFilter()); paintCounts();
+      const n = rootEl.querySelector('[data-role="tabOut"]'); if (n) n.textContent = String(st.door.filter(d => !rowIn(d)).length);
+    }
   } catch (e) { /* keep the last list */ }
 }
 // v2 addition (2026-08-31): HOST BRIEF — reads /api/v2/host-brief for the selected door.
@@ -228,6 +310,7 @@ async function scan(code, opts = {}) {
   };
   try {
     const out = await api.post('/api/v2/eventday/scan', body);
+    out._code = code;   // the sheet's ADMIT ONE MORE / override buttons re-scan this code
     showResult(out);
     refreshCounts(); refreshDoor();
     return out;
@@ -245,8 +328,15 @@ async function scan(code, opts = {}) {
 function showResult(out) {
   st.last = out;
   st.idcard = null;
-  paint('[data-role="scanResult"]', resultHtml());
+  presentResult();
 }
+// One place decides WHERE a result shows: the inline card (desktop) or the bottom sheet (phone).
+function presentResult() {
+  if (!rootEl) return;
+  if (isPhone()) { const host = rootEl.querySelector('[data-role="sheetHost"]'); if (host) host.innerHTML = sheetHtml(); }
+  else paint('[data-role="scanResult"]', resultHtml());
+}
+const sheetOpen = () => !!(st && (st.idcard || st.last));
 
 // ---------------------------------------------------------------- ID check (identify first, admit on tap)
 // Default scan mode (Alen 2026-08-30): a scan RESOLVES the person — full name, what they booked at
@@ -261,7 +351,7 @@ async function identify(code, opts = {}) {
     if (!out.ok) { showResult(Object.assign({ ticket: {} }, out, { _code: code })); return out; }
     st.last = null;
     st.idcard = Object.assign({ _code: code }, out);
-    paint('[data-role="scanResult"]', resultHtml());
+    presentResult();
     return out;
   } catch (e) {
     // offline or server unreachable — fall back to the queueing admit flow so the door keeps moving
@@ -318,24 +408,27 @@ function loadJsQR() {
     document.head.appendChild(s);
   });
 }
+const camLabel = on => isPhone() ? (on ? COPY.phone.stop : COPY.phone.scan) : (on ? COPY.scanner.stop : COPY.scanner.start);
 function stopCam() {
   if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
   if (camVideo) { camVideo.remove(); camVideo = null; }
   cancelAnimationFrame(camRaf);
-  st.camOn = false;
+  if (st) st.camOn = false;
   const b = rootEl && rootEl.querySelector('[data-act="cam"]');
-  if (b) b.textContent = COPY.scanner.start;
+  if (b) b.textContent = camLabel(false);
   const hint = rootEl && rootEl.querySelector('[data-role="camHint"]');
   if (hint) hint.style.display = '';
 }
 async function startCam() {
   const box = rootEl.querySelector('[data-role="camBox"]');
   const hint = rootEl.querySelector('[data-role="camHint"]');
+  if (!box) return;
   const okLib = await loadJsQR();
   if (!okLib || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { if (hint) hint.textContent = COPY.scanner.camBusy; return; }
   try {
     camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
   } catch (e) { if (hint) hint.textContent = COPY.scanner.camBusy; return; }
+  if (!rootEl || !st) { camStream.getTracks().forEach(t => t.stop()); camStream = null; return; }
   st.camOn = true;
   camVideo = document.createElement('video');
   camVideo.setAttribute('playsinline', '');
@@ -345,13 +438,16 @@ async function startCam() {
   camVideo.play();
   box.appendChild(camVideo);
   if (hint) hint.style.display = 'none';
-  const b = rootEl.querySelector('[data-act="cam"]'); if (b) b.textContent = COPY.scanner.stop;
+  const b = rootEl.querySelector('[data-act="cam"]'); if (b) b.textContent = camLabel(true);
   let lastCode = '', lastAt = 0;
   const canvas = document.createElement('canvas');
   const tick = () => {
     if (!camVideo) return;
     camRaf = requestAnimationFrame(tick);
     if (camVideo.readyState !== camVideo.HAVE_ENOUGH_DATA) return;
+    // door mode: while a result sheet is up the feed keeps running but nothing new is decoded —
+    // the next guest is read only after NEXT SCAN / CLOSE (the decoding itself is unchanged)
+    if (isPhone() && sheetOpen()) return;
     canvas.width = camVideo.videoWidth; canvas.height = camVideo.videoHeight;
     const x = canvas.getContext('2d', { willReadFrequently: true });
     x.drawImage(camVideo, 0, 0, canvas.width, canvas.height);
@@ -449,7 +545,8 @@ function rehearsalTotals() {
   const admitted = rows.reduce((n, r) => n + (Number(r.admitted_count) || 0), 0);
   return { expected, admitted };
 }
-function blockCounters() {
+// checked-in / expected for the door on screen (a Bridges edition or a picked meetup table narrows it)
+function gateStats() {
   let g = st.rehearsal ? rehearsalTotals() : gateInfo(st.gate);
   if (!st.rehearsal && st.gate === 'bridges' && st.bridgesEvent && D) {
     const ev = (D.over.bridges_events || []).find(e => String(e.id) === String(st.bridgesEvent));
@@ -457,8 +554,10 @@ function blockCounters() {
   }
   // one picked table, not the whole meetup programme (2026-09-11)
   if (meetupOn() && st.meetupId) { const m = pickedMeetup(); if (m) g = { expected: m.expected, admitted: m.admitted }; }
-  const checked = Number(g.admitted) || 0;
-  const expected = Number(g.expected) || 0;
+  return { checked: Number(g.admitted) || 0, expected: Number(g.expected) || 0 };
+}
+function blockCounters() {
+  const { checked, expected } = gateStats();
   const still = Math.max(0, expected - checked);
   const cell = (k, v, sub) => `
         <div style="background:#fff;padding:16px 20px"><div style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${k}</div><div class="mx-display-34" style="font-family:Fraunces,serif;font-size:34px;margin-top:3px">${v}</div><div style="font-size:11px;color:#6d6459">${sub}</div></div>`;
@@ -543,6 +642,7 @@ function blockScanner() {
 // state/button on the same line (never wrapped below), crimson €DUE chip for unpaid gala guests.
 // The backend already merged multi-registration people into one row per lower(email).
 function doorRowsHtml() {
+  if (isPhone()) return phoneRows();
   const rows = st.door || [];
   const row = d => {
     const admitted = Number(d.admitted_count) || 0;
@@ -746,7 +846,308 @@ function briefPrintHtml(b) {
       ${diet.unknown_plus_ones ? li(esc(COPY.brief.plusOnesDiet(diet.unknown_plus_ones))) : ''}`}
     </div>`;
 }
+// ================================================================ DOOR MODE blocks (phone, 2026-09-21)
+const doorName = k => COPY.doors.names[k] || String(k || '').toUpperCase();
+const currentBridgesEvent = () => (D && (D.over.bridges_events || []).find(e => String(e.id) === String(st.bridgesEvent))) || null;
+const rowIn = d => { const a = Number(d.admitted_count) || 0, p = Number(d.party_size) || 1; return a >= p && (a > 0 || d.legacy_in); };
+const rowPartial = d => { const a = Number(d.admitted_count) || 0, p = Number(d.party_size) || 1; return a > 0 && a < p; };
+const rowStarted = d => rowIn(d) || rowPartial(d) || !!d.legacy_in;
+function roleChip(role, extraClass) {
+  if (!role) return '';
+  return `<span class="mx-ed-chip ${role}${extraClass ? ' ' + extraClass : ''}">${COPY.phone.role[role]}</span>`;
+}
+function hdrCountHtml() {
+  const { checked, expected } = gateStats();
+  return `${COPY.phone.inOf(checked, expected)}<small>${COPY.phone.inWord}</small>`;
+}
+function doorTitleHtml() {
+  if (st.rehearsal) return `${COPY.banner.split(' — ')[0]}<small>${esc(COPY.banner.split(' — ')[1] || '')}</small>`;
+  if (st.gate === 'bridges') {
+    const ev = currentBridgesEvent();
+    const g = gateInfo('bridges');
+    const main = ev ? `${esc(g.label || 'Building Bridges')} — ${esc(ev.label)}` : esc(g.label || 'Building Bridges');
+    // "Building Bridges — Boston" on the serif line, "GORDON HALL · SEP 21 · 18:00" beneath it
+    const sub = [st.venue, ev && ev.date ? fmt.dayLabel(ev.date) : '', ev && ev.time ? ev.time : ''].filter(Boolean).join(' · ');
+    return `${main}${sub ? `<small>${esc(sub.toUpperCase())}</small>` : ''}`;
+  }
+  if (st.gate === MEETUP_GATE) {
+    const m = pickedMeetup();
+    return m ? `${esc(m.label || 'Meetup')}<small>${esc(COPY.meetup.hostLine(m.host, m.venue).toUpperCase())}</small>` : `Meetups<small>${esc(meetupList().length ? COPY.meetup.pick.toUpperCase() : COPY.meetup.pickNone.toUpperCase())}</small>`;
+  }
+  const g = gateInfo(st.gate);
+  const when = g.starts_at ? fmt.dayLabel(g.starts_at) + ' · ' + String(g.starts_at).slice(11, 16) : '';
+  return `${esc(g.label || doorName(st.gate))}${when ? `<small>${esc(when.toUpperCase())}</small>` : ''}`;
+}
+function doorOptions() {
+  const opts = [];
+  GATE_ORDER.forEach(k => {
+    if (k === 'bridges') {
+      const bevs = (D.over.bridges_events || []);
+      if (!bevs.length) { opts.push({ v: 'bridges', l: doorName(k), on: st.gate === 'bridges' }); return; }
+      bevs.forEach(ev => opts.push({ v: 'bridges:' + ev.id, l: `${doorName(k)} · ${String(ev.label || '').toUpperCase()}`, on: st.gate === 'bridges' && String(st.bridgesEvent) === String(ev.id) }));
+      return;
+    }
+    const g = gateInfo(k);
+    opts.push({ v: k, l: `${doorName(k)}${g.starts_at ? ' · ' + fmt.dayLabel(g.starts_at) : ''}`, on: st.gate === k });
+  });
+  return opts;
+}
+function phoneHeader() {
+  return `
+    <div class="mx-ed-hdr" data-block="phoneHeader">
+      <div class="mx-ed-hdr-row">
+        <label class="mx-ed-doorsel" aria-label="${COPY.doors.label}">
+          <select data-role="doorSel">${doorOptions().map(o => `<option value="${esc(o.v)}"${o.on ? ' selected' : ''}>${esc(o.l)}</option>`).join('')}</select>
+        </label>
+        <span class="mx-ed-hdr-count" data-role="hdrCount">${hdrCountHtml()}</span>
+        <span class="mx-ed-more" data-act="more" aria-expanded="${!!st.more}" aria-label="${COPY.phone.more}" title="${COPY.phone.more}">…</span>
+      </div>
+      <div class="mx-ed-title" data-role="hdrTitle">${doorTitleHtml()}</div>
+      <span data-role="queuePill" data-act="more" style="display:none;align-self:flex-start;background:#c9a962;color:#201b16;padding:8px 12px;font:600 10px Inter,sans-serif;letter-spacing:.12em;cursor:pointer"></span>
+    </div>`;
+}
+function phoneSettings() {
+  if (!st.more) return `<div data-block="settings"></div>`;
+  return `
+    <div data-block="settings" class="mx-ed-settings">
+      <span data-act="reh" role="switch" aria-checked="${!!st.rehearsal}" class="mx-ed-set reh"><span class="sw"></span>${COPY.toggle}</span>
+      <span data-act="instant" role="switch" aria-checked="${!!st.instant}" class="mx-ed-set inst"><span class="sw"></span>⚡ ${COPY.scanner.instant}</span>
+      <span data-role="queueBadge" style="display:none;background:#c9a962;color:#201b16;padding:0 12px;min-height:44px;font:600 10px Inter,sans-serif;letter-spacing:.12em;align-items:center"></span>
+      <span data-act="syncNow" class="mx-ed-set link" style="display:none">${COPY.scanner.sync}</span>
+      ${st.gate === MEETUP_GATE ? '' : `<span data-act="briefToggle" class="mx-ed-set">${st.showBrief ? COPY.phone.hideBrief : COPY.phone.brief}</span>`}
+      ${st.gate === MEETUP_GATE ? gateChips() : ''}
+      <span class="mx-ed-note" style="width:100%;text-align:left;font-size:11px;letter-spacing:.08em">${COPY.phone.desktop}</span>
+    </div>`;
+}
+function phoneBanner() {
+  if (!st.rehearsal) return '';
+  return `<div class="mx-ed-reh" data-role="rehBanner"><span class="dot"></span><span>${COPY.banner}</span><span data-act="rehReset">${COPY.bannerReset}</span></div>`;
+}
+function phoneCounts() {
+  const { checked, expected } = gateStats();
+  const base = st.doorAll || st.door || [];
+  const pres = base.filter(isPresRow);
+  const third = pres.length
+    ? `<div><div class="k">${COPY.phone.counts.pres}</div><div class="v">${pres.filter(rowStarted).length}<small> / ${pres.length}</small></div></div>`
+    : `<div><div class="k">${COPY.counters.expected}</div><div class="v">${Math.max(0, expected - checked)}</div></div>`;
+  return `
+    <div data-block="counters" class="mx-ed-counts">
+      <div><div class="k">${COPY.phone.counts.in}</div><div class="v">${checked}</div></div>
+      <div><div class="k">${COPY.phone.counts.expected}</div><div class="v">${expected}</div></div>
+      ${third}
+    </div>`;
+}
+function phoneTabs() {
+  const out = (st.door || []).filter(d => !rowIn(d)).length;
+  return `
+    <div class="mx-ed-tabs" role="tablist">
+      <span data-act="tab" data-key="scan" role="tab" aria-selected="${st.tab !== 'list'}" class="mx-ed-tab">${COPY.phone.tabScan}</span>
+      <span data-act="tab" data-key="list" role="tab" aria-selected="${st.tab === 'list'}" class="mx-ed-tab">${COPY.phone.tabList}<span class="n" data-role="tabOut">${out}</span></span>
+    </div>`;
+}
+function phoneScanner() {
+  const blocked = meetupBlocked();
+  return `
+    <div class="mx-ed-panel mx-ed-scan" data-panel="scan"${st.tab === 'list' ? ' hidden' : ''}>
+      ${blocked ? `<div class="mx-ed-block">${esc(meetupList().length ? COPY.meetup.pick : COPY.meetup.pickNone)}</div>` : ''}
+      <div data-role="camBox" class="mx-ed-cam">
+        <span data-role="camHint">${COPY.phone.camIdle}</span>
+        <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+        <span class="laser"></span>
+      </div>
+      <span data-act="cam" class="mx-ed-big ink"${blocked ? ' aria-disabled="true"' : ''}>${camLabel(st.camOn)}</span>
+      ${st.rehearsal ? `<span data-act="rehSim" class="mx-ed-big amber sm">${COPY.scanner.simulate}</span>` : ''}
+      <form data-role="manualForm" class="mx-ed-manual">
+        <input data-role="scanCode" placeholder="${esc(COPY.phone.manual)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="${esc(COPY.phone.manual)}"${blocked ? ' disabled' : ''}>
+        <button data-act="scanSubmit" type="submit" class="mx-ed-big red"${blocked ? ' aria-disabled="true" disabled' : ''}>${st.instant ? COPY.phone.admit : COPY.phone.check}</button>
+      </form>
+    </div>`;
+}
+function phoneFilter() {
+  const rows = st.door || [];
+  const n = { out: rows.filter(d => !rowIn(d)).length, in: rows.filter(rowIn).length, all: rows.length };
+  return `
+    <div data-block="listFilter" class="mx-ed-filter" role="tablist">
+      ${['out', 'in', 'all'].map(k => `<span data-act="filter" data-key="${k}" role="tab" aria-selected="${(st.listFilter || 'out') === k}">${COPY.phone.filters[k]} <b>${n[k]}</b></span>`).join('')}
+    </div>`;
+}
+function phoneRows() {
+  const f = st.listFilter || 'out';
+  let rows = (st.door || []).filter(d => f === 'all' ? true : f === 'in' ? rowIn(d) : !rowIn(d));
+  const rank = d => (roleOf(regOf(d.ref, d.email)) ? 0 : 1);
+  rows = rows.slice().sort((a, b) => rank(a) - rank(b) || (rowIn(a) === rowIn(b) ? 0 : rowIn(a) ? 1 : -1) || String(a.name).localeCompare(String(b.name)));
+  const row = d => {
+    const reg = regOf(d.ref, d.email);
+    const role = roleOf(reg);
+    const partySize = Number(d.party_size) || 1, admitted = Number(d.admitted_count) || 0;
+    const full = rowIn(d), part = rowPartial(d);
+    const inst = (reg && reg.institution) || (st.gate === 'bridges' && !st.rehearsal ? '' : d.meta) || '';
+    const at = hhmm(d.last_scan_at || (reg && reg.checked_in_at));
+    const chips = [
+      roleChip(role),
+      partySize > 1 ? `<span class="mx-ed-chip party">${COPY.phone.partyOf(partySize)}</span>` : '',
+      d.unpaid && !full ? `<span class="mx-ed-chip due">${esc(COPY.door.due(Number(d.amount_due) || 150))}</span>` : ''
+    ].filter(Boolean).join('');
+    const state = full
+      ? `<span class="tick"><i>✓</i>${at || COPY.door.in}</span>`
+      : part
+        ? `<span class="part">${COPY.door.of(admitted, partySize)}</span><span data-act="doorIn" data-ref="${esc(d.ref)}" class="mx-ed-cta ink">${COPY.door.plusOne}</span>`
+        : d.legacy_in
+          ? `<span class="tick"><i>✓</i>${at || COPY.door.in}</span>`
+          : `<span data-act="doorIn" data-ref="${esc(d.ref)}" class="mx-ed-cta">${COPY.door.checkIn}${partySize > 1 ? ' · ' + partySize : ''}</span>`;
+    return `
+      <div data-act="rowOpen" data-ref="${esc(d.ref)}" data-email="${esc(d.email || '')}" data-door-ref="${esc(d.ref)}" class="mx-ed-prow${full ? ' in' : ''}">
+        <div class="txt">
+          <div class="nm">${esc(d.name)}</div>
+          ${inst ? `<div class="inst">${esc(inst)}</div>` : ''}
+          ${chips ? `<div class="chips">${chips}</div>` : ''}
+        </div>
+        <div class="st">${state}</div>
+      </div>`;
+  };
+  const pres = rows.filter(d => rank(d) === 0), rest = rows.filter(d => rank(d) === 1);
+  const body = !rows.length
+    ? `<div class="mx-ed-empty">${st.doorQ ? esc('No one matches “' + st.doorQ + '”.') : COPY.door.empty}</div>`
+    : pres.length
+      ? `<div class="mx-ed-secthead">${COPY.phone.presentersFirst} · ${pres.length}</div>${pres.map(row).join('')}${rest.length ? `<div class="mx-ed-secthead">${COPY.phone.others} · ${rest.length}</div>${rest.map(row).join('')}` : ''}`
+      : rows.map(row).join('');
+  return `<div data-block="doorRows">${body}</div>`;
+}
+function phoneList() {
+  return `
+    <div class="mx-ed-panel mx-ed-list" data-panel="list"${st.tab === 'list' ? '' : ' hidden'}>
+      <div class="mx-ed-listhead">
+        <input data-role="doorQ" class="mx-ed-search" value="${esc(st.doorQ)}" placeholder="${esc(COPY.phone.search)}" aria-label="Search the door list" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
+        ${phoneFilter()}
+      </div>
+      ${doorRowsHtml()}
+    </div>`;
+}
+function phoneBriefHost() {
+  return `<div data-block="briefHost">${st.showBrief && st.gate !== MEETUP_GATE ? blockHostBrief() : ''}</div>`;
+}
+// ---- the result SHEET: a lookup card (ADMIT) or a scan outcome (green confirmation / red refusal)
+function legStatus(d, at) {
+  if (!d.ok) return `<span class="s no">${esc((COPY.results[d.block] || d.block || '').toUpperCase())}${d.message ? `<small>${esc(d.message)}</small>` : ''}</span>`;
+  const ps = Number(d.party_size) || 1, a = Number(d.admitted) || 0;
+  if (d.remaining === 0 && a > 0) return `<span class="s ok">${ps > 1 ? `${COPY.results.party_complete} · ${COPY.door.of(a, ps)}` : COPY.phone.alreadyIn(at)}</span>`;
+  if (a > 0) return `<span class="s part">${COPY.door.of(a, ps)} ${COPY.door.in}</span>`;
+  return `<span class="s wait">${COPY.phone.notYetIn.toUpperCase()}${ps > 1 ? ' · ' + COPY.phone.partyOf(ps) : ''}</span>`;
+}
+function sheetIdHtml() {
+  const c = st.idcard, p = c.person || {}, code = c._code || '';
+  const reg = regOf(code, p.email);
+  const role = roleOf(reg) || 'guest';
+  const doors = c.doors || [];
+  const cur = doors.find(d => d.event === st.gate) || null;
+  const others = doors.filter(d => d !== cur);
+  const inst = p.institution || (reg && reg.institution) || '';
+  const pos = p.position || (reg && reg.position) || '';
+  const email = String(p.email || '').toLowerCase();
+  const row = (st.door || []).find(r => String(r.ref) === String(code) || (email && String(r.email || '').toLowerCase() === email)) || null;
+  const at = hhmm((row && row.last_scan_at) || (reg && reg.checked_in_at));
+  const party = Number((cur || doors[0] || {}).party_size) || 1;
+  let tone = '', banner = '', actions = '';
+  if (cur && cur.ok && cur.remaining > 0) {
+    actions = `<span data-act="idAdmit" data-key="${esc(cur.event)}"${cur.meetup_id ? ` data-meetup="${esc(cur.meetup_id)}"` : ''} data-code="${esc(code)}" data-n="1" class="mx-ed-big red">${COPY.phone.admitOne(cur.remaining)}</span>`
+      + (cur.remaining > 1 ? `<span data-act="idAdmit" data-key="${esc(cur.event)}"${cur.meetup_id ? ` data-meetup="${esc(cur.meetup_id)}"` : ''} data-code="${esc(code)}" data-n="${cur.remaining}" class="mx-ed-big ink sm">${COPY.phone.admitAll(cur.remaining)}</span>` : '');
+    if (cur.admitted > 0) tone = 'warn';
+  } else if (cur && cur.ok) {
+    tone = 'good';
+    banner = `<div class="banner grey">${party > 1 ? `${COPY.results.party_complete} · ${COPY.door.of(cur.admitted, cur.party_size)}` : COPY.phone.alreadyIn(at)}</div>`;
+  } else if (cur && !cur.ok) {
+    tone = 'bad';
+    banner = `<div class="banner bad">${esc((COPY.results[cur.block] || cur.block || '').toUpperCase())}${cur.message ? `<small>${esc(cur.message)}</small>` : ''}</div>`;
+  } else {
+    tone = doors.length ? 'warn' : 'bad';
+    banner = doors.length
+      ? `<div class="banner warn">${COPY.phone.notThisDoor}<small>${COPY.phone.notThisDoorWhy}</small></div>`
+      : `<div class="banner bad">${COPY.phone.nothing}</div>`;
+  }
+  const leg = (d, isCur) => `
+      <div class="mx-ed-leg">
+        <span class="d">${esc(d.event === MEETUP_GATE && d.label ? String(d.label).toUpperCase() : doorName(d.event))}</span>
+        ${legStatus(d, isCur ? at : '')}
+        ${!isCur && d.ok && d.remaining > 0 ? `<span data-act="idAdmit" data-key="${esc(d.event)}"${d.meetup_id ? ` data-meetup="${esc(d.meetup_id)}"` : ''} data-code="${esc(code)}" data-n="1" class="mx-ed-cta ink">${COPY.phone.admitAt(d.event === MEETUP_GATE && d.label ? String(d.label).toUpperCase() : doorName(d.event))}</span>` : ''}
+      </div>`;
+  const html = `
+      <div class="head"><span class="eyebrow">${COPY.scanner.idTitle}</span><span class="x" data-act="sheetClose" aria-label="${COPY.phone.close}">×</span></div>
+      <div class="name">${esc(p.name || '')}</div>
+      ${inst ? `<div class="inst">${esc(inst)}</div>` : ''}
+      ${pos ? `<div class="pos">${esc(pos)}</div>` : ''}
+      <div class="chips">${roleChip(role)}${party > 1 ? `<span class="mx-ed-chip party">${COPY.phone.partyOf(party)}</span>` : ''}</div>
+      ${banner}
+      ${doors.length ? `<div class="mx-ed-legs">${cur ? leg(cur, true) : ''}${others.map(d => leg(d, false)).join('')}</div>` : ''}
+      ${p.bio ? `<div class="msg">${esc(String(p.bio).slice(0, 260))}</div>` : ''}
+      <div class="actions">${actions}<span data-act="sheetClose" class="mx-ed-big ghost sm">${COPY.phone.close}</span></div>`;
+  return { tone, html };
+}
+function sheetResultHtml() {
+  const r = st.last;
+  const label = COPY.results[r.result] || String(r.result || '').replace(/_/g, ' ').toUpperCase();
+  const bad = ['over_capacity', 'not_paid', 'revoked', 'cancelled', 'not_found', 'wrong_event', 'not_registered_for_event', 'error', 'wrong_meetup', 'not_confirmed', 'bad_code', 'bad_event'].includes(r.result);
+  const partial = r.ok && r.remaining > 0;
+  const queued = r.result === 'queued';
+  const tone = bad ? 'bad' : (queued || partial) ? 'warn' : 'good';
+  const t = r.ticket || {};
+  const reg = regOf(r._code, t.email);
+  const role = roleOf(reg);
+  const inst = (reg && reg.institution) || (r.person && r.person.institution) || '';
+  const at = hhmm(new Date().toISOString());
+  const banner = bad
+    ? `<div class="banner bad">${esc(label)}${r.message ? `<small>${esc(r.message)}</small>` : ''}</div>`
+    : queued
+      ? `<div class="banner warn">${esc(label)}${r.message ? `<small>${esc(r.message)}</small>` : ''}</div>`
+      : `<div class="banner good">✓ ${esc(partial ? COPY.phone.admitted : label)}<small>${r.party_size ? COPY.phone.inNow(r.admitted_count, r.party_size) + ' · ' : ''}${at}</small></div>`;
+  const overrideUi = r.result === 'over_capacity' ? `
+      <input data-role="overrideReason" class="input" placeholder="${esc(COPY.scanner.overrideWhy)}">
+      <span data-act="overrideAdmit" data-code="${esc(r._code || '')}" class="mx-ed-big red sm">${COPY.scanner.overrideBtn}</span>` : '';
+  const moreUi = partial ? `
+      <span data-act="admitMore" data-code="${esc(r._code || '')}" data-n="1" class="mx-ed-big red">${COPY.scanner.admitMore}</span>
+      ${r.remaining > 1 ? `<span data-act="admitMore" data-code="${esc(r._code || '')}" data-n="${r.remaining}" class="mx-ed-big ink sm">${COPY.phone.admitAll(r.remaining)}</span>` : ''}` : '';
+  const nextLabel = st.tab === 'list' ? COPY.phone.done : COPY.phone.next;
+  const html = `
+      <div class="head"><span class="eyebrow">${esc(st.rehearsal ? COPY.toggle : (r.event_label || doorName(st.gate)))}</span><span class="x" data-act="sheetClose" aria-label="${COPY.phone.close}">×</span></div>
+      ${banner}
+      ${t.name ? `<div class="name">${esc(t.name)}</div>` : ''}
+      ${inst ? `<div class="inst">${esc(inst)}</div>` : (t.meta && !(st.gate === 'bridges' && !st.rehearsal) ? `<div class="inst">${esc(t.meta)}</div>` : '')}
+      ${(role || (r.party_size > 1)) ? `<div class="chips">${roleChip(role)}${r.party_size > 1 ? `<span class="mx-ed-chip party">${COPY.phone.partyOf(r.party_size)}</span>` : ''}</div>` : ''}
+      ${r.meetup && r.meetup.title ? `<div class="msg">${esc(String(r.meetup.title).toUpperCase())}${r.meetup.expected != null ? ' · ' + esc(COPY.meetup.seats(r.meetup.checked_in || 0, r.meetup.expected)) + ' IN' : ''}</div>` : ''}
+      ${!bad && !queued && r.message ? `<div class="msg">${esc(r.message)}</div>` : ''}
+      ${personSnippetHtml(r.person)}
+      <div class="actions">
+        ${overrideUi}${moreUi}
+        ${bad ? `<span data-act="sheetClose" class="mx-ed-big ink">${COPY.phone.close}</span>` : `<span data-act="nextScan" class="mx-ed-big ${partial ? 'ghost' : 'green'}">${nextLabel}</span>`}
+      </div>`;
+  return { tone, html };
+}
+function sheetHtml() {
+  if (!sheetOpen()) return '';
+  const inner = st.idcard ? sheetIdHtml() : sheetResultHtml();
+  return `
+    <div class="mx-ed-sheetwrap" data-act="sheetClose" role="dialog" aria-modal="true">
+      <div class="mx-ed-sheet${inner.tone ? ' ' + inner.tone : ''}" data-act="noop">${inner.html}</div>
+    </div>`;
+}
+function phoneTemplate() {
+  const live = isLive();
+  return `
+<div data-screen-label="Admin Event Day" class="mx-ed-phone" data-v2="door mode — phone-first layout (2026-09-21)">
+  ${!live ? `<div class="mx-ed-title" style="padding-top:8px">${COPY.title}</div>${blockQuiet()}` : `
+  ${phoneHeader()}
+  ${phoneSettings()}
+  ${phoneBanner()}
+  ${phoneCounts()}
+  ${phoneTabs()}
+  ${phoneScanner()}
+  ${phoneList()}
+  ${phoneBriefHost()}
+  <div data-role="sheetHost">${sheetHtml()}</div>`}
+</div>`;
+}
+
 function template() {
+  if (isPhone()) return phoneTemplate();
   const live = isLive();
   return `
 <div data-screen-label="Admin Event Day" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
@@ -786,9 +1187,68 @@ function wireInputs() {
   }
   const mf = rootEl.querySelector('[data-role="manualForm"]');
   if (mf) mf.addEventListener('submit', e => { e.preventDefault(); handlers.scanSubmit(); });
+  // door mode: the compact door dropdown ("bridges:<edition id>" or a gate key)
+  const ds = rootEl.querySelector('[data-role="doorSel"]');
+  if (ds) ds.addEventListener('change', e => {
+    const v = String(e.target.value || '');
+    const m = v.match(/^bridges:(.+)$/);
+    switchDoor(m ? 'bridges' : v, m ? m[1] : null);
+  });
+}
+// One path for every door change (desktop chips, the phone dropdown, a Bridges edition pick).
+async function switchDoor(key, bridgesEventId) {
+  st.gate = key; st.last = null; st.idcard = null; st.qrUrl = null; st.copiedDoor = false;
+  st.brief = null; st.briefErr = null; st.briefCopied = false;   // v2 host brief follows the door
+  st.door = []; st.doorAll = []; st.doorQ = '';
+  if (bridgesEventId) st.bridgesEvent = bridgesEventId;
+  if (st.gate === MEETUP_GATE) { st.door = []; if (!pickedMeetup()) st.meetupId = meetupList().length === 1 ? meetupList()[0].id : null; }
+  rerenderAll();
+  refreshDoor();
+  loadBridgesEdition().then(afterEdition);
+  if (!isPhone() || st.showBrief) refreshBrief();
+  try { D.notes = await api.get('/api/v2/eventday/notes?event=' + encodeURIComponent(st.gate)); const n = rootEl && rootEl.querySelector('[data-role="notes"]'); if (n) n.value = D.notes.notes || ''; } catch (e) {}
+}
+// the edition enrichment (venue · institutions · presenter roles) lands after the first paint
+function afterEdition() {
+  if (!rootEl || !st) return;
+  const t = rootEl.querySelector('[data-role="hdrTitle"]'); if (t) t.innerHTML = doorTitleHtml();
+  paint('[data-block="doorRows"]', doorRowsHtml());
+  if (isPhone()) paintCounts();
+  if (sheetOpen()) presentResult();
+}
+function setTab(key) {
+  st.tab = key === 'list' ? 'list' : 'scan';
+  rootEl.querySelectorAll('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== st.tab; });
+  rootEl.querySelectorAll('[data-act="tab"]').forEach(t => t.setAttribute('aria-selected', String(t.dataset.key === st.tab)));
+  if (st.tab === 'list') { const q = rootEl.querySelector('[data-role="doorQ"]'); if (q && !st.door.length) refreshDoor(); }
 }
 
 const handlers = {
+  // ---- door mode (phone) ----
+  noop: () => {},
+  more: (el) => { st.more = !st.more; paint('[data-block="settings"]', phoneSettings()); paintQueue(); el.setAttribute('aria-expanded', String(!!st.more)); },
+  tab: (el) => setTab(el.dataset.key),
+  filter: (el) => { st.listFilter = el.dataset.key || 'out'; paint('[data-block="listFilter"]', phoneFilter()); paint('[data-block="doorRows"]', doorRowsHtml()); },
+  rowOpen: (el) => {
+    const ref = el.dataset.ref;
+    if (!ref) return;
+    // rehearsal practice guests are known only to /scan (see identify) — a tap on the row admits like CHECK IN
+    if (st.rehearsal && /^TEST-\d+$/i.test(ref)) return handlers.doorIn(el);
+    identify(ref, { method: 'manual' });
+  },
+  sheetClose: () => { st.idcard = null; st.last = null; presentResult(); },
+  nextScan: () => {
+    st.idcard = null; st.last = null; presentResult();
+    if (st.tab !== 'list' && st.camWanted && !st.camOn) startCam();   // re-arm the camera if the phone dropped it
+    const i = rootEl.querySelector('[data-role="scanCode"]'); if (i && st.tab !== 'list' && !st.camOn) i.focus();
+  },
+  briefToggle: () => {
+    st.showBrief = !st.showBrief;
+    paint('[data-block="settings"]', phoneSettings()); paintQueue();
+    paint('[data-block="briefHost"]', phoneBriefHost());
+    if (st.showBrief && !st.brief) refreshBrief();
+    if (st.showBrief) { const b = rootEl.querySelector('[data-block="briefHost"]'); if (b && b.scrollIntoView) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  },
   reh: async () => {
     st.rehearsal = !st.rehearsal;
     try { localStorage.setItem(REH_KEY, st.rehearsal ? '1' : ''); } catch (e) {}
@@ -807,8 +1267,9 @@ const handlers = {
   bridgesEv: (el) => {
     st.bridgesEvent = el.dataset.id; st.last = null; st.idcard = null;
     paint('[data-block="gateChips"]', gateChips());
-    paint('[data-block="counters"]', blockCounters());
+    paintCounts();
     refreshDoor();
+    loadBridgesEdition().then(afterEdition);
   },
   // one picked table at a time (2026-09-11) — the door list and the counters follow it
   meetupPick: (el) => {
@@ -816,16 +1277,11 @@ const handlers = {
     rerenderAll();
     refreshDoor();
   },
-  gate: async (el) => {
-    st.gate = el.dataset.key; st.last = null; st.qrUrl = null; st.copiedDoor = false;
-    st.brief = null; st.briefErr = null; st.briefCopied = false;   // v2 host brief follows the door
-    if (st.gate === MEETUP_GATE) { st.idcard = null; st.door = []; if (!pickedMeetup()) st.meetupId = meetupList().length === 1 ? meetupList()[0].id : null; }
-    rerenderAll();
-    refreshDoor();
-    refreshBrief();
-    try { D.notes = await api.get('/api/v2/eventday/notes?event=' + encodeURIComponent(st.gate)); const n = rootEl.querySelector('[data-role="notes"]'); if (n) n.value = D.notes.notes || ''; } catch (e) {}
+  gate: (el) => switchDoor(el.dataset.key, null),
+  cam: () => {
+    if (meetupBlocked()) { ui.toast(COPY.meetup.pick.toUpperCase()); return; }
+    if (st.camOn) { st.camWanted = false; stopCam(); } else { st.camWanted = true; startCam(); }
   },
-  cam: () => { if (meetupBlocked()) { ui.toast(COPY.meetup.pick.toUpperCase()); return; } if (st.camOn) stopCam(); else startCam(); },
   rehSim: () => {
     // practice: admit the next test guest that still has room (TEST-5 demos the crimson unpaid state last)
     const rows = (st.door || []).filter(r => /^TEST-/.test(r.ref));
@@ -846,21 +1302,26 @@ const handlers = {
   instant: () => {
     st.instant = !st.instant;
     try { localStorage.setItem('medx_v2_instant', st.instant ? '1' : ''); } catch (e) {}
-    paint('[data-block="gateChips"]', gateChips());
+    if (isPhone()) { paint('[data-block="settings"]', phoneSettings()); paintQueue(); }
+    else paint('[data-block="gateChips"]', gateChips());
     const btn = rootEl.querySelector('[data-act="scanSubmit"]');
-    if (btn) btn.textContent = st.instant ? COPY.scanner.admit : COPY.scanner.check;
+    if (btn) btn.textContent = st.instant ? (isPhone() ? COPY.phone.admit : COPY.scanner.admit) : (isPhone() ? COPY.phone.check : COPY.scanner.check);
   },
   idAdmit: (el) => {
     const code = el.dataset.code, key = el.dataset.key;
     if (!code || !key) return;
+    const n = parseInt(el.dataset.n, 10) || 1;
     // a meetup place belongs to ITS table, not to whatever the picker currently shows
-    scan(code, { method: 'manual', event: key, meetup_id: el.dataset.meetup || undefined }).then(out => {
-      if (out && out.message) ui.toast(out.message.toUpperCase().slice(0, 80));
+    scan(code, { method: 'manual', event: key, admit: n, meetup_id: el.dataset.meetup || undefined }).then(out => {
+      if (!out) return;
+      // door mode: the sheet now shows the green confirmation + NEXT SCAN (scan() already painted it)
+      if (isPhone()) return;
+      if (out.message) ui.toast(out.message.toUpperCase().slice(0, 80));
       // stay on the ID card — refresh its counts so the operator sees "2 of 3" live
       identify(code, { method: 'manual' });
     });
   },
-  idClear: () => { st.idcard = null; st.last = null; paint('[data-role="scanResult"]', resultHtml()); },
+  idClear: () => { st.idcard = null; st.last = null; presentResult(); },
   admitMore: (el) => {
     const code = el.dataset.code; const n = parseInt(el.dataset.n, 10) || 1;
     if (!code) return;
@@ -986,8 +1447,9 @@ export default {
     }
     let reh = false; try { reh = localStorage.getItem(REH_KEY) === '1'; } catch (e) {}
     let inst = false; try { inst = localStorage.getItem('medx_v2_instant') === '1'; } catch (e) {}
-    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, bridgesEvent: null, meetupId: null, doorQ: '', door: [], last: null, idcard: null, instant: inst, camOn: false, qrUrl: null, copiedDoor: false, flushing: false,
-           brief: null, briefErr: null, briefCopied: false /* v2 host brief (2026-08-31) */ };
+    st = { rehearsal: reh, forced: ctx.query.eventday === '1', gate: null, bridgesEvent: null, meetupId: null, doorQ: '', door: [], doorAll: [], last: null, idcard: null, instant: inst, camOn: false, camWanted: false, qrUrl: null, copiedDoor: false, flushing: false,
+           brief: null, briefErr: null, briefCopied: false, /* v2 host brief (2026-08-31) */
+           tab: 'scan', listFilter: 'out', more: false, showBrief: false, regs: {}, venue: '' /* door mode (2026-09-21) */ };
     D = await load();
     if (rootEl !== root) return;
     st.gate = GATE_ORDER.includes(ctx.query.door) ? ctx.query.door : (D.over.default_event || 'conference');
@@ -1000,26 +1462,40 @@ export default {
     }
     const bevs = (D.over.bridges_events || []);
     if (bevs.length) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = fmt.ymd(new Date());
       const up = bevs.filter(e => e.date && e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
       st.bridgesEvent = (up[0] || bevs[0]).id;
     }
+    // Default door = the event happening TODAY (local date). A Bridges edition dated today wins over
+    // the server's schedule pick (which knows only the Plexus-week gates) unless ?door= says otherwise.
+    const todayEv = bridgesToday();
+    if (todayEv && !GATE_ORDER.includes(ctx.query.door)) { st.gate = 'bridges'; st.bridgesEvent = todayEv.id; }
+    await loadBridgesEdition();
+    if (rootEl !== root) return;
+    let phoneNow = isPhone();
+    document.body.classList.toggle('mx-doormode', phoneNow);
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     wireInputs();
     paintQueue();
     if (isLive()) refreshDoor();
-    if (isLive()) refreshBrief();   // v2 host brief (2026-08-31)
+    if (isLive() && (!phoneNow || st.showBrief)) refreshBrief();   // v2 host brief (2026-08-31); on a phone it sits behind ⋯
     flushQueue();
     const onOnline = () => flushQueue();
     window.addEventListener('online', onOnline);
     timers.push(() => window.removeEventListener('online', onOnline));
+    // a breakpoint crossing (rotation, window resize) swaps the layout — the camera restarts on tap
+    let rz = null;
+    const onResize = () => { clearTimeout(rz); rz = setTimeout(() => { if (!rootEl || !st) return; const p = isPhone(); if (p === phoneNow) return; phoneNow = p; document.body.classList.toggle('mx-doormode', p); rerenderAll(); refreshDoor(); if (!p && !st.brief) refreshBrief(); }, 150); };
+    window.addEventListener('resize', onResize);
+    timers.push(() => { clearTimeout(rz); window.removeEventListener('resize', onResize); });
     const t1 = setInterval(() => { if (isLive() && !st.rehearsal) refreshCounts(); }, 30000);
     const t2 = setInterval(flushQueue, 25000);
     timers.push(() => clearInterval(t1), () => clearInterval(t2));
   },
   destroy() {
     stopCam();
+    document.body.classList.remove('mx-doormode');
     timers.forEach(f => { try { f(); } catch (e) {} }); timers = [];
     if (unbind) unbind(); unbind = null;
     rootEl = null; D = null; st = null;
