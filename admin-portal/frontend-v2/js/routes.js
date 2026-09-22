@@ -25,6 +25,9 @@ export const ROUTES = [
   // TASKS — the shared board (2026-09-20): '/tasks' is the board, '/tasks/<id>' opens that card's
   // drawer. Unmapped on the server (tasks are for the whole team) → no `sections`.
   { path: '/tasks/:id?',       view: () => import('./views/tasks.js'),       active: 'Tasks',     title: 'Tasks' },
+  // NOTES — event & day notes (2026-09-22): '/notes' is the stream + composer, '/notes/<id>' scrolls
+  // to that note, '/notes?event=<key>' is one event's page. Unmapped on the server (whole team) → no `sections`.
+  { path: '/notes/:id?',       view: () => import('./views/notes.js'),       active: 'Notes',     title: 'Notes' },
   { path: '/inbox/:tab?',      view: () => import('./views/inbox.js'),       active: 'Inbox',     title: 'Inbox',        sections: S.inbox },      // outbox|email|messages|announcements|newsletter|chat
   { path: '/people/:tab?',     view: () => import('./views/people.js'),      active: 'People',    title: 'People',       sections: S.people },
   { path: '/money/:tab?',      view: () => import('./views/money.js'),       active: 'Money',     title: 'Money',        sections: S.money },

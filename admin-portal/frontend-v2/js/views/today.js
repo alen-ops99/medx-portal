@@ -113,6 +113,9 @@ export const COPY = {
   // TASKS (2026-09-20): the tick-list became the shared board (/tasks). This card is the compact
   // read — what is waiting for ME to see (done, unseen — red) and my own open tasks, each a door.
   tasks: { title: 'TASKS', waiting: n => `${n} waiting for you to see`, waitingWhy: 'finished — the result is on the card', mine: 'YOURS', empty: 'Nothing on your plate.', emptyWhy: 'Add the next thing on the board — the person you pick gets one short email.', all: 'OPEN THE BOARD →', more: n => `+ ${n} more`, overdue: d => `${d}D OVERDUE`, today: 'DUE TODAY', due: d => `DUE ${d}`, doing: 'IN PROGRESS' },
+  // NOTES (2026-09-22): the shared event & day notes (/notes). A small tile — today's count, the
+  // last note's first line, ADD A NOTE (the composer focused). On an event day it names the event.
+  notes: { title: 'NOTES', add: 'ADD A NOTE →', forEvent: (ev, n) => `Notes for ${ev} — ${n} so far`, today: n => n === 0 ? 'No notes today yet.' : `${n} note${n === 1 ? '' : 's'} today`, why: 'Who you met, what was agreed — written in a tap, found later.', last: who => who ? `${who} wrote last:` : 'Last note:' },
   weekly: {
     title: 'THE WEEKLY READ', read: 'READ THIS WEEK →', hide: 'HIDE', open: 'OPEN →', all: n => `ALL ${n} LINES →`, fewer: 'TOP LINE PER ADVISOR',
     seats: { CMO: { tag: 'GROW', color: '#9b1b22' }, CFO: { tag: 'MONEY', color: '#b7791f' }, COO: { tag: 'OPS', color: '#2f7d4f' }, CLO: { tag: 'LEGAL', color: '#6d6459' } },
@@ -159,6 +162,7 @@ async function load(days) {
     nag: api.get('/api/admin/nag/items'),
     tasks: api.get('/api/v2/tasks'),                  // the board: every live card + who I am on it
     tasksBadge: api.get('/api/v2/tasks/badge'),      // done-unseen for me · my open count
+    notes: api.get('/api/v2/notes/summary?today=' + fmt.ymd(new Date())),   // the NOTES tile: today's count, the last line, the event of the day
     outbox: api.get('/api/admin/outbox?status=pending_approval'),
     threads: api.get('/api/v2/inbox/threads'),   // UXFIX-A1 #4: member threads needing a reply
     advisors: api.get('/api/admin/advisors/latest'),
@@ -200,6 +204,7 @@ async function load(days) {
     gala: { rows: galaRows, paid, toChase, price, ebDeadline, ebDays: fmt.daysUntil(ebDeadline), collected: paid.reduce((n, g) => n + (Number(g.amount_paid) || 0), 0), owed: toChase.length * price, ops },
     nag: (r.nag && Array.isArray(r.nag.items)) ? r.nag.items : [],
     tasks, myTasks, tasksBadge,
+    notes: r.notes && typeof r.notes === 'object' ? r.notes : null,   // null → an older backend; the tile still offers the door
     outbox: (r.outbox && Array.isArray(r.outbox.batches)) ? r.outbox.batches : [],
     // UXFIX-A1 #4: threads needing a reply — the Inbox tab's exact rule; null = endpoint unavailable (fall back to unread)
     msgNeedsReply: (r.threads && Array.isArray(r.threads.threads))
@@ -582,6 +587,17 @@ function tasksCard() {
         ${!mine.length && !(b.done_unseen > 0) ? `<div style="padding:8px 0 2px"><div style="font-family:Fraunces,serif;font-style:italic;font-size:15px">${c.empty}</div><div style="font-size:11.5px;color:#6d6459;margin-top:3px">${c.emptyWhy}</div></div>` : ''}
       </div>`;
 }
+function notesCard() {
+  const c = COPY.notes; const n = D.notes || {}; const count = Number(n.count || 0); const ev = n.event || null; const last = n.last || null;
+  const line = ev ? c.forEvent(ev.label, Number(n.event_count || 0)) : c.today(count);
+  return `<div data-block="notes" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>${count ? `<span style="min-width:18px;height:18px;padding:0 5px;background:#201b16;color:#fff;font:600 11px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center">${count}</span>` : ''}<div style="flex:1"></div><a href="/notes?new=1" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22">${c.add}</a></div>
+        <a href="${ev ? '/notes?event=' + encodeURIComponent(ev.key) : '/notes'}" style="display:flex;flex-direction:column;gap:3px;color:#201b16;padding:6px 0 2px" data-hover="color:#9b1b22">
+          <span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;line-height:1.35">${esc(line)}</span>
+          ${last ? `<span style="font-size:12px;color:#6d6459;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#9a9086">${esc(c.last(last.author_first).toUpperCase())}</span> ${esc(last.first_line)}</span>` : `<span style="font-size:11.5px;color:#6d6459">${c.why}</span>`}
+        </a>
+      </div>`;
+}
 function blockComingTasks() {
   const rows = comingUp();
   return `
@@ -593,7 +609,7 @@ function blockComingTasks() {
         ${!rows.length ? `<div style="padding:8px 0;font-size:12.5px;color:#6d6459;font-style:italic">${isLocked('calendar') ? COPY.kpi.locked : COPY.comingUp.empty}</div>` : ''}
         <a href="/calendar" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${COPY.comingUp.full}</a>
       </div>
-      ${tasksCard()}
+      <div style="display:flex;flex-direction:column;gap:22px;min-width:0">${tasksCard()}${notesCard()}</div>
     </div>
     <!-- /dc -->`;
 }

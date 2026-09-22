@@ -36,7 +36,7 @@ export function chatUnreadOf(overview) {
 
 export const COPY = {
   admin: 'ADMIN',
-  nav: { today: 'TODAY', projects: 'PROJECTS', bigIdeas: 'BIG IDEAS', inbox: 'INBOX', tasks: 'TASKS', people: 'PEOPLE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', menu: 'MENU' },
+  nav: { today: 'TODAY', projects: 'PROJECTS', bigIdeas: 'BIG IDEAS', inbox: 'INBOX', tasks: 'TASKS', notes: 'NOTES', people: 'PEOPLE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', menu: 'MENU' },
   tasksBadge: { red: 'Finished tasks waiting for you to see', grey: 'Your open tasks' },
   chat: { label: 'TEAM CHAT', title: 'Team chat — straight to the chat tab' },
   search: { placeholder: 'Search or type a task…', none: 'No matches — try a screen, a person, or a project.', hint: 'Type a name, a screen, or an instruction — Enter asks the assistant.', asking: 'Asking the assistant…', ask: 'ASK', confirm: 'CONFIRM', done: 'Done.', gated: 'The do-it-for-me assistant needs ANTHROPIC_API_KEY on the admin service — search and live numbers still work.' },
@@ -58,6 +58,9 @@ const NAV = [
   // TASKS — the shared board (2026-09-20), between INBOX and PEOPLE for everyone (unmapped on the
   // server). Red badge = tasks I gave that are done and waiting for me to see; grey = my open tasks.
   { key: 'Tasks', label: COPY.nav.tasks, to: '/tasks', badge: 'tasks', badge2: 'tasksOpen' },
+  // NOTES — event & day notes (2026-09-22), next to TASKS for everyone (unmapped on the server):
+  // what happened, who we met, what was agreed — per event or per day, read afterwards.
+  { key: 'Notes', label: COPY.nav.notes, to: '/notes' },
   { key: 'People', label: COPY.nav.people, to: '/people', sections: ['member-ops', 'guest-passes', 'team', 'contacts'] },
   { key: 'Money', label: COPY.nav.money, to: '/money', sections: ['finances'] },
   { key: 'Calendar', label: COPY.nav.calendar, to: '/calendar' },
@@ -100,6 +103,7 @@ const PALETTE = [
   { kind: 'SCREEN', label: 'Registrations — all events', syn: 'prijave registracije sign-ups sudionici attendees', href: '/registrations' },
   { kind: 'SCREEN', label: 'Money', syn: 'novac finance financije knjige računi bookkeeping', href: '/money' },
   { kind: 'SCREEN', label: 'Tasks — the shared board', syn: 'task tasks zadatak zadaci board ploča laura result rezultat todo done seen', href: '/tasks' },
+  { kind: 'SCREEN', label: 'Notes — what happened at each event', syn: 'note notes bilješke bilješka zapis event događaj met upoznao people ljudi boston gala conference day dnevnik whatsapp', href: '/notes' },
   { kind: 'SCREEN', label: 'Calendar & key dates', syn: 'kalendar rokovi deadlines', href: '/calendar' },
   { kind: 'SCREEN', label: 'Studio', href: '/studio' },
   { kind: 'SCREEN', label: 'Settings', syn: 'postavke team tim pristup access', href: '/settings' },
@@ -108,6 +112,7 @@ const PALETTE = [
   { kind: 'SCREEN', label: 'What members see', syn: 'member pages publish objavi', href: '/member-pages' },
   { kind: 'SCREEN', label: 'Invitation links', syn: 'qr link poveznica invite pozivnica registration', href: '/links' },
   { kind: 'ACTION', label: 'New task — on the board', syn: 'zadatak todo add dodaj new novi task laura', href: '/tasks?new=1' },
+  { kind: 'ACTION', label: 'Add a note — who you met, what was agreed', syn: 'note notes bilješka zapiši add dodaj new nova met upoznao event boston gala follow up', href: '/notes?new=1' },
   { kind: 'ACTION', label: 'Open the check-in scanner', syn: 'scan qr skener skeniraj check in door vrata ulaz', href: '/event-day' },
   { kind: 'ACTION', label: 'Email registrants', syn: 'send mail pošalji poruka bulk', href: '/inbox/email' },
   { kind: 'ACTION', label: 'Post news to members', syn: 'announcement obavijest novosti', href: '/inbox/announcements' },
