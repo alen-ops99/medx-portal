@@ -191,7 +191,8 @@ const tok = (kind, id) => core.liveToken(SECRET, kind, id);
         assert.deepStrictEqual(added.speaker_names.map(x => x.name), ['Lord Smith of Finsbury', 'Alen Juginovic']);
         assert.strictEqual(added.capacity, 120); assert.strictEqual(added.show_counts, true); assert.strictEqual(added.location_note, 'first floor, left');
         assert.strictEqual(added.starts_at, '2026-12-04T20:05:00+01:00');
-        assert.strictEqual(q.get('SELECT conference_id, session_type FROM sessions WHERE id = ?', [added.id]).conference_id, 'conf-26', 'legacy conference_id kept in step');
+        assert.strictEqual(q.get('SELECT conference_id FROM sessions WHERE id = ?', [added.id]).conference_id, null, 'event-app rows never join the legacy conference program (conference_id NULL)');
+        assert.strictEqual(q.get("SELECT COUNT(*) AS n FROM sessions WHERE event_key IS NOT NULL AND conference_id IS NOT NULL").n, 0, 'seeded rows too');
         assert.strictEqual(q.get('SELECT session_type FROM sessions WHERE id = ?', [added.id]).session_type, 'panel');
         assert.strictEqual(audits('program.session_added').length, 1); assert.match(audits('program.session_added')[0].detail, /Fireside chat/); assert.strictEqual(audits('program.session_added')[0].actor_email, 'juginovic.alen@gmail.com');
         // the new row overlaps Networking (20:05–21:00) only if the room matches — Networking is in the Foyer → no conflict

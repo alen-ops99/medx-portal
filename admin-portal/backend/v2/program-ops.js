@@ -65,7 +65,6 @@ module.exports = function mountProgramOps(app, ctx) {
     };
     const brief = r => `${r.event_key} · ${r.title || '(untitled)'}${r.event_date ? ' · ' + r.event_date : ''}${r.start_time ? ' ' + r.start_time : ''}${r.end_time ? '–' + r.end_time : ''}`;
     const touch = key => { core.touchEvent(q, key); persist(); };
-    const conferenceIdFor = key => { if (key !== 'conference') return null; try { const c = q.get('SELECT id FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1') || q.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'"); return c ? c.id : null; } catch (e) { return null; } };
     const nextSortOrder = (key, date) => { const r = q.get('SELECT MAX(sort_order) AS m FROM sessions WHERE event_key = ? AND COALESCE(event_date, \'\') = COALESCE(?, \'\')', [key, date || null]); return (Number((r && r.m) || 0) || 0) + 10; };
     const defaultDate = key => { const e = core.eventByKey(q, key); return e && e.date ? e.date : null; };
 
@@ -138,7 +137,7 @@ module.exports = function mountProgramOps(app, ctx) {
             q.run(`INSERT INTO sessions (id, conference_id, title, description, session_type, day, start_time, end_time, room, track, speaker_ids, is_published, capacity,
                                         event_key, event_date, sort_order, location_note, kind, speaker_names_json, is_tbd, show_counts, updated_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [id, conferenceIdFor(key), v.title || (isBreak ? 'Break' : ''), v.description || null, v.kind || 'other', 1, v.start_time || null, v.end_time || null, v.room || null, v.track || null, v.speaker_ids || null,
+                [id, null, v.title || (isBreak ? 'Break' : ''), v.description || null, v.kind || 'other', 1, v.start_time || null, v.end_time || null, v.room || null, v.track || null, v.speaker_ids || null,
                  v.is_published === undefined ? 1 : v.is_published, v.capacity === undefined ? null : v.capacity,
                  key, date, sort, v.location_note || null, v.kind || 'other', v.speaker_names_json || null, v.is_tbd || 0, v.show_counts || 0, now]);
             const row = rowOf(key, id);

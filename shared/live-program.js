@@ -142,6 +142,16 @@ function ensureSchema(q, log) {
         )`);
         q.run('CREATE INDEX IF NOT EXISTS idx_sessions_event ON sessions (event_key, event_date, sort_order)');
     } catch (e) { note('live-program schema failed:', e.message); }
+    // One-time repair (2026-09-22): the first seed stamped conference_id on the Conference rows, which
+    // made the legacy public program (/api/plexus/sessions → the v1 member Program page) list the TBD
+    // placeholders. Event-app rows are keyed by event_key only — detach them once, marker-guarded.
+    try {
+        q.run('CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)');
+        if (!q.get('SELECT key FROM app_state WHERE key = ?', ['live_program_detach_v1'])) {
+            q.run('UPDATE sessions SET conference_id = NULL WHERE event_key IS NOT NULL AND conference_id IS NOT NULL');
+            q.run('INSERT INTO app_state (key, value, updated_at) VALUES (?, ?, ?)', ['live_program_detach_v1', nowIso(), nowIso()]);
+        }
+    } catch (e) { note('live-program detach repair skipped:', e.message); }
 }
 const hasTable = (q, name) => { try { return !!q.get("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", [name]); } catch (e) { return false; } };
 const hasColumn = (q, table, col) => { try { return q.all(`PRAGMA table_info(${table})`).some(c => c.name === col); } catch (e) { return false; } };
@@ -520,8 +530,9 @@ function runSeed(q, { log } = {}) {
     try { if (q.get('SELECT key FROM app_state WHERE key = ?', [SEED_MARKER])) return { seeded: false, inserted: 0 }; } catch (e) { return { seeded: false, inserted: 0, error: e.message }; }
     const now = nowIso();
     let inserted = 0;
-    let conferenceId = null;
-    try { const c = q.get('SELECT id FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1') || q.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'"); conferenceId = c ? c.id : null; } catch (e) { conferenceId = null; }
+    // conference_id stays NULL on every event-app row: the legacy readers (v1 member Program page via
+    // /api/plexus/sessions, the admin Plexus hub's Schedule panel) key on conference_id and must not
+    // suddenly show TBD placeholders — the event app reads by event_key only.
     const rows = seedRows(q);
     const perEvent = {};
     for (const r of rows) {
@@ -530,7 +541,7 @@ function runSeed(q, { log } = {}) {
             q.run(`INSERT INTO sessions (id, conference_id, title, description, session_type, day, start_time, end_time, room, track, speaker_ids, is_published, capacity,
                                         event_key, event_date, sort_order, location_note, kind, speaker_names_json, is_tbd, show_counts, updated_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-                [uuid(), r.event_key === 'conference' ? conferenceId : null, r.title, r.description, r.kind, 1, r.start_time, r.end_time, r.room, r.track, null, r.is_published ? 1 : 0, null,
+                [uuid(), null, r.title, r.description, r.kind, 1, r.start_time, r.end_time, r.room, r.track, null, r.is_published ? 1 : 0, null,
                  r.event_key, r.event_date, perEvent[r.event_key] * 10, r.location_note, r.kind, r.speaker_names ? JSON.stringify(r.speaker_names) : null, r.is_tbd ? 1 : 0, 0, now]);
             inserted++;
         } catch (e) { log && log('seed row failed (' + r.event_key + ' · ' + r.title + '):', e.message); }
