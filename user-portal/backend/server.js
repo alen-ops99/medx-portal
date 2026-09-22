@@ -20959,7 +20959,8 @@ By applying to this program, I provide the following consents:
                             amount, invoice: galaInvoice, seat: galaReg.seat_number || null,
                             ticketCode: String(galaRegId).slice(0, 8).toUpperCase(),
                             qrPngUrl: qrImageUrl(galaRegId), wallet: plexusPass.walletLinks('gala', galaRegId),
-                            calendarUrl: plexusTicket.calendarUrl(`${req.protocol}://${req.get('host')}`, ['gala'])
+                            calendarUrl: plexusTicket.calendarUrl(`${req.protocol}://${req.get('host')}`, ['gala']),
+                            liveUrl: plexusTicket.liveAppUrl(JWT_SECRET, 'gala', galaRegId, `${req.protocol}://${req.get('host')}`)   // "Your event app: …"
                         }));
                     } catch (emailErr) {
                         console.warn('Gala payment confirmation email failed:', emailErr.message);
@@ -21322,7 +21323,8 @@ By applying to this program, I provide the following consents:
                             qrPngUrl: qrImageUrl(galaRegId), wallet: plexusPass.walletLinks('gala', galaRegId),
                             ticketCode: String(galaRegId).slice(0, 8).toUpperCase(),
                             partyNoteText: galaPayLink.partyNote(caSeats, caNamed.filter(g => String(g.email || '').trim() && caGuestLegsOf(g).includes('gala')).length),
-                            guests: caNamed
+                            guests: caNamed,
+                            liveUrl: plexusTicket.liveAppUrl(JWT_SECRET, 'ca', caRegId)   // "Your event app: …"
                         }), galaQrAtts);
                         caTicketSend = caSend || null;
                         // sendEmail returns {success:false}/{mock:true} instead of throwing, so the
@@ -21345,7 +21347,8 @@ By applying to this program, I provide the following consents:
                             const gHtml = galaPayLink.buildGuestEntryEmail({
                                 guestFirst: gFirst, guestName: String(pg.name || '').trim(), registrantName: caGuestName,
                                 qrPngUrl: qrImageUrl(galaRegId), wallet: plexusPass.walletLinks('guest', pg.id),
-                                ticketCode: String(galaRegId).slice(0, 8).toUpperCase(), legs: own, source: metadata.source
+                                ticketCode: String(galaRegId).slice(0, 8).toUpperCase(), legs: own, source: metadata.source,
+                                liveUrl: plexusTicket.liveAppUrl(JWT_SECRET, 'ca', caRegId)      // the party's event app
                             });
                             const gs = await sendEventConfirmation(pg.email, own.includes('gala') ? 'Your Gala Evening entry — Plexus Week 2026' : 'Your Plexus Week 2026 entry', gHtml);
                             if (!gs || gs.success !== true || gs.mock) console.error(`[Stripe][EMAIL-FAIL] gala GUEST ${pg.email} (reg ${caRegId}) did NOT receive their entry email`);
@@ -28487,7 +28490,8 @@ By applying to this program, I provide the following consents:
                 ? `Thank you, ${escapeHtml(reg.first_name || 'guest')} &mdash; your payment is confirmed. The same ticket is on its way to <b style="color:#fff;">${escapeHtml(v.email)}</b>.`
                 : 'Your card payment went through &mdash; we are issuing your ticket now. This page refreshes itself; your ticket email follows in a moment.',
             fullName: v.fullName, legs: v.legs, party: v.party, seats: v.seats, invoice: v.invoice, seat: v.seat,
-            ticketCode: v.ticketCode, qrPngUrl: v.qrPngUrl, wallet: v.wallet, calendarUrl: v.calendarUrl, guests: v.guests
+            ticketCode: v.ticketCode, qrPngUrl: v.qrPngUrl, wallet: v.wallet, calendarUrl: v.calendarUrl, guests: v.guests,
+            liveUrl: v.paid ? plexusTicket.liveAppUrl(JWT_SECRET, 'gala', reg.id, reqBase(req)) : null   // Plexus Week Live (the event app)
         }));
     });
 
@@ -28514,7 +28518,8 @@ By applying to this program, I provide the following consents:
             sub: `Thank you, ${escapeHtml(ca.first_name || 'guest')} &mdash; your registration is confirmed and there is nothing to pay. The same ticket is on its way to <b style="color:#fff;">${escapeHtml(ca.email || '')}</b>.`,
             kicker: 'Plexus Week 2026 · Zagreb',
             fullName: v.fullName, legs: v.legs, party: v.party, seats: 1, ticketCode: v.ticketCode,
-            qrPngUrl: qrImageUrl(ca.id), wallet: plexusPass.walletLinks('ca', ca.id), calendarUrl: v.calendarUrl, guests: v.guests
+            qrPngUrl: qrImageUrl(ca.id), wallet: plexusPass.walletLinks('ca', ca.id), calendarUrl: v.calendarUrl, guests: v.guests,
+            liveUrl: plexusTicket.liveAppUrl(JWT_SECRET, 'ca', ca.id, reqBase(req))                       // Plexus Week Live (the event app)
         }));
     });
 
@@ -28931,7 +28936,8 @@ By applying to this program, I provide the following consents:
                     ticketCode: String(regId).slice(0, 8).toUpperCase(),
                     qrPngUrl: qrImageUrl(regId),
                     wallet: plexusPass.walletLinks('guest', g.id),
-                    calendarUrl: plexusTicket.calendarUrl(base, legs)
+                    calendarUrl: plexusTicket.calendarUrl(base, legs),
+                    liveUrl: plexusTicket.liveAppUrl(JWT_SECRET, 'ca', regId, base)   // the party's event app (one schedule per party, like the QR)
                 });
                 const out = await sendEventConfirmation(g.email, 'Your Plexus Week 2026 entry', html);
                 if (out && out.success !== false && !out.mock) {
@@ -28964,6 +28970,7 @@ By applying to this program, I provide the following consents:
             qrPngUrl: qrImageUrl(qrId),
             wallet: plexusPass.walletLinks(finalGala ? 'gala' : 'ca', finalGala ? qrId : regId),
             calendarUrl: plexusTicket.calendarUrl(base, legs),
+            liveUrl: plexusTicket.liveAppUrl(JWT_SECRET, 'ca', regId, base),  // "Your event app: …" (Plexus Week Live)
             party: plexusTicket.partyByLeg(legs, caGuestRows(regId), 1 + Math.max(0, parseInt(row.guest_count, 10) || 0)),   // "(N seats)" per event
             guestsHtml: plexusTicket.guestsHtml(caGuestRows(regId))          // who joins which event
         });
@@ -29031,7 +29038,8 @@ By applying to this program, I provide the following consents:
             buildEmailTemplate, buildTicketQrBlock, qrPngAttachment,
             // Apple + Google Wallet links for the combined ticket + guest copies (plexus-pass.js)
             walletLinks: plexusPass.walletLinks, walletStackHtml: plexusPass.walletStackHtml,
-            qrImageUrl                                   // the hosted /qr/:id.png the ticket card shows
+            qrImageUrl,                                  // the hosted /qr/:id.png the ticket card shows
+            liveAppUrl: (kind, id) => plexusTicket.liveAppUrl(JWT_SECRET, kind, id)   // the person's Plexus Week Live link (event app)
         };
     }
 
@@ -29673,7 +29681,8 @@ By applying to this program, I provide the following consents:
                         qrPngUrl: qrImageUrl(galaRegistrationId), wallet: plexusPass.walletLinks('gala', galaRegistrationId),
                         ticketCode: String(galaRegistrationId).slice(0, 8).toUpperCase(),
                         partyNoteText: galaPayLink.partyNote(seats0, named0.filter(g => String(g.email || '').trim() && legsOf0(g).includes('gala')).length),
-                        guests: named0
+                        guests: named0,
+                        liveUrl: plexusTicket.liveAppUrl(JWT_SECRET, 'ca', regId)              // "Your event app: …"
                     }), qrAtts0);
                     if (!sent0 || sent0.success === false || sent0.mock) console.error(`[CA register][EMAIL-FAIL] bank-transfer Gala guest ${email} (reg ${galaRegistrationId}) did NOT receive the ticket email`);
                     for (const pg of named0.filter(g => String(g.email || '').trim())) {
@@ -29681,7 +29690,8 @@ By applying to this program, I provide the following consents:
                         if (!own.length || (!own.includes('gala') && pg.ticket_sent_at)) continue;
                         const gs = await sendEventConfirmation(pg.email, own.includes('gala') ? 'Your Gala Evening entry — Plexus Week 2026' : 'Your Plexus Week 2026 entry',
                             galaPayLink.buildGuestEntryEmail({ guestFirst: String(pg.name || 'there').split(' ')[0], guestName: String(pg.name || '').trim(), registrantName: fullName0,
-                                qrPngUrl: qrImageUrl(galaRegistrationId), wallet: plexusPass.walletLinks('guest', pg.id), ticketCode: String(galaRegistrationId).slice(0, 8).toUpperCase(), legs: own, source: regSource }));
+                                qrPngUrl: qrImageUrl(galaRegistrationId), wallet: plexusPass.walletLinks('guest', pg.id), ticketCode: String(galaRegistrationId).slice(0, 8).toUpperCase(), legs: own, source: regSource,
+                                liveUrl: plexusTicket.liveAppUrl(JWT_SECRET, 'ca', regId) }));      // the party's event app
                         if (gs && gs.success === true && !gs.mock) { try { db.run('UPDATE ca_registration_guests SET ticket_sent_at = ? WHERE id = ?', [new Date().toISOString(), pg.id]); } catch (e) {} }
                     }
                 } catch (e) { console.error('[CA register] bank-transfer Gala ticket failed (non-blocking):', e.message); }

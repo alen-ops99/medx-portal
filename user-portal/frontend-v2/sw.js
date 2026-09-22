@@ -1,15 +1,20 @@
 // Med&X member portal v2 — service worker.
 // Keep the CACHE_NAME line shape: scripts/stamp-sw.sh rewrites '…-vN' → '…-vN-<sha>' on deploy.
-const CACHE_NAME = 'medx-portal-v2-3';   // bumped 2026-09-17: Forum/Accelerator/Bridges views + new hero assets (cache-first JS must roll)
+const CACHE_NAME = 'medx-portal-v2-4';   // bumped 2026-09-22: Plexus Week Live (/live) view + css join the shell (cache-first JS must roll)
 
 // App shell (same-origin only — cross-origin entries make cache.addAll() reject and the SW never installs).
+// /js/views/live.js + /css/views/live.css are precached so a guest's second open of /live/<token> paints
+// from the cache before the network answers (the view itself keeps the last program in localStorage).
 const SHELL = [
   '/index.html', '/manifest.webmanifest',
-  '/css/tokens.css', '/css/app.css',
+  '/css/tokens.css', '/css/app.css', '/css/views/live.css',
   '/js/app.js', '/js/config.js', '/js/facts.js', '/js/state.js', '/js/api.js', '/js/ui.js', '/js/router.js', '/js/routes.js', '/js/chrome.js', '/js/member.js',
-  '/js/views/home.js', '/js/views/auth.js', '/js/views/notfound.js',
+  '/js/views/home.js', '/js/views/auth.js', '/js/views/notfound.js', '/js/views/live.js',
   '/assets/logo.png', '/assets/logo-white.png', '/assets/mark-x.png', '/assets/icons/icon-192.png'
 ];
+// /live/<token> is a CLIENT route (not a server path): its navigation goes network-first like every
+// other, so a fresh shell is served whenever the network is there; the cached shell is only the
+// offline fallback. Nothing here may add '/live' to SERVER_PREFIXES — that would 404 the app offline.
 // Server-rendered paths (see js/config.js serverPaths) — network only, never cached, never shell-fallbacked.
 const SERVER_PREFIXES = ['/api', '/plexus', '/meetups', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success', '/invite-cancelled',
   '/reset-password', '/qr', '/calendar', '/verify-certificate', '/verify', '/r', '/unsubscribe', '/email-prefs', '/donate', '/uploads', '/f',

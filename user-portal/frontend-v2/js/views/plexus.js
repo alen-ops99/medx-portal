@@ -28,6 +28,7 @@ const MON3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OC
 // ---- COPY: every string that may change in a revision (dates/prices/venues live via API + FACTS) --
 export const COPY = {
   crumb: { projects: 'PROJECTS', plexus: 'PLEXUS WEEK', program: 'PROGRAM &amp; SPEAKERS', zagreb: 'EXPLORE ZAGREB', mine: 'MY PLEXUS &amp; REGISTRATION' },
+  live: 'PLEXUS WEEK LIVE →',            // the event app (/app/live) — the phone-first program + my schedule
   // The four blocks of one edition (design/MEETUPS-SPEC.md §1) — fed by GET /api/v2/plexus-week/overview
   week: {
     n: '00', title: 'PLEXUS WEEK',
@@ -418,6 +419,7 @@ function tabStrip() {
     ${TABS.map(t => t.key === tab
       ? `<span aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px">${t.label}</span>`
       : `<a href="${t.to}" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" data-hover="color:#191512">${t.label}</a>`).join('\n    ')}
+    <a href="/app/live" data-v2="Plexus Week Live — the event app (docs/EVENT-APP-BRIEF.md)" style="display:inline-flex;align-items:center;gap:7px;font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;text-decoration:none;white-space:nowrap" data-hover="color:#7e151b"><span style="width:6px;height:6px;background:#9b1b22;display:inline-block"></span>${COPY.live}</a>
   </div>
   <!-- /dc -->`;
 }

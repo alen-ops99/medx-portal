@@ -40,6 +40,10 @@ http.createServer((req, res) => {
   const file = path.normalize(path.join(ROOT, p));
   if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
   if (fs.existsSync(file) && fs.statSync(file).isFile()) return send(res, file);
-  if (path.extname(p)) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found: ' + p); }
+  // A missing ASSET 404s; a dotted client route does not: /live/<sig>.<kind>.<id> (the event app's live
+  // token) has an "extension" that is a registration id — it must reach the SPA shell like Netlify's
+  // `/* /index.html 200` lets it.
+  const ext = path.extname(p).toLowerCase();
+  if (ext && MIME[ext]) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found: ' + p); }
   return send(res, path.join(ROOT, 'index.html'));
 }).listen(PORT, () => console.log(`frontend-v2 dev server → http://localhost:${PORT}  (API + server pages → ${BACKEND.origin})`));

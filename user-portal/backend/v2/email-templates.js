@@ -208,7 +208,7 @@ function confirmEmail({ firstName, verifyUrl, locale, validFor } = {}) {
 function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue, qrPngUrl, passUrl, walletUrl,
                               calendarUrl, ticketLabel, priceLabel, guestLabel, ticketNumber,
                               dressLabel, tableLabel, headlineHtml, introHtml, note, ctaLabel, replyLine, walletSaveUrl, appleWalletUrl,
-                              headerRightLabel, kicker, extraHtml, subjectTitle, preheader, ctaPosition, ctaNote } = {}) {
+                              headerRightLabel, kicker, extraHtml, subjectTitle, preheader, ctaPosition, ctaNote, eventAppUrl } = {}) {
     const fieldRow = (label, valueHtml) => `
         <tr><td style="padding:5px 0;vertical-align:baseline;width:76px;${microStyle(T.ink, 9, '.12em')}font-weight:700;">${label}</td>
             <td style="padding:5px 0 5px 10px;vertical-align:baseline;">${valueHtml}</td></tr>`;
@@ -255,6 +255,7 @@ function ticketConfirmation({ firstName, eventName, dateLabel, whenLines, venue,
                 ${calendarUrl ? `<tr><td align="center" style="padding:0 0 10px;">${btn('ADD TO CALENDAR →', calendarUrl, 'ghost', BTN_STACK_W)}</td></tr>` : ''}
               </table>
               <div style="font-family:${T.sans};font-size:11px;color:${T.soft};">${(walletSaveUrl || appleWalletUrl) ? `Tap Add to Wallet to add your ticket to Apple or Google Wallet${calendarUrl ? ' — and Add to Calendar to save the dates' : ''}.` : 'Tap Add to Calendar to save the dates.'}</div>` : ''}
+              ${eventAppUrl ? `<div style="font-family:${T.sans};font-size:12.5px;color:${T.ink};margin-top:14px;line-height:1.6;">Your event app: <a href="${escUrl(eventAppUrl)}" style="color:${T.crimson || '#9b1b22'};font-weight:600;text-decoration:none;word-break:break-all;">${escUrl(eventAppUrl)}</a></div>` : ''}
             </td>
           </tr></table>` : '';
     const ctaUrl = passUrl || walletUrl;

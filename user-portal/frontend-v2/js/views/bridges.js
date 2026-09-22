@@ -23,6 +23,7 @@ const NUM_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 
 // ---- COPY: every string that may change in a revision (dates/venues via FACTS/API) ----
 export const COPY = {
   crumb: { left: 'PROJECTS', right: 'BUILDING BRIDGES' },
+  live: 'EVENT APP →',                   // Plexus Week Live (/app/live): the evening's program, my schedule, speakers
   hero: {
     eyebrow: (city, dateLabel) => `NEXT EDITION · ${city} · ${dateLabel}`,
     eyebrowNone: 'NEXT EDITION · TO BE ANNOUNCED',
@@ -171,6 +172,8 @@ function blockCrumb() {
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${COPY.crumb.left}</span>
     <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.right}</span>
+    <div style="flex:1"></div>
+    <a href="/app/live" data-v2="Plexus Week Live — the event app (docs/EVENT-APP-BRIEF.md)" style="display:inline-flex;align-items:center;gap:7px;min-height:24px;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;text-decoration:none;white-space:nowrap" data-hover="color:#7e151b"><span style="width:6px;height:6px;background:#9b1b22;display:inline-block"></span>${COPY.live}</a>
   </div>
   <!-- /dc -->`;
 }

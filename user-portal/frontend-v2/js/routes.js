@@ -30,6 +30,11 @@ export const ROUTES = [
   { path: '/app/mentorship', view: () => import('./views/mentorship.js'), auth: true, title: 'Mentorship' },
   { path: '/app/opportunities', view: () => import('./views/opportunities.js'), auth: true, title: 'Opportunity board' },
   { path: '/app/projects', view: () => import('./views/projects.js'), auth: true, title: 'Projects' },           // mobile PROJECTS tab
+  // PLEXUS WEEK LIVE — the event app (docs/EVENT-APP-BRIEF.md). `/live/:token?` is PUBLIC like the ticket
+  // pages: guests arrive from the ticket link with no account; no token → the read-only catalogue.
+  // `/app/live` is the signed-in member's door (the literal 'user' token + Bearer). Both are 'bare'.
+  { path: '/live/:token?', view: () => import('./views/live.js'), layout: 'bare', title: 'Plexus Week Live' },
+  { path: '/app/live', view: () => import('./views/live.js'), auth: true, layout: 'bare', active: 'Plexus', title: 'Plexus Week Live' },
   { path: '/app/maintenance', view: () => import('./views/maintenance.js'), layout: 'bare', title: 'Back shortly' }
 ];
 export const NOT_FOUND = () => import('./views/notfound.js');

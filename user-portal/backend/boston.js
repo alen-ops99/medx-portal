@@ -215,6 +215,9 @@ const RELEASED_LINE_HTML = when => esc(RELEASED_LINE(when)).replace('—', '&mda
 
 const LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/images/medx-logo.png';
 const baseUrl = () => String(process.env.RENDER_EXTERNAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+// Plexus Week Live — the event app (docs/EVENT-APP-BRIEF.md). A Boston guest is a bridges_registrations
+// row, so their live token is kind 'bridges'; the link goes on the personal page under the wallet buttons.
+const plexusTicket = require('./plexus-ticket');
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // ---------------------------------------------------------------- how we address a guest (Alen 2026-09-16)
@@ -1785,7 +1788,7 @@ module.exports = function mountBoston(app, deps) {
             res.send(mePage(reg, meStateOf(reg), s3.isConfigured(), {
                 me: String(req.params.token),
                 diet: dietToken(reg.id)          // the allergy box and the way out reuse the existing routes
-            }, walletLinks(reg)));
+            }, Object.assign({}, walletLinks(reg), { live: plexusTicket.liveAppUrl(JWT_SECRET, 'bridges', reg.id, baseUrl()) })));
         } catch (e) {
             console.error('[Boston] personal page error:', e.message);
             res.status(500).send(simplePage('Something went wrong', 'One moment, please.',
@@ -4040,6 +4043,15 @@ function mePage(reg, st, s3ok, tok, links) {
         w.google ? `<a class="wbtn" href="${esc(w.google)}">Add to Google Wallet &rarr;</a>` : '',
         w.calendar ? `<a class="wbtn ghost" href="${esc(w.calendar)}">Add to Calendar &rarr;</a>` : ''
     ].join('');
+    // Plexus Week Live (the event app): the evening's program, one-tap attending, my schedule — the one
+    // primary button on the page, above the ticket, so a phone sees it without scrolling.
+    const liveCard = w.live ? `
+  <section class="sheet" aria-label="The event app">
+    <p class="slabel">The evening, on your phone</p><div class="rule"></div>
+    <p class="sbody">The run of the evening &mdash; talks, panel, break, networking &mdash; with the room and who speaks when. Tap ATTENDING on what you plan to join; it lands in your own schedule.</p>
+    <a class="go" id="live_go" href="${esc(w.live)}" style="display:block;text-align:center;text-decoration:none;">Open the event app &rarr;</a>
+    <p class="thint" style="margin-top:10px;">No login &mdash; this link is yours. It also works from the ticket email.</p>
+  </section>` : '';
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Your personal page — Building Bridges Boston · Med&amp;X</title>
@@ -4147,6 +4159,7 @@ main{max-width:640px;}
   ${st.presenter ? step3 + step2 : step2 + step3}
   ${requestsCard}
   ${finishStep}
+  ${liveCard}
 
   <section class="sheet" aria-label="Your ticket">
     <p class="slabel">Your ticket for the door</p><div class="rule"></div>

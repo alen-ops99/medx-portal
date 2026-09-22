@@ -142,7 +142,7 @@ function parseLegs(raw) {
 /**
  * One ticket email. `kind`: 'combined' | 'gala-guest' | 'gala' | 'free'.
  * f = { firstName, fullName, legs, seats, amount, invoice, seat, guestOf, qrPngUrl, wallet:{apple,google},
- *       calendarUrl, partyNote, guestsHtml, source }
+ *       calendarUrl, partyNote, guestsHtml, source, liveUrl? (the person's Plexus Week Live link → one line under the buttons) }
  */
 function ticketEmail(kind, f) {
     const F = f.facts || LEG;                     // admin-set dates/venues, when the caller has them
@@ -214,6 +214,7 @@ function ticketEmail(kind, f) {
         qrPngUrl: f.qrPngUrl,
         appleWalletUrl: f.wallet && f.wallet.apple, walletSaveUrl: f.wallet && f.wallet.google,
         calendarUrl: f.calendarUrl,
+        eventAppUrl: f.liveUrl || null,               // "Your event app: <url>" under the wallet buttons (Plexus Week Live)
         extraHtml: f.guestsHtml || '',
         note: noteParts.join('<br><br>'),
         replyLine: `Questions? Laura Rodman — <a href="mailto:${SUPPORT_EMAIL}" style="color:#6f6256;">${SUPPORT_EMAIL}</a>.`,
@@ -261,11 +262,17 @@ const safeEq = (a, b) => { try { return a.length === b.length && crypto.timingSa
 const liveProgram = require('../../shared/live-program');
 const liveUrl = (base, secret, kind, id) => liveProgram.liveUrl(base, secret, kind, id);
 const liveToken = (secret, kind, id) => liveProgram.liveToken(secret, kind, id);
+// The app lives on the MEMBER SPA host (frontend-v2 — on staging the Netlify site, which the launcher
+// hands the member backend as PUBLIC_BASE_URL; in production the portal host itself, or MEMBER_PORTAL_URL
+// once the redesign is served from its own origin). Never the request host: the ticket pages are served
+// by this backend, whose SPA fallback is not the v2 shell.
+const liveAppBase = fallback => String(process.env.MEMBER_PORTAL_URL || process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || fallback || '').replace(/\/+$/, '');
+const liveAppUrl = (secret, kind, id, fallbackBase) => liveUrl(liveAppBase(fallbackBase), secret, kind, id);
 
 /**
  * The page a person sees the moment their registration is complete — the email's twin.
  * p = { state:'ticket'|'pending', headline, sub, fullName, legs, party:{conference,bridges,gala}, seats,
- *       invoice, seat, ticketCode, qrPngUrl, wallet, calendarUrl, guests, emailTo, kicker }
+ *       invoice, seat, ticketCode, qrPngUrl, wallet, calendarUrl, guests, emailTo, kicker, liveUrl? (OPEN THE EVENT APP →) }
  */
 function ticketPageHtml(p) {
     const LEG = p.facts || module.exports.LEG;
@@ -279,6 +286,10 @@ function ticketPageHtml(p) {
     const w = p.wallet || {};
     const b = (href, label, skin) => `<a href="${esc(href)}" style="display:block;margin:10px auto 0;max-width:280px;padding:12px 18px;background:${skin === 'ink' ? '#241d18' : skin === 'gold' ? '#c9a962' : 'transparent'};border:1px solid ${skin === 'ghost' ? 'rgba(25,21,18,.3)' : 'transparent'};color:${skin === 'ink' ? '#f7f1e6' : skin === 'gold' ? '#191512' : '#3a322b'};font:600 12.5px Inter,sans-serif;letter-spacing:.4px;text-decoration:none;text-align:center;">${label}</a>`;
     const buttons = [w.apple ? b(w.apple, 'Add to Apple Wallet →', 'ink') : '', w.google ? b(w.google, 'Add to Google Wallet →', 'gold') : '', p.calendarUrl ? b(p.calendarUrl, 'Add to calendar →', 'ghost') : ''].join('');
+    // Plexus Week Live (docs/EVENT-APP-BRIEF.md): the one primary action on the page — the program, one-tap
+    // attending, my schedule. Sits right under the reservations so a phone sees it without scrolling.
+    const liveBlock = p.liveUrl ? `<a class="live" href="${esc(p.liveUrl)}">Open the event app &rarr;</a>
+        <p class="livesub">The program, one-tap attending and your own schedule &mdash; no login, this link is yours.</p>` : '';
     const guests = (p.guests || []).filter(g => g && (g.name || g.email));
     const guestsBlock = guests.length ? `<div class="sheet"><p class="slabel">Your guests</p>
         ${guests.map(g => `<p style="margin:10px 0 0;padding-top:10px;border-top:1px solid rgba(201,169,98,.3);font-size:14px;line-height:1.55;color:#191512;"><b>${esc(g.name || g.email)}</b> <span style="color:#6e6455;">&middot; ${esc((g.events || ['Gala Evening']).join(', '))}</span><span style="display:block;margin-top:3px;font-size:13px;color:${g.email ? '#191512' : '#6e5626'};">${g.email ? '&#10003; Their own ticket was emailed to <b>' + esc(g.email) + '</b>.' : '<b>No email on file for this guest.</b> Your QR admits them too &mdash; please forward your ticket email to them.'}</span></p>`).join('')}</div>` : '';
@@ -309,6 +320,9 @@ main{max-width:640px;margin:0 auto;padding:0 16px 56px;}
 .sheet:first-child{margin-top:-34px;position:relative;}
 .slabel{font:600 10.5px Inter,sans-serif;letter-spacing:2.4px;text-transform:uppercase;color:#6e5626;margin-bottom:14px;}
 table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1);}
+.live{display:block;margin:18px auto 0;padding:15px 18px;background:#9b1b22;color:#f7f1e6;font:600 12.5px Inter,sans-serif;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;text-align:center;}
+.live:hover{background:#7e151b;}
+.livesub{margin:10px 0 0;text-align:center;font-size:12.5px;line-height:1.6;color:#6e6455;}
 .foot{text-align:center;font-size:12px;color:#94897c;padding:26px 18px 40px;line-height:1.9;}
 .foot a{color:#9b1b22;font-weight:600;text-decoration:none;}
 </style></head><body>
@@ -323,6 +337,7 @@ table.res{width:100%;border-collapse:collapse;border:1px solid rgba(25,21,18,.1)
     <p class="slabel">Your Plexus Week 2026 reservations</p>
     <table class="res">${legs.map((l, i) => legRow(l, i === legs.length - 1)).join('')}</table>
     ${dressLine(legs, LEG) ? `<p style="margin:12px 0 0;font-size:12.5px;line-height:1.6;color:#6e6455;"><b style="color:#191512;">Dress code:</b> ${esc(dressLine(legs, LEG))}</p>` : ''}
+    ${liveBlock}
   </div>
   ${ticketCard}
   ${guestsBlock}
@@ -336,5 +351,5 @@ module.exports = {
     icsFor, calendarUrl, parseLegs,
     ticketEmail, guestsHtml, guestLegs, guestEvents,
     pageSig, galaPageSig, safeEq, ticketPageHtml,
-    liveUrl, liveToken
+    liveUrl, liveToken, liveAppBase, liveAppUrl
 };

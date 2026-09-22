@@ -25,6 +25,8 @@
  *   GET    /api/v2/program/:eventKey/attendance.csv      UTF-8 BOM · CRLF
  *   GET    /api/v2/program/:eventKey/insight             → { registered, registered_seats, opened, scheduled, sessions, published, tbd, top: [{ id, title, start_time, count, capacity }],
  *                                                          speakers_unopened: [{ id, name, sessions }], attending_total }
+ *   GET    /api/live/speaker-link/:speakerId             → { speaker_id, name, email, url, token, sessions } — the speaker's own Plexus Week Live link
+ *                                                          (kind 'speaker'), for the team to paste into a speaker email. Nothing is sent from here.
  * Admin reads go through this backend's own DB handle (its Turso replica) — a write here is visible
  * to the member backend after its next sync (≤ 60 s), which is also the phones' poll interval.
  */
@@ -314,6 +316,25 @@ module.exports = function mountProgramOps(app, ctx) {
             res.set('Cache-Control', 'private, no-store');
             res.json({ event_key: key, registered: reg.people, registered_seats: reg.seats, opened, scheduled, attending_total: total, sessions: sessions.length, published: sessions.filter(s => s.is_published).length, tbd: sessions.filter(s => s.is_tbd).length, top, speakers_unopened, speakers_total: Object.keys(bySpeaker).length });
         } catch (e) { fail(res, e, 'insight'); }
+    });
+
+    // ---- the speaker's live link (phase 2) ----
+    // The event app lives on the MEMBER SPA host: MEMBER_PORTAL_URL when the redesign has its own origin,
+    // else USER_PORTAL_URL (set on every deployed service; the staging launcher points it at the Netlify
+    // member site). The token is HMAC(JWT_SECRET,'live:speaker:<id>') — both portals share the secret.
+    const memberBase = () => String(process.env.MEMBER_PORTAL_URL || process.env.USER_PORTAL_URL || 'https://medx-user-portal.onrender.com').replace(/\/+$/, '');
+    app.get('/api/live/speaker-link/:speakerId', auth, adminOnly, (req, res) => {
+        try {
+            const id = String(req.params.speakerId || '').trim();
+            if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return res.status(404).json({ error: 'No such speaker.' });
+            const sp = q.get('SELECT id, name, email FROM speakers WHERE id = ?', [id]);
+            if (!sp) return res.status(404).json({ error: 'No such speaker.' });
+            const secret = ctx.JWT_SECRET || process.env.JWT_SECRET || 'medx-dev-secret';
+            let sessions = [];
+            try { sessions = q.all("SELECT id, event_key, event_date, start_time, end_time, title, room FROM sessions WHERE event_key IS NOT NULL AND (',' || COALESCE(speaker_ids, '') || ',') LIKE ? ORDER BY event_date, start_time", ['%,' + id + ',%']); } catch (e) { sessions = []; }
+            res.set('Cache-Control', 'private, no-store');
+            res.json({ speaker_id: sp.id, name: sp.name || '', email: sp.email || null, token: core.liveToken(secret, 'speaker', sp.id), url: core.liveUrl(memberBase(), secret, 'speaker', sp.id), sessions });
+        } catch (e) { fail(res, e, 'speaker-link'); }
     });
 
     log('program-ops: the PROGRAM EDITOR API ready');

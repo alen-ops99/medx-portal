@@ -559,11 +559,12 @@ async function sendUnpaidGalaNudge(deps, caId) {
 function legsFor({ wantConf, wantBridges, gala }) {
     return [wantConf ? 'conference' : null, wantBridges ? 'bridges' : null, gala === false ? null : 'gala'].filter(Boolean);
 }
-function buildCombinedTicketEmail({ firstName, fullName, amount, seats, invoiceNumber, wantConf, wantBridges, partyNoteText, source, qrPngUrl, wallet, calendarUrl, guests, ticketCode, seat }) {
+function buildCombinedTicketEmail({ firstName, fullName, amount, seats, invoiceNumber, wantConf, wantBridges, partyNoteText, source, qrPngUrl, wallet, calendarUrl, guests, ticketCode, seat, liveUrl }) {
     const legs = legsFor({ wantConf, wantBridges });
     return plexusTicket.ticketEmail('combined', {
         firstName, fullName: fullName || firstName, legs, seats, amount, invoice: invoiceNumber, seat, source,
         ticketCode, qrPngUrl, wallet, calendarUrl: calendarUrl || plexusTicket.calendarUrl(publicBase(), legs),
+        liveUrl,                                               // "Your event app: …" (Plexus Week Live) — callers mint it per row
         partyNote: partyNoteText,
         party: plexusTicket.partyByLeg(legs, guests, seats),   // "(2 seats)" after each event the party joins
         guestsHtml: plexusTicket.guestsHtml(guests)
@@ -572,12 +573,13 @@ function buildCombinedTicketEmail({ firstName, fullName, amount, seats, invoiceN
 // The named guest's copy of the party ticket — same card, same QR, their own wallet passes.
 // `legs` = the guest's OWN legs (2026-09-16: a guest may join the Conference and Building Bridges
 // too); a Gala guest reads the Gala card, a free-only guest the free-events one.
-function buildGuestEntryEmail({ guestFirst, guestName, registrantName, qrPngUrl, wallet, calendarUrl, ticketCode, seat, legs, source }) {
+function buildGuestEntryEmail({ guestFirst, guestName, registrantName, qrPngUrl, wallet, calendarUrl, ticketCode, seat, legs, source, liveUrl }) {
     const own = Array.isArray(legs) && legs.length ? legs : ['gala'];
     return plexusTicket.ticketEmail(own.includes('gala') ? 'gala-guest' : 'free', {
         firstName: guestFirst, fullName: guestName || guestFirst, legs: own, seats: 1, source,
         guestOf: registrantName, ticketCode, seat, qrPngUrl, wallet,
-        calendarUrl: calendarUrl || plexusTicket.calendarUrl(publicBase(), own)
+        calendarUrl: calendarUrl || plexusTicket.calendarUrl(publicBase(), own),
+        liveUrl                                                // the party's event app (the host's row — one schedule per party, like the QR)
     });
 }
 // Kept for callers that still print the reservations list on the dark shell (the finance note
@@ -656,6 +658,8 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
     const log = deps.log || ((...a) => console.log('[GalaPayLink]', ...a));
     // Wallet passes (plexus-pass.js) — optional deps so the module still works without them.
     const links = (kind, id) => { try { return deps.walletLinks ? deps.walletLinks(kind, id) : null; } catch (e) { log('wallet links failed (non-blocking):', e.message); return null; } };
+    // Plexus Week Live: the party's event-app link (the CA row; guests share it like they share the QR).
+    const liveOf = caId => { try { return deps.liveAppUrl ? deps.liveAppUrl('ca', caId) : plexusTicket.liveAppUrl(process.env.JWT_SECRET || 'medx-dev-secret', 'ca', caId, publicBase()); } catch (e) { return null; } };
     if (!galaRegId) return { handled: false };
 
     const ca = query.get('SELECT * FROM croatians_abroad_registrations WHERE gala_registration_id = ?', [galaRegId]);
@@ -720,7 +724,8 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
         wantConf, wantBridges, source: ca.source,
         qrPngUrl, wallet: links('gala', galaRegId), ticketCode: String(galaRegId).slice(0, 8).toUpperCase(),
         partyNoteText: party,
-        guests: namedGuests
+        guests: namedGuests,
+        liveUrl: liveOf(ca.id)
     });
 
     const sent = await sendEmail(to, 'Your ticket — Plexus Week 2026', html, atts);
@@ -742,7 +747,7 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
                 guestFirst: gFirst, guestName: String(g.name || '').trim(),
                 registrantName: `${ca.first_name || ''} ${ca.last_name || ''}`.trim(),
                 qrPngUrl, wallet: g.id ? links('guest', g.id) : null, ticketCode: String(galaRegId).slice(0, 8).toUpperCase(),
-                legs: own, source: ca.source
+                legs: own, source: ca.source, liveUrl: liveOf(ca.id)
             }));
             if (out && out.success !== false && !out.mock) { try { db.run('UPDATE ca_registration_guests SET ticket_sent_at = ? WHERE id = ?', [new Date().toISOString(), g.id]); } catch (e) {} }
         }
