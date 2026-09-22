@@ -2,9 +2,9 @@
 //         search-or-task field · profile avatar + menu) — the same header sits on all 17 artboards.
 //         ONE implementation, mounted once by app.js; every view renders below it. Markup and inline
 //         styles are the artboard's; only the bound props ({{ q }}, {{ avatarInitials }} …) became data.
-// v2 additions (no artboard): PROJECTS dropdown (Plexus · Accelerator · Forum · Bridges + Review Room ·
-// What members see · Event Day Room), EVENT DAY nav item on event dates, locked nav items, the ≤760px
-// MENU collapse (note 0a), assistant rows in the search field (note 14).
+// v2 additions (no artboard): the SIX-item nav with dropdown groups (2026-09-22 — TODAY · PROJECTS ▾ ·
+// TEAM ▾ · PEOPLE ▾ · MONEY · MORE ▾, red EVENT DAY on event dates; see NAV / MENUS), locked items,
+// the ≤960px MENU drawer (the same six groups as an accordion), assistant rows in the search field (note 14).
 // Audit 2026-09-02 #10: "/" and ⌘K/Ctrl+K focus the search box ("/" steps aside while a field has
 // focus); the results popover right-aligns and clamps inside the viewport; the palette carries
 // HR/EN operator vocabulary (`syn`) with diacritic folding, so "invoice", "račun"/"racun",
@@ -36,8 +36,9 @@ export function chatUnreadOf(overview) {
 
 export const COPY = {
   admin: 'ADMIN',
-  nav: { today: 'TODAY', projects: 'PROJECTS', bigIdeas: 'BIG IDEAS', inbox: 'INBOX', tasks: 'TASKS', notes: 'NOTES', people: 'PEOPLE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', menu: 'MENU' },
+  nav: { today: 'TODAY', projects: 'PROJECTS', team: 'TEAM', bigIdeas: 'BIG IDEAS', inbox: 'INBOX', tasks: 'TASKS', notes: 'NOTES', people: 'PEOPLE', registrations: 'REGISTRATIONS', speakers: 'SPEAKER PIPELINE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', more: 'MORE', menu: 'MENU' },
   tasksBadge: { red: 'Finished tasks waiting for you to see', grey: 'Your open tasks' },
+  teamBadge: { red: 'Waiting for you — finished tasks to see and inbox items to answer', grey: 'Your open tasks' },
   chat: { label: 'TEAM CHAT', title: 'Team chat — straight to the chat tab' },
   search: { placeholder: 'Search or type a task…', none: 'No matches — try a screen, a person, or a project.', hint: 'Type a name, a screen, or an instruction — Enter asks the assistant.', asking: 'Asking the assistant…', ask: 'ASK', confirm: 'CONFIRM', done: 'Done.', gated: 'The do-it-for-me assistant needs ANTHROPIC_API_KEY on the admin service — search and live numbers still work.' },
   menu: { displayName: 'DISPLAY NAME', save: 'SAVE', saved: '✓ SAVED', team: 'TEAM ACCESS →', signOut: 'SIGN OUT', profileTitle: 'Your profile', locked: 'Locked — ask Alen, he grants access per section' },
@@ -46,41 +47,86 @@ export const COPY = {
   signedOut: 'Signed out.'
 };
 
-// top nav — order and labels exactly as the artboards (EVENT DAY inserted before STUDIO on event dates)
+// top nav — SIX items (Alen, 2026-09-22: "the top bar has too many items"). TODAY · PROJECTS ▾ ·
+// TEAM ▾ · PEOPLE ▾ · MONEY · MORE ▾, plus a red EVENT DAY between MONEY and MORE on an event date.
+// A group (`menu`) opens a dropdown — hover on a desktop, tap on a phone (the ≤960px MENU drawer
+// renders the same six groups as an accordion). Every former top-level destination lives in one
+// group; the ⌘K palette (PALETTE below) still reaches all of them directly.
+//   sections on a ROW  → perms gate per destination: a locked row is hidden from the dropdown
+//   a group with no visible row reads as locked (opacity .45, title tells), like any locked item
+//   badge / badge2      → red / grey counts (TEAM rolls up: red = tasks done-unseen + inbox items
+//                         waiting; grey = my open tasks; the rows carry their own counts)
+//   drop                → the route `active` keys this group highlights for (router → state.active)
 const NAV = [
   { key: 'Today', label: COPY.nav.today, to: '/today' },
-  { key: 'Projects', label: COPY.nav.projects, to: '/projects/plexus', dropdown: true, sections: ['plexus', 'accelerator', 'forum', 'bridges'] },
-  // BIG IDEAS sits between PROJECTS and INBOX as a primary item, never inside the PROJECTS
-  // dropdown — the owner's rule is that it cannot be buried. Same list on desktop and in the
-  // ≤760px MENU drawer (both render this NAV array).
-  { key: 'Big Ideas', label: COPY.nav.bigIdeas, to: '/big-ideas', sections: ['big-ideas'] },
-  { key: 'Inbox', label: COPY.nav.inbox, to: '/inbox', badge: 'inbox', sections: ['member-ops', 'pr-media'] },
-  // TASKS — the shared board (2026-09-20), between INBOX and PEOPLE for everyone (unmapped on the
-  // server). Red badge = tasks I gave that are done and waiting for me to see; grey = my open tasks.
-  { key: 'Tasks', label: COPY.nav.tasks, to: '/tasks', badge: 'tasks', badge2: 'tasksOpen' },
-  // NOTES — event & day notes (2026-09-22), next to TASKS for everyone (unmapped on the server):
-  // what happened, who we met, what was agreed — per event or per day, read afterwards.
-  { key: 'Notes', label: COPY.nav.notes, to: '/notes' },
-  { key: 'People', label: COPY.nav.people, to: '/people', sections: ['member-ops', 'guest-passes', 'team', 'contacts'] },
+  { key: 'Projects', label: COPY.nav.projects, to: '/projects/plexus', menu: true, drop: ['Projects', 'Big Ideas'] },
+  // TEAM — the shared board, the notes, the inbox and the calendar: everything the team does
+  // together. TASKS and NOTES are unmapped on the server (every admin) → no `sections`.
+  { key: 'Team', label: COPY.nav.team, to: '/tasks', menu: true, badge: 'team', badge2: 'tasksOpen', drop: ['Tasks', 'Notes', 'Inbox', 'Calendar'] },
+  { key: 'People', label: COPY.nav.people, to: '/people', menu: true, drop: ['People', 'Speakers'] },
   { key: 'Money', label: COPY.nav.money, to: '/money', sections: ['finances'] },
-  { key: 'Calendar', label: COPY.nav.calendar, to: '/calendar' },
-  { key: 'Event Day', label: COPY.nav.eventDay, to: '/event-day', eventDayOnly: true, sections: ['gameday', 'plexus'] },
-  { key: 'Studio', label: COPY.nav.studio, to: '/studio', sections: ['pr-media', 'plexus', 'signup-forms'] },
-  { key: 'Settings', label: COPY.nav.settings, to: '/settings' }
+  // EVENT DAY — top-level (and red) only while an event is on; every other day it waits under MORE
+  { key: 'Event Day', label: COPY.nav.eventDay, to: '/event-day', eventDayOnly: true, red: true, sections: ['gameday', 'plexus'] },
+  { key: 'More', label: COPY.nav.more, to: '/settings', menu: true, drop: ['Studio', 'Settings', 'Event Day'] }
 ];
-const PROJECTS = [
-  { k: 'PLEXUS', label: COPY.projects.plexus, to: '/projects/plexus', sub: FACTS.plexus.dateShort, sections: ['plexus'] },
-  { k: 'ACCEL', label: COPY.projects.accelerator, to: '/projects/accelerator', sub: 'opens ' + FACTS.accelerator.opensShort, sections: ['accelerator'] },
-  { k: 'FORUM', label: COPY.projects.forum, to: '/projects/forum', sub: 'by invitation', sections: ['forum'] },
-  { k: 'BRIDGES', label: COPY.projects.bridges, to: '/projects/bridges', sub: FACTS.bridges.next.city + ' · ' + FACTS.bridges.next.short, sections: ['bridges'] },
-  { divider: true },
-  { k: 'ROOM', label: COPY.projects.review, to: '/accelerator-review', sub: 'applications', sections: ['accelerator'] },
-  { k: 'GALA', label: COPY.projects.gala, to: '/gala', sub: 'seats · chase', sections: ['plexus'] },
-  { k: 'MEETUPS', label: COPY.projects.meetups, to: '/projects/plexus/meetups', sub: COPY.meetups.sub, sections: ['plexus-meetups'] },
-  { k: 'PAGES', label: COPY.projects.pages, to: '/member-pages', sub: 'publish', sections: ['pr-media', 'plexus', 'accelerator'] },
-  { k: 'LINKS', label: COPY.projects.links, to: '/links', sub: 'invitation links', sections: ['plexus', 'bridges'] },
-  { k: 'LIVE', label: COPY.projects.eventDay, to: '/event-day', sub: 'always reachable', sections: ['gameday', 'plexus'] }
-];
+// dropdown rows per group. `k` = the 8px crimson key, `sub` = the muted right-hand note.
+// Rows whose `to` matches the current path highlight (the longest match wins — /people/speakers
+// lights SPEAKERS, not PEOPLE).
+const MENUS = {
+  Projects: [
+    { k: 'PLEXUS', label: COPY.projects.plexus, to: '/projects/plexus', sub: FACTS.plexus.dateShort, sections: ['plexus'] },
+    { k: 'ACCEL', label: COPY.projects.accelerator, to: '/projects/accelerator', sub: 'opens ' + FACTS.accelerator.opensShort, sections: ['accelerator'] },
+    { k: 'FORUM', label: COPY.projects.forum, to: '/projects/forum', sub: 'by invitation', sections: ['forum'] },
+    { k: 'BRIDGES', label: COPY.projects.bridges, to: '/projects/bridges', sub: FACTS.bridges.next.city + ' · ' + FACTS.bridges.next.short, sections: ['bridges'] },
+    // BIG IDEAS — the long game; a primary row of PROJECTS, never buried below the divider
+    { k: 'IDEAS', label: 'Big Ideas', to: '/big-ideas', sub: 'the long game', sections: ['big-ideas'] },
+    { divider: true },
+    { k: 'GALA', label: COPY.projects.gala, to: '/gala', sub: 'seats · chase', sections: ['plexus'] },
+    { k: 'MEETUPS', label: COPY.projects.meetups, to: '/projects/plexus/meetups', sub: COPY.meetups.sub, sections: ['plexus-meetups'] },
+    { k: 'ROOM', label: COPY.projects.review, to: '/accelerator-review', sub: 'applications', sections: ['accelerator'] },
+    { k: 'PAGES', label: COPY.projects.pages, to: '/member-pages', sub: 'publish', sections: ['pr-media', 'plexus', 'accelerator'] },
+    { k: 'LINKS', label: COPY.projects.links, to: '/links', sub: 'invitation links', sections: ['plexus', 'bridges'] }
+  ],
+  Team: [
+    // TASKS — red = tasks I gave that are done and waiting for me to see; grey = my open tasks
+    { k: 'TASKS', key: 'Tasks', label: 'Tasks', to: '/tasks', sub: 'the shared board', badge: 'tasks', badge2: 'tasksOpen' },
+    // NOTES — event & day notes (2026-09-22): what happened, who we met, what was agreed
+    { k: 'NOTES', key: 'Notes', label: 'Notes', to: '/notes', sub: 'what happened' },
+    { k: 'INBOX', key: 'Inbox', label: 'Inbox', to: '/inbox', sub: 'email · outbox · chat', badge: 'inbox', sections: ['member-ops', 'pr-media'] },
+    { k: 'CAL', key: 'Calendar', label: 'Calendar', to: '/calendar', sub: 'key dates' }
+  ],
+  People: [
+    { k: 'PEOPLE', label: 'People', to: '/people', sub: 'members · contacts', sections: ['member-ops', 'guest-passes', 'team', 'contacts'] },
+    { k: 'REGS', label: 'Registrations', to: '/registrations', sub: 'all events', sections: ['plexus', 'forum', 'bridges', 'signup-forms'] },
+    // SPEAKER PIPELINE (2026-09-22) — potential speakers for 2027 so nobody is forgotten; every admin
+    { k: 'SPEAKERS', key: 'Speakers', label: 'Speaker pipeline', to: '/people/speakers', sub: '2027 · who we met' }
+  ],
+  More: [
+    { k: 'LIVE', label: 'Event Day', to: '/event-day', sub: 'door · check-in · live', sections: ['gameday', 'plexus'], hideOnEventDay: true },
+    { k: 'STUDIO', label: 'Studio', to: '/studio', sub: 'content · pages', sections: ['pr-media', 'plexus', 'signup-forms'] },
+    { k: 'SETUP', label: 'Settings', to: '/settings', sub: 'team · health · tools' }
+  ]
+};
+const isHoverDevice = () => { try { return window.matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (e) { return true; } };
+const inDrawer = () => document.body.classList.contains('menu-open');
+// which group the current screen belongs to (router sets state.active to the route's key)
+function groupOf(s) {
+  if (s.active === 'Event Day') return s.eventDay ? 'Event Day' : 'More';
+  const g = NAV.find(n => n.key === s.active || (n.drop || []).includes(s.active));
+  return g ? g.key : s.active;
+}
+// the rows an admin may see (perms per destination; EVENT DAY leaves MORE while it is top-level)
+function rowsOf(key, s) {
+  const rows = (MENUS[key] || []).filter(r => r.divider || ((!r.sections || perms.canAny(r.sections)) && !(r.hideOnEventDay && s.eventDay)));
+  // no divider at either end, none doubled
+  return rows.filter((r, i) => !r.divider || (i > 0 && i < rows.length - 1 && !rows[i - 1].divider));
+}
+function rowOnPath(rows) {
+  const p = location.pathname.replace(/\/+$/, '') || '/';
+  let best = null;
+  rows.forEach(r => { if (r.divider) return; const to = r.to.replace(/\/+$/, ''); if ((p === to || p.startsWith(to + '/')) && (!best || to.length > best.to.length)) best = r; });
+  return best;
+}
 // search palette — SCREEN / ACTION entries (Admin Home.dc.html `palette`, retargeted to v2 routes).
 // Audit #10: `syn` carries the operator vocabulary — HR/EN synonyms ("invoice/račun",
 // "putni nalog", "scan", "badge") so the words people actually type find the screen; matching
@@ -101,6 +147,8 @@ const PALETTE = [
   { kind: 'SCREEN', label: 'Inbox — email, outbox, chat', syn: 'poruke pošta mail', href: '/inbox' },
   { kind: 'SCREEN', label: 'People', syn: 'ljudi članovi members kontakti directory imenik', href: '/people' },
   { kind: 'SCREEN', label: 'Registrations — all events', syn: 'prijave registracije sign-ups sudionici attendees', href: '/registrations' },
+  { kind: 'SCREEN', label: 'Speaker pipeline — potential speakers for 2027', syn: 'speaker speakers predavač predavači govornik pipeline 2027 prospect kandidat invite pozvati contacted kontaktiran keynote', href: '/people/speakers' },
+  { kind: 'ACTION', label: 'Add a potential speaker — so we do not forget them', syn: 'speaker predavač govornik new novi add dodaj prospect met upoznao invite 2027 pipeline', href: '/people/speakers?new=1' },
   { kind: 'SCREEN', label: 'Money', syn: 'novac finance financije knjige računi bookkeeping', href: '/money' },
   { kind: 'SCREEN', label: 'Tasks — the shared board', syn: 'task tasks zadatak zadaci board ploča laura result rezultat todo done seen', href: '/tasks' },
   { kind: 'SCREEN', label: 'Notes — what happened at each event', syn: 'note notes bilješke bilješka zapis event događaj met upoznao people ljudi boston gala conference day dnevnik whatsapp', href: '/notes' },
@@ -147,28 +195,44 @@ const NAV_ON = 'font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#201b1
 const NAV_OFF = 'font:600 11px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;height:100%;display:flex;align-items:center;white-space:nowrap';
 
 let els = {};
-let popover = null;          // 'search' | 'menu' | 'projects' | null
+let popover = null;          // 'search' | 'menu' | 'nav:<group key>' | null
+let hoverTimer = null;       // the dropdown lingers ~160 ms after the pointer leaves (diagonal moves)
 let searchTimer = null;
 let searchState = { q: '', people: [], assistant: null, busy: false };
 let nameSaved = false;
 
 // ---------------------------------------------------------------- templates
+// red / grey count pills — the same two on a top item and on a dropdown row
+function badgePair(n, s, small) {
+  const red = n.badge ? Number(s.badges[n.badge] || 0) : 0;
+  const grey = n.badge2 ? Number(s.badges[n.badge2] || 0) : 0;
+  const h = small ? 15 : 16;
+  const titleRed = n.badge === 'team' ? COPY.teamBadge.red : n.badge === 'tasks' ? COPY.tasksBadge.red : n.badge === 'inbox' ? 'Waiting in the inbox' : '';
+  return `${n.badge ? `<span data-role="badge-${n.badge}" title="${esc(titleRed)}" style="min-width:${h}px;height:${h}px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:${red > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center;box-sizing:border-box">${red}</span>` : ''}${n.badge2 ? `<span data-role="badge-${n.badge2}" title="${esc(COPY.tasksBadge.grey)}" style="min-width:${h - 1}px;height:${h}px;padding:0 3px;margin-left:-2px;background:#e6e0d4;color:#4a4239;font:600 10px Inter,sans-serif;display:${grey > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center;box-sizing:border-box">${grey}</span>` : ''}`;
+}
 function navItem(n) {
   const s = state.get();
   if (n.eventDayOnly && !s.eventDay) return '';
-  const on = s.active === n.key;
-  const locked = n.sections && !perms.canAny(n.sections);
-  const badge = n.badge ? (s.badges[n.badge] || 0) : 0;
-  const badge2 = n.badge2 ? (s.badges[n.badge2] || 0) : 0;   // the grey twin (TASKS: my open count)
-  const inner = `${n.label}${n.badge ? `<span data-role="badge-${n.badge}" title="${n.badge === 'tasks' ? esc(COPY.tasksBadge.red) : ''}" style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:${badge > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center;box-sizing:border-box">${badge}</span>` : ''}${n.badge2 ? `<span data-role="badge-${n.badge2}" title="${esc(COPY.tasksBadge.grey)}" style="min-width:15px;height:16px;padding:0 3px;margin-left:-2px;background:#e6e0d4;color:#4a4239;font:600 10px Inter,sans-serif;display:${badge2 > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center;box-sizing:border-box">${badge2}</span>` : ''}${n.dropdown ? `<span style="font-size:8px;margin-left:5px;opacity:.7">▾</span>` : ''}`;
-  const style = (on ? NAV_ON : NAV_OFF) + (n.badge ? ';gap:6px' : '');
+  const on = groupOf(s) === n.key;
+  const rows = n.menu ? rowsOf(n.key, s).filter(r => !r.divider) : null;
+  const locked = n.menu ? !rows.length : !!(n.sections && !perms.canAny(n.sections));
+  // a group lands on its first visible row when its usual door is locked for this admin
+  const to = n.menu && rows.length && !rows.some(r => r.to === n.to) ? rows[0].to : n.to;
+  const inner = `${n.red ? '<span style="width:6px;height:6px;border-radius:50%;background:#9b1b22;margin-right:7px;flex:none"></span>' : ''}${n.label}${badgePair(n, s)}${n.menu ? '<span class="mx-caret" style="font-size:8px;margin-left:5px;opacity:.7">▾</span>' : ''}`;
+  const style = (on ? NAV_ON : NAV_OFF) + (n.badge ? ';gap:6px' : '') + (n.red ? ';color:#9b1b22' : '');
   const title = locked ? ` title="${esc(COPY.menu.locked)}"` : (n.eventDayOnly ? ' title="Event Day — the control room is live today"' : '');
-  if (n.dropdown) return `<span class="mx-nav-item${locked ? ' locked' : ''}${on ? ' active' : ''}" style="height:100%;display:flex;align-items:stretch"><a href="${n.to}" data-act="projects" data-nav-key="${esc(n.key)}" aria-haspopup="true" aria-expanded="${popover === 'projects'}" style="${style}"${title} data-hover="color:#201b16">${inner}</a><div data-role="projects-pop"></div></span>`;
-  return `<a href="${n.to}" class="mx-nav-item${locked ? ' locked' : ''}${on ? ' active' : ''}" style="${style}"${title} data-hover="color:#201b16">${inner}</a>`;
+  if (n.menu) {
+    const open = popover === 'nav:' + n.key;
+    return `<span class="mx-nav-item has-menu${locked ? ' locked' : ''}${on ? ' active' : ''}${open ? ' open' : ''}" data-menu="${esc(n.key)}" style="height:100%;display:flex;align-items:stretch"><a href="${to}" data-act="navgroup" data-nav-key="${esc(n.key)}" aria-haspopup="true" aria-expanded="${open}" style="${style}"${title} data-hover="color:#201b16">${inner}</a><div data-role="nav-pop" data-key="${esc(n.key)}">${open ? navPanel(n.key) : ''}</div></span>`;
+  }
+  return `<a href="${to}" class="mx-nav-item${locked ? ' locked' : ''}${on ? ' active' : ''}${n.red ? ' red' : ''}" style="${style}"${title} data-hover="color:${n.red ? '#7e151b' : '#201b16'}">${inner}</a>`;
 }
-function projectsPanel() {
-  return `<div class="mx-projects" data-v2="PROJECTS dropdown — no artboard; hub sub-nav lives on each hub" role="menu">
-    ${PROJECTS.map(p => p.divider ? `<div style="height:1px;background:rgba(32,27,22,.08);margin:6px 0"></div>` : `<a href="${p.to}" role="menuitem"${p.sections && !perms.canAny(p.sections) ? ` style="opacity:.45" title="${esc(COPY.menu.locked)}"` : ''}><span class="k">${p.k}</span><span>${esc(p.label)}</span><span class="sub">${esc(p.sub)}</span></a>`).join('')}
+function navPanel(key) {
+  const s = state.get();
+  const rows = rowsOf(key, s);
+  const here = rowOnPath(rows);
+  return `<div class="mx-dd" data-v2="${esc(key.toUpperCase())} dropdown — no artboard; hover on desktop, tap on a phone" role="menu" aria-label="${esc(key)}">
+    ${rows.map(r => r.divider ? '<div class="mx-dd-rule"></div>' : `<a href="${r.to}" role="menuitem" class="mx-dd-row${here === r ? ' on' : ''}" aria-current="${here === r ? 'page' : 'false'}"><span class="k">${r.k}</span><span class="lbl">${esc(r.label)}</span><span class="sub">${r.badge || r.badge2 ? badgePair(r, s, true) : ''}${r.sub ? `<span class="txt">${esc(r.sub)}</span>` : ''}</span></a>`).join('')}
   </div>`;
 }
 function searchResults() {
@@ -247,14 +311,22 @@ function renderAll() {
   const hadFocus = active && active.matches && active.matches('[data-role="q"]');
   const caret = hadFocus ? active.selectionStart : null;
   els.chrome.innerHTML = header();
-  if (popover === 'projects') renderProjectsPop();
   const q = els.chrome.querySelector('[data-role="q"]');
   if (q) { q.addEventListener('input', onSearchInput); q.addEventListener('keydown', onSearchKey); q.addEventListener('focus', () => { if (searchState.q.trim()) { popover = 'search'; renderSearchPop(); } }); if (hadFocus) { q.focus(); try { q.setSelectionRange(caret, caret); } catch (e) {} } }
 }
 function renderSearchPop() { const host = els.chrome.querySelector('[data-role="search-pop"]'); if (host) host.innerHTML = popover === 'search' ? searchResults() : ''; }
 function renderMenuPop() { const host = els.chrome.querySelector('[data-role="menu-pop"]'); if (host) host.innerHTML = popover === 'menu' ? profileMenu() : ''; const p = els.chrome.querySelector('[data-act="profile"]'); if (p) p.setAttribute('aria-expanded', String(popover === 'menu')); }
-function renderProjectsPop() { const host = els.chrome.querySelector('[data-role="projects-pop"]'); if (host) host.innerHTML = popover === 'projects' ? projectsPanel() : ''; const a = els.chrome.querySelector('[data-act="projects"]'); if (a) a.setAttribute('aria-expanded', String(popover === 'projects')); }
-function closePopover() { if (!popover) return; popover = null; renderSearchPop(); renderMenuPop(); renderProjectsPop(); }
+// every group's dropdown host is redrawn from `popover` — one open at a time, the rest empty
+function renderNavPops() {
+  els.chrome.querySelectorAll('[data-role="nav-pop"]').forEach(host => {
+    const key = host.dataset.key, open = popover === 'nav:' + key;
+    host.innerHTML = open ? navPanel(key) : '';
+    const item = host.closest('.mx-nav-item'); if (item) item.classList.toggle('open', open);
+    const a = item && item.querySelector('[data-act="navgroup"]'); if (a) a.setAttribute('aria-expanded', String(open));
+  });
+}
+function openNav(key) { clearTimeout(hoverTimer); if (popover === 'nav:' + key) return; popover = 'nav:' + key; renderNavPops(); renderMenuPop(); renderSearchPop(); }
+function closePopover() { clearTimeout(hoverTimer); if (!popover) return; popover = null; renderSearchPop(); renderMenuPop(); renderNavPops(); }
 
 function onSearchInput(e) {
   searchState.q = e.target.value; searchState.assistant = null; searchState.busy = false;
@@ -281,14 +353,23 @@ function onSearchKey(e) {
 }
 
 const handlers = {
-  menu: () => document.body.classList.toggle('menu-open'),
-  projects: (el, e) => {
-    // desktop: first click opens the dropdown, second click (or Enter on a link inside) navigates
-    if (document.body.classList.contains('menu-open')) { if (popover !== 'projects') { e.preventDefault(); popover = 'projects'; renderProjectsPop(); } return; }
-    e.preventDefault();
-    popover = popover === 'projects' ? null : 'projects'; renderProjectsPop(); renderMenuPop(); renderSearchPop();
+  menu: () => {
+    const open = document.body.classList.toggle('menu-open');
+    // the drawer opens with the current screen's group unfolded; closing it folds everything
+    if (open) { const g = groupOf(state.get()); const n = NAV.find(x => x.key === g); if (n && n.menu) openNav(g); else closePopover(); }
+    else closePopover();
   },
-  profile: () => { nameSaved = false; popover = popover === 'menu' ? null : 'menu'; renderMenuPop(); renderSearchPop(); renderProjectsPop(); if (popover === 'menu') { const i = els.chrome.querySelector('[data-role="nameDraft"]'); if (i) i.focus(); } },
+  navgroup: (el, e) => {
+    const key = el.dataset.navKey;
+    const open = popover === 'nav:' + key;
+    // phone drawer: the row is an accordion header — tap unfolds, tap again folds
+    if (inDrawer()) { if (open) closePopover(); else openNav(key); return; }
+    // touch without hover (an iPad at desktop width): first tap unfolds, second tap goes
+    if (!isHoverDevice() && !open) { openNav(key); return; }
+    // a pointer that hovers has the dropdown open already — the click is the group's own door
+    closePopover(); router.navigate(el.getAttribute('href'));
+  },
+  profile: () => { nameSaved = false; popover = popover === 'menu' ? null : 'menu'; renderMenuPop(); renderSearchPop(); renderNavPops(); if (popover === 'menu') { const i = els.chrome.querySelector('[data-role="nameDraft"]'); if (i) i.focus(); } },
   saveName: () => {
     const i = els.chrome.querySelector('[data-role="nameDraft"]');
     const v = i ? i.value : '';
@@ -345,8 +426,29 @@ export const chrome = {
     });
     document.addEventListener('click', e => {
       if (!popover) return;
-      if (e.target.closest('[data-stop]') || e.target.closest('[data-act="profile"]') || e.target.closest('[data-act="projects"]') || e.target.closest('[data-role="q"]') || e.target.closest('.mx-projects')) return;
+      if (e.target.closest('[data-stop]') || e.target.closest('[data-act="profile"]') || e.target.closest('[data-act="navgroup"]') || e.target.closest('[data-act="menu"]') || e.target.closest('[data-role="q"]') || e.target.closest('.mx-dd')) return;
       closePopover();
+    });
+    // dropdowns open on hover (desktop pointer only — the phone drawer and touch use taps) and on
+    // keyboard focus of the group; they close ~160 ms after the pointer leaves the item + panel,
+    // so a diagonal move onto the panel never snaps it shut
+    els.chrome.addEventListener('mouseover', e => {
+      if (!isHoverDevice() || inDrawer()) return;
+      const item = e.target.closest && e.target.closest('.mx-nav-item.has-menu');
+      if (!item) return;
+      if (item.classList.contains('locked')) return;
+      openNav(item.dataset.menu);
+    });
+    els.chrome.addEventListener('mouseout', e => {
+      if (!isHoverDevice() || inDrawer() || !popover || popover.indexOf('nav:') !== 0) return;
+      const item = e.target.closest && e.target.closest('.mx-nav-item.has-menu');
+      if (!item || (e.relatedTarget && item.contains(e.relatedTarget))) return;
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(() => { if (popover && popover.indexOf('nav:') === 0) closePopover(); }, 160);
+    });
+    els.chrome.addEventListener('focusin', e => {
+      const a = e.target.closest && e.target.closest('[data-act="navgroup"]');
+      if (a && !inDrawer() && !a.closest('.locked')) openNav(a.dataset.navKey);
     });
     state.subscribe((s, keys) => { if (keys.some(k => ['user', 'badges', 'active', 'layout', 'eventDay', 'token'].includes(k))) renderAll(); });
     renderAll();
@@ -369,7 +471,9 @@ export const chrome = {
     const chatUnread = chatUnreadOf(r.chat);   // filtered channels + my dms — the same list the Inbox chat tab shows
     const tasksDone = r.tasks ? Number(r.tasks.done_unseen || 0) : 0;
     const tasksOpen = r.tasks ? Number(r.tasks.assigned_open || 0) : 0;
-    state.set({ badges: { inbox: batches + unread, chat: chatUnread, outboxBatches: batches, unreadMessages: unread, tasks: tasksDone, tasksOpen }, eventDay: isEventDay(r.conf, r.bridges) });
+    // TEAM rolls the red counts up (finished tasks to see + inbox items waiting); grey stays my open tasks
+    const inbox = batches + unread;
+    state.set({ badges: { inbox, chat: chatUnread, outboxBatches: batches, unreadMessages: unread, tasks: tasksDone, tasksOpen, team: inbox + tasksDone }, eventDay: isEventDay(r.conf, r.bridges) });
     return r;
   }
 };

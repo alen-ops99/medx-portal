@@ -5,7 +5,8 @@
 //   view      — dynamic import of the view module (default export { title, render, destroy })
 //   auth      — default true → guests bounce to /signin?next=…; false = public; guestOnly = signed-in admins bounce to Today
 //   layout    — 'portal' (chrome) | 'signin' (paper, no chrome)
-//   active    — top-nav highlight key: Today · Projects · Inbox · People · Money · Calendar · Event Day · Studio · Settings
+//   active    — the destination key; chrome.js maps it to its top-nav GROUP (Today · Projects · Team · People ·
+//               Money · Event Day · More) and highlights the matching dropdown row
 //   title     — document title (a view may override with its own `title`)
 //   sections  — permission ids (ANY of) that unlock the destination; missing → views/locked.js (contract §3.4)
 import { DEST_SECTIONS as S } from './facts.js';
@@ -29,6 +30,11 @@ export const ROUTES = [
   // to that note, '/notes?event=<key>' is one event's page. Unmapped on the server (whole team) → no `sections`.
   { path: '/notes/:id?',       view: () => import('./views/notes.js'),       active: 'Notes',     title: 'Notes' },
   { path: '/inbox/:tab?',      view: () => import('./views/inbox.js'),       active: 'Inbox',     title: 'Inbox',        sections: S.inbox },      // outbox|email|messages|announcements|newsletter|chat
+  // SPEAKER PIPELINE (2026-09-22) — potential speakers for 2027 under PEOPLE ▾. '/people/speakers' is
+  // the board, '/people/speakers/<id>' opens that prospect's drawer; '/speakers' is the short alias.
+  // MUST sit above '/people/:tab?' (first match wins). Unmapped on the server (whole team) → no `sections`.
+  { path: '/people/speakers/:id?', view: () => import('./views/speaker-pipeline.js'), active: 'Speakers', title: 'Speaker pipeline' },
+  { path: '/speakers/:id?',    view: () => import('./views/speaker-pipeline.js'), active: 'Speakers', title: 'Speaker pipeline' },
   { path: '/people/:tab?',     view: () => import('./views/people.js'),      active: 'People',    title: 'People',       sections: S.people },
   { path: '/money/:tab?',      view: () => import('./views/money.js'),       active: 'Money',     title: 'Money',        sections: S.money },
   { path: '/calendar/:tab?',   view: () => import('./views/calendar.js'),    active: 'Calendar',  title: 'Calendar' },                             // tasks are unmapped on the server → every admin
