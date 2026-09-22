@@ -305,8 +305,9 @@ function renderAll() {
   const s = state.get();
   document.body.setAttribute('data-layout', s.layout || 'portal');
   document.body.classList.toggle('authed', session.isAuthed);
-  document.body.classList.remove('menu-open');
-  if (s.layout !== 'portal' || !session.isAuthed) { els.chrome.innerHTML = ''; return; }
+  // the phone MENU drawer survives a redraw (a badge refresh lands a second after load and used to
+  // snap it shut mid-tap); navigation closes it in app.js's beforeRender hook, sign-out here
+  if (s.layout !== 'portal' || !session.isAuthed) { document.body.classList.remove('menu-open'); els.chrome.innerHTML = ''; return; }
   const active = document.activeElement;
   const hadFocus = active && active.matches && active.matches('[data-role="q"]');
   const caret = hadFocus ? active.selectionStart : null;
