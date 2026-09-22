@@ -4733,6 +4733,29 @@ async function initializeApp() {
         value TEXT,
         updated_at TEXT
     )`);
+    // gala_payment_audits: one row per PAID Gala registration, written by the member portal's payment
+    // auditor (user-portal/backend/gala-audit.js) — Stripe charge, seat price on the payment date,
+    // seats, the FIRA order we sent (fira_json: payload + response, since FIRA has no read API), the
+    // finance ledger row, duplicate paid emails, and the ticket send. status ok | retrying | failed |
+    // uncertain | known. The admin portal reads it (Gala card); declared in the mirror so the shared
+    // Turso DB always has it whichever portal boots first.
+    db.run(`CREATE TABLE IF NOT EXISTS gala_payment_audits (
+        id TEXT PRIMARY KEY,
+        gala_registration_id TEXT,
+        ca_registration_id TEXT,
+        invoice_number TEXT,
+        stripe_session_id TEXT,
+        amount_paid REAL,
+        seats INTEGER,
+        checks_json TEXT,
+        status TEXT,
+        note TEXT,
+        fira_json TEXT,
+        first_run_at TEXT,
+        last_run_at TEXT,
+        alerted_at TEXT
+    )`);
+    try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_gala_payment_audits_reg ON gala_payment_audits(gala_registration_id)'); } catch(e) {}
     // ====================== SCHEMA-MIRROR:END ======================
 
     // ====================== UNIFIED PER-EVENT CHECK-IN + WALLET (admin-only) ======================
@@ -30463,6 +30486,27 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     app.get('/api/admin/gala/registrations', auth, adminOnly, (req, res) => {
         const rows = query.all('SELECT * FROM gala_registrations ORDER BY created_at DESC');
         res.json(rows);
+    });
+
+    // Gala payment audits (written by the member portal's auditor, user-portal/backend/gala-audit.js):
+    // the last 200 verdicts — charge · price · seats · FIRA · ledger · duplicates · ticket — read-only
+    // here so the admin can see them; re-runs live on the member backend (POST /api/admin/gala/audits/:id/rerun).
+    app.get('/api/admin/gala/audits', auth, adminOnly, (req, res) => {
+        try {
+            const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 200));
+            const where = [], params = [];
+            if (req.query.status) { where.push('a.status = ?'); params.push(String(req.query.status)); }
+            if (req.query.id) { where.push('(a.gala_registration_id = ? OR a.ca_registration_id = ? OR a.invoice_number = ?)'); params.push(String(req.query.id), String(req.query.id), String(req.query.id)); }
+            const rows = query.all(`SELECT a.id, a.gala_registration_id, a.ca_registration_id, a.invoice_number, a.stripe_session_id, a.amount_paid, a.seats,
+                                           a.checks_json, a.status, a.note, a.first_run_at, a.last_run_at, a.alerted_at,
+                                           g.first_name, g.last_name, g.email, g.payment_status
+                                      FROM gala_payment_audits a LEFT JOIN gala_registrations g ON g.id = a.gala_registration_id
+                                      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+                                      ORDER BY a.last_run_at DESC LIMIT ?`, [...params, limit]) || [];
+            const counts = {};
+            try { for (const c of query.all('SELECT status, COUNT(*) AS n FROM gala_payment_audits GROUP BY status') || []) counts[c.status] = Number(c.n); } catch (e) {}
+            res.json({ counts, audits: rows.map(r => { let checks = []; try { checks = JSON.parse(r.checks_json || '[]'); } catch (e) {} const { checks_json, ...rest } = r; return { ...rest, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), checks }; }) });
+        } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
     // Also serve at /api/gala/registrations for shared frontend compatibility

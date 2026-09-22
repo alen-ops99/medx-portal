@@ -58,3 +58,17 @@ mixing the two.
 - zsh eats `?` in unquoted args (route lists) — quote them.
 - sqlite3 ≥3.50 `.dump` emits unistr() that libsql rejects — dump via Python iterdump.
 - Admin server.js had a no-WHERE forum_events UPDATE running at EVERY boot (same class as the EUR-0 ticket-zeroing bug). Now app_state-guarded on the branch; prod main still has it.
+## 2026-09-22 — Gala payment auditor build (gala-audit.js)
+- **A boot-time "demo purge" with `'1=1'` is a standing data-loss bug, not a one-off.** demo-purge.js wiped `finance_transactions`
+  on EVERY admin boot, so every real Stripe income row the member webhook booked vanished within hours; nothing noticed for
+  seven weeks because the rows sat in `_purged_finance_transactions` and the Money tab was never reconciled against Stripe.
+  LESSON: a purge target must name the seed signature (author column NULL + seed identifiers), never a whole table; and any
+  ledger the code writes needs a reader that cross-checks it (the auditor's `ledger` check is that reader now).
+- **FIRA's Custom Webshop API has NO read endpoint** (every GET shape → 400 requestRejected / 401 / 404, probed with the prod key).
+  Verify an invoice from the payload WE posted + the response, persisted at creation (`gala_payment_audits.fira_json`).
+- **Invoice numbers minted as `COUNT(*)+1` collide once rows are deleted:** CA-GALA-2026-0003 and -0004 were each issued twice
+  (test rows purged in between). Not fixed here; the auditor's ledger/duplicate checks would catch a repeat.
+- **Alerting hygiene:** a first failure is stored as `retrying` and re-checked from fresh rows 90 s later; log-based evidence
+  (Brevo "not found") is `uncertain`, never `failed`; known defects are seeded `known` on first use so no path can page first.
+- **Test fixtures vs the code's own filters:** the auditor skips `@example.org` (smoke-test) emails from the sweep — fixtures
+  must use another reserved domain (`@hermetic.invalid`), or the sweep tests silently see nothing.

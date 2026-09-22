@@ -749,7 +749,8 @@ async function fulfilLinkedCaGala(deps, { galaRegId, amount, invoiceNumber, sess
     } catch (e) { log('party guest entry emails failed (non-blocking):', e.message); }
 
     log(`CA ${ca.id} gala PAID via pay link — combined ticket for ${seats} seat(s) (${events.join(' + ')}) sent to ${to}`);
-    return { handled: true, email: to, events, seats, invoice_number: invoiceNumber || null };
+    // ticketSend = the provider's answer for the registrant's ticket — the payment auditor's 'ticket' evidence.
+    return { handled: true, email: to, events, seats, invoice_number: invoiceNumber || null, ticketSend: sent || null };
 }
 
 module.exports = {

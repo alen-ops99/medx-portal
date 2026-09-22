@@ -206,7 +206,9 @@ async function createFiscalInvoice(orderData) {
                 }
                 const retryResult = await retry.json();
                 console.log(`[FIRA] Invoice created (no VAT): ${retryResult.invoiceNumber || retryResult.id}`);
-                return { firaId: retryResult.id, invoiceNumber: retryResult.invoiceNumber, status: retryResult.status, pdfUrl: retryResult.pdfUrl || null, rawResponse: retryResult };
+                // `order` = the exact payload FIRA accepted (the 0% retry shape) — what the invoice prints.
+                // The Gala payment auditor (gala-audit.js) verifies and persists it, because FIRA has no read API.
+                return { firaId: retryResult.id, invoiceNumber: retryResult.invoiceNumber, status: retryResult.status, pdfUrl: retryResult.pdfUrl || null, rawResponse: retryResult, order: firaOrder };
             }
             console.error(`[FIRA] API error ${response.status}: ${errorBody}`);
             throw new Error(`FIRA API returned ${response.status}: ${errorBody}`);
@@ -220,7 +222,8 @@ async function createFiscalInvoice(orderData) {
             invoiceNumber: result.invoiceNumber,
             status: result.status,
             pdfUrl: result.pdfUrl || result.pdf_url || null,
-            rawResponse: result
+            rawResponse: result,
+            order: firaOrder
         };
     } catch (err) {
         console.error('[FIRA] Failed to create fiscal invoice:', err.message);
@@ -249,6 +252,31 @@ async function getInvoiceStatus(firaId) {
     }
 }
 
+/**
+ * Read an order back from FIRA by our webshopOrderNumber or FIRA's own id — best effort.
+ *
+ * Probed 2026-09-22 with the production key: the Custom Webshop API exposes NO read endpoint.
+ * Every GET shape (/order/{id}, /order/custom/{id}, /order?webshopOrderNumber=…, /orders,
+ * /invoice/…) answers 400 "requestRejected" or 401/404. This helper therefore returns null in
+ * practice; it exists so a future FIRA read endpoint plugs into the auditor without touching it.
+ * The auditor's real source of truth is the payload we POSTed (`order` above) + FIRA's response,
+ * persisted in gala_payment_audits.fira_json at creation.
+ *
+ * @returns {Promise<object|null>} the order JSON when FIRA answers 200, else null (never throws)
+ */
+async function fetchOrder(ref) {
+    if (!isConfigured() || !ref) return null;
+    for (const path of [`/api/v1/webshop/order/${encodeURIComponent(ref)}`, `/api/v1/webshop/order/custom?webshopOrderNumber=${encodeURIComponent(ref)}`]) {
+        try {
+            const response = await fetch(`${FIRA_API_URL}${path}`, { headers: { 'FIRA-Api-Key': FIRA_API_KEY, Accept: 'application/json' } });
+            if (!response.ok) continue;
+            const body = await response.json().catch(() => null);
+            if (body && typeof body === 'object' && (body.lineItems || body.brutto != null || body.invoiceNumber || body.id)) return body;
+        } catch (err) { /* network — the auditor treats a missing read as "not verifiable", never as wrong */ }
+    }
+    return null;
+}
+
 module.exports = {
     isConfigured,
     calculateVAT,
@@ -256,5 +284,6 @@ module.exports = {
     buildFiraOrder,
     createFiscalInvoice,
     getInvoiceStatus,
+    fetchOrder,
     VAT_RATE
 };
