@@ -254,6 +254,13 @@ const pageSig = (secret, kind, id) => crypto.createHmac('sha256', String(secret)
 // /gala/ticket keeps its original context (Stripe success_urls already minted carry it).
 const galaPageSig = (secret, id) => crypto.createHmac('sha256', String(secret)).update('gala-ticket-page:' + String(id)).digest('hex').slice(0, 32);
 const safeEq = (a, b) => { try { return a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)); } catch (e) { return false; } };
+// The event app ("Plexus Week Live", docs/EVENT-APP-BRIEF.md): every ticket page / Boston me page /
+// ticket email links to `${base}/live/<token>` — HMAC(JWT_SECRET,'live:<kind>:<id>')[:32].<kind>.<id>,
+// kind 'ca' (a croatians_abroad row) · 'gala' (a gala_registrations row) · 'bridges' (a
+// bridges_registrations row, Boston included) · 'speaker'. Scheme lives in shared/live-program.js.
+const liveProgram = require('../../shared/live-program');
+const liveUrl = (base, secret, kind, id) => liveProgram.liveUrl(base, secret, kind, id);
+const liveToken = (secret, kind, id) => liveProgram.liveToken(secret, kind, id);
 
 /**
  * The page a person sees the moment their registration is complete — the email's twin.
@@ -328,5 +335,6 @@ module.exports = {
     LEG, LEG_ORDER, legFacts, legNames, legNamesWithParty, partyByLeg, dressLabelFor, dressLine, whenLinesFor, whereFor, joinAnd,
     icsFor, calendarUrl, parseLegs,
     ticketEmail, guestsHtml, guestLegs, guestEvents,
-    pageSig, galaPageSig, safeEq, ticketPageHtml
+    pageSig, galaPageSig, safeEq, ticketPageHtml,
+    liveUrl, liveToken
 };
