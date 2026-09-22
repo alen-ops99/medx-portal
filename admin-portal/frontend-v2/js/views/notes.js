@@ -108,7 +108,10 @@ function blockTitle() {
 function composerChips() {
   const c = st.composer;
   const today = todaysEvents();
-  const rest = (D.events || []).filter(e => !e.today);
+  // after today's: the events nearest in time either way (yesterday's Boston before December's
+  // Gala) — dated ones by distance from today, undated ones last, the picker order as tie-break
+  const dist = e => { if (!e.date) return 1e9; const a = fmt.daysUntil(e.date), b = fmt.daysUntil(e.end_date || e.date); return a != null && b != null && a <= 0 && b >= 0 ? 0 : Math.min(Math.abs(a == null ? 1e9 : a), Math.abs(b == null ? 1e9 : b)); };
+  const rest = (D.events || []).map((e, i) => ({ e, i })).filter(x => !x.e.today).sort((x, y) => dist(x.e) - dist(y.e) || x.i - y.i).map(x => x.e);
   const shown = today.concat(rest.slice(0, Math.max(0, MAX_CHIPS - today.length)));
   if (c.eventKey && c.eventKey !== '__custom' && !shown.some(e => e.key === c.eventKey)) { const sel = eventOf(c.eventKey); if (sel) shown.push(sel); }
   const chip = (k, label, on, extra) => `<span data-act="cEvent" data-k="${esc(k)}" role="button" aria-pressed="${on}" class="mx-chip${on ? ' on' : ''}${extra || ''}">${label}</span>`;
