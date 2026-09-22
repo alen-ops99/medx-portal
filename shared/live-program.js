@@ -175,9 +175,9 @@ function speakerDirectory(q, ids) {
     try {
         const meta = hasTable(q, 'v2_speaker_meta');
         const want = Array.isArray(ids) ? ids.filter(Boolean) : null;
-        const rows = want && !want.length ? [] : q.all(`SELECT s.id, s.name, s.title, s.institution, s.photo_url, s.bio, s.talk_title, s.is_keynote${meta ? ', m.institution_logo_url AS logo_url' : ''}
+        const rows = want && !want.length ? [] : q.all(`SELECT s.id, s.name, s.title, s.institution, s.photo_url, s.is_keynote${meta ? ', m.institution_logo_url AS logo_url' : ''}
             FROM speakers s${meta ? ' LEFT JOIN v2_speaker_meta m ON m.speaker_id = s.id' : ''}${want ? ` WHERE s.id IN (${want.map(() => '?').join(',')})` : ''}`, want || []);
-        for (const r of rows) map[r.id] = { id: r.id, name: r.name || '', title: r.title || '', institution: r.institution || '', photo_url: r.photo_url || null, logo_url: r.logo_url || null, talk_title: r.talk_title || null, is_keynote: !!Number(r.is_keynote) };
+        for (const r of rows) map[r.id] = { id: r.id, name: r.name || '', title: r.title || '', institution: r.institution || '', photo_url: r.photo_url || null, logo_url: r.logo_url || null, is_keynote: !!Number(r.is_keynote) };
     } catch (e) { /* speakers table absent on a bare DB */ }
     return map;
 }
