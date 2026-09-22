@@ -29,6 +29,7 @@ export const ROUTES = [
   // NOTES — event & day notes (2026-09-22): '/notes' is the stream + composer, '/notes/<id>' scrolls
   // to that note, '/notes?event=<key>' is one event's page. Unmapped on the server (whole team) → no `sections`.
   { path: '/notes/:id?',       view: () => import('./views/notes.js'),       active: 'Notes',     title: 'Notes' },
+  { path: '/program/:eventKey?', view: () => import('./views/program.js'),   active: 'Projects',  title: 'Program' },                              // the event app's PROGRAM EDITOR (2026-09-22) — unmapped on the server → every admin
   { path: '/inbox/:tab?',      view: () => import('./views/inbox.js'),       active: 'Inbox',     title: 'Inbox',        sections: S.inbox },      // outbox|email|messages|announcements|newsletter|chat
   // SPEAKER PIPELINE (2026-09-22) — potential speakers for 2027 under PEOPLE ▾. '/people/speakers' is
   // the board, '/people/speakers/<id>' opens that prospect's drawer; '/speakers' is the short alias.
