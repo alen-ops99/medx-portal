@@ -1,7 +1,7 @@
 {
   "name": "medx-portal",
   "private": true,
-  "description": "Med&X portal \u2014 user + admin portals on Render",
+  "description": "Med&X portal — user + admin portals on Render",
   "scripts": {
     "smoke": "node tests/smoke.js",
     "smoke:local": "MEDX_BASE_URL=http://localhost:2011 MEDX_ADMIN_URL=http://localhost:2012 node tests/smoke.js",
@@ -14,6 +14,7 @@
     "test:ca-paylink": "node tests/ca-approve-paylink.test.js",
     "test:plexus-pass": "node tests/plexus-pass.test.js",
     "test:plexus-ticket": "node tests/plexus-ticket.test.js",
-    "test:plexus-program": "node tests/plexus-program.test.js"
+    "test:plexus-program": "node tests/plexus-program.test.js",
+    "test:gala-audit": "node tests/gala-audit.test.js"
   }
 }

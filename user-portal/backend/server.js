@@ -10172,6 +10172,29 @@ async function initializeApp() {
         value TEXT,
         updated_at TEXT
     )`);
+    // gala_payment_audits: one row per PAID Gala registration, written by the member portal's payment
+    // auditor (user-portal/backend/gala-audit.js) — Stripe charge, seat price on the payment date,
+    // seats, the FIRA order we sent (fira_json: payload + response, since FIRA has no read API), the
+    // finance ledger row, duplicate paid emails, and the ticket send. status ok | retrying | failed |
+    // uncertain | known. The admin portal reads it (Gala card); declared in the mirror so the shared
+    // Turso DB always has it whichever portal boots first.
+    db.run(`CREATE TABLE IF NOT EXISTS gala_payment_audits (
+        id TEXT PRIMARY KEY,
+        gala_registration_id TEXT,
+        ca_registration_id TEXT,
+        invoice_number TEXT,
+        stripe_session_id TEXT,
+        amount_paid REAL,
+        seats INTEGER,
+        checks_json TEXT,
+        status TEXT,
+        note TEXT,
+        fira_json TEXT,
+        first_run_at TEXT,
+        last_run_at TEXT,
+        alerted_at TEXT
+    )`);
+    try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_gala_payment_audits_reg ON gala_payment_audits(gala_registration_id)'); } catch(e) {}
     // ====================== SCHEMA-MIRROR:END ======================
 
     // ====================== CME / HLK ACCREDITATION (queue 5a5c) ======================
@@ -20756,8 +20779,9 @@ By applying to this program, I provide the following consents:
                     const galaPriceRow = query.get("SELECT price_gala_only FROM gala_settings WHERE id = 'default'") || {};
                     const amount = galaReg.amount_paid || galaPriceRow.price_gala_only || 150;
 
+                    let firaResult = null, firaError = null;   // kept for the payment auditor below
                     try {
-                        const firaResult = await firaService.createFiscalInvoice({
+                        firaResult = await firaService.createFiscalInvoice({
                             invoiceNumber: galaInvoice,
                             ticketName: ticketLabel,
                             ticketPrice: Math.round((amount / (1 + Math.max(0, parseInt(galaReg.guest_count, 10) || 0))) * 100) / 100,
@@ -20779,6 +20803,7 @@ By applying to this program, I provide the following consents:
                         });
                         console.log(`[Stripe→FIRA] Gala fiscal invoice created: ${firaResult?.invoiceNumber || 'N/A'}`);
                     } catch (firaErr) {
+                        firaError = firaErr.message;
                         console.error('[Stripe→FIRA] Gala fiscal invoice creation failed (non-blocking):', firaErr.message);
                     }
 
@@ -20811,10 +20836,11 @@ By applying to this program, I provide the following consents:
 
                     // Send gala payment confirmation email (skipped for a linked CA row — the
                     // combined ticket above IS that guest's confirmation, and one is enough).
+                    let ticketSend = caCombined.handled ? (caCombined.ticketSend || null) : null;   // the auditor's 'ticket' evidence
                     try {
                         // The same Boston-style ticket as every other Plexus payment email — and, for the
                         // first time, the standalone seat's QR + wallet passes ride in it.
-                        if (!caCombined.handled) sendEventConfirmation(galaReg.email, 'Your Gala Evening ticket — Plexus Week 2026', plexusTicket.ticketEmail('gala', {
+                        if (!caCombined.handled) ticketSend = await sendEventConfirmation(galaReg.email, 'Your Gala Evening ticket — Plexus Week 2026', plexusTicket.ticketEmail('gala', {
                             firstName: galaReg.first_name, fullName: `${galaReg.first_name || ''} ${galaReg.last_name || ''}`.trim(),
                             legs: ['gala'], seats: 1 + Math.max(0, parseInt(galaReg.guest_count, 10) || 0),
                             amount, invoice: galaInvoice, seat: galaReg.seat_number || null,
@@ -20864,6 +20890,11 @@ By applying to this program, I provide the following consents:
                             }).catch(err => console.warn('[Sync] Gala Sheets POST failed:', err.message));
                         }
                     } catch(e) {}
+
+                    // Payment auditor (Alen 2026-09-22) — LAST, after every write: charge, price, seats,
+                    // FIRA lines, ledger, duplicates, ticket. Re-checks itself in 90 s before alerting.
+                    // Covers the standalone Gala checkout AND the /pay/gala link (both land here).
+                    await galaAudit.auditPayment({ galaRegId, stripeSession: session, amount, invoiceNumber: galaInvoice, firaResult, firaError, ticketSend, reason: 'webhook' });
                 } catch (dbErr) {
                     console.error('[Stripe] Failed to process gala webhook:', dbErr.message);
                     return res.status(500).send('Internal error');
@@ -21107,10 +21138,11 @@ By applying to this program, I provide the following consents:
                     // previously fulfilled with NO fiscal invoice and NO income record (the
                     // standalone-gala branch has both; this one was missing them).
                     const caGuestName = `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim();
+                    let firaResult = null, firaError = null, caTicketSend = null;   // kept for the payment auditor below
                     try {
                         // Seats bought = 1 + guests → FIRA gets quantity N at the unit price (hotfix 2026-08-30)
                         const caSeats = 1 + Math.max(0, parseInt((query.get('SELECT guest_count FROM croatians_abroad_registrations WHERE id = ?', [caRegId]) || {}).guest_count, 10) || 0);
-                        const firaResult = await firaService.createFiscalInvoice({
+                        firaResult = await firaService.createFiscalInvoice({
                             invoiceNumber,
                             ticketName: 'Plexus 2026 — Gala Evening seat',
                             ticketPrice: Math.round((amount / caSeats) * 100) / 100,
@@ -21125,6 +21157,7 @@ By applying to this program, I provide the following consents:
                         });
                         console.log(`[Stripe→FIRA] CA gala fiscal invoice created: ${firaResult?.invoiceNumber || 'N/A'}`);
                     } catch (firaErr) {
+                        firaError = firaErr.message;
                         console.error('[Stripe→FIRA] CA gala fiscal invoice failed (non-blocking):', firaErr.message);
                     }
                     try {
@@ -21178,6 +21211,7 @@ By applying to this program, I provide the following consents:
                             partyNoteText: galaPayLink.partyNote(caSeats, caNamed.filter(g => String(g.email || '').trim() && caGuestLegsOf(g).includes('gala')).length),
                             guests: caNamed
                         }), galaQrAtts);
+                        caTicketSend = caSend || null;
                         // sendEmail returns {success:false}/{mock:true} instead of throwing, so the
                         // catch alone would miss a Resend rejection. Log loudly — guest PAID but got no ticket.
                         if (!caSend || caSend.success === false || caSend.mock) {
@@ -21249,6 +21283,9 @@ By applying to this program, I provide the following consents:
                             }).catch(err => console.warn('[Sync] external POST (Sheets/admin) failed:', err.message));
                         }
                     } catch(e) {}
+
+                    // Payment auditor (Alen 2026-09-22) — LAST, after every write (see the gala-ticket branch).
+                    if (galaRegId) await galaAudit.auditPayment({ galaRegId, caRegId, stripeSession: session, amount, invoiceNumber, firaResult, firaError, ticketSend: caTicketSend, reason: 'webhook' });
 
                     return res.json({ received: true });
                 } catch (chErr) {
@@ -28847,6 +28884,23 @@ By applying to this program, I provide the following consents:
             qrImageUrl                                   // the hosted /qr/:id.png the ticket card shows
         };
     }
+
+    // ===== GALA PAYMENT AUDITOR (Alen 2026-09-22) — every Gala payment is cross-checked =====
+    // charge · price · seats · FIRA lines · ledger · duplicates · ticket, from the webhook (all three
+    // Gala paths call galaAudit.auditPayment LAST) and from a sweep (60 s after boot, daily 07:00
+    // Zagreb). A failure is re-checked once after 90 s; only then is the owner emailed — never the
+    // guest. GALA_AUDIT_DISABLED=1 stops sweeps + alerts. See gala-audit.js.
+    //   GET  /api/admin/gala/audits?key=|admin JWT   last 200 audits (+ ?status= ?id=)
+    //   POST /api/admin/gala/audits/:galaRegId/rerun   re-audit one registration now
+    //   POST /api/admin/gala/audits/sweep              run the sweep now
+    const galaAudit = require('./gala-audit').create({
+        query, get db() { return db; }, saveDb, flushDb,
+        sendEmail,                                   // plain sendEmail: the alert goes to the owner alone, no team CC
+        fira: firaService, stripe: () => stripe,
+        adminBase: process.env.ADMIN_PORTAL_URL || 'https://medx-admin-portal.onrender.com'
+    });
+    try { galaAudit.mountRoutes(app, { auth, adminOnly, JWT_SECRET }); } catch (e) { console.error('[GalaAudit] routes failed to mount:', e.message); }
+    try { galaAudit.scheduleSweeps(); } catch (e) { console.error('[GalaAudit] sweep scheduling failed:', e.message); }
 
     // ---- review-gate decisions for the Zagreb form (croatians_abroad_registrations) ----
     // Rows held by the register route below carry 'pending-review' per-event statuses. APPROVE
