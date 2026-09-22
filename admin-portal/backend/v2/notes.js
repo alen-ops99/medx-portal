@@ -276,6 +276,8 @@ module.exports = function mountNotes(app, ctx) {
     // ---- files (S3 when the bucket is configured, else the shared uploads root) ----
     function s3() { try { return require('../../../user-portal/backend/boston')._s3; } catch (e) { return null; } }
     const s3Ready = () => { const S = s3(); return !!(S && S.isConfigured && S.isConfigured()); };
+    // the Render disk is ephemeral: in production a note file goes to S3 or nowhere (server.js's upload gate exempts /api/v2/notes/ on this promise)
+    const DISK_IS_EPHEMERAL = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
     const LOCAL_DIR = path.join(String(ctx.ROOT || path.join(__dirname, '..', '..', '..')), 'user-portal', 'backend', 'uploads', 'notes');
     let multerLib = null; try { multerLib = require('multer'); } catch (e) { multerLib = null; }
     const fileUpload = multerLib ? multerLib({ storage: multerLib.memoryStorage(), limits: { fileSize: MAX_FILE_BYTES, files: 1 } }).fields([{ name: 'file', maxCount: 1 }, { name: 'attachment', maxCount: 1 }]) : null;
@@ -604,6 +606,7 @@ module.exports = function mountNotes(app, ctx) {
             const file = req.file;
             if (!file || !file.buffer || !file.buffer.length) return res.status(400).json({ error: 'Choose a file first — anything up to 25 MB.' });
             if (file.buffer.length > MAX_FILE_BYTES) return res.status(413).json({ error: 'That file is over the 25 MB limit — share a link to it instead.' });
+            if (!s3Ready() && DISK_IS_EPHEMERAL) return res.status(503).json({ error: 'File storage is not configured on this server yet — the note is saved, attach the file once BB_S3_* is set.' });
             const name = sanitizeFilename(file.originalname);
             const ext = extOf(name) || 'bin';
             const fid = uuid(); const stored = `${fid}.${ext}`;

@@ -975,7 +975,7 @@ const UPLOAD_EXEMPT_SUFFIXES = ['/import', '/prospects/preview'];
 // Big Ideas attachments never touch local disk (multer memoryStorage → the private S3 bucket in
 // v2/big-ideas.js), so the ephemeral-disk guard does not apply to them — exempt by prefix, the same
 // way the member portal exempts the Boston upload lanes.
-const UPLOAD_EXEMPT_PREFIXES = ['/api/v2/big-ideas/', '/api/v2/plexus-program/'];   // program PDF is relayed to the member portal's S3, never written here
+const UPLOAD_EXEMPT_PREFIXES = ['/api/v2/big-ideas/', '/api/v2/plexus-program/', '/api/v2/notes/'];   // program PDF is relayed to the member portal's S3, never written here; NOTES files go memoryStorage → S3 (v2/notes.js refuses local disk in production itself)
 app.use((req, res, next) => {
     if (!STORAGE_IS_EPHEMERAL) return next();
     if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') return next();
