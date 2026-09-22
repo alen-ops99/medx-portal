@@ -457,6 +457,7 @@ async function saveField(id, field, raw) {
   // the row keeps focus while a time is being typed (its re-render is deferred) — the moved end time must still show at once
   if (field === 'start_time' && body.end_time) rootEl.querySelectorAll(`input[data-field="end_time"][data-id="${CSS.escape(id)}"]`).forEach(el => { el.value = body.end_time; });
   const run = async () => {
+    const wasInConflict = Object.keys(conflictMap());   // rows whose OVERLAPS chip may now vanish
     try {
       const r = await api.put(sPath(id), body);
       if (r && r.session) patchLocal(r.session);
@@ -464,7 +465,7 @@ async function saveField(id, field, raw) {
       savedToast();
       rerenderRow(id); if (st.open === id) rerenderSheet();
       rerender('[data-block="title"]', blockTitle());
-      if (field === 'start_time' || field === 'end_time' || field === 'room') { const cm = conflictMap(); Object.keys(cm).forEach(k => { if (k !== id) rerenderRow(k); }); }
+      if (field === 'start_time' || field === 'end_time' || field === 'room') new Set(wasInConflict.concat(Object.keys(conflictMap()))).forEach(k => { if (k !== id) rerenderRow(k); });
       refreshEventsQuiet();
     } catch (e) {
       patchLocal(prev); listDirty = false; rerenderRow(id); if (st.open === id) rerenderSheet();

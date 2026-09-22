@@ -103,3 +103,9 @@ wire real analytics.
 - [ ] ranking-PDF still filters validity_status='valid' (NULL until triage → empty table) — flagged, Alen to confirm intended
 - [ ] MINI-SWEEP the hub-tile-only sections the registry sweep missed: speaker-itineraries (+enumerate any other non-sidebar sections) — Alen found blank-banner (stale SW likely) + localhost link (FIXED)
 - [ ] FinanceApp.api() (user portal) still falls back to MOCK_DATA on failed list/detail reads — replace with honest error/empty state (fabricated rows must never render)
+
+## Plexus Week Live — phase 1 (2026-09-22) DONE
+- [x] schema (guarded, both backends via shared/live-program.js) · public API user-portal/backend/v2/live.js · admin API v2/program-ops.js
+- [x] TBD seed (25 rows, marker live_program_seed_v1) live on the production DB; legacy program untouched (conference_id NULL + repair marker)
+- [x] PROGRAM EDITOR /program/:eventKey on medx-admin-portal-v2 · tests live-program (16) + program-ops (15) · Playwright 1280/390 live
+- [ ] phase 2: member /live app (other agent), "OPEN THE EVENT APP" buttons on ticket pages / Boston me page / ticket emails via plexusTicket.liveUrl(), "PROGRAM →" link on each project page header

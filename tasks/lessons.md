@@ -72,3 +72,14 @@ mixing the two.
   (Brevo "not found") is `uncertain`, never `failed`; known defects are seeded `known` on first use so no path can page first.
 - **Test fixtures vs the code's own filters:** the auditor skips `@example.org` (smoke-test) emails from the sweep — fixtures
   must use another reserved domain (`@hermetic.invalid`), or the sweep tests silently see nothing.
+
+## 2026-09-22 — Plexus Week Live phase 1 (event app data model · public API · PROGRAM EDITOR · seed)
+- **Seeding into a shared legacy table:** before stamping a legacy key (here `sessions.conference_id`) on new rows, grep EVERY
+  legacy reader of that table (`/api/plexus/sessions` → the v1 member Program page, the admin hub's Schedule panel). The first
+  seed made six TBD placeholders public on production for ~20 minutes; fixed with NULL conference_id + a marker-guarded repair.
+- **Live-data staging = production:** a seed that "runs at boot" runs against the real DB the moment the branch deploys — write
+  the seed additive-only and confirm the legacy surfaces stayed unchanged right after the first deploy.
+- **Deferred re-render must key on typed fields only:** `ui.installDelegates` gives every `[data-act]` span a tabindex, so
+  "focus inside the row" was true after clicking a toggle and the row never repainted. Test flags after a time edit, not before.
+- **Full-page screenshots lie about `position:fixed` sheets;** verify a phone sheet with a viewport screenshot and a bounding-box
+  check. app.css's phone rule `[data-block] > div { flex-wrap: wrap }` wrapped a column-flex sheet into two columns.
