@@ -182,7 +182,15 @@ async function createFiscalInvoice(orderData) {
             // If VAT rejected (account not in PDV system), retry with 0% tax
             if (errorBody.includes('not in the PDV system') || errorBody.includes('taxes while')) {
                 console.log('[FIRA] Account not VAT-registered — retrying with 0% tax');
-                firaOrder.lineItems.forEach(item => { item.taxRate = 0; item.price = firaOrder.brutto / (firaOrder.lineItems.length || 1); });
+                // 0% VAT: the unit price becomes the GROSS unit price of that line — never the order
+                // total. (Bug found 2026-09-22: 2 Gala seats × €150 printed as "2 × €300 = €600" with a
+                // €300 total on four fiscal invoices, because the total was written into the unit price.)
+                const gross = buildLineItems(orderData.ticketName, orderData.ticketPrice, orderData.addons, orderData.quantity);
+                firaOrder.lineItems.forEach((item, idx) => {
+                    const src = gross[idx];
+                    item.taxRate = 0;
+                    item.price = src ? Math.round((src._brutto / (src.quantity || 1)) * 100) / 100 : Math.round((firaOrder.brutto / (firaOrder.lineItems.length || 1)) * 100) / 100;
+                });
                 firaOrder.netto = firaOrder.brutto;
                 firaOrder.taxValue = 0;
                 firaOrder.taxExempt = true;
