@@ -170,7 +170,7 @@ const call = (m, p, opts = {}) => app.call(m, p, opts);
         assert.strictEqual(r.status, 200, JSON.stringify(r.body));
         const ev = r.body.events; const by = {}; ev.forEach(e => { by[e.key] = e; });
         for (const k of ['conference', 'donor', 'bridges', 'gala', 'boston']) assert.ok(by[k], k);
-        assert.strictEqual(by.conference.date, '2026-12-04'); assert.strictEqual(by.conference.starts_at, '2026-12-04T17:00:00+01:00'); assert.strictEqual(by.conference.ends_at, '2026-12-04T21:00:00+01:00');
+        assert.strictEqual(by.conference.date, '2026-12-04'); assert.strictEqual(by.conference.starts_at, '2026-12-04T17:00:00+01:00'); assert.strictEqual(by.conference.ends_at, '2026-12-05T21:00:00+01:00');
         assert.strictEqual(by.conference.venue, 'Novinarski dom'); assert.strictEqual(by.conference.tz, 'Europe/Zagreb');
         assert.strictEqual(by.boston.starts_at, '2026-09-21T17:30:00-04:00'); assert.strictEqual(by.boston.tz, 'America/New_York'); assert.strictEqual(by.boston.venue, 'Waterhouse Room, Gordon Hall');
         assert.strictEqual(by.boston.is_past, true); assert.strictEqual(by.boston.is_today, false); assert.strictEqual(by.conference.is_upcoming, true);

@@ -336,7 +336,10 @@ function eventCatalogue(q, { today, now } = {}) {
     try {
         const c = q.get('SELECT * FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1') || q.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
         const date = isYmd(st.conference_start_date) ? String(st.conference_start_date).slice(0, 10) : (c && isYmd(String(c.start_date || '').slice(0, 10)) ? String(c.start_date).slice(0, 10) : FACTS.conference.date);
-        push('conference', FACTS.conference, { date, end_date: date, venue: cleanStr(st.conference_venue, 160) || FACTS.conference.venue, title: (c && c.name) || 'Plexus Conference 2026', conference_id: c ? c.id : null });
+        // two days (4–5 December): the conferences row carries the end date; the event stays "today" on both days
+        const endRaw = c && isYmd(String(c.end_date || '').slice(0, 10)) ? String(c.end_date).slice(0, 10) : null;
+        const end_date = endRaw && endRaw >= date ? endRaw : date;
+        push('conference', FACTS.conference, { date, end_date, venue: cleanStr(st.conference_venue, 160) || FACTS.conference.venue, title: (c && c.name) || 'Plexus Conference 2026', conference_id: c ? c.id : null });
     } catch (e) { push('conference', FACTS.conference, {}); }
     // donor night — bridges_events slug donor-night
     try {
