@@ -101,3 +101,26 @@
   .mx-profile-switch[aria-checked="false"]:hover { background: rgba(25, 21, 18, .38) !important; }
   .mx-profile-switch[aria-checked="true"]:hover { background: #7e151b !important; }
 }
+
+/* ============================================================================
+   DELETE ACCOUNT (App Store 5.1.1(v)) — the last section of the form column and
+   its typed-DELETE confirm (a shared .mx-modal tagged .mx-profile-del-modal).
+   Same vocabulary as above: house focus frame on the field, colour-only motion
+   on the tokens, nothing moves under reduced motion.
+   ========================================================================== */
+.mx-profile-del-modal input { outline: 1px solid transparent; outline-offset: -1px; }
+.mx-profile-del-modal input:focus { outline-color: #9b1b22; }
+.mx-profile-del-modal input:disabled { opacity: .6; }
+/* phones: the two answers stack full width (keep above delete) instead of wrapping ragged-right */
+@media (max-width: 500px) {
+  .mx-profile-del-modal .mx-modal-foot > [data-act] { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mx-profile-grid > div:first-child > .mx-profile-sec:nth-child(4) { animation-delay: .16s; }
+  .mx-profile-del-modal input { transition: border-color var(--t-quick) var(--ease), outline-color var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); }
+}
+@media (hover: hover) {
+  .mx-profile-del-modal input:hover:not(:focus):not(:disabled) { border-color: rgba(25, 21, 18, .45) !important; }
+  /* the confirm waits for the typed word: no hover darkening while it is disabled */
+  .mx-profile-del-modal .btn-primary[aria-disabled="true"]:hover { background: var(--crimson); }
+}

@@ -14,10 +14,19 @@
 // POST /api/v2/messages/attach; admin replies carry sender_name → "LAURA · MED&X" attribution
 // ("MED&X TEAM" for rows from before staff identity existed). Team review Aug 2026.
 // Live updates: 15 s poll while the screen is open (skipped while the tab is hidden).
+// REPORT + BLOCK (App Store 1.2 — js/views/_safety.js · backend v2/safety.js): every message the member
+// RECEIVED in a member thread carries a small ⋯ (REPORT that message — the server keeps a copy with the
+// sender's other recent messages); the thread header's quiet ⋯ reports or blocks the PERSON (BLOCK
+// ends the thread for you). A thread whose partner cannot be resolved (a closed account, or a legacy row
+// keyed by email) has no header ⋯ — its messages keep their own. The Med&X team thread never has either.
+// ?to=<someone you blocked> opens a "You blocked …" state with UNBLOCK (GET /api/v2/messages/peer/:userId
+// answers blocked:true). A send the server refuses with 403 (suspended account, blocked pair) or 422 (the
+// content filter) keeps the draft and says why under the composer.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
 import router from '../router.js';
+import { SAFETY, ensureCss as ensureSafetyCss, moreButton, msgMoreButton, openMenu, reportSheet, blockFlow, forgetBlocks } from './_safety.js';
 
 export const SOURCE = 'Messages.dc.html';
 
@@ -57,6 +66,11 @@ export const COPY = {
   emptyDraft: 'Write a message first.',
   loadFail: 'Your inbox could not be loaded.', retry: 'TRY AGAIN',
   newModal: { eyebrow: 'MESSAGES · NEW', title: 'Who is it for?', teamSub: 'Official team inbox — tickets, programs, travel, anything.', noConns: 'Message your accepted connections — meet people in the Network first.', openNetwork: 'OPEN THE NETWORK →', connsFail: 'Your connections could not be loaded right now.' },
+  blockedGate: {
+    line: name => `You blocked ${name}.`,
+    why: 'Unblock them to find each other again — then a new connection opens messaging.',
+    cta: 'UNBLOCK', done: name => `${name} is unblocked.`
+  },
   gate: {
     line: name => `You and ${name} are not connected yet.`,
     why: 'Messaging opens once a connection is accepted — send the request from here.',
@@ -129,6 +143,9 @@ function allThreads() {
   return list;
 }
 function currentThread() { return allThreads().find(t => t.key === st.cur) || null; }
+// a member thread whose partner is a live account we can name by id — REPORT / BLOCK of the person need one.
+// Closed accounts and legacy rows keyed by the sender's EMAIL (partner_id is an address) have none.
+function partnerResolved(t) { return !!t && t.kind === 'member' && !t.gone && !String(t.key || '').includes('@'); }
 function visibleThreads() {
   const q = (st.filter || '').trim().toLowerCase();
   return allThreads().filter(t => (st.showArchived ? true : !t.archived) || t.key === st.cur)
@@ -243,9 +260,11 @@ function bubble(m, meta, thread, isNew) {
   const fg = mine ? '#f7f1e6' : '#191512';
   const bd = mine ? '#191512' : 'rgba(25,21,18,.2)';
   const title = (!mine && m.title && thread.kind === 'team') ? `<strong style="display:block;margin-bottom:4px">${esc(m.title)}</strong>` : '';
+  // App Store 1.2: a message another MEMBER sent you can be reported on its own (never the team's, never yours)
+  const report = (!mine && thread.kind === 'member' && m.id != null) ? msgMoreButton({ id: m.id, name: threadName(thread) }) : '';
   return `
-        <div class="mx-msg-bubble${mine ? ' mx-msg-mine' : ''}${isNew ? ' mx-msg-new' : ''}" style="display:flex;flex-direction:column;gap:4px;align-self:${side};max-width:62%;align-items:${side}">
-          <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(meta)}</span>
+        <div class="mx-msg-bubble${mine ? ' mx-msg-mine' : ''}${isNew ? ' mx-msg-new' : ''}"${report ? ` data-mid="${esc(m.id)}"` : ''} style="display:flex;flex-direction:column;gap:4px;align-self:${side};max-width:62%;align-items:${side}">
+          <span style="display:inline-flex;align-items:center;font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(meta)}${report}</span>
           <span style="padding:12px 15px;font-size:13px;line-height:1.55;background:${bg};color:${fg};border:1px solid ${bd};white-space:pre-wrap;word-break:break-word">${title}${esc(m.content)}${bubbleAttachment(m, mine)}</span>
         </div>`;
 }
@@ -271,6 +290,13 @@ function convMessages(thread) {
           <span data-act="startMsg" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.empty.cta}</span>
         </div>
         <!-- /dc -->`;
+    if (thread.virtual && st.peer && st.peer.blocked) return `
+        <div class="empty" style="margin:auto" data-v2="blocked peer (App Store 1.2 — v2/safety.js)">
+          <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
+          <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${esc(COPY.blockedGate.line(memberName(thread)))}</span>
+          <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.blockedGate.why}</span>
+          <span data-act="unblockPeer" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.blockedGate.cta}</span>
+        </div>`;
     if (thread.virtual && st.peer && !st.peer.connected) return `
         <div class="empty" style="margin:auto" data-v2="connection gate (POST /api/messages requires an accepted connection)">
           <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
@@ -333,10 +359,12 @@ function blockConv() {
       <div style="flex:1"></div>
       ${isTeam ? `<span class="mx-msg-tag" style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.team.tag}</span>` : ''}
       ${t.virtual ? '' : `<span data-act="archive" data-v2="archive = hide, never delete" class="mx-msg-link" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;white-space:nowrap" data-hover="color:#191512">${t.archived ? COPY.unarchive : COPY.archive}</span>`}
+      ${isTeam || (t.virtual && st.peer && st.peer.blocked) || !partnerResolved(t) ? '' : moreButton({ id: t.key, name: threadName(t), cls: 'mx-msg-more' })}
     </div>
     <div data-role="msgs" aria-live="polite" class="mx-msg-pane${st.msgsKey === t.key && st.shownKey !== t.key ? ' mx-msg-fresh' : ''}" style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
     ${canWrite ? `${isTeam ? topicChips() : ''}${attachChip}
-    <div style="display:flex;gap:12px;align-items:flex-end;padding:16px 26px 20px;${isTeam ? '' : 'border-top:1px solid rgba(25,21,18,.16)'}">
+    ${st.sendError && st.sendError.key === t.key ? `<p data-role="sendErr" role="alert" data-v2="a send the server refused (403 suspended / blocked · 422 content filter) — the draft stays" style="margin:0;padding:12px 26px 0;${isTeam ? '' : 'border-top:1px solid rgba(25,21,18,.16);'}font-size:12px;line-height:1.5;color:#9b1b22">${esc(st.sendError.text)}</p>` : ''}
+    <div style="display:flex;gap:12px;align-items:flex-end;padding:16px 26px 20px;${isTeam || (st.sendError && st.sendError.key === t.key) ? '' : 'border-top:1px solid rgba(25,21,18,.16)'}">
       <textarea data-role="draft" class="mx-msg-field" placeholder="${COPY.composer.ph}" rows="2" aria-label="${COPY.composer.ph}" style="flex:1;border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:11px 13px;font-size:13px;color:#191512;resize:none">${esc(st.drafts[t.key] || '')}</textarea>
       ${isTeam ? `<label data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault (the profile-photo trap)" title="${COPY.composer.attachTitle}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;padding-bottom:12px" data-hover="color:#191512">${COPY.composer.attach}<input type="file" data-role="attachFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>` : ''}
       <span data-act="send" role="button" aria-label="Send message" ${st.sending ? 'aria-disabled="true"' : ''} class="mx-msg-btn" style="padding:12px 18px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.composer.send}</span>
@@ -429,7 +457,10 @@ function wireList() {
 function wireConv() {
   const ta = rootEl && rootEl.querySelector('[data-role="draft"]');
   if (!ta) return;
-  ta.addEventListener('input', () => { if (st.cur) st.drafts[st.cur] = ta.value; });
+  ta.addEventListener('input', () => {
+    if (st.cur) st.drafts[st.cur] = ta.value;
+    if (st.sendError) { st.sendError = null; const e = rootEl.querySelector('[data-role="sendErr"]'); if (e) e.remove(); }
+  });
   ta.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlers.send(); }   // Enter sends · Shift+Enter = newline
   });
@@ -447,6 +478,7 @@ function wireConv() {
 
 // ---------------------------------------------------------------- actions
 async function openThread(key, { focus = false, mobile = true } = {}) {
+  if (st.cur !== key) st.sendError = null;
   st.cur = key;
   if (mobile) st.mobileOpen = true;
   const t = currentThread();
@@ -522,6 +554,33 @@ const handlers = {
       else { renderList(); renderConv(); }
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
+  // ⋯ in a member thread header → REPORT the person · BLOCK (a single message is reported from its own ⋯)
+  more: (el) => {
+    const t = currentThread(); if (!partnerResolved(t)) return;
+    const name = threadName(t);
+    openMenu(el, [
+      { label: SAFETY.menu.report, onPick: () => reportSheet({ kind: 'member', targetId: t.key, name }) },
+      { label: SAFETY.menu.block, tone: 'danger', onPick: () => blockThread(t) }
+    ]);
+  },
+  // ⋯ on a received bubble → the report sheet for THAT message
+  msgMore: (el) => {
+    const t = currentThread(); if (!t || t.kind !== 'member') return;
+    const m = (st.msgs || []).find(x => String(x.id) === String(el.dataset.id) && !x.mine);
+    if (!m) return;
+    reportSheet({ kind: 'message', targetId: m.id, name: threadName(t), excerpt: m.content });
+  },
+  unblockPeer: async (el) => {
+    const t = currentThread(); if (!t || !st.peer) return;
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      await api.del('/api/v2/safety/block/' + encodeURIComponent(st.peer.id));
+      forgetBlocks();
+      ui.toast(COPY.blockedGate.done(memberName(t)));
+      st.peer = await api.get('/api/v2/messages/peer/' + encodeURIComponent(st.peer.id));   // now: not connected → the connect gate
+      renderConv();
+    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
   connectPeer: async (el) => {
     if (!st.peer) return;
     el.setAttribute('aria-disabled', 'true');
@@ -539,7 +598,7 @@ const handlers = {
     const file = t.kind === 'team' ? st.attach : null;                    // attachments ride the team thread only
     if (!text && !file) return ui.toast(COPY.emptyDraft, { kind: 'error' });
     if (t.kind === 'team' && !st.topic) return ui.toast(COPY.pickTopic, { kind: 'error' });
-    st.sending = true;
+    st.sending = true; st.sendError = null;
     const sendBtn = rootEl.querySelector('[data-act="send"]'); if (sendBtn) sendBtn.setAttribute('aria-disabled', 'true');
     try {
       if (t.kind === 'team') {
@@ -560,8 +619,12 @@ const handlers = {
       const ta2 = rootEl.querySelector('[data-role="draft"]'); if (ta2) ta2.focus();
     } catch (e) {
       st.sending = false;
+      // 403 (a suspended account · a blocked pair) and 422 (the content filter): the server's own words stay
+      // under the composer and the draft stays in the box; anything else is a toast
+      if (e && (e.status === 403 || e.status === 422)) st.sendError = { key: t.key, text: e.message };
       renderConv();
-      ui.toast(e.message, { kind: 'error' });
+      if (!st.sendError) ui.toast(e.message, { kind: 'error' });
+      else { const ta2 = rootEl && rootEl.querySelector('[data-role="draft"]'); if (ta2) ta2.focus(); }
     }
   },
   newMsg: () => {
@@ -593,6 +656,21 @@ const handlers = {
   }
 };
 
+// after a confirmed block: the thread leaves this inbox (the server hides it from now on), the member leaves
+// the NEW MESSAGE picker, and the screen returns to the team thread
+async function blockThread(t) {
+  const id = t.key;
+  const r = await blockFlow({ id, name: threadName(t) });
+  if (!r || !st) return;
+  const myId = String((D.me && D.me.id) || '');
+  D.threads = (D.threads || []).filter(x => x.key !== id);
+  D.conns = (D.conns || []).filter(c => (String(c.requester_id) === myId ? c.receiver_id : c.requester_id) !== id);
+  if (st.peer && st.peer.id === id) st.peer = null;
+  delete st.drafts[id];
+  st.mobileOpen = false;
+  await openThread(TEAM, { mobile: false });
+}
+
 // ---------------------------------------------------------------- module
 const module = {
   title: 'Messages',
@@ -602,6 +680,7 @@ const module = {
       const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/css/views/messages.css'; l.setAttribute('data-view-css', 'messages');
       document.head.appendChild(l);
     }
+    ensureSafetyCss();
     D = await load();
     if (rootEl !== root) return;
     const q = ctx.query || {};
@@ -610,7 +689,7 @@ const module = {
     const topicQ = String(q.topic || q.about || '').toLowerCase();
     st = { cur: TEAM, msgs: [], msgsKey: null, drafts: {}, filter: '',
            topic: COPY.topics.some(t => t[0] === topicQ) ? topicQ : 'general',
-           showArchived: false, mobileOpen: false, peer: null, sending: false, attach: null,
+           showArchived: false, mobileOpen: false, peer: null, sending: false, attach: null, sendError: null,
            shownKey: null, shownIds: new Set(), dotAt: new Map() };
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);

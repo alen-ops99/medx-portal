@@ -14,6 +14,7 @@ import { session, state } from './state.js';
 import { ui, esc, fmt } from './ui.js';
 import { FACTS, routeFor } from './facts.js';
 import router from './router.js';
+import { knownBlocks, loadBlocks, isKnownBlocked } from './views/_safety.js';
 
 export const COPY = {
   menu: 'MENU', search: 'SEARCH', alerts: 'ALERTS',
@@ -239,7 +240,7 @@ const SEARCH_PROJECTS = [
   { title: 'Meetups', detail: 'Small tables during Plexus Week', to: '/app/plexus/meetups', words: 'meetups tables coffee lunch' },
   { title: 'Plexus Week Live', detail: 'The event app — program and your schedule', to: '/app/live', words: 'live event app schedule program' },
   { title: 'Messages', detail: 'Write to the Med&X team', to: '/app/messages', words: 'messages inbox contact team help' },
-  { title: 'Profile & settings', detail: 'Name, photo, password, topics', to: '/app/profile', words: 'profile settings password photo account' }
+  { title: 'Profile & settings', detail: 'Name, photo, password, topics · delete account', to: '/app/profile', words: 'profile settings password photo account delete close remove erase my data' }
 ];
 function searchResults(res) {
   const groups = ['projects', 'events', 'members', 'mine'].filter(g => res[g] && res[g].length);
@@ -316,13 +317,19 @@ function onSearchInput(e) {
       // (the same list /app/network shows) answers the PEOPLE group, and a hit opens that person there
       const [res, net] = await Promise.all([
         api.get('/api/member/search?q=' + encodeURIComponent(q)),
-        api.get('/api/v2/network/search?size=6&q=' + encodeURIComponent(q)).catch(() => null)
+        api.get('/api/v2/network/search?size=6&q=' + encodeURIComponent(q)).catch(() => null),
+        knownBlocks() ? null : loadBlocks()      // the member's own block list, once per sign-in (App Store 1.2)
       ]);
       const ql = q.toLowerCase();
-      res.projects = SEARCH_PROJECTS.filter(p => (p.title + ' ' + p.words).toLowerCase().includes(ql)).slice(0, 4);
+      // every word of the query has to appear ("delete my account" finds Profile & settings)
+      const toks = ql.split(/\s+/).filter(Boolean);
+      res.projects = SEARCH_PROJECTS.filter(p => { const hay = (p.title + ' ' + p.words).toLowerCase(); return toks.every(w => hay.includes(w)); }).slice(0, 4);
       const seen = new Set();
       const people = ((net && net.results) || []).map(m => ({ kind: 'member', id: m.id, title: m.name, detail: [m.institution, m.city || m.country].filter(Boolean).join(' · ') || 'Med&X member', to: '/app/network?q=' + encodeURIComponent(m.name || q) }));
-      res.members = people.concat(res.members || []).filter(m => { const k = String(m.title || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+      // people this member blocked never come back through search (the server filters too — this is the second line).
+      // By account id only: a Forum hit's id is its Forum record, so it carries the account as user_id.
+      const blocked = m => isKnownBlocked({ id: m.kind === 'forum_member' ? m.user_id : m.id });
+      res.members = people.concat(res.members || []).filter(m => !blocked(m)).filter(m => { const k = String(m.title || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
       delete res.talks;   // the Talk Library is retired
       if (box && popover === 'search') { box.innerHTML = searchResults(res); searchActive = -1; }
     }

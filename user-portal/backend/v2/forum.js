@@ -23,6 +23,7 @@
 'use strict';
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
+const safetyCore = require('../../../shared/safety-core');   // people lists skip closed / suspended / hidden / blocked
 
 const POLL = 'venue-2027';
 const CHOICES = ['split', 'zagreb'];
@@ -99,9 +100,11 @@ module.exports = function mountForum(app, ctx) {
 
     // ---- membership helpers (forum_members = the admission table both portals read) ----
     const isMemberStatus = s => ['approved', 'active'].includes(String(s || '').toLowerCase());
+    // by account first; by address only for a row no account has claimed (user_id IS NULL) — a closed account's
+    // membership keeps its id, so a new sign-up on the freed address never inherits it
     function memberRowFor(userId, email) {
         let row = userId ? q.get(`SELECT * FROM forum_members WHERE user_id = ? LIMIT 1`, [userId]) : null;
-        if (!row && email) row = q.get(`SELECT * FROM forum_members WHERE LOWER(email) = LOWER(?) LIMIT 1`, [email]);
+        if (!row && email) row = q.get(`SELECT * FROM forum_members WHERE user_id IS NULL AND LOWER(email) = LOWER(?) LIMIT 1`, [email]);
         return row || null;
     }
     function membershipOf(row) {
@@ -125,7 +128,8 @@ module.exports = function mountForum(app, ctx) {
     function registrationFor(eventId, memberId, email) {
         if (!eventId) return null;
         let reg = memberId ? q.get(`SELECT * FROM forum_event_registrations WHERE event_id = ? AND member_id = ? AND COALESCE(status,'registered') <> 'cancelled' LIMIT 1`, [eventId, memberId]) : null;
-        if (!reg && email) reg = q.get(`SELECT * FROM forum_event_registrations WHERE event_id = ? AND LOWER(email) = LOWER(?) AND COALESCE(status,'registered') <> 'cancelled' LIMIT 1`, [eventId, email]);
+        if (!reg && email) reg = q.get(`SELECT * FROM forum_event_registrations WHERE event_id = ? AND LOWER(email) = LOWER(?) AND COALESCE(status,'registered') <> 'cancelled'
+                                         AND (member_id IS NULL OR member_id = ?) LIMIT 1`, [eventId, email, memberId || '']);
         return reg || null;
     }
     const publicReg = r => r ? ({ id: r.id, qr_code: r.qr_code, status: r.status || 'registered', rsvp_status: r.rsvp_status || null, payment_status: r.payment_status || 'free', registered_at: r.registered_at, terms_accepted_at: r.terms_accepted_at || null, checked_in: !!r.checked_in }) : null;
@@ -470,7 +474,8 @@ module.exports = function mountForum(app, ctx) {
                                 FROM forum_members fm LEFT JOIN users u ON u.id = fm.user_id
                                 WHERE LOWER(COALESCE(fm.membership_status,'')) IN ('approved','active') AND COALESCE(fm.banned, 0) = 0
                                   AND (fm.valid_until IS NULL OR fm.valid_until >= date('now'))
-                                  AND COALESCE(u.is_public_profile, 1) = 1 AND LOWER(COALESCE(fm.profile_visibility, 'members')) <> 'private'`);
+                                  AND COALESCE(u.is_public_profile, 1) = 1 AND LOWER(COALESCE(fm.profile_visibility, 'members')) <> 'private'
+                                  AND (u.id IS NULL OR (${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}))`, [req.user.id, req.user.id]);
             let members = rows.map(r => {
                 const name = [r.fm_first || r.u_first, r.fm_last || r.u_last].filter(Boolean).join(' ').trim();
                 return { id: r.id, user_id: r.user_id || null, name, initials: initials(name).toUpperCase(), institution: r.fm_inst || r.u_inst || '', position: r.position || '', specialty: r.specialty || '',

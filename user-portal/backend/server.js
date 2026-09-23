@@ -14,6 +14,7 @@ const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
 const caMerge = require('../../shared/ca-merge'); // merged duplicate /plexus registrations follow their survivor
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
+const safetyCore = require('../../shared/safety-core'); // REPORT / BLOCK / moderation / content filter (App Store 1.2)
 const faqKb = require('./faq-kb'); // Member FAQ Assistant grounding corpus + deterministic retrieval (queue 5a6)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const webpush = require('web-push');
@@ -706,6 +707,18 @@ app.use(helmet({
     crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }, // Stripe checkout opens popup
     referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 }));
+// Images and static files are embedded from other origins (frontend-v2 on its own host, the iOS and Mac
+// shells): helmet's Cross-Origin-Resource-Policy: same-origin makes browsers refuse those <img> loads
+// (profile photos under /uploads/profile, QR tickets, attendance cards). Relaxed to cross-origin for the
+// image / static routes ONLY — every API response and server-rendered page keeps same-origin.
+const CORP_CROSS_ORIGIN_PATH = /^\/(uploads|assets|qr|photo-library)\//;
+const CORP_IMAGE_FILE = /\.(png|jpe?g|webp|gif|svg|ico|avif)$/i;
+app.use((req, res, next) => {
+    if (!req.path.startsWith('/api/') && (CORP_CROSS_ORIGIN_PATH.test(req.path) || CORP_IMAGE_FILE.test(req.path))) {
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    }
+    next();
+});
 
 // Stripe webhook needs raw body for signature verification
 // express.json() must be SKIPPED for the webhook route or it corrupts the signature
@@ -1107,9 +1120,9 @@ const _legalPageShell = (title, bodyHtml) => `<!DOCTYPE html>
 app.get('/terms', (req, res) => {
     res.send(_legalPageShell('Terms & Conditions', `
         <h1>Terms &amp; Conditions</h1>
-        <div class="updated">Last updated: 1 June 2026</div>
+        <div class="updated">Last updated: 23 September 2026</div>
 
-        <p>These terms govern registration for events organized by <strong>Med&amp;X</strong>, a Croatian non-profit organization, including the Plexus Conference, the Plexus Gala Evening, the Annual Biomedical Forum, and other Med&amp;X-organized events.</p>
+        <p>These terms govern registration for events organized by <strong>Med&amp;X</strong>, a Croatian non-profit organization, including the Plexus Conference, the Plexus Gala Evening, the Annual Biomedical Forum, and other Med&amp;X-organized events, and the use of the Med&amp;X member portal and the My Med&amp;X app.</p>
 
         <h2>1. Registration and Payment</h2>
         <p>By submitting a registration form, you confirm that the information you provide is accurate and that you accept these terms. Paid registrations are processed via Stripe; receipt of payment confirms your registration. Complimentary (VIP) registrations are confirmed at the moment of form submission.</p>
@@ -1131,22 +1144,33 @@ app.get('/terms', (req, res) => {
         <h2>5. Code of Conduct</h2>
         <p>Med&amp;X is committed to providing a respectful environment for all participants. Harassment, discrimination, or behaviour that disrupts the event will not be tolerated and may result in removal without refund.</p>
 
-        <h2>6. Health, Safety and Liability</h2>
+        <h2>6. Member Content and Conduct</h2>
+        <p>The Med&amp;X member portal and the My Med&amp;X app let members publish a profile and write to one another. By creating an account you accept these rules for everything you post or send:</p>
+        <ul>
+            <li>There is no tolerance for objectionable content or abusive users. Harassment, threats, hate speech, sexual content or solicitation, spam, impersonation, and content that is unlawful or infringes the rights of others are not allowed in profiles, messages or requests.</li>
+            <li>You are responsible for what you post. Keep your profile accurate and your messages respectful and professional.</li>
+            <li>Every member can report a profile or a message, and block another member, from the member's card, the member list or the conversation. A blocked member can no longer message you, send you requests or find you in the member lists.</li>
+            <li>The Med&amp;X team reviews every report within 24 hours. Content that breaks these rules is removed, and the accounts of those who post it are suspended or closed.</li>
+            <li>Messages, requests and profile texts (including the name and institution given at sign-up) that contain slurs, sexual solicitation, direct abuse or threats are refused automatically before they are published.</li>
+        </ul>
+        <p>To report something that needs attention at once, write to <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
+
+        <h2>7. Health, Safety and Liability</h2>
         <p>Attendees are responsible for their own health, safety, and personal belongings during the event. Med&amp;X is not liable for any loss, damage, injury, or expense incurred by attendees except where caused by gross negligence or wilful misconduct on the part of Med&amp;X.</p>
 
-        <h2>7. Force Majeure</h2>
+        <h2>8. Force Majeure</h2>
         <p>If Med&amp;X is prevented from holding the event by circumstances outside its reasonable control (including public-health restrictions, natural disasters, or government action), Med&amp;X may postpone or cancel the event. Registration fees may be applied to the rescheduled event or refunded at Med&amp;X's discretion.</p>
 
-        <h2>8. Data and Privacy</h2>
-        <p>The personal data you provide is processed in accordance with our <a href="/privacy">Privacy Policy</a>.</p>
+        <h2>9. Data and Privacy</h2>
+        <p>The personal data you provide is processed in accordance with our <a href="/privacy">Privacy Policy</a>. You can delete your member account at any time in the portal or the app, under My Med&amp;X › Profile &amp; settings › Delete account.</p>
 
-        <h2>9. Changes to These Terms</h2>
+        <h2>10. Changes to These Terms</h2>
         <p>Med&amp;X may amend these terms from time to time. The version in force is the one published on this page at the date of your registration.</p>
 
-        <h2>10. Governing Law</h2>
+        <h2>11. Governing Law</h2>
         <p>These terms are governed by the laws of the Republic of Croatia. Any disputes arising shall be subject to the exclusive jurisdiction of the courts of Zagreb, Croatia.</p>
 
-        <h2>11. Contact</h2>
+        <h2>12. Contact</h2>
         <p>For any questions about these terms, contact us at <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
     `));
 });
@@ -1154,9 +1178,9 @@ app.get('/terms', (req, res) => {
 app.get('/privacy', (req, res) => {
     res.send(_legalPageShell('Privacy Policy', `
         <h1>Privacy Policy</h1>
-        <div class="updated">Last updated: 1 June 2026</div>
+        <div class="updated">Last updated: 23 September 2026</div>
 
-        <p><strong>Med&amp;X</strong>, a Croatian non-profit organization, is the controller of personal data collected through this portal. This policy explains what data we collect, why we collect it, how we use it, and your rights under the EU General Data Protection Regulation (GDPR) and the Croatian Personal Data Protection Act.</p>
+        <p><strong>Med&amp;X</strong>, a Croatian non-profit organization, is the controller of personal data collected through this portal and the My Med&amp;X app. This policy explains what data we collect, why we collect it, how we use it, and your rights under the EU General Data Protection Regulation (GDPR) and the Croatian Personal Data Protection Act.</p>
 
         <h2>1. Data We Collect</h2>
         <p>When you register for a Med&amp;X event, we collect the personal data you submit through the registration form, which may include:</p>
@@ -1169,7 +1193,17 @@ app.get('/privacy', (req, res) => {
             <li>Technical data: timestamp of registration, IP address (for fraud prevention), QR ticket identifier</li>
         </ul>
 
-        <h2>2. Purposes and Legal Basis</h2>
+        <h2>2. Your Member Account (Portal and App)</h2>
+        <p>If you create a Med&amp;X account, used in the member portal and in the My Med&amp;X app, we also process:</p>
+        <ul>
+            <li>Profile: name, title, institution, city, country, specialties, a short bio and, if you add one, a profile photo. You decide whether your profile appears in the member directory.</li>
+            <li>Messages you send to other members and to the Med&amp;X team, and any file you attach to them.</li>
+            <li>Connections, meeting and introduction requests, the members you block, and the reports you send.</li>
+            <li>Preferences: language, notification and newsletter choices, and the device tokens that deliver push notifications.</li>
+        </ul>
+        <p>We process this data to provide the membership you signed up for (GDPR Art. 6(1)(b)) and, for reports, blocks and the review of member content, in our legitimate interest in keeping the community safe and respectful (Art. 6(1)(f)).</p>
+
+        <h2>3. Purposes and Legal Basis</h2>
         <ul>
             <li><strong>Performing the registration contract (GDPR Art. 6(1)(b)):</strong> processing your registration, sending your confirmation and QR ticket, managing attendance at the event.</li>
             <li><strong>Legitimate interests (Art. 6(1)(f)):</strong> event organization, internal reporting, fraud prevention, security of the portal.</li>
@@ -1177,27 +1211,49 @@ app.get('/privacy', (req, res) => {
             <li><strong>Legal obligation (Art. 6(1)(c)):</strong> retention of financial records under Croatian tax and accounting law.</li>
         </ul>
 
-        <h2>3. Who Has Access to Your Data</h2>
+        <h2>4. Who Has Access to Your Data</h2>
         <p>Your data is accessed only by authorised Med&amp;X staff and, where strictly necessary, by trusted processors who help us run our operations:</p>
         <ul>
             <li><strong>Stripe</strong> &mdash; payment processing (paid registrations only)</li>
             <li><strong>Brevo</strong> &mdash; transactional email delivery (confirmations, tickets)</li>
             <li><strong>Render</strong> &mdash; cloud hosting of this portal</li>
             <li><strong>Turso</strong> &mdash; database hosting</li>
+            <li><strong>Cloudinary</strong> &mdash; storage of profile photos and message attachments</li>
             <li><strong>Google Workspace</strong> &mdash; spreadsheet record of registrations</li>
             <li><strong>FIRA</strong> &mdash; Croatian fiscal-invoicing service (paid registrations only)</li>
         </ul>
         <p>All processors are bound by data-protection agreements and process personal data only on Med&amp;X's instructions. We do not sell your data to third parties.</p>
 
-        <h2>4. Retention</h2>
+        <h2>5. Retention</h2>
         <p>Registration data is retained for the duration needed to deliver the event and for legitimate follow-up communications, then archived or deleted within the periods required by Croatian tax law (typically 11 years for financial records, and shorter for non-financial registration data).</p>
 
-        <h2>5. Your Rights</h2>
+        <h2>6. Deleting Your Account</h2>
+        <p>You can delete your account yourself at any time. In the portal or the app, open <strong>My Med&amp;X › Profile &amp; settings › Delete account</strong> and confirm. The deletion takes effect at once and signs you out on every device. You can also ask us to delete it by writing to <a href="mailto:info@medx.hr">info@medx.hr</a>. A suspended account cannot sign in, so it cannot use the button; write to us and we delete it.</p>
+        <h3>What is erased</h3>
+        <ul>
+            <li>Your profile, photo and directory listing, including your Biomedical Forum profile</li>
+            <li>Your messages (sent and received) and their attachments, your connections, meeting and introduction requests, and the blocks you placed</li>
+            <li>Your newsletter subscriptions (you are unsubscribed from every Med&amp;X mailing list), any email still waiting to be sent to you, alerts, followed projects and push-notification tokens</li>
+            <li>Your places at meetups that have not taken place yet (the first person on the waitlist moves up), and your name, email address and short bio on every meetup list</li>
+            <li>Dietary, accessibility and other answers on registrations for which nothing was paid or invoiced: conference, Building Bridges and Donor Night, Biomedical Forum and event sign-up forms. Answers given on the public Plexus Week form stay with that registration, because it can be linked to a Gala seat; write to <a href="mailto:info@medx.hr">info@medx.hr</a> to have them cleared.</li>
+        </ul>
+        <p>Records kept under your email address alone (guest registrations, mailing lists) are treated as yours only if you confirmed that address. If you never did, they stay with the address; write to us and we will handle them.</p>
+        <h3>What is kept, and why</h3>
+        <ul>
+            <li><strong>Payment and fiscal records</strong> &mdash; paid registrations and tickets, invoices and the related accounting entries, with the name and address they were issued to, kept exactly as issued for the period Croatian tax and accounting law requires (typically 11 years). The account they belong to is reduced to an anonymous record with no name, email address or password.</li>
+            <li><strong>Applications to Med&amp;X programs</strong> (for example the Accelerator, awards, speaker and scholarship programs) and event registrations, which are part of each program's selection and attendance records.</li>
+            <li><strong>Moderation records</strong> &mdash; reports you sent, reports about you and a copy of the content they concern, kept so the Med&amp;X team can act on abuse and keep the community safe.</li>
+            <li>Questions you asked in live sessions stay in the session record under the name &ldquo;Deleted User&rdquo;.</li>
+            <li><strong>Blocks other members placed on you</strong>, and your conversation with each of them, so the block keeps protecting that member. To recognise a new sign-up with the same email address we keep a one-way coded fingerprint of the address, never the address itself; a new account on that address stays blocked by those members.</li>
+        </ul>
+        <p>Whatever is kept is deleted or anonymised when its retention period ends.</p>
+
+        <h2>7. Your Rights</h2>
         <p>Under the GDPR you have the right to:</p>
         <ul>
             <li>Access the personal data we hold about you</li>
             <li>Request correction of inaccurate data</li>
-            <li>Request erasure of your data (subject to legal retention obligations)</li>
+            <li>Request erasure of your data (subject to legal retention obligations); members can delete their account themselves as described in section 6</li>
             <li>Restrict or object to certain processing</li>
             <li>Request data portability</li>
             <li>Withdraw consent at any time (where consent is the legal basis)</li>
@@ -1205,16 +1261,16 @@ app.get('/privacy', (req, res) => {
         </ul>
         <p>To exercise any of these rights, contact us at <a href="mailto:info@medx.hr">info@medx.hr</a>. We will respond within 30 days.</p>
 
-        <h2>6. Cookies and Tracking</h2>
+        <h2>8. Cookies and Tracking</h2>
         <p>This portal uses only the cookies strictly necessary for the registration flow (session, CSRF protection). We do not use third-party advertising cookies.</p>
 
-        <h2>7. International Transfers</h2>
+        <h2>9. International Transfers</h2>
         <p>Some of our processors (e.g. Stripe, Google Workspace, Render) may transfer data outside the European Economic Area. All such transfers are protected by the EU Commission's Standard Contractual Clauses or by adequacy decisions.</p>
 
-        <h2>8. Changes to This Policy</h2>
+        <h2>10. Changes to This Policy</h2>
         <p>We may update this policy from time to time. The version in force at the time of your registration is the one shown on this page on that date.</p>
 
-        <h2>9. Contact</h2>
+        <h2>11. Contact</h2>
         <p>For any privacy questions, write to us at <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
     `));
 });
@@ -4487,10 +4543,13 @@ function forumInitials(name) {
     const a = (parts[0] || '')[0] || '', b = (parts[parts.length - 1] || '')[0] || '';
     return (a + b).toUpperCase() || '·';
 }
+// By account first; by address only for a row no account has claimed yet (user_id IS NULL). A row that
+// belongs to another account — e.g. a closed account whose address was freed and signed up again — never
+// re-attaches to whoever now holds the address.
 function forumMemberRowFor(userId, email) {
     let row = null;
     if (userId) row = query.get("SELECT * FROM forum_members WHERE user_id = ? LIMIT 1", [userId]);
-    if (!row && email) row = query.get("SELECT * FROM forum_members WHERE LOWER(email) = LOWER(?) LIMIT 1", [email]);
+    if (!row && email) row = query.get("SELECT * FROM forum_members WHERE user_id IS NULL AND LOWER(email) = LOWER(?) LIMIT 1", [email]);
     return row || null;
 }
 function forumIsMember(row) {
@@ -4569,7 +4628,12 @@ app.get('/api/forum/wing/me', (req, res) => {
         const token = (req.headers.authorization || '').replace('Bearer ', '');
         let user = null;
         if (token && token !== 'auto-login') {
-            try { const d = jwt.verify(token, JWT_SECRET); if (d && d.id) user = query.get("SELECT id, email, first_name, last_name, institution, is_admin FROM users WHERE id = ?", [d.id]); } catch (e) { /* anon */ }
+            try {
+                const d = jwt.verify(token, JWT_SECRET);
+                if (d && d.id) user = query.get("SELECT id, email, first_name, last_name, institution, is_admin, deleted_at, suspended_at, password_changed_at FROM users WHERE id = ?", [d.id]);
+                // a closed or suspended account, or a session revoked since (password change / deletion), is anonymous
+                if (user && (user.deleted_at || user.suspended_at || tokenPredatesPasswordChange(user, d.iat))) user = null;
+            } catch (e) { /* anon */ user = null; }
         }
         if (!user) return res.json({ authenticated: false, member: false });
         const row = forumMemberRowFor(user.id, user.email);
@@ -4645,7 +4709,10 @@ app.get('/api/forum/wing/directory', auth, forumWingMemberGate, (req, res) => {
         const field = String(req.query.field || '').trim();
         const inst = String(req.query.institution || '').trim();
         const limit = Math.min(60, Math.max(6, parseInt(req.query.limit, 10) || 12));
-        const rows = query.all("SELECT first_name, last_name, specialty, position, institution, research_interests, bio, photo_url, location_city, location_country, is_mentor, approved_at, created_at FROM forum_members WHERE LOWER(COALESCE(membership_status,'')) IN ('approved','active')");
+        // closed / suspended / team-hidden accounts and either side of a block stay out (shared/safety-core.js)
+        const rows = query.all(`SELECT first_name, last_name, specialty, position, institution, research_interests, bio, photo_url, location_city, location_country, is_mentor, approved_at, created_at
+            FROM forum_members WHERE LOWER(COALESCE(membership_status,'')) IN ('approved','active')
+              AND (user_id IS NULL OR (${safetyCore.listableIdSql('forum_members.user_id')} AND ${safetyCore.notBlockedSql('forum_members.user_id')}))`, [req.user.id, req.user.id]);
         const norm = (r) => {
             const name = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
             return {
@@ -6460,7 +6527,7 @@ function auth(req, res, next) {
     if (token && token !== 'auto-login') {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const user = query.get("SELECT id, email, is_admin, password_changed_at, deleted_at FROM users WHERE id = ?", [decoded.id]);
+            const user = query.get("SELECT id, email, is_admin, password_changed_at, deleted_at, suspended_at FROM users WHERE id = ?", [decoded.id]);
             if (user) {
                 if (user.deleted_at) {
                     return res.status(401).json({ error: 'This account has been closed.' });
@@ -6468,6 +6535,12 @@ function auth(req, res, next) {
                 if (tokenPredatesPasswordChange(user, decoded.iat)) {
                     return res.status(401).json({ error: 'Session expired, please sign in again' });
                 }
+                // Suspended by the Med&X team (admin safety-ops.js) — every member route refuses, one wording, and a
+                // machine code the apps act on (frontend-v2 api.js signs out and shows the sentence at sign-in).
+                if (user.suspended_at) {
+                    return res.status(403).json({ error: safetyCore.SUSPENDED_MESSAGE, code: 'account_suspended' });
+                }
+                delete user.suspended_at;
                 req.user = user; return next();
             }
             // A valid token was presented but its id resolves to no current user row (deleted,
@@ -6493,8 +6566,15 @@ function optionalAuth(req, res, next) {
     if (token && token !== 'auto-login') {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            const user = query.get("SELECT id, email, is_admin, password_changed_at FROM users WHERE id = ?", [decoded.id]);
-            if (user && !tokenPredatesPasswordChange(user, decoded.iat)) { req.user = user; return next(); }
+            const user = query.get("SELECT id, email, is_admin, password_changed_at, deleted_at, suspended_at FROM users WHERE id = ?", [decoded.id]);
+            if (user) {
+                // A closed or suspended account, or a session revoked by a password change (account deletion
+                // stamps password_changed_at too), is ANONYMOUS here — never bound to the token's own claims,
+                // which would carry the closed account's old address into the register routes.
+                if (user.deleted_at || user.suspended_at || tokenPredatesPasswordChange(user, decoded.iat)) { req.user = null; return next(); }
+                delete user.deleted_at; delete user.suspended_at;
+                req.user = user; return next();
+            }
             // Valid token but no current row — bind to the token's own claims, never to
             // another user's row (see auth()). Optional routes still work for this caller.
             req.user = { id: (decoded && decoded.id) || null, email: (decoded && decoded.email) || null, is_admin: 0 };
@@ -6551,6 +6631,17 @@ async function initializeApp() {
     // the legal/accounting record survives while the person is scrubbed. auth() rejects any user
     // whose deleted_at is set. Nullable — only anonymized rows carry it.
     try { db.run('ALTER TABLE users ADD COLUMN deleted_at TEXT'); } catch (e) { /* column may already exist */ }
+    // Moderation (shared/safety-core.js; the admin portal's safety-ops.js writes them): SUSPEND stamps
+    // suspended_at (+ reason) — auth() answers 403, optionalAuth() treats the caller as anonymous; HIDE
+    // PROFILE stamps moderation_hidden_at — out of every people list, and the member's own directory
+    // toggle cannot undo it. Read by auth() below, so they exist before the first request.
+    try { db.run('ALTER TABLE users ADD COLUMN suspended_at TEXT'); } catch (e) { /* column may already exist */ }
+    try { db.run('ALTER TABLE users ADD COLUMN suspended_reason TEXT'); } catch (e) { /* column may already exist */ }
+    try { db.run('ALTER TABLE users ADD COLUMN moderation_hidden_at TEXT'); } catch (e) { /* column may already exist */ }
+    // A closed account that another member had blocked keeps a keyed hash of its old address (never the address),
+    // so the blocks follow a new sign-up on that address (carryBlocksToNewAccount).
+    try { db.run('ALTER TABLE users ADD COLUMN deleted_email_hash TEXT'); } catch (e) { /* column may already exist */ }
+    try { db.run('CREATE INDEX IF NOT EXISTS idx_users_deleted_email_hash ON users (deleted_email_hash)'); } catch (e) { /* best effort */ }
 
     db.run(`CREATE TABLE IF NOT EXISTS conferences (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, year INTEGER, slug TEXT UNIQUE,
@@ -9442,6 +9533,9 @@ async function initializeApp() {
     // The "Phase 6B" ALTER above runs before this CREATE, so a member-only fresh database never got
     // qr_code and POST /api/bridges/events/:id/register failed on it. Idempotent; prod already has it.
     try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN qr_code TEXT`); } catch(e) {}
+    // The same for the account link: its ALTER (Phase 7, above) also runs before this CREATE, so a member-only fresh
+    // database never had user_id. Every account lookup and the account-deletion claim rely on it. Idempotent.
+    try { db.run(`ALTER TABLE bridges_registrations ADD COLUMN user_id TEXT`); } catch(e) {}
 
     // Seed the two invitation-only Plexus Week 2026 public events (Building Bridges + Donor Night).
     // Guarded on an immutable SLUG (mirroring the forum-event seeds above), NOT the display name —
@@ -9691,6 +9785,9 @@ async function initializeApp() {
     try { db.run("ALTER TABLE direct_messages ADD COLUMN attachment_url TEXT"); } catch(e) {}
     try { db.run("ALTER TABLE direct_messages ADD COLUMN is_read INTEGER DEFAULT 0"); } catch(e) {}
     try { db.run("ALTER TABLE direct_messages ADD COLUMN updated_at TEXT"); } catch(e) {}
+    // REMOVE MESSAGE (admin safety-ops.js): a removed row leaves every member-facing read; the admin still sees it
+    try { db.run("ALTER TABLE direct_messages ADD COLUMN removed_at TEXT"); } catch(e) {}
+    try { db.run("ALTER TABLE direct_messages ADD COLUMN removed_by TEXT"); } catch(e) {}
 
     // Migration: add notification_type, target_tier, expires_at, placement to user_notifications
     try { db.run("ALTER TABLE user_notifications ADD COLUMN notification_type TEXT DEFAULT 'info'"); } catch(e) {}
@@ -10283,6 +10380,20 @@ async function initializeApp() {
     )`);
     try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_gala_payment_audits_reg ON gala_payment_audits(gala_registration_id)'); } catch(e) {}
     // ====================== SCHEMA-MIRROR:END ======================
+    // email_optouts (declared in the SCHEMA-MIRROR block above; this fold runs in the member portal only).
+    // Every reader looks an opt-out up by the LOWER-CASE address (WHERE email = ?). A row stored with capitals (the
+    // account-deletion opt-out before 2026-09-23 copied the address as typed at sign-up) never matched: fold each such
+    // row into the lower-case one, merging the scopes. Idempotent — touches only rows that still carry capitals.
+    try {
+        for (const r of (query.all('SELECT email, scopes FROM email_optouts WHERE email <> lower(email)') || [])) {
+            const low = String(r.email).toLowerCase();
+            const cur = query.get('SELECT scopes FROM email_optouts WHERE email = ?', [low]);
+            const scopes = new Set([...String((cur && cur.scopes) || '').split(','), ...String(r.scopes || '').split(',')].map(x => x.trim()).filter(Boolean));
+            db.run(`INSERT INTO email_optouts (email, scopes, updated_at) VALUES (?, ?, ?)
+                    ON CONFLICT(email) DO UPDATE SET scopes = excluded.scopes, updated_at = excluded.updated_at`, [low, [...scopes].join(','), new Date().toISOString()]);
+            db.run('DELETE FROM email_optouts WHERE email = ?', [r.email]);
+        }
+    } catch (e) { console.warn('[email_optouts] lower-case fold skipped:', e.message); }
 
     // ====================== CME / HLK ACCREDITATION (queue 5a5c) ======================
     // Croatian Medical Chamber (Hrvatska liječnička komora / HLK) CME accreditation. These two
@@ -11454,6 +11565,27 @@ async function initializeApp() {
         return total;
     }
 
+    // BLOCKS OUTLIVE A CLOSED ACCOUNT (abuse case: delete the account, sign up again on the same address, write to
+    // the member who blocked you). At deletion the blocks OTHER members placed on the account are kept, and the
+    // tombstone carries deleted_email_hash = HMAC(JWT_SECRET, lower(address)) — a keyed fingerprint, never the
+    // address. A new sign-up whose address hashes the same inherits those blocks, so it can neither find nor
+    // contact those members. Nothing else about the closed account carries over.
+    function deletedEmailHash(email) {
+        const e = String(email || '').trim().toLowerCase();
+        return e ? crypto.createHmac('sha256', JWT_SECRET).update('medx-deleted-email:' + e).digest('hex') : null;
+    }
+    function carryBlocksToNewAccount(newUserId, email) {
+        const h = deletedEmailHash(email);
+        if (!h || !newUserId) return 0;
+        let n = 0;
+        for (const t of (query.all('SELECT id FROM users WHERE deleted_email_hash = ? AND deleted_at IS NOT NULL AND id <> ?', [h, newUserId]) || [])) {
+            db.run(`INSERT OR IGNORE INTO v2_blocks (blocker_user_id, blocked_user_id, created_at)
+                    SELECT blocker_user_id, ?, created_at FROM v2_blocks WHERE blocked_user_id = ? AND blocker_user_id <> ?`, [newUserId, t.id, newUserId]);
+            n += db.getRowsModified() || 0;
+        }
+        return n;
+    }
+
     // One-time retroactive backfill for ALL existing accounts (guarded by a drip_log kind,
     // the repo's standard exactly-once key): long-standing members see their pre-account
     // guest tickets without having to log in again first. Set-based UPDATEs, then the guard
@@ -11503,6 +11635,10 @@ async function initializeApp() {
             if (query.get('SELECT id FROM users WHERE email = ?', [email])) {
                 return res.status(400).json({ error: 'Email exists' });
             }
+            // The name and institution show on every directory card and message header (App Store 1.2)
+            if (safetyCore.contentProblem(first_name, last_name, institution, country)) {
+                return res.status(422).json({ error: safetyCore.CONTENT_PROFILE, field: 'name' });
+            }
             const id = uuidv4();
             const hash = await bcrypt.hash(password, 10);
             // Premium signup: always create the account UNVERIFIED and issue a confirmation link, but
@@ -11522,6 +11658,10 @@ async function initializeApp() {
             // Adopt the locale the member chose on the portal (additive — used for member-facing emails).
             const signupLocale = (locale === 'hr' || locale === 'en') ? locale : null;
             if (signupLocale) { try { db.run('UPDATE users SET locale = ? WHERE id = ?', [signupLocale, id]); } catch (e) { /* locale column added by HR1 migration */ } }
+            // A member who blocked a closed account stays protected when the same address signs up again: the
+            // blocks on that closed account (kept at deletion, found by a keyed hash of the address, never the
+            // address itself) are copied onto the new account. See DELETE /api/auth/account.
+            try { carryBlocksToNewAccount(id, email); } catch (e) { /* best effort — never blocks a sign-up */ }
             saveDb();
 
             // Account linking: when the account is born already-verified (no mail provider),
@@ -11564,6 +11704,9 @@ async function initializeApp() {
                 } catch (e) { /* best-effort */ }
                 return res.status(401).json({ error: 'Invalid credentials' });
             }
+            // Suspended by the Med&X team: the same answer auth() gives every existing token (after the password
+            // check, so it never tells a stranger that the address has an account)
+            if (user.suspended_at) return res.status(403).json({ error: safetyCore.SUSPENDED_MESSAGE, code: 'account_suspended' });
             // Email verification can only be enforced when an email provider is actually
             // configured to deliver the verification link. On a service with no provider
             // (no BREVO_API_KEY) the link is never sent, so gating login on
@@ -11595,68 +11738,340 @@ async function initializeApp() {
         } catch (e) { console.error(e); res.status(500).json({ error: 'Login failed' }); }
     });
 
-    // Delete user account
+    // Delete user account — self-service, in the app (App Store guideline 5.1.1(v), GDPR Art. 17).
+    // Every client confirms before calling (frontend-v2 Profile: typed DELETE; the iOS shell: typed
+    // DELETE; the legacy v1 SPA: a danger modal) and sends a bodyless DELETE, so the route asks for no
+    // phrase of its own. Rules, proven by tests/account-delete.test.js:
+    //   ERASED    every social / personal row keyed to the member (list below; direct_messages by
+    //             users.id AND by the email the legacy routes stored, with their attachment files),
+    //             the newsletter (every pr_subscribers row for the address is unsubscribed, whatever
+    //             its source, and the address gets the 'newsletter' opt-out, stored lower-case like
+    //             every reader looks it up), mail still queued to the address (cancelled), push tokens,
+    //             the Forum profile (forum_members scrubbed + its Forum connections / groups), meetup
+    //             places (a place at a meetup that has not started is released and the waitlist moves
+    //             up; every attendee row loses the name, address and bio snapshot), the photo file (local
+    //             disk and Cloudinary), the address on attendance cards and sign-up forms, dietary /
+    //             accessibility / custom answers on registrations that carry NO money trace, and the PII
+    //             columns of the users row.
+    //   KEPT      financial and event records exactly as issued — paid registrations, gala_registrations,
+    //             invoices, finance_transactions, points — for Croatian fiscal/accounting law. They
+    //             keep pointing at the users.id, which survives as a scrubbed TOMBSTONE. Kept rows are
+    //             matched by address only while no account owns them (user_id IS NULL), so a new
+    //             sign-up on the freed address never inherits them. v2_reports stay (moderation record,
+    //             with the evidence copied at report time).
+    //   BLOCKS    blocks the member placed are erased; blocks OTHER members placed on this account stay, with
+    //             the conversation between the two, and the tombstone keeps a keyed hash of the old address
+    //             (deleted_email_hash) so a new sign-up on that address inherits those blocks (see
+    //             carryBlocksToNewAccount). Deleting and signing up again never gets around a block.
+    //   ADDRESS   rows keyed ONLY by the address (guest registrations, an unclaimed Forum record, sign-up forms,
+    //             meetup places, queued mail, the newsletter) count as this account's only when it confirmed the
+    //             mailbox (email_verified). Otherwise a sign-up on someone else's address could claim or scrub
+    //             that person's records by deleting itself; those rows then stay with the address.
+    //   SESSION   the users row is never hard-deleted: deleted_at is stamped, so auth() answers 401
+    //             "This account has been closed." to every token on every device, and optionalAuth()
+    //             treats the token as anonymous. (A hard DELETE left old tokens working.)
+    //   ORDER     every database change, the tombstone and saveDb() come first, then the answer; the
+    //             Cloudinary clean-up runs after it (each call capped at 5 s, failures logged), so a slow
+    //             file store can never leave messages deleted on a still-live account or time the app out.
+    //   STAFF     a team account (is_admin, or the admin portal's is_staff / is_founder) is refused
+    //             here — closing it would lock staff out of the admin portal; the team closes those.
+    //   SUSPENDED auth() answers 403 to a suspended account on every route, this one included: a suspended
+    //             member asks info@medx.hr to close the account (stated in /privacy §6).
     app.delete('/api/auth/account', auth, async (req, res) => {
         try {
             const userId = req.user.id;
             if (!userId) return res.status(401).json({ error: 'Authentication required' });
+            const account = query.get('SELECT id, email, is_admin, deleted_at, photo_url, email_verified FROM users WHERE id = ?', [userId]);
+            if (!account || account.deleted_at) return res.status(404).json({ error: 'This account could not be found.' });
+            // is_staff / is_founder come from the admin portal's schema (absent on an older DB — each read on its own)
+            const flag = (col) => { try { return Number((query.get(`SELECT ${col} AS v FROM users WHERE id = ?`, [userId]) || {}).v || 0) === 1; } catch (e) { return false; } };
+            if (Number(account.is_admin) === 1 || flag('is_staff') || flag('is_founder')) {
+                return res.status(403).json({ error: 'This is a Med&X team account. Ask the Med&X team to close it.' });
+            }
+            const email = String(account.email || '').trim() || userId;   // never an empty key in the IN / = matches below
+            const emailL = email.toLowerCase();
+            const tombEmail = `deleted-${userId}@deleted.medx.invalid`;
+            // see ADDRESS above: address-only rows are this account's only when it confirmed the mailbox
+            const ownsAddress = Number(account.email_verified) === 1;
+            const nowIso = new Date().toISOString();
 
-            // Social / relational rows carry no financial or legal value — always removed.
-            // Each is best-effort: a missing table or column on an older schema must not abort
-            // the account closure (the anonymize/delete below is the part that legally matters).
+            // Social / personal rows carry no financial or legal value — always removed. Each is
+            // best-effort: a missing table or column on an older schema must not abort the closure
+            // (the tombstone below is the part that legally matters).
             const tryRun = (sql, params) => { try { db.run(sql, params); } catch (e) { /* optional table */ } };
-            tryRun('DELETE FROM networking_connections WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
+            const tryAll = (sql, params) => { try { return query.all(sql, params) || []; } catch (e) { return []; } };
+            const colsOf = (table) => new Set(tryAll(`PRAGMA table_info(${table})`, []).map(c => c.name));
+            const ph = (a) => a.map(() => '?').join(',');
+            const both = [userId, userId], three = [userId, userId, userId];
+            tryRun('DELETE FROM networking_connections WHERE requester_id = ? OR receiver_id = ?', both);
             tryRun('DELETE FROM networking_profiles WHERE user_id = ?', [userId]);
-            tryRun('DELETE FROM networking_meetings WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
-            tryRun('DELETE FROM pending_meetings WHERE requester_id = ? OR recipient_id = ?', [userId, userId]);
-            tryRun('DELETE FROM direct_messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
-            tryRun('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]);
-            tryRun('DELETE FROM user_notifications WHERE user_id = ?', [userId]);
-            tryRun('DELETE FROM personal_schedules WHERE user_id = ?', [userId]);
-            tryRun('DELETE FROM connections WHERE requester_id = ? OR receiver_id = ?', [userId, userId]);
-            tryRun('DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?', [userId, userId]);
-            tryRun('DELETE FROM user_profiles WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM networking_meetings WHERE organizer_id = ? OR attendee_id = ?', both);
+            tryRun('DELETE FROM pending_meetings WHERE requester_id = ? OR recipient_id = ?', both);
+            tryRun('DELETE FROM meeting_requests WHERE requester_id = ? OR requestee_id = ?', both);
+            tryRun('DELETE FROM connections WHERE requester_id = ? OR requestee_id = ?', both);
+            tryRun('DELETE FROM intro_requests WHERE from_user_id = ? OR to_user_id = ? OR via_user_id = ?', three);
+            tryRun('DELETE FROM mentorship_profiles WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM mentorship_requests WHERE from_user_id = ? OR to_user_id = ?', both);
+
+            // Blocks (shared/safety-core.js): the member's own blocks go. Blocks OTHER members placed on this
+            // account stay — with them the tombstone keeps the keyed address hash below, so the block follows a
+            // new sign-up on the address. v2_reports stay — the operator's moderation record.
+            const blockers = tryAll('SELECT blocker_user_id AS id FROM v2_blocks WHERE blocked_user_id = ?', [userId]).map(r => String(r.id));
+            tryRun('DELETE FROM v2_blocks WHERE blocker_user_id = ?', [userId]);
+
+            // Messages: member↔member, member→team and team→member; legacy rows key the member by email. The
+            // conversation with a member who BLOCKED this account stays (that member's record of it — the block
+            // hides it from their inbox until they unblock), re-keyed from the old address to the tombstone id.
+            // Attachment files of the deleted rows go too, unless a kept message still points at the same file.
+            const keep = new Set();
+            if (blockers.length) {
+                blockers.forEach(id => keep.add(id.toLowerCase()));
+                tryAll(`SELECT lower(email) AS e FROM users WHERE id IN (${ph(blockers)}) AND email IS NOT NULL`, blockers).forEach(r => { if (r.e) keep.add(r.e); });
+            }
+            const meKeys = new Set([String(userId).toLowerCase(), emailL]);
+            const dmRows = tryAll(`SELECT id, sender_id, receiver_id, attachment_path, attachment_url FROM direct_messages
+                                    WHERE lower(sender_id) IN (?, ?) OR lower(receiver_id) IN (?, ?)`, [String(userId).toLowerCase(), emailL, String(userId).toLowerCase(), emailL]);
+            const dmDrop = [], dmKeep = [], attachRefs = new Set();
+            for (const r of dmRows) {
+                const other = meKeys.has(String(r.sender_id || '').toLowerCase()) ? String(r.receiver_id || '') : String(r.sender_id || '');
+                if (keep.has(other.toLowerCase())) { dmKeep.push(r.id); continue; }
+                dmDrop.push(r.id);
+                [r.attachment_path, r.attachment_url].forEach(v => { if (v) attachRefs.add(String(v)); });
+            }
+            for (let i = 0; i < dmDrop.length; i += 200) { const ids = dmDrop.slice(i, i + 200); tryRun(`DELETE FROM direct_messages WHERE id IN (${ph(ids)})`, ids); }
+            for (let i = 0; i < dmKeep.length; i += 200) {
+                const ids = dmKeep.slice(i, i + 200);
+                tryRun(`UPDATE direct_messages SET sender_id = ? WHERE id IN (${ph(ids)}) AND lower(sender_id) = ?`, [userId, ...ids, emailL]);
+                tryRun(`UPDATE direct_messages SET receiver_id = ? WHERE id IN (${ph(ids)}) AND lower(receiver_id) = ?`, [userId, ...ids, emailL]);
+                tryRun(`UPDATE direct_messages SET sender_name = NULL WHERE id IN (${ph(ids)}) AND sender_id = ?`, [...ids, userId]);
+            }
+            const profileV2 = require('./v2/profile');
+            // attachment files: local ones now (synchronous disk work), Cloudinary ones after the answer
+            const cloudAttach = [];
+            for (const ref of attachRefs) {
+                try {
+                    if (query.get('SELECT 1 AS x FROM direct_messages WHERE attachment_path = ? OR attachment_url = ? LIMIT 1', [ref, ref])) continue;
+                    const local = ref.match(/^\/uploads\/(messages|chat)\/([A-Za-z0-9][A-Za-z0-9._-]*)$/);
+                    if (local) { try { fs.unlinkSync(path.join(__dirname, 'uploads', local[1], local[2])); } catch (e) { /* already gone */ } }
+                    else cloudAttach.push(ref);
+                } catch (e) { /* best effort */ }
+            }
+            tryRun('DELETE FROM messages WHERE sender_id = ? OR recipient_id = ?', both);
+            tryRun('DELETE FROM v2_message_thread_state WHERE user_id = ?', [userId]);
             tryRun('DELETE FROM channel_read_status WHERE user_id = ?', [userId]);
             tryRun('DELETE FROM chat_read_status WHERE user_id = ?', [userId]);
+            // alerts, push tokens (web push + the native app's device tokens), follows
+            tryRun('DELETE FROM push_subscriptions WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM push_devices WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM user_notifications WHERE user_id = ?', [userId]);
             tryRun('DELETE FROM notify_topics WHERE user_id = ?', [userId]);
+            // newsletter: the app's own subscription and the pr_subscribers mirror row it created; any
+            // OTHER pr_subscribers row for the address (admin import, website, conference — the app's
+            // subscribe re-activates those in place) is unsubscribed, so no audience mails the person again
+            tryRun('DELETE FROM v2_newsletter_subscriptions WHERE user_id = ?', [userId]);
+            if (ownsAddress) {
+                tryRun('DELETE FROM v2_newsletter_subscriptions WHERE lower(email) = ?', [emailL]);
+                tryRun("DELETE FROM pr_subscribers WHERE lower(email) = ? AND source = 'member-portal-v2'", [emailL]);
+                tryRun("UPDATE pr_subscribers SET status = 'unsubscribed', unsubscribed_at = ? WHERE lower(email) = ?", [nowIso, emailL]);
+                // …and the address carries the 'newsletter' opt-out, exactly as the newsletter's own unsubscribe
+                // (v2/newsletter.js mirrorUnsubscribe) leaves it — a later import cannot re-activate it. Stored
+                // LOWER-CASE: every reader (emailOptedOut, newsletter.js, /email-prefs, the admin inbox) looks it up
+                // with WHERE email = <lower-case>; scopes of any mixed-case row for the address are merged in.
+                try {
+                    const opts = tryAll('SELECT email, scopes FROM email_optouts WHERE lower(email) = ?', [emailL]);
+                    const scopes = new Set();
+                    opts.forEach(o => String(o.scopes || '').split(',').map(x => x.trim()).filter(Boolean).forEach(x => scopes.add(x)));
+                    scopes.add('newsletter');
+                    opts.filter(o => o.email !== emailL).forEach(o => tryRun('DELETE FROM email_optouts WHERE email = ?', [o.email]));
+                    db.run(`INSERT INTO email_optouts (email, scopes, updated_at) VALUES (?, ?, ?)
+                            ON CONFLICT(email) DO UPDATE SET scopes = excluded.scopes, updated_at = excluded.updated_at`,
+                        [emailL, [...scopes].join(','), nowIso]);
+                } catch (e) { /* no opt-out table on this engine */ }
+            }
+            // Mail still queued for the member (the T+3 welcome drip, a nudge, a milestone, a reminder) is cancelled,
+            // never sent. For an address the account never confirmed, only the account's own sign-up mail.
+            if (ownsAddress) {
+                tryRun(`UPDATE scheduled_emails SET status = 'cancelled', last_error = 'account deleted'
+                         WHERE status IN ('scheduled', 'pending_approval') AND lower(recipient_email) = ?`, [emailL]);
+            } else {
+                tryRun(`UPDATE scheduled_emails SET status = 'cancelled', last_error = 'account deleted'
+                         WHERE status IN ('scheduled', 'pending_approval') AND lower(recipient_email) = ?
+                           AND source_engine IN ('welcome-drip', 'verify-nudge')`, [emailL]);
+            }
+            // the once-only markers stay (so nothing is ever re-sent) without the address
+            tryRun('UPDATE drip_log SET email = NULL WHERE user_id = ?', [userId]);
+            // profile extras, saved schedule, portal preferences, open sign-in links, photo consent
+            tryRun('DELETE FROM user_profiles WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM personal_schedules WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM pinned_items WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM dashboard_preferences WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM email_verifications WHERE user_id = ?', [userId]);
+            tryRun('DELETE FROM forum_magic_tokens WHERE user_id = ?', [userId]);
+            if (ownsAddress) tryRun('DELETE FROM forum_magic_tokens WHERE lower(email) = ?', [emailL]);
+            tryRun('DELETE FROM card_photo_consents WHERE user_id = ?', [userId]);
 
-            // A paid event registration is a financial record Med&X must keep for its
-            // accounting and legal obligations. If any exist we cannot hard-delete the user
-            // row (that would strand the payment). Instead we anonymize: scrub the PII, disable
-            // sign-in, and stamp deleted_at. The registration + invoice + ledger rows survive,
-            // but no longer point at a living, identifiable person.
-            const paid = query.get(
-                "SELECT COUNT(*) AS c FROM registrations WHERE user_id = ? AND LOWER(COALESCE(payment_status,'')) = 'paid'",
-                [userId]
-            );
-            const hasPaid = (paid?.c || 0) > 0;
+            // Forum profile: the forum_members row(s) of this account (or, when it confirmed the address, unclaimed
+            // rows on it) are scrubbed and closed. The members-only Forum directory, posts and spotlight search read
+            // them without joining users. The rows stay (membership history), with no person left in them.
+            // forum_members.user_id is UNIQUE, so the tombstone keeps (or takes) ONE record — its "home" — and the Forum
+            // event registrations of every other unclaimed record on the address, and guest ones on the address, move
+            // onto it. No lookup that accepts an unclaimed record (the wallet's Forum branch, /api/my/events) then hands
+            // any of them to a new sign-up on the address.
+            const fmOwned = tryAll('SELECT id, photo_url FROM forum_members WHERE user_id = ?', [userId]);
+            const fmGuest = ownsAddress ? tryAll('SELECT id, photo_url FROM forum_members WHERE user_id IS NULL AND lower(email) = ?', [emailL]) : [];
+            let fmHome = fmOwned.length ? fmOwned[0].id : null;
+            if (!fmHome && fmGuest.length) { tryRun('UPDATE forum_members SET user_id = ? WHERE id = ? AND user_id IS NULL', [userId, fmGuest[0].id]); fmHome = fmGuest[0].id; }
+            if (fmHome) {
+                fmGuest.filter(g => g.id !== fmHome).forEach(g => tryRun('UPDATE forum_event_registrations SET member_id = ? WHERE member_id = ?', [fmHome, g.id]));
+                if (ownsAddress) tryRun('UPDATE forum_event_registrations SET member_id = ? WHERE member_id IS NULL AND lower(email) = ?', [fmHome, emailL]);
+            }
+            const fmRows = fmOwned.concat(fmGuest);
+            if (fmRows.length) {
+                const fmCols = colsOf('forum_members');
+                const sets = [], vals = [];
+                const put = (col, v) => { if (fmCols.has(col)) { sets.push(`${col} = ?`); vals.push(v); } };
+                put('membership_status', 'closed'); put('profile_visibility', 'private');
+                put('first_name', 'Deleted'); put('last_name', 'User');
+                for (const col of ['email', 'bio', 'research_interests', 'photo_url', 'linkedin_url', 'twitter_handle', 'website_url', 'orcid_id',
+                                   'position', 'department', 'location_city', 'location_country', 'specialty', 'sub_specialties', 'institution',
+                                   'country', 'industry', 'mentor_topics', 'achievements', 'languages']) put(col, null);
+                put('is_mentor', 0); put('seeking_mentor', 0); put('updated_at', nowIso);
+                for (const fm of fmRows) {
+                    if (sets.length) tryRun(`UPDATE forum_members SET ${sets.join(', ')} WHERE id = ?`, vals.concat([fm.id]));
+                    tryRun('DELETE FROM forum_connections WHERE requester_id = ? OR receiver_id = ?', [fm.id, fm.id]);
+                    tryRun('DELETE FROM forum_group_members WHERE member_id = ?', [fm.id]);
+                }
+            }
+            const fmIds = fmRows.map(r => r.id);
 
-            if (hasPaid) {
-                const nowIso = new Date().toISOString();
-                const anonEmail = `deleted-${userId}@deleted.medx.invalid`;
-                db.run(
-                    `UPDATE users SET
-                        email = ?, password_hash = NULL,
-                        first_name = 'Deleted', last_name = 'User',
-                        phone = NULL, institution = NULL, country = NULL,
-                        bio = NULL, photo_url = NULL,
-                        is_public_profile = 0, verification_token = NULL,
-                        deleted_at = ?, password_changed_at = ?
-                     WHERE id = ?`,
-                    [anonEmail, nowIso, nowIso, userId]
-                );
-                saveDb();
-                return res.json({
-                    success: true,
-                    anonymized: true,
-                    message: 'Your personal data has been erased. Because your account has paid event registrations, Med&X must keep the anonymized financial record for its legal and accounting obligations. You can no longer sign in to this account.'
-                });
+            // Meetups (Plexus Week): joining copied a profile snapshot (name, address, institution, position, bio)
+            // onto the attendee row, which the host sees. A place at a meetup that has not started is cancelled
+            // through the shared cancel-and-promote transaction, so the first person waiting moves up (no mail is
+            // sent from here); then every row of the member loses the snapshot and its manage link. The row stays
+            // (the meetup's headcount history) under an .invalid address.
+            try {
+                const mRows = ownsAddress
+                    ? tryAll('SELECT * FROM plexus_meetup_attendees WHERE user_id = ? OR (user_id IS NULL AND lower(email) = ?)', [userId, emailL])
+                    : tryAll('SELECT * FROM plexus_meetup_attendees WHERE user_id = ?', [userId]);
+                if (mRows.length) {
+                    const meetupsCore = require('../../shared/meetups-core');
+                    const mm = require('./v2/meetups');
+                    const cx = mm._internals && mm._internals.cx;
+                    for (const a of mRows) {
+                        const m = meetupsCore.meetupById(cx ? cx.q : { get: (s, p) => query.get(s, p) }, a.meetup_id);
+                        const startMs = m ? meetupsCore.zagrebMs(m.starts_at) : NaN;
+                        const upcoming = m && m.status !== 'cancelled' && m.status !== 'completed' && (Number.isNaN(startMs) || startMs > Date.now());
+                        if (upcoming && ['confirmed', 'promoted', 'waitlisted', 'invited'].includes(a.status)) {
+                            if (cx) { try { meetupsCore.cancelAndPromote(cx, m, a, 'account deleted'); } catch (e) { console.warn('[account delete] meetup release:', e.message); } }
+                            else tryRun("UPDATE plexus_meetup_attendees SET status = 'cancelled', waitlist_pos = NULL, cancelled_at = ? WHERE id = ?", [nowIso, a.id]);
+                        }
+                        // one .invalid address per row (the table is UNIQUE per meetup + address)
+                        tryRun(`UPDATE plexus_meetup_attendees SET user_id = ?, first_name = 'Deleted', last_name = 'User', email = ?,
+                                       institution = NULL, position = NULL, bio = NULL, manage_token = NULL WHERE id = ?`,
+                            [userId, `deleted-${a.id}@deleted.medx.invalid`, a.id]);
+                    }
+                }
+            } catch (e) { console.warn('[account delete] meetups:', e.message); }
+
+            // Guest registrations that arrived for this address since the last sign-in are linked to this account
+            // first — the same claim every sign-in runs (claimRegistrationsForUser: user_id on rows that have none,
+            // nothing else) — so they stay with the tombstone and a new sign-up on the freed address never gets them.
+            // Only for a confirmed address (see ADDRESS above).
+            if (ownsAddress) { try { claimRegistrationsForUser(userId, email); } catch (e) { /* best effort */ } }
+            // Attendance cards stay (event record) without the address they were mailed to.
+            tryRun("UPDATE v2_attendance_cards SET email_to = '' WHERE user_id = ?", [userId]);
+            if (ownsAddress) tryRun("UPDATE v2_attendance_cards SET email_to = '' WHERE user_id IS NULL AND lower(email_to) = ?", [emailL]);
+            // Registrations with NO MONEY TRACE — nothing charged, nothing invoiced, no Stripe session, and no payment
+            // state that implies money ('paid', a refund, a charge in progress) — lose the dietary, accessibility and
+            // custom answers. 'n/a' (the public Building Bridges form), 'free', 'comp' and an 'unpaid' row at 0 all
+            // count. A row with any money trace is never touched.
+            const MONEY_STATES = "('paid', 'refunded', 'partially_refunded', 'partial', 'processing', 'disputed', 'deposit')";
+            const noMoney = (c) => [
+                c.has('amount_paid') ? 'COALESCE(amount_paid, 0) = 0' : null,
+                c.has('payment_amount') ? 'COALESCE(payment_amount, 0) = 0' : null,
+                c.has('invoice_number') ? "COALESCE(invoice_number, '') = ''" : null,
+                c.has('stripe_session_id') ? "COALESCE(stripe_session_id, '') = ''" : null,
+                c.has('payment_status') ? `LOWER(TRIM(COALESCE(payment_status, ''))) NOT IN ${MONEY_STATES}` : null
+            ].filter(Boolean).join(' AND ');
+            const scrubAnswers = (table, owner, ownerParams, answerCols) => {
+                const c = colsOf(table);
+                if (!c.size) return;
+                const cols = answerCols.filter(x => c.has(x));
+                const gate = noMoney(c);
+                if (!cols.length || !gate) return;
+                tryRun(`UPDATE ${table} SET ${cols.map(x => `${x} = NULL`).join(', ')} WHERE (${owner}) AND ${gate}`, ownerParams);
+            };
+            scrubAnswers('registrations', 'user_id = ?', [userId], ['dietary_requirements', 'accessibility_needs', 'custom_answers']);
+            scrubAnswers('bridges_registrations', ownsAddress ? 'user_id = ? OR (user_id IS NULL AND lower(email) = ?)' : 'user_id = ?',
+                ownsAddress ? [userId, emailL] : [userId], ['dietary_requirements', 'special_requests', 'custom_answers']);
+            if (fmIds.length) {
+                scrubAnswers('forum_event_registrations', `member_id IN (${ph(fmIds)})`, fmIds,
+                    ['dietary_requirements', 'dietary_notes', 'accommodation', 'special_requests', 'custom_answers']);
+            }
+            if (ownsAddress) {
+                scrubAnswers('forum_event_registrations', 'member_id IS NULL AND lower(email) = ?', [emailL],
+                    ['dietary_requirements', 'dietary_notes', 'accommodation', 'special_requests', 'custom_answers']);
+                // Sign-up forms (free events, keyed by the address alone — no account column): the answers go and
+                // the row keeps the tombstone's .invalid address, so its door QR never reaches a new sign-up.
+                tryRun("UPDATE signup_form_responses SET answers_json = '{}', email = ? WHERE lower(email) = ?", [tombEmail, emailL]);
             }
 
-            // No paid registrations — delete outright, as before.
-            db.run('DELETE FROM users WHERE id = ?', [userId]);
+            // Paid records are the reason the row survives as a tombstone (reported back to the app).
+            const countPaid = (sql) => { try { return (query.get(sql, [userId]) || {}).c || 0; } catch (e) { return 0; } };
+            const hasPaid = countPaid("SELECT COUNT(*) AS c FROM registrations WHERE user_id = ? AND LOWER(COALESCE(payment_status,'')) = 'paid'") +
+                countPaid("SELECT COUNT(*) AS c FROM gala_registrations WHERE user_id = ? AND LOWER(COALESCE(payment_status,'')) = 'paid'") > 0;
+
+            // The tombstone: PII scrubbed, sign-in impossible, every existing token revoked (deleted_at).
+            db.run(
+                `UPDATE users SET
+                    email = ?, password_hash = NULL,
+                    first_name = 'Deleted', last_name = 'User',
+                    phone = NULL, institution = NULL, country = NULL,
+                    bio = NULL, photo_url = NULL,
+                    is_public_profile = 0, verification_token = NULL,
+                    deleted_at = ?, password_changed_at = ?
+                 WHERE id = ?`,
+                [tombEmail, nowIso, nowIso, userId]
+            );
+            // columns added by later migrations (absent on an older schema — each on its own)
+            for (const col of ['title', 'city', 'specialties', 'locale', 'reset_token', 'reset_token_expires', 'last_login', 'profile_saved_at']) {
+                tryRun(`UPDATE users SET ${col} = NULL WHERE id = ?`, [userId]);
+            }
+            tryRun('UPDATE users SET updates_opt_in = 0, email_verified = 0 WHERE id = ?', [userId]);
+            // only while another member's block is kept against the account (see BLOCKS above)
+            if (blockers.length) tryRun('UPDATE users SET deleted_email_hash = ? WHERE id = ?', [deletedEmailHash(email), userId]);
+            tryRun('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)',
+                [crypto.randomUUID(), userId, null, 'account_deleted', hasPaid ? 'self-service; paid records kept' : 'self-service']);
             saveDb();
-            res.json({ success: true, anonymized: false, message: 'Account deleted' });
+
+            // Portrait files on disk now (synchronous, no network); Cloudinary after the answer.
+            const stillUsed = (url) => {
+                try {
+                    return !!(query.get('SELECT 1 AS x FROM users WHERE photo_url = ? AND id <> ? LIMIT 1', [url, userId])
+                           || query.get('SELECT 1 AS x FROM forum_members WHERE photo_url = ? LIMIT 1', [url]));
+                } catch (e) { return true; }
+            };
+            const photos = [account.photo_url || null].concat(fmRows.map(fm => fm.photo_url).filter(u => u && u !== account.photo_url));
+            photos.forEach(u => { try { profileV2.removeLocalPhotoFiles(userId, u, { stillUsed }); } catch (e) { /* best effort */ } });
+
+            res.json({
+                success: true,
+                anonymized: hasPaid,
+                message: hasPaid
+                    ? 'Your account and personal data have been deleted. Med&X keeps the record of your paid registrations, as issued, for its accounting duties under Croatian law.'
+                    : 'Your account and personal data have been deleted.'
+            });
+
+            // After the answer: the Cloudinary copies (portrait, message attachments). Each call is capped at 5 s and
+            // a failure is logged — the account is already closed either way.
+            setImmediate(async () => {
+                const capped = (label, p) => Promise.race([
+                    Promise.resolve(p).catch(e => { throw e; }),
+                    new Promise((_, rej) => { const t = setTimeout(() => rej(new Error('timed out after 5 s')), 5000); if (t.unref) t.unref(); })
+                ]).catch(e => console.warn(`[account delete] ${label} clean-up for ${userId}: ${e && e.message}`));
+                for (const u of photos) await capped('portrait', profileV2.destroyCloudPhotos(userId, u, { stillUsed }));
+                for (const ref of cloudAttach) await capped('attachment', profileV2.destroyCloudAsset(ref, 'medx/messages/'));
+            });
         } catch (error) {
             console.error('Error deleting account:', error);
             res.status(500).json({ error: 'Failed to delete account' });
@@ -11898,7 +12313,8 @@ async function initializeApp() {
     function scanVerificationNudges() {
         try {
             const rows = query.all(
-                "SELECT id, email, first_name, created_at FROM users WHERE COALESCE(email_verified,0) = 0 AND created_at IS NOT NULL AND datetime(created_at) <= datetime('now','-2 days')"
+                // a closed account (tombstone, email_verified = 0 by design) is never nudged
+                "SELECT id, email, first_name, created_at FROM users WHERE COALESCE(email_verified,0) = 0 AND deleted_at IS NULL AND created_at IS NOT NULL AND datetime(created_at) <= datetime('now','-2 days')"
             );
             let enqueued = 0;
             for (const u of rows) {
@@ -12040,7 +12456,7 @@ async function initializeApp() {
             const regs = query.all(`
                 SELECT r.id AS reg_id, u.id AS uid, u.email AS email, u.first_name AS first_name
                 FROM registrations r JOIN users u ON u.id = r.user_id
-                WHERE u.email IS NOT NULL AND TRIM(u.email) <> ''
+                WHERE u.email IS NOT NULL AND TRIM(u.email) <> '' AND u.deleted_at IS NULL
                   AND (r.created_at IS NULL OR datetime(r.created_at) >= datetime('now','-45 days'))
                 ORDER BY datetime(r.created_at) DESC LIMIT 500`);
             for (const r of regs) {
@@ -12060,7 +12476,7 @@ async function initializeApp() {
                        COALESCE(NULLIF(TRIM(fm.email),''), u.email) AS email,
                        u.first_name AS first_name
                 FROM forum_members fm LEFT JOIN users u ON u.id = fm.user_id
-                WHERE fm.membership_status = 'approved'
+                WHERE fm.membership_status = 'approved' AND (u.id IS NULL OR u.deleted_at IS NULL)
                   AND COALESCE(NULLIF(TRIM(fm.email),''), u.email) IS NOT NULL
                   AND TRIM(COALESCE(NULLIF(TRIM(fm.email),''), u.email)) <> ''
                   AND (fm.approved_at IS NULL OR datetime(fm.approved_at) >= datetime('now','-45 days'))
@@ -12079,6 +12495,7 @@ async function initializeApp() {
                 SELECT id AS app_id, user_id AS uid, email, first_name, submitted_at
                 FROM accelerator_applications
                 WHERE status = 'submitted' AND email IS NOT NULL AND TRIM(email) <> ''
+                  AND (user_id IS NULL OR NOT EXISTS (SELECT 1 FROM users du WHERE du.id = accelerator_applications.user_id AND du.deleted_at IS NOT NULL))
                   AND (submitted_at IS NULL OR datetime(submitted_at) >= datetime('now','-45 days'))
                 ORDER BY datetime(submitted_at) DESC LIMIT 500`);
             for (const a of apps) {
@@ -12355,8 +12772,12 @@ async function submitReset(e){
 
     app.put('/api/auth/profile', auth, (req, res) => {
         const { first_name, last_name, phone, institution, country, bio, is_public_profile } = req.body;
+        // abusive language in what other members read (App Store 1.2) — refused, nothing saved
+        if (safetyCore.contentProblem(bio, first_name, last_name, institution, country)) return res.status(422).json({ error: safetyCore.CONTENT_PROFILE });
+        // hidden by the Med&X team (moderation_hidden_at): this legacy toggle cannot bring the profile back either
+        const hiddenByTeam = safetyCore.moderationOf(db, req.user.id).hidden;
         db.run(`UPDATE users SET first_name=?, last_name=?, phone=?, institution=?, country=?, bio=?, is_public_profile=? WHERE id=?`,
-            [first_name || null, last_name || null, phone || null, institution || null, country || null, bio || null, is_public_profile ? 1 : 0, req.user.id]);
+            [first_name || null, last_name || null, phone || null, institution || null, country || null, bio || null, (is_public_profile && !hiddenByTeam) ? 1 : 0, req.user.id]);
         // Profile-completion earn: award once when the core profile fields are all filled in.
         // Idempotent per user (ref profile:<id>), so later profile edits never re-award.
         if (first_name && last_name && institution && country) {
@@ -13506,25 +13927,28 @@ async function submitReset(e){
                FROM croatians_abroad_registrations ca
                LEFT JOIN conferences c ON c.is_active = 1
                WHERE ca.selected_conference = 1 AND COALESCE(ca.conference_status,'') <> 'cancelled'
-                 AND (ca.user_id = ? OR LOWER(ca.email) = ?)`, [req.user.id, emL]).forEach(r => {
+                 AND (ca.user_id = ? OR (ca.user_id IS NULL AND LOWER(ca.email) = ?))`, [req.user.id, emL]).forEach(r => {
                 if (hasPlexus) return;
                 items.push({ id: r.id, evt: 'plexus', title: r.name || 'Plexus Conference', date: r.start_date, end_date: r.end_date,
                     venue: [r.venue_name, r.venue_city].filter(Boolean).join(', '), paid: true,
                     checked_in: !!r.conference_checked_in, calendar: '/calendar/plexus.ics' });
             });
             q(`SELECT gr.id, gr.payment_status, gr.status, gr.checked_in, g.title, g.date, g.venue
-               FROM gala_registrations gr LEFT JOIN gala_settings g ON g.id = 'default' WHERE LOWER(gr.email) = ?`, [emL]).forEach(r => {
+               FROM gala_registrations gr LEFT JOIN gala_settings g ON g.id = 'default'
+               WHERE gr.user_id = ? OR (gr.user_id IS NULL AND LOWER(gr.email) = ?)`, [req.user.id, emL]).forEach(r => {
                 items.push({ id: r.id, evt: 'gala', title: r.title || 'Gala Evening', date: r.date, venue: r.venue || '',
                     paid: r.payment_status === 'paid' || ['confirmed', 'vip-comp'].includes(String(r.status || '')), checked_in: !!r.checked_in });
             });
             q(`SELECT br.id, br.status, br.checked_in, e.name, e.event_date, e.event_time, e.venue_name, e.city, e.slug
-               FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id WHERE LOWER(br.email) = ?`, [emL]).forEach(r => {
+               FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id
+               WHERE br.user_id = ? OR (br.user_id IS NULL AND LOWER(br.email) = ?)`, [req.user.id, emL]).forEach(r => {
                 if (String(r.status || '') === 'cancelled') return;
                 items.push({ id: r.id, evt: (r.slug === 'donor-night' ? 'donor' : 'bridges'), title: r.name || 'Building Bridges',
                     date: r.event_date, venue: [r.venue_name, r.city].filter(Boolean).join(', '), paid: true, checked_in: !!r.checked_in });
             });
             q(`SELECT fer.id, fer.payment_status, fer.checked_in, fe.name, fe.slug, fe.event_date, fe.venue
-               FROM forum_event_registrations fer JOIN forum_events fe ON fer.event_id = fe.id WHERE LOWER(fer.email) = ?`, [emL]).forEach(r => {
+               FROM forum_event_registrations fer JOIN forum_events fe ON fer.event_id = fe.id
+               WHERE LOWER(fer.email) = ? AND (fer.member_id IS NULL OR fer.member_id IN (SELECT id FROM forum_members WHERE user_id = ? OR user_id IS NULL))`, [emL, req.user.id]).forEach(r => {
                 items.push({ id: r.id, evt: 'forum', title: r.name || 'Biomedical Forum', date: r.event_date, venue: r.venue || '',
                     paid: r.payment_status === 'paid' || !r.payment_status, checked_in: !!r.checked_in });
             });
@@ -13627,9 +14051,10 @@ async function submitReset(e){
                 });
             } catch (e) { /* registrations optional */ }
             try {
+                // a row on this address that another account owns (a closed account's tombstone) is not this member's
                 query.all(`SELECT e.name, e.city, e.event_date, br.checked_in
                            FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id
-                           WHERE LOWER(br.email) = LOWER(?) ORDER BY e.event_date ASC`, [user.email || '']).forEach(e => {
+                           WHERE br.user_id = ? OR (br.user_id IS NULL AND LOWER(br.email) = LOWER(?)) ORDER BY e.event_date ASC`, [user.id, user.email || '']).forEach(e => {
                     stamps.push({ kind: 'bridge', label: 'BRIDGES', name: e.name || 'Building Bridges', city: e.city || '', year: yr(e.event_date), attended: !!e.checked_in });
                 });
             } catch (e) { /* bridges optional */ }
@@ -13667,7 +14092,7 @@ async function submitReset(e){
             try {
                 query.all(`SELECT e.city, e.event_date, br.checked_in
                            FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id
-                           WHERE LOWER(br.email) = LOWER(?)`, [user.email || '']).forEach(b => {
+                           WHERE br.user_id = ? OR (br.user_id IS NULL AND LOWER(br.email) = LOWER(?))`, [user.id, user.email || '']).forEach(b => {
                     eventsRegistered++;
                     if (b.checked_in) eventsAttended++;
                     if (b.city) cities.add(String(b.city).trim());
@@ -13954,6 +14379,8 @@ async function submitReset(e){
                 }));
         });
 
+        // Both member groups leave out closed / suspended / team-hidden accounts and either side of a block
+        // (shared/safety-core.js) — the same rule as the Network directory.
         // --- Members: Plexus attendee directory (public profiles only, or self) ---
         grp(() => {
             const conf = activePlexusConf();
@@ -13963,11 +14390,12 @@ async function submitReset(e){
                     JOIN registrations r ON u.id = r.user_id
                     LEFT JOIN user_profiles up ON u.id = up.user_id
                     WHERE r.conference_id = ? AND r.status = 'confirmed' AND (up.is_profile_public = 1 OR u.id = ?)
+                      AND ${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}
                       AND (u.first_name LIKE ? OR u.last_name LIKE ?
                            OR (u.first_name || ' ' || u.last_name) LIKE ? OR u.institution LIKE ?)
-                    LIMIT 5`, [conf.id, req.user.id, like, like, like, like])
+                    LIMIT 5`, [conf.id, req.user.id, req.user.id, req.user.id, like, like, like, like])
                     .forEach(m => out.members.push({
-                        kind: 'attendee', id: m.id,
+                        kind: 'attendee', id: m.id, user_id: m.id,
                         title: [m.first_name, m.last_name].filter(Boolean).join(' '),
                         detail: m.institution || 'Plexus attendee', section: 'network'
                     }));
@@ -13977,15 +14405,17 @@ async function submitReset(e){
         grp(() => {
             const callerForum = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
             if (callerForum || req.user.is_admin) {
-                query.all(`SELECT fm.id, fm.institution, fm.specialty, u.first_name, u.last_name
+                query.all(`SELECT fm.id, fm.user_id, fm.institution, fm.specialty, u.first_name, u.last_name
                     FROM forum_members fm JOIN users u ON fm.user_id = u.id
                     WHERE fm.membership_status = 'approved'
+                      AND ${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}
                       AND (u.first_name LIKE ? OR u.last_name LIKE ?
                            OR (u.first_name || ' ' || u.last_name) LIKE ?
                            OR fm.institution LIKE ? OR fm.specialty LIKE ?)
-                    LIMIT 5`, [like, like, like, like, like])
+                    LIMIT 5`, [req.user.id, req.user.id, like, like, like, like, like])
                     .forEach(m => out.members.push({
-                        kind: 'forum_member', id: m.id,
+                        // user_id = the account (users.id), so a client can match it against its block list by id
+                        kind: 'forum_member', id: m.id, user_id: m.user_id || null,
                         title: [m.first_name, m.last_name].filter(Boolean).join(' '),
                         detail: [m.specialty, m.institution].filter(Boolean).join(' \u00b7 ') || 'Forum member',
                         section: 'forum'
@@ -14118,15 +14548,15 @@ async function submitReset(e){
     // to is_supporter=false on any gap or error so nothing is ever implied without a real signal.
     app.get('/api/member/giving', auth, (req, res) => {
         try {
-            const me = query.get('SELECT email FROM users WHERE id = ?', [req.user.id]);
+            const me = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
             const email = me && me.email ? String(me.email).trim().toLowerCase() : '';
-            if (!email) return res.json({ is_supporter: false, count: 0, total: 0, first_year: '' });
+            if (!me || !email) return res.json({ is_supporter: false, count: 0, total: 0, first_year: '' });
             const donorEvt = query.get("SELECT id FROM bridges_events WHERE slug = 'donor-night'")
                           || query.get("SELECT id FROM bridges_events WHERE name = 'Plexus Donor Night'");
             if (!donorEvt) return res.json({ is_supporter: false, count: 0, total: 0, first_year: '' });
             const rows = query.all(`SELECT amount_paid, payment_status, status, registered_at
                 FROM bridges_registrations
-                WHERE event_id = ? AND lower(email) = ? AND COALESCE(status,'') <> 'cancelled'`, [donorEvt.id, email]);
+                WHERE event_id = ? AND (user_id = ? OR (user_id IS NULL AND lower(email) = ?)) AND COALESCE(status,'') <> 'cancelled'`, [donorEvt.id, me.id, email]);
             const giving = rows.filter(r => r.payment_status === 'paid' || (r.amount_paid != null && Number(r.amount_paid) > 0));
             const count = giving.length;
             const total = giving.reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
@@ -14239,10 +14669,13 @@ async function submitReset(e){
     app.get('/api/conferences/:confId/attendees', auth, (req, res) => {
         res.json(query.all(`SELECT u.id, u.first_name, u.last_name, u.institution, u.country, u.bio
             FROM users u JOIN registrations r ON u.id = r.user_id
-            WHERE r.conference_id = ? AND r.status = 'confirmed' AND u.is_public_profile = 1`, [req.params.confId]));
+            WHERE r.conference_id = ? AND r.status = 'confirmed' AND u.is_public_profile = 1
+              AND ${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}`, [req.params.confId, req.user.id, req.user.id]));
     });
 
     app.post('/api/connections/request', auth, (req, res) => {
+        if (safetyCore.isBlockedPair(db, req.user.id, req.body && req.body.user_id)) return res.status(403).json({ error: safetyCore.BLOCKED_CONNECT });
+        if (safetyCore.contentProblem(req.body && req.body.message)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
         db.run('INSERT INTO connections (id, requester_id, requestee_id, message) VALUES (?, ?, ?, ?)', [uuidv4(), req.user.id, req.body.user_id, req.body.message]);
         saveDb();
         res.json({ success: true });
@@ -14705,9 +15138,10 @@ async function submitReset(e){
             JOIN users u ON u.id = mp.user_id
             WHERE mp.active = 1 AND mp.role IN ('mentor','both') AND mp.user_id != ?
               AND u.is_public_profile = 1
+              AND ${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}
             ORDER BY datetime(mp.updated_at) DESC
             LIMIT 60
-        `, [req.user.id, req.user.id]);
+        `, [req.user.id, req.user.id, req.user.id, req.user.id]);
         res.json(rows.map(r => ({
             user_id: r.user_id,
             name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Member',
@@ -14729,6 +15163,9 @@ async function submitReset(e){
         if (to === req.user.id) return res.status(400).json({ error: 'You cannot request yourself' });
         const target = query.get('SELECT id FROM users WHERE id = ?', [to]);
         if (!target) return res.status(404).json({ error: 'Mentor not found' });
+        // Blocks (shared/safety-core.js): no request (and no push) across a blocked pair — neutral wording
+        if (safetyCore.isBlockedPair(db, req.user.id, to)) return res.status(403).json({ error: safetyCore.BLOCKED_CONNECT });
+        if (safetyCore.contentProblem(b.message)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
         const open = query.get(`SELECT id FROM mentorship_requests WHERE from_user_id = ? AND to_user_id = ? AND status IN ('pending','accepted')`, [req.user.id, to]);
         if (open) return res.status(409).json({ error: 'You already have an open request with this mentor' });
         const id = uuidv4();
@@ -14846,6 +15283,15 @@ async function submitReset(e){
         if (!target) return res.status(404).json({ error: 'Member not found' });
         let via = b.via_user_id || null;
         if (via && !query.get('SELECT id FROM users WHERE id = ?', [via])) via = null;
+        // Blocks (shared/safety-core.js): neither the target nor the connector may be on the other side of a
+        // block with the requester (each is pushed) — neutral wording
+        if (safetyCore.isBlockedPair(db, req.user.id, to) || (via && safetyCore.isBlockedPair(db, req.user.id, via))) {
+            return res.status(403).json({ error: safetyCore.BLOCKED_CONNECT });
+        }
+        if (safetyCore.contentProblem(b.message)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
+        // one open request per requester + target (the connector is pushed once, not on every tap)
+        const openIntro = query.get(`SELECT id FROM intro_requests WHERE from_user_id = ? AND to_user_id = ? AND COALESCE(status, 'pending') = 'pending' LIMIT 1`, [req.user.id, to]);
+        if (openIntro) return res.status(409).json({ error: 'You already have an open introduction request for this member.' });
         const id = uuidv4();
         const message = b.message == null ? null : (String(b.message).trim().slice(0, 1000) || null);
         db.run(`INSERT INTO intro_requests (id, from_user_id, via_user_id, to_user_id, message, status) VALUES (?,?,?,?,?, 'pending')`,
@@ -16841,7 +17287,7 @@ By applying to this program, I provide the following consents:
                 SELECT a.*, i.name as institution_name
                 FROM accelerator_applications a
                 LEFT JOIN accelerator_institutions i ON a.selected_institution = i.id
-                WHERE a.user_id = ? OR a.email = (SELECT email FROM users WHERE id = ?)
+                WHERE a.user_id = ? OR (a.user_id IS NULL AND a.email = (SELECT email FROM users WHERE id = ?))
                 ORDER BY a.created_at DESC
             `, [req.user.id, req.user.id]);
             res.json(apps);
@@ -17431,6 +17877,12 @@ By applying to this program, I provide the following consents:
                 'location_country', 'bio', 'research_interests', 'career_stage', 'years_experience', 'orcid_id',
                 'linkedin_url', 'twitter_handle', 'website_url', 'photo_url', 'profile_visibility', 'contact_preference',
                 'is_mentor', 'seeking_mentor', 'mentor_topics', 'languages', 'achievements'];
+            // every text field here is shown to other members (the Forum directory, and fm.specialty on the v2
+            // directory card) — the same content filter as the member profile (App Store 1.2)
+            const TEXT = ['specialty', 'sub_specialties', 'institution', 'position', 'department', 'location_city', 'location_country',
+                'bio', 'research_interests', 'career_stage', 'mentor_topics', 'languages', 'achievements'];
+            const flagged = TEXT.find(f => req.body[f] !== undefined && safetyCore.contentProblem(req.body[f]));
+            if (flagged) return res.status(422).json({ error: safetyCore.CONTENT_PROFILE, field: flagged });
 
             const updates = [];
             const values = [];
@@ -17460,10 +17912,12 @@ By applying to this program, I provide the following consents:
             }
 
             const { specialty, career_stage, country, search, page = 1, limit = 20 } = req.query;
-            let sql = `SELECT id, user_id, membership_level, specialty, institution, position, location_city, location_country,
+            // closed / suspended / team-hidden accounts and either side of a block stay out (shared/safety-core.js)
+                let sql = `SELECT id, user_id, membership_level, specialty, institution, position, location_city, location_country,
                 bio, research_interests, career_stage, photo_url, is_mentor, seeking_mentor, points, badges
-                FROM forum_members WHERE membership_status = 'approved'`;
-            const params = [];
+                FROM forum_members WHERE membership_status = 'approved'
+                  AND (user_id IS NULL OR (${safetyCore.listableIdSql('forum_members.user_id')} AND ${safetyCore.notBlockedSql('forum_members.user_id')}))`;
+            const params = [req.user.id, req.user.id];
 
             if (specialty) { sql += ` AND specialty LIKE ?`; params.push(`%${specialty}%`); }
             if (career_stage) { sql += ` AND career_stage = ?`; params.push(career_stage); }
@@ -17492,7 +17946,9 @@ By applying to this program, I provide the following consents:
     // Get single Forum member profile
     app.get('/api/forum/members/:id', auth, (req, res) => {
         try {
-            const member = query.get(`SELECT * FROM forum_members WHERE id = ? AND membership_status = 'approved'`, [req.params.id]);
+                const member = query.get(`SELECT * FROM forum_members WHERE id = ? AND membership_status = 'approved'
+                AND (user_id IS NULL OR user_id = ? OR (${safetyCore.listableIdSql('forum_members.user_id')} AND ${safetyCore.notBlockedSql('forum_members.user_id')}))`,
+                [req.params.id, req.user.id, req.user.id, req.user.id]);
             if (!member) return res.status(404).json({ error: 'Member not found' });
 
             const user = query.get(`SELECT first_name, last_name, email FROM users WHERE id = ?`, [member.user_id]);
@@ -17517,6 +17973,11 @@ By applying to this program, I provide the following consents:
             const { receiver_id, message } = req.body;
             const currentMember = query.get(`SELECT id FROM forum_members WHERE user_id = ? AND membership_status = 'approved'`, [req.user.id]);
             if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
+            // legacy Forum v1 (the v1 web SPA only): the same block and content rules as every v2 contact route
+            if (safetyCore.contentProblem(message)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
+            const receiverFm = query.get('SELECT user_id FROM forum_members WHERE id = ?', [receiver_id]);
+            if (!receiverFm) return res.status(404).json({ error: 'Member not found' });
+            if (receiverFm.user_id && safetyCore.isBlockedPair(db, req.user.id, receiverFm.user_id)) return res.status(403).json({ error: safetyCore.BLOCKED_CONNECT });
 
             const existing = query.get(`SELECT id, status FROM forum_connections WHERE
                 (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`,
@@ -17676,6 +18137,7 @@ By applying to this program, I provide the following consents:
             if (!isMember) return res.status(403).json({ error: 'Group membership required' });
 
             const { message } = req.body;
+            if (safetyCore.contentProblem(message)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
             let attachments = null;
 
             if (req.file) {
@@ -17699,12 +18161,13 @@ By applying to this program, I provide the following consents:
     app.get('/api/forum/posts', auth, (req, res) => {
         try {
             const { group_id, author_id, type, page = 1, limit = 20 } = req.query;
+            // posts by a closed, suspended or team-hidden account, or by someone in a block with the viewer, stay out
             let sql = `SELECT fp.*, fm.photo_url as author_photo, u.first_name, u.last_name, fm.specialty, fm.institution
                 FROM forum_posts fp
                 JOIN forum_members fm ON fp.author_id = fm.id
                 JOIN users u ON fm.user_id = u.id
-                WHERE fp.moderation_status = 'approved'`;
-            const params = [];
+                WHERE fp.moderation_status = 'approved' AND ${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}`;
+            const params = [req.user.id, req.user.id];
 
             if (group_id) { sql += ` AND fp.group_id = ?`; params.push(group_id); }
             if (author_id) { sql += ` AND fp.author_id = ?`; params.push(author_id); }
@@ -17734,6 +18197,8 @@ By applying to this program, I provide the following consents:
             if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
             const { title, content, post_type, group_id, tags, image_url, video_url, link_url } = req.body;
+            // member content (App Store 1.2): abusive language is refused before it is published
+            if (safetyCore.contentProblem(title, content)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
             const id = uuidv4();
 
             db.run(`INSERT INTO forum_posts (id, author_id, group_id, post_type, title, content, tags, image_url, video_url, link_url)
@@ -17791,6 +18256,7 @@ By applying to this program, I provide the following consents:
             if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
             const { content, parent_id } = req.body;
+            if (safetyCore.contentProblem(content)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
             const id = uuidv4();
 
             db.run(`INSERT INTO forum_comments (id, post_id, author_id, parent_id, content) VALUES (?, ?, ?, ?, ?)`,
@@ -18176,6 +18642,10 @@ By applying to this program, I provide the following consents:
             if (!currentMember) return res.status(403).json({ error: 'Forum membership required' });
 
             const { mentor_id, focus_areas, goals } = req.body;
+            if (safetyCore.contentProblem(focus_areas, goals)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
+            const mentorFm = query.get('SELECT user_id FROM forum_members WHERE id = ?', [mentor_id]);
+            if (!mentorFm) return res.status(404).json({ error: 'Mentor not found' });
+            if (mentorFm.user_id && safetyCore.isBlockedPair(db, req.user.id, mentorFm.user_id)) return res.status(403).json({ error: safetyCore.BLOCKED_CONNECT });
 
             const existing = query.get(`SELECT id FROM forum_mentorships WHERE mentor_id = ? AND mentee_id = ? AND status != 'ended'`,
                 [mentor_id, currentMember.id]);
@@ -18195,6 +18665,7 @@ By applying to this program, I provide the following consents:
         try {
             const { type, title, description, skills_needed } = req.body;
             if (!title) return res.status(400).json({ error: 'Title required' });
+            if (safetyCore.contentProblem(title, description, skills_needed)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
             const id = uuidv4();
             db.run(`CREATE TABLE IF NOT EXISTS forum_opportunities (
                 id TEXT PRIMARY KEY, user_id TEXT, type TEXT, title TEXT, description TEXT,
@@ -22059,7 +22530,7 @@ By applying to this program, I provide the following consents:
                 const meRow = query.get('SELECT email, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || {};
                 const ca = query.get(`SELECT * FROM croatians_abroad_registrations
                     WHERE selected_conference = 1 AND COALESCE(conference_status,'') <> 'cancelled'
-                      AND (user_id = ? OR lower(email) = lower(?))
+                      AND (user_id = ? OR (user_id IS NULL AND lower(email) = lower(?)))
                     ORDER BY created_at DESC LIMIT 1`, [req.user.id, meRow.email || req.user.email || '__none__']);
                 if (ca) {
                     return res.json({
@@ -22587,13 +23058,16 @@ By applying to this program, I provide the following consents:
     app.get('/api/plexus/attendees', auth, (req, res) => {
         const { search, country, institution, interests } = req.query;
         const conf = activePlexusConf();
+        if (!conf) return res.json([]);
 
+        // closed / suspended / team-hidden accounts and either side of a block never appear (shared/safety-core.js)
         let sql = `SELECT DISTINCT u.id, u.first_name, u.last_name, u.institution, u.country, up.title, up.research_interests, up.is_profile_public
             FROM users u
             JOIN registrations r ON u.id = r.user_id
             LEFT JOIN user_profiles up ON u.id = up.user_id
-            WHERE r.conference_id = ? AND r.status = 'confirmed' AND (up.is_profile_public = 1 OR u.id = ?)`;
-        const params = [conf.id, req.user.id];
+            WHERE r.conference_id = ? AND r.status = 'confirmed' AND (up.is_profile_public = 1 OR u.id = ?)
+              AND ${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}`;
+        const params = [conf.id, req.user.id, req.user.id, req.user.id];
 
         if (search) {
             sql += ` AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.institution LIKE ?)`;
@@ -22616,7 +23090,8 @@ By applying to this program, I provide the following consents:
     app.get('/api/plexus/attendees/:id', auth, (req, res) => {
         const user = query.get(`SELECT u.id, u.first_name, u.last_name, u.institution, u.country, u.bio,
             up.title, up.department, up.research_interests, up.linkedin_url, up.twitter_url, up.career_stage
-            FROM users u LEFT JOIN user_profiles up ON u.id = up.user_id WHERE u.id = ?`, [req.params.id]);
+            FROM users u LEFT JOIN user_profiles up ON u.id = up.user_id
+            WHERE u.id = ? AND (u.id = ? OR (${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}))`, [req.params.id, req.user.id, req.user.id, req.user.id]);
 
         if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -22630,6 +23105,9 @@ By applying to this program, I provide the following consents:
     // Send connection request
     app.post('/api/plexus/connections', auth, (req, res) => {
         const { user_id, message } = req.body;
+        // Blocks + content filter (shared/safety-core.js) — the same neutral answers as the Network routes
+        if (safetyCore.isBlockedPair(db, req.user.id, user_id)) return res.status(403).json({ error: safetyCore.BLOCKED_CONNECT });
+        if (safetyCore.contentProblem(message)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
 
         const existing = query.get('SELECT * FROM connections WHERE (requester_id = ? AND requestee_id = ?) OR (requester_id = ? AND requestee_id = ?)',
             [req.user.id, user_id, user_id, req.user.id]);
@@ -26997,8 +27475,9 @@ By applying to this program, I provide the following consents:
                 FROM users u
                 LEFT JOIN networking_profiles np ON np.user_id = u.id
                 WHERE u.is_public_profile = 1 AND u.id != ?
+                  AND ${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}
                 ORDER BY u.created_at DESC
-            `, [req.user.id]);
+            `, [req.user.id, req.user.id, req.user.id]);
             // Quiet (senior gala/forum-only) members are never surfaced in the directory — fail-closed.
             // The email/is_admin columns are only needed for the quiet check; strip them before responding.
             const visible = users.filter(u => { try { return !quietFlagFor(u); } catch (e) { return false; } });
@@ -27015,6 +27494,10 @@ By applying to this program, I provide the following consents:
         const { career_stage, looking_for, research_interests, working_on, timezone, meeting_format, open_to_coffee_chats } = req.body;
         // Accept the monthly coffee-matchmaker opt-in under either camelCase or snake_case.
         const coffeeMatchmaker = (req.body.coffeeMatchmaker != null ? req.body.coffeeMatchmaker : req.body.coffee_matchmaker_opt_in) ? 1 : 0;
+        // research interests show as tags on the directory card; the rest on the profile (App Store 1.2)
+        if (safetyCore.contentProblem(Array.isArray(research_interests) ? research_interests : [research_interests], looking_for, working_on, career_stage)) {
+            return res.status(422).json({ error: safetyCore.CONTENT_PROFILE, field: 'networking' });
+        }
         const existing = query.get('SELECT id FROM networking_profiles WHERE user_id = ?', [req.user.id]);
         if (existing) {
             db.run(`UPDATE networking_profiles SET career_stage=?, looking_for=?, research_interests=?, working_on=?, timezone=?, meeting_format=?, open_to_coffee_chats=?, coffee_matchmaker_opt_in=?, updated_at=datetime('now') WHERE user_id=?`,
@@ -27041,6 +27524,10 @@ By applying to this program, I provide the following consents:
     app.post('/api/networking/connections', auth, (req, res) => {
         const { receiver_id, message } = req.body;
         if (!receiver_id) return res.status(400).json({ error: 'receiver_id required' });
+        // Blocks (v2/safety.js): no connection request across a blocked pair, either direction — neutral wording.
+        if (safetyCore.isBlockedPair(db, req.user.id, receiver_id)) return res.status(403).json({ error: safetyCore.BLOCKED_CONNECT });
+        // the note travels to the other member — abusive language is refused (App Store 1.2)
+        if (safetyCore.contentProblem(message)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
         const existing = query.get('SELECT id FROM networking_connections WHERE (requester_id=? AND receiver_id=?) OR (requester_id=? AND receiver_id=?)',
             [req.user.id, receiver_id, receiver_id, req.user.id]);
         if (existing) return res.status(409).json({ error: 'Connection already exists' });
@@ -27064,12 +27551,15 @@ By applying to this program, I provide the following consents:
     });
 
     // Get connections
+    // is_team marks a Med&X team account (the client never offers BLOCK on it); a blocked pair, a closed
+    // or a suspended account never appears (shared/safety-core.js).
     app.get('/api/networking/connections', auth, (req, res) => {
-        const connections = query.all(`SELECT nc.*, u.first_name, u.last_name, u.institution, u.bio, u.photo_url
+        const connections = query.all(`SELECT nc.*, u.first_name, u.last_name, u.institution, u.bio, u.photo_url, COALESCE(u.is_admin, 0) AS is_team
             FROM networking_connections nc
             JOIN users u ON (CASE WHEN nc.requester_id = ? THEN nc.receiver_id ELSE nc.requester_id END) = u.id
-            WHERE (nc.requester_id = ? OR nc.receiver_id = ?) AND nc.status = 'accepted'`,
-            [req.user.id, req.user.id, req.user.id]);
+            WHERE (nc.requester_id = ? OR nc.receiver_id = ?) AND nc.status = 'accepted'
+              AND u.deleted_at IS NULL AND u.suspended_at IS NULL AND ${safetyCore.notBlockedSql('u.id')}`,
+            [req.user.id, req.user.id, req.user.id, req.user.id, req.user.id]);
         res.json(connections);
     });
 
@@ -27089,7 +27579,8 @@ By applying to this program, I provide the following consents:
     app.get('/api/networking/connections/pending', auth, (req, res) => {
         const pending = query.all(`SELECT nc.*, u.first_name, u.last_name, u.institution, u.photo_url
             FROM networking_connections nc JOIN users u ON nc.requester_id = u.id
-            WHERE nc.receiver_id = ? AND nc.status = 'pending'`, [req.user.id]);
+            WHERE nc.receiver_id = ? AND nc.status = 'pending'
+              AND u.deleted_at IS NULL AND u.suspended_at IS NULL AND ${safetyCore.notBlockedSql('u.id')}`, [req.user.id, req.user.id, req.user.id]);
         res.json(pending);
     });
 
@@ -27102,6 +27593,9 @@ By applying to this program, I provide the following consents:
         // previously any attendee_id was accepted, including non-existent users.
         const attendee = query.get('SELECT id FROM users WHERE id = ?', [attendee_id]);
         if (!attendee) return res.status(404).json({ error: 'Attendee not found' });
+        // Blocks (shared/safety-core.js): never across a blocked pair, even with a connection row back
+        if (safetyCore.isBlockedPair(db, req.user.id, attendee_id)) return res.status(403).json({ error: safetyCore.BLOCKED_CONNECT });
+        if (safetyCore.contentProblem(topic, note)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
         if (!req.user.is_admin) {
             const connected = query.get(
                 `SELECT id FROM networking_connections WHERE status = 'accepted'
@@ -27156,6 +27650,9 @@ By applying to this program, I provide the following consents:
         if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
         // Quiet (senior gala/forum-only) members are never surfaced as a target — fail-closed.
         try { if (quietFlagFor(recipient)) return res.status(404).json({ error: 'Recipient not found' }); } catch (e) {}
+        // Blocks (shared/safety-core.js): never across a blocked pair, even with a connection row back
+        if (safetyCore.isBlockedPair(db, req.user.id, recipient_id)) return res.status(403).json({ error: safetyCore.BLOCKED_CONNECT });
+        if (safetyCore.contentProblem(note)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
         // Gate to accepted connections (mirrors the DM + legacy-meeting gating). Admins exempt.
         if (!req.user.is_admin) {
             const connected = query.get(
@@ -27231,8 +27728,11 @@ By applying to this program, I provide the following consents:
         try { targetId = resolveVerifyBadgeToken(token); } catch (e) { targetId = null; }
         if (!targetId) return res.status(404).json({ error: 'Badge not recognized.' });
         if (targetId === req.user.id) return res.status(400).json({ error: 'That is your own badge.' });
-        const target = query.get('SELECT id, email, is_admin, first_name, last_name, deleted_at FROM users WHERE id = ?', [targetId]);
-        if (!target || target.deleted_at) return res.status(404).json({ error: 'Badge not recognized.' });
+        const target = query.get('SELECT id, email, is_admin, first_name, last_name, deleted_at, suspended_at FROM users WHERE id = ?', [targetId]);
+        if (!target || target.deleted_at || target.suspended_at) return res.status(404).json({ error: 'Badge not recognized.' });
+        // Blocks (shared/safety-core.js): a scan across a blocked pair answers like an unknown badge — it never
+        // re-creates the connection the block ended, and never says who blocked whom.
+        if (safetyCore.isBlockedPair(db, req.user.id, targetId)) return res.status(404).json({ error: 'Badge not recognized.' });
         try { if (quietFlagFor(target)) return res.status(404).json({ error: 'Badge not recognized.' }); } catch (e) {}
         const targetName = `${target.first_name || ''} ${target.last_name || ''}`.trim() || 'Member';
         const existing = query.get('SELECT id, status FROM networking_connections WHERE (requester_id=? AND receiver_id=?) OR (requester_id=? AND receiver_id=?)',
@@ -27272,7 +27772,8 @@ By applying to this program, I provide the following consents:
                 SELECT CASE WHEN requester_id = ? THEN receiver_id ELSE requester_id END
                 FROM networking_connections WHERE requester_id = ? OR receiver_id = ?
               )
-            ORDER BY u.id ASC`, [req.user.id, req.user.id, req.user.id, req.user.id]);
+              AND ${safetyCore.listableSql('u')} AND ${safetyCore.notBlockedSql('u.id')}
+            ORDER BY u.id ASC`, [req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, req.user.id]);
         // Drop quiet members (fail-closed) and never leak email downstream.
         const candidates = pool.filter(u => { try { return !quietFlagFor(u); } catch (e) { return false; } });
         if (candidates.length === 0) return res.json({ opted_in: true, match: null });
@@ -27302,6 +27803,10 @@ By applying to this program, I provide the following consents:
         if (!receiver) return res.status(404).json({ error: 'Recipient not found' });
 
         const senderId = req.user?.id ?? 'unknown';
+        // Blocks (v2/safety.js): either side of a blocked pair is refused, admins included — neutral wording.
+        if (safetyCore.isBlockedPair(db, senderId, receiver_id)) return res.status(403).json({ error: safetyCore.BLOCKED_MESSAGE });
+        // Content filter (App Store 1.2): slurs, sexual solicitation and threats are refused — nothing is stored or pushed.
+        if (safetyCore.contentProblem(content)) return res.status(422).json({ error: safetyCore.CONTENT_MESSAGE });
         // Require an ACCEPTED connection between the two (either direction). Without this,
         // any user could DM any other user — used to harvest emails via GET /api/messages and
         // to spam push notifications. Admins are exempt.
@@ -27358,7 +27863,7 @@ By applying to this program, I provide the following consents:
                             CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END AS partner,
                             MAX(created_at) AS latest
                         FROM direct_messages
-                        WHERE sender_id = ? OR receiver_id = ?
+                        WHERE (sender_id = ? OR receiver_id = ?) AND removed_at IS NULL
                         GROUP BY partner
                     )
                 )
@@ -27373,12 +27878,17 @@ By applying to this program, I provide the following consents:
     });
 
     // Get conversation with a specific user (paginated)
+    // The partner is keyed by users.id; older rows keyed the partner by EMAIL (v2/messages.js resolves those
+    // threads to the id), so both keys are read. A message the Med&X team removed (removed_at) never shows.
     app.get('/api/messages/:userId', auth, (req, res) => {
         const otherUserId = req.params.userId ?? '';
         const senderId = req.user?.id ?? 'unknown';
         const limit = parseInt(req.query?.limit ?? '50', 10);
         const offset = parseInt(req.query?.offset ?? '0', 10);
         try {
+            let otherEmail = null;
+            try { const o = query.get('SELECT email FROM users WHERE id = ? AND deleted_at IS NULL', [otherUserId]); otherEmail = (o && o.email) || null; } catch (e) { /* no users row */ }
+            const otherKeys = [otherUserId, otherEmail || otherUserId];
             const messages = query.all(
                 `SELECT dm.*,
                     su.first_name AS sender_first_name, su.last_name AS sender_last_name,
@@ -27386,16 +27896,17 @@ By applying to this program, I provide the following consents:
                 FROM direct_messages dm
                 LEFT JOIN users su ON dm.sender_id = su.id
                 LEFT JOIN users ru ON dm.receiver_id = ru.id
-                WHERE (dm.sender_id = ? AND dm.receiver_id = ?)
-                   OR (dm.sender_id = ? AND dm.receiver_id = ?)
+                WHERE ((dm.sender_id = ? AND dm.receiver_id IN (?, ?))
+                   OR (dm.sender_id IN (?, ?) AND dm.receiver_id = ?))
+                  AND dm.removed_at IS NULL
                 ORDER BY dm.created_at ASC
                 LIMIT ? OFFSET ?`,
-                [senderId, otherUserId, otherUserId, senderId, limit, offset]
+                [senderId, ...otherKeys, ...otherKeys, senderId, limit, offset]
             );
             // Mark received messages as read
             db.run(
-                `UPDATE direct_messages SET read_at = CURRENT_TIMESTAMP WHERE sender_id = ? AND receiver_id = ? AND read_at IS NULL`,
-                [otherUserId, senderId]
+                `UPDATE direct_messages SET read_at = CURRENT_TIMESTAMP WHERE sender_id IN (?, ?) AND receiver_id = ? AND read_at IS NULL`,
+                [...otherKeys, senderId]
             );
             saveDb();
             res.json(messages);
@@ -28794,7 +29305,7 @@ By applying to this program, I provide the following consents:
     // Get admin messages for logged-in user
     app.get('/api/user/admin-messages', auth, (req, res) => {
         try {
-            const messages = query.all(`SELECT * FROM direct_messages WHERE receiver_id = ? AND sender_type = 'admin' ORDER BY created_at DESC LIMIT 50`, [req.user.email]);
+            const messages = query.all(`SELECT * FROM direct_messages WHERE receiver_id = ? AND sender_type = 'admin' AND removed_at IS NULL ORDER BY created_at DESC LIMIT 50`, [req.user.email]);
             res.json(messages);
         } catch (err) {
             res.status(500).json({ error: 'Failed to get messages' });

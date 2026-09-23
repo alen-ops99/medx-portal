@@ -474,3 +474,11 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
   .mx-nl .mx-nl-sub { flex: 1 1 auto !important; }
   .mx-nl .mx-nl-chips { order: 10; flex: 1 1 100% !important; }
 }
+
+/* FROM THE FORUM strip on a phone: label + time on the first line, the post title gets its own full line */
+@media (max-width: 500px) {
+  .mx-fstrip { flex-wrap: wrap !important; row-gap: 6px !important; }
+  .mx-fstrip-div { display: none !important; }
+  .mx-fstrip-title { flex: 1 1 100% !important; order: 3; }
+  .mx-fstrip-title > span:last-child { white-space: normal !important; }
+}

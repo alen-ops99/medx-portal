@@ -151,7 +151,7 @@
 .lv-block-time { font: 600 17px/1.2 var(--font-ui); padding-top: 14px; letter-spacing: -.01em; }
 .lv-block-cards { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .lv-list { display: flex; flex-direction: column; gap: 12px; padding: 14px 20px 0; }
-@media (max-width: 380px) { .lv-block { grid-template-columns: 54px 1fr; gap: 10px; padding-left: 14px; padding-right: 14px; } .lv-block-time { font-size: 15px; } .lv-list, .lv-day, .lv-note, .lv-slots, .lv-empty, .lv-info-row, .lv-grid { padding-left: 14px; padding-right: 14px; } .lv-head, .lv-now-item, .lv-now-line { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 380px) { .lv-block { grid-template-columns: 54px 1fr; gap: 10px; padding-left: 14px; padding-right: 14px; } .lv-block-time { font-size: 15px; } .lv-list, .lv-day, .lv-note, .lv-slots, .lv-empty, .lv-info-row, .lv-grid { padding-left: 14px; padding-right: 14px; } .lv-head, .lv-now-item, .lv-now-line { padding-left: 16px; padding-right: 16px; } .lv-switch { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; } }
 
 /* session card */
 .lv-card { background: var(--card); border: 1px solid var(--hair); border-left: 3px solid var(--ink); display: flex; flex-direction: column;
@@ -376,7 +376,7 @@
 .lv-glance { display: none; }
 @media (min-width: 1100px) {
   .lv { --lv-w: 1180px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto auto 1fr auto; align-items: start; }
-  .lv-head { grid-column: 1 / -1; padding: 28px 40px 24px; }
+  .lv-head { grid-column: 1 / -1; padding: calc(28px + env(safe-area-inset-top)) 40px 24px; }
   .lv-title { font-size: 42px; }
   .lv-switch { margin: 15px -40px 0; padding: 3px 40px; }
   .lv-tabs { grid-column: 1; grid-row: 2; }

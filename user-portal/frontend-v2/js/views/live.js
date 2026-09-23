@@ -270,7 +270,8 @@ function headParts() {
 function tplSwitcher(cur = S.current) {
   // the catalogue is still on its way: quiet chip-shaped placeholders hold the row, so the band keeps its height
   if (S.eventsPending) return '<span class="lv-chip sk" aria-hidden="true"></span><span class="lv-chip sk w2" aria-hidden="true"></span><span class="lv-chip sk w3" aria-hidden="true"></span>';
-  const events = S.events || [];
+  // a past event stays only for the people who held it (Boston attendees can look back; everyone else sees what is ahead)
+  const events = (S.events || []).filter(e => !e.is_past || held(e.key) || e.key === cur);
   if (!events.length) return '';
   const mine = heldEvents();
   const showAll = S.showAll || !S.token || !mine.length;
@@ -337,9 +338,9 @@ function tplToggle(s, { compact } = {}) {
   // the ticket is still being read (a first visit on this device): a quiet placeholder the size of the toggle
   // (its label hidden) — never a guessed state, never the read-only "not on your ticket" look
   if (S.token && S.mePending) return `<span class="lv-att wait${compact ? ' compact' : ''}" aria-hidden="true">${COPY.att.on}</span>`;
-  // a read-only toggle stays tappable on purpose: the tap answers with the one-line reason (ticket link /
-  // not on your ticket) — ui.bind() would swallow the click on an aria-disabled element
-  return `<span data-act="att" data-id="${esc(s.id)}" data-sid="${esc(s.id)}" role="switch" tabindex="0" aria-checked="${on}" aria-label="${esc((on ? 'Attending: ' : 'Attend: ') + (s.title || 'session'))}" class="lv-att${on ? ' on' : ''}${ok ? '' : ' ro'}${compact ? ' compact' : ''}"${ok ? '' : ` title="${esc(S.token ? COPY.att.notHeld : COPY.att.ticket)}"`}>${on ? COPY.att.on : COPY.att.off}</span>`;
+  // not on the ticket (or no ticket link): the note above the program already says so once — no dead toggle on every card
+  if (!ok) return '';
+  return `<span data-act="att" data-id="${esc(s.id)}" data-sid="${esc(s.id)}" role="switch" tabindex="0" aria-checked="${on}" aria-label="${esc((on ? 'Attending: ' : 'Attend: ') + (s.title || 'session'))}" class="lv-att${on ? ' on' : ''}${compact ? ' compact' : ''}">${on ? COPY.att.on : COPY.att.off}</span>`;
 }
 function tplCard(s, { schedule, conflict } = {}) {
   const ev = eventOf(s.event_key) || {};
@@ -355,6 +356,7 @@ function tplCard(s, { schedule, conflict } = {}) {
   const where = [s.room, s.location_note].filter(Boolean).map(esc).join(' · ');
   const when = schedule ? `${esc(timeRange(s))}${duration(s) ? ` · ${esc(duration(s))}` : ''}` : `${s.end_time ? `→ ${esc(s.end_time)}` : ''}${duration(s) ? ` · ${esc(duration(s))}` : ''}`;
   const evLine = schedule && heldEvents().length > 1 ? `<span class="lv-card-ev">${esc(ev.short || ev.label || '')}</span>` : '';
+  const foot = tplToggle(s) + (schedule && S.token ? `<a class="lv-ics" href="${esc(icsUrl(`/api/live/me/${encodeURIComponent(S.token)}/schedule.ics?session=${encodeURIComponent(s.id)}`))}" download>${COPY.schedule.ics}</a>` : '');
   return `
     <article class="${cls}" data-sid-card="${esc(s.id)}">
       <div class="lv-card-body" data-act="open" data-id="${esc(s.id)}">
@@ -364,10 +366,7 @@ function tplCard(s, { schedule, conflict } = {}) {
         ${tplSpeakersRow(s)}
         ${where ? `<div class="lv-where"><svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true"><path d="M6 13.3S1 8.4 1 5.2a5 5 0 0 1 10 0c0 3.2-5 8.1-5 8.1Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="5.2" r="1.7" fill="currentColor"/></svg>${where}</div>` : ''}
       </div>
-      <div class="lv-card-foot">
-        ${tplToggle(s)}
-        ${schedule && S.token ? `<a class="lv-ics" href="${esc(icsUrl(`/api/live/me/${encodeURIComponent(S.token)}/schedule.ics?session=${encodeURIComponent(s.id)}`))}" download>${COPY.schedule.ics}</a>` : ''}
-      </div>
+      ${foot ? `<div class="lv-card-foot">${foot}</div>` : ''}
     </article>`;
 }
 function tplDayHead(date, extra) {

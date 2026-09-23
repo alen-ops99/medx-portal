@@ -391,7 +391,8 @@ module.exports = function mountAttendanceCards(app, ctx) {
         try {
             const me = q.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
             const email = ((me && me.email) || req.user.email || '').toLowerCase();
-            const rows = q.all(`SELECT * FROM v2_attendance_cards WHERE user_id = ? OR (email_to != '' AND email_to = ?) ORDER BY generated_at DESC`, [req.user.id, email]);
+            // by account; by address only for a card no account owns (a closed account's cards keep its id)
+            const rows = q.all(`SELECT * FROM v2_attendance_cards WHERE user_id = ? OR (user_id IS NULL AND email_to != '' AND email_to = ?) ORDER BY generated_at DESC`, [req.user.id, email]);
             // relative paths on purpose — the SPA loads them through its own origin/proxy, the
             // same idiom as the '/qr/<id>.png' tickets in GET /api/my/events (helmet's
             // Cross-Origin-Resource-Policy: same-origin blocks cross-origin <img> otherwise)

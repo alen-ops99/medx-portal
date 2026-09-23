@@ -53,3 +53,13 @@
 @media (hover: hover) {
   .mx-people-row[data-act]:not(.on):hover { background: var(--row-hover) !important; }
 }
+
+/* ---- REPORTS queue (App Store 1.2): the earlier messages saved with a report fold open under it; the
+   marker is the portal's square +/− rather than the browser triangle. On a phone the action column takes
+   the full row under the report. ---- */
+.mx-report-ctx > summary { list-style: none; }
+.mx-report-ctx > summary::-webkit-details-marker { display: none; }
+.mx-report-ctx > summary::before { content: '+'; display: inline-block; width: 12px; color: #9b1b22; }
+.mx-report-ctx[open] > summary::before { content: '\2212'; }
+@media (hover: hover) { .mx-report-ctx > summary:hover { color: #201b16 !important; } }
+@media (max-width: 480px) { .mx-report-acts { flex-basis: 100% !important; } }

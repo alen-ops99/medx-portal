@@ -25,6 +25,15 @@
  *   Mirrors kept for legacy readers: user_profiles.title / user_profiles.is_profile_public (Plexus attendee
  *   directory, member search) are upserted from the same save.
  *
+ * Moderation (shared/safety-core.js): while the Med&X team has hidden the profile (users.moderation_hidden_at, set by
+ * the admin portal's HIDE PROFILE), a PATCH cannot turn is_public_profile back on and GET answers moderation_hidden:true
+ * (the view shows one quiet line). The bio, title, name, institution, city, country and specialty tags are refused
+ * with 422 {error, field} when they carry abusive language (safetyCore.contentProblem — App Store 1.2).
+ *
+ * Exported helpers (server.js DELETE /api/auth/account): removePhotoFor(userId, photoUrl[, {stillUsed}]) removes the
+ * portrait files (local uploads/profile/<id>.* and Cloudinary medx/profile/<id>, plus a separate uploaded URL when no
+ * one else uses it) — best effort, never throws; destroyCloudAsset(url, prefix) destroys one Cloudinary asset under prefix.
+ *
  * Storage: local disk under user-portal/backend/uploads/profile/ (served by the existing /uploads static route).
  * When CLOUDINARY_URL is set the file is pushed to Cloudinary (folder medx/profile, public_id = user id) and the
  * secure URL is stored instead — on production without CLOUDINARY_URL the server-wide multipart gate in server.js
@@ -34,8 +43,11 @@
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const safetyCore = require('../../../shared/safety-core');
+const photoFiles = require('../../../shared/photo-files');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'profile');
+const UPLOADS_ROOT = path.join(__dirname, '..', 'uploads');
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const MIME_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const LIMITS = { name: 80, title: 120, institution: 160, city: 80, country: 80, bio: 1000, tag: 40, tags: 12 };
@@ -78,6 +90,21 @@ const bool = v => (v === true || v === 1 || v === '1' || v === 'true' || v === '
 const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const safeId = id => String(id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
 
+// ---------------------------------------------------------------- photo removal (shared with account deletion)
+// The file work lives in shared/photo-files.js (the admin portal's CLEAR PROFILE uses the same code); this backend
+// hands in its own Cloudinary SDK and its uploads folder.
+const cloud = () => require('cloudinary').v2;
+function removeLocalPhotos(userId, keep) { photoFiles.removeLocalPortraits(UPLOADS_ROOT, userId, keep); }
+// Destroy one Cloudinary asset given its delivery URL, only when its public id sits under `prefix`.
+function destroyCloudAsset(url, prefix) { return photoFiles.destroyCloudAsset(url, prefix, { cloud }); }
+// Every copy of a member's portrait (disk + Cloudinary + a separate URL nobody else uses). Best effort; never throws.
+async function removePhotoFor(userId, photoUrl, opts) {
+    return photoFiles.removePhotoFor(UPLOADS_ROOT, userId, photoUrl, Object.assign({}, opts || {}, { cloud }));
+}
+// The same in two steps, for a caller that answers between them (account deletion): disk now, Cloudinary after.
+function removeLocalPhotoFiles(userId, photoUrl, opts) { photoFiles.removeLocal(UPLOADS_ROOT, userId, photoUrl, opts); }
+function destroyCloudPhotos(userId, photoUrl, opts) { return photoFiles.destroyCloud(userId, photoUrl, Object.assign({}, opts || {}, { cloud })); }
+
 // ---------------------------------------------------------------- completion (the formula)
 const ITEMS = [
     { key: 'name',        label: 'Name added',            weight: 10, done: r => !!(clean(r.first_name, 80) && clean(r.last_name, 80)) },
@@ -116,12 +143,13 @@ module.exports = function mountProfile(app, ctx) {
         'ALTER TABLE users ADD COLUMN profile_saved_at TEXT'
     ].forEach(sql => { try { run(sql); } catch (e) { /* column already exists */ } });
     try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch (e) { log('profile: cannot create ' + UPLOAD_DIR + ': ' + e.message); }
+    safetyCore.ensureSchema(db(), log);      // users.moderation_hidden_at (+ the other moderation columns)
 
     // ---- data access ----
     const COLS = 'id, email, email_verified, first_name, last_name, title, institution, city, country, bio, photo_url, specialties, is_public_profile, updates_opt_in, locale, profile_saved_at, created_at, is_admin';
     function loadRow(userId) {
         if (!userId) return null;
-        try { return get(`SELECT ${COLS} FROM users WHERE id = ? AND deleted_at IS NULL`, [userId]); } catch (e) { return get(`SELECT ${COLS} FROM users WHERE id = ?`, [userId]); }
+        try { return get(`SELECT ${COLS}, moderation_hidden_at FROM users WHERE id = ? AND deleted_at IS NULL`, [userId]); } catch (e) { return get(`SELECT ${COLS} FROM users WHERE id = ?`, [userId]); }
     }
     function shape(r) {
         return {
@@ -135,10 +163,12 @@ module.exports = function mountProfile(app, ctx) {
             member_since: r.created_at ? String(r.created_at).slice(0, 4) : null,
             created_at: r.created_at || null,
             is_admin: Number(r.is_admin) === 1,
-            profile_saved_at: r.profile_saved_at || null
+            profile_saved_at: r.profile_saved_at || null,
+            moderation_hidden: !!r.moderation_hidden_at
         };
     }
-    const payload = r => ({ profile: shape(r), completion: completionFor(r) });
+    // moderation_hidden also at the top level: the view shows "Your profile was hidden from the directory by the Med&X team."
+    const payload = r => ({ profile: shape(r), completion: completionFor(r), moderation_hidden: !!r.moderation_hidden_at });
     const fail = (res, e, what) => { console.error('[v2/profile] ' + what + ':', e); res.status(500).json({ error: 'Could not ' + what + ' — please try again.' }); };
     function requireRow(req, res) {
         const id = req.user && req.user.id;
@@ -209,6 +239,15 @@ module.exports = function mountProfile(app, ctx) {
             const row = requireRow(req, res); if (!row) return;
             const { patch, errors } = validate(req.body);
             if (errors.length) return res.status(400).json({ error: errors[0], errors });
+            // abusive language in anything other members read — the directory card shows the name, title, institution,
+            // city, country and the specialty tags; the profile peek the bio (App Store 1.2). Refused, nothing saved;
+            // `field` names the first field that needs rewording so the screen can focus it.
+            const screened = [['bio', [patch.bio]], ['title', [patch.title]], ['name', [patch.first_name, patch.last_name]],
+                ['institution', [patch.institution]], ['city', [patch.city]], ['country', [patch.country]], ['specialties', [patch.specialties || []]]];
+            const flagged = screened.find(([, vals]) => safetyCore.contentProblem(...vals));
+            if (flagged) return res.status(422).json({ error: safetyCore.CONTENT_PROFILE, field: flagged[0] });
+            // hidden by the Med&X team: the member's own directory toggle cannot bring the profile back
+            if (row.moderation_hidden_at && has(patch, 'is_public_profile')) patch.is_public_profile = 0;
             const now = new Date().toISOString();
             const sets = []; const vals = [];
             Object.keys(patch).forEach(k => { sets.push(`${k} = ?`); vals.push(k === 'specialties' ? JSON.stringify(patch[k]) : patch[k]); });
@@ -257,12 +296,6 @@ module.exports = function mountProfile(app, ctx) {
             if (b.slice(0, 4).toString('ascii') === 'RIFF' && b.slice(8, 12).toString('ascii') === 'WEBP') return 'webp';
         } catch (e) {}
         return null;
-    }
-    function removeLocalPhotos(userId, keep) {
-        Object.values(MIME_EXT).forEach(ext => {
-            const f = path.join(UPLOAD_DIR, `${safeId(userId)}.${ext}`);
-            if (f !== keep) { try { fs.unlinkSync(f); } catch (e) {} }
-        });
     }
     async function toCloud(filePath, userId) {
         if (!process.env.CLOUDINARY_URL) return null;
@@ -321,3 +354,7 @@ module.exports = function mountProfile(app, ctx) {
 };
 module.exports.completionFor = completionFor;
 module.exports.ITEMS = ITEMS;
+module.exports.removePhotoFor = removePhotoFor;
+module.exports.removeLocalPhotoFiles = removeLocalPhotoFiles;
+module.exports.destroyCloudPhotos = destroyCloudPhotos;
+module.exports.destroyCloudAsset = destroyCloudAsset;

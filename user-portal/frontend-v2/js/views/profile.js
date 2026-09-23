@@ -9,9 +9,18 @@
 // POST /api/v2/profile/completion/preview (same formula, never writes). SAVE CHANGES →
 // PATCH /api/v2/profile; UPLOAD PHOTO → POST /api/v2/profile/photo (multipart, ≤5 MB jpg/png/webp);
 // RESEND LINK → POST /api/auth/request-verification. Country list: ./profile-countries.js.
+// DELETE ACCOUNT (App Store guideline 5.1.1(v); not in the artboard) closes the list: what is erased,
+// what Med&X keeps, then a typed-DELETE confirm → DELETE /api/auth/account (server.js; the rules are
+// proven by tests/account-delete.test.js) → signed out on the auth welcome screen. data-act="deleteAccount"
+// is also the hook the iOS shell (medx-app/native/medx-native.js) looks for to drop its own delete row, and
+// the `medx:account-deleted` event it dispatches is what the shell listens for to clear Face ID + Keychain.
+// Moderation (App Store 1.2): when the Med&X team hid the profile (GET /api/v2/profile → moderation_hidden),
+// the directory switch is locked off and one quiet line says so. A save the server refuses with 403 (a
+// suspended account) or 422 (the content filter on the bio) keeps every edit and says why at SAVE CHANGES.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
+import router from '../router.js';
 
 import { chrome } from '../chrome.js';
 import { COUNTRIES, countryName } from './profile-countries.js';
@@ -59,7 +68,10 @@ export const COPY = {
     interestsOwn: 'OR TYPE YOUR OWN', interestsAllAdded: 'All suggestions added — type your own below.',
     projects: { plexus: 'Plexus Conference', gala: 'Gala Evening', accelerator: 'The Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges' },
     suggestions: ['Neuroscience', 'Sleep Medicine', 'Oncology', 'Public Health', 'Biotech', 'AI in Medicine', 'Mental Health', 'Genetics'],
-    dir: { t: 'Directory visibility', s: 'Let other members find you and send connection requests.' },
+    dir: { t: 'Directory visibility', s: 'Let other members find you and send connection requests.',
+           // App Store 1.2 — shown instead of the line above while the Med&X team keeps the profile hidden
+           modHidden: 'Your profile was hidden from the directory by the Med&amp;X team. Questions: <a href="mailto:info@medx.hr">info@medx.hr</a>',
+           modHiddenToast: 'The Med&X team hid your profile from the directory. Questions: info@medx.hr' },
     upd: { t: 'Event updates', s: 'News from projects you follow · Plexus, Gala, the Accelerator.' },
     save: 'SAVE CHANGES', saving: 'SAVING…', saved: '✓ SAVED',
     saveNote: 'Changes apply across the portal and the member directory.',
@@ -80,6 +92,30 @@ export const COPY = {
   card: {
     title: 'YOUR MEMBER CARD',
     body: 'Your QR member card admits you to everything you’re registered for · find it in <a href="/app/me">My Med&amp;X</a>.'
+  },
+  // what is erased / kept mirrors DELETE /api/auth/account (server.js) — change the two together
+  del: {
+    title: 'DELETE ACCOUNT',
+    sub: 'Close your Med&amp;X account and erase the personal data it holds, whenever you choose.',
+    goneT: 'WHAT IS DELETED',
+    gone: ['Your profile, photo and directory listing', 'Connections, meeting requests and messages',
+      'Followed projects, alerts, saved schedule and newsletter', 'Your meetup places and the details hosts see',
+      'Your sign-in, on every device'],
+    keptT: 'WHAT MED&amp;X KEEPS',
+    kept: 'Event registrations, tickets and invoices, exactly as issued: Croatian accounting law requires Med&amp;X to keep payment records. Applications you sent to Med&amp;X programs and questions you asked at sessions also stay on record, and so does the moderation record of any report you sent or that was made about you. If a member blocked you, that block stays, with your conversation with them, and it also applies to a new account on the same email address.',
+    contact: 'Questions about your data: <a href="mailto:info@medx.hr">info@medx.hr</a>',
+    btn: 'DELETE ACCOUNT…',
+    note: 'You confirm in the next step. A deleted account cannot be restored.',
+    modalEyebrow: 'DELETE ACCOUNT',
+    modalTitle: 'Delete your Med&amp;X account?',
+    modalBody: 'Your profile, connections, messages and settings are erased, and you are signed out on every device. A deleted account cannot be restored.',
+    modalKept: 'Event registrations, tickets and invoices stay on record as issued, together with program applications, questions asked at sessions, the moderation record and any block another member placed on you.',
+    typeLabel: 'TYPE DELETE TO CONFIRM', word: 'DELETE',
+    cancel: 'KEEP MY ACCOUNT', confirm: 'DELETE ACCOUNT', busy: 'DELETING…',
+    // toasts are plain text (ui.toast sets textContent)
+    done: 'Your Med&X account has been deleted.',
+    doneKept: 'Your Med&X account has been deleted. Paid tickets and invoices stay on record, as issued.',
+    failed: 'Your account could not be deleted just now. Please try again.'
   },
   fixedSpecs: ['NEUROSCIENCE', 'ONCOLOGY', 'CARDIOLOGY', 'GENETICS', 'PUBLIC HEALTH', 'BIOENGINEERING'],
   errors: {
@@ -118,7 +154,7 @@ async function load() {
     net: api.get('/api/networking/profile')
   });
   const extras = { topics: (r.topics && r.topics.projects) || [], net: r.net || null, interests: interestsFrom(r.net) };
-  if (r.v2 && r.v2.profile) return Object.assign({ profile: r.v2.profile, completion: r.v2.completion, v2: true }, extras);
+  if (r.v2 && r.v2.profile) return Object.assign({ profile: r.v2.profile, completion: r.v2.completion, v2: true, modHidden: moderationHidden(r.v2) }, extras);
   // v2 backend not deployed yet: render read-mostly from the legacy profile route; saves will surface the API error
   const me = await api.get('/api/auth/me').catch(() => null);
   if (!me) return null;
@@ -261,12 +297,13 @@ function setSwitch(el, on) {
   if (el.firstElementChild) el.firstElementChild.style.transform = `translateX(${on ? '16px' : '0'})`;
 }
 function prefRows() {
-  const d = D.draft, a = COPY.account;
+  const d = D.draft, a = COPY.account, locked = !!D.modHidden;
+  const dirSwitch = toggle('tgDir', locked ? false : d.is_public_profile, a.dir.t);
   return `
         <div class="mx-cardrow" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
-          <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.dir.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.dir.s}</span></span>
-          ${toggle('tgDir', d.is_public_profile, a.dir.t)}
-        </div>
+          <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.dir.t}</span><span data-role="dirLine" style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${locked ? a.dir.modHidden : a.dir.s}</span></span>
+          ${locked ? dirSwitch.replace('role="switch"', 'role="switch" aria-disabled="true" aria-describedby="mx-dir-locked"').replace('cursor:pointer', 'cursor:default;opacity:.45') : dirSwitch}
+        </div>${locked ? '<span id="mx-dir-locked" hidden>Hidden from the directory by the Med&amp;X team.</span>' : ''}
         <div class="mx-cardrow" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
           <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.upd.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.upd.s}</span></span>
           ${toggle('tgUpd', d.updates_opt_in, a.upd.t)}
@@ -304,7 +341,7 @@ function saveRow() {
   return `
         <div class="mx-cardrow mx-profile-row" style="display:flex;align-items:center;gap:14px;padding:16px 26px 20px;border-top:1px solid rgba(25,21,18,.16)">
           <span data-act="save" role="button" tabindex="0"${D.saving ? ' aria-disabled="true"' : ''} class="mx-profile-btn" style="padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;flex:none" data-hover="background:#7e151b">${label}</span>
-          <span style="font-size:11.5px;color:#4a4239">${a.saveNote}</span>
+          ${D.saveError ? `<span data-role="saveErr" role="alert" style="font-size:11.5px;line-height:1.45;color:#9b1b22">${esc(D.saveError)}</span>` : `<span style="font-size:11.5px;color:#4a4239">${a.saveNote}</span>`}
         </div>`;
 }
 function blockAccount() {
@@ -326,6 +363,35 @@ function blockAccount() {
         <span data-block="saveRow" style="display:contents">${saveRow()}</span>
       </div>
       <!-- /dc -->`;
+}
+// Not in Profile.dc.html (App Store 5.1.1(v)): the same card vocabulary, unnumbered so it stays the last
+// word below the iOS shell's "04 · ON THIS IPHONE", which the app inserts right after 03.
+function blockDelete() {
+  const c = COPY.del;
+  return `
+      <section data-block="deleteAccount" class="mx-profile-sec mx-profile-del" aria-labelledby="mx-del-h" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
+        <div class="mx-cardrow" style="display:flex;align-items:baseline;gap:14px;padding:20px 26px 4px;flex-wrap:wrap">
+          <h2 id="mx-del-h" style="margin:0;font:600 13px Inter,sans-serif;letter-spacing:.14em">${c.title}</h2>
+          <span style="font-size:11.5px;color:#4a4239">${c.sub}</span>
+        </div>
+        <div class="mx-cardrow mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;padding:14px 26px 20px">
+          <div>
+            <span style="${LABEL}">${c.goneT}</span>
+            <ul style="list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:7px">
+              ${c.gone.map(t => `<li style="display:flex;gap:10px;align-items:flex-start;font-size:12.5px;line-height:1.45"><span class="dot-gold" aria-hidden="true" style="flex:none;margin-top:6px"></span><span>${t}</span></li>`).join('')}
+            </ul>
+          </div>
+          <div>
+            <span style="${LABEL}">${c.keptT}</span>
+            <p style="margin:10px 0 0;font-size:12.5px;line-height:1.55">${c.kept}</p>
+            <p style="margin:10px 0 0;font-size:11.5px;color:#4a4239">${c.contact}</p>
+          </div>
+        </div>
+        <div class="mx-cardrow mx-profile-row" style="display:flex;align-items:center;gap:14px;padding:14px 26px 20px;border-top:1px solid rgba(25,21,18,.1)">
+          <span data-act="deleteAccount" role="button" tabindex="0" aria-haspopup="dialog" class="mx-profile-btn" style="padding:10px 16px;border:1px solid #9b1b22;color:#9b1b22;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;flex:none" data-hover="border-color:#7e151b;color:#7e151b">${c.btn}</span>
+          <span style="font-size:11.5px;color:#4a4239">${c.note}</span>
+        </div>
+      </section>`;
 }
 // intro = the screen's first paint: the gold bar fills from zero (css .mx-profile-bar-in). Later refreshes
 // animate from the previous value instead (refreshCompletion).
@@ -486,9 +552,11 @@ async function doSave() {
   const d = D.draft;
   if (!d.first_name.trim()) return ui.toast(COPY.errors.first, { kind: 'error' });
   if (!d.last_name.trim()) return ui.toast(COPY.errors.last, { kind: 'error' });
-  D.saving = true; refreshSaveRow();
+  D.saving = true; D.saveError = null; refreshSaveRow();
   try {
     const r = await api.patch('/api/v2/profile', draftBody());
+    const wasHidden = D.modHidden;
+    D.modHidden = moderationHidden(r);
     D.profile = r.profile; D.completion = r.completion;
     D.draft = draftFrom(r.profile);
     D.custom = r.profile.specialties.filter(s => !COPY.fixedSpecs.includes(s));
@@ -499,14 +567,28 @@ async function doSave() {
     });
     D.saving = false; D.saved = true;
     refreshSaveRow(); refreshCompletion(); refreshPreviewCard();
+    if (wasHidden !== D.modHidden) rerender('[data-block="prefs"]', prefRows());
     ui.toast(COPY.account.savedToast);
     clearTimeout(savedTimer);
     savedTimer = setTimeout(() => { if (D) { D.saved = false; refreshSaveRow(); } }, 2600);
   } catch (e) {
-    D.saving = false; refreshSaveRow();
+    D.saving = false;
+    // 403 (a suspended account) and 422 (the content filter — usually the bio): the edits stay on screen and
+    // the server's own sentence sits next to SAVE CHANGES until the next edit
+    if (e && (e.status === 403 || e.status === 422)) D.saveError = e.message;
+    refreshSaveRow();
     ui.toast(e.message, { kind: 'error' });
+    // the server names the field that needs rewording (422 {field}); the name pair focuses the first name
+    if (e && e.status === 422) {
+      const f = (e.data && e.data.field) || '';
+      const key = f === 'name' ? 'first_name' : f;
+      const el = key && q(`[data-field="${key}"]`);
+      if (el) el.focus();
+    }
   }
 }
+// GET/PATCH /api/v2/profile answer moderation_hidden: true while the team keeps the profile out of the directory
+function moderationHidden(r) { return !!(r && (r.moderation_hidden || (r.profile && r.profile.moderation_hidden))); }
 function onPhotoPicked(file) {
   if (!file) return;
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return ui.toast(COPY.identity.photoBadType, { kind: 'error' });
@@ -632,6 +714,68 @@ function openInterestsModal() {
   });
 }
 
+// ---------------------------------------------------------------- delete account
+// The confirm stays disabled until DELETE is typed (any case); Enter in the field confirms, Escape or
+// KEEP MY ACCOUNT closes and hands focus back to the button that opened it.
+let deleting = false;
+function openDeleteModal() {
+  const c = COPY.del;
+  const refocus = () => { const b = q('[data-act="deleteAccount"]'); if (b) b.focus(); };
+  const m = ui.modal({
+    eyebrow: c.modalEyebrow,
+    title: c.modalTitle,
+    body: `<p style="margin:0 0 10px">${c.modalBody}</p>
+      <p style="margin:0">${c.modalKept}</p>
+      <label style="display:block;margin-top:16px"><span style="display:block;${LABEL};margin-bottom:6px">${c.typeLabel}</span>
+        <input data-role="delConfirm" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-describedby="mx-del-err" style="${INPUT};width:100%;box-sizing:border-box;letter-spacing:.12em"></label>
+      <p id="mx-del-err" data-role="error" role="alert" style="color:#9b1b22;font-size:12px;min-height:14px;margin:8px 0 0"></p>`,
+    actions: [
+      { label: c.cancel, onClick: refocus },
+      { label: c.confirm, kind: 'primary', onClick: () => { runDelete(m); return false; } }
+    ]
+  });
+  m.onClose(refocus);
+  m.el.classList.add('mx-profile-del-modal');
+  const input = m.el.querySelector('[data-role="delConfirm"]');
+  const go = m.el.querySelector('.mx-modal-foot [data-act="a1"]');
+  const typed = () => input.value.trim().toUpperCase() === c.word;
+  const sync = () => { if (typed() && !deleting) go.removeAttribute('aria-disabled'); else go.setAttribute('aria-disabled', 'true'); };
+  sync();
+  input.addEventListener('input', () => { m.el.querySelector('[data-role="error"]').textContent = ''; sync(); });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (typed()) go.click(); } });
+  m.sync = sync;
+  input.focus();
+}
+async function runDelete(m) {
+  const c = COPY.del;
+  const input = m.el.querySelector('[data-role="delConfirm"]');
+  const go = m.el.querySelector('.mx-modal-foot [data-act="a1"]');
+  const err = m.el.querySelector('[data-role="error"]');
+  if (deleting || !input || input.value.trim().toUpperCase() !== c.word) return;
+  deleting = true;
+  go.setAttribute('aria-disabled', 'true'); go.setAttribute('aria-busy', 'true'); go.textContent = c.busy;
+  input.disabled = true;
+  try {
+    const r = await api.del('/api/auth/account');
+    m.close();
+    session.clear();
+    try { sessionStorage.removeItem('medx_verify_dismissed'); } catch (e) {}
+    // a hook for the iOS shell to clear its Keychain session, Face ID lock and push token (not wired there yet)
+    document.dispatchEvent(new CustomEvent('medx:account-deleted', { detail: { anonymized: !!(r && r.anonymized) } }));
+    router.replace('/app/auth/welcome');
+    ui.toast(r && r.anonymized ? c.doneKept : c.done, { ms: 6000 });
+  } catch (e) {
+    if (e && e.status === 401) { m.close(); return; }       // api.js already signed out and routed to sign-in
+    go.removeAttribute('aria-busy'); go.textContent = c.confirm;
+    input.disabled = false;
+    err.textContent = (e && e.message) || c.failed;
+    input.focus();
+  } finally {
+    deleting = false;
+    if (m.el.isConnected && m.sync) m.sync();
+  }
+}
+
 const handlers = {
   chgPw: openPasswordModal,
   followAdd: openFollowModal,
@@ -649,7 +793,10 @@ const handlers = {
   pickPhoto: (el, e) => { if (e && e.target && e.target.tagName === 'INPUT') return; const input = q('[data-role="photoInput"]'); if (input) input.click(); },
   tgSpec: el => toggleSpec(el.dataset.spec),
   addSpec: () => addSpecFromInput(),
-  tgDir: (el) => { D.draft.is_public_profile = !D.draft.is_public_profile; setSwitch(el, D.draft.is_public_profile); schedulePreview(); },
+  tgDir: (el) => {
+    if (D.modHidden) return ui.toast(COPY.account.dir.modHiddenToast);     // locked while the team keeps the profile hidden
+    D.draft.is_public_profile = !D.draft.is_public_profile; setSwitch(el, D.draft.is_public_profile); schedulePreview();
+  },
   tgUpd: (el) => { D.draft.updates_opt_in = !D.draft.updates_opt_in; setSwitch(el, D.draft.updates_opt_in); schedulePreview(); },
   save: () => doSave(),
   resend: async el => {
@@ -680,7 +827,8 @@ const handlers = {
       actions: [{ label: 'CLOSE', kind: 'primary' }]
     });
   },
-  connect: () => ui.toast(COPY.preview.connectSelf)
+  connect: () => ui.toast(COPY.preview.connectSelf),
+  deleteAccount: () => openDeleteModal()
 };
 
 // ---------------------------------------------------------------- input wiring
@@ -690,6 +838,7 @@ function bindFields() {
     const ev = el.tagName === 'SELECT' ? 'change' : 'input';
     el.addEventListener(ev, () => {
       D.draft[key] = el.value;
+      if (D.saveError) { D.saveError = null; refreshSaveRow(); }
       if (key === 'first_name' || key === 'last_name' || key === 'bio' || key === 'institution') refreshPreviewCard();
       if (FIELD_KEYS.includes(key)) schedulePreview();
     });
@@ -719,7 +868,8 @@ export default {
       draft: draftFrom(data.profile),
       custom: (data.profile.specialties || []).filter(s => !COPY.fixedSpecs.includes(s)),
       topics: data.topics || [], net: data.net || null, interests: data.interests || [],
-      saved: false, saving: false, photoBusy: false, photoPreview: null
+      saved: false, saving: false, photoBusy: false, photoPreview: null,
+      modHidden: !!data.modHidden, saveError: null
     };
     // the server (not a client guess) says whether the email is verified — let the shell banner agree
     if (data.v2) session.update({ email_verified: data.profile.email_verified });
@@ -732,6 +882,7 @@ export default {
       ${blockIdentity()}
       ${blockAbout()}
       ${blockAccount()}
+      ${blockDelete()}
     </div>
     ${blockSidebar()}
   </div>

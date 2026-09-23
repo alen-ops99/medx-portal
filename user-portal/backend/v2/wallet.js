@@ -206,15 +206,16 @@ module.exports = function mountWallet(app, ctx) {
                   FROM registrations r JOIN conferences c ON r.conference_id = c.id
                   LEFT JOIN ticket_types t ON r.ticket_type_id = t.id
                   LEFT JOIN users u ON r.user_id = u.id
-                 WHERE r.user_id = ? OR lower(r.email) = ?`, [user.id, em]).forEach(r => items.push(bagFromPlexus(r)));
-        tryAll(`SELECT * FROM gala_registrations WHERE (user_id = ? OR lower(email) = ?)
+                 WHERE r.user_id = ? OR (r.user_id IS NULL AND lower(r.email) = ?)`, [user.id, em]).forEach(r => items.push(bagFromPlexus(r)));
+        tryAll(`SELECT * FROM gala_registrations WHERE (user_id = ? OR (user_id IS NULL AND lower(email) = ?))
                  AND COALESCE(status,'') NOT IN ('rejected','declined','cancelled')`, [user.id, em]).forEach(r => items.push(bagFromGala(r)));
         tryAll(`SELECT br.*, e.name AS event_name, e.event_date, e.event_time, e.venue_name, e.city, e.slug
                   FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id
-                 WHERE (br.user_id = ? OR lower(br.email) = ?) AND COALESCE(br.status,'') <> 'cancelled'`, [user.id, em]).forEach(r => items.push(bagFromBridges(r)));
+                 WHERE (br.user_id = ? OR (br.user_id IS NULL AND lower(br.email) = ?)) AND COALESCE(br.status,'') <> 'cancelled'`, [user.id, em]).forEach(r => items.push(bagFromBridges(r)));
         tryAll(`SELECT fer.*, fe.title AS event_title, COALESCE(fe.start_date, '') AS event_date, fe.venue
                   FROM forum_event_registrations fer JOIN forum_events fe ON fer.event_id = fe.id
-                 WHERE lower(fer.email) = ?`, [em]).forEach(r => items.push(bagFromForum(r)));
+                 WHERE lower(fer.email) = ?
+                   AND (fer.member_id IS NULL OR fer.member_id IN (SELECT id FROM forum_members WHERE user_id = ? OR user_id IS NULL))`, [em, user.id]).forEach(r => items.push(bagFromForum(r)));
         tryAll(`SELECT sr.*, sf.title AS form_title, sf.event_date, sf.event_time, sf.venue, sf.slug
                   FROM signup_form_responses sr JOIN signup_forms sf ON sr.form_id = sf.id
                  WHERE lower(sr.email) = ?`, [em]).forEach(r => items.push(bagFromSignup(r)));
@@ -223,7 +224,7 @@ module.exports = function mountWallet(app, ctx) {
         if (!items.some(i => i.kind === 'plexus')) {
             tryAll(`SELECT * FROM croatians_abroad_registrations
                      WHERE selected_conference = 1 AND COALESCE(conference_status,'') <> 'cancelled'
-                       AND (user_id = ? OR lower(email) = ?)`, [user.id, em]).forEach(r => items.push(bagFromCA(r)));
+                       AND (user_id = ? OR (user_id IS NULL AND lower(email) = ?))`, [user.id, em]).forEach(r => items.push(bagFromCA(r)));
         }
         return items;
     }
@@ -236,24 +237,25 @@ module.exports = function mountWallet(app, ctx) {
                           FROM registrations r JOIN conferences c ON r.conference_id = c.id
                           LEFT JOIN ticket_types t ON r.ticket_type_id = t.id
                           LEFT JOIN users u ON r.user_id = u.id
-                         WHERE r.id = ? AND (r.user_id = ? OR lower(r.email) = ?)`, [id, user.id, em]);
+                         WHERE r.id = ? AND (r.user_id = ? OR (r.user_id IS NULL AND lower(r.email) = ?))`, [id, user.id, em]);
         if (r) return bagFromPlexus(r);
-        r = tryGet('SELECT * FROM gala_registrations WHERE id = ? AND (user_id = ? OR lower(email) = ?)', [id, user.id, em]);
+        r = tryGet('SELECT * FROM gala_registrations WHERE id = ? AND (user_id = ? OR (user_id IS NULL AND lower(email) = ?))', [id, user.id, em]);
         if (r) return bagFromGala(r);
         r = tryGet(`SELECT br.*, e.name AS event_name, e.event_date, e.event_time, e.venue_name, e.city, e.slug
                       FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id
-                     WHERE br.id = ? AND (br.user_id = ? OR lower(br.email) = ?)`, [id, user.id, em]);
+                     WHERE br.id = ? AND (br.user_id = ? OR (br.user_id IS NULL AND lower(br.email) = ?))`, [id, user.id, em]);
         if (r) return bagFromBridges(r);
         r = tryGet(`SELECT fer.*, fe.title AS event_title, COALESCE(fe.start_date,'') AS event_date, fe.venue
                       FROM forum_event_registrations fer JOIN forum_events fe ON fer.event_id = fe.id
-                     WHERE fer.id = ? AND lower(fer.email) = ?`, [id, em]);
+                     WHERE fer.id = ? AND lower(fer.email) = ?
+                       AND (fer.member_id IS NULL OR fer.member_id IN (SELECT id FROM forum_members WHERE user_id = ? OR user_id IS NULL))`, [id, em, user.id]);
         if (r) return bagFromForum(r);
         r = tryGet(`SELECT sr.*, sf.title AS form_title, sf.event_date, sf.event_time, sf.venue, sf.slug
                       FROM signup_form_responses sr JOIN signup_forms sf ON sr.form_id = sf.id
                      WHERE sr.id = ? AND lower(sr.email) = ?`, [id, em]);
         if (r) return bagFromSignup(r);
         r = tryGet(`SELECT * FROM croatians_abroad_registrations
-                     WHERE id = ? AND selected_conference = 1 AND (user_id = ? OR lower(email) = ?)`, [id, user.id, em]);
+                     WHERE id = ? AND selected_conference = 1 AND (user_id = ? OR (user_id IS NULL AND lower(email) = ?))`, [id, user.id, em]);
         if (r) return bagFromCA(r);
         return null;
     }

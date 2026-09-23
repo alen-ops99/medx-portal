@@ -128,7 +128,9 @@ export const COPY = {
   // UXFIX-A1 #15 (2026-09-02): the footer's SYSTEM HEALTH link duplicated the header pill — removed, header pill kept
   footer: { admin: 'ADMIN:', audit: 'AUDIT LOG', member: 'VIEW MEMBER PORTAL ↗' },
   // Event day (2026-09-21): a bridges_events row dated today puts the door scanner above everything.
-  tonight: { line: city => `${FACTS.bridges.name} ${city} is tonight —`, cta: 'OPEN THE DOOR SCANNER →' }
+  tonight: { line: city => `${FACTS.bridges.name} ${city} is tonight —`, cta: 'OPEN THE DOOR SCANNER →' },
+  // App Store 1.2: open member reports (a profile or a message) — the team answers within 24 hours
+  reports: { line: n => `${n} report${n === 1 ? '' : 's'} to review`, sub: 'Flagged by members · answer within 24 hours', cta: 'REVIEW →' }
 };
 const KPI_KEYS = ['kDays', 'kConf', 'kGala', 'kMoney'];
 const TREND_KEY = 'kTrend';                          // the chart is its own Customise tick, not a KPI card
@@ -173,7 +175,9 @@ async function load(days) {
     bridgesHub: api.get('/api/v2/bridges/hub'),     // the Zagreb head count (diaspora form rows included) + the published editions
     forumCand: api.get('/api/admin/forum/candidates?status=all'),
     institutions: api.get('/api/accelerator/institutions', { noAuth: true }),
-    bigIdeas: api.get('/api/v2/big-ideas/due?days=14')   // Big Ideas — next steps due or overdue
+    bigIdeas: api.get('/api/v2/big-ideas/due?days=14'),   // Big Ideas — next steps due or overdue
+    // open member reports (admin v2/safety-ops.js) — only for admins who can open the queue
+    reports: perms.canAny(['member-ops']) ? api.get('/api/v2/safety/reports/count') : null
   });
   if (r.me) session.update(r.me);
   const today = fmt.ymd(new Date());
@@ -233,7 +237,8 @@ async function load(days) {
     cap: Number(conf.max_capacity) || FACTS.plexus.cap,
     // Big Ideas: the next steps already due or falling inside a fortnight, overdue first. An older
     // backend answers 404 — the card then simply has nothing to show and stays away.
-    bigIdeas: (r.bigIdeas && Array.isArray(r.bigIdeas.items)) ? r.bigIdeas.items : []
+    bigIdeas: (r.bigIdeas && Array.isArray(r.bigIdeas.items)) ? r.bigIdeas.items : [],
+    reportsOpen: r.reports ? Number(r.reports.open || 0) : 0
   };
 }
 
@@ -682,12 +687,29 @@ function blockTonight() {
       <span style="font:600 12px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.tonight.cta}</span>
     </a>`;
 }
+// v2 (App Store 1.2): one line while members' reports wait — it leads to the queue on People. Not snoozable:
+// the promise to members is an answer within 24 hours. Nothing when the queue is empty.
+function blockReports() {
+  const n = D.reportsOpen || 0;
+  if (!n) return '';
+  const R = COPY.reports;
+  return `
+    <a href="/people?reports=1" data-block="reports" data-v2="member reports — /api/v2/safety/reports/count" class="mx-t-reports" style="display:flex;align-items:center;gap:14px;padding:14px 20px;border:1px solid rgba(155,27,34,.35);background:#fff;color:#201b16;text-decoration:none;flex-wrap:wrap" data-hover="background:var(--row-hover)">
+      <span style="width:8px;height:8px;background:#9b1b22;flex:none"></span>
+      <span style="flex:1;min-width:0;display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap">
+        <span style="font-size:14px;font-weight:600">${esc(R.line(n))}</span>
+        <span style="font-size:12px;color:#6d6459">${esc(R.sub)}</span>
+      </span>
+      <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${R.cta}</span>
+    </a>`;
+}
 function template() {
   return `
 <div data-screen-label="Admin Home" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
   <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:26px">
     ${blockTonight()}
     ${blockGreeting()}
+    ${blockReports()}
     ${blockCustomise()}
     ${blockHero()}
     ${blockProjects()}

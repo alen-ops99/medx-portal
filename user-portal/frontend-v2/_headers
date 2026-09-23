@@ -8,3 +8,6 @@
 /passes-live/*
   Content-Type: application/vnd.apple.pkpass
   Content-Disposition: inline
+
+/.well-known/apple-app-site-association
+  Content-Type: application/json

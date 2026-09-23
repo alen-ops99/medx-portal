@@ -320,7 +320,7 @@ function resolveItem(id, owner) {
                      FROM registrations r JOIN conferences c ON r.conference_id = c.id
                      LEFT JOIN ticket_types t ON r.ticket_type_id = t.id
                      LEFT JOIN users u ON r.user_id = u.id
-                    WHERE r.id = ?` + (owner ? ' AND (r.user_id = ? OR lower(r.email) = ?)' : ''), owner ? [id, uid, em] : [id]);
+                    WHERE r.id = ?` + (owner ? ' AND (r.user_id = ? OR (r.user_id IS NULL AND lower(r.email) = ?))' : ''), owner ? [id, uid, em] : [id]);
     if (r) {
         const paid = r.payment_status === 'paid' || r.status === 'confirmed';
         const amount = Number(r.amount_paid || 0);
@@ -334,7 +334,7 @@ function resolveItem(id, owner) {
             qrMessage: ensureRegToken(r)
         };
     }
-    r = Q.get('SELECT * FROM gala_registrations WHERE id = ?' + (owner ? ' AND (user_id = ? OR lower(email) = ?)' : ''), owner ? [id, uid, em] : [id]);
+    r = Q.get('SELECT * FROM gala_registrations WHERE id = ?' + (owner ? ' AND (user_id = ? OR (user_id IS NULL AND lower(email) = ?))' : ''), owner ? [id, uid, em] : [id]);
     if (r) {
         const g = Q.get("SELECT title, date, time, venue FROM gala_settings WHERE id = 'default'") || {};
         const paid = r.payment_status === 'paid' || r.payment_status === 'vip-comp';
@@ -352,7 +352,7 @@ function resolveItem(id, owner) {
     }
     r = Q.get(`SELECT br.*, e.name AS event_name, e.event_date, e.event_time, e.venue_name, e.city, e.slug
                  FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id
-                WHERE br.id = ?` + (owner ? ' AND (br.user_id = ? OR lower(br.email) = ?)' : ''), owner ? [id, uid, em] : [id]);
+                WHERE br.id = ?` + (owner ? ' AND (br.user_id = ? OR (br.user_id IS NULL AND lower(br.email) = ?))' : ''), owner ? [id, uid, em] : [id]);
     if (r) {
         const bag = {
             kind: r.slug === 'donor-night' ? 'donor' : 'bridges', id: r.id, table: 'bridges_registrations',
@@ -366,7 +366,8 @@ function resolveItem(id, owner) {
     }
     r = Q.get(`SELECT fer.*, fe.title AS event_title, COALESCE(fe.start_date,'') AS event_date, fe.venue
                  FROM forum_event_registrations fer JOIN forum_events fe ON fer.event_id = fe.id
-                WHERE fer.id = ?` + (owner ? ' AND lower(fer.email) = ?' : ''), owner ? [id, em] : [id]);
+                WHERE fer.id = ?` + (owner ? ` AND lower(fer.email) = ?
+                  AND (fer.member_id IS NULL OR fer.member_id IN (SELECT id FROM forum_members WHERE user_id = ? OR user_id IS NULL))` : ''), owner ? [id, em, uid] : [id]);
     if (r) {
         const paid = r.payment_status === 'paid' || !r.payment_status;
         const bag = {
@@ -393,7 +394,7 @@ function resolveItem(id, owner) {
         return bag;
     }
     r = Q.get(`SELECT * FROM croatians_abroad_registrations WHERE id = ? AND selected_conference = 1` +
-        (owner ? ' AND (user_id = ? OR lower(email) = ?)' : ''), owner ? [id, uid, em] : [id]);
+        (owner ? ' AND (user_id = ? OR (user_id IS NULL AND lower(email) = ?))' : ''), owner ? [id, uid, em] : [id]);
     if (r) {
         const c = Q.get('SELECT name, start_date, end_date, venue_name, venue_city FROM conferences WHERE is_active = 1 ORDER BY year DESC LIMIT 1') || {};
         const bag = {
@@ -431,23 +432,24 @@ function memberQrValue(user) {                       // mirrors wallet.js member
     const em = (user.email || '__none__').toLowerCase();
     const others = [];
     Q.all(`SELECT id, created_at AS od, status, payment_status FROM gala_registrations
-            WHERE (user_id = ? OR lower(email) = ?) AND COALESCE(status,'') NOT IN ('rejected','declined','cancelled')`, [user.id, em])
+            WHERE (user_id = ? OR (user_id IS NULL AND lower(email) = ?)) AND COALESCE(status,'') NOT IN ('rejected','declined','cancelled')`, [user.id, em])
         .forEach(r2 => others.push({ kind: 'gala', id: r2.id, od: r2.od }));
     Q.all(`SELECT br.id, br.registered_at AS od, e.slug FROM bridges_registrations br
             JOIN bridges_events e ON br.event_id = e.id
-            WHERE (br.user_id = ? OR lower(br.email) = ?) AND COALESCE(br.status,'') <> 'cancelled'`, [user.id, em])
+            WHERE (br.user_id = ? OR (br.user_id IS NULL AND lower(br.email) = ?)) AND COALESCE(br.status,'') <> 'cancelled'`, [user.id, em])
         .forEach(r2 => others.push({ kind: r2.slug === 'donor-night' ? 'donor' : 'bridges', id: r2.id, od: r2.od }));
     Q.all(`SELECT id, registered_at AS od FROM forum_event_registrations
-            WHERE lower(email) = ? AND COALESCE(status,'') <> 'cancelled'`, [em])
+            WHERE lower(email) = ? AND COALESCE(status,'') <> 'cancelled'
+              AND (member_id IS NULL OR member_id IN (SELECT id FROM forum_members WHERE user_id = ? OR user_id IS NULL))`, [em, user.id])
         .forEach(r2 => others.push({ kind: 'forum', id: r2.id, od: r2.od }));
     Q.all(`SELECT id, created_at AS od FROM signup_form_responses
             WHERE lower(email) = ? AND COALESCE(is_waitlisted,0) = 0`, [em])
         .forEach(r2 => others.push({ kind: 'signup-form', id: r2.id, od: r2.od }));
-    const anyPlexusRow = Q.get('SELECT id FROM registrations WHERE user_id = ? OR lower(email) = ?', [user.id, em]);
+    const anyPlexusRow = Q.get('SELECT id FROM registrations WHERE user_id = ? OR (user_id IS NULL AND lower(email) = ?)', [user.id, em]);
     if (!anyPlexusRow) {
         Q.all(`SELECT id, created_at AS od FROM croatians_abroad_registrations
                 WHERE selected_conference = 1 AND COALESCE(conference_status,'') <> 'cancelled'
-                  AND (user_id = ? OR lower(email) = ?)`, [user.id, em])
+                  AND (user_id = ? OR (user_id IS NULL AND lower(email) = ?))`, [user.id, em])
             .forEach(r2 => others.push({ kind: 'plexus', id: r2.id, od: r2.od }));
     }
     others.sort((a, b) => String(b.od || '').localeCompare(String(a.od || '')));
@@ -611,8 +613,10 @@ module.exports = function mountApplePass(app, ctx) {
             const t = verifyToken(String(req.params.token || ''));
             if (!t) return res.status(401).json({ error: 'This pass link is invalid or has expired — open My Med&X for a fresh one.' });
             if (t.kind === 'member') {
-                const user = q().get('SELECT id, email, first_name, last_name, created_at FROM users WHERE id = ?', [t.id]);
-                if (!user) return res.status(404).json({ error: 'Member not found' });
+                const user = q().get('SELECT id, email, first_name, last_name, created_at, deleted_at FROM users WHERE id = ?', [t.id]);
+                // a link minted before the member closed the account builds nothing for the tombstone
+                if (!user || user.deleted_at) return res.status(404).json({ error: 'Member not found' });
+                delete user.deleted_at;
                 user.email = String(user.email || '').toLowerCase();
                 return sendPkpass(res, buildPkpass(memberModel(user, memberMeta(user), memberQrValue(user))));
             }

@@ -306,9 +306,12 @@ module.exports = function mountMeetups(app, ctx) {
     // ================================================================ MEMBER ROUTES
     const me = (req) => (req.user || {});
     const myEmail = (req) => String(me(req).email || '').trim();
+    // A place is mine when it carries my account id, or — for a row no account owns yet (an email invite, a
+    // guest) — my address. A row another account owns (a closed account's tombstone) never matches by address.
+    const MINE_SQL = '(user_id = ? OR (user_id IS NULL AND lower(email) = lower(?)))';
     const myRowFor = (req, mid) => {
         const email = myEmail(req);
-        return email ? q.get('SELECT * FROM plexus_meetup_attendees WHERE meetup_id = ? AND lower(email) = lower(?)', [mid, email]) : null;
+        return email ? q.get(`SELECT * FROM plexus_meetup_attendees WHERE meetup_id = ? AND ${MINE_SQL}`, [mid, String(me(req).id || ''), email]) : null;
     };
     const isHostOf = (req, m) => !!(m && m.host_user_id && String(m.host_user_id) === String(me(req).id));
     const resolveEdition = (query) => {
@@ -327,7 +330,7 @@ module.exports = function mountMeetups(app, ctx) {
             const ed = resolveEdition(req.query);
             if (!ed) return res.json({ edition: null, editions: [], meetups: [], days: [], tags: [] });
             const email = myEmail(req);
-            const mine = email ? q.all('SELECT * FROM plexus_meetup_attendees WHERE lower(email) = lower(?)', [email]) : [];
+            const mine = email ? q.all(`SELECT * FROM plexus_meetup_attendees WHERE ${MINE_SQL}`, [String(me(req).id || ''), email]) : [];
             const mineBy = {}; mine.forEach(a => { mineBy[a.meetup_id] = a; });
             const rows = q.all("SELECT * FROM plexus_meetups WHERE edition_id = ? AND status IN ('published','completed') ORDER BY starts_at, title", [ed.id]);
             // Invite-only meetups appear ONLY to people who were invited (spec §3 "Member view").
@@ -348,7 +351,7 @@ module.exports = function mountMeetups(app, ctx) {
         try {
             const email = myEmail(req);
             if (!email) return res.json({ meetups: [], hosting: [] });
-            const rows = q.all("SELECT * FROM plexus_meetup_attendees WHERE lower(email) = lower(?) AND status IN ('confirmed','promoted','waitlisted','invited')", [email]);
+            const rows = q.all(`SELECT * FROM plexus_meetup_attendees WHERE ${MINE_SQL} AND status IN ('confirmed','promoted','waitlisted','invited')`, [String(me(req).id || ''), email]);
             const out = [];
             for (const a of rows) {
                 const m = core.meetupById(q, a.meetup_id);

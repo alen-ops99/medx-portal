@@ -9,10 +9,15 @@
 // v2 additions beyond the artboard (each marked data-v2 / <!-- v2 -->): REMOVE on My-network rows,
 // the paginated directory list under BROWSE ALL, result/directory pagers, the profile-peek modal
 // on member names, and the "— matches <field>" note on results matched via a field the row hides.
+// REPORT + BLOCK (App Store 1.2 — js/views/_safety.js · backend v2/safety.js): a quiet ⋯ on every person
+// (card name line, list rows) and REPORT · BLOCK in the profile peek; a blocked member leaves every list
+// here at once (the server already keeps the pair out of each other's directory, search and suggestions)
+// and BLOCKED MEMBERS · n at the foot of the page opens the list with UNBLOCK.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
 import router from '../router.js';
+import { SAFETY, ensureCss as ensureSafetyCss, moreButton, openMenu, reportSheet, blockFlow, openBlockedList, rememberBlocks } from './_safety.js';
 
 export const SOURCE = 'Network.dc.html';
 
@@ -110,7 +115,8 @@ async function load(q) {
     pending: api.get('/api/networking/connections/pending'),
     conns: api.get('/api/networking/connections'),
     sugg: api.get('/api/v2/network/suggestions?limit=8'),
-    feed: api.get('/api/feed/home')
+    feed: api.get('/api/feed/home'),
+    blocks: api.get('/api/v2/safety/blocks')
   });
   const me = session.user || {};
   CS = new Map(CS || []);   // merge, never reset mid-session — optimistic pending_out states survive a background refresh
@@ -122,9 +128,12 @@ async function load(q) {
   const conns = (Array.isArray(r.conns) ? r.conns : []).map(c => {
     const pid = c.requester_id === me.id ? c.receiver_id : c.requester_id;
     CS.set(pid, { state: 'connected', id: c.id });
+    // is_team: the legacy route's rows name the Med&X team (u.is_admin AS is_team) — BLOCK is never offered for them
     return { cid: c.id, id: pid, name: [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Member',
-      institution: c.institution || '', bio: c.bio || '', photo_url: c.photo_url || '' };
+      institution: c.institution || '', bio: c.bio || '', photo_url: c.photo_url || '',
+      is_team: !!Number(c.is_team || c.is_admin || 0) };
   });
+  if (r.blocks && Array.isArray(r.blocks.blocks)) rememberBlocks(r.blocks.blocks);   // the header search reads the same list
   // keep only fresh candidates at load time; once shown, a card STAYS through connect
   // (its button face flips to REQUEST SENT — the artboard behaviour) instead of vanishing
   const sugg = ((r.sugg && r.sugg.results) || []).filter(s => !s.connection || s.connection.state === 'none');
@@ -132,6 +141,7 @@ async function load(q) {
     total: (r.summary && r.summary.members) || 0,
     pending, conns, sugg,
     forumTop: (((r.feed && r.feed.items) || []).find(i => i.source === 'forum')) || null,
+    blockedCount: ((r.blocks && r.blocks.blocks) || []).length,
     q: q || ''
   };
 }
@@ -212,7 +222,7 @@ function cardRequest(m) { return `
           <div data-card="${esc(m.id)}" class="mx-net-card" style="border:1px solid rgba(155,27,34,.45);background:#fdfaf3;display:flex;flex-direction:column">
             <div class="mx-net-face" data-act="peek" data-id="${esc(m.id)}" tabindex="-1" aria-hidden="true" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid #9b1b22;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.forYou.requestChip}</span></div>
             <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px;flex:1">
-              <span data-act="peek" data-id="${esc(m.id)}" style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>
+              <span style="display:flex;align-items:flex-start;gap:6px"><span data-act="peek" data-id="${esc(m.id)}" style="flex:1;min-width:0;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>${moreButton({ id: m.id, name: m.name, cls: 'is-card' })}</span>
               <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(COPY.forYou.requestSub)}${m.institution ? ' · ' + esc(m.institution) : ''}</span>
               <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
                 <span data-act="accept" data-cid="${esc(m.cid)}" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.forYou.accept}</span>
@@ -228,7 +238,7 @@ function cardSuggestion(m) {
           <div data-card="${esc(m.id)}" class="mx-net-card" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
             <div class="mx-net-face" data-act="peek" data-id="${esc(m.id)}" tabindex="-1" aria-hidden="true" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}${why ? `<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(why)}</span>` : ''}</div>
             <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px;flex:1">
-              <span data-act="peek" data-id="${esc(m.id)}" style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>
+              <span style="display:flex;align-items:flex-start;gap:6px"><span data-act="peek" data-id="${esc(m.id)}" style="flex:1;min-width:0;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>${moreButton({ id: m.id, name: m.name, cls: 'is-card' })}</span>
               <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(subLine(m))}</span>
               <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
                 <span data-act="connect" data-id="${esc(m.id)}" data-face="${face.hv}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${face.label}</span>
@@ -277,6 +287,7 @@ function blockMyNetwork() {
             <span style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.net.connected}</span>
             <span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="padding:9px 15px;background:#9b1b22;color:#f7f1e6;font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.net.message}</span>
             <span data-act="remove" data-cid="${esc(m.cid)}" data-id="${esc(m.id)}" data-name="${esc(m.name)}" data-v2="remove — required control, not on the artboard" class="mx-net-act" style="padding:9px 12px;border:1px solid rgba(25,21,18,.25);color:#4a4239;font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#9b1b22;color:#9b1b22">${COPY.net.remove}</span>
+            ${moreButton({ id: m.id, name: m.name })}
           </div>`).join('')}
       </div>` : `
       <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:22px;display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;max-width:960px">
@@ -302,6 +313,7 @@ function rowMember(m, i, matched) {
           <span class="mx-net-id" style="flex:1;min-width:0"><span data-act="peek" data-id="${esc(m.id)}" style="display:block;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">${esc(m.name)}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${esc(subLine(m))}${matchNote}</span></span>
           <span data-act="connect" data-id="${esc(m.id)}" ${s === 'pending_in' ? `data-cid="${esc(cstate(m).id)}"` : ''} data-face="${face.hv}" class="mx-net-act" style="padding:9px 15px;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap">${face.label}</span>
           <span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="padding:9px 15px;border:1px solid rgba(25,21,18,.25);font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.net.message}</span>
+          ${moreButton({ id: m.id, name: m.name })}
         </div>`;
 }
 
@@ -354,10 +366,19 @@ function blockResults() {
       <!-- /dc -->`;
 }
 
+// v2 (App Store 1.2): the way back to anyone the member blocked — only when there is someone to unblock
+function blockBlocked() {
+  if (!D.blockedCount) return '';
+  return `
+      <div data-v2="blocked members — js/views/_safety.js" style="display:flex;justify-content:center;padding:0 0 28px;margin-top:-12px">
+        <span data-act="blocked" class="mx-safe-link">${SAFETY.link(D.blockedCount)}</span>
+      </div>`;
+}
+
 function contentBlock() {
   const searching = !!st.q.trim();
   const html = `<div data-block="content"${fresh === 'all' ? ' class="mx-net-fresh"' : ''}>
-    ${searching ? blockResults() : blockForumTeaser() + blockForYou() + blockMyNetwork() + blockBrowse()}
+    ${searching ? blockResults() : blockForumTeaser() + blockForYou() + blockMyNetwork() + blockBrowse() + blockBlocked()}
   </div>`;
   fresh = null;
   return html;
@@ -428,6 +449,12 @@ function findMember(id) {
   const pools = [D.sugg, D.pending, D.conns, (st.res && st.res.items) || [], st.dir.items || []];
   for (const pool of pools) { const hit = pool.find(m => m.id === id); if (hit) return hit; }
   return null;
+}
+// the Med&X team is never offered BLOCK: any list that knows the person is on the team settles it (a connection
+// row from an older backend carries no is_team, while the directory row for the same person does)
+function isTeamMember(id) {
+  const pools = [D.sugg, D.pending, D.conns, (st.res && st.res.items) || [], st.dir.items || []];
+  return pools.some(pool => pool.some(m => m.id === id && m.is_team));
 }
 function refreshBackground() {   // re-sync lists after a mutation without blocking the optimistic UI
   load(st.q).then(next => {
@@ -523,16 +550,49 @@ const handlers = {
     if (!m) return ui.toast('Profile details are not loaded for this member.');
     const parts = [m.title, m.institution, [m.city, m.country].filter(Boolean).join(', ')].filter(Boolean);
     const chips = (m.specialties || []).concat(m.tags || []);
-    ui.modal({
+    const md = ui.modal({
       eyebrow: COPY.peek.eyebrow,
       title: esc(m.name),
       body: `${parts.length ? `<p style="margin:0 0 10px">${esc(parts.join(' · '))}</p>` : ''}
         ${chips.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px">${chips.map(t => `<span class="chip" style="cursor:default">${esc(t)}</span>`).join('')}</div>` : ''}
-        ${m.bio ? `<p style="margin:0">${esc(m.bio)}</p>` : (parts.length || chips.length ? '' : '<p style="margin:0">This member has not filled in their profile yet.</p>')}`,
+        ${m.bio ? `<p style="margin:0">${esc(m.bio)}</p>` : (parts.length || chips.length ? '' : '<p style="margin:0">This member has not filled in their profile yet.</p>')}
+        <div data-v2="report · block (App Store 1.2)" style="display:flex;gap:20px;margin-top:18px;padding-top:12px;border-top:1px solid rgba(25,21,18,.1)">
+          <span data-act="peekReport" class="mx-safe-link">${SAFETY.menu.report}</span>
+          ${m.is_team || isTeamMember(m.id) ? '' : `<span data-act="peekBlock" class="mx-safe-link" style="color:#9b1b22">${SAFETY.menu.block}</span>`}
+        </div>`,
       actions: [{ label: COPY.peek.close }]
     });
-  }
+    ui.bind(md.el, {
+      peekReport: () => { md.close(); reportSheet({ kind: 'member', targetId: m.id, name: m.name }); },
+      peekBlock: () => { md.close(); blockMember(m); }
+    });
+  },
+
+  // ⋯ on a card / row → REPORT · BLOCK (the Med&X team is never offered BLOCK — the server refuses it too)
+  more: (el) => {
+    const m = findMember(el.dataset.id) || { id: el.dataset.id, name: 'this member' };
+    const items = [{ label: SAFETY.menu.report, onPick: () => reportSheet({ kind: 'member', targetId: m.id, name: m.name }) }];
+    if (!m.is_team && !isTeamMember(m.id)) items.push({ label: SAFETY.menu.block, tone: 'danger', onPick: () => blockMember(m) });
+    openMenu(el, items);
+  },
+
+  blocked: () => openBlockedList({ onUnblock: (id, left) => { if (!D) return; D.blockedCount = left; refreshBackground(); rerenderContent(); } })
 };
+
+// after a confirmed block: the member leaves every list on this screen at once; the background re-sync
+// then brings the counts (BROWSE ALL <N>) in line with the server
+async function blockMember(m) {
+  const r = await blockFlow({ id: m.id, name: m.name });
+  if (!r || !D) return;
+  const id = m.id, keep = x => x.id !== id;
+  D.sugg = D.sugg.filter(keep); D.pending = D.pending.filter(keep); D.conns = D.conns.filter(keep);
+  if (st.res) { const before = st.res.items.length; st.res.items = st.res.items.filter(keep); st.res.total = Math.max(0, st.res.total - (before - st.res.items.length)); }
+  if (st.dir.items) st.dir.items = st.dir.items.filter(keep);
+  CS.delete(id);
+  if (!r.already) D.blockedCount = (D.blockedCount || 0) + 1;
+  rerenderContent();
+  refreshBackground();
+}
 
 function wireSearchInput() {
   const input = rootEl.querySelector('[data-role="q"]');
@@ -555,6 +615,7 @@ export default {
       link.rel = 'stylesheet'; link.href = '/css/views/network.css'; link.setAttribute('data-view-css', 'network');
       document.head.appendChild(link);
     }
+    ensureSafetyCss();
     const q0 = (ctx.query && ctx.query.q) || '';
     st = { q: q0, res: null, dir: { open: false, loading: false, items: [], page: 1, pages: 1 } };
     D = await load(q0);

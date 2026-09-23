@@ -1273,6 +1273,8 @@ const SECTION_ROUTE_MAP = [
     ['/api/admin/member-meta', 'member-ops'], ['/api/admin/member-card-toggles', 'member-ops'], ['/api/admin/bulk-email', 'member-ops'],
     ['/api/admin/outbox', 'member-ops'], ['/api/admin/rewards', 'member-ops'], ['/api/admin/users', 'member-ops'],
     ['/api/admin/notifications', 'member-ops'],
+    // Member REPORTS queue + HIDE PROFILE (2026-09-23, admin-portal/backend/v2/safety-ops.js — App Store 1.2).
+    ['/api/v2/safety', 'member-ops'],
     // — Finance —
     ['/api/finance', 'finances'], ['/api/admin/transparency', 'finances'],
     // — Network / Leadership —
@@ -23428,7 +23430,28 @@ By applying to this program, I provide the following consents:
         { id: 'subs_bridges', label: 'Subscribers: Building Bridges interest' }
     ];
     function isNewsletterSegment(id) { return NEWSLETTER_SEGMENTS.some((s) => s.id === id); }
+    // Newsletter suppression, applied to EVERY segment: an address that opted out of the newsletter
+    // (email_optouts 'newsletter' scope — the /email-prefs page, the one-click unsubscribe, the in-app
+    // unsubscribe and account deletion all write it) or whose pr_subscribers row is 'unsubscribed' is
+    // never in an audience, whichever table the segment reads (registrations and gala rows are kept
+    // after an account is deleted). A filter only; it never adds an address. Lower-cased, trimmed.
+    function newsletterSuppressed() {
+        const out = new Set();
+        try {
+            query.all("SELECT email, scopes FROM email_optouts WHERE email IS NOT NULL").forEach((r) => {
+                if (String(r.scopes || '').split(',').map((x) => x.trim()).includes('newsletter')) out.add(String(r.email).toLowerCase().trim());
+            });
+        } catch (e) { /* no opt-out table on this engine */ }
+        try {
+            query.all("SELECT email FROM pr_subscribers WHERE status = 'unsubscribed' AND email IS NOT NULL").forEach((r) => out.add(String(r.email).toLowerCase().trim()));
+        } catch (e) { /* no subscriber table */ }
+        return out;
+    }
     function resolveSegmentEmails(id) {
+        const suppressed = newsletterSuppressed();
+        return resolveSegmentEmailsRaw(id).filter((e) => !suppressed.has(String(e).toLowerCase().trim()));
+    }
+    function resolveSegmentEmailsRaw(id) {
         const distinct = (sql, params) => { try { return query.all(sql, params || []).map((r) => r.email).filter(Boolean); } catch (e) { return []; } };
         if (id === 'all_subscribers') return distinct("SELECT DISTINCT LOWER(TRIM(email)) AS email FROM pr_subscribers WHERE status = 'active' AND email IS NOT NULL AND TRIM(email) <> ''");
         if (id === 'forum_members') return distinct("SELECT DISTINCT LOWER(TRIM(email)) AS email FROM forum_members WHERE membership_status = 'approved' AND email IS NOT NULL AND TRIM(email) <> ''");

@@ -105,6 +105,15 @@ function boot() {
     if (!location.pathname.startsWith('/app/auth')) router.replace('/app/auth/signin' + (next && next !== '/' ? '?next=' + encodeURIComponent(next) : ''));
     else state.set({ user: null });
   });
+  // A suspended account (api.js has already signed this device out): the sign-in screen shows the server's
+  // sentence ("This account is suspended. Write to info@medx.hr.") until the next successful sign-in. Several
+  // requests can answer 403 at once; the first one routes, the rest only refresh the stored sentence.
+  document.addEventListener('medx:suspended', (ev) => {
+    const msg = (ev && ev.detail && ev.detail.message) || '';
+    try { sessionStorage.setItem('medx_suspended', msg || '1'); } catch (e) {}
+    state.set({ user: null });
+    if (!location.pathname.startsWith('/app/auth/signin')) router.replace('/app/auth/signin');
+  });
   router.addAll(ROUTES).notFound(NOT_FOUND)
     .hook('beforeRender', ({ route, title }) => { state.set({ viewTitle: (route && route.title) || '' }); chrome.closeDrawer(); chrome.closePopover(); })
     .hook('afterRender', ({ title }) => { if (title) state.set({ viewTitle: title }); });

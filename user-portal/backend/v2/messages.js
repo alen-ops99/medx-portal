@@ -31,12 +31,23 @@
  *   GET  /api/v2/messages/unread-count            {unread, team, direct} for the chrome ALERTS dot
  * Member ↔ member reads/writes reuse the existing routes (GET /api/messages/:userId marks read,
  * POST /api/messages enforces the accepted-connection rule and pushes).
+ *
+ * Blocks (v2/safety.js, shared/safety-core.js): a thread with a member I BLOCKED is left out of my
+ * thread list and my unread counts (the blocked member still sees their side — POST /api/messages
+ * refuses either direction); GET peer/:userId answers `blocked: true` to the blocker and 404 to the
+ * blocked member (the same answer as an unknown member — it never says who blocked whom).
+ * Legacy rows that key the partner by EMAIL are resolved to that member's users.id (one thread per
+ * person), and a blocked member's address is hidden like their id.
+ * Moderation: a message the Med&X team removed (direct_messages.removed_at) is left out of every read,
+ * preview and count here; a suspended member's peer card answers 404 like an unknown member, and a
+ * profile the team hid counts as non-public.
  */
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { randomUUID } = require('crypto');
+const safety = require('../../../shared/safety-core');
 
 const TEAM_KEY = 'team';
 const TOPICS = { general: 'General', plexus: 'Plexus', gala: 'Gala', accelerator: 'Accelerator', bridges: 'Building Bridges', forum: 'Forum', membership: 'Membership' };
@@ -79,6 +90,7 @@ module.exports = function mountMessages(app, ctx) {
             PRIMARY KEY (user_id, thread_key)
         )`);
     } catch (e) { log('v2_message_thread_state create skipped:', e.message); }
+    safety.ensureSchema(db(), log);      // v2_blocks — read below; v2/safety.js owns the writes
 
     // ---- attachments — mirrored from v2/profile.js photo upload (multer → disk → optional Cloudinary) ----
     // The dir lives under ctx.ROOT so BOTH portals resolve the SAME folder: this portal already
@@ -126,15 +138,29 @@ module.exports = function mountMessages(app, ctx) {
     const isAdminType = (t) => String(t || 'user') === 'admin';
     const teamRowsFor = (k1, k2) => all(
         `SELECT ${MSG_COLS} FROM direct_messages
-          WHERE (COALESCE(sender_type,'user') = 'admin' AND receiver_id IN (?, ?))
-             OR (COALESCE(receiver_type,'user') = 'admin' AND sender_id IN (?, ?))
+          WHERE ((COALESCE(sender_type,'user') = 'admin' AND receiver_id IN (?, ?))
+             OR (COALESCE(receiver_type,'user') = 'admin' AND sender_id IN (?, ?)))
+            AND removed_at IS NULL
           ORDER BY created_at ASC, rowid ASC`, [k1, k2, k1, k2]);
     const directRowsFor = (id) => all(
         `SELECT ${MSG_COLS}, CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END AS partner_id
            FROM direct_messages
           WHERE (sender_id = ? OR receiver_id = ?)
             AND COALESCE(sender_type,'user') <> 'admin' AND COALESCE(receiver_type,'user') <> 'admin'
+            AND removed_at IS NULL
           ORDER BY created_at ASC, rowid ASC`, [id, id, id]);
+    // legacy partner keys that are an EMAIL → the current account's users.id (unknown / closed → kept as is)
+    const resolvePartnerKeys = (keys) => {
+        const out = new Map();
+        const emails = Array.from(new Set(keys.filter(k => k.includes('@')).map(k => k.toLowerCase())));
+        if (emails.length) {
+            try {
+                all(`SELECT id, lower(email) AS e FROM users WHERE lower(email) IN (${emails.map(() => '?').join(',')}) AND deleted_at IS NULL`, emails)
+                    .forEach(u => out.set(u.e, u.id));
+            } catch (e) { /* users lookup failed — keys stay as stored */ }
+        }
+        return (k) => (k.includes('@') && out.get(k.toLowerCase())) || k;
+    };
     // one shape for the client, whichever side wrote the row
     const normTeam = (r) => {
         const mine = !isAdminType(r.sender_type);
@@ -189,9 +215,14 @@ module.exports = function mountMessages(app, ctx) {
             // 2) member ↔ member threads, newest activity first
             const dm = directRowsFor(k1);
             const byPartner = new Map();
+            // a blocked member's thread is hidden from the blocker — by id, and by address on legacy email-keyed rows
+            const iBlocked = safety.blockedByMe(db(), k1);
+            safety.blockedEmailsByMe(db(), k1).forEach(e => iBlocked.add(e));
+            const toId = resolvePartnerKeys(dm.map(r => String(r.partner_id || '')));
             dm.forEach(r => {
-                const pid = String(r.partner_id || '');
-                if (!pid) return;
+                const raw = String(r.partner_id || '');
+                const pid = toId(raw);
+                if (!pid || iBlocked.has(pid) || iBlocked.has(raw.toLowerCase())) return;
                 if (!byPartner.has(pid)) byPartner.set(pid, { rows: [], unread: 0 });
                 const g = byPartner.get(pid);
                 g.rows.push(r);
@@ -314,15 +345,22 @@ module.exports = function mountMessages(app, ctx) {
             const me = req.user || {};
             const pid = String(req.params.userId || '').trim();
             if (!pid || pid === String(me.id)) return res.status(400).json({ error: 'Pick another member to message.' });
-            const u = one('SELECT id, first_name, last_name, institution, photo_url, is_public_profile, deleted_at FROM users WHERE id = ?', [pid]);
-            if (!u || u.deleted_at) return res.status(404).json({ error: 'That member could not be found.' });
+            const u = one('SELECT id, first_name, last_name, institution, photo_url, is_public_profile, deleted_at, suspended_at, moderation_hidden_at FROM users WHERE id = ?', [pid]);
+            if (!u || u.deleted_at || u.suspended_at) return res.status(404).json({ error: 'That member could not be found.' });
+            // blocks: the blocker gets the card with blocked:true (the screen offers UNBLOCK); the blocked
+            // member gets the unknown-member answer
+            const iBlocked = safety.blockedByMe(db(), String(me.id)).has(pid);
+            if (!iBlocked && safety.isBlockedPair(db(), String(me.id), pid)) return res.status(404).json({ error: 'That member could not be found.' });
+            if (iBlocked) return res.json({ id: u.id, first_name: u.first_name || '', last_name: u.last_name || '', institution: u.institution || '',
+                                             photo_url: u.photo_url || '', connected: false, pending: null, connection_id: null, blocked: true });
             const conn = connectionBetween(String(me.id), pid);
             const connected = !!Number(me.is_admin) || !!(conn && conn.status === 'accepted');
             const pending = conn && conn.status === 'pending' ? (conn.requester_id === String(me.id) ? 'sent' : 'received') : null;
             // non-public profiles stay invisible unless there is already a connection between the two
-            if (!connected && !pending && !Number(u.is_public_profile)) return res.status(404).json({ error: 'That member could not be found.' });
+            // (a profile the Med&X team hid counts as non-public)
+            if (!connected && !pending && (!Number(u.is_public_profile) || u.moderation_hidden_at)) return res.status(404).json({ error: 'That member could not be found.' });
             res.json({ id: u.id, first_name: u.first_name || '', last_name: u.last_name || '', institution: u.institution || '',
-                       photo_url: u.photo_url || '', connected, pending, connection_id: conn ? conn.id : null });
+                       photo_url: u.photo_url || '', connected, pending, connection_id: conn ? conn.id : null, blocked: false });
         } catch (err) { fail(res, err, 'Could not load that member.'); }
     });
 
@@ -331,10 +369,16 @@ module.exports = function mountMessages(app, ctx) {
         try {
             const [k1, k2] = keysOf(req.user || {});
             const team = one(`SELECT COUNT(*) AS c FROM direct_messages
-                               WHERE COALESCE(sender_type,'user') = 'admin' AND receiver_id IN (?, ?) AND (is_read = 0 OR is_read IS NULL)`, [k1, k2]);
+                               WHERE COALESCE(sender_type,'user') = 'admin' AND receiver_id IN (?, ?) AND (is_read = 0 OR is_read IS NULL)
+                                 AND removed_at IS NULL`, [k1, k2]);
+            // members I blocked are left out by id AND by their address (legacy email-keyed rows)
             const direct = one(`SELECT COUNT(*) AS c FROM direct_messages
                                  WHERE receiver_id = ? AND sender_id <> ? AND read_at IS NULL
-                                   AND COALESCE(sender_type,'user') <> 'admin' AND COALESCE(receiver_type,'user') <> 'admin'`, [k1, k1]);
+                                   AND COALESCE(sender_type,'user') <> 'admin' AND COALESCE(receiver_type,'user') <> 'admin'
+                                   AND removed_at IS NULL
+                                   AND sender_id NOT IN (SELECT blocked_user_id FROM v2_blocks WHERE blocker_user_id = ?)
+                                   AND lower(sender_id) NOT IN (SELECT lower(u.email) FROM v2_blocks b JOIN users u ON u.id = b.blocked_user_id
+                                                                 WHERE b.blocker_user_id = ? AND u.email IS NOT NULL)`, [k1, k1, k1, k1]);
             const t = Number((team && team.c) || 0), d = Number((direct && direct.c) || 0);
             res.json({ unread: t + d, team: t, direct: d });
         } catch (err) { fail(res, err, 'Could not count unread messages.'); }

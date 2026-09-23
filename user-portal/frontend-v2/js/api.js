@@ -1,5 +1,6 @@
 // js/api.js — the ONE fetch wrapper. JSON in/out, Bearer token from the session,
 // 401 → session cleared + `medx:unauthorized` event (app.js routes to sign-in with ?next=),
+// 403 {code:'account_suspended'} → session cleared + `medx:suspended` {message} (app.js → sign-in, which shows it),
 // 503 {waking:true} → full-screen "waking up" overlay + retry with backoff (staging backend
 // boots two servers for up to ~2 min), 429 → ApiError with the server's message.
 //
@@ -33,9 +34,9 @@ function showWaking(payload) {
       <div class="mx-waking-inner">
         <img src="/assets/logo-white.png" alt="med&amp;X" style="height:26px;display:block">
         <div class="line">One moment.</div>
-        <p class="why">The review portal is waking up — about a minute after a quiet spell. Your session is safe; this page continues by itself.</p>
+        <p class="why">Connecting to Med&amp;X. After a quiet spell this can take up to a minute. Your session is safe and this page continues by itself.</p>
         <div class="bar"></div>
-        <div class="status" data-role="wake-status">WAKING UP</div>
+        <div class="status" data-role="wake-status">CONNECTING</div>
       </div>`;
     document.body.appendChild(wakeOverlay);
   }
@@ -45,7 +46,7 @@ function showWaking(payload) {
     if ('member' in payload) bits.push('MEMBER ' + (payload.member ? 'READY' : 'STARTING'));
     if ('admin' in payload) bits.push('ADMIN ' + (payload.admin ? 'READY' : 'STARTING'));
     if (payload.uptime_s != null) bits.push(payload.uptime_s + ' S');
-    st.textContent = (cfg.isStaging ? 'STAGING · ' : '') + (bits.join(' · ') || 'WAKING UP');
+    st.textContent = (cfg.isStaging ? 'STAGING · ' : '') + (bits.join(' · ') || 'CONNECTING');
   }
 }
 function hideWaking() { if (wakeOverlay) { wakeOverlay.remove(); wakeOverlay = null; } wakeStartedAt = 0; }
@@ -88,6 +89,15 @@ async function request(method, path, body, opts = {}) {
       session.clear();
       document.dispatchEvent(new CustomEvent('medx:unauthorized', { detail: { path } }));
       throw new ApiError(401, 'Your session has expired — please sign in again.', data);
+    }
+    // A suspended account (the Med&X team, admin REPORTS): every member route answers 403 {code:'account_suspended'}.
+    // Sign out on this device and let app.js show the server's sentence on the sign-in screen — a broken Home with
+    // failing buttons would never say why. The login call itself (noAuth) just shows the sentence in its form.
+    if (res.status === 403 && data && data.code === 'account_suspended' && !opts.noAuth) {
+      const msg = data.error || 'This account is suspended.';
+      session.clear();
+      document.dispatchEvent(new CustomEvent('medx:suspended', { detail: { message: msg, path } }));
+      throw new ApiError(403, msg, data);
     }
     if (!res.ok) {
       const msg = (data && (data.error || data.message)) ||

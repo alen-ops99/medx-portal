@@ -1,6 +1,6 @@
 // Med&X member portal v2 — service worker.
 // Keep the CACHE_NAME line shape: scripts/stamp-sw.sh rewrites '…-vN' → '…-vN-<sha>' on deploy.
-const CACHE_NAME = 'medx-portal-v2-6';   // bumped 2026-09-22 (review pass): portraits, phone search/alerts, auth + bind fixes — cache-first JS must roll
+const CACHE_NAME = 'medx-portal-v2-7';   // bumped 2026-09-23 (App Store 1.2 / 5.1.1 round): report + block, account deletion, suspended sign-out — cache-first JS must roll
 
 // App shell (same-origin only — cross-origin entries make cache.addAll() reject and the SW never installs).
 // /js/views/live.js + /css/views/live.css are precached so a guest's second open of /live/<token> paints

@@ -24,11 +24,16 @@
  * GET /api/v2/forum/members-public). E-mail and phone are never selected into a response. Every query is parameterised;
  * page sizes are capped.
  *
+ * Blocks (v2/safety.js, shared/safety-core.js): a pair where EITHER member blocked the other never appears in each
+ * other's directory, search or suggestions — one NOT EXISTS in the member CTE, so every route inherits it. The same CTE
+ * leaves out accounts the Med&X team suspended (users.suspended_at) or hid (users.moderation_hidden_at).
+ *
  * Schema: nothing new is created except two idempotent indexes on networking_connections (both portals share one DB —
- * no table/column is renamed or dropped). Optional columns a Profile builder may add (users.title / users.city /
+ * no table/column is renamed or dropped) and the shared v2_blocks table (idempotent, shared/safety-core.js). Optional columns a Profile builder may add (users.title / users.city /
  * users.specialties) are detected at request time via PRAGMA and used when present.
  */
 'use strict';
+const safety = require('../../../shared/safety-core');
 
 module.exports = function mountNetwork(app, ctx) {
     const { db, auth } = ctx;
@@ -52,6 +57,8 @@ module.exports = function mountNetwork(app, ctx) {
         'CREATE INDEX IF NOT EXISTS idx_networking_connections_requester ON networking_connections (requester_id)',
         'CREATE INDEX IF NOT EXISTS idx_networking_connections_receiver ON networking_connections (receiver_id)'
     ]) { try { db().run(ddl); } catch (e) { /* read-only replica or older engine — queries still work */ } }
+    // v2_blocks must exist before the member CTE reads it (v2/safety.js mounts after this file)
+    safety.ensureSchema(db(), log);
 
     // ---------------------------------------------------------------- optional columns (Profile builder may ALTER users)
     let colCache = { at: 0, users: new Set(), bridges: new Set(), gala: new Set(), registrations: new Set(), accelerator: new Set(), forum: new Set() };
@@ -157,16 +164,20 @@ module.exports = function mountNetwork(app, ctx) {
     }
 
     // ---------------------------------------------------------------- the member base (one CTE shared by every route)
-    // Builds `WITH members AS (…)` with participation flags, the search haystack and the visibility + quiet gates.
+    // Builds `WITH members AS (…)` with participation flags, the search haystack and the visibility + quiet + block
+    // gates. Its parameters are cteParams(me) — the viewer id three times (self-exclusion, then the block check).
+    const cteParams = me => [me, me, me];
     function memberCte() {
         const c = cols();
         const uTitle = c.users.has('title') ? 'u.title' : 'NULL';
         const uCity = c.users.has('city') ? 'u.city' : 'NULL';
         const uSpec = c.users.has('specialties') ? 'u.specialties' : 'NULL';
-        const bridgesByUser = c.bridges.has('user_id') ? 'b.user_id = u.id OR ' : '';
-        const galaByUser = c.gala.has('user_id') ? 'g.user_id = u.id OR ' : '';
-        const regByEmail = c.registrations.has('email') ? ' OR lower(r.email) = lower(u.email)' : '';
-        const accByEmail = c.accelerator.has('email') ? ' OR lower(a.email) = lower(u.email)' : '';
+        // rows linked to an account match by id; by address only while no account owns them (user_id IS NULL) —
+        // a closed account's rows keep its id, so a new sign-up on the freed address never inherits them
+        const bridgesByUser = c.bridges.has('user_id') ? 'b.user_id = u.id OR b.user_id IS NULL AND ' : '';
+        const galaByUser = c.gala.has('user_id') ? 'g.user_id = u.id OR g.user_id IS NULL AND ' : '';
+        const regByEmail = c.registrations.has('email') ? ' OR (r.user_id IS NULL AND lower(r.email) = lower(u.email))' : '';
+        const accByEmail = c.accelerator.has('email') ? ' OR (a.user_id IS NULL AND lower(a.email) = lower(u.email))' : '';
         const accDecision = c.accelerator.has('decision') ? "a.decision = 'accepted' OR " : '';
         const fmBanned = c.forum.has('banned') ? ' AND COALESCE(fm.banned,0) = 0' : '';
         const fmValid = c.forum.has('valid_until') ? " AND (fm.valid_until IS NULL OR fm.valid_until >= date('now'))" : '';
@@ -212,7 +223,8 @@ module.exports = function mountNetwork(app, ctx) {
           LEFT JOIN user_profiles up ON up.user_id = u.id
           LEFT JOIN networking_profiles np ON np.user_id = u.id
           LEFT JOIN forum_members fm ON ${fmJoin}
-          WHERE u.id <> ? AND u.deleted_at IS NULL AND COALESCE(u.is_public_profile,1) = 1${verified}
+          WHERE u.id <> ? AND ${safety.notBlockedSql('u.id')} AND ${safety.listableSql('u')}
+            AND COALESCE(u.is_public_profile,1) = 1${verified}
             AND (COALESCE(TRIM(u.first_name),'') <> '' OR COALESCE(TRIM(u.last_name),'') <> '')
             AND NOT (${quiet} AND fm.id IS NULL)
         )`;
@@ -317,7 +329,7 @@ module.exports = function mountNetwork(app, ctx) {
         const toks = tokens(qs);
         const clauses = toks.map(tokenClause);
         const where = clauses.length ? ' WHERE ' + clauses.map(c => c.sql).join(' AND ') : '';
-        const params = [me].concat(...clauses.map(c => c.params));
+        const params = cteParams(me).concat(...clauses.map(c => c.params));
         const cte = memberCte();
         const total = (q.get(`${cte} SELECT COUNT(*) AS n FROM members${where}`, params) || {}).n || 0;
         // relevance: name hits first (per token), then a stable alphabetical order
@@ -331,7 +343,7 @@ module.exports = function mountNetwork(app, ctx) {
         return { total: Number(total), results, tokens: toks };
     }
     function memberTotal(me) {
-        try { return Number((q.get(`${memberCte()} SELECT COUNT(*) AS n FROM members`, [me]) || {}).n || 0); } catch (e) { return 0; }
+        try { return Number((q.get(`${memberCte()} SELECT COUNT(*) AS n FROM members`, cteParams(me)) || {}).n || 0); } catch (e) { return 0; }
     }
     function meProfile(me) {
         const c = cols();
@@ -386,7 +398,7 @@ module.exports = function mountNetwork(app, ctx) {
             const me = req.user.id;
             const limit = clampInt(req.query.limit, 8, 1, 24);
             const cmap = connectionMap(me), mutual = mutualCounts(me), mine = meProfile(me), conf = activeConf();
-            const rows = q.all(`${memberCte()} SELECT * FROM members ORDER BY datetime(created_at) DESC, id LIMIT 2000`, [me]);
+            const rows = q.all(`${memberCte()} SELECT * FROM members ORDER BY datetime(created_at) DESC, id LIMIT 2000`, cteParams(me));
             const now = Date.now();
             const scored = [];
             for (const r of rows) {
@@ -420,11 +432,18 @@ module.exports = function mountNetwork(app, ctx) {
         try {
             const me = req.user.id;
             const cnt = (sql, p) => Number((q.get(sql, p) || {}).n || 0);
+            // the same people the lists show (GET /api/networking/connections and …/pending): the other side is not a
+            // closed or suspended account, and there is no block between the two either way
+            const other = `u.deleted_at IS NULL AND u.suspended_at IS NULL AND ${safety.notBlockedSql('u.id')}`;
             res.json({
                 members: memberTotal(me),
-                connections: cnt("SELECT COUNT(*) AS n FROM networking_connections WHERE (requester_id = ? OR receiver_id = ?) AND status = 'accepted'", [me, me]),
-                pending_in: cnt("SELECT COUNT(*) AS n FROM networking_connections WHERE receiver_id = ? AND status = 'pending'", [me]),
-                pending_out: cnt("SELECT COUNT(*) AS n FROM networking_connections WHERE requester_id = ? AND status = 'pending'", [me])
+                connections: cnt(`SELECT COUNT(*) AS n FROM networking_connections nc
+                                   JOIN users u ON u.id = (CASE WHEN nc.requester_id = ? THEN nc.receiver_id ELSE nc.requester_id END)
+                                   WHERE (nc.requester_id = ? OR nc.receiver_id = ?) AND nc.status = 'accepted' AND ${other}`, [me, me, me, me, me]),
+                pending_in: cnt(`SELECT COUNT(*) AS n FROM networking_connections nc JOIN users u ON u.id = nc.requester_id
+                                  WHERE nc.receiver_id = ? AND nc.status = 'pending' AND ${other}`, [me, me, me]),
+                pending_out: cnt(`SELECT COUNT(*) AS n FROM networking_connections nc JOIN users u ON u.id = nc.receiver_id
+                                   WHERE nc.requester_id = ? AND nc.status = 'pending' AND ${other}`, [me, me, me])
             });
         } catch (e) { log('summary failed:', e.message); res.status(500).json({ error: 'Network summary is unavailable right now.' }); }
     });

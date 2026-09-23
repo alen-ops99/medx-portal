@@ -373,11 +373,11 @@ function blockForum() {
   const isSpot = f.type === 'spotlight';
   return `
     <!-- dc: Med&X Home.dc.html › "FROM THE FORUM" -->
-    <a href="/app/forum" style="display:flex;align-items:center;gap:14px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-bottom:26px;color:#191512" data-hover="background:#f7efdf">
+    <a href="/app/forum" class="mx-fstrip" style="display:flex;align-items:center;gap:14px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-bottom:26px;color:#191512" data-hover="background:#f7efdf">
       <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626;flex:none">${COPY.forum.label}</span>
-      <span style="width:1px;height:26px;background:rgba(25,21,18,.15);flex:none"></span>
+      <span class="mx-fstrip-div" style="width:1px;height:26px;background:rgba(25,21,18,.15);flex:none"></span>
       ${isSpot && f.init ? `<span style="width:34px;height:34px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(f.init)}</span>` : ''}
-      <span style="flex:1;min-width:0"><span style="display:block;font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">${isSpot ? COPY.forum.spotlightTag : COPY.forum.tag}</span><span style="display:block;font-family:Fraunces,serif;font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.title)}</span></span>
+      <span class="mx-fstrip-title" style="flex:1;min-width:0"><span style="display:block;font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">${isSpot ? COPY.forum.spotlightTag : COPY.forum.tag}</span><span style="display:block;font-family:Fraunces,serif;font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.title)}</span></span>
       <span style="font-size:11px;color:#4a4239;white-space:nowrap;flex:none">${esc(ago(f.posted_at))}</span>
       <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none;white-space:nowrap">${COPY.forum.open}</span>
     </a>

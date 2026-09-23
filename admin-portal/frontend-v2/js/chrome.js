@@ -12,7 +12,7 @@
 //
 //   import { chrome } from './chrome.js';
 //   chrome.mount();                 // once (app.js)
-//   chrome.refresh();               // re-read badges (INBOX = outbox batches + unread member messages · TEAM CHAT) + event-day flag
+//   chrome.refresh();               // re-read badges (INBOX = outbox batches + unread member messages · TEAM CHAT · PEOPLE = open member reports) + event-day flag
 //   chrome.closePopover();
 import cfg from './config.js';
 import { api } from './api.js';
@@ -38,6 +38,7 @@ export const COPY = {
   admin: 'ADMIN',
   nav: { today: 'TODAY', projects: 'PROJECTS', team: 'TEAM', bigIdeas: 'BIG IDEAS', inbox: 'INBOX', tasks: 'TASKS', notes: 'NOTES', people: 'PEOPLE', registrations: 'REGISTRATIONS', speakers: 'SPEAKER PIPELINE', money: 'MONEY', calendar: 'CALENDAR', eventDay: 'EVENT DAY', studio: 'STUDIO', settings: 'SETTINGS', more: 'MORE', menu: 'MENU' },
   tasksBadge: { red: 'Finished tasks waiting for you to see', grey: 'Your open tasks' },
+  reportsBadge: 'Open reports from members — answer within 24 hours',
   teamBadge: { red: 'Waiting for you — finished tasks to see and inbox items to answer', grey: 'Your open tasks' },
   chat: { label: 'TEAM CHAT', title: 'Team chat — straight to the chat tab' },
   search: { placeholder: 'Search or type a task…', none: 'No matches — try a screen, a person, or a project.', hint: 'Type a name, a screen, or an instruction — Enter asks the assistant.', asking: 'Asking the assistant…', ask: 'ASK', confirm: 'CONFIRM', done: 'Done.', gated: 'The do-it-for-me assistant needs ANTHROPIC_API_KEY on the admin service — search and live numbers still work.' },
@@ -63,7 +64,8 @@ const NAV = [
   // TEAM — the shared board, the notes, the inbox and the calendar: everything the team does
   // together. TASKS and NOTES are unmapped on the server (every admin) → no `sections`.
   { key: 'Team', label: COPY.nav.team, to: '/tasks', menu: true, badge: 'team', badge2: 'tasksOpen', drop: ['Tasks', 'Notes', 'Inbox', 'Calendar'] },
-  { key: 'People', label: COPY.nav.people, to: '/people', menu: true, drop: ['People', 'Speakers'] },
+  // PEOPLE carries the open member REPORTS count (App Store 1.2 — answered within 24 hours); the badge opens the queue
+  { key: 'People', label: COPY.nav.people, to: '/people', menu: true, badge: 'reports', drop: ['People', 'Speakers'] },
   { key: 'Money', label: COPY.nav.money, to: '/money', sections: ['finances'] },
   // EVENT DAY — top-level (and red) only while an event is on; every other day it waits under MORE
   { key: 'Event Day', label: COPY.nav.eventDay, to: '/event-day', eventDayOnly: true, red: true, sections: ['gameday', 'plexus'] },
@@ -98,6 +100,8 @@ const MENUS = {
   ],
   People: [
     { k: 'PEOPLE', label: 'People', to: '/people', sub: 'members · contacts', sections: ['member-ops', 'guest-passes', 'team', 'contacts'] },
+    // REPORTS — what members flagged (a profile or a message); the red count = open reports
+    { k: 'REPORTS', key: 'Reports', label: 'Reports from members', to: '/people?reports=1', sub: 'answer within 24 h', badge: 'reports', sections: ['member-ops'] },
     { k: 'REGS', label: 'Registrations', to: '/registrations', sub: 'all events', sections: ['plexus', 'forum', 'bridges', 'signup-forms'] },
     // SPEAKER PIPELINE (2026-09-22) — potential speakers for 2027 so nobody is forgotten; every admin
     { k: 'SPEAKERS', key: 'Speakers', label: 'Speaker pipeline', to: '/people/speakers', sub: '2027 · who we met' }
@@ -169,6 +173,7 @@ const PALETTE = [
   { kind: 'ACTION', label: 'Portfolio briefing — before a ministry meeting', syn: 'briefing ministarstvo ministry portfolio print sastanak meeting sve ideje one pager', href: '/big-ideas' },
   { kind: 'SCREEN', label: 'Inbox — email, outbox, chat', syn: 'poruke pošta mail', href: '/inbox' },
   { kind: 'SCREEN', label: 'People', syn: 'ljudi članovi members kontakti directory imenik', href: '/people' },
+  { kind: 'SCREEN', label: 'Reports from members — the moderation queue', syn: 'reports report prijave prijava moderation moderacija abuse block suspend suspendiraj remove message ukloni poruku', href: '/people?reports=1' },
   { kind: 'SCREEN', label: 'Registrations — all events', syn: 'prijave registracije sign-ups sudionici attendees', href: '/registrations' },
   { kind: 'SCREEN', label: 'Speaker pipeline — potential speakers for 2027', syn: 'speaker speakers predavač predavači govornik pipeline 2027 prospect kandidat invite pozvati contacted kontaktiran keynote', href: '/people/speakers' },
   { kind: 'ACTION', label: 'Add a potential speaker — so we do not forget them', syn: 'speaker predavač govornik new novi add dodaj prospect met upoznao invite 2027 pipeline', href: '/people/speakers?new=1' },
@@ -232,7 +237,7 @@ function badgePair(n, s, small) {
   const red = n.badge ? Number(s.badges[n.badge] || 0) : 0;
   const grey = n.badge2 ? Number(s.badges[n.badge2] || 0) : 0;
   const h = small ? 15 : 16;
-  const titleRed = n.badge === 'team' ? COPY.teamBadge.red : n.badge === 'tasks' ? COPY.tasksBadge.red : n.badge === 'inbox' ? 'Waiting in the inbox' : '';
+  const titleRed = n.badge === 'team' ? COPY.teamBadge.red : n.badge === 'tasks' ? COPY.tasksBadge.red : n.badge === 'inbox' ? 'Waiting in the inbox' : n.badge === 'reports' ? COPY.reportsBadge : '';
   return `${n.badge ? `<span data-role="badge-${n.badge}" title="${esc(titleRed)}" style="min-width:${h}px;height:${h}px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:${red > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center;box-sizing:border-box">${red}</span>` : ''}${n.badge2 ? `<span data-role="badge-${n.badge2}" title="${esc(COPY.tasksBadge.grey)}" style="min-width:${h - 1}px;height:${h}px;padding:0 3px;margin-left:-2px;background:#e6e0d4;color:#4a4239;font:600 10px Inter,sans-serif;display:${grey > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center;box-sizing:border-box">${grey}</span>` : ''}`;
 }
 function navItem(n) {
@@ -595,7 +600,9 @@ export const chrome = {
       chat: api.get('/api/teamchat/overview'),
       conf: api.get('/api/conferences/active', { noAuth: true }),
       bridges: api.get('/api/bridges/events'),
-      tasks: api.get('/api/v2/tasks/badge')   // TASKS: done-unseen (red) · my open (grey)
+      tasks: api.get('/api/v2/tasks/badge'),   // TASKS: done-unseen (red) · my open (grey)
+      // PEOPLE: open member reports (App Store 1.2) — asked only by admins who can open the queue
+      reports: perms.canAny(['member-ops']) ? api.get('/api/v2/safety/reports/count') : null
     });
     const batches = r.outbox && Array.isArray(r.outbox.batches) ? r.outbox.batches.length : 0;
     const unread = r.pstats && r.pstats.pending ? Number(r.pstats.pending.unreadMessages || 0) : 0;
@@ -604,7 +611,8 @@ export const chrome = {
     const tasksOpen = r.tasks ? Number(r.tasks.assigned_open || 0) : 0;
     // TEAM rolls the red counts up (finished tasks to see + inbox items waiting); grey stays my open tasks
     const inbox = batches + unread;
-    state.set({ badges: { inbox, chat: chatUnread, outboxBatches: batches, unreadMessages: unread, tasks: tasksDone, tasksOpen, team: inbox + tasksDone }, eventDay: isEventDay(r.conf, r.bridges) });
+    const reports = r.reports ? Number(r.reports.open || 0) : 0;
+    state.set({ badges: { inbox, chat: chatUnread, outboxBatches: batches, unreadMessages: unread, tasks: tasksDone, tasksOpen, team: inbox + tasksDone, reports }, eventDay: isEventDay(r.conf, r.bridges) });
     return r;
   }
 };

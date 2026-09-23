@@ -129,10 +129,11 @@ module.exports = function mountLive(app, ctx) {
             const u = req && req.user && req.user.id ? (q.get('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || { id: req.user.id, email: req.user.email }) : null;
             if (!u) return null;
             name = nameOf(u) || String(u.email || '').split('@')[0]; email = u.email; ref = u.id;
-            // linked registrations: by account, then by e-mail
-            const cas = q.all('SELECT * FROM croatians_abroad_registrations WHERE user_id = ? OR (LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, u.email || '', u.email || '']);
-            const galas = q.all('SELECT * FROM gala_registrations WHERE user_id = ? OR (LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, u.email || '', u.email || '']);
-            let bridges = []; try { bridges = q.all('SELECT * FROM bridges_registrations WHERE user_id = ? OR (LOWER(email) = LOWER(?) AND ? <> \'\')', [u.id, u.email || '', u.email || '']); } catch (e) { bridges = []; }
+            // linked registrations: by account, then by e-mail — the address only for rows no account has claimed
+            // (a closed account's rows keep its id, so a new sign-up on the freed address never inherits them)
+            const cas = q.all('SELECT * FROM croatians_abroad_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, u.email || '', u.email || '']);
+            const galas = q.all('SELECT * FROM gala_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, u.email || '', u.email || '']);
+            let bridges = []; try { bridges = q.all('SELECT * FROM bridges_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\')', [u.id, u.email || '', u.email || '']); } catch (e) { bridges = []; }
             for (const ca of cas) mergeParty(party, caParty(ca));
             for (const g of galas) if (!cas.some(c => c.gala_registration_id === g.id) && alive(g.status) && alive(g.payment_status)) mergeParty(party, { gala: 1 + Math.max(0, parseInt(g.guest_count, 10) || 0) });
             for (const b of bridges) { const ek = eventOfBridgesRow(b.event_id); if (ek && alive(b.status)) mergeParty(party, { [ek]: 1 }); }
@@ -162,9 +163,9 @@ module.exports = function mountLive(app, ctx) {
             const uid = tok.kind === 'user' && req && req.user ? req.user.id : null;
             if (email || uid) {
                 q.all(`SELECT DISTINCT meetup_id AS id FROM plexus_meetup_attendees WHERE status IN ('confirmed', 'promoted')
-                         AND ((? IS NOT NULL AND user_id = ?) OR (? <> '' AND LOWER(email) = LOWER(?)))`, [uid, uid, email || '', email || ''])
+                         AND ((? IS NOT NULL AND user_id = ?) OR (? <> '' AND user_id IS NULL AND LOWER(email) = LOWER(?)))`, [uid, uid, email || '', email || ''])
                     .concat(q.all(`SELECT id FROM plexus_meetups WHERE status IN ('published', 'completed')
-                         AND ((? IS NOT NULL AND host_user_id = ?) OR (? <> '' AND LOWER(host_email) = LOWER(?)))`, [uid, uid, email || '', email || '']))
+                         AND ((? IS NOT NULL AND host_user_id = ?) OR (? <> '' AND host_user_id IS NULL AND LOWER(host_email) = LOWER(?)))`, [uid, uid, email || '', email || '']))
                     .forEach(m => { if (m && m.id) party['meetup:' + m.id] = Math.max(1, Number(party['meetup:' + m.id] || 0)); });
             }
         } catch (e) { /* meetup tables absent */ }

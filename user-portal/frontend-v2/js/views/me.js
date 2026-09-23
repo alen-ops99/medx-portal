@@ -19,6 +19,8 @@ export const SOURCE = 'My MedX.dc.html';
 
 export const COPY = {
   eyebrow: 'MY MED&X · MEMBERSHIP, TICKETS & RECORD',
+  // the quiet door to Profile & settings (password, directory, delete account — App Store 5.1.1(v)) at the top
+  settingsLink: 'PROFILE &amp; SETTINGS →',
   title: first => `Your membership, <i>${esc(first)}</i>.`,
   lede: "Your member card and tickets — one QR admits you to everything you're registered for.",
   dlCard: 'DOWNLOAD CARD', addWallet: 'ADD TO PHONE WALLET',
@@ -236,9 +238,10 @@ function blockHero() {
   <!-- dc: My MedX.dc.html › "MY MED&X · MEMBERSHIP, TICKETS & RECORD" -->
   <div class="mx-grid-2 mx-me-hero" style="display:grid;grid-template-columns:1fr 1fr;align-items:stretch;border-bottom:1px solid rgba(25,21,18,.16)">
     <div class="mx-me-intro" style="padding:42px 48px 26px 36px;display:flex;flex-direction:column;justify-content:center">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px 12px;margin-bottom:14px;flex-wrap:wrap">
         <span style="width:28px;height:1px;background:#c9a962"></span>
         <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#9b1b22">${COPY.eyebrow.replace(/&/g, '&amp;')}</span>
+        <a href="/app/profile" class="mx-me-link" data-v2="Profile &amp; settings — reachable from the top of My Med&amp;X" style="margin-left:auto;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;white-space:nowrap;padding:6px 0">${COPY.settingsLink}</a>
       </div>
       <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:44px;line-height:1.08">${COPY.title((D.me.first_name || '').trim() || session.displayName())}</div>
       <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:440px;margin-top:14px">${COPY.lede}</div>

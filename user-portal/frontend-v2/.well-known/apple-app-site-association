@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["4XC4NRV538.hr.medx.portal"],
+        "components": [
+          { "/": "/app/*", "comment": "member portal screens open in the app" },
+          { "/": "/live/*", "comment": "Plexus Week Live ticket links open the event app" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["4XC4NRV538.hr.medx.portal"]
+  }
+}

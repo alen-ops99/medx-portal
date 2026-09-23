@@ -46,7 +46,8 @@ export const COPY = {
     placeholders: { email: 'you@institution.edu', password: '••••••••' },
     newHere: 'New to Med&amp;X? ', create: 'Create an account', invited: 'Invited to the Biomedical Forum? ', code: 'Enter your code',
     verified: 'Email confirmed — sign in to continue.', welcome: name => `Welcome back, ${name}.`,
-    errors: { empty: 'Enter your email and password.', bad: "That email and password don't match.", unverified: 'Confirm your email first — we can resend the link.', resend: 'RESEND LINK' }
+    errors: { empty: 'Enter your email and password.', bad: "That email and password don't match.", unverified: 'Confirm your email first — we can resend the link.', resend: 'RESEND LINK',
+      suspended: 'This account is suspended. Write to info@medx.hr.' }
   },
   reset: {
     headline: 'Reset your <i>password</i>.', blurb: "Enter the email on your account and we'll send a reset link.", email: 'EMAIL',
@@ -94,8 +95,8 @@ function blockWelcome() {
         <a href="/app/auth/signup" class="mx-auth-btn" style="padding:15px 30px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.welcome.create}</a>
         <a href="/app/auth/signin" class="mx-auth-btn" style="padding:15px 30px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#f7f1e6">${COPY.welcome.signin}</a>
       </div>
-      <div style="display:flex;gap:10px 22px;margin-top:44px;flex-wrap:wrap;justify-content:center;font:600 9px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.55)">
-        ${COPY.welcome.projects.map((p, i) => `<span style="white-space:nowrap">${p}</span>` + (i < COPY.welcome.projects.length - 1 ? '<span style="color:#c9a962">·</span>' : '')).join('')}
+      <div style="display:flex;gap:10px 28px;margin-top:44px;flex-wrap:wrap;justify-content:center;font:600 9px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.55)">
+        ${COPY.welcome.projects.map(p => `<span style="white-space:nowrap;display:inline-flex;align-items:center;gap:9px"><span style="width:4px;height:4px;background:#c9a962;flex:none"></span>${p}</span>`).join('')}
       </div>
     </div>
   </div>
@@ -169,8 +170,16 @@ function blockVerify() {
             <div style="font-size:11.5px;color:#4a4239;line-height:1.6;margin-top:16px">${v.note}</div>
           <!-- /dc -->`;
 }
+// Set by app.js when a signed-in session met a suspended account (403 account_suspended): the server's sentence,
+// shown in the form's error line until the next successful sign-in.
+function suspendedNotice() {
+  let v = null;
+  try { v = sessionStorage.getItem('medx_suspended'); } catch (e) { v = null; }
+  return v ? (v === '1' ? COPY.signin.errors.suspended : v) : '';
+}
 function blockSignin(query) {
   const s = COPY.signin;
+  const susp = suspendedNotice();
   return `
           <!-- dc: Auth.dc.html › "Sign in" -->
           <form data-form="signin" novalidate style="display:contents">
@@ -180,7 +189,7 @@ function blockSignin(query) {
             ${query.notice === 'verified' ? `<div style="font-size:12.5px;color:#6e5626;line-height:1.5;margin-top:14px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;padding:10px 12px">${s.verified}</div>` : ''}
             ${field(s.email, 'email', 'email', s.placeholders.email, ';margin-top:24px', INPUT12)}
             <span style="display:flex;flex-direction:column;gap:6px;margin-top:12px"><span style="display:flex"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${s.password}</span><span style="flex:1"></span><a href="/app/auth/reset" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer">${s.forgot}</a></span><input name="password" type="password" placeholder="${s.placeholders.password}" aria-label="Password" autocomplete="current-password" style="${INPUT12}"></span>
-            ${errorLine('error')}
+            ${susp ? `<div data-role="error" role="alert" style="display:block;font-size:12.5px;line-height:1.5;margin-top:12px;color:#9b1b22">${esc(susp)}</div>` : errorLine('error')}
             <div data-role="resendRow" style="display:none;margin-top:10px"><span data-act="resendLogin" class="mx-auth-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${s.errors.resend}</span></div>
             <button type="submit" data-act="signin" class="mx-auth-btn" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${s.submit}</button>
             <div style="margin-top:18px;text-align:center;font-size:12.5px;color:#4a4239">${s.newHere}<a href="/app/auth/signup" style="color:#9b1b22;font-weight:600;cursor:pointer;white-space:nowrap">${s.create}</a></div>
@@ -289,6 +298,7 @@ const handlers = {
       const r = await api.post('/api/auth/login', { email, password }, { noAuth: true });
       // a successful login implies a confirmed mailbox (server gates on email_verified when a mail provider exists, self-heals otherwise)
       session.set(r.token, Object.assign({}, r.user, { email_verified: 1 }));
+      try { sessionStorage.removeItem('medx_suspended'); } catch (e) {}
       ui.toast(COPY.signin.welcome((r.user && r.user.first_name) || session.displayName()));
       router.replace(nextTarget(query));
     } catch (e) {
