@@ -78,7 +78,7 @@ export const COPY = {
 // artboard kindStyle, verbatim
 const KIND_STYLE = { PUBLIC: ['#eee9df', '#4a4239'], VIP: ['#f1e7d4', '#7a6432'], DIASPORA: ['#e8eef7', '#2c4a73'], SPONSOR: ['#e4efe7', '#22563a'] };
 
-let D = null, st = null, unbind = null, unkey = null, rootEl = null, reqId = 0;
+let D = null, st = null, unbind = null, unkey = null, rootEl = null, reqId = 0, copiedTimer = null;
 
 function loadCss() {
   if (!document.getElementById('mx-css-links')) {
@@ -214,7 +214,7 @@ const canRename = l => l.kindKey === 'registration';
 const isRenaming = l => st.renaming === keyOf(l);
 function renameCell(l) {
   const draft = st.renameDraft != null ? st.renameDraft : (l.label || l.name);
-  return `<span data-v2="rename" style="display:flex;align-items:center;gap:6px;flex:1;min-width:220px">
+  return `<span data-v2="rename" class="mxl-rename" style="display:flex;align-items:center;gap:6px;flex:1;min-width:220px">
             <input data-role="renameInput" value="${esc(draft)}" placeholder="${esc(COPY.row.renamePh)}" aria-label="${COPY.row.renameLabel}" maxlength="160" style="flex:1;min-width:0;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:6px 9px;font:600 13px Inter,sans-serif;color:#201b16">
             <span data-act="renameSave" style="padding:6px 10px;background:#9b1b22;color:#fff;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.row.save}</span>
             <span data-act="renameCancel" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:#9a9086;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.row.cancel}</span>
@@ -226,6 +226,7 @@ function renameBtn(l) {
 }
 function linkRow(l) {
   const c = KIND_STYLE[l.kind] || KIND_STYLE.PUBLIC;
+  const copied = st.copied === keyOf(l);
   const ref = `data-kind="${esc(l.kindKey)}" data-id="${esc(l.id)}"`;
   // audit #8: an exact twin collapses to one line — "duplicate of →" pointing at the canonical row
   if (l.dupOf) return `
@@ -240,18 +241,18 @@ function linkRow(l) {
       </div>`;
   return `
       <div data-row="${esc(keyOf(l))}" style="padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.08);display:flex;flex-direction:column;gap:7px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div class="mxl-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           ${tickBox(l)}
           <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;padding:3px 7px;background:${c[0]};color:${c[1]};white-space:nowrap">${esc(l.kind)}</span>
-          ${isRenaming(l) ? renameCell(l) : `<span style="font-size:13px;font-weight:600;flex:1;min-width:120px">${esc(l.name)}${l.note && l.note !== l.name ? ` <span style="font-weight:400;color:#6d6459">· ${esc(l.note)}</span>` : ''}${l.dupCount ? ` <span title="${l.dupCount} exact twin${l.dupCount === 1 ? '' : 's'} collapsed below" style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:#eee7dc;color:#6d6459;vertical-align:1px">+${l.dupCount} ${COPY.dup.tag}${l.dupCount === 1 ? '' : 'S'}</span>` : ''}</span>`}
-          <span data-act="signups" data-token="${esc(l.token || '')}" data-label="${esc(l.name)}" title="Every sign-up from this link, in Registrations" style="font-size:11px;color:#6d6459;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${esc(statsLine(l))}</span>
+          ${isRenaming(l) ? renameCell(l) : `<span class="mxl-name" style="font-size:13px;font-weight:600;flex:1;min-width:120px">${esc(l.name)}${l.note && l.note !== l.name ? ` <span style="font-weight:400;color:#6d6459">· ${esc(l.note)}</span>` : ''}${l.dupCount ? ` <span title="${l.dupCount} exact twin${l.dupCount === 1 ? '' : 's'} collapsed below" style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:#eee7dc;color:#6d6459;vertical-align:1px">+${l.dupCount} ${COPY.dup.tag}${l.dupCount === 1 ? '' : 'S'}</span>` : ''}</span>`}
+          <span data-act="signups" class="mxl-stats" data-token="${esc(l.token || '')}" data-label="${esc(l.name)}" title="Every sign-up from this link, in Registrations" style="font-size:11px;color:#6d6459;white-space:nowrap;cursor:pointer" data-hover="color:#201b16">${esc(statsLine(l))}</span>
           ${renameBtn(l)}
           <span data-act="pause" ${ref} style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;color:${l.paused ? '#1e6e42' : '#9a9086'};cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${l.paused ? COPY.row.resume : COPY.row.pause}</span>
         </div>
         <div style="display:flex;align-items:center;padding-left:23px;min-width:0">${metaLine(l)}</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <span style="font:600 11.5px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:8px 11px;flex:1;min-width:200px;color:${l.paused ? '#9a9086' : '#201b16'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.url)}">${esc(l.url.replace(/^https?:\/\//, ''))}</span>
-          <span data-act="copy" ${ref} data-url="${esc(l.url)}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copied === keyOf(l) ? COPY.row.copied : COPY.row.copy}</span>
+          <span class="mxl-url${copied ? ' is-copied' : ''}" style="font:600 11.5px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:8px 11px;flex:1;min-width:200px;color:${l.paused ? '#9a9086' : '#201b16'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.url)}">${esc(l.url.replace(/^https?:\/\//, ''))}</span>
+          <span data-act="copy" ${ref} data-url="${esc(l.url)}"${copied ? ' class="mxpj-ok"' : ''} style="padding:8px 13px;background:${copied ? '#1e6e42' : '#9b1b22'};color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap"${copied ? '' : ' data-hover="background:#7e151b"'}>${copied ? COPY.row.copied : COPY.row.copy}</span>
           <span data-act="qr" ${ref} data-url="${esc(l.url)}" data-name="${esc(l.name)}" title="${COPY.row.qrTitle}" style="padding:8px 11px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.row.qr}</span>
         </div>
       </div>`;
@@ -323,8 +324,8 @@ function blockForm() {
 }
 function template() {
   return `
-<div data-screen-label="Admin Link Generator" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:22px">
+<div class="mxpj" data-screen-label="Admin Link Generator" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:22px">
     ${blockTitle()}
     <div class="mx-side mx-links-grid" style="display:grid;grid-template-columns:1fr 360px;gap:22px;align-items:start">
       ${blockList()}
@@ -443,9 +444,20 @@ const handlers = {
       try { const t = document.createElement('textarea'); t.value = url; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
       catch (e2) { ui.toast(COPY.toast.copyFail, { kind: 'error' }); return; }
     }
-    st.copied = el.dataset.kind + ':' + el.dataset.id;
+    const key = el.dataset.kind + ':' + el.dataset.id;
+    st.copied = key;
     rerender('[data-block="list"]', blockList());
     ui.toast(COPY.toast.copied);
+    // the green ✓ COPIED state lets go after a moment — in place, so a half-typed rename survives
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => {
+      if (!rootEl || !st || st.copied !== key) return;
+      st.copied = null;
+      const b = rootEl.querySelector(`[data-act="copy"][data-kind="${CSS.escape(el.dataset.kind)}"][data-id="${CSS.escape(el.dataset.id)}"]`);
+      if (!b) return;
+      b.classList.remove('mxpj-ok'); b.textContent = COPY.row.copy; b.style.background = '#9b1b22'; b.setAttribute('data-hover', 'background:#7e151b');
+      const u = b.parentElement && b.parentElement.querySelector('.mxl-url'); if (u) u.classList.remove('is-copied');
+    }, 2400);
   },
   qr: (el) => showQr(el.dataset.url, el.dataset.name),
   // ---- Task J: inline rename — RENAME → input prefilled → SAVE/CANCEL (Enter/Escape via onKey) ----
@@ -527,5 +539,5 @@ export default {
       if (form) { form.scrollIntoView({ block: 'center' }); const inp = root.querySelector('select, input'); if (inp) inp.focus(); }
     }
   },
-  destroy() { reqId++; if (unbind) unbind(); if (unkey) unkey(); unbind = null; unkey = null; rootEl = null; D = null; st = null; }
+  destroy() { reqId++; clearTimeout(copiedTimer); if (unbind) unbind(); if (unkey) unkey(); unbind = null; unkey = null; rootEl = null; D = null; st = null; }
 };

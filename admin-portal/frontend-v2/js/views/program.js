@@ -217,11 +217,18 @@ function blockList() {
 const inp = (s, field, extra = '') => `data-field="${field}" data-id="${esc(s.id)}" ${extra}`;
 const kindSelect = (s, cls) => `<select class="mx-pin ${cls}" ${inp(s, 'kind')} aria-label="${COPY.row.kindLabel}">${KINDS.map(([k, l]) => `<option value="${k}"${s.kind === k ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
 const timeInputs = s => `<div class="mx-pr-time"><input type="time" class="mx-pin" ${inp(s, 'start_time')} value="${esc(s.start_time || '')}" aria-label="${COPY.row.start}"><i>–</i><input type="time" class="mx-pin" ${inp(s, 'end_time')} value="${esc(s.end_time || '')}" aria-label="${COPY.row.end}"></div>`;
+// motion (css: the polish block in program.css) — a row that just moved flashes gold and settles; a switch
+// that just flipped sends out one ring. st.fx outlives the redraw that follows (the server's answer repaints
+// the row or the list), and a negative animation-delay (--fx) lets the fresh element carry on mid-way.
+const FX_MS = 900;
+function fxAge(id, k) { const f = st.fx; if (!f || f.id !== id || f.k !== k) return -1; const age = Date.now() - f.at; return age < FX_MS ? age : -1; }
+const fxCls = (id, k, cls) => fxAge(id, k) >= 0 ? ' ' + cls : '';
+const fxVar = (id, k) => { const age = fxAge(id, k); return age >= 0 ? ` style="--fx:-${age}ms"` : ''; };
 const toggles = s => `
   <div class="mx-pr-toggles">
-    <span class="mx-tg${s.is_tbd ? ' on' : ''}" data-act="toggle" data-k="is_tbd" data-id="${esc(s.id)}" role="switch" aria-checked="${!!s.is_tbd}">${COPY.row.tbd}</span>
-    <span class="mx-tg${s.show_counts ? ' on' : ''}" data-act="toggle" data-k="show_counts" data-id="${esc(s.id)}" role="switch" aria-checked="${!!s.show_counts}">${COPY.row.counts}</span>
-    <span class="mx-tg pub${s.is_published ? ' on' : ''}" data-act="toggle" data-k="is_published" data-id="${esc(s.id)}" role="switch" aria-checked="${!!s.is_published}">${s.is_published ? COPY.row.live : COPY.row.draft}</span>
+    <span class="mx-tg${s.is_tbd ? ' on' : ''}${fxCls(s.id, 'is_tbd', 'flip')}" data-act="toggle" data-k="is_tbd" data-id="${esc(s.id)}" role="switch" aria-checked="${!!s.is_tbd}"${fxVar(s.id, 'is_tbd')}>${COPY.row.tbd}</span>
+    <span class="mx-tg${s.show_counts ? ' on' : ''}${fxCls(s.id, 'show_counts', 'flip')}" data-act="toggle" data-k="show_counts" data-id="${esc(s.id)}" role="switch" aria-checked="${!!s.show_counts}"${fxVar(s.id, 'show_counts')}>${COPY.row.counts}</span>
+    <span class="mx-tg pub${s.is_published ? ' on' : ''}${fxCls(s.id, 'is_published', 'flip')}" data-act="toggle" data-k="is_published" data-id="${esc(s.id)}" role="switch" aria-checked="${!!s.is_published}"${fxVar(s.id, 'is_published')}>${s.is_published ? COPY.row.live : COPY.row.draft}</span>
   </div>`;
 const attCell = s => { const over = s.capacity != null && s.count > s.capacity; return `<span class="mx-pr-att${over ? ' over' : ''}" data-act="attendance" data-id="${esc(s.id)}" role="button" title="${COPY.row.att}"><b>${fmt.num(s.count || 0)}</b><i>/ ${s.capacity == null ? '—' : fmt.num(s.capacity)}</i></span>`; };
 const orderBtns = (i, n, s) => `<div class="mx-pr-order"><span data-act="moveUp" data-id="${esc(s.id)}" role="button" aria-label="${COPY.row.up}"${i === 0 || !canMove(s.id, -1) ? ' aria-disabled="true"' : ''}>↑</span><span data-act="moveDown" data-id="${esc(s.id)}" role="button" aria-label="${COPY.row.down}"${i === n - 1 || !canMove(s.id, 1) ? ' aria-disabled="true"' : ''}>↓</span></div>`;
@@ -276,7 +283,7 @@ function row(s, cm, i, n) {
   const over = s.capacity != null && s.count > s.capacity;
   const others = (cm[s.id] || []).map(id => byId(id)).filter(Boolean);
   return `
-  <div class="mx-pr card${s.is_tbd ? ' tbd' : ''}${!s.is_published ? ' draft' : ''}${st.expanded.has(s.id) ? ' open' : ''}" data-row="${esc(s.id)}" data-id="${esc(s.id)}">
+  <div class="mx-pr card${s.is_tbd ? ' tbd' : ''}${!s.is_published ? ' draft' : ''}${st.expanded.has(s.id) ? ' open' : ''}${fxCls(s.id, 'moved', 'moved')}" data-row="${esc(s.id)}" data-id="${esc(s.id)}"${fxVar(s.id, 'moved')}>
     <div class="mx-pr-main">
       <span class="mx-pr-handle" draggable="true" title="${COPY.row.drag}" aria-label="${COPY.row.drag}">⋮⋮</span>
       ${orderBtns(i, n, s)}
@@ -349,8 +356,8 @@ function sheet() {
 }
 function template() {
   return `
-<div data-screen-label="Admin Program" class="mx-program" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:18px">
+<div data-screen-label="Admin Program" class="mxpj mx-program" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:18px">
     ${blockTitle()}
     ${blockEvents()}
     ${blockInsight()}
@@ -481,6 +488,7 @@ async function toggleFlag(id, k) {
   const next = s[k] ? 0 : 1;
   const prev = Object.assign({}, s);
   patchLocal(Object.assign({}, s, { [k]: !!next }));
+  st.fx = { id, k, at: Date.now() };
   rerenderRow(id); if (st.open === id) rerenderSheet();
   try {
     const r = k === 'is_published' ? await api.put(sPath(id) + '/publish', { is_published: next })
@@ -492,10 +500,11 @@ async function toggleFlag(id, k) {
     afterWrite();
   } catch (e) { patchLocal(prev); listDirty = false; rerenderRow(id); if (st.open === id) rerenderSheet(); ui.toast(e.message, { kind: 'error' }); }
 }
-async function reorder(order, quiet) {
+async function reorder(order, quiet, movedId) {
   try {
     const r = await api.put(base() + '/sessions/reorder', { order });
     takeListing(r);
+    if (movedId && fxAge(movedId, 'moved') < 0) st.fx = { id: movedId, k: 'moved', at: Date.now() };
     if (!quiet) ui.toast(COPY.toast.reordered);
     listDirty = false; rerenderList(); if (st.open) rerenderSheet(); rerender('[data-block="title"]', blockTitle());
   } catch (e) { ui.toast(e.message, { kind: 'error' }); }
@@ -525,7 +534,7 @@ function move(id, dir) {
   if (i < 0 || j < 0 || j >= rows.length) return;
   const order = rows.map(x => x.id); order.splice(i, 1); order.splice(j, 0, id);
   if (!chronoOk(order, id)) { ui.toast(COPY.toast.clock); return; }
-  reorder(order, true);
+  reorder(order, true, id);
 }
 function restoreBody(s) {
   return { id: s.id, title: s.title, kind: s.kind, event_date: s.event_date, start_time: s.start_time, end_time: s.end_time, room: s.room, location_note: s.location_note, track: s.track, capacity: s.capacity, description: s.description,
@@ -735,7 +744,8 @@ function bindRootListeners(root) {
     // paint the new order at once; the server confirms it
     const list = root.querySelector('[data-block="list"]'); const el = root.querySelector(`[data-row="${CSS.escape(id)}"]`);
     if (list && el) { const ref = root.querySelector(`[data-row="${CSS.escape(card.dataset.id)}"]`); if (ref) list.insertBefore(el, top ? ref : ref.nextSibling); }
-    reorder(rows);
+    st.fx = { id, k: 'moved', at: Date.now() }; if (el) el.classList.add('moved');
+    reorder(rows, false, id);
   };
   root.addEventListener('input', onInput);
   root.addEventListener('change', onChange);
@@ -758,7 +768,7 @@ export default {
   title: 'Program',
   async render(root, ctx) {
     rootEl = root; loadCss();
-    st = { event: null, day: null, expanded: new Set(), sp: null, open: null, dragging: null, shiftAfter: '', shiftMin: '' };
+    st = { event: null, day: null, expanded: new Set(), sp: null, open: null, dragging: null, shiftAfter: '', shiftMin: '', fx: null };
     D = null; P = null; I = null; listDirty = false;
     try {
       await loadEvents();

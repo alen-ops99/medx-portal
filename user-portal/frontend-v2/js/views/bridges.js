@@ -187,7 +187,7 @@ async function load() {
 function blockCrumb() {
   return `
   <!-- dc: Building Bridges.dc.html › "Breadcrumb" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+  <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
     <a href="/app/projects" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.left}</a>
     <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.right}</span>
@@ -200,8 +200,8 @@ function blockCrumb() {
 function followToggle() {
   return `
       <div data-block="follow" style="display:flex;align-items:center;gap:10px;margin-top:20px">
-        <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from Building Bridges" style="width:34px;height:18px;flex:none;cursor:pointer;background:${st.follow ? '#9b1b22' : 'rgba(247,241,230,.3)'};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:${st.follow ? '18px' : '2px'}"></span></span>
-        <span style="display:flex;flex-direction:column;gap:3px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.follow(st.follow)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
+        <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from Building Bridges" class="mx-switch"><span></span></span>
+        <span style="display:flex;flex-direction:column;gap:3px"><span data-role="follow-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.follow(st.follow)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
       </div>`;
 }
 
@@ -209,8 +209,8 @@ function blockHero() {
   const n = D.next;
   return `
   <!-- dc: Building Bridges.dc.html › "Hero" -->
-  <div style="position:relative;overflow:hidden">
-    <img src="/assets/photo-bridges.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 45%">
+  <div class="mx-ink" style="position:relative;overflow:hidden">
+    <img class="mx-hero-photo" src="/assets/photo-bridges.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 45%">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${n ? COPY.hero.eyebrow(esc(fmt.upper(n.city)), esc(fmt.upper(n.dateLabel))) : D.home ? COPY.hero.eyebrowHome : COPY.hero.eyebrowNone}</span>
@@ -232,7 +232,7 @@ function blockBand() {
   const rule = '<span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>';
   return `
   <!-- dc: Building Bridges.dc.html › "Stats band" -->
-  <div class="mx-pad-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
+  <div class="mx-pad-band mx-bb-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
     ${stat(s.cities, COPY.band.cities)}
     ${rule}
     ${stat(s.guests, COPY.band.guests)}
@@ -341,7 +341,7 @@ function blockNext() {
         <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.next.emptyLine}</span>
         <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.next.emptyWhy}</span>
-        <span data-act="tgFollow" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap">${COPY.next.emptyCta}</span>
+        <span data-act="tgFollow" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.next.emptyCta}</span>
       </div>
     </div>
     <!-- /dc -->`;
@@ -355,7 +355,7 @@ function blockNext() {
 function editionCard(e, isLatest) {
   const first = Number(e.edition_no) === Math.min(...D.editions.map(x => Number(x.edition_no)));
   const photo = (Array.isArray(e.photos) && e.photos[0] && e.photos[0].url)
-    ? `<img src="${esc(api.url(e.photos[0].url))}" alt="" style="width:100%;height:130px;object-fit:cover;display:block">`
+    ? `<span class="mx-ph"><img src="${esc(api.url(e.photos[0].url))}" alt="" style="width:100%;height:130px;object-fit:cover;display:block"></span>`
     : `<div style="height:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 10px Inter,sans-serif;letter-spacing:.2em;color:#4a4239;text-align:center;padding:0 12px">${esc(COPY.been.photoLabel(e.city))}</div>`;
   // A figure nobody has entered is left out — never shown as a dash beside its label.
   const has = v => v !== null && v !== undefined && v !== '';
@@ -364,7 +364,7 @@ function editionCard(e, isLatest) {
     : '';
   const stats = stat(e.guests, COPY.been.guests) + stat(e.connections, COPY.been.conns);
   return `
-        <div data-act="gallery" data-id="${esc(e.id)}" aria-label="${esc(e.city)} photos" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;cursor:pointer;text-align:left">
+        <div data-act="gallery" data-id="${esc(e.id)}" aria-label="${esc(e.city)} photos" class="mx-card-link" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;cursor:pointer;text-align:left">
           ${photo}
           <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:5px;flex:1">
             <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(COPY.been.edition(e.edition_no, isLatest, first))}</span>
@@ -484,17 +484,22 @@ async function submitRegistration(m) {
 }
 
 const handlers = {
+  // flips in place at once (ui.toggleSwitch) — the POST runs behind it and a failure flips it back.
+  // The empty-state "GET UPDATES" button shares this act; it is not a switch, so it keeps the old path.
   tgFollow: async (el) => {
-    const on = !st.follow;
-    el.setAttribute('aria-disabled', 'true');
-    try {
+    const paint = on => { const l = rootEl && rootEl.querySelector('[data-block="follow"] [data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.follow(on); };
+    const save = async on => {
       await api.post('/api/notify-topics', { project: 'bridges', on });
-      st.follow = on;
-      const block = rootEl.querySelector('[data-block="follow"]');
-      if (block) block.outerHTML = followToggle();
+      if (st) st.follow = on;
       ui.toast(on ? COPY.followed : COPY.unfollowed);
       chrome.refresh();
-    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+    };
+    if (el.getAttribute('role') === 'switch') return ui.toggleSwitch(el, save, paint);
+    const sw = rootEl && rootEl.querySelector('[data-block="follow"] [role="switch"]');
+    if (sw) return ui.toggleSwitch(sw, save, paint);
+    el.setAttribute('aria-disabled', 'true');
+    try { await save(!st.follow); } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+    el.removeAttribute('aria-disabled');
   },
   register: () => { if (D.next) openRegisterModal(); },
   regClosed: () => ui.toast(COPY.next.closed),
@@ -519,13 +524,14 @@ const handlers = {
 function startCountdown() {
   if (!D.next) return;
   timers.push(ui.countdown(D.next.startAt, ({ days, hrs, min }) => {
-    const set = (k, v) => { const el = rootEl && rootEl.querySelector(`[data-cd="${k}"]`); if (el) el.textContent = v; };
+    const set = (k, v) => ui.tick(rootEl && rootEl.querySelector(`[data-cd="${k}"]`), v);
     set('days', days); set('hrs', hrs); set('min', min);
   }, 30000));
 }
 
 export default {
   title: 'Building Bridges',
+  reveal: true,        // sections below the fold rise in on scroll (router › ui.revealOnScroll)
   async render(root, ctx) {
     ensureCss();
     rootEl = root;

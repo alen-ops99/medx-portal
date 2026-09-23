@@ -310,8 +310,8 @@ function trendSvg(m, W) {
   }).join('');
   const todayMark = `<line x1="${x(n - 1).toFixed(1)}" y1="${t}" x2="${x(n - 1).toFixed(1)}" y2="${base.toFixed(1)}" stroke="#9b1b22" stroke-width="1" stroke-dasharray="2 3" opacity=".35"></line>`;
 
-  const barRects = bars ? totalRow.plot.map((v, i) => v <= 0 ? '' :
-    `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, base - y(v)).toFixed(1)}" fill="#9b1b22" opacity=".85"></rect>`).join('') : '';
+  const barRects = bars ? `<g data-role="trBars">` + totalRow.plot.map((v, i) => v <= 0 ? '' :
+    `<rect data-i="${i}" x="${(x(i) - bw / 2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, base - y(v)).toFixed(1)}" fill="#9b1b22" opacity=".85"></rect>`).join('') + `</g>` : '';
 
   const lines = m.visible.filter(s => !s.total || !bars).map(s => {
     const pts = s.plot.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
@@ -435,7 +435,7 @@ function blockHero() {
     <div data-block="hero" style="border:1px solid rgba(32,27,22,.14);background:#fff">
     <div class="mx-kpi" style="display:grid;grid-template-columns:repeat(${Math.max(1, kpis.length)},1fr)">
       ${kpis.map(k => `
-        <a href="${k.href}"${k.title ? ` title="${esc(k.title)}"` : ''} style="padding:18px 22px;border-right:1px solid rgba(32,27,22,.12);display:block;color:#201b16" data-hover="background:#fdfbf6;color:#201b16">
+        <a href="${k.href}"${k.title ? ` title="${esc(k.title)}"` : ''} style="padding:18px 22px;border-right:1px solid rgba(32,27,22,.12);display:block;color:#201b16" data-hover="background:#faf6ee;color:#201b16">
           <div style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${k.k}</div>
           <div class="mx-display-34" style="font-family:Fraunces,serif;font-size:34px;margin-top:4px">${esc(k.v)}</div>
           <div style="font-size:11.5px;color:${k.subColor}">${esc(k.sub)}</div>
@@ -485,10 +485,12 @@ function blockProjects() {
   const nb = D.bridges.next; const nbCity = nb ? nb.city : FACTS.bridges.next.city;
   const nbWhen = nb && nb.d ? fmt.dayLabel(nb.d).split(' ')[0] + ' ' + nb.d.slice(0, 4) : nb ? c.bridges.dateTbc : FACTS.bridges.next.short.toUpperCase();
   const nbVenue = nb && nb.venue_name && !/announce|tba/i.test(nb.venue_name) ? nb.venue_name : c.bridges.venueSoon;
+  // the pointer darkens the card's hairline — never its crimson top rule (the live project's accent)
+  const edges = (top, c) => top ? `border-left-color:${c};border-right-color:${c};border-bottom-color:${c}` : `border-color:${c}`;
   const card = (href, top, eyebrowColor, eyebrow, title, line1, line2, dashed) => `
-        <a href="${href}" style="border:1px ${dashed ? 'dashed rgba(32,27,22,.25)' : 'solid rgba(32,27,22,.14)'};${top ? 'border-top:2px solid #9b1b22;' : ''}background:${dashed ? 'transparent' : '#fff'};padding:16px;display:flex;flex-direction:column;gap:6px;color:#201b16" data-hover="border-color:rgba(32,27,22,${dashed ? '.5' : '.35'});color:#201b16">
+        <a href="${href}" class="mx-lift mx-card-link" style="border:1px ${dashed ? 'dashed rgba(32,27,22,.25)' : 'solid rgba(32,27,22,.14)'};${top ? 'border-top:2px solid #9b1b22;' : ''}background:${dashed ? 'transparent' : '#fff'};padding:16px;display:flex;flex-direction:column;gap:6px;color:#201b16" data-hover="${edges(top, 'rgba(32,27,22,' + (dashed ? '.5' : '.35') + ')')};color:#201b16${dashed ? ';background:#faf6ee' : ''}">
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:${eyebrowColor}">${eyebrow}</span>
-          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">${title}</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">${title}<span class="mx-card-go" aria-hidden="true">→</span></span>
           <span style="font-size:11.5px;color:#6d6459;line-height:1.5">${line1}<br>${line2}</span>
         </a>`;
   return `
@@ -498,7 +500,7 @@ function blockProjects() {
         <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
         <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
       </div>
-      <div class="mx-grid-5" style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
+      <div class="mx-grid-5 mx-stagger" style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
         ${card('/projects/plexus', true, Number(conf.registration_open) ? '#9b1b22' : '#6d6459', (Number(conf.registration_open) || !conf.id ? c.plexus.live : c.plexus.closed) + ' · ' + esc(fmt.rangeLabel(conf.start_date || FACTS.plexus.start, conf.end_date || FACTS.plexus.end)), esc(c.plexus.title), esc(c.plexus.line(regs, D.cap, isLocked('gala') ? '— gala paid' : (g.ops ? `${g.ops.seats.paid} gala seat${g.ops.seats.paid === 1 ? '' : 's'} paid` : `${g.paid.length} gala booking${g.paid.length === 1 ? '' : 's'} paid`))), esc(c.plexus.parts))}
         ${card('/projects/accelerator', false, accColor, esc(accLabel), esc(c.accelerator.title), esc(c.accelerator.apps(apps)), D.institutions == null ? esc(FACTS.accelerator.hosts.length + ' host institutions (canonical)') : esc(c.accelerator.hosts(D.institutions)))}
         ${card('/projects/forum', false, '#6d6459', esc(s.forum ? fmt.upper(s.forum.status_label) : c.forum.eyebrow), esc(c.forum.title), esc(c.forum.line(members, D.forumCandidates)), esc(c.forum.gathering))}
@@ -573,7 +575,7 @@ function bigIdeasCard() {
         <div data-block="bigideas" style="border:1px solid rgba(32,27,22,.14);background:#fff">
           <div style="display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${c.hint}</span></div>
           ${shown.map((i, n) => `
-          <a class="mx-row" href="/big-ideas/${esc(i.id)}" style="display:flex;gap:12px;align-items:baseline;padding:12px 20px;color:#201b16;${n < shown.length - 1 ? 'border-bottom:1px solid rgba(32,27,22,.08)' : ''}" data-hover="background:#fdfbf6">
+          <a class="mx-row" href="/big-ideas/${esc(i.id)}" style="display:flex;gap:12px;align-items:baseline;padding:12px 20px;color:#201b16;${n < shown.length - 1 ? 'border-bottom:1px solid rgba(32,27,22,.08)' : ''}" data-hover="background:#faf6ee">
             <span class="mx-row-text" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
               <span style="font-size:12.5px;font-weight:600;overflow-wrap:anywhere">${esc(i.title)}</span>
               <span style="font-size:11.5px;color:#6d6459;line-height:1.45;overflow-wrap:anywhere">${esc(i.next_step)}</span>
@@ -736,13 +738,14 @@ function bindTrendHover(host, m, W) {
   const svg = host.querySelector('svg'), hit = host.querySelector('[data-role="trHit"]');
   const guide = host.querySelector('[data-role="trGuide"]'), dots = host.querySelector('[data-role="trDots"]');
   const tip = host.querySelector('[data-role="trTip"]');
+  const barsG = host.querySelector('[data-role="trBars"]');   // daily view: the pointed-at day's bar stays full, the rest recede
   if (!svg || !hit || !tip) return;
   const { l, r, t } = CH_PAD;
   const plotW = Math.max(60, W - l - r), n = m.dates.length, slot = plotW / n;
   const x = i => l + (i + 0.5) * slot;
   const y = v => t + CH_PLOT_H - (m.top ? (v / m.top) * CH_PLOT_H : 0);
   let idx = -1;
-  const hide = () => { idx = -1; guide.setAttribute('opacity', '0'); dots.innerHTML = ''; tip.style.display = 'none'; };
+  const hide = () => { idx = -1; guide.setAttribute('opacity', '0'); dots.innerHTML = ''; tip.style.display = 'none'; if (barsG) { barsG.classList.remove('hov'); const on = barsG.querySelector('.on'); if (on) on.classList.remove('on'); } };
   const move = (e) => {
     const box = svg.getBoundingClientRect();
     const i = Math.min(n - 1, Math.max(0, Math.floor((e.clientX - box.left - l) / slot)));
@@ -750,6 +753,7 @@ function bindTrendHover(host, m, W) {
       idx = i;
       guide.setAttribute('x1', x(i).toFixed(1)); guide.setAttribute('x2', x(i).toFixed(1));
       guide.setAttribute('opacity', '.2');
+      if (barsG) { barsG.classList.add('hov'); const was = barsG.querySelector('.on'); if (was) was.classList.remove('on'); const b = barsG.querySelector(`[data-i="${i}"]`); if (b) b.classList.add('on'); }
       dots.innerHTML = m.visible.map(s => `<circle cx="${x(i).toFixed(1)}" cy="${y(s.plot[i]).toFixed(1)}" r="3" fill="#fff" stroke="${s.color}" stroke-width="1.6"></circle>`).join('');
       // Past five rows the single column grows taller than the plot itself, so it goes two-up —
       // that is what keeps the whole tooltip inside the card on a phone as well as on a desktop.
@@ -757,7 +761,7 @@ function bindTrendHover(host, m, W) {
       tip.style.maxWidth = cols === 2 ? 'min(330px,calc(100% - 8px))' : 'min(240px,calc(100% - 8px))';
       tip.innerHTML = `<div style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#c9a962">${esc(dayFull(m.dates[i]).toUpperCase())}</div>`
         + (m.visible.length ? `<div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));column-gap:14px;margin-top:3px">`
-            + m.visible.map(s => `<div style="display:flex;align-items:center;gap:6px;margin-top:3px;font:400 11px Inter,sans-serif;line-height:1.35;white-space:nowrap"><span style="width:8px;height:8px;flex:none;background:${s.color}"></span><span style="flex:1;min-width:0">${s.label}</span><span style="font-weight:600">${s.plot[i]}</span></div>`).join('')
+            + m.visible.map(s => `<div style="display:flex;align-items:center;gap:6px;margin-top:3px;font:400 11px Inter,sans-serif;line-height:1.35;white-space:nowrap"><span style="width:8px;height:8px;flex:none;background:${s.color};box-shadow:0 0 0 1px rgba(246,242,234,.35)"></span><span style="flex:1;min-width:0">${s.label}</span><span style="font-weight:600">${s.plot[i]}</span></div>`).join('')
             + `</div>`
           : `<div style="margin-top:4px;font:400 11.5px Inter,sans-serif;white-space:normal">${COPY.trends.none}</div>`);
       tip.style.display = 'block';

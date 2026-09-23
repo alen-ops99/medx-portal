@@ -1,7 +1,7 @@
 // Source: System Pages.dc.html › "01 · 404 — PAGE NOT FOUND"
 // The artboard shows the page as a 1100×560 sheet in a gallery; here the sheet IS the page
 // (full viewport, same ink header, same centred body). Rendered without the portal chrome.
-import { esc } from '../ui.js';
+import { esc, ui } from '../ui.js';
 
 export const SOURCE = 'System Pages.dc.html';
 export const COPY = {
@@ -11,6 +11,22 @@ export const COPY = {
   home: 'BACK TO HOME →', message: 'MESSAGE US'
 };
 export const layout = 'bare';
+
+// Entrance (shared with maintenance.js): the centred copy rises in line by line and a background photo
+// settles, all inside half a second. It runs from here, through the Web Animations API with the house ease
+// (as ui.js's motion helpers do), because these pages paint synchronously: a view stylesheet still loading
+// would either hold the paint or land after it and replay the text. Nothing moves under reduced motion;
+// fill `backwards`, so nothing is held hidden once the entrance has run (or if animate() is unavailable).
+const EASE = 'cubic-bezier(.22,1,.36,1)';
+const STAGGER = [0, 40, 70, 100, 120, 140];   // ms — the last line lands by ~500 ms
+export function enterSystem(root) {
+  if (!root || ui.reducedMotion()) return;
+  const play = (el, frames, opts) => { try { el.animate(frames, Object.assign({ easing: EASE, fill: 'backwards' }, opts)); } catch (e) { /* no WAAPI: stays still */ } };
+  root.querySelectorAll('[data-enter="rise"] > *').forEach((el, i) =>
+    play(el, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 360, delay: STAGGER[Math.min(i, STAGGER.length - 1)] }));
+  root.querySelectorAll('[data-enter="settle"]').forEach(el =>
+    play(el, [{ transform: 'scale(1.05)' }, { transform: 'none' }], { duration: 900 }));
+}
 
 export default {
   title: 'Page not found',
@@ -24,7 +40,7 @@ export default {
       <div style="flex:1"></div>
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#c9a962">${COPY.kicker}</span>
     </div>
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px">
+    <div data-enter="rise" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px">
       <span style="font-family:Fraunces,serif;font-style:italic;font-size:90px;line-height:1;color:rgba(25,21,18,.14)">${COPY.code}</span>
       <span style="width:28px;height:1px;background:#c9a962;margin:18px 0 14px"></span>
       <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;line-height:1.15">${COPY.headline}</div>
@@ -37,6 +53,7 @@ export default {
   </div>
   <!-- /dc -->
 </div>`;
+    enterSystem(root);
   },
   destroy() {}
 };

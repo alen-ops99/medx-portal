@@ -63,11 +63,15 @@ const NAV_SUB = 'display:block;padding:5px 26px 5px 42px;font-size:12.5px;color:
 const NAV_SUB_ACT = 'display:block;padding:5px 26px 5px 40px;border-left:2px solid #c9a962;background:rgba(201,169,98,.08);font-size:12.5px;font-weight:600;color:#f7f1e6;text-decoration:none';
 
 const TAB_ROOTS = { HOME: '/app/home', PROJECTS: '/app/projects', PEOPLE: '/app/network', INBOX: '/app/messages', 'MY M&X': '/app/me' };
+// the five project screens sit under PROJECTS — standing on one used to leave the tab bar with nothing lit
+const PROJECT_ROOTS = ['/app/plexus', '/app/gala', '/app/accelerator', '/app/forum', '/app/bridges'];
 const VERIFY_DISMISS_KEY = 'medx_verify_dismissed'; // legacy sessionStorage key, kept
 
 let els = {};
 let popover = null; // 'alerts' | 'search' | null
 let searchTimer = null;
+let popOpenedAt = 0, popCloseTimer = null;   // entrance runs once per opening, exit fades (app.css › .mx-pop-in / .mx-pop-out)
+let drawerTimer = null;
 
 // ---------------------------------------------------------------- templates
 function topBar() {
@@ -81,11 +85,11 @@ function topBar() {
     </span>
     <a href="/app/home" class="mx-brand" style="display:block"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:22px;display:block"></a>
     <div style="flex:1"></div>
-    <span data-act="search" aria-label="Search" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">${COPY.search}</span>
-    <span data-act="alerts" aria-label="Alerts" style="display:flex;align-items:center;gap:6px;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer">${COPY.alerts}<span data-role="unread-dot" style="width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'inline-block' : 'none'}"></span></span>
+    <span data-act="search" aria-label="Search" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer" data-hover="color:#191512">${COPY.search}</span>
+    <span data-act="alerts" aria-label="Alerts" style="display:flex;align-items:center;gap:6px;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer" data-hover="color:#191512">${COPY.alerts}<span data-role="unread-dot" style="width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'inline-block' : 'none'}"></span></span>
     <span style="width:1px;height:18px;background:rgba(25,21,18,.16)"></span>
     <a href="/app/me" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#191512" data-hover="color:#191512">
-      <span style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(session.initials())}</span>
+      <span class="mx-avatar" style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(session.initials())}</span>
       <span class="mx-identity-text" style="display:flex;flex-direction:column;line-height:1.25"><span style="font-size:12.5px;font-weight:600">${esc(session.displayName())}</span><span style="font-size:10.5px;color:#4a4239">${COPY.memberLabel}</span></span>
     </a>
     <div data-role="popover"></div>
@@ -188,7 +192,8 @@ function mobileBanner() {
 }
 function tabBar() {
   const path = router.path;
-  const on = label => { const root = TAB_ROOTS[label]; return path === root || path.startsWith(root + '/') || (label === 'HOME' && (path === '/' || path === '/app')); };
+  const under = root => path === root || path.startsWith(root + '/');
+  const on = label => under(TAB_ROOTS[label]) || (label === 'HOME' && (path === '/' || path === '/app')) || (label === 'PROJECTS' && PROJECT_ROOTS.some(under));
   return `
   <!-- dc: Mobile Portal.dc.html › "Tab bar" -->
   <div id="mx-tabbar" role="tablist" style="position:fixed;bottom:0;left:0;right:0;max-width:430px;margin:0 auto;background:#191512;display:flex;z-index:30">
@@ -252,15 +257,29 @@ function renderAll() {
   if (popover) renderPopover();
 }
 function renderPopover() {
+  clearTimeout(popCloseTimer);
   // the phone bar has its own host — the desktop one sits inside the hidden desktop chrome
   const phone = window.matchMedia && window.matchMedia('(max-width: 430px)').matches;
   els.chrome.querySelectorAll('[data-role="popover"], [data-role="popover-m"]').forEach(h => { h.innerHTML = ''; });
   const host = els.chrome.querySelector(phone ? '[data-role="popover-m"]' : '[data-role="popover"]');
   if (!host) return;
   host.innerHTML = popover === 'alerts' ? alertsPanel() : popover === 'search' ? searchOverlay() : '';
+  // The panel is re-drawn whenever its data lands (alerts refresh, chrome re-render). Only the opening
+  // pass animates, and a re-draw during it picks the animation up where it was (negative delay).
+  const panel = host.firstElementChild;
+  const t = performance.now() - popOpenedAt;
+  if (panel && t < 360) { panel.classList.add('mx-pop-in'); if (t > 16) panel.style.setProperty('--pop-t', (-t).toFixed(0) + 'ms'); }
   if (popover === 'search') { const q = host.querySelector('[data-role="q"]'); if (q) { q.focus(); q.addEventListener('input', onSearchInput); } }
 }
-function closePopover() { popover = null; renderPopover(); }
+function openPopover(kind) { popover = kind; popOpenedAt = performance.now(); renderPopover(); }
+function closePopover() {
+  popover = null;
+  const live = els.chrome ? els.chrome.querySelectorAll('.mx-pop, .mx-search') : [];
+  if (!live.length || ui.reducedMotion()) return renderPopover();
+  live.forEach(n => { n.classList.remove('mx-pop-in'); n.classList.add('mx-pop-out'); });
+  clearTimeout(popCloseTimer);
+  popCloseTimer = setTimeout(() => { if (!popover) renderPopover(); }, 170);
+}
 function onSearchInput(e) {
   const q = e.target.value.trim();
   clearTimeout(searchTimer);
@@ -290,8 +309,8 @@ const handlers = {
   tg: () => chrome.toggleDrawer(),
   cl: () => chrome.closeDrawer(),
   back: () => (history.length > 1 ? history.back() : router.navigate('/app/home')),
-  search: () => { popover = popover === 'search' ? null : 'search'; renderPopover(); },
-  alerts: async () => { popover = popover === 'alerts' ? null : 'alerts'; renderPopover(); if (popover === 'alerts') { await chrome.refresh({ only: 'notifications' }); renderPopover(); } },
+  search: () => { if (popover === 'search') closePopover(); else openPopover('search'); },
+  alerts: async () => { if (popover === 'alerts') return closePopover(); openPopover('alerts'); await chrome.refresh({ only: 'notifications' }); if (popover === 'alerts') renderPopover(); },
   closePop: (el, e) => { if (e && e.target.closest && e.target.closest('[data-stop]')) return; closePopover(); },
   openInbox: () => { closePopover(); router.navigate('/app/messages'); },
   markAll: async () => { try { await api.put('/api/user-notifications/mark-all-read'); await chrome.refresh({ only: 'notifications' }); renderPopover(); ui.toast('All alerts marked as read.'); } catch (e) { ui.toast(e.message, { kind: 'error' }); } },
@@ -329,7 +348,13 @@ export const chrome = {
     renderAll();
   },
   toggleDrawer() { document.body.classList.contains('drawer-open') ? chrome.closeDrawer() : chrome.openDrawer(); },
-  openDrawer() { document.body.classList.add('drawer-open'); const s = els.overlays.querySelector('#mx-scrim'); if (s) s.setAttribute('aria-hidden', 'false'); const first = els.overlays.querySelector('#mx-drawer a'); if (first) first.focus(); },
+  openDrawer() {
+    document.body.classList.add('drawer-open'); const s = els.overlays.querySelector('#mx-scrim'); if (s) s.setAttribute('aria-hidden', 'false');
+    // one pass of the entries following the panel in (app.css › #mx-drawer.is-entering); a re-drawn drawer stays still
+    const d = els.overlays.querySelector('#mx-drawer');
+    if (d) { d.classList.remove('is-entering'); void d.offsetWidth; d.classList.add('is-entering'); clearTimeout(drawerTimer); drawerTimer = setTimeout(() => d.classList.remove('is-entering'), 700); }
+    const first = els.overlays.querySelector('#mx-drawer a'); if (first) first.focus({ preventScroll: true });
+  },
   closeDrawer() { document.body.classList.remove('drawer-open'); const s = els.overlays.querySelector('#mx-scrim'); if (s) s.setAttribute('aria-hidden', 'true'); },
   closePopover,
   // stats strip + unread dot — all live reads, never hardcoded

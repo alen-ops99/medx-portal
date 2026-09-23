@@ -108,6 +108,16 @@ const MENUS = {
     { k: 'SETUP', label: 'Settings', to: '/settings', sub: 'team · health · tools' }
   ]
 };
+// the ⌘K hint in the search field names the chord this keyboard actually has
+const KBD = (() => { try { return /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || '') ? '⌘K' : 'Ctrl K'; } catch (e) { return '⌘K'; } })();
+// a panel that OPENS (its host was empty) gets the short fade-and-settle; a redraw of an open panel
+// (typing in the search field, a badge refresh) never replays it
+function fill(host, html) {
+  if (!host) return;
+  const was = !!host.firstElementChild;
+  host.innerHTML = html;
+  if (!was && host.firstElementChild) host.firstElementChild.classList.add('mx-pop-in');
+}
 const isHoverDevice = () => { try { return window.matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (e) { return true; } };
 const inDrawer = () => document.body.classList.contains('menu-open');
 // which group the current screen belongs to (router sets state.active to the route's key)
@@ -200,7 +210,9 @@ let els = {};
 let popover = null;          // 'search' | 'menu' | 'nav:<group key>' | null
 let hoverTimer = null;       // the dropdown lingers ~160 ms after the pointer leaves (diagonal moves)
 let searchTimer = null;
-let searchState = { q: '', people: [], assistant: null, busy: false };
+let menuAnimTimer = null;    // .menu-anim lives only for the drawer's opening slide, .menu-closing for its fold
+let lastPointer = null;      // the search highlight follows a pointer that MOVES, never one resting under new rows
+let searchState = { q: '', people: [], assistant: null, busy: false, sel: -1 };
 let nameSaved = false;
 
 // ---------------------------------------------------------------- templates
@@ -289,14 +301,14 @@ function header() {
   <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14);position:relative;z-index:50">
     <div class="mx-topbar mx-gutter${s.eventDay ? ' event-day' : ''}" style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px;position:relative">
       <a href="/today" class="mx-brand" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:18px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">${COPY.admin}</span></a>
-      <span id="mx-menu-btn" data-act="menu" aria-label="Menu" style="align-items:center;gap:8px;font:600 10.5px Inter,sans-serif;letter-spacing:.18em;cursor:pointer"><span style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#201b16"></span><span style="width:18px;height:2px;background:#201b16"></span><span style="width:12px;height:2px;background:#201b16"></span></span>${COPY.nav.menu}</span>
+      <span id="mx-menu-btn" data-act="menu" aria-label="Menu" style="align-items:center;gap:8px;font:600 10.5px Inter,sans-serif;letter-spacing:.18em;cursor:pointer"><span class="mx-burger" style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#201b16"></span><span style="width:18px;height:2px;background:#201b16"></span><span style="width:12px;height:2px;background:#201b16"></span></span>${COPY.nav.menu}</span>
       <div class="mx-nav" style="display:flex;gap:22px;align-items:center;height:100%">
         ${NAV.map(navItem).join('\n        ')}
       </div>
       <div style="flex:1"></div>
       <a href="/inbox/chat" class="mx-chat" title="${esc(COPY.chat.title)}" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" data-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span><span class="mx-chat-label">${COPY.chat.label}</span><span data-role="badge-chat" style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:${s.badges.chat > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center">${s.badges.chat || 0}</span></a>
       <span class="mx-search" style="position:relative;flex:0 1 200px;min-width:70px">
-        <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:7px 12px;box-sizing:border-box"><span style="color:#6d6459">⌕</span><input data-role="q" value="${esc(searchState.q)}" placeholder="${esc(COPY.search.placeholder)}" aria-label="Search or type a task" autocomplete="off" style="border:none;background:transparent;font-size:12px;color:#201b16;width:100%;padding:0"></span>
+        <span class="mx-search-box${searchState.q ? ' has-q' : ''}"><span class="mx-search-glass" aria-hidden="true">⌕</span><input data-role="q" value="${esc(searchState.q)}" placeholder="${esc(COPY.search.placeholder)}" aria-label="Search or type a task" autocomplete="off" role="combobox" aria-expanded="${popover === 'search'}" aria-autocomplete="list" style="border:none;background:transparent;font-size:12px;color:#201b16;width:100%;min-width:0;padding:0"><kbd class="mx-kbd" aria-hidden="true">${KBD}</kbd></span>
         <div data-role="search-pop">${popover === 'search' ? searchResults() : ''}</div>
       </span>
       <span style="position:relative;flex:none">
@@ -315,7 +327,7 @@ function renderAll() {
   document.body.classList.toggle('authed', session.isAuthed);
   // the phone MENU drawer survives a redraw (a badge refresh lands a second after load and used to
   // snap it shut mid-tap); navigation closes it in app.js's beforeRender hook, sign-out here
-  if (s.layout !== 'portal' || !session.isAuthed) { document.body.classList.remove('menu-open'); els.chrome.innerHTML = ''; return; }
+  if (s.layout !== 'portal' || !session.isAuthed) { document.body.classList.remove('menu-open', 'menu-closing'); els.chrome.innerHTML = ''; return; }
   const active = document.activeElement;
   const hadFocus = active && active.matches && active.matches('[data-role="q"]');
   const caret = hadFocus ? active.selectionStart : null;
@@ -323,13 +335,35 @@ function renderAll() {
   const q = els.chrome.querySelector('[data-role="q"]');
   if (q) { q.addEventListener('input', onSearchInput); q.addEventListener('keydown', onSearchKey); q.addEventListener('focus', () => { if (searchState.q.trim()) { popover = 'search'; renderSearchPop(); } }); if (hadFocus) { q.focus(); try { q.setSelectionRange(caret, caret); } catch (e) {} } }
 }
-function renderSearchPop() { const host = els.chrome.querySelector('[data-role="search-pop"]'); if (host) host.innerHTML = popover === 'search' ? searchResults() : ''; }
-function renderMenuPop() { const host = els.chrome.querySelector('[data-role="menu-pop"]'); if (host) host.innerHTML = popover === 'menu' ? profileMenu() : ''; const p = els.chrome.querySelector('[data-act="profile"]'); if (p) p.setAttribute('aria-expanded', String(popover === 'menu')); }
+function renderSearchPop() {
+  const host = els.chrome.querySelector('[data-role="search-pop"]'); if (!host) return;
+  fill(host, popover === 'search' ? searchResults() : '');
+  const q = els.chrome.querySelector('[data-role="q"]'); if (q) q.setAttribute('aria-expanded', String(popover === 'search'));
+  markSelection();
+}
+// the keyboard highlight: ↑/↓ move it; with no explicit pick it rests on what Enter would open
+// (the first match — or ASK when the phrase reads as an instruction, note 14)
+function searchRows() { return Array.from(els.chrome.querySelectorAll('[data-role="search-pop"] .mx-pop-row')); }
+function markSelection(scroll) {
+  const rows = searchRows();
+  if (!rows.length) return;
+  if (searchState.sel >= rows.length) searchState.sel = rows.length - 1;   // the list shrank under the pick
+  let i = searchState.sel;
+  if (i < 0) {
+    const first = rows.findIndex(r => r.dataset.act === 'result');
+    const ask = rows.findIndex(r => r.dataset.act === 'ask');
+    i = first >= 0 && !IMPERATIVE.test(searchState.q.trim()) ? first : (ask >= 0 ? ask : first);
+  }
+  rows.forEach((r, n) => r.setAttribute('aria-selected', String(n === i)));
+  const on = rows[i];
+  if (on && scroll) { try { on.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
+}
+function renderMenuPop() { const host = els.chrome.querySelector('[data-role="menu-pop"]'); fill(host, popover === 'menu' ? profileMenu() : ''); const p = els.chrome.querySelector('[data-act="profile"]'); if (p) p.setAttribute('aria-expanded', String(popover === 'menu')); }
 // every group's dropdown host is redrawn from `popover` — one open at a time, the rest empty
 function renderNavPops() {
   els.chrome.querySelectorAll('[data-role="nav-pop"]').forEach(host => {
     const key = host.dataset.key, open = popover === 'nav:' + key;
-    host.innerHTML = open ? navPanel(key) : '';
+    fill(host, open ? navPanel(key) : '');
     const item = host.closest('.mx-nav-item'); if (item) item.classList.toggle('open', open);
     const a = item && item.querySelector('[data-act="navgroup"]'); if (a) a.setAttribute('aria-expanded', String(open));
   });
@@ -338,7 +372,8 @@ function openNav(key) { clearTimeout(hoverTimer); if (popover === 'nav:' + key) 
 function closePopover() { clearTimeout(hoverTimer); if (!popover) return; popover = null; renderSearchPop(); renderMenuPop(); renderNavPops(); }
 
 function onSearchInput(e) {
-  searchState.q = e.target.value; searchState.assistant = null; searchState.busy = false;
+  searchState.q = e.target.value; searchState.assistant = null; searchState.busy = false; searchState.sel = -1;
+  const box = e.target.closest('.mx-search-box'); if (box) box.classList.toggle('has-q', !!searchState.q);
   const q = searchState.q.trim();
   clearTimeout(searchTimer);
   if (!q) { popover = null; renderSearchPop(); return; }
@@ -352,22 +387,55 @@ function onSearchInput(e) {
 }
 function onSearchKey(e) {
   if (e.key === 'Escape') { closePopover(); e.target.blur(); return; }
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && popover === 'search') {
+    const rows = searchRows(); if (!rows.length) return;
+    e.preventDefault();
+    const cur = rows.findIndex(r => r.getAttribute('aria-selected') === 'true');
+    const n = rows.length, step = e.key === 'ArrowDown' ? 1 : -1;
+    searchState.sel = cur < 0 ? (step > 0 ? 0 : n - 1) : (cur + step + n) % n;
+    markSelection(true);
+    return;
+  }
   if (e.key !== 'Enter') return;
   e.preventDefault();
   const q = searchState.q.trim(); if (!q) return;
+  if (searchState.sel >= 0) {
+    const pick = searchRows()[searchState.sel];
+    if (pick && pick.dataset.act === 'result') { handlers.result(pick); return; }
+    if (pick && pick.dataset.act === 'ask') { handlers.ask(); return; }
+  }
   const first = els.chrome.querySelector('[data-act="result"]');
   // a matching screen/person wins unless the phrase is an instruction (note 14: intent detection)
   if (first && !IMPERATIVE.test(q)) { handlers.result(first); return; }
   handlers.ask();
 }
 
+// the phone drawer: opens with a slide and the current screen's group unfolded; closes with a short
+// fold (css .menu-closing) — a tap on MENU mid-fold reopens it rather than toggling twice
+const reduceMotion = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+function openMenu() {
+  const b = document.body;
+  clearTimeout(menuAnimTimer);
+  const fresh = !b.classList.contains('menu-open');
+  b.classList.remove('menu-closing');
+  b.classList.add('menu-open');
+  if (fresh) { b.classList.add('menu-anim'); menuAnimTimer = setTimeout(() => b.classList.remove('menu-anim'), 420); }
+  const g = groupOf(state.get()); const n = NAV.find(x => x.key === g); if (n && n.menu) openNav(g); else closePopover();
+}
+function closeMenu() {
+  const b = document.body;
+  closePopover();
+  if (!b.classList.contains('menu-open') || b.classList.contains('menu-closing')) return;
+  clearTimeout(menuAnimTimer);
+  b.classList.remove('menu-anim');
+  if (reduceMotion()) { b.classList.remove('menu-open'); return; }
+  b.classList.add('menu-closing');
+  menuAnimTimer = setTimeout(() => b.classList.remove('menu-open', 'menu-closing'), 200);
+}
+const menuShown = () => document.body.classList.contains('menu-open') && !document.body.classList.contains('menu-closing');
+
 const handlers = {
-  menu: () => {
-    const open = document.body.classList.toggle('menu-open');
-    // the drawer opens with the current screen's group unfolded; closing it folds everything
-    if (open) { const g = groupOf(state.get()); const n = NAV.find(x => x.key === g); if (n && n.menu) openNav(g); else closePopover(); }
-    else closePopover();
-  },
+  menu: () => { if (menuShown()) closeMenu(); else openMenu(); },
   navgroup: (el, e) => {
     const key = el.dataset.navKey;
     const open = popover === 'nav:' + key;
@@ -386,10 +454,10 @@ const handlers = {
     nameSaved = true; renderAll(); popover = 'menu'; renderMenuPop();
   },
   signOut: () => { closePopover(); session.clear(); ui.toast(COPY.signedOut); router.replace('/signin'); },
-  result: (el) => { const href = el.dataset.href; closePopover(); searchState = { q: '', people: [], assistant: null, busy: false }; renderAll(); if (href === '#profile') { handlers.profile(); return; } router.navigate(href); },
+  result: (el) => { const href = el.dataset.href; closePopover(); searchState = { q: '', people: [], assistant: null, busy: false, sel: -1 }; renderAll(); if (href === '#profile') { handlers.profile(); return; } router.navigate(href); },
   ask: async () => {
     const q = searchState.q.trim(); if (!q) return;
-    searchState.busy = true; searchState.assistant = null; renderSearchPop();
+    searchState.busy = true; searchState.assistant = null; searchState.sel = -1; renderSearchPop();
     try { const r = await api.post('/api/admin/assistant', { message: q }); searchState.assistant = r || { answer: COPY.search.done }; }
     catch (e) { searchState.assistant = { answer: e.message, pending: [] }; }
     searchState.busy = false; popover = 'search'; renderSearchPop();
@@ -418,7 +486,7 @@ export const chrome = {
     els.overlays = document.getElementById('chrome-overlays');
     ui.bind(els.chrome, handlers);
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { closePopover(); document.body.classList.remove('menu-open'); return; }
+      if (e.key === 'Escape') { closePopover(); closeMenu(); return; }
       // audit #10: "/" and ⌘K / Ctrl+K land the cursor in the search box. "/" steps aside
       // while any field has focus (people type slashes); the chord works from anywhere.
       const cmdK = (e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'k';
@@ -433,7 +501,11 @@ export const chrome = {
       q.focus();
       try { q.select(); } catch (err) {}
     });
+    // the phone drawer's dim is a real element with its own listener (a tap on a bare <body> pseudo-element
+    // is not reliably a click on iOS); any other tap outside the bar folds the drawer away too
+    if (!els.scrim) { els.scrim = document.createElement('div'); els.scrim.className = 'mx-scrim'; els.scrim.setAttribute('aria-hidden', 'true'); els.scrim.addEventListener('click', closeMenu); document.body.appendChild(els.scrim); }
     document.addEventListener('click', e => {
+      if (menuShown() && !(e.target.closest && e.target.closest('#chrome'))) { closeMenu(); return; }
       if (!popover) return;
       if (e.target.closest('[data-stop]') || e.target.closest('[data-act="profile"]') || e.target.closest('[data-act="navgroup"]') || e.target.closest('[data-act="menu"]') || e.target.closest('[data-role="q"]') || e.target.closest('.mx-dd')) return;
       closePopover();
@@ -454,6 +526,19 @@ export const chrome = {
       if (!item || (e.relatedTarget && item.contains(e.relatedTarget))) return;
       clearTimeout(hoverTimer);
       hoverTimer = setTimeout(() => { if (popover && popover.indexOf('nav:') === 0) closePopover(); }, 160);
+    });
+    // the pointer and the keyboard share ONE highlight in the search results — but only a pointer that
+    // actually moves takes it: rows redrawn under a resting cursor (every keystroke) fire mouseover, and
+    // Enter then opened whatever sat under the mouse instead of the first match
+    // (tracked document-wide, so a pointer that came to rest over the page is known before rows appear under it)
+    document.addEventListener('mousemove', e => {
+      const moved = !!(e.movementX || e.movementY) || !!(lastPointer && (lastPointer.x !== e.clientX || lastPointer.y !== e.clientY));
+      lastPointer = { x: e.clientX, y: e.clientY };
+      if (!moved || popover !== 'search') return;
+      const row = e.target.closest && e.target.closest('[data-role="search-pop"] .mx-pop-row');
+      if (!row) return;
+      const i = searchRows().indexOf(row);
+      if (i >= 0 && i !== searchState.sel) { searchState.sel = i; markSelection(); }
     });
     els.chrome.addEventListener('focusin', e => {
       const a = e.target.closest && e.target.closest('[data-act="navgroup"]');

@@ -161,6 +161,9 @@ function resultPreview(t) {
   const l = (t.result_links || [])[0];
   return l ? (l.label || l.url.replace(/^https?:\/\//, '')) : '';
 }
+// line icons for the card's file / comment counts (colour emoji never sat right in the Inter micro-type)
+const ICON_CLIP = '<svg class="mx-ico" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;vertical-align:-1px"><path d="M13.5 7.5 8.2 12.8a3.5 3.5 0 0 1-5-5l5.6-5.6a2.3 2.3 0 0 1 3.3 3.3L6.5 11.1a1.2 1.2 0 0 1-1.7-1.7L10 4.2"/></svg>';
+const ICON_TALK = '<svg class="mx-ico" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true" style="flex:none;vertical-align:-1px"><path d="M2.5 3h11v7.5H7L4 13v-2.5H2.5z"/></svg>';
 function card(t) {
   const due = dueMeta(t);
   const preview = resultPreview(t);
@@ -175,8 +178,8 @@ function card(t) {
           ${due ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:${due.color};white-space:nowrap">${esc(due.text)}</span>` : ''}
           ${t.priority === 'high' ? `<span title="High priority" style="width:6px;height:6px;background:#9b1b22;flex:none"></span>` : ''}
           <div style="flex:1"></div>
-          ${t.file_count ? `<span title="${esc(COPY.card.files(t.file_count))}" style="font-size:11px;color:#6d6459;white-space:nowrap">📎 ${t.file_count}</span>` : ''}
-          ${t.comment_count ? `<span title="${t.comment_count} comment${t.comment_count === 1 ? '' : 's'}" style="font-size:11px;color:#6d6459;white-space:nowrap">💬 ${t.comment_count}</span>` : ''}
+          ${t.file_count ? `<span title="${esc(COPY.card.files(t.file_count))}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#6d6459;white-space:nowrap">${ICON_CLIP}${t.file_count}</span>` : ''}
+          ${t.comment_count ? `<span title="${t.comment_count} comment${t.comment_count === 1 ? '' : 's'}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#6d6459;white-space:nowrap">${ICON_TALK}${t.comment_count}</span>` : ''}
         </div>
       </div>`;
 }
@@ -248,7 +251,7 @@ function linksBlock(t) {
 function sizeLabel(n) { n = Number(n || 0); return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B'; }
 function filesBlock(files) {
   return `<div data-role="files" class="mx-drop" style="display:flex;flex-direction:column;gap:6px">
-      ${files.map(f => `<div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="flex:none">📎</span><a href="${esc(api.url(f.url))}" target="_blank" rel="noopener" style="font-size:12.5px;color:#201b16;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="${esc(f.name)}">${esc(f.name)}</a><span style="font-size:10.5px;color:#9a9086;white-space:nowrap">${sizeLabel(f.size)}</span><span data-act="removeFile" data-id="${esc(f.id)}" style="font:600 8px Inter,sans-serif;letter-spacing:.1em;color:#9a9086;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${COPY.drawer.removeLink.toUpperCase()}</span></div>`).join('')}
+      ${files.map(f => `<div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="flex:none;display:inline-flex;color:#6d6459">${ICON_CLIP}</span><a href="${esc(api.url(f.url))}" target="_blank" rel="noopener" style="font-size:12.5px;color:#201b16;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="${esc(f.name)}">${esc(f.name)}</a><span style="font-size:10.5px;color:#9a9086;white-space:nowrap">${sizeLabel(f.size)}</span><span data-act="removeFile" data-id="${esc(f.id)}" style="font:600 8px Inter,sans-serif;letter-spacing:.1em;color:#9a9086;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${COPY.drawer.removeLink.toUpperCase()}</span></div>`).join('')}
       <label class="mx-drop-zone" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px dashed rgba(32,27,22,.3);padding:10px 12px;cursor:pointer;background:#fdfbf6" data-hover="border-color:#201b16">
         <span style="padding:7px 11px;background:#201b16;color:#f6f2ea;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap">${st.uploading ? COPY.toast.uploading : COPY.drawer.attach}</span>
         <span style="font-size:11px;color:#6d6459">${COPY.drawer.drop}</span>
@@ -347,12 +350,34 @@ function template() {
 // ---------------------------------------------------------------- behaviour
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
 function rerenderBoard() { rerender('[data-block="board"]', blockBoard()); }
+// The sheet slides in once, when it OPENS; a redraw of the same card (its detail arriving, a status
+// change, a comment) keeps the very same sheet element and swaps only what is inside it — so a slide or
+// cross-fade still running carries on to its end and the sheet keeps its scroll; another card
+// cross-fades in, and closing slides it back out (css .mx-drawer.swap / .out).
+function morphSheet(cur, html) {
+  const t = document.createElement('template'); t.innerHTML = html.trim();
+  const next = t.content.firstElementChild;
+  const sheet = cur.querySelector(':scope > .mx-drawer-sheet'), nextSheet = next && next.querySelector(':scope > .mx-drawer-sheet');
+  if (!sheet || !nextSheet) return false;
+  Array.from(next.attributes).forEach(a => { if (a.name !== 'class' && a.name !== 'data-for') cur.setAttribute(a.name, a.value); });
+  Array.from(cur.attributes).forEach(a => { if (a.name !== 'class' && a.name !== 'data-for' && !next.hasAttribute(a.name)) cur.removeAttribute(a.name); });
+  sheet.innerHTML = nextSheet.innerHTML;
+  return true;
+}
 function rerenderDrawer() {
   const host = rootEl && rootEl.querySelector('.mx-tasks'); if (!host) return;
   const cur = host.querySelector('[data-block="drawer"]');
   const html = drawer();
-  if (cur) { if (html) cur.outerHTML = html; else cur.remove(); }
+  const was = cur ? cur.getAttribute('data-for') : null;
+  if (cur && !html) {
+    cur.setAttribute('data-block', 'drawer-leaving'); cur.classList.add('out');
+    setTimeout(() => cur.remove(), 220);
+  } else if (cur && was === String(st.open || '') && morphSheet(cur, html)) {
+    // same card — nothing replaced, nothing replayed
+  } else if (cur) { cur.outerHTML = html; const nu = host.querySelector('[data-block="drawer"]'); if (nu) nu.classList.add('swap'); }
   else if (html) host.insertAdjacentHTML('beforeend', html);
+  const nu = html && host.querySelector('[data-block="drawer"]');
+  if (nu) nu.setAttribute('data-for', String(st.open || ''));
   document.body.classList.toggle('mx-drawer-open', !!st.open);
   const ta = rootEl.querySelector('[data-role="title"]'); if (ta) autosize(ta);
 }

@@ -307,7 +307,15 @@ const dl = (blob, name) => { const a = document.createElement('a'); a.href = URL
 // ---- view state ----
 let D = null, st = null, unbind = null, rootEl = null, onChangeBound = null, onInputBound = null;
 let hostTimer = null;
+// A tab switch is a router navigation back into this same view; the router keeps the leaving screen up
+// until the new tab's first paint (router.js hand-off), so destroy() moves the tab rule to the clicked tab
+// at once, and a keyboard user lands back on the active tab instead of the top of the page.
+let tabFocus = { live: false };
 
+// motion hook (css: the Projects MOTION KIT at the end of plexus-hub.css) — a label's trailing arrow leans
+// on hover. A no-break space: a plain one collapses at a flex item's edge ("CALENDAR→") and lets the
+// arrow wrap onto a line of its own on a phone.
+const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);
 function injectCss() {
   if (!document.querySelector('link[data-mxp-css]')) {
     const l = document.createElement('link');
@@ -523,8 +531,8 @@ function blockTitle() {
         </div>
       </div>
       <div class="mxp-title-actions" style="display:flex;gap:10px;flex-wrap:wrap">
-        <a href="/member-pages/plexus" style="border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:10px 16px;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${h.manage}</a>
-        <a href="/event-day" style="background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 16px;white-space:nowrap" data-hover="background:#9b1b22">${h.eventday}</a>
+        <a href="/member-pages/plexus" style="border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:10px 16px;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${arr(h.manage)}</a>
+        <a href="/event-day" style="background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 16px;white-space:nowrap" data-hover="background:#9b1b22">${arr(h.eventday)}</a>
       </div>
     </div>
     <!-- /dc -->
@@ -560,13 +568,13 @@ function blockEditions() {
 function blockTabs() {
   return `
     <!-- v2: hub tab strip — /projects/plexus (the week) · /projects/plexus/meetups · /projects/plexus/awards -->
-    <div data-block="tabs" class="mxp-tabs" data-v2="tab strip" style="display:flex;gap:0;border-bottom:1px solid rgba(32,27,22,.18);margin-top:20px">
+    <div data-block="tabs" class="mxp-tabs" data-v2="tab strip" style="display:flex;gap:0;box-shadow:inset 0 -1px 0 rgba(32,27,22,.18);margin-top:20px">
       ${TAB_ORDER.map(id => {
         const on = st.tab === id;
         const sec = TAB_SECTION[id];
         const locked = !!sec && !perms.can(sec);
         const tip = locked ? ` title="${esc(perms.lockedCopy(sec).why)}"` : '';
-        return `<a href="${esc(hrefTab(id))}"${tip} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};${locked ? 'opacity:.5;' : ''}border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${locked ? COPY.tabs[TAB_LOCKED_COPY[id]] : COPY.tabs[id]}</a>`;
+        return `<a href="${esc(hrefTab(id))}"${tip} class="mxp-tab${on ? ' on' : ''}"${on ? ' aria-current="page"' : ''} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};${locked ? 'opacity:.5;' : ''}border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${locked ? COPY.tabs[TAB_LOCKED_COPY[id]] : COPY.tabs[id]}</a>`;
       }).join('\n      ')}
     </div>
     <!-- /v2 -->`;
@@ -594,19 +602,19 @@ function blockStats() {
         ${cell(`
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.reg}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.regs == null ? '—' : esc(fmt.num(D.regs))}</div>
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${esc(s.regSub(D.cap))}</div>`, '/registrations')}
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${arr(esc(s.regSub(D.cap)))}</div>`, '/registrations')}
         ${cell(`
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${ops ? s.gala : s.galaFallback}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${galaLocked ? '—' : (ops ? ops.seats.reserved : D.gala.rows.length)}</div>
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${galaLocked ? esc(COPY.locked('plexus')) : esc(ops ? s.galaSub(ops.seats.paid, ops.seats.chase) : s.galaSub(D.gala.paid.length, D.gala.toChase.length))}</div>`, '/gala')}
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${galaLocked ? esc(COPY.locked('plexus')) : arr(esc(ops ? s.galaSub(ops.seats.paid, ops.seats.chase) : s.galaSub(D.gala.paid.length, D.gala.toChase.length)))}</div>`, '/gala')}
         ${cell(`
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.speakers}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.speakers.length}</div>
-          <div style="font-size:11px;color:${spLive().length ? '#6d6459' : '#9b1b22'}">${live ? esc(s.speakersLive(live)) : s.speakersDraft}</div>`, null, 'openSpeakers')}
+          <div style="font-size:11px;color:${spLive().length ? '#6d6459' : '#9b1b22'}">${arr(live ? esc(s.speakersLive(live)) : s.speakersDraft)}</div>`, null, 'openSpeakers')}
         <a href="/money" style="padding:16px 20px;color:#201b16;display:block" data-hover="background:#fdfbf6;color:#201b16">
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.money}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${collected == null ? '—' : esc(fmt.eur(collected))}</div>
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${s.moneySub}</div>
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${arr(s.moneySub)}</div>
         </a>
       </div>
       <div class="mxp-dates" style="display:grid;grid-template-columns:repeat(4,1fr) auto;border-top:1px solid rgba(32,27,22,.1)">
@@ -615,7 +623,7 @@ function blockStats() {
           <span style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;background:${r.color};flex:none"></span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em">${esc(r.label)}</span></span>
           <span style="font-size:12px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(fmt.detail(r.text))}</span>
         </div>`).join('')}
-        <a href="/calendar" style="display:flex;align-items:center;padding:0 20px;border-left:1px solid rgba(32,27,22,.08);font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.stats.calendar}</a>
+        <a href="/calendar" style="display:flex;align-items:center;padding:0 20px;border-left:1px solid rgba(32,27,22,.08);font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${arr(COPY.stats.calendar)}</a>
       </div>
     </div>
     <!-- /dc -->`;
@@ -628,7 +636,7 @@ function rowNav(r) { // the artboard's row: whole row is the door
             <span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${r.tagColor}">${esc(r.tag)}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;white-space:nowrap">${esc(r.name)}</span><span style="font-size:12px;color:#6d6459;min-width:0">${esc(r.status)}</span></span>
             ${r.extra || ''}
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)} →</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)}&nbsp;<i class="mxpj-arr">→</i></span>
           </a>`;
 }
 function rowAct(r) { // same look, opens an inline panel instead of navigating
@@ -636,7 +644,7 @@ function rowAct(r) { // same look, opens an inline panel instead of navigating
           <span data-act="${esc(r.act)}" class="mx-row" data-row="${esc(r.id)}" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16;cursor:pointer;text-align:left" data-hover="background:#fdfbf6">
             <span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${r.tagColor}">${esc(r.tag)}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;white-space:nowrap">${esc(r.name)}</span><span style="font-size:12px;color:#6d6459;min-width:0">${esc(r.status)}</span></span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)} ${st.openPanel === r.panel ? '↑' : '→'}</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)}&nbsp;${st.openPanel === r.panel ? '↑' : '<i class="mxpj-arr">→</i>'}</span>
           </span>`;
 }
 function lockedRow(id, name, sec) {
@@ -743,7 +751,7 @@ function blockBefore() {
             <span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${f.status === 'open' ? '#1e6e42' : f.status === 'draft' ? '#b07d10' : '#6d6459'}">${esc(String(f.status || 'draft').toUpperCase())}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px">${esc(f.title)}</span><span style="font-size:12px;color:#6d6459;min-width:0">${esc(live ? c.forms.liveStatus(Number(f.live_count) || 0, f.live_label || 'the event page', day) : c.forms.status(Number(f.response_count) || 0, Number(f.waitlist_count) || 0, day))}</span></span>
             <span data-act="formToggle" data-id="${esc(f.id)}" data-status="${esc(f.status || 'draft')}" data-v2="open-close" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;border:1px solid rgba(32,27,22,.2);padding:5px 9px;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16;color:#201b16">${f.status === 'open' ? c.forms.close : c.forms.open}</span>
-            <a href="${live ? '/projects/bridges' : '/links'}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${live ? c.forms.liveList : c.forms.responses} →</a>
+            <a href="${live ? '/projects/bridges' : '/links'}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${live ? c.forms.liveList : c.forms.responses}&nbsp;<i class="mxpj-arr">→</i></a>
           </div>`;
   };
   return `
@@ -779,12 +787,12 @@ function blockGala() {
           <a href="${esc(r.href)}" class="mx-row" data-row="${esc(r.id)}" style="display:flex;align-items:center;gap:14px;padding:15px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16" data-hover="background:#fdfbf6">
             <span style="width:110px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${r.tagColor}">${esc(r.tag)}</span>
             <span class="mx-row-text" style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:600">${esc(r.name)}</span><span style="display:block;font-size:12px;color:#6d6459;margin-top:2px">${esc(r.status)}</span></span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)} →</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)}&nbsp;<i class="mxpj-arr">→</i></span>
           </a>`;
   return `
         <!-- dc: Admin Plexus Hub.dc.html › "THE GALA EVENING" -->
         <div data-block="gala" style="background:#fff;border:1px solid rgba(32,27,22,.14)">
-          <div style="padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em">${c.title}</span><span style="font-size:12px;color:#9a9086">${esc(c.when(when[0], when[1] || ''))}</span><div style="flex:1"></div><a href="/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${c.full}</a></div>
+          <div style="padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em">${c.title}</span><span style="font-size:12px;color:#9a9086">${esc(c.when(when[0], when[1] || ''))}</span><div style="flex:1"></div><a href="/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${arr(c.full)}</a></div>
           ${galaLocked ? `<div style="padding:8px 0">${ui.lockedBlock(perms.label('plexus'))}</div>` : `
           ${row({ id: 'gala-seats', tag: c.seats.tag(g.ops ? g.ops.seats.paid : g.paid.length), tagColor: '#1e6e42', name: c.seats.name, status: c.seats.status(g.ops ? g.ops.seats.reserved : g.rows.length, g.ops ? g.ops.seats.chase : g.toChase.length), action: c.seats.action, href: '/gala' })}
           ${row({ id: 'gala-waitlist', tag: c.waitlist.tag, tagColor: '#6d6459', name: c.waitlist.name, status: c.waitlist.status(D.waitn), action: c.waitlist.action, href: '/gala' })}
@@ -816,12 +824,12 @@ function blockAfter() {
           <span data-act="peOpen" class="mx-row" data-row="pe-certs" style="display:flex;align-items:center;gap:14px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.08);cursor:pointer;color:#201b16" data-hover="background:#fdfbf6">
             <span style="width:110px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${certs ? '#1e6e42' : '#6d6459'}">${certs ? esc(c.certs.done(certs)) : c.certs.tag}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;font-size:12.5px;color:#6d6459"><b style="font-size:13.5px;color:#201b16">${c.certs.name}</b> · ${esc(c.certs.status(peLine))}</span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${c.certs.action} →</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${c.certs.action}&nbsp;<i class="mxpj-arr">→</i></span>
           </span>
           <span data-act="editionsOpen" class="mx-row" data-row="editions" style="display:flex;align-items:center;gap:14px;padding:11px 20px;cursor:pointer;color:#201b16" data-hover="background:#fdfbf6">
             <span style="width:110px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${c.editions.tag}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;font-size:12.5px;color:#6d6459"><b style="font-size:13.5px;color:#201b16">${c.editions.name}</b> · ${esc(c.editions.status(D.editions.editions.length))}</span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${c.editions.action} →</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${c.editions.action}&nbsp;<i class="mxpj-arr">→</i></span>
           </span>
           </div>
         </div>
@@ -842,7 +850,7 @@ function blockMembers() {
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;margin-top:12px">${c.detail}</div>
           <input data-role="msDetail" value="${esc(p.detail_line || '')}" aria-label="${esc(c.detail)}" style="width:100%;box-sizing:border-box;margin-top:6px;background:#f6f2ea;border:1px solid rgba(32,27,22,.25);padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16">
           <button data-act="msSave" data-role="msSaveBtn" style="margin-top:14px;background:${saved ? '#1e6e42' : '#9b1b22'};color:#fff;border:none;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 18px;cursor:pointer;white-space:nowrap">${saved ? c.saved : c.save}</button>
-          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(32,27,22,.1)"><a href="/member-pages/plexus" style="font:600 9px Inter,sans-serif;letter-spacing:.14em">${c.manage}</a></div>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(32,27,22,.1)"><a href="/member-pages/plexus" style="font:600 9px Inter,sans-serif;letter-spacing:.14em">${arr(c.manage)}</a></div>
           </div>
         </div>
         <!-- /dc -->`;
@@ -1224,9 +1232,9 @@ function blockMeetups() {
 }
 function template() {
   return `
-<div data-screen-label="Admin Plexus Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+<div data-screen-label="Admin Plexus Hub" class="mxpj" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
   ${blockSubnav()}
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:34px 28px 60px">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:34px 28px 60px">
     ${blockTitle()}
     ${blockTabs()}
     ${st.tab === 'meetups' ? blockMeetups() : st.tab === 'awards' ? awards.blockAwards(D.errors.aw) : st.tab === 'program' ? program.blockProgram(D.errors.pg) : blockHub()}
@@ -1903,6 +1911,20 @@ function onInput(e) {
   if (b) { b.style.background = '#9b1b22'; b.textContent = COPY.members.save; }
 }
 
+// Staying inside Plexus (the URL already points at the next tab): the leaving screen, which the router
+// keeps up until the new tab paints, shows the clicked tab as current straight away.
+function markNextTab() {
+  const m = location.pathname.match(/^\/projects\/plexus(?:\/([^/]*))?\/?$/);
+  if (!m || !rootEl) return;
+  const tab = SLUG_TO_TAB[String(m[1] || '').toLowerCase()] || 'hub';
+  rootEl.querySelectorAll('.mxp-tab').forEach((a, i) => {
+    const on = TAB_ORDER[i] === tab;
+    a.classList.toggle('on', on);
+    a.style.color = on ? '#201b16' : '#6d6459';
+    a.style.borderBottom = on ? '2px solid #9b1b22' : '2px solid transparent';
+  });
+}
+
 export default {
   title: 'Plexus Week 2026',
   async render(root, ctx) {
@@ -1912,6 +1934,7 @@ export default {
     // tab and pre-open their inline panel exactly as before; 'meetups' is the only new tab slug.
     const slug = String((ctx.params && ctx.params.tab) || '').toLowerCase();
     const tab = SLUG_TO_TAB[slug] || 'hub';
+    const refocus = tabFocus.live;
     st = {
       tab,
       openPanel: PANEL_SLUGS.includes(slug) ? slug : null,
@@ -1939,11 +1962,16 @@ export default {
     awards.setAwardsData(D.aw);
     program.setProgramData(D.pg);
     root.innerHTML = template();
+    if (refocus) { const on = root.querySelector('.mxp-tab.on'); if (on) on.focus({ preventScroll: true }); }
     unbind = bindHandlers(root);
     onChangeBound = onChange; root.addEventListener('change', onChangeBound);
     onInputBound = onInput; root.addEventListener('input', onInputBound);
   },
   destroy() {
+    // the router calls render() of the next screen in this same task: a flag that dies with the task
+    const f = tabFocus = { live: !!(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('mxp-tab')) };
+    setTimeout(() => { f.live = false; }, 0);
+    markNextTab();
     if (unbind) unbind(); unbind = null;
     clearTimeout(hostTimer); hostTimer = null;
     if (rootEl && onChangeBound) rootEl.removeEventListener('change', onChangeBound);

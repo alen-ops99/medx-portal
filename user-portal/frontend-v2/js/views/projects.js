@@ -20,6 +20,7 @@ export const COPY = {
 
 export default {
   title: 'Projects',
+  reveal: true,        // sections below the fold rise in on scroll (router › ui.revealOnScroll)
   async render(root) {
     const status = await api.get('/api/public/status', { noAuth: true }).catch(() => null);
     const byKey = {}; ((status && status.projects) || []).forEach(p => { byKey[p.project_key] = p; });
@@ -32,8 +33,8 @@ export default {
   </div>
   <div style="padding:6px 18px 18px;display:flex;flex-direction:column;gap:11px">
     ${FACTS.projectOrder.map(key => { const p = byKey[key] || {}; const c = COPY.cards[key]; return `
-    <a href="${routeFor(p.cta_target || key, routeFor(key))}" style="position:relative;overflow:hidden;cursor:pointer;border:1px solid rgba(25,21,18,.16);display:block;color:#191512">
-      <img src="/assets/${c.img}" alt="" style="width:100%;height:110px;object-fit:cover;display:block">
+    <a href="${routeFor(p.cta_target || key, routeFor(key))}" class="mx-card-link" style="position:relative;overflow:hidden;cursor:pointer;border:1px solid rgba(25,21,18,.16);display:block;color:#191512">
+      <span class="mx-ph"><img src="/assets/${c.img}" alt="" style="width:100%;height:110px;object-fit:cover;display:block"></span>
       <div style="background:#fdfaf3;padding:13px 15px;display:flex;align-items:center;gap:12px;border-top:2px solid ${c.accent}">
         <span style="flex:1;min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:17px">${c.name}</span><span style="display:block;font-size:11px;color:#4a4239;margin-top:2px">${esc(fmt.detail(p.detail_line || p.status_label || ''))}</span></span>
         <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;white-space:nowrap">${esc(fmt.upper(p.cta_label || 'Open'))} →</span>

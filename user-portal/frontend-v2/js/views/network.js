@@ -80,6 +80,13 @@ const AV = [['#191512', '#f7f1e6'], ['#9b1b22', '#f7f1e6'], ['#c9a962', '#191512
 const PAGE_SIZE = 20;
 
 let D = null, st = null, CS = null, rootEl = null, unbind = null, debounceT = null, seq = 0;
+// motion: `fresh` names the region of the next content paint that holds NEW people, so only that region
+// settles in (css .mx-net-fresh): 'dir' = a directory page (BROWSE ALL, PREV / NEXT), 'res' = a search
+// answer, 'all' = the suggestions coming back after a cleared search. Cards the member has already read
+// stay still. The first paint is left to the shared screen entrance (app.css › #view.mx-enter cascades the
+// card grid); a re-paint after connect/accept/remove leaves it null, so nothing replays under the cursor.
+let fresh = null;
+let changed = null;   // { id, t } — the card/row the member just acted on (css .mx-net-changed)
 
 function ago(v) {
   const d = fmt.toDate(v); if (!d) return '';
@@ -141,10 +148,12 @@ function blockCrumb() { return `
 
 function blockTabs() { return `
   <!-- dc: Network.dc.html › "PEOPLE · MESSAGES · MY CARD" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px;cursor:pointer">${COPY.tabs.people}</span>
-    <a href="/app/messages" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.messages}</a>
-    <a href="/app/me" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.card}</a>
+  <!-- the shared section-tab strip (app.css › .mx-tab): data-tabs="network" is shared with Messages, so the
+       underline slides across when the member switches between the two screens -->
+  <div class="mx-tabs mx-gutter" data-tabs="network" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span class="mx-tab is-on" aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22">${COPY.tabs.people}</span>
+    <a href="/app/messages" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.messages}</a>
+    <a href="/app/me" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.card}</a>
   </div>
   <!-- /dc -->`; }
 
@@ -198,7 +207,7 @@ function connFace(c) {
 
 function cardRequest(m) { return `
           <div data-card="${esc(m.id)}" class="mx-net-card" style="border:1px solid rgba(155,27,34,.45);background:#fdfaf3;display:flex;flex-direction:column">
-            <div class="mx-net-face" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid #9b1b22;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.forYou.requestChip}</span></div>
+            <div class="mx-net-face" data-act="peek" data-id="${esc(m.id)}" tabindex="-1" aria-hidden="true" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid #9b1b22;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.forYou.requestChip}</span></div>
             <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px;flex:1">
               <span data-act="peek" data-id="${esc(m.id)}" style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>
               <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(COPY.forYou.requestSub)}${m.institution ? ' · ' + esc(m.institution) : ''}</span>
@@ -214,7 +223,7 @@ function cardSuggestion(m) {
   const why = m.why_label || (COPY.reasons[m.why] ? (typeof COPY.reasons[m.why] === 'function' ? COPY.reasons[m.why]((m.reasons && m.reasons[0] && m.reasons[0].n) || 1) : COPY.reasons[m.why]) : '');
   return `
           <div data-card="${esc(m.id)}" class="mx-net-card" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-            <div class="mx-net-face" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}${why ? `<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(why)}</span>` : ''}</div>
+            <div class="mx-net-face" data-act="peek" data-id="${esc(m.id)}" tabindex="-1" aria-hidden="true" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}${why ? `<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(why)}</span>` : ''}</div>
             <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px;flex:1">
               <span data-act="peek" data-id="${esc(m.id)}" style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>
               <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(subLine(m))}</span>
@@ -243,7 +252,7 @@ function blockForYou() {
         <span class="rule-gold" style="margin-bottom:6px"></span>
         <span class="empty-line">${COPY.forYou.emptyLine}</span>
         <span class="empty-why">${COPY.forYou.emptyWhy}</span>
-        <a href="/app/profile" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.forYou.emptyCta}</a>
+        <a href="/app/profile" class="mx-net-act" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.forYou.emptyCta}</a>
       </div>`}
       <!-- /dc -->`;
 }
@@ -271,7 +280,7 @@ function blockMyNetwork() {
         <span style="width:28px;height:1px;background:#c9a962"></span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.net.emptyLine}</span>
         <span style="font-size:12px;color:#4a4239">${COPY.net.emptyWhy}</span>
-        <span data-act="seeSugg" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.net.emptyCta}</span>
+        <span data-act="seeSugg" class="mx-net-act" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.net.emptyCta}</span>
       </div>`}
       <!-- /dc -->`;
 }
@@ -296,9 +305,9 @@ function rowMember(m, i, matched) {
 function pager(act, page, pages) {
   if (pages <= 1) return '';
   return `<div data-v2="pager" style="display:flex;justify-content:center;align-items:center;gap:14px;padding:16px 0 4px">
-      <span data-act="${act}" data-page="${page - 1}" ${page <= 1 ? 'aria-disabled="true"' : ''} style="padding:9px 14px;border:1px solid rgba(25,21,18,.3);font:600 9px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.browse.prev}</span>
+      <span data-act="${act}" data-page="${page - 1}" ${page <= 1 ? 'aria-disabled="true"' : ''} class="mx-net-act" style="padding:9px 14px;border:1px solid rgba(25,21,18,.3);font:600 9px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.browse.prev}</span>
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;white-space:nowrap">${COPY.browse.page(page, pages)}</span>
-      <span data-act="${act}" data-page="${page + 1}" ${page >= pages ? 'aria-disabled="true"' : ''} style="padding:9px 14px;border:1px solid rgba(25,21,18,.3);font:600 9px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.browse.next}</span>
+      <span data-act="${act}" data-page="${page + 1}" ${page >= pages ? 'aria-disabled="true"' : ''} class="mx-net-act" style="padding:9px 14px;border:1px solid rgba(25,21,18,.3);font:600 9px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.browse.next}</span>
     </div>`;
 }
 
@@ -312,7 +321,7 @@ function blockBrowse() {
       </div>
       ${d.open ? `
       <!-- v2: paginated directory list (no artboard section — rows reuse the artboard's search-result row) -->
-      <div style="max-width:960px;margin:0 auto;padding-bottom:26px">
+      <div${fresh === 'dir' ? ' class="mx-net-fresh"' : ''} style="max-width:960px;margin:0 auto;padding-bottom:26px">
         ${d.loading ? `<div style="padding:18px 0;text-align:center;font-size:12px;color:#4a4239">Loading the directory…</div>`
           : (d.items || []).map((m, i) => rowMember(m, i, false)).join('') + pager('dirPage', d.page, d.pages)}
       </div>` : ''}
@@ -329,7 +338,7 @@ function blockResults() {
         <div style="flex:1"></div>
         <span style="font-size:11.5px;color:#4a4239">${r ? COPY.results.count(fmt.num(r.total), fmt.num(D.total)) : 'Searching…'}</span>
       </div>
-      <div style="max-width:960px">
+      <div${fresh === 'res' ? ' class="mx-net-fresh"' : ''} style="max-width:960px">
         ${r ? r.items.map((m, i) => rowMember(m, i, true)).join('') : ''}
       </div>
       ${r && r.total === 0 ? `
@@ -344,13 +353,15 @@ function blockResults() {
 
 function contentBlock() {
   const searching = !!st.q.trim();
-  return `<div data-block="content">
+  const html = `<div data-block="content"${fresh === 'all' ? ' class="mx-net-fresh"' : ''}>
     ${searching ? blockResults() : blockForumTeaser() + blockForYou() + blockMyNetwork() + blockBrowse()}
   </div>`;
+  fresh = null;
+  return html;
 }
 
 function template() { return `
-<div data-screen-label="Network" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Network" class="mx-net-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
   ${blockCrumb()}
   ${blockTabs()}
   ${blockHero()}
@@ -360,9 +371,19 @@ function template() { return `
 </div>`; }
 
 // ---------------------------------------------------------------- behaviour
-function rerenderContent() {
+function rerenderContent(changedId) {
+  if (changedId) changed = { id: String(changedId), t: performance.now() };
   const el = rootEl && rootEl.querySelector('[data-block="content"]');
   if (el) el.outerHTML = contentBlock();
+  // the member's own action: the card/row it touched acknowledges its new state (css .mx-net-changed).
+  // A background re-sync that lands mid-acknowledgement re-marks the new node at the same point of the
+  // animation (negative delay via --net-age) instead of flashing it again from the start.
+  if (!changed || !rootEl) return;
+  const age = performance.now() - changed.t;
+  if (age > 900) { changed = null; return; }
+  rootEl.querySelectorAll(`[data-card="${CSS.escape(changed.id)}"]`).forEach(n => {
+    n.classList.add('mx-net-changed'); n.style.setProperty('--net-age', `-${Math.round(age)}ms`);
+  });
 }
 function syncUrl() {
   const target = '/app/network' + (st.q.trim() ? '?q=' + encodeURIComponent(st.q.trim()) : '');
@@ -378,7 +399,7 @@ async function runSearch(page) {
     (r.results || []).forEach(m => { if (m.connection && !CS.has(m.id)) CS.set(m.id, m.connection); });
     if (r.members_total) D.total = r.members_total;
     st.res = { items: r.results || [], total: r.total || 0, page: r.page || 1, pages: r.pages || 1 };
-    rerenderContent();
+    fresh = 'res'; rerenderContent();
   } catch (e) {
     if (mySeq !== seq) return;
     st.res = { items: [], total: 0, page: 1, pages: 1 };
@@ -392,6 +413,7 @@ async function loadDirectory(page) {
     const r = await api.get('/api/v2/network/directory?page=' + (page || 1) + '&size=24');
     (r.results || []).forEach(m => { if (m.connection && !CS.has(m.id)) CS.set(m.id, m.connection); });
     st.dir = { open: true, loading: false, items: r.results || [], page: r.page || 1, pages: r.pages || 1 };
+    fresh = 'dir';
     if (r.total != null) D.total = Math.max(D.total, r.total);
   } catch (e) {
     st.dir = { open: false, loading: false, items: [], page: 1, pages: 1 };
@@ -405,10 +427,10 @@ function findMember(id) {
   return null;
 }
 function refreshBackground() {   // re-sync lists after a mutation without blocking the optimistic UI
-  load(st.q).then(fresh => {
+  load(st.q).then(next => {
     if (!rootEl) return;
-    fresh.sugg = D.sugg;   // shown suggestion cards keep their place; only their button faces change (CS)
-    D = fresh;
+    next.sugg = D.sugg;   // shown suggestion cards keep their place; only their button faces change (CS)
+    D = next;
     if (!st.q.trim()) rerenderContent();
   }).catch(() => {});
 }
@@ -429,7 +451,7 @@ const handlers = {
     if (s.state === 'pending_out') {
       const c1 = COPY.confirm.cancel;
       if (!await ui.confirm({ eyebrow: c1.eyebrow, title: c1.title, body: c1.body, ok: c1.ok, cancel: c1.no })) return;
-      const prev = CS.get(id); CS.set(id, { state: 'none', id: null }); rerenderContent();
+      const prev = CS.get(id); CS.set(id, { state: 'none', id: null }); rerenderContent(id);
       try { await api.del('/api/v2/network/connections/' + encodeURIComponent(s.id)); ui.toast(COPY.toast.cancelled); }
       catch (e) { CS.set(id, prev); rerenderContent(); ui.toast(e.message, { kind: 'error' }); }
       return;
@@ -442,7 +464,7 @@ const handlers = {
     }
     // none → optimistic pending_out, rollback on error
     const prev = CS.get(id) || { state: 'none', id: null };
-    CS.set(id, { state: 'pending_out', id: null }); rerenderContent();
+    CS.set(id, { state: 'pending_out', id: null }); rerenderContent(id);
     try {
       const r = await api.post('/api/networking/connections', { receiver_id: id });
       CS.set(id, { state: 'pending_out', id: r.id }); rerenderContent();
@@ -461,7 +483,7 @@ const handlers = {
     const prevPending = D.pending, prevConns = D.conns, prevState = CS.get(id);
     D.pending = D.pending.filter(p => p.cid !== cid);
     D.conns = D.conns.concat([{ cid, id, name: m.name, institution: m.institution || '', photo_url: m.photo_url || '' }]);
-    CS.set(id, { state: 'connected', id: cid }); rerenderContent();
+    CS.set(id, { state: 'connected', id: cid }); rerenderContent(id);
     try { await api.put('/api/networking/connections/' + encodeURIComponent(cid), { status: 'accepted' }); ui.toast(COPY.toast.accepted(m.name)); refreshBackground(); }
     catch (e) { D.pending = prevPending; D.conns = prevConns; CS.set(id, prevState || { state: 'pending_in', id: cid }); rerenderContent(); ui.toast(e.message, { kind: 'error' }); }
   },
@@ -515,7 +537,7 @@ function wireSearchInput() {
   input.addEventListener('input', () => {
     st.q = input.value; syncUrl();
     clearTimeout(debounceT);
-    if (!st.q.trim()) { st.res = null; seq++; rerenderContent(); return; }
+    if (!st.q.trim()) { st.res = null; seq++; fresh = 'all'; rerenderContent(); return; }
     debounceT = setTimeout(() => { if (!st.res) rerenderContent(); runSearch(1); }, 300);
   });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(debounceT); handlers.search(); } });
@@ -534,6 +556,7 @@ export default {
     st = { q: q0, res: null, dir: { open: false, loading: false, items: [], page: 1, pages: 1 } };
     D = await load(q0);
     if (rootEl !== root) return;   // navigated away while loading
+    fresh = null;
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     wireSearchInput();
@@ -542,6 +565,6 @@ export default {
   destroy() {
     clearTimeout(debounceT); debounceT = null; seq++;
     if (unbind) unbind(); unbind = null;
-    rootEl = null; D = null; st = null; CS = null;
+    rootEl = null; D = null; st = null; CS = null; fresh = null; changed = null;
   }
 };

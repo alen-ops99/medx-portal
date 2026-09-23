@@ -28,3 +28,12 @@
   .mx-gala-hero-date { font-size: 17px !important; }
   .mx-gala-glance-row { flex-wrap: wrap; }
 }
+
+/* "THE EVENING BEGINS IN" band on a phone: label on its own line, the three digits together, each fact
+   on a centred line; the vertical rules only read side by side, so they go */
+@media (max-width: 700px) {
+  .mx-gala-band { gap: 10px 22px !important; padding-top: 16px !important; padding-bottom: 16px !important; }
+  .mx-gala-band > span[style*="width:1px"] { display: none !important; }
+  .mx-gala-band > span:first-child { flex-basis: 100%; text-align: center; }
+  .mx-gala-band > span:not(:first-child):not([style*="display:flex"]) { flex-basis: 100%; text-align: center; }
+}

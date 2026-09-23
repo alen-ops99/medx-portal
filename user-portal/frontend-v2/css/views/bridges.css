@@ -12,3 +12,12 @@
 @media (max-width: 700px) {
   .mx-bb-cities { grid-template-columns: 1fr !important; }
 }
+
+/* stats band on a phone: two by two, each figure over its label, centred — without the vertical rules
+   that dangled at the line ends */
+@media (max-width: 700px) {
+  .mx-bb-band { display: grid !important; grid-template-columns: 1fr 1fr; justify-items: center; gap: 16px 10px !important; padding-top: 18px !important; padding-bottom: 18px !important; }
+  .mx-bb-band > span[style*="width:1px"] { display: none !important; }
+  .mx-bb-band > span { flex-direction: column; align-items: center !important; gap: 4px !important; text-align: center; }
+  .mx-bb-band > span > span:first-child { white-space: nowrap; line-height: 1.05; }
+}

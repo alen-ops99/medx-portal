@@ -8,11 +8,15 @@
 // (cfg.serverPaths) are never intercepted — a full page load reaches the Express server.
 import cfg from './config.js';
 import { session, state } from './state.js';
+import { ui } from './ui.js';
 
 const routes = [];
 let current = { module: null, root: null, path: null };
 let notFoundLoader = null;
 let hooks = { beforeRender: null, afterRender: null, title: t => t ? t + ' · Med&X' : 'Med&X Member Portal' };
+let tabFrom = null;   // the active section tab's box when a sibling tab was clicked — the new underline slides from it
+let enterTimer = null, heldTimer = null;
+const ENTER_CLASSES = ['mx-enter', 'mx-enter-tab'];
 
 function compile(path) {
   const keys = [];
@@ -93,23 +97,47 @@ export const router = {
     if (current.module && typeof current.module.destroy === 'function') { try { current.module.destroy(); } catch (e) { console.error('[router] destroy failed', e); } }
     const layout = (route && route.layout) || (mod.layout) || 'portal';
     const active = (route && route.active) || null;
+    const prevLayout = state.get().layout;
     state.set({ layout, active });
     if (hooks.beforeRender) hooks.beforeRender({ route, params, query, layout, active, view });
     const root = document.getElementById('view');
-    root.innerHTML = '';
+    // The screen being left stays on view (inert, dimmed if the wait drags) until the next one draws
+    // over it — portal to portal only; the auth and bare layouts start from a clean slate as before.
+    const hold = prevLayout === 'portal' && layout === 'portal' && root.firstElementChild;
+    const tabKey = hold ? holdLeaving(root, current.module === view) : (root.innerHTML = '', null);
+    const body = document.body;                                      // the progress hairline (app.css › body.mx-holding)
+    clearTimeout(heldTimer); body.classList.remove('mx-held'); body.classList.toggle('mx-holding', !!hold);
     root.scrollTop = 0;
     current = { module: view, root, path: pathname };
     const title = typeof view.title === 'function' ? view.title(ctx) : (view.title || (route && route.title) || '');
     document.title = hooks.title(title);
-    root.classList.remove('mx-enter'); void root.offsetWidth; root.classList.add('mx-enter');   // a soft fade per screen (css: #view.mx-enter)
+    root.classList.remove(...ENTER_CLASSES); clearTimeout(enterTimer); ui.revealOnScroll(null);
     try { await view.render(root, ctx); } catch (e) { console.error('[router] render failed for ' + pathname, e); root.innerHTML = renderError(e); }
     if (seq !== this._seq) return;
+    root.querySelectorAll('.mx-leaving').forEach(n => n.remove());     // a view that appended instead of replacing
+    if (body.classList.contains('mx-holding')) {                        // the top hairline sweeps home and fades
+      body.classList.remove('mx-holding'); body.classList.add('mx-held');
+      heldTimer = setTimeout(() => body.classList.remove('mx-held'), 700);
+    }
+    // The screen's entrance starts once the view has drawn its content, in the same task, so the page
+    // never paints un-faded first; and it runs once: later partial re-renders inside the view stay still.
+    // A new screen: #view.mx-enter (a soft fade, the card grids cascading in, the hero photo settling).
+    // Another tab of the same section: #view.mx-enter-tab — the breadcrumb and the strip stay put and
+    // only the content around them rises in, so a tab change reads as a tab change, not a page load.
+    const strip = tabKey ? root.querySelector(`[data-tabs="${cssAttr(tabKey)}"]`) : null;
+    if (strip) markAround(root, strip, 'mx-tab-in');
+    void root.offsetWidth; root.classList.add(strip ? 'mx-enter-tab' : 'mx-enter');
+    enterTimer = setTimeout(() => root.classList.remove(...ENTER_CLASSES), 1000);
+    settleTabs(root);
     if (hooks.afterRender) hooks.afterRender({ route, params, query, layout, active, view, title });
     // scroll: restore on back/forward, top on forward navigation, hash targets when present
     const st = history.state || {};
     const target = hashTarget(location.hash);
     if (target) target.scrollIntoView();
     else window.scrollTo(0, popped ? (st.scrollY || 0) : 0);
+    // sections below the fold rise in as they scroll into view — for the screens that ask for it
+    const reveal = typeof view.reveal === 'function' ? view.reveal(ctx) : view.reveal;
+    if (reveal && layout === 'portal') ui.revealOnScroll(root);
   },
   start() {
     window.addEventListener('popstate', () => this.resolve({ popped: true }));
@@ -126,12 +154,74 @@ export const router = {
       const url = new URL(href, location.origin);
       if (url.origin !== location.origin || isServerPath(url.pathname)) return;
       e.preventDefault();
+      rememberTab(a);
       this.navigate(url.pathname + url.search + url.hash);
     });
     return this.resolve({ popped: false });
   },
   get current() { return current; }
 };
+
+// ---- leaving a screen (css app.css › .mx-leaving) ----
+// Marks what is on screen now as leaving: inert (no clicks, no focus, hidden from assistive tech) and,
+// through css, dimmed once the wait passes ~140 ms. The next view's `root.innerHTML = …` replaces it.
+// Moving within one view (another tab of the same section), the breadcrumb and the tab strip are spared
+// (they stay lit and in place) and the strip's key is returned, so the entrance can treat it as a tab change.
+function holdLeaving(root, sameView) {
+  const strip = sameView ? root.querySelector('[data-tabs]') : null;
+  const key = strip ? strip.getAttribute('data-tabs') : null;
+  const marked = strip ? markAround(root, strip, 'mx-leaving') : [...root.children].map(n => { n.classList.add('mx-leaving'); return n; });
+  marked.forEach(n => { try { n.inert = true; } catch (e) { n.setAttribute('aria-hidden', 'true'); } });
+  return key;
+}
+// Every block of the screen except the breadcrumb and the given tab strip: the siblings of the strip
+// and of each of its ancestors up to the view root. Empty blocks (a closed bio sheet host) are skipped.
+function markAround(root, strip, cls) {
+  const out = [];
+  for (let n = strip; n && n !== root && n.parentElement; n = n.parentElement) {
+    for (const sib of n.parentElement.children) {
+      if (sib === n || sib.matches('.mx-crumbs, [data-tabs], style, link, script') || (!sib.firstElementChild && !sib.textContent.trim())) continue;
+      sib.classList.add(cls); out.push(sib);
+    }
+    if (n.parentElement === root) break;
+  }
+  return out;
+}
+function cssAttr(v) { return String(v).replace(/["\\]/g, '\\$&'); }
+
+// ---- section tabs ([data-tabs] strip of .mx-tab, the current one .is-on — css app.css › .mx-tab) ----
+// Clicking a sibling tab records where the current underline is; after the next screen draws, its
+// underline slides over from there instead of drawing in from the centre. Meanwhile the pressed tab
+// shows its hover underline (.is-pending), so the press is answered before the data arrives.
+function rememberTab(a) {
+  tabFrom = null;
+  const strip = a.closest && a.closest('[data-tabs]');
+  const on = strip && strip.querySelector('.mx-tab.is-on');
+  if (!on || !a.classList.contains('mx-tab')) return;
+  const r = on.getBoundingClientRect();
+  tabFrom = { key: strip.getAttribute('data-tabs'), left: r.left, width: r.width, at: Date.now() };
+  strip.querySelectorAll('.mx-tab.is-pending').forEach(t => t.classList.remove('is-pending'));
+  a.classList.add('is-pending');
+}
+function settleTabs(root) {
+  const from = tabFrom; tabFrom = null;
+  root.querySelectorAll('[data-tabs]').forEach(strip => {
+    const on = strip.querySelector('.mx-tab.is-on');
+    if (!on) return;
+    // a strip that scrolls sideways (phones) brings the current tab into view — it used to open at the
+    // far left with the tab you were on out of sight
+    if (strip.scrollWidth > strip.clientWidth + 1) {
+      const want = on.offsetLeft - (strip.clientWidth - on.offsetWidth) / 2;
+      strip.scrollLeft = Math.max(0, Math.min(want, strip.scrollWidth - strip.clientWidth));
+    }
+    if (!from || from.key !== strip.getAttribute('data-tabs') || Date.now() - from.at > 4000) return;
+    const r = on.getBoundingClientRect();
+    if (!r.width || Math.abs(from.left - r.left) < 1) return;
+    on.style.setProperty('--tab-dx', (from.left - r.left).toFixed(1) + 'px');
+    on.style.setProperty('--tab-sx', (from.width / r.width).toFixed(3));
+    on.classList.add('is-sliding');
+  });
+}
 
 function renderError(e) {
   return `<div style="padding:54px 36px;text-align:center"><span style="display:inline-block;width:28px;height:1px;background:#c9a962"></span>

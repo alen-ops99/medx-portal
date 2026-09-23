@@ -407,12 +407,34 @@ function template() {
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
 function rerenderBoard() { rerender('[data-block="board"]', blockBoard()); }
 function rerenderTitle() { rerender('[data-block="title"]', blockTitle()); }
+// The sheet slides in once, when it OPENS; a redraw of the same card (its detail arriving, a status
+// change, a comment) keeps the very same sheet element and swaps only what is inside it — so a slide or
+// cross-fade still running carries on to its end and the sheet keeps its scroll; another card
+// cross-fades in, and closing slides it back out (css .mx-drawer.swap / .out).
+function morphSheet(cur, html) {
+  const t = document.createElement('template'); t.innerHTML = html.trim();
+  const next = t.content.firstElementChild;
+  const sheet = cur.querySelector(':scope > .mx-drawer-sheet'), nextSheet = next && next.querySelector(':scope > .mx-drawer-sheet');
+  if (!sheet || !nextSheet) return false;
+  Array.from(next.attributes).forEach(a => { if (a.name !== 'class' && a.name !== 'data-for') cur.setAttribute(a.name, a.value); });
+  Array.from(cur.attributes).forEach(a => { if (a.name !== 'class' && a.name !== 'data-for' && !next.hasAttribute(a.name)) cur.removeAttribute(a.name); });
+  sheet.innerHTML = nextSheet.innerHTML;
+  return true;
+}
 function rerenderDrawer() {
   const host = rootEl && rootEl.querySelector('.mx-spk'); if (!host) return;
   const cur = host.querySelector('[data-block="drawer"]');
   const html = drawer();
-  if (cur) { if (html) cur.outerHTML = html; else cur.remove(); }
+  const was = cur ? cur.getAttribute('data-for') : null;
+  if (cur && !html) {
+    cur.setAttribute('data-block', 'drawer-leaving'); cur.classList.add('out');
+    setTimeout(() => cur.remove(), 220);
+  } else if (cur && was === String(st.open || '') && morphSheet(cur, html)) {
+    // same card — nothing replaced, nothing replayed
+  } else if (cur) { cur.outerHTML = html; const nu = host.querySelector('[data-block="drawer"]'); if (nu) nu.classList.add('swap'); }
   else if (html) host.insertAdjacentHTML('beforeend', html);
+  const nu = html && host.querySelector('[data-block="drawer"]');
+  if (nu) nu.setAttribute('data-for', String(st.open || ''));
   document.body.classList.toggle('mx-drawer-open', !!st.open);
   const ta = rootEl.querySelector('[data-role="name"]'); if (ta) autosize(ta);
 }

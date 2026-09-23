@@ -17,7 +17,7 @@
 [data-screen-label="Accelerator"] input:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
 
 /* document drop zone — drag-over + keyboard focus states (look is inline) */
-.mx-ax-drop { transition: border-color .15s ease, background .15s ease; }
+.mx-ax-drop { transition: border-color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease); }
 .mx-ax-drop.is-over, .mx-ax-drop:focus-visible { border-color: #9b1b22 !important; background: #fdfaf3 !important; outline: 0; }
 
 /* disabled controls (submit before completion, Previous on step 1) */

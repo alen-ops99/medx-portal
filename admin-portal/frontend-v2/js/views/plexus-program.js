@@ -122,10 +122,10 @@ function blockProgramCard() {
   const inp = (role, label, value, type, extra) => `
         <label style="display:block">
           <div style="${MICRO};margin-bottom:5px">${label}</div>
-          <input data-role="${role}" type="${type || 'text'}" value="${esc(value || '')}" style="${INPUT}${extra || ''}"${ro ? ' disabled' : ''}>
+          <input data-role="${role}" type="${type || 'text'}" value="${esc(value || '')}" style="${INPUT};height:34px${extra || ''}"${ro ? ' disabled' : ''}>
         </label>`;
   return `
-    <div data-block="pgProgram" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px">
+    <div data-block="pgProgram" class="mx-two" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px">
       <div style="border:1px solid ${HAIR};background:#fff">
         <div style="padding:14px 20px;border-bottom:1px solid ${HAIR12}"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.program.title}</span></div>
         <div style="padding:18px 20px">
@@ -133,7 +133,7 @@ function blockProgramCard() {
           ${p.configured === false ? `<div style="font-size:11.5px;color:#9b1b22;margin-top:6px">File storage is not configured on the member portal.</div>` : ''}
           ${ro ? '' : `
           <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
-            <input data-role="pgFile" type="file" accept="application/pdf,.pdf" style="font:400 12px Inter,sans-serif;max-width:100%">
+            <input data-role="pgFile" class="mxp-file" type="file" accept="application/pdf,.pdf" style="font:400 12px Inter,sans-serif;max-width:100%">
             <span data-act="pgUpload" style="${uploading ? BTN_OFF : BTN_SOLID}">${uploading ? c.program.uploading : (p.present ? c.program.replace : c.program.upload)}</span>
           </div>`}
         </div>
@@ -143,11 +143,11 @@ function blockProgramCard() {
           <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.settings.title}</span>
           ${ro ? '' : `<span data-act="pgSaveSettings" style="${S.busy === 'settings' ? BTN_OFF : BTN_GHOST}">${c.settings.save}</span>`}
         </div>
-        <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="mxp-fgrid" style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end">
           ${inp('pgConfVenue', c.settings.confVenue, s.conference_venue)}
           ${inp('pgConfDate', c.settings.confDate, s.conference_start_date, 'date')}
           ${inp('pgBbVenue', c.settings.bbVenue, s.bridges_zagreb_venue)}
-          <div style="display:grid;grid-template-columns:1fr 90px;gap:8px">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 124px;gap:8px;align-items:end">
             ${inp('pgBbDate', c.settings.bbDate, s.bridges_zagreb_date, 'date')}
             ${inp('pgBbTime', c.settings.bbTime, s.bridges_zagreb_time, 'time')}
           </div>

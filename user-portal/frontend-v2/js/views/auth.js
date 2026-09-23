@@ -79,20 +79,20 @@ function blockWelcome() {
   return `
   <!-- dc: Auth.dc.html › "Welcome" -->
   <div style="position:relative;min-height:100vh;overflow:hidden;display:flex;flex-direction:column">
-    <img src="/assets/photo-ballroom.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    <img src="/assets/photo-ballroom.jpg" alt="" class="mx-auth-photo" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.86) 100%)"></div>
     <div style="position:relative;display:flex;align-items:center;padding:22px 36px">
       <div style="flex:1"></div>
     </div>
-    <div style="position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 36px 70px;color:#f7f1e6">
+    <div class="mx-auth-rise" style="position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 36px 70px;color:#f7f1e6">
       <img src="/assets/logo-white.png" alt="med&amp;X" style="height:34px;display:block">
       <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.28em;color:#c9a962;margin-top:18px">${COPY.welcome.kicker}</span>
       <div style="font-family:Fraunces,serif;font-size:clamp(30px,6vw,46px);line-height:1.12;max-width:680px;margin-top:18px">${COPY.welcome.headline}</div>
       <span style="width:34px;height:1px;background:#9b1b22;margin-top:20px"></span>
       <div style="font-size:14.5px;line-height:1.6;color:rgba(247,241,230,.8);max-width:500px;margin-top:18px">${COPY.welcome.blurb}</div>
       <div style="display:flex;gap:13px;margin-top:30px;flex-wrap:wrap;justify-content:center">
-        <a href="/app/auth/signup" style="padding:15px 30px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.welcome.create}</a>
-        <a href="/app/auth/signin" style="padding:15px 30px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#f7f1e6">${COPY.welcome.signin}</a>
+        <a href="/app/auth/signup" class="mx-auth-btn" style="padding:15px 30px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.welcome.create}</a>
+        <a href="/app/auth/signin" class="mx-auth-btn" style="padding:15px 30px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#f7f1e6">${COPY.welcome.signin}</a>
       </div>
       <div style="display:flex;gap:10px 22px;margin-top:44px;flex-wrap:wrap;justify-content:center;font:600 9px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.55)">
         ${COPY.welcome.projects.map((p, i) => `<span style="white-space:nowrap">${p}</span>` + (i < COPY.welcome.projects.length - 1 ? '<span style="color:#c9a962">·</span>' : '')).join('')}
@@ -114,7 +114,7 @@ function stepper(stage) { // stage 1 = DETAILS, 2 = CONFIRM EMAIL
   return `
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-family:Fraunces,serif;font-weight:600;font-size:13px;color:#6e5626">01</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6e5626">${COPY.steps.details} ✓</span>
-              <span style="flex:1;height:1px;background:#c9a962"></span>
+              <span class="mx-auth-step-done" style="flex:1;height:1px;background:#c9a962"></span>
               <span style="font-family:Fraunces,serif;font-weight:600;font-size:13px;color:#9b1b22">02</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#191512">${COPY.steps.confirm}</span>
               <span style="flex:1;height:1px;background:rgba(25,21,18,.16)"></span>
               <span style="font-family:Fraunces,serif;font-weight:600;font-size:13px;color:rgba(25,21,18,.35)">03</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:rgba(25,21,18,.4)">${COPY.steps.done}</span>
@@ -141,11 +141,11 @@ function blockCreate() {
               ${field(c.fields.country, 'country', 'text', c.placeholders.country)}
             </div>
             <div data-act="tgTerms" role="checkbox" aria-checked="${st.terms}" style="display:flex;gap:10px;align-items:flex-start;margin-top:16px;cursor:pointer">
-              <span data-role="termsBox" style="width:15px;height:15px;border:1px solid ${st.terms ? '#9b1b22' : 'rgba(25,21,18,.35)'};background:${st.terms ? '#9b1b22' : 'transparent'};flex:none;display:inline-flex;align-items:center;justify-content:center;color:#f7f1e6;font-size:10px;margin-top:1px">${st.terms ? '✓' : ''}</span>
+              <span data-role="termsBox" class="mx-auth-box" style="width:15px;height:15px;border:1px solid ${st.terms ? '#9b1b22' : 'rgba(25,21,18,.35)'};background:${st.terms ? '#9b1b22' : 'transparent'};flex:none;display:inline-flex;align-items:center;justify-content:center;color:#f7f1e6;font-size:10px;margin-top:1px">${st.terms ? '✓' : ''}</span>
               <span style="font-size:12px;color:#4a4239;line-height:1.5">${c.terms}</span>
             </div>
             ${errorLine('error')}
-            <button type="submit" data-act="signup" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${c.submit}</button>
+            <button type="submit" data-act="signup" class="mx-auth-btn" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${c.submit}</button>
             <div style="display:flex;gap:16px;margin-top:16px;font-size:12px;color:#4a4239">
               <span>${c.already}<a href="/app/auth/signin" style="color:#9b1b22;font-weight:600;cursor:pointer">${c.signin}</a></span>
               <div style="flex:1"></div>
@@ -163,8 +163,8 @@ function blockVerify() {
             <div style="font-family:Fraunces,serif;font-size:clamp(26px,7vw,33px);line-height:1.12;margin-top:14px">${v.headline}</div>
             <div style="font-size:13.5px;color:#4a4239;line-height:1.6;margin-top:12px">${v.sent(esc(email))}</div>
             ${st.devVerifyUrl ? `<div style="font-size:12px;color:#6e5626;line-height:1.6;margin-top:12px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;padding:12px">${v.devLink} <a href="${esc(st.devVerifyUrl)}" style="color:#9b1b22;text-decoration:underline;word-break:break-all">confirm now →</a></div>` : ''}
-            <a href="/app/home" style="margin-top:24px;padding:14px 0;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center;display:block" data-hover="background:#7e151b">${v.continue}</a>
-            <span data-act="resend" style="${GHOST}" data-hover="border-color:#191512">${v.resend}</span>
+            <a href="/app/home" class="mx-auth-btn" style="margin-top:24px;padding:14px 0;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center;display:block" data-hover="background:#7e151b">${v.continue}</a>
+            <span data-act="resend" class="mx-auth-btn" style="${GHOST}" data-hover="border-color:#191512">${v.resend}</span>
             ${errorLine('error')}
             <div style="font-size:11.5px;color:#4a4239;line-height:1.6;margin-top:16px">${v.note}</div>
           <!-- /dc -->`;
@@ -181,8 +181,8 @@ function blockSignin(query) {
             ${field(s.email, 'email', 'email', s.placeholders.email, ';margin-top:24px', INPUT12)}
             <span style="display:flex;flex-direction:column;gap:6px;margin-top:12px"><span style="display:flex"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${s.password}</span><span style="flex:1"></span><a href="/app/auth/reset" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer">${s.forgot}</a></span><input name="password" type="password" placeholder="${s.placeholders.password}" aria-label="Password" autocomplete="current-password" style="${INPUT12}"></span>
             ${errorLine('error')}
-            <div data-role="resendRow" style="display:none;margin-top:10px"><span data-act="resendLogin" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${s.errors.resend}</span></div>
-            <button type="submit" data-act="signin" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${s.submit}</button>
+            <div data-role="resendRow" style="display:none;margin-top:10px"><span data-act="resendLogin" class="mx-auth-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${s.errors.resend}</span></div>
+            <button type="submit" data-act="signin" class="mx-auth-btn" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${s.submit}</button>
             <div style="margin-top:18px;text-align:center;font-size:12.5px;color:#4a4239">${s.newHere}<a href="/app/auth/signup" style="color:#9b1b22;font-weight:600;cursor:pointer;white-space:nowrap">${s.create}</a></div>
             <div style="margin-top:8px;text-align:center;font-size:12.5px;color:#4a4239">${s.invited}<a href="/app/auth/forum-code" style="color:#9b1b22;font-weight:600;cursor:pointer;white-space:nowrap">${s.code}</a></div>
           </form>
@@ -199,12 +199,12 @@ function blockReset() {
               <div style="font-size:13px;color:#4a4239;line-height:1.55;margin-top:10px">${r.blurb}</div>
               ${field(r.email, 'email', 'email', COPY.signin.placeholders.email, ';margin-top:22px', INPUT12)}
               ${errorLine('error')}
-              <button type="submit" data-act="sendReset" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${r.submit}</button>` : `
+              <button type="submit" data-act="sendReset" class="mx-auth-btn" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${r.submit}</button>` : `
               <div style="border:1px solid rgba(201,169,98,.65);background:#fdfaf3;padding:18px;margin-top:18px;display:flex;flex-direction:column;gap:6px">
                 <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626">${r.sentTag}</span>
                 <span style="font-size:13px;color:#4a4239;line-height:1.55">${r.sentText}</span>
               </div>
-              <span data-act="sendReset" style="margin-top:14px;padding:13px 0;border:1px solid rgba(25,21,18,.3);font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center;color:#191512;display:block" data-hover="border-color:#191512">${r.resend}</span>
+              <span data-act="sendReset" class="mx-auth-btn" style="margin-top:14px;padding:13px 0;border:1px solid rgba(25,21,18,.3);font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center;color:#191512;display:block" data-hover="border-color:#191512">${r.resend}</span>
               ${errorLine('error')}`}
             <div style="display:flex;margin-top:16px;font-size:12px;color:#4a4239">
               <a href="/app/auth/signin" style="cursor:pointer;color:#4a4239" data-hover="color:#191512"><span style="white-space:nowrap">${r.back}</span></a>
@@ -222,7 +222,7 @@ function blockCode() {
             <div style="font-size:13px;color:#4a4239;line-height:1.55;margin-top:10px">${c.blurb}</div>
             <span style="display:flex;flex-direction:column;gap:6px;margin-top:22px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${c.label}</span><input name="code" type="text" placeholder="${c.placeholder}" aria-label="${c.label}" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:13px;font:600 15px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.14em;color:#191512;width:100%;box-sizing:border-box;text-align:center"></span>
             ${errorLine('error')}
-            <button type="submit" data-act="verifyCode" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${c.submit}</button>
+            <button type="submit" data-act="verifyCode" class="mx-auth-btn" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${c.submit}</button>
             <div style="font-size:11.5px;color:#4a4239;margin-top:14px;line-height:1.55">${c.note}</div>
             <div style="display:flex;margin-top:14px;font-size:12px;color:#4a4239">
               <a href="/app/auth/signin" style="cursor:pointer;color:#4a4239" data-hover="color:#191512"><span style="white-space:nowrap">${c.back}</span></a>
@@ -235,9 +235,9 @@ function blockPanel(inner) {
   <!-- dc: Auth.dc.html › "Panel" -->
   <div class="mx-auth-panel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));min-height:100vh">
     <div style="position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:240px">
-      <img src="/assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+      <img src="/assets/photo-gala.jpg" alt="" class="mx-auth-photo" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.66) 0%,rgba(25,21,18,.88) 100%)"></div>
-      <div style="position:relative;flex:1;display:flex;flex-direction:column;padding:clamp(20px,4vw,38px);color:#f7f1e6">
+      <div class="mx-auth-quote" style="position:relative;flex:1;display:flex;flex-direction:column;padding:clamp(20px,4vw,38px);color:#f7f1e6">
         <a href="/app/auth/welcome" style="cursor:pointer;align-self:flex-start"><img src="/assets/logo-white.png" alt="med&amp;X" style="height:24px;display:block"></a>
         <div style="flex:1;min-height:24px"></div>
         <div style="font-family:Fraunces,serif;font-style:italic;font-size:27px;line-height:1.35;max-width:360px">${COPY.panel.quote}</div>
@@ -249,7 +249,7 @@ function blockPanel(inner) {
       <div style="display:flex;align-items:center;padding:0 clamp(20px,5vw,44px)">
         <div style="flex:1"></div>
       </div>
-      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:30px clamp(20px,5vw,44px);max-width:430px;width:100%;margin:0 auto;box-sizing:border-box">
+      <div class="mx-auth-col" style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:30px clamp(20px,5vw,44px);max-width:430px;width:100%;margin:0 auto;box-sizing:border-box">
 ${inner}
       </div>
       <!-- dc: Auth.dc.html › "Footer" -->
@@ -376,8 +376,42 @@ function render(root, ctx) {
   const view = (ctx.params && ctx.params.view) || 'welcome';
   currentView = view;
   const inner = view === 'signup' ? blockCreate() : view === 'verify' ? blockVerify() : view === 'reset' ? blockReset() : view === 'forum-code' ? blockCode() : blockSignin(ctx.query || {});
-  root.innerHTML = `<div data-screen-label="Auth" style="font-family:Inter,sans-serif;color:#191512;min-height:100vh">${view === 'welcome' ? blockWelcome() : blockPanel(inner)}</div>`;
+  root.innerHTML = `<div data-screen-label="Auth" class="mx-auth-screen" style="font-family:Inter,sans-serif;color:#191512;min-height:100vh">${view === 'welcome' ? blockWelcome() : blockPanel(inner)}</div>`;
   const first = root.querySelector('input'); if (first && view !== 'welcome') first.focus({ preventScroll: true });
+}
+
+// view stylesheet (hover, focus, press, the busy sweep — the look stays inline): injected once and never
+// waited for. The screen paints at once; everything in the sheet is harmless when it lands a moment later.
+function ensureCss() {
+  if (document.getElementById('mx-css-auth')) return;
+  const l = document.createElement('link');
+  l.id = 'mx-css-auth'; l.rel = 'stylesheet'; l.href = '/css/views/auth.css';
+  document.head.appendChild(l);
+}
+
+// entrance: Welcome arrives line by line (logo → kicker → headline → rule → blurb → buttons → projects);
+// the panel's quote fades up while the form column settles one field at a time and the photo behind
+// settles. Driven here through the Web Animations API with the house ease (as ui.js's motion helpers
+// are), so it plays on the very first paint of these entry pages instead of depending on a stylesheet
+// that may still be loading. All inside half a second; nothing moves under reduced motion; fill
+// `backwards`, so nothing is held hidden once it has run (or when animate() is unavailable).
+const EASE = 'cubic-bezier(.22,1,.36,1)';
+const RISE = [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }];
+function enter(root) {
+  if (ui.reducedMotion()) return;
+  const play = (el, frames, opts) => { try { el.animate(frames, Object.assign({ easing: EASE, fill: 'backwards' }, opts)); } catch (e) { /* stays still */ } };
+  const cascade = (els, dur) => els.forEach((el, i) => play(el, RISE, { duration: dur, delay: Math.min(i * 25, 140) }));
+  root.querySelectorAll('.mx-auth-photo').forEach(el => play(el, [{ transform: 'scale(1.05)' }, { transform: 'none' }], { duration: 900 }));
+  cascade([...root.querySelectorAll('.mx-auth-rise > *')], 360);
+  root.querySelectorAll('.mx-auth-quote > *').forEach(el => play(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: 80 }));
+  // the form column: its forms (display:contents) and the name / institution pairs are opened up, so each
+  // field is its own line — and this cascade supersedes the shared grid one (app.css) on those pairs
+  const lines = [];
+  const walk = el => [...el.children].forEach(c => (c.tagName === 'FORM' || c.classList.contains('mx-grid-2')) ? walk(c) : lines.push(c));
+  root.querySelectorAll('.mx-auth-col').forEach(walk);
+  cascade(lines.filter(el => el.getClientRects().length), 340);   // a hidden error / notice line arrives on its own later
+  // step 02 of sign-up: the gold connector from 01 draws itself in
+  root.querySelectorAll('.mx-auth-step-done').forEach(el => play(el, [{ transform: 'scaleX(0)', transformOrigin: 'left center' }, { transform: 'none', transformOrigin: 'left center' }], { duration: 380, delay: 100 }));
 }
 
 const TITLES = { welcome: 'Member Portal', signin: 'Sign in', signup: 'Create account', verify: 'Confirm your email', reset: 'Reset password', 'forum-code': 'Forum invitation' };
@@ -391,8 +425,10 @@ export default {
     if (!VIEWS.includes(view)) return router.replace('/app/auth/welcome');
     // a signed-in member has no business on welcome / sign in / sign up (verify, reset, code stay reachable)
     if (session.isAuthed && ['welcome', 'signin', 'signup'].includes(view)) return router.replace(nextTarget(ctx.query || {}));
+    ensureCss();
     if (view !== 'reset') st.sent = false;
     render(root, ctx);
+    enter(root);
     unbind = ui.bind(root, Object.fromEntries(Object.entries(handlers).map(([k, fn]) => [k, (el, ev) => fn(el, ev, ctx.query || {})])));
     // ONE submit listener per render, removed in destroy(): each visit used to add another to the shared
     // #view root, so after a few hops one Enter fired sign-in / sign-up / reset several times

@@ -17,9 +17,14 @@
   .mx-forum-schedrow > span:last-child { flex-basis: 100%; padding-left: 68px; }
 }
 
-/* stage indicator: hide the 56px connector lines once the stages wrap */
+/* stage indicator: hide the 56px connector lines once the stages wrap — and on a phone the three stages
+   share one row as equal columns (the third used to drop alone onto a second line) */
 @media (max-width: 500px) {
   .mx-forum-stageline { display: none !important; }
+  .mx-forum-stages { display: grid !important; grid-template-columns: repeat(3, 1fr); align-items: start; }
+  .mx-forum-stages > div { justify-content: center; }
+  .mx-forum-stages > div > div { padding: 0 4px !important; }
+  .mx-forum-stages > div > div > span:last-child { white-space: normal !important; text-align: center; line-height: 1.45; }
 }
 
 /* invitation-code row: input takes the full line at phone width */
@@ -27,4 +32,11 @@
   .mx-forum-coderow { width: 100%; }
   .mx-forum-coderow input[data-role="code"] { flex: 1 1 100%; width: 100% !important; }
   .mx-forum-coderow [data-act="unlock"] { flex: 1 1 auto; text-align: center; }
+}
+
+/* facts band on a phone: one centred fact per line — the vertical rules only read side by side */
+@media (max-width: 700px) {
+  .mx-fo-band { gap: 9px 20px !important; padding-top: 16px !important; padding-bottom: 16px !important; }
+  .mx-fo-band > span[style*="width:1px"] { display: none !important; }
+  .mx-fo-band > * { flex-basis: 100%; text-align: center; }
 }

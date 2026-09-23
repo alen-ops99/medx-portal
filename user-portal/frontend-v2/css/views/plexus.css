@@ -58,6 +58,48 @@
 .mx-px-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
 .mx-px-face .mx-mono::after { display: none; }
 @media (max-width: 560px) {
-  .mx-px-teaser { flex-wrap: wrap; }
+  /* phone: the sentence takes the whole first row; the faces and ALL SPEAKERS → share the row under it.
+     (The text span's inline flex:1 is a 0% basis, so a plain wrap never wrapped it — it shrank to one
+     word per line, 28 px wide and 375 px tall at 390.) */
+  .mx-px-teaser { flex-wrap: wrap; gap: 14px 18px !important; }
+  .mx-px-teaser > span:nth-child(2) { flex: 1 1 100% !important; order: -1; }
+  .mx-px-teaser > span:last-child { margin-left: auto; }
   .mx-px-face { width: 38px; height: 38px; }
+}
+
+/* bio sheet opens like every other sheet (app.css › .mx-modal): scrim fades, sheet rises a few px.
+   .mx-bio-in is added only when a bio is opened, so a re-draw (adding a session) stays still. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-role="bio-scrim"].mx-bio-in { animation: mx-fade var(--t-reveal) var(--ease) both; }
+  [data-role="bio-scrim"].mx-bio-in .mx-bio-sheet { animation: mx-rise var(--t-reveal) var(--ease) both; }
+}
+
+/* countdown band on a phone: the label takes its own line, the three digits share the next, each fact
+   below gets a centred line — the vertical rules only made sense side by side, so they go */
+@media (max-width: 700px) {
+  .mx-px-band { gap: 10px 22px !important; padding-top: 16px !important; padding-bottom: 16px !important; }
+  .mx-px-band > span[style*="width:1px"] { display: none !important; }
+  .mx-px-band > span:first-child { flex-basis: 100%; text-align: center; }
+  .mx-px-band > span:not([data-cd]):not(:first-child):not([style*="display:flex"]) { flex-basis: 100%; text-align: center; }
+}
+
+/* whole-card targets: a speaker card opens the bio from anywhere on it, a Plexus Week card follows its
+   CTA — the one real control stretches an invisible hit area over the card ("stretched link"), so
+   keyboard focus and the accessible name stay on that control */
+.mx-sp-card, .mx-week-card { position: relative; }
+.mx-sp-card [data-act="vb"]::after, .mx-week-card > a::after { content: ""; position: absolute; inset: 0; }
+
+/* Plexus Week band on a phone: one card per row. The ≤1100 two-across rule above outranked the shared
+   ≤560 single-column rule in app.css (same weight, later file), so at 390 px two cramped cards sat side
+   by side and "RESERVE A SEAT · €150 →" ran out through the card's edge. */
+@media (max-width: 560px) {
+  .mx-week-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Explore Zagreb › GETTING AROUND on a phone: each way of getting around reads as one sentence with a
+   hanging square, instead of a bold word squeezed into its own narrow column */
+@media (max-width: 700px) {
+  .mx-zg-around { gap: 12px !important; }
+  .mx-zg-around > span:not(:first-child) { display: block !important; flex-basis: 100%; padding-left: 15px; text-indent: -15px; line-height: 1.55; }
+  .mx-zg-around > span:not(:first-child) > span:first-child { display: inline-block; vertical-align: middle; margin: -2px 9px 0 0; text-indent: 0; }
 }

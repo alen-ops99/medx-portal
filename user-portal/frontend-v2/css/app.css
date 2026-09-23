@@ -13,8 +13,9 @@
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: #f7f1e6; font-family: Inter, sans-serif; color: #191512; }
 body[data-layout="auth"] { background: #191512; }
-a { color: #9b1b22; text-decoration: none; }
-a:hover { color: #191512; }
+a { color: #9b1b22; text-decoration: none; transition: color var(--t-quick) var(--ease); }
+@media (hover: hover) { a:hover { color: #191512; } }
+::selection { background: rgba(201,169,98,.34); }
 input, textarea, select, button { font-family: Inter, sans-serif; }
 input:focus, textarea:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
 img { max-width: 100%; }
@@ -34,9 +35,13 @@ img { max-width: 100%; }
 
 /* clickable spans from the artboards (onClick → data-act): pointer + keyboard focus ring */
 [data-act], [data-nav] { cursor: pointer; }
-[data-act]:focus-visible, [data-nav]:focus-visible, a:focus-visible, button:focus-visible {
-  outline: 1px solid #9b1b22; outline-offset: 3px;
+[data-act]:focus-visible, [data-nav]:focus-visible, a:focus-visible, button:focus-visible, [role="switch"]:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid #9b1b22; outline-offset: 3px;
 }
+/* on the ink ground (drawer, tab bar, dark bands, photo heroes) the ring turns gold so it stays visible */
+#mx-drawer :focus-visible, #mx-tabbar :focus-visible, .mx-ink :focus-visible,
+[style*="background:#191512"] :focus-visible, .mx-waking :focus-visible { outline-color: #c9a962; }
+#mx-tabbar a:focus-visible { outline-offset: -4px; }
 [data-act][aria-disabled="true"] { opacity: .55; cursor: default; }
 
 /* ---- shell -------------------------------------------------------------- */
@@ -47,24 +52,39 @@ img { max-width: 100%; }
 /* ---- Portal Chrome: drawer + scrim (Portal Chrome.dc.html) --------------- */
 /* The drawer/scrim markup and inline styles are verbatim; these rules only carry the
    open/closed state that the mock expressed through {{ dx }} {{ sc }} {{ pe }}. */
-#mx-scrim { position: fixed; inset: 0; z-index: 40; transition: background .5s ease; background: rgba(25,21,18,0); pointer-events: none; cursor: pointer; }
+#mx-scrim { position: fixed; inset: 0; z-index: 40; transition: background-color var(--t-reveal) var(--ease); background: rgba(25,21,18,0); pointer-events: none; cursor: pointer; }
 #mx-drawer { position: fixed; top: 0; left: -312px; width: 300px; max-height: 100%; height: 100%; z-index: 41; background: #191512; color: #f7f1e6;
-  transition: transform .6s cubic-bezier(.22,1,.36,1); transform: translateX(0px); display: flex; flex-direction: column;
+  transform: translateX(0px); display: flex; flex-direction: column;
   padding: 24px 0 28px; box-sizing: border-box; box-shadow: none; overflow-y: auto; visibility: hidden;
-  transition: transform .6s cubic-bezier(.22,1,.36,1), box-shadow .6s ease, visibility 0s linear .6s; }
+  transition: transform var(--t-reveal) var(--ease), box-shadow var(--t-reveal) var(--ease), visibility 0s linear var(--t-reveal); }
 /* the shadow only exists while the drawer is open — closed, its 44px blur used to bleed a grey band
    down the left edge of every page (the drawer parks at left:-312px, the blur reached ~40px in) */
 body.drawer-open #mx-scrim { background: rgba(25,21,18,.45); pointer-events: auto; }
 body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 44px rgba(25,21,18,.4); visibility: visible;
-  transition: transform .6s cubic-bezier(.22,1,.36,1), box-shadow .6s ease, visibility 0s; }
-#mx-drawer a, #mx-drawer [data-act] { transition: color .15s ease; }
+  transition: transform var(--t-reveal) var(--ease), box-shadow var(--t-reveal) var(--ease), visibility 0s; }
+#mx-drawer a, #mx-drawer [data-act] { transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), transform var(--t-quick) var(--ease); }
+/* opening: the entries follow the panel in, a few ms apart (chrome.openDrawer sets .is-entering for one pass) */
+@media (prefers-reduced-motion: no-preference) {
+  #mx-drawer.is-entering > * { animation: mx-drawer-in var(--t-reveal) var(--ease) both; }
+  #mx-drawer.is-entering > :nth-child(2) { animation-delay: 40ms; }
+  #mx-drawer.is-entering > :nth-child(3) { animation-delay: 70ms; }
+  #mx-drawer.is-entering > :nth-child(4) { animation-delay: 100ms; }
+  #mx-drawer.is-entering > :nth-child(5) { animation-delay: 115ms; }
+  #mx-drawer.is-entering > :nth-child(n+6) { animation-delay: 130ms; }
+}
+@keyframes mx-drawer-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+/* a menu entry leans in a few pixels under the pointer — the active one (gold rule) stays put */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  #mx-drawer a[href]:not([style*="border-left"]):hover { transform: translateX(4px); }
+}
 
 /* ---- top-bar dropdowns (SEARCH / ALERTS) — no artboard; built from tokens ---- */
 .mx-pop { position: absolute; top: 60px; right: 36px; z-index: 35; width: 380px; max-width: calc(100vw - 36px); background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: 0 10px 34px rgba(25,21,18,.15); }
 .mx-pop-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid rgba(25,21,18,.16); }
 .mx-pop-list { max-height: 60vh; overflow-y: auto; }
 .mx-pop-row { display: flex; gap: 12px; align-items: flex-start; padding: 11px 16px; border-bottom: 1px solid rgba(25,21,18,.1); color: #191512; cursor: pointer; }
-.mx-pop-row:hover { background: #f7efdf; }
+.mx-pop-row { transition: background-color var(--t-quick) var(--ease); }
+@media (hover: hover) { .mx-pop-row:hover { background: #f7efdf; } }
 .mx-pop-row:last-child { border-bottom: 0; }
 .mx-search { position: fixed; inset: 0; z-index: 50; background: rgba(25,21,18,.55); display: flex; align-items: flex-start; justify-content: center; padding: 10vh 18px 0; }
 .mx-search-panel { width: 640px; max-width: 100%; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: 0 16px 44px rgba(25,21,18,.35); }
@@ -72,11 +92,21 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-search-panel input:focus { outline: 0; }
 .mx-search-panel input::-webkit-search-cancel-button, .mx-search-panel input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
 .mx-search-group { padding: 10px 20px 4px; font: 600 9px Inter, sans-serif; letter-spacing: .16em; color: #6e5626; }
+/* SEARCH / ALERTS open with a short fade and a few pixels of travel; they fade out on close.
+   chrome.js adds .mx-pop-in for the opening pass only (--pop-t continues it across a re-render). */
+@media (prefers-reduced-motion: no-preference) {
+  .mx-pop.mx-pop-in { animation: mx-drop var(--t-reveal) var(--ease) both; animation-delay: var(--pop-t, 0ms); }
+  .mx-search.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease) both; animation-delay: var(--pop-t, 0ms); }
+  .mx-search.mx-pop-in .mx-search-panel { animation: mx-drop var(--t-reveal) var(--ease) both; animation-delay: var(--pop-t, 0ms); }
+  .mx-pop.mx-pop-out, .mx-search.mx-pop-out { animation: mx-fade-out var(--t-exit) var(--ease) both; pointer-events: none; }
+}
+@keyframes mx-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes mx-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
 /* ---- toast (Profile.dc.html bottom toast, verbatim look) ----------------- */
 .mx-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(12px); background: #191512; color: #f7f1e6; padding: 12px 20px;
   font: 600 10px Inter, sans-serif; letter-spacing: .15em; text-transform: uppercase; z-index: 70; border-left: 3px solid #c9a962; white-space: nowrap;
-  opacity: 0; transition: opacity .25s ease, transform .25s ease; max-width: calc(100vw - 36px); box-sizing: border-box; }
+  opacity: 0; transition: opacity var(--t-reveal) var(--ease), transform var(--t-reveal) var(--ease); max-width: calc(100vw - 36px); box-sizing: border-box; }
 .mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
 /* a faded toast stays in the DOM — it must never catch the taps meant for the tab bar under it */
 .mx-toast:not(.show) { pointer-events: none; }
@@ -90,6 +120,13 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-modal-body { padding: 22px; font-size: 13px; color: #4a4239; line-height: 1.6; }
 .mx-modal-body .mx-modal-title { font-family: Fraunces, serif; font-size: 22px; line-height: 1.15; color: #191512; margin-bottom: 10px; }
 .mx-modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 0 22px 22px; flex-wrap: wrap; }
+@media (prefers-reduced-motion: no-preference) {
+  .mx-modal { animation: mx-fade var(--t-reveal) var(--ease) both; }
+  .mx-modal .mx-modal-sheet { animation: mx-rise var(--t-reveal) var(--ease) both; }
+  .mx-modal.is-leaving { animation: mx-fade-out var(--t-exit) var(--ease) both; pointer-events: none; }
+}
+.mx-modal.is-leaving { pointer-events: none; }
+@keyframes mx-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* ---- "waking up" overlay (staging backend boots for up to ~2 min) --------- */
 .mx-waking { position: fixed; inset: 0; z-index: 80; background: #191512; color: #f7f1e6; display: flex; align-items: center; justify-content: center; text-align: center; padding: 32px; }
@@ -98,11 +135,11 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-waking .why { font-size: 14px; color: rgba(247,241,230,.8); margin: 14px 0 0; line-height: 1.6; }
 .mx-waking .status { font: 600 10px Inter, sans-serif; letter-spacing: .16em; color: #c9a962; margin-top: 22px; }
 .mx-waking .bar { width: 120px; height: 1px; background: rgba(247,241,230,.18); margin-top: 18px; position: relative; overflow: hidden; }
-.mx-waking .bar::after { content: ""; position: absolute; left: -40%; top: 0; width: 40%; height: 100%; background: #c9a962; animation: mx-sweep 1.6s ease-in-out infinite; }
-@keyframes mx-sweep { to { left: 100%; } }
+.mx-waking .bar::after { content: ""; position: absolute; left: 0; top: 0; width: 40%; height: 100%; background: #c9a962; transform: translateX(-100%); animation: mx-sweep 1.6s var(--ease) infinite; }
+@keyframes mx-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }   /* transform, not left — no layout per frame */
 
 /* ---- hero photo rotation (Home photo band) ------------------------------ */
-.mx-rotator img { transition: opacity 1.2s ease; }
+.mx-rotator img { transition: opacity var(--t-drift) var(--ease); }
 .mx-rotator img.out { opacity: 0; }
 
 /* ---- responsive (translated from responsive.css; hooks = class names) ----- */
@@ -189,6 +226,13 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
     display: inline-flex !important; align-items: center; min-height: 44px;
   }
   .chip { min-height: 44px; display: inline-flex; align-items: center; }
+  /* a three-step trail (PROJECTS → PLEXUS WEEK → PROGRAM & SPEAKERS) used to wrap at 390 px into two
+     44 px rows with an arrow dangling at the end of the first; it stays one row, the current step
+     yields with an ellipsis if it must */
+  .mx-crumbs { flex-wrap: nowrap !important; gap: 9px !important; min-width: 0; }
+  .mx-crumbs > * { flex: none; }
+  .mx-crumbs > span[style*="color:#191512"] { display: block !important; flex: 0 1 auto; min-width: 0; min-height: 0 !important; line-height: 43px !important; padding-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* ---- monogram portrait (ui.monogram) — a person without a photo: gold initials on the ink ground,
@@ -206,24 +250,192 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   .mx-ax-chip { white-space: normal !important; line-height: 1.5; }
 }
 
-/* ---- motion: each screen arrives with a soft fade (opacity only — never a transform, so sticky bars
-   and fixed layers inside a view stay put); nothing moves for reduced-motion users ---- */
+/* ============================================================================
+   MOTION + INTERACTION LAYER (one language for every surface — tokens.css › --ease, --t-*)
+   Rules: animate opacity / transform / colour / shadow only; hover lives under (hover: hover);
+   nothing moves for prefers-reduced-motion; no transform on an ancestor of a sticky/fixed layer
+   (#view itself only ever fades); entrances run on elements that exist at paint, from a visible
+   end state, and are done within ~500 ms.
+   ========================================================================== */
+
+/* ---- screen entrance: the router adds .mx-enter AFTER the view has drawn its content (and takes it
+   off again a second later), so the fade shows the page itself, not an empty frame while data loads ---- */
 @keyframes mx-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mx-lift-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes mx-settle { from { transform: scale(1.045); } to { transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
-  #view.mx-enter { animation: mx-fade .32s cubic-bezier(.22,1,.36,1) both; }
+  #view.mx-enter { animation: mx-fade var(--t-reveal) var(--ease) both; }
+  /* card grids cascade in — 35 ms apart, capped so the last card lands by ~500 ms */
+  #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > * { animation: mx-lift-in var(--t-reveal) var(--ease) both; }
+  #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > :nth-child(2) { animation-delay: 35ms; }
+  #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > :nth-child(3) { animation-delay: 70ms; }
+  #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > :nth-child(4) { animation-delay: 105ms; }
+  #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > :nth-child(n+5) { animation-delay: 140ms; }
+  /* hero copy rises in line by line — eyebrow, headline, lead, actions */
+  #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > * { animation: mx-lift-in var(--t-reveal) var(--ease) both; }
+  #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > :nth-child(2) { animation-delay: 40ms; }
+  #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > :nth-child(3) { animation-delay: 80ms; }
+  #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > :nth-child(4) { animation-delay: 115ms; }
+  #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > :nth-child(n+5) { animation-delay: 140ms; }
+  /* photo heroes settle into place — a slow, barely-there zoom-out */
+  #view.mx-enter .mx-hero-photo { animation: mx-settle var(--t-drift) var(--ease) both; }
+}
+/* the photo heroes sit on ink, so a photo still arriving rises out of the dark, never out of cream */
+.mx-ink { background: #191512; }
+
+/* ---- between screens (router.js › holdLeaving): the screen you are leaving stays where it is until the
+   next one has drawn — no blank frame. It is never clickable or focusable (inert). A warm server answers
+   inside ~250 ms and nothing else shows; past that (a cold server) the old screen dims and a gold hairline
+   creeps along the top of the window, then sweeps home and fades as the new screen lands (body.mx-held —
+   on the body, not in #view, so the new screen's own fade never swallows the sweep).
+   On a tab switch the breadcrumb and the tab strip stay lit, the tab you pressed takes its underline at
+   once, and only the content around them rises in (.mx-enter-tab › .mx-tab-in) while the rule slides. ---- */
+#view .mx-leaving { pointer-events: none; }
+body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 75; background: #c9a962; pointer-events: none;
+  opacity: 0; transform: scaleX(0); transform-origin: 0 50%; }
+@media (prefers-reduced-motion: no-preference) {
+  body.mx-holding #view .mx-leaving { opacity: .55; transition: opacity var(--t-reveal) var(--ease) 250ms; }
+  body.mx-holding::before { opacity: 1; transform: scaleX(.9); transition: transform 9s cubic-bezier(.08,.7,.2,1) 250ms, opacity 0s linear 250ms; }
+  body.mx-held::before { opacity: 0; transform: none; transition: transform var(--t-quick) var(--ease), opacity var(--t-reveal) var(--ease) var(--t-quick); }
+}
+.mx-tab.is-pending { color: #191512 !important; }
+.mx-tab.is-pending::after { transform: none; }
+@media (prefers-reduced-motion: no-preference) {
+  #view.mx-enter-tab .mx-tab-in { animation: mx-lift-in var(--t-reveal) var(--ease) both; }
+  #view.mx-enter-tab .mx-tab-in ~ .mx-tab-in { animation-delay: 45ms; }
 }
 
-/* home › OUR PROJECTS: the card lifts a hair and its photo drifts in on hover */
-.mx-proj-card { transition: transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s ease; }
-.mx-proj-card img { transition: transform .9s cubic-bezier(.22,1,.36,1); }
-.mx-proj-card .mx-proj-cta { transition: letter-spacing .3s ease; }
+/* ---- every artboard hover (ui.js data-hover delegate writes inline colours) eases instead of snapping ---- */
+[data-hover] { transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease), transform var(--t-quick) var(--ease); }
+
+/* ---- press: a filled or outlined BUTTON sinks one pixel while held (touch included). Button-shaped =
+   it carries its own tracked uppercase label (letter-spacing in its style); list rows and whole cards
+   with a hover background do not sink — cards have their own press below ---- */
+:is(a, span, div):is([data-hover*="background"], [data-hover*="border-color"])[style*="letter-spacing"]:not(.mx-card-link):not(.mx-proj-card):active { transform: translateY(1px); }
+a, [data-act], [data-nav], button { -webkit-tap-highlight-color: transparent; }
+
+/* ---- trailing arrows: ui.js wraps a control's closing → / ↗ in .mx-arr and marks that control
+   .mx-has-arr; hovering the control leans its arrow forward ---- */
+.mx-arr { display: inline-block; transition: transform var(--t-quick) var(--ease); }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .mx-proj-card:hover { transform: translateY(-3px); box-shadow: 0 16px 30px -20px rgba(25,21,18,.5); }
-  .mx-proj-card:hover img { transform: scale(1.045); }
-  .mx-proj-card:hover .mx-proj-cta { letter-spacing: .2em; }
+  .mx-has-arr:hover .mx-arr { transform: translateX(3px); }
+  .mx-has-arr:hover .mx-arr.ne { transform: translate(2px, -2px); }
 }
+
+/* ---- running-text links (text only — no inline style, no class, no child elements): a hairline
+   underline fades in on hover ---- */
+:is(#view, .mx-modal-body) a:not([style]):not([class]):not(:has(*)) {
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: transparent;
+  transition: color var(--t-quick) var(--ease), text-decoration-color var(--t-quick) var(--ease);
+}
+@media (hover: hover) { :is(#view, .mx-modal-body) a:not([style]):not([class]):not(:has(*)):hover { text-decoration-color: currentColor; } }
+
+/* ---- breadcrumbs: a hairline underline fades in under the hovered step ---- */
+.mx-crumbs :is(a, [data-nav]) { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; text-decoration-color: transparent;
+  transition: color var(--t-quick) var(--ease), text-decoration-color var(--t-quick) var(--ease); }
+@media (hover: hover) { .mx-crumbs :is(a, [data-nav]):hover { text-decoration-color: rgba(25,21,18,.45); } }
+
+/* ---- section tabs (.mx-tab inside [data-tabs]): the underline is a drawn rule, not a border — the active
+   one draws in from the centre on arrival (or slides over from the tab you left: router.js sets
+   --tab-dx / --tab-sx and .is-sliding); an inactive tab grows a hairline under the pointer ---- */
+/* the strip keeps its drawn height (the old active tab carried 5px of border + padding) */
+:is(.mx-plexus-tabs, .mx-tabs)[data-tabs] { min-height: 44px; box-sizing: border-box; }
+.mx-tab { position: relative; }
+.mx-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 2px; background: #9b1b22;
+  transform: scaleX(0); transform-origin: 50% 50%; transition: transform var(--t-quick) var(--ease); pointer-events: none; }
+.mx-tab.is-on::after { transform: none; }
+.mx-tab:not(.is-on)::after { height: 1px; background: currentColor; opacity: .5; }
+@media (hover: hover) { .mx-tab:not(.is-on):hover::after { transform: none; } }
+@keyframes mx-draw { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes mx-tab-slide { from { transform: translateX(var(--tab-dx, 0)) scaleX(var(--tab-sx, 1)); } to { transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  #view:is(.mx-enter, .mx-enter-tab) .mx-tab.is-on:not(.is-sliding)::after { animation: mx-draw var(--t-reveal) var(--ease) both; animation-delay: 60ms; }
+  .mx-tab.is-on.is-sliding::after { transform-origin: 0 50%; animation: mx-tab-slide var(--t-reveal) var(--ease) both; }
+}
+@media (max-width: 480px) { .mx-tab::after { bottom: 0; } }
+
+/* ---- clickable cards lift a hair; their photo drifts (the Home project cards set the pattern). One
+   transition list for everything a card may change — it replaces the [data-hover] list on the same
+   element, so the hover background and colour must be in it too, or they snap ---- */
+.mx-proj-card, .mx-card-link { transition: transform var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease),
+  background-color var(--t-quick) var(--ease), color var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); }
+.mx-ph { display: block; overflow: hidden; }
+.mx-proj-card img, .mx-ph img, .mx-ph .mx-mono { transition: transform var(--t-drift) var(--ease), opacity var(--t-reveal) var(--ease); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-proj-card:hover, .mx-card-link:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+  .mx-card-link.is-small:hover { transform: translateY(-2px); }
+  .mx-proj-card:hover img, .mx-ph:hover img, .mx-card-link:hover .mx-ph img, .mx-ph:hover .mx-mono, .mx-card-link:hover .mx-ph .mx-mono { transform: scale(1.045); }
+  /* pressed, a lifted card settles most of the way back — the same gesture on every card */
+  .mx-proj-card:active, .mx-card-link:active, .mx-card-link.is-small:active { transform: translateY(-1px); box-shadow: 0 10px 22px -18px rgba(25,21,18,.5); }
+}
+/* touch: no hover, so a card answers the press itself */
+@media (hover: none) { .mx-proj-card:active, .mx-card-link:active { opacity: .86; } }
 a.mx-proj-card:hover { color: #191512; }
 a.mx-proj-card.dark, a.mx-proj-card.dark:hover { color: #f7f1e6; }
+a.mx-card-link, a.mx-card-link:hover { color: #191512; }
+
+/* ---- sections below the first screen rise in as they scroll into view (ui.revealOnScroll — views opt in
+   with `reveal: true`). Marked by script only, so without it nothing is hidden; print shows everything ---- */
+@media (prefers-reduced-motion: no-preference) {
+  .mx-sr { opacity: 0; transform: translateY(14px); }
+  .mx-sr-in { transition: opacity var(--t-reveal) var(--ease) var(--sr-d, 0ms), transform var(--t-reveal) var(--ease) var(--sr-d, 0ms); }
+}
+@media print { .mx-sr { opacity: 1 !important; transform: none !important; } }
+
+/* ---- disclosure panels (FAQ answer, host detail): the opened panel fades down into place ---- */
+@media (prefers-reduced-motion: no-preference) { .mx-reveal { animation: mx-drop var(--t-reveal) var(--ease) both; } }
+
+/* ---- images arrive with a short fade instead of painting in rows. ui.js marks only view / sheet images
+   still loading a frame after they were drawn (never the chrome's logo, never a photo hero) and clears
+   the mark on load or error — an image is never left hidden ---- */
+img.mx-img-wait { opacity: 0; }
+img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(--t-drift) var(--ease); }   /* keeps a photo card's drift */
+
+/* ---- follow switches (.mx-switch, role=switch): the state lives in aria-checked, so the views flip it in
+   place the moment it is pressed (ui.setSwitch) and the track and knob ease across together; the
+   save runs behind it and a failed save flips it back ---- */
+.mx-switch { display: inline-block; position: relative; width: 34px; height: 18px; flex: none; cursor: pointer; background-color: rgba(247,241,230,.3);
+  transition: background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
+.mx-switch > span { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #f7f1e6; transition: transform var(--t-quick) var(--ease); }
+.mx-switch[aria-checked="true"] { background-color: #9b1b22; }
+.mx-switch[aria-checked="true"] > span { transform: translateX(16px); }
+.mx-switch[aria-busy="true"] { cursor: progress; }
+@media (hover: hover) {
+  .mx-switch[aria-checked="false"]:hover { background-color: rgba(247,241,230,.42); }
+  .mx-switch[aria-checked="true"]:hover { background-color: #7e151b; }
+}
+/* legacy: a switch re-drawn in its new state (ui.flipSwitch) slides its knob over from the old side */
+@keyframes mx-knob { from { transform: translateX(var(--knob-from, 0)); } to { transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  [role="switch"]:not(.mx-switch).mx-sw-flip > span { animation: mx-knob var(--t-quick) var(--ease) both; }
+  [role="switch"][aria-checked="true"].mx-sw-flip > span { --knob-from: -16px; }
+  [role="switch"][aria-checked="false"].mx-sw-flip > span { --knob-from: 16px; }
+}
+
+/* ---- chrome: the top bar answers the pointer ---- */
+.mx-topbar [data-act="tg"] > span:first-child > span:last-child { transform-origin: 0 50%; transition: transform var(--t-quick) var(--ease); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-topbar [data-act="tg"]:hover > span:first-child > span:last-child { transform: scaleX(1.5); }
+}
+.mx-avatar { transition: box-shadow var(--t-quick) var(--ease); }
+@media (hover: hover) { a:hover > .mx-avatar { box-shadow: 0 0 0 2px #f7f1e6, 0 0 0 3px #c9a962; } }
+/* phone bar + tab bar: touch feedback while pressed (no hover on touch) */
+#mx-mobile-top [data-act], #mx-mobile-top a { transition: opacity var(--t-quick) var(--ease); }
+#mx-mobile-top [data-act]:active, #mx-mobile-top a:active { opacity: .55; }
+#mx-tabbar a { transition: background-color var(--t-quick) var(--ease); }
+#mx-tabbar a > span { transition: transform var(--t-quick) var(--ease), color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease); }
+#mx-tabbar a:active { background-color: rgba(247,241,230,.06); }
+#mx-tabbar a:active > span:first-child { transform: rotate(45deg) scale(1.4) !important; }
+#mx-tabbar a:active > span:last-child { color: #f7f1e6 !important; }
+@media (hover: hover) { #mx-tabbar a:hover > span:last-child { color: #f7f1e6 !important; } }
+
+/* countdown digits: ui.tick() fades a changed number up into place (Web Animations; skipped for reduced motion) */
+
+/* ---- reduced motion: nothing travels, fades or zooms (1 ms keeps animationend/transitionend firing) ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; }
+}
 
 /* home › newsletter: the topic chips get their own line (they used to wrap one chip onto a second row
    between the text and the e-mail field); on phones everything stacks as before */

@@ -147,9 +147,11 @@ function toolCard(key, extraCta = '') {
   const t = COPY.tools[key];
   const cta = key === 'planner'
     ? `<span style="display:flex;flex-direction:column;gap:6px"><span style="display:flex;gap:12px;flex-wrap:wrap"><a href="${PLANNER_URL}" target="_blank" rel="noopener" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">${t.cta}</a><a href="/gala" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459" data-hover="color:#9b1b22">${t.cta2}</a></span><span style="font-size:10.5px;color:#9a9086;font-style:italic">${t.note}</span></span>`
-    : `<span data-act="tool" data-key="${key}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${t.cta}</span>`;
+    : `<span class="mx-tool-cta" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${t.cta}</span>`;
+  // the whole card opens its tool (the planner card carries two real links, so it stays a plain card)
+  const whole = key !== 'planner';
   return `
-      <div style="border:1px solid rgba(32,27,22,.14);${st.tool === key ? 'border-top:2px solid #9b1b22;' : ''}background:#fff;padding:18px;display:flex;flex-direction:column;gap:7px">
+      <div${whole ? ` data-act="tool" data-key="${key}" class="mx-lift mx-tool-card" aria-label="${esc(t.name)}"` : ''} style="border:1px solid rgba(32,27,22,.14);${st.tool === key ? 'border-top:2px solid #9b1b22;' : ''}background:#fff;padding:18px;display:flex;flex-direction:column;gap:7px${whole ? ';cursor:pointer' : ''}"${whole ? ` data-hover="${st.tool === key ? 'border-left-color:rgba(32,27,22,.35);border-right-color:rgba(32,27,22,.35);border-bottom-color:rgba(32,27,22,.35)' : 'border-color:rgba(32,27,22,.35)'}"` : ''}>
         <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:${t.tagColor}">${t.tag}</span>
         <span style="font-family:Fraunces,serif;font-size:18px">${t.name}</span>
         <span style="font-size:12px;color:#6d6459;line-height:1.55;flex:1">${t.why}</span>
@@ -159,7 +161,7 @@ function toolCard(key, extraCta = '') {
 function blockTools() {
   return `
     <!-- dc: Admin Studio.dc.html › "Tool cards" -->
-    <div data-block="tools" class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+    <div data-block="tools" class="mx-grid-3 mx-stagger" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       ${toolCard('badges')}${toolCard('certs')}${toolCard('print')}${toolCard('social')}${toolCard('signup')}${toolCard('planner')}
     </div>
     <!-- /dc -->`;
@@ -441,6 +443,7 @@ function openDrawer(tool) {
   paint('[data-block="tools"]', blockTools());
   paint('[data-block="drawer"]', blockDrawer());
   const d = rootEl.querySelector('#drawer');
+  if (d) d.classList.add('mx-rise-in');   // the tool panel settles in under the cards (css app.css)
   if (d && d.scrollIntoView) d.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   if (needLinks) loadFormLinks();
 }

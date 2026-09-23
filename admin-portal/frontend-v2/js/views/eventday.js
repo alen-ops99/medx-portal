@@ -17,6 +17,9 @@ import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
 import { perms } from '../perms.js';
 
+// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
+const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
+
 export const SOURCE = 'Admin Event Day.dc.html';
 
 export const COPY = {
@@ -472,9 +475,9 @@ function blockTitle() {
       <span class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px">${COPY.title}</span>
       <span style="font-size:12.5px;color:#6d6459">${COPY.sub}</span>
       <div style="flex:1"></div>
-      <span data-act="reh" role="switch" aria-checked="${on}" style="display:flex;align-items:center;gap:9px;padding:9px 14px;border:1px solid rgba(32,27,22,.2);cursor:pointer;background:${on ? '#f8f1e2' : '#fff'}" data-hover="border-color:#201b16">
-        <span style="width:30px;height:16px;background:${on ? '#b7791f' : 'rgba(32,27,22,.25)'};position:relative;flex:none"><span style="position:absolute;top:2px;left:${on ? '16px' : '2px'};width:12px;height:12px;background:#fff;transition:left .15s"></span></span>
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${on ? '#7a6432' : '#6d6459'}">${COPY.toggle}</span>
+      <span data-act="reh" role="switch" aria-checked="${on}" class="mx-ed-switch" style="display:flex;align-items:center;gap:9px;padding:9px 14px;border:1px solid rgba(32,27,22,.2);cursor:pointer;background:${on ? '#f8f1e2' : '#fff'}" data-hover="border-color:#201b16">
+        <span class="mx-ed-track" style="width:30px;height:16px;background:${on ? '#b7791f' : 'rgba(32,27,22,.25)'};position:relative;flex:none"><span class="mx-ed-knob" style="position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;transform:translateX(${on ? '14px' : '0'})"></span></span>
+        <span class="mx-ed-switch-l" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${on ? '#7a6432' : '#6d6459'}">${COPY.toggle}</span>
       </span>
     </div>
     <!-- /dc -->`;
@@ -533,7 +536,7 @@ function gateChips() {
         const dl = ev.date ? ' · ' + esc(fmt.dayLabel ? fmt.dayLabel(ev.date) : ev.date) : '';
         return `<span data-act="bridgesEv" data-id="${esc(ev.id)}" role="tab" aria-selected="${on}" style="padding:6px 11px;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;border:1px solid ${on ? '#7a6432' : 'rgba(32,27,22,.25)'};background:${on ? '#f8f1e2' : 'transparent'};color:${on ? '#7a6432' : '#6d6459'};white-space:nowrap">${esc(String(ev.label || '').toUpperCase())}${dl}</span>`;
       }).join('')}` : ''}
-      <span data-act="instant" role="switch" aria-checked="${!!st.instant}" title="ON: every scan admits straight at the selected door. OFF: a scan identifies the guest first — admit with a tap." style="display:flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid ${st.instant ? '#9b1b22' : 'rgba(32,27,22,.25)'};background:${st.instant ? '#9b1b22' : 'transparent'};color:${st.instant ? '#fff' : '#6d6459'};font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">⚡ ${COPY.scanner.instant}${st.instant ? ' · ON' : ''}</span>
+      <span data-act="instant" role="switch" aria-checked="${!!st.instant}" title="ON: every scan admits straight at the selected door. OFF: a scan identifies the guest first — admit with a tap." style="display:flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid ${st.instant ? '#9b1b22' : 'rgba(32,27,22,.25)'};background:${st.instant ? '#9b1b22' : 'transparent'};color:${st.instant ? '#fff' : '#6d6459'};font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">${COPY.scanner.instant}${st.instant ? ' · ON' : ''}</span>
       <div style="flex:1"></div>
       <span data-role="queueBadge" style="display:none;background:#c9a962;color:#201b16;padding:4px 9px;font:600 9px Inter,sans-serif;letter-spacing:.12em;align-items:center"></span>
       <span data-act="syncNow" style="display:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer">${COPY.scanner.sync}</span>
@@ -623,7 +626,7 @@ function blockScanner() {
       ${meetupOn() && st.meetupId ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#7a6432">${esc(String((pickedMeetup() || {}).label || '').toUpperCase())}</span><span style="font-size:11.5px;color:#6d6459;margin-top:-8px">${esc(COPY.meetup.pickHint)}</span>` : ''}
       <div data-role="camBox" class="mx-ed-cam" style="width:180px;height:180px;background:repeating-linear-gradient(45deg,#f6f2ea,#f6f2ea 8px,#efe9dc 8px,#efe9dc 16px);border:1px solid rgba(32,27,22,.15);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
         <span data-role="camHint" style="font:500 10px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#6d6459;max-width:120px">${COPY.scanner.camIdle}</span>
-        <span style="position:absolute;left:14px;right:14px;top:50%;height:2px;background:rgba(155,27,34,.55);z-index:2"></span>
+        <span class="mx-ed-laser" style="position:absolute;left:14px;right:14px;top:50%;height:2px;background:rgba(155,27,34,.55);z-index:2"></span>
       </div>
       <span style="font-size:12px;color:#6d6459;line-height:1.55;max-width:260px">${COPY.scanner.hint}</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
@@ -705,7 +708,7 @@ function staffCardBody() {
   return `
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <span data-role="doorUrl" style="font:600 12px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.15);padding:9px 12px;min-width:0;flex:1 1 auto;overflow-wrap:anywhere;box-sizing:border-box">${esc(t.url)}</span>
-        <span data-act="copyDoor" data-url="${esc(t.url)}" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copiedDoor ? COPY.staff.copied : COPY.staff.copy}</span>
+        <span data-act="copyDoor" data-url="${esc(t.url)}"${st.copiedDoor ? ' class="mxpj-ok"' : ''} style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copiedDoor ? COPY.staff.copied : COPY.staff.copy}</span>
         <span data-act="qrDoor" data-id="${esc(t.id)}" style="padding:9px 14px;border:1px solid rgba(32,27,22,.2);color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${st.qrUrl ? COPY.staff.hideQr : COPY.staff.qr}</span>
         <span data-act="revokeDoor" data-id="${esc(t.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${COPY.staff.revoke}</span>
         <span style="font-size:11.5px;color:#6d6459">${esc(COPY.staff.expires(t.expires_at ? fmt.dayLabel(t.expires_at) + ' ' + String(t.expires_at).slice(11, 16) : 'when the event ends'))}</span>
@@ -731,8 +734,8 @@ function blockMap() {
       <!-- the striped "staff dots" map it replaces was never built — link the real floor plan + seating instead -->
       <span style="font-size:11.5px;color:#6d6459">${COPY.map.sub}</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="https://plexus-tables.netlify.app/planner.html" target="_blank" rel="noopener" style="padding:9px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#000;color:#fff">${COPY.map.planner}</a>
-        <a href="/gala#mx-gala-board" style="padding:8px 12px;border:1px solid rgba(32,27,22,.25);color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${COPY.map.seating}</a>
+        <a href="https://plexus-tables.netlify.app/planner.html" target="_blank" rel="noopener" style="padding:9px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#000;color:#fff">${arr(COPY.map.planner)}</a>
+        <a href="/gala#mx-gala-board" style="padding:8px 12px;border:1px solid rgba(32,27,22,.25);color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${arr(COPY.map.seating)}</a>
       </div>
       <div data-v2="ops notes — shared, saved server-side" style="display:flex;flex-direction:column;gap:6px">
         <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${COPY.map.notes}</span>
@@ -748,7 +751,7 @@ function blockQa() {
     <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:10px">
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.qa.title}</span>
       <span style="font-size:12.5px;color:#6d6459;line-height:1.6">${COPY.qa.why}</span>
-      <a href="/projects/plexus" style="padding:10px 16px;border:1px solid rgba(32,27,22,.2);color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;align-self:flex-start" data-hover="border-color:#201b16;color:#201b16">${COPY.qa.open}</a>
+      <a href="/projects/plexus" style="padding:10px 16px;border:1px solid rgba(32,27,22,.2);color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;align-self:flex-start" data-hover="border-color:#201b16;color:#201b16">${arr(COPY.qa.open)}</a>
     </div>
     <!-- /dc -->`;
 }
@@ -915,7 +918,7 @@ function phoneSettings() {
   return `
     <div data-block="settings" class="mx-ed-settings">
       <span data-act="reh" role="switch" aria-checked="${!!st.rehearsal}" class="mx-ed-set reh"><span class="sw"></span>${COPY.toggle}</span>
-      <span data-act="instant" role="switch" aria-checked="${!!st.instant}" class="mx-ed-set inst"><span class="sw"></span>⚡ ${COPY.scanner.instant}</span>
+      <span data-act="instant" role="switch" aria-checked="${!!st.instant}" class="mx-ed-set inst"><span class="sw"></span>${COPY.scanner.instant}</span>
       <span data-role="queueBadge" style="display:none;background:#c9a962;color:#201b16;padding:0 12px;min-height:44px;font:600 10px Inter,sans-serif;letter-spacing:.12em;align-items:center"></span>
       <span data-act="syncNow" class="mx-ed-set link" style="display:none">${COPY.scanner.sync}</span>
       ${st.gate === MEETUP_GATE ? '' : `<span data-act="briefToggle" class="mx-ed-set">${st.showBrief ? COPY.phone.hideBrief : COPY.phone.brief}</span>`}
@@ -1136,7 +1139,7 @@ function sheetHtml() {
 function phoneTemplate() {
   const live = isLive();
   return `
-<div data-screen-label="Admin Event Day" class="mx-ed-phone" data-v2="door mode — phone-first layout (2026-09-21)">
+<div data-screen-label="Admin Event Day" class="mxpj mx-ed-phone" data-v2="door mode — phone-first layout (2026-09-21)">
   ${!live ? `<div class="mx-ed-title" style="padding-top:8px">${COPY.title}</div>${blockQuiet()}` : `
   ${phoneHeader()}
   ${phoneSettings()}
@@ -1154,8 +1157,8 @@ function template() {
   if (isPhone()) return phoneTemplate();
   const live = isLive();
   return `
-<div data-screen-label="Admin Event Day" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:22px">
+<div class="mxpj" data-screen-label="Admin Event Day" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:22px">
     ${blockTitle()}
     ${!live ? blockQuiet() : `
     ${blockBanner()}
@@ -1227,6 +1230,30 @@ function setTab(key) {
   if (st.tab === 'list') { const q = rootEl.querySelector('[data-role="doorQ"]'); if (q && !st.door.length) refreshDoor(); }
 }
 
+// A switch flips in place and gets 200 ms to slide (css: .mx-ed-switch · .mx-ed-set) before the redraw
+// replaces it — the redraw is what used to make the knob jump. Resolves true when it waited; no wait for
+// reduced motion or when no switch for `act` is on screen.
+function slideFirst(act, on) {
+  const els = rootEl ? rootEl.querySelectorAll(`[data-act="${act}"][role="switch"]`) : [];
+  if (!els.length || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return Promise.resolve(false);
+  els.forEach(el => el.setAttribute('aria-checked', String(!!on)));
+  return new Promise(r => setTimeout(() => r(true), 200));
+}
+
+// The desktop switch survives the redraw it triggers: the new copy is swapped back for the element the
+// pointer (or the keyboard focus) is on, so its hover look and focus carry over instead of flickering off
+// and on. Its colours follow aria-checked in css (.mx-ed-switch), so the kept element is never stale.
+function keepSwitch(act, redraw) {
+  const old = rootEl && rootEl.querySelector(`.mx-ed-switch[data-act="${act}"]`);
+  const hadFocus = !!old && document.activeElement === old;
+  redraw();
+  const fresh = rootEl && rootEl.querySelector(`.mx-ed-switch[data-act="${act}"]`);
+  if (!old || !fresh || old === fresh) return;
+  old.setAttribute('aria-checked', fresh.getAttribute('aria-checked'));
+  fresh.replaceWith(old);
+  if (hadFocus) old.focus({ preventScroll: true });
+}
+
 const handlers = {
   // ---- door mode (phone) ----
   noop: () => {},
@@ -1257,7 +1284,8 @@ const handlers = {
     st.rehearsal = !st.rehearsal;
     try { localStorage.setItem(REH_KEY, st.rehearsal ? '1' : ''); } catch (e) {}
     st.last = null;
-    rerenderAll();
+    if (await slideFirst('reh', st.rehearsal) && (!rootEl || !st)) return;
+    keepSwitch('reh', rerenderAll);
     refreshDoor();
     if (isLive() && !st.brief) refreshBrief();   // v2: first flip into rehearsal wakes the brief too
     if (!st.rehearsal) refreshCounts();
@@ -1303,9 +1331,10 @@ const handlers = {
     else identify(v, { method: 'manual' });
     if (i) i.value = '';
   },
-  instant: () => {
+  instant: async () => {
     st.instant = !st.instant;
     try { localStorage.setItem('medx_v2_instant', st.instant ? '1' : ''); } catch (e) {}
+    if (isPhone() && await slideFirst('instant', st.instant) && (!rootEl || !st)) return;
     if (isPhone()) { paint('[data-block="settings"]', phoneSettings()); paintQueue(); }
     else paint('[data-block="gateChips"]', gateChips());
     const btn = rootEl.querySelector('[data-act="scanSubmit"]');

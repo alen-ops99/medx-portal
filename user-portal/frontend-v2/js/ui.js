@@ -10,6 +10,9 @@
 //   ui.downloadIcs('medx-key-dates.ics', [{ uid:'plexus2026', start:'20261204', end:'20261206', summary:'Plexus 2026', location:'Novinarski dom, Zagreb' }]);
 //   ui.bind(root, { tg: () => …, cl: (el, ev) => … });   // <span data-act="tg">
 //   fmt.eur(150) → '€150' · fmt.shortDate('2026-07-02') → 'JUL 2' · fmt.todayLabel() → 'FRIDAY, 28 AUGUST 2026 · ZAGREB'
+//   ui.tick(el, '05');                                   // countdown digit: set it, and fade it up only if it changed
+//   ui.toggleSwitch(el, async on => api.post(…), on => label.textContent = …);  // a .mx-switch flips at once, reverts if the save fails
+//   ui.revealOnScroll(root);                              // sections below the fold rise in on scroll (router, views with reveal: true)
 
 export function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -123,7 +126,14 @@ function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOn
       <div class="mx-modal-body">${title ? `<div class="mx-modal-title">${title}</div>` : ''}${body}</div>
       ${actions.length ? `<div class="mx-modal-foot">${actions.map((a, i) => `<span data-act="a${i}" role="button" tabindex="0" class="${a.kind === 'primary' ? 'btn-primary' : a.kind === 'gold' ? 'btn-gold' : 'btn-ghost'}">${esc(a.label)}</span>`).join('')}</div>` : ''}
     </div>`;
-  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
+  // the sheet fades out (160 ms, css .mx-modal.is-leaving) — callers already resolved; nothing waits on it
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    if (!wrap.isConnected || wrap.classList.contains('is-leaving')) return;
+    if (reducedMotion()) { wrap.remove(); return; }
+    wrap.classList.add('is-leaving');
+    setTimeout(() => wrap.remove(), 170);
+  };
   const onKey = e => { if (e.key === 'Escape') { close(); if (typeof opts_onclose === 'function') opts_onclose(); } };
   let opts_onclose = null;
   const handlers = { close: () => { close(); if (opts_onclose) opts_onclose(); } };
@@ -157,6 +167,78 @@ function countdown(target, cb, everyMs = 1000) {
   tick();
   const id = setInterval(tick, everyMs);
   return () => clearInterval(id);
+}
+
+// ---------------------------------------------------------------- motion helpers
+// One motion language (css/tokens.css › --ease, --t-*). Every helper is a no-op for reduced motion.
+const EASE = 'cubic-bezier(.22,1,.36,1)';
+function reducedMotion() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+}
+// A countdown digit: write the value, and when it actually changed let the new number fade up into place.
+function tick(el, value) {
+  if (!el) return;
+  const v = String(value);
+  if (el.textContent === v) return;
+  el.textContent = v;
+  if (reducedMotion() || typeof el.animate !== 'function') return;
+  try { el.animate([{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }], { duration: 340, easing: EASE }); } catch (e) {}   // --t-reveal
+}
+// A follow switch (.mx-switch, role=switch — css app.css): its state IS aria-checked, so it flips in
+// place the moment it is pressed and the track and knob ease across together; `save(on)` runs behind it
+// and a failed save flips it back with the error as a toast. `paint(on)` updates whatever else shows the
+// state (the ON / OFF label). A second press while a save is running is ignored. Resolves to the new
+// state, or null when nothing changed.
+async function toggleSwitch(el, save, paint) {
+  if (!el || el.getAttribute('aria-busy') === 'true') return null;
+  const on = el.getAttribute('aria-checked') !== 'true';
+  const set = v => { el.setAttribute('aria-checked', String(v)); if (paint) { try { paint(v); } catch (e) {} } };
+  set(on); el.setAttribute('aria-busy', 'true');
+  try { await save(on); return on; }
+  catch (e) { set(!on); toast(e && e.message, { kind: 'error' }); return null; }
+  finally { el.removeAttribute('aria-busy'); }
+}
+// Sections below the first screen rise in as they scroll into view (css app.css › .mx-sr). The router
+// calls this after a view that opts in (`reveal: true` on the view module) has drawn and scrolled. Only
+// blocks that START below the visible window at that moment are marked, so nothing already on screen
+// ever disappears; the mark is added by script, so without it nothing is hidden; print shows it all.
+// Blocks = the children of the screen wrapper ([data-screen-label]) and of its gutter containers.
+let revealObs = null;
+function revealOnScroll(root) {
+  if (revealObs) { revealObs.disconnect(); revealObs = null; }
+  if (!root || reducedMotion() || typeof IntersectionObserver !== 'function') return;
+  const screen = root.querySelector('[data-screen-label]');
+  if (!screen) return;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+  const blocks = [];
+  for (const el of screen.children) {
+    if (el.classList.contains('mx-gutter') && el.childElementCount > 1 && !el.matches('.mx-crumbs, [data-tabs]')) blocks.push(...el.children);
+    else blocks.push(el);
+  }
+  const hide = blocks.filter(el => {
+    if (el.matches('style, script, link, template, .mx-crumbs, [data-tabs], [data-role="bio-scrim"]') || (!el.firstElementChild && !el.textContent.trim())) return false;
+    const r = el.getBoundingClientRect();
+    return r.height > 0 && r.top > vh - 24;
+  });
+  if (!hide.length) return;
+  hide.forEach(el => el.classList.add('mx-sr'));
+  const obs = revealObs = new IntersectionObserver(entries => {
+    let i = 0;
+    for (const en of entries) {
+      if (!en.isIntersecting) continue;
+      const el = en.target; obs.unobserve(el);
+      el.style.setProperty('--sr-d', Math.min(i++, 3) * 60 + 'ms');   // blocks arriving together follow each other in
+      el.classList.add('mx-sr-in'); el.classList.remove('mx-sr');
+      setTimeout(() => { el.classList.remove('mx-sr-in'); el.style.removeProperty('--sr-d'); }, 700);
+    }
+  }, { threshold: 0 });   // the first visible pixel: a block at the very foot of the page must still arrive
+  hide.forEach(el => obs.observe(el));
+}
+// Legacy: a switch that was re-drawn in its new state slides its knob over from the old side
+// (css app.css › [role=switch].mx-sw-flip). Kept for any caller outside the member-core views.
+function flipSwitch(el) {
+  if (!el || reducedMotion()) return;
+  el.classList.remove('mx-sw-flip'); void el.offsetWidth; el.classList.add('mx-sw-flip');
 }
 
 // ---------------------------------------------------------------- .ics
@@ -215,7 +297,11 @@ function bind(root, handlers) {
 function installDelegates() {
   if (installDelegates.done) return; installDelegates.done = true;
   const saved = new WeakMap();
+  // Hover styles only for a real pointer: on touch, a tap fires mouseover and the hover colour used to
+  // stay stuck on the tapped control until the next tap somewhere else.
+  const canHover = (() => { try { return window.matchMedia('(hover: hover)'); } catch (e) { return { matches: true }; } })();
   document.addEventListener('mouseover', e => {
+    if (!canHover.matches) return;
     const el = e.target.closest && e.target.closest('[data-hover]');
     if (!el || saved.has(el)) return;
     const decls = el.getAttribute('data-hover').split(';').map(s => s.trim()).filter(Boolean).map(s => { const i = s.indexOf(':'); return [s.slice(0, i).trim(), s.slice(i + 1).trim()]; });
@@ -232,14 +318,66 @@ function installDelegates() {
     if (el.matches('a, button, input, textarea, select')) return;
     e.preventDefault(); el.click();
   });
-  // make every actionable span reachable by keyboard without touching the copied markup
-  const observer = new MutationObserver(() => {
+  // iOS only applies :active (the press feedback in app.css) when a touchstart listener exists
+  document.addEventListener('touchstart', () => {}, { passive: true });
+  // make every actionable span reachable by keyboard without touching the copied markup; and, on
+  // whatever was just added, dress the trailing arrows and let still-loading images fade in
+  const observer = new MutationObserver(records => {
     document.querySelectorAll('[data-act]:not([tabindex]):not(a):not(button):not(input), [data-nav]:not([tabindex]):not(a):not(button)').forEach(el => { el.setAttribute('tabindex', '0'); if (!el.getAttribute('role')) el.setAttribute('role', 'button'); });
+    for (const r of records) for (const n of r.addedNodes) {
+      if (n.nodeType === 3) { if (n.parentNode) dressArrows(n.parentNode); }
+      else if (n.nodeType === 1) { dressArrows(n); fadeImages(n); }
+    }
   });
   observer.observe(document.body, { childList: true, subtree: true });
+  dressArrows(document.body); fadeImages(document.body);
+}
+// A control whose label ends in → (or ↗) gets that arrow in its own span, so css can lean it forward
+// on hover (app.css › .mx-arr). The label text keeps its own node; screen readers skip the glyph.
+const ARROWS = /\s*([→↗])\s*$/;
+const CONTROL = 'a[href], [data-act], [data-nav], button';
+function dressArrows(root) {
+  if (!root || typeof document.createTreeWalker !== 'function') return;
+  const hits = [];
+  const walk = document.createTreeWalker(root, 4 /* NodeFilter.SHOW_TEXT */);
+  if (root.nodeType === 3) hits.push(root);
+  for (let t = walk.nextNode(); t; t = walk.nextNode()) if (t.nodeValue.indexOf('→') >= 0 || t.nodeValue.indexOf('↗') >= 0) hits.push(t);
+  for (const t of hits) {
+    const m = ARROWS.exec(t.nodeValue); const p = t.parentElement;
+    if (!m || !p || p.classList.contains('mx-arr') || p.closest('input, textarea, select, script, style, [contenteditable], .mx-arr')) continue;
+    const ctl = p.closest(CONTROL);
+    if (!ctl || !ctl.textContent.replace(/[→↗\s]/g, '')) continue;     // an arrow-only control keeps its glyph as its name
+    const at = m.index + m[0].indexOf(m[1]);
+    const wrap = document.createElement('span');
+    const arr = document.createElement('span');
+    arr.className = 'mx-arr' + (m[1] === '↗' ? ' ne' : ''); arr.setAttribute('aria-hidden', 'true'); arr.textContent = m[1];
+    wrap.append(t.nodeValue.slice(0, at), arr, t.nodeValue.slice(at + 1));
+    t.replaceWith(wrap);
+    ctl.classList.add('mx-has-arr');      // the NEAREST control owns the lean (a whole-overlay [data-act] never does)
+  }
+}
+// Photos that are genuinely still loading fade in instead of painting in rows. Only inside the view and
+// its sheets: the chrome (logo, drawer) is re-drawn on every route and its cached images must never blink,
+// and a photo hero already has its own settle (and sits on ink). An image is judged a frame after it was
+// drawn — a cached one has decoded by then and simply appears; only a real network wait is hidden.
+const FADE_SCOPE = '#view, .mx-modal';
+const FADE_SKIP = '.mx-rotator, .mx-hero-photo, .mx-brand, #mx-drawer, #mx-mobile-top, #mx-desktop-chrome';
+function fadeImages(root) {
+  if (!root || !root.nodeType || root.nodeType !== 1) return;
+  const list = root.tagName === 'IMG' ? [root] : [...root.querySelectorAll('img')];
+  const wait = list.filter(img => !img.complete && !img.classList.contains('mx-img-in') && img.closest(FADE_SCOPE) && !img.closest(FADE_SKIP));
+  if (!wait.length) return;
+  requestAnimationFrame(() => {
+    for (const img of wait) {
+      if (img.complete || !img.isConnected || img.classList.contains('mx-img-in')) continue;
+      img.classList.add('mx-img-in', 'mx-img-wait');
+      const done = () => img.classList.remove('mx-img-wait');
+      img.addEventListener('load', done, { once: true }); img.addEventListener('error', done, { once: true });
+    }
+  });
 }
 
-export const ui = { toast, modal, confirm, countdown, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials,
+export const ui = { toast, modal, confirm, countdown, tick, toggleSwitch, flipSwitch, revealOnScroll, reducedMotion, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials,
   lockScroll(on) { document.body.style.overflow = on ? 'hidden' : ''; },
   // quick DOM helper
   h(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }

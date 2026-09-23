@@ -9,8 +9,7 @@
 .mx-profile-photo { transition: opacity .25s ease; }
 .mx-profile-photo.busy { opacity: .45; }
 
-/* completion bar movement (artboard bar is a plain width) */
-.mx-profile-bar { transition: width .45s ease; }
+/* completion bar: a full-width gold bar scaled to the percentage (transform, not width) — see MOTION below */
 
 /* chips + switches: same focus ring the rest of the portal uses (app.css) */
 [data-act="tgSpec"][aria-pressed="true"]:hover { background: #7e151b !important; border-color: #7e151b !important; }
@@ -25,4 +24,80 @@
   .mx-cardrow { padding-left: 16px !important; padding-right: 16px !important; }
   .mx-profile-row { flex-wrap: wrap; }
   .mx-profile-photo-row { flex-wrap: wrap; }
+}
+
+/* ============================================================================
+   MOTION + HOVER (polish pass 2026-09-22). The shared layer in app.css carries
+   the screen fade, the data-hover glide, the press, the arrow lean and the
+   focus ring. This file adds Profile's own: the sections settling in, the
+   switches gliding, the completion meter filling / ticking / counting, the
+   chip settle and field focus. Same language: ease cubic-bezier(.22,1,.36,1)
+   · 150–220 ms hover / press / colour · 280–450 ms entrances · transform /
+   opacity / colour / shadow only · hover only on hover-capable pointers ·
+   nothing moves under reduced motion.
+   ========================================================================== */
+
+@keyframes mx-profile-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes mx-profile-fade { from { opacity: 0; } }
+@keyframes mx-profile-fill { from { transform: scaleX(0); } }
+@keyframes mx-profile-pop  { from { transform: scale(.94); } }
+@keyframes mx-profile-tick { from { transform: scale(.3); } }
+
+/* fields: the house focus (app.css › a 1px crimson frame over the hairline border), faded in — keyboard
+   and pointer alike; an ink hairline on hover */
+.mx-profile-screen :is(input, select, textarea) { outline: 1px solid transparent; outline-offset: -1px; }
+.mx-profile-screen :is(input, select, textarea):focus { outline-color: #9b1b22; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .mx-profile-screen [data-act] {
+    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
+                border-color .18s cubic-bezier(.22,1,.36,1), opacity .18s cubic-bezier(.22,1,.36,1),
+                transform .15s cubic-bezier(.22,1,.36,1);
+  }
+  .mx-profile-screen :is(input, select, textarea) {
+    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
+                border-color .18s cubic-bezier(.22,1,.36,1), outline-color .18s cubic-bezier(.22,1,.36,1);
+  }
+  .mx-profile-screen .mx-profile-btn, .mx-profile-screen [data-act="tgSpec"] {
+    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
+                border-color .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+  }
+  .mx-profile-btn:active:not([aria-disabled="true"]), [data-act="tgSpec"]:active { transform: translateY(1px); }
+
+  /* switches: the knob glides, the track warms to crimson */
+  .mx-profile-screen .mx-profile-switch { transition: background-color .22s cubic-bezier(.22,1,.36,1); }
+  .mx-profile-switch > span { transition: transform .22s cubic-bezier(.22,1,.36,1); }
+
+  /* first paint: the title, then the three sections and the sidebar settle in (inside half a second) */
+  .mx-profile-head { animation: mx-profile-fade .3s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-profile-sec { animation: mx-profile-rise .36s cubic-bezier(.22,1,.36,1) .04s backwards; }
+  .mx-profile-grid > div:first-child > .mx-profile-sec:nth-child(2) { animation-delay: .08s; }
+  .mx-profile-grid > div:first-child > .mx-profile-sec:nth-child(3) { animation-delay: .12s; }
+  .mx-profile-grid > div:last-child > .mx-profile-sec:nth-child(1) { animation-delay: .06s; }
+  .mx-profile-grid > div:last-child > .mx-profile-sec:nth-child(2) { animation-delay: .1s; }
+  .mx-profile-grid > div:last-child > .mx-profile-sec:nth-child(3) { animation-delay: .14s; }
+  /* the sections carry this screen's entrance — the shared grid cascade (app.css) would stack a second
+     one on the IDENTITY field grid inside its rising section */
+  #view.mx-enter .mx-profile-screen .mx-grid-2 > * { animation: none; }
+
+  /* completion meter: fills from zero on arrival, then glides between values while you edit */
+  .mx-profile-bar { transition: transform .45s cubic-bezier(.22,1,.36,1); }
+  .mx-profile-bar-in { animation: mx-profile-fill .45s cubic-bezier(.22,1,.36,1) .12s backwards; }
+  .mx-profile-tick { transition: background-color .22s cubic-bezier(.22,1,.36,1), border-color .22s cubic-bezier(.22,1,.36,1); }
+  .mx-profile-tick-in { animation: mx-profile-tick .32s cubic-bezier(.22,1,.36,1); }
+
+  .mx-profile-pop { animation: mx-profile-pop .22s cubic-bezier(.22,1,.36,1); }
+  img.mx-profile-photo { animation: mx-profile-fade .35s cubic-bezier(.22,1,.36,1) backwards; }
+}
+
+@media (hover: hover) {
+  .mx-profile-screen input:hover:not(:focus), .mx-profile-screen select:hover:not(:focus),
+  .mx-profile-screen textarea:hover:not(:focus) { border-color: rgba(25, 21, 18, .45) !important; }
+  [data-act="tgSpec"][aria-pressed="false"]:hover { border-color: #191512 !important; }
+  .mx-profile-link:hover, .mx-profile-add:hover { color: #191512 !important; }
+  .mx-profile-add:hover { border-color: #191512 !important; border-style: solid !important; }
+  .mx-profile-x:hover { color: #191512 !important; }
+  /* a switch under the pointer firms its track — off: the grey deepens; on: the crimson darkens like every crimson control */
+  .mx-profile-switch[aria-checked="false"]:hover { background: rgba(25, 21, 18, .38) !important; }
+  .mx-profile-switch[aria-checked="true"]:hover { background: #7e151b !important; }
 }

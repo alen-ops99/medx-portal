@@ -139,7 +139,7 @@ function blockStats() {
   const s = (D && D.stats) || {};
   const cap = s.conference_cap || FACTS.plexus.cap;
   const cell = (act, label, num, sub, subColor, last, note) => `
-      <span data-act="${act}" role="button" style="padding:14px 18px;${last ? '' : 'border-right:1px solid rgba(32,27,22,.1);'}cursor:pointer;display:block" data-hover="background:#fdfbf6"><span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${label}</span><span style="display:block;font-family:Fraunces,serif;font-size:26px;margin-top:2px">${num} ${sub ? `<span style="font-size:13px;color:${subColor}">${sub}</span>` : ''}</span>${note ? `<span data-v2="gala-open-split" style="display:block;font-size:10px;color:#6d6459;margin-top:2px">${note}</span>` : ''}</span>`;
+      <span data-act="${act}" role="button" style="padding:14px 18px;${last ? '' : 'border-right:1px solid rgba(32,27,22,.1);'}cursor:pointer;display:block" data-hover="background:#faf6ee"><span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${label}</span><span style="display:block;font-family:Fraunces,serif;font-size:26px;margin-top:2px">${num} ${sub ? `<span style="font-size:13px;color:${subColor}">${sub}</span>` : ''}</span>${note ? `<span data-v2="gala-open-split" style="display:block;font-size:10px;color:#6d6459;margin-top:2px">${note}</span>` : ''}</span>`;
   const galaSplit = esc(COPY.stats.split(s.gala_buckets));
   // audit #11: the ALL stat counts LIVE rows; the cancelled remainder is named right on the stat,
   // so it can no longer silently disagree with the export button (which lists cancelled too).
@@ -159,7 +159,7 @@ function blockFilters() {
   return `
   <!-- dc: Admin Registrations.dc.html › "Filter row" -->
   <div data-block="filters" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 13px;flex:1;min-width:220px"><span style="color:#6d6459">⌕</span><input data-role="regq" value="${esc(st.q)}" placeholder="${esc(COPY.searchPh)}" aria-label="Search registrations" style="border:none;background:transparent;font:400 13px Inter,sans-serif;color:#201b16;flex:1;outline:none;padding:0"></span>
+    <span class="mx-field" style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 13px;flex:1;min-width:220px"><span style="color:#6d6459">⌕</span><input data-role="regq" value="${esc(st.q)}" placeholder="${esc(COPY.searchPh)}" aria-label="Search registrations" style="border:none;background:transparent;font:400 13px Inter,sans-serif;color:#201b16;flex:1;outline:none;padding:0"></span>
     <select data-role="ev" aria-label="Event filter" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 11px;font:600 11px Inter,sans-serif;color:#201b16">${COPY.events.map(([k, label]) => `<option value="${k}"${st.event === k ? ' selected' : ''}>${label}</option>`).join('')}</select>
     ${COPY.chips.map(c => `<span data-act="chip" data-chip="${c}" style="padding:9px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;${chip(st.status === c)};white-space:nowrap">${c}</span>`).join('')}
     ${st.link ? `<span data-v2="link-filter" style="display:flex;align-items:center;gap:8px;padding:9px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;background:#f8f1e2;color:#7a6432;white-space:nowrap">${esc(COPY.linkFilter(st.linkLabel || st.link.slice(0, 10)))}<span data-act="clearLink" style="cursor:pointer;color:#9b1b22">${COPY.clearLink}</span></span>` : ''}
@@ -171,7 +171,7 @@ function rowHtml(r, selected) {
   const lt = r.link ? (LINK_TAG[r.link.kind] || LINK_TAG.LINK) : null;
   // audit #11: one line per row — name with the email inline and dimmed (~40px, was two lines)
   return `
-      <div data-act="open" data-key="${esc(r.key)}" role="button" aria-label="Open ${esc(r.name)}" class="mx-regrow" style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:8px 16px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center;cursor:pointer;background:${selected ? '#f6f2ea' : '#fff'}">
+      <div data-act="open" data-key="${esc(r.key)}" role="button" aria-label="Open ${esc(r.name)}" class="mx-regrow${selected ? ' on' : ''}" style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:8px 16px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center;cursor:pointer;background:${selected ? '#f6f2ea' : '#fff'}">
         <span data-act="tick" data-key="${esc(r.key)}" role="checkbox" aria-checked="${st.ticked.has(r.key)}" aria-label="Select ${esc(r.name)}" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:${st.ticked.has(r.key) ? '#9b1b22' : 'transparent'};flex:none"></span>
         <span style="min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:600;${r.status === 'CANCELLED' ? 'color:#9a9086;text-decoration:line-through' : ''}">${esc(r.name)}</span>${r.email ? ` <span style="font-size:10.5px;color:#6d6459">· ${esc(r.email)}</span>` : ''}</span>
         <span class="mx-reg-event" style="min-width:0;display:flex;align-items:center;gap:6px"><span style="font-size:11.5px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.event)}</span>${lt ? `<span data-act="linkTag" data-link="${esc(r.link.ref)}" data-label="${esc(r.link.label)}" title="Source link — click to see every sign-up from it" style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:${lt[0]};color:${lt[1]};white-space:nowrap;cursor:pointer;flex:none">${esc(r.link.kind === 'LINK' ? 'LINK' : r.link.kind)}</span>` : ''}</span>
@@ -375,6 +375,16 @@ function template() {
 }
 
 // ---------------------------------------------------------------- behaviour
+// a newly opened file settles into the side panel (css [data-block="panel"].mx-panel-in). The class
+// comes off again once the entrance has run (~420 ms): the TIMELINE block is redrawn in place inside the
+// panel (a note added, the history refreshed) and would otherwise rise in all over again
+let panelInTimer = null;
+function panelIn() {
+  const p = rootEl && rootEl.querySelector('[data-block="panel"]'); if (!p) return;
+  p.classList.add('mx-panel-in');
+  clearTimeout(panelInTimer);
+  panelInTimer = setTimeout(() => p.classList.remove('mx-panel-in'), 460);
+}
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
 function redrawData() {
   rerender('[data-block="stats"]', blockStats());
@@ -444,7 +454,7 @@ function composeModal(recipients) {
 }
 
 const handlers = {
-  open: (el, ev) => { if (ev.target.closest('[data-act]') !== el) return; st.sel = el.dataset.key; st.cancelConfirm = null; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); ensureTimeline(); },
+  open: (el, ev) => { if (ev.target.closest('[data-act]') !== el) return; const was = st.sel; st.sel = el.dataset.key; st.cancelConfirm = null; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); if (was !== st.sel) panelIn(); ensureTimeline(); },
   tick: (el) => { const k = el.dataset.key; st.ticked.has(k) ? st.ticked.delete(k) : st.ticked.add(k); rerender('[data-block="table"]', blockTable()); syncButtons(); },
   selAll: () => { const list = rows(); const all = list.length && list.every(r => st.ticked.has(r.key)); list.forEach(r => all ? st.ticked.delete(r.key) : st.ticked.add(r.key)); rerender('[data-block="table"]', blockTable()); syncButtons(); },
   chip: (el) => setFilter({ status: el.dataset.chip }),

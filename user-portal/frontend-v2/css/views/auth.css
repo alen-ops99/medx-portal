@@ -1,0 +1,55 @@
+/* ============================================================================
+   Med&X member portal v2 — AUTH (js/views/auth.js · Source: Auth.dc.html)
+   Welcome · Sign in · Create account · Confirm email · Reset · Invitation code.
+   Injected by the view and never waited for: the screen paints at once, so
+   nothing here may matter at first paint. The look stays in the artboard's
+   inline styles; this file adds only hover, focus, press and the busy sweep
+   on `mx-auth-*` hooks. The entrance (lines rising in, the photo settling) is
+   driven by auth.js › enter(), so it plays on the first paint of these entry
+   pages. The shared layer in app.css carries the screen fade, the data-hover
+   glide, the press on data-hover controls, the arrow lean and the focus ring.
+
+   The portal's one motion language (polish pass 2026-09-22): ease
+   cubic-bezier(.22,1,.36,1) · 150–220 ms for hover / press / colour ·
+   280–450 ms for entrances · only opacity, transform, colour · hover only on
+   hover-capable pointers · nothing moves under prefers-reduced-motion.
+   ========================================================================== */
+
+@keyframes mx-auth-fade { from { opacity: 0; } }
+@keyframes mx-auth-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@keyframes mx-auth-tick { from { transform: scale(.6); } }
+
+/* fields: the house focus (app.css › a 1px crimson frame drawn over the hairline border) — here it fades
+   in instead of snapping, keyboard and pointer alike */
+.mx-auth-screen input { outline: 1px solid transparent; outline-offset: -1px; }
+.mx-auth-screen input:focus { outline-color: #9b1b22; }
+
+/* busy buttons (SIGNING IN… / CREATING… / SENDING…): a gold sweep along the foot — the waking overlay's vocabulary */
+.mx-auth-btn { position: relative; overflow: hidden; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .mx-auth-screen input, .mx-auth-box {
+    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
+                border-color .18s cubic-bezier(.22,1,.36,1), outline-color .18s cubic-bezier(.22,1,.36,1);
+  }
+  .mx-auth-screen .mx-auth-btn {
+    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
+                border-color .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+  }
+  /* the submit <button>s sink a pixel while held (the shared press covers the data-hover links and spans) */
+  .mx-auth-btn:active:not([aria-disabled="true"]) { transform: translateY(1px); }
+  .mx-auth-btn[aria-disabled="true"]::after {
+    content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 2px; background: #c9a962;
+    animation: mx-auth-sweep 1.1s cubic-bezier(.45,0,.55,1) infinite;
+  }
+  /* ticking the terms box: the square settles as it fills (the row's aria-checked flips in place) */
+  [data-act="tgTerms"][aria-checked="true"] > .mx-auth-box { animation: mx-auth-tick .22s cubic-bezier(.22,1,.36,1); }
+  /* an error / notice line fades in each time it appears */
+  .mx-auth-col [data-role="error"], .mx-auth-col [data-role="resendRow"] { animation: mx-auth-fade .24s cubic-bezier(.22,1,.36,1) backwards; }
+}
+
+@media (hover: hover) {
+  .mx-auth-screen input:hover:not(:focus) { border-color: rgba(25, 21, 18, .45) !important; }
+  .mx-auth-link:hover { color: #191512 !important; }
+  .mx-auth-screen [data-act="tgTerms"][aria-checked="false"]:hover .mx-auth-box { border-color: #191512 !important; }
+}

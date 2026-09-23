@@ -17,9 +17,9 @@
 .mx-hint { font-size: 11.5px; color: #6d6459; }
 .mx-btn-ink { display: inline-flex; align-items: center; padding: 0 12px; height: 32px; background: #201b16; color: #f6f2ea; font: 600 9px Inter, sans-serif; letter-spacing: .14em; white-space: nowrap; }
 .mx-x { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -4px -6px -4px 2px; color: #9a9086; cursor: pointer; font: 400 16px Inter, sans-serif; line-height: 1; }
-.mx-x:hover { color: #9b1b22; }
+@media (hover: hover) { .mx-x:hover { color: #9b1b22; } }
 .mx-chip { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; height: 34px; border: 1px solid rgba(32,27,22,.18); background: #fff; color: #4a4239; font: 600 9.5px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; cursor: pointer; max-width: 100%; box-sizing: border-box; }
-.mx-chip:hover { border-color: #201b16; color: #201b16; }
+@media (hover: hover) { .mx-chip:hover { border-color: #201b16; color: #201b16; } }
 .mx-chip.on { background: #201b16; border-color: #201b16; color: #f6f2ea; }
 .mx-chip.today { border-color: #9b1b22; }
 .mx-chip.today.on { background: #9b1b22; border-color: #9b1b22; }
@@ -28,7 +28,7 @@
 .mx-person { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; background: #f8f1e2; color: #7a6432; font-size: 12.5px; line-height: 1.3; max-width: 100%; overflow-wrap: anywhere; }
 .mx-person i { font-style: normal; color: #a08a52; }
 .mx-person.link { cursor: pointer; }
-.mx-person.link:hover { background: #f1e4c4; color: #5c4a22; }
+@media (hover: hover) { .mx-person.link:hover { background: #f1e4c4; color: #5c4a22; } }
 .mx-file-chip { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; background: #eee9df; color: #4a4239; font-size: 12px; max-width: 100%; }
 
 /* ---- composer ---- */
@@ -62,7 +62,7 @@
 .mx-nr-item { display: flex; align-items: center; gap: 8px; padding: 9px 8px; min-height: 36px; box-sizing: border-box; font: 600 10px Inter, sans-serif; letter-spacing: .1em; color: #4a4239; cursor: pointer; border-left: 2px solid transparent; min-width: 0; }
 .mx-nr-item .mx-nr-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; }
 .mx-nr-item b { font: 600 10px Inter, sans-serif; min-width: 18px; height: 18px; padding: 0 5px; background: #eee9df; color: #4a4239; display: inline-flex; align-items: center; justify-content: center; }
-.mx-nr-item:hover { color: #201b16; background: rgba(32,27,22,.04); }
+@media (hover: hover) { .mx-nr-item:hover { color: #201b16; background: rgba(32,27,22,.04); } }
 .mx-nr-item.on { color: #201b16; border-left-color: #9b1b22; background: #fff; }
 .mx-nr-item.on b { background: #201b16; color: #fff; }
 .mx-nr-none { font-family: Fraunces, serif; font-style: italic; font-size: 12.5px; color: #9a9086; padding: 4px 8px; }
@@ -82,14 +82,14 @@
 .mx-note.editing { border-color: #201b16; }
 .mx-note-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .mx-note-ev { display: inline-block; padding: 4px 8px; font: 600 8.5px Inter, sans-serif; letter-spacing: .11em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-a.mx-note-ev:hover { text-decoration: underline; }
+@media (hover: hover) { a.mx-note-ev:hover { text-decoration: underline; } }
 .mx-note-meta { font-size: 12px; color: #6d6459; white-space: nowrap; }
 .mx-note-pinflag { font: 600 8px Inter, sans-serif; letter-spacing: .14em; color: #9b1b22; }
 .mx-note-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 10px; margin: 0 -2px; font: 600 9px Inter, sans-serif; letter-spacing: .13em; color: #6d6459; cursor: pointer; white-space: nowrap; }
-.mx-note-btn:hover { color: #201b16; }
+@media (hover: hover) { .mx-note-btn:hover { color: #201b16; } }
 .mx-note-btn.primary { background: #201b16; color: #f6f2ea; padding: 0 14px; }
-.mx-note-btn.primary:hover { background: #9b1b22; color: #fff; }
-.mx-note-btn.danger:hover { color: #9b1b22; }
+@media (hover: hover) { .mx-note-btn.primary:hover { background: #9b1b22; color: #fff; } }
+@media (hover: hover) { .mx-note-btn.danger:hover { color: #9b1b22; } }
 .mx-note-title { font-family: Fraunces, serif; font-weight: 400; font-size: 20px; line-height: 1.25; margin: 0; overflow-wrap: anywhere; }
 .mx-note-body { font-size: 15px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; color: #201b16; }
 .mx-note-body.clamp { max-height: 10.6em; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
@@ -111,7 +111,7 @@ a.mx-note-ev:hover { text-decoration: underline; }
 .mx-ev { background: #fff; border: 1px solid rgba(32,27,22,.14); border-top: 2px solid #201b16; padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .mx-ev-top { display: flex; align-items: center; gap: 10px; }
 .mx-ev-back { font: 600 9px Inter, sans-serif; letter-spacing: .14em; color: #6d6459; cursor: pointer; min-height: 32px; display: inline-flex; align-items: center; }
-.mx-ev-back:hover { color: #201b16; }
+@media (hover: hover) { .mx-ev-back:hover { color: #201b16; } }
 .mx-ev-export { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; background: #9b1b22; color: #fff !important; font: 600 9.5px Inter, sans-serif; letter-spacing: .16em; white-space: nowrap; }
 .mx-ev-eyebrow { font: 600 9px Inter, sans-serif; letter-spacing: .18em; color: #9b1b22; margin-top: 4px; }
 .mx-ev-title { font-family: Fraunces, serif; font-weight: 400; font-size: 26px; line-height: 1.15; margin: 0; overflow-wrap: anywhere; }
@@ -160,3 +160,18 @@ a.mx-note-ev:hover { text-decoration: underline; }
   .mx-nc, .mx-nr, .mx-note-foot, .mx-note-btn { display: none !important; }
   .mx-notes-body { grid-template-columns: 1fr; }
 }
+
+/* ---- polish pass (2026-09-22): every control eases its colour; hover looks only where a pointer
+   hovers; filled buttons dip while pressed; a rail item leans in ---- */
+.mx-notes :is(.mx-chip, .mx-note-btn, .mx-nr-item, .mx-person, .mx-x, .mx-ev-back, .mx-nc-save, .mx-nc-attach, .mx-nr-more, .mx-note-more, .mx-ev-export, .mx-btn-ink) {
+  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.mx-note { transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+@media (hover: hover) {
+  .mx-note:not(.editing):hover { border-color: rgba(32,27,22,.28); }
+  .mx-nc-save:not([aria-disabled="true"]):hover, .mx-ev-export:hover { background: #7e151b; }
+}
+.mx-nc-save:active, .mx-note-btn.primary:active, .mx-ev-export:active, .mx-chip:active { opacity: .82; transition-duration: 40ms; }
+/* the composer wakes when you start writing: its top rule already crimson, the box gains a soft shadow */
+.mx-nc { transition: box-shadow var(--t-enter) var(--ease); }
+.mx-nc:focus-within { box-shadow: 0 14px 34px -22px rgba(32,27,22,.45); }

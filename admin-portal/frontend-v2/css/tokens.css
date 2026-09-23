@@ -10,7 +10,9 @@
   /* surfaces */
   --paper: #f6f2ea;              /* page ground (admin) — never pure white as a page ground */
   --white: #ffffff;              /* cards, top bar                                        */
-  --white-hover: #fdfbf6;        /* row hover on white                                    */
+  --row-hover: #faf6ee;          /* a row / cell under the pointer, on white — a visible warm */
+                                 /* tint, lighter than the selected row's paper #f6f2ea      */
+  --white-hover: var(--row-hover);
   --cream: #f7f1e6;              /* member-portal cream (shared brand)                    */
 
   /* ink */
@@ -53,6 +55,14 @@
   --gutter: 28px;                /* page gutter (desktop)                                 */
   --gutter-m: 16px;              /* page gutter (≤960px)                                  */
   --shadow-pop: 0 12px 30px rgba(32,27,22,.16);
+  --shadow-lift: 0 12px 26px -16px rgba(32,27,22,.32);   /* a card raised by the pointer          */
+
+  /* motion — ONE language across both portals (2026-09-22 polish pass): a long, soft ease-out;
+     150–220 ms for hover / press / colour, 280–450 ms for entrances. Only opacity, transform,
+     colour, box-shadow and filter ever animate; everything stops for prefers-reduced-motion. */
+  --ease: cubic-bezier(.22,1,.36,1);
+  --t-fast: .18s;                /* hover · press · colour                                */
+  --t-enter: .34s;               /* popovers · drawers · toasts · panels                  */
 }
 
 /* ---- repeated utility vocabulary (only where the design repeats itself) ---- */
@@ -71,12 +81,15 @@
   display: inline-block; padding: 8px 14px; font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase;
   text-decoration: none; cursor: pointer; white-space: nowrap; border-radius: var(--radius); border: 0; line-height: normal; text-align: center; box-sizing: border-box;
 }
+.btn-primary, .btn-ghost, .btn-ink { transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform .12s var(--ease); }
 .btn-primary { background: var(--crimson); color: #fff; }
-.btn-primary:hover { background: var(--crimson-hover); color: #fff; }
 .btn-ghost   { border: 1px solid rgba(32,27,22,.2); color: var(--ink); background: transparent; }
-.btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
 .btn-ink     { background: var(--ink); color: var(--paper); }
-.btn-ink:hover { background: var(--crimson); color: var(--paper); }
+@media (hover: hover) {
+  .btn-primary:hover { background: var(--crimson-hover); color: #fff; }
+  .btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
+  .btn-ink:hover { background: var(--crimson); color: var(--paper); }
+}
 .btn-primary[aria-disabled="true"], .btn-ghost[aria-disabled="true"], .btn-ink[aria-disabled="true"] { opacity: .55; cursor: default; }
 
 /* tags — square, small, tracked */

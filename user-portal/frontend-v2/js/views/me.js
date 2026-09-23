@@ -243,18 +243,20 @@ function blockHero() {
       <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:44px;line-height:1.08">${COPY.title((D.me.first_name || '').trim() || session.displayName())}</div>
       <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:440px;margin-top:14px">${COPY.lede}</div>
       <div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap">
-        <span data-act="dlCard" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.dlCard}</span>
-        <span data-act="cardWallet" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.addWallet}</span>
+        <span data-act="dlCard" class="mx-me-btn" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.dlCard}</span>
+        <span data-act="cardWallet" class="mx-me-btn" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.addWallet}</span>
       </div>
       <div style="font-size:12px;color:#4a4239;margin-top:16px;max-width:440px;line-height:1.55">${COPY.walletNote}</div>
     </div>
     <div class="mx-me-cardpanel" style="position:relative;display:flex;align-items:center;justify-content:center;padding:36px;overflow:hidden">
       <div style="position:absolute;inset:0;background-image:url('/assets/photo-candlelit.jpg');background-size:cover;background-position:center"></div>
       <div style="position:absolute;inset:0;background:rgba(25,21,18,.72)"></div>
+      <div class="mx-me-tilt" data-v2="hover tilt (css .mx-me-tilt / wireCardTilt) — the flip stays on the card">
       <div data-act="flip" data-block="card" role="button" aria-label="Member card — tap to flip" class="mx-me-card" style="position:relative;width:450px;background:linear-gradient(135deg,#221c17 0%,#191512 55%,#14100d 100%);color:#f7f1e6;padding:26px 28px;box-shadow:0 24px 60px rgba(0,0,0,.5);cursor:pointer;transition:transform .5s cubic-bezier(.22,1,.36,1);transform:perspective(1100px) rotateY(${st.cardBack ? '360deg' : '0deg'})">
         <div style="position:absolute;inset:9px;border:1px solid rgba(201,169,98,.55);pointer-events:none"></div>
         <div style="position:absolute;inset:12px;border:1px solid rgba(201,169,98,.2);pointer-events:none"></div>
         ${cardInner()}
+      </div>
       </div>
     </div>
   </div>
@@ -268,10 +270,10 @@ function ticketCard(it) {
     : `<div style="width:44px;height:44px;flex:none;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 8px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,#f7f1e6 3px 6px)">QR</div>`;
   const line = [shortRange(it), fmt.detail(String(it.venue || '').replace(/;\s*/g, ' · ')), statusLine(it)].filter(Boolean).join(' · ');
   const actions = it.pending && !it.paid
-    ? `<a href="${it.kind === 'gala' ? '/app/gala' : '/app/plexus'}" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.pay}</a>`
-    : `<span data-act="tDl" data-id="${esc(it.id)}" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.download}</span>
-            <span data-act="tEmail" data-id="${esc(it.id)}" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.email}</span>
-            <span data-act="tWallet" data-id="${esc(it.id)}" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.add}</span>`;
+    ? `<a href="${it.kind === 'gala' ? '/app/gala' : '/app/plexus'}" class="mx-me-link" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.pay}</a>`
+    : `<span data-act="tDl" data-id="${esc(it.id)}" class="mx-me-link" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.download}</span>
+            <span data-act="tEmail" data-id="${esc(it.id)}" class="mx-me-link" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.email}</span>
+            <span data-act="tWallet" data-id="${esc(it.id)}" class="mx-me-link" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.add}</span>`;
   return `
         <div style="display:flex;gap:16px;align-items:center;padding:15px 18px;${wrapBorder};background:#fdfaf3">
           ${qr}
@@ -292,7 +294,7 @@ function walletCurrent() {
           </div>
           <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px;margin-top:8px">${COPY.wallet.emptyLine}</span>
           <span style="font-size:12.5px;color:#4a4239;max-width:380px;line-height:1.55">${COPY.wallet.emptyWhy}</span>
-          <a href="/app/plexus" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.wallet.emptyCta}</a>
+          <a href="/app/plexus" class="mx-me-btn" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.wallet.emptyCta}</a>
         </div>
       </div>
       <!-- /dc -->`;
@@ -303,7 +305,7 @@ function walletCurrent() {
       </div>
       <div style="display:flex;gap:10px;align-items:baseline;padding:12px 0 26px">
         <span style="font-size:12px;color:#4a4239">One QR opens all doors — your member card admits you to everything you're registered for.</span>
-        <a href="/app/plexus" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em">${COPY.wallet.browse}</a>
+        <a href="/app/plexus" class="mx-me-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em">${COPY.wallet.browse}</a>
       </div>
       </div>`;
 }
@@ -314,7 +316,7 @@ function walletPast() {
           <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
           <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.wallet.pastEmptyLine}</span>
           <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.wallet.pastEmptyWhy}</span>
-          <a href="/app/plexus" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.wallet.browse}</a>
+          <a href="/app/plexus" class="mx-me-btn" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.wallet.browse}</a>
         </div>
       </div>`;
   const row = it => {
@@ -322,8 +324,8 @@ function walletPast() {
     const orderNo = it.invoice_number ? '#' + it.invoice_number : '#' + String(it.id).slice(0, 8).toUpperCase();
     const tag = it.status === 'vip' ? COPY.wallet.vipTag : (it.amount > 0 && it.paid ? COPY.wallet.paidTag(it.amount) : COPY.wallet.freeTag);
     const action = it.receipt === 'receipt'
-      ? `<span data-act="tReceipt" data-id="${esc(it.id)}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.receipt}</span>`
-      : `<span data-act="tConfirm" data-id="${esc(it.id)}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.confirmation}</span>`;
+      ? `<span data-act="tReceipt" data-id="${esc(it.id)}" class="mx-me-link" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.receipt}</span>`
+      : `<span data-act="tConfirm" data-id="${esc(it.id)}" class="mx-me-link" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.confirmation}</span>`;
     return `
         <div class="mx-me-row" style="display:flex;gap:16px;align-items:center;padding:13px 0;border-bottom:1px solid rgba(25,21,18,.12)">
           <span style="flex:1"><span style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-family:Fraunces,serif;font-size:17px">${yearItalic(it.title + ' — ' + sub, '#191512')}</span></span><span style="display:block;font-size:12px;color:#4a4239;margin-top:2px">${esc(COPY.wallet.order(orderNo))}${it.date ? ' · ' + esc(fmt.longRange(it.date, it.end_date)) : ''}</span></span>
@@ -346,8 +348,8 @@ function blockWallet() {
       <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.wallet.n}</span>
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.wallet.title}</span>
       <div style="display:flex;margin-left:14px">
-        <span data-act="showCur" role="tab" aria-selected="${cur}" style="padding:8px 14px;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;border:1px solid rgba(25,21,18,.3);background:${cur ? '#191512' : 'transparent'};color:${cur ? '#f7f1e6' : '#4a4239'};white-space:nowrap">${COPY.wallet.cur}</span>
-        <span data-act="showPast" role="tab" aria-selected="${!cur}" style="padding:8px 14px;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;border:1px solid rgba(25,21,18,.3);border-left:none;background:${cur ? 'transparent' : '#191512'};color:${cur ? '#4a4239' : '#f7f1e6'};white-space:nowrap">${COPY.wallet.past}</span>
+        <span data-act="showCur" role="tab" aria-selected="${cur}" class="mx-me-tab" style="padding:8px 14px;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;border:1px solid rgba(25,21,18,.3);background:${cur ? '#191512' : 'transparent'};color:${cur ? '#f7f1e6' : '#4a4239'};white-space:nowrap">${COPY.wallet.cur}</span>
+        <span data-act="showPast" role="tab" aria-selected="${!cur}" class="mx-me-tab" style="padding:8px 14px;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;border:1px solid rgba(25,21,18,.3);border-left:none;background:${cur ? 'transparent' : '#191512'};color:${cur ? '#4a4239' : '#f7f1e6'};white-space:nowrap">${COPY.wallet.past}</span>
       </div>
     </div>
     ${cur ? walletCurrent() : walletPast()}
@@ -402,7 +404,7 @@ function blockRecord() {
   const certs = D.certs || [];
   const certsInner = certs.length
     ? certs.slice(0, 2).map(c => `<span style="display:flex;gap:8px;align-items:baseline"><span style="font-family:Fraunces,serif;font-size:15px;min-width:0">${esc(c.title || R.certExample)}</span></span><span style="font-size:11.5px;color:#4a4239">${esc(c.number || '')}${c.issue_date ? ' · ' + esc(String(c.issue_date).slice(0, 4)) : ''}</span>`).join('')
-      + `<a href="/app/me/certificates" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;margin-top:4px">${R.open}</a>`
+      + `<a href="/app/me/certificates" class="mx-me-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;margin-top:4px;align-self:flex-start">${R.open}</a>`
     : `<span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;color:#6d6459">${R.none}</span>
         <span style="font-size:12px;color:#4a4239;line-height:1.5">${R.certsEmpty}</span>`;
   const badges = (D.record.badges || []);
@@ -466,7 +468,7 @@ function blockHelp() {
     <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.help.line}</span>
     <span style="font-size:12px;color:#4a4239">${COPY.help.sub}</span>
     <div style="flex:1"></div>
-    <a href="/app/messages" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" style-hover="background:#7e151b;color:#f7f1e6" data-hover="background:#7e151b;color:#f7f1e6">${COPY.help.cta}</a>
+    <a href="/app/messages" class="mx-me-btn" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" style-hover="background:#7e151b;color:#f7f1e6" data-hover="background:#7e151b;color:#f7f1e6">${COPY.help.cta}</a>
   </div>
   <!-- /dc -->`;
 }
@@ -479,21 +481,21 @@ function certificatesTab() {
     <div class="mx-me-row" style="display:flex;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid rgba(25,21,18,.12)">
       <span style="flex:1;min-width:0"><span style="font-family:Fraunces,serif;font-size:17px">${esc(c.title || 'Certificate of Attendance')}</span><span style="display:block;font-size:12px;color:#4a4239;margin-top:2px">${C.no} ${esc(c.number || '—')}${c.issue_date ? ' · ' + esc(fmt.longRange(c.issue_date, null)) : ''}</span></span>
       <span style="display:flex;gap:14px;flex-wrap:wrap;font:600 9.5px Inter,sans-serif;letter-spacing:.15em">
-        <span data-act="certDl" data-id="${esc(c.id)}" data-num="${esc(c.number || '')}" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${C.download}</span>
-        <span data-act="certVerify" data-num="${esc(c.number || '')}" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${C.verify}</span>
-        <span data-act="certCopy" data-num="${esc(c.number || '')}" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${C.copy}</span>
+        <span data-act="certDl" data-id="${esc(c.id)}" data-num="${esc(c.number || '')}" class="mx-me-link" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${C.download}</span>
+        <span data-act="certVerify" data-num="${esc(c.number || '')}" class="mx-me-link" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${C.verify}</span>
+        <span data-act="certCopy" data-num="${esc(c.number || '')}" class="mx-me-link" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${C.copy}</span>
       </span>
     </div>`).join('');
   return `
   <!-- v2: certificates tab — drawer "Certificates" target; reuses this screen's vocabulary (no dedicated artboard) -->
-  <div style="padding:42px 36px 26px;border-bottom:1px solid rgba(25,21,18,.16)" class="mx-gutter">
+  <div style="padding:42px 36px 26px;border-bottom:1px solid rgba(25,21,18,.16)" class="mx-gutter mx-me-certhead">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
       <span style="width:28px;height:1px;background:#c9a962"></span>
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#9b1b22">${C.eyebrow.replace(/&/g, '&amp;')}</span>
     </div>
     <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:44px;line-height:1.08">${C.title}</div>
     <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:520px;margin-top:14px">${C.lede}</div>
-    <a href="/app/me" style="display:inline-block;margin-top:18px;font:600 10px Inter,sans-serif;letter-spacing:.16em">${C.back.replace(/&/g, '&amp;')}</a>
+    <a href="/app/me" class="mx-me-link" style="display:inline-block;margin-top:18px;font:600 10px Inter,sans-serif;letter-spacing:.16em">${C.back.replace(/&/g, '&amp;')}</a>
   </div>
   <div class="mx-gutter" style="padding:10px 36px 34px">
     ${certs.length ? rows : `
@@ -501,7 +503,7 @@ function certificatesTab() {
       <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
       <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${C.emptyLine}</span>
       <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${C.emptyWhy}</span>
-      <a href="/app/plexus" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${C.emptyCta}</a>
+      <a href="/app/plexus" class="mx-me-btn" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${C.emptyCta}</a>
     </div>`}
   </div>`;
 }
@@ -509,9 +511,9 @@ function certificatesTab() {
 // ---------------------------------------------------------------- template
 function template() {
   if (st.view === 'certificates') return `
-<div data-screen-label="My Med&X" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">${certificatesTab()}</div>`;
+<div data-screen-label="My Med&X" class="mx-me-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">${certificatesTab()}</div>`;
   return `
-<div data-screen-label="My Med&X" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="My Med&X" class="mx-me-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
   ${blockHero()}
   <div class="mx-gutter" style="padding:0 36px">
     ${blockWallet()}
@@ -522,6 +524,8 @@ function template() {
 </div>`;
 }
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
+// CURRENT TICKETS ⇄ PAST PURCHASES: the new list cross-fades in (css .mx-me-swap) — on the switch only, not on arrival
+function swapIn() { const wl = rootEl && rootEl.querySelector('[data-block="wallet-list"]'); if (wl) wl.classList.add('mx-me-swap'); }
 function repaintCard() {
   const card = rootEl && rootEl.querySelector('[data-block="card"]');
   if (!card) return;
@@ -565,8 +569,8 @@ const handlers = {
       await handlePassResponse(p);
     } catch (e) { ui.toast(COPY.wallet.walletGate); }
   }),
-  showCur: () => { if (st.tab !== 'cur') { st.tab = 'cur'; rerender('[data-block="wallet"]', blockWallet()); } },
-  showPast: () => { if (st.tab !== 'past') { st.tab = 'past'; rerender('[data-block="wallet"]', blockWallet()); } },
+  showCur: () => { if (st.tab !== 'cur') { st.tab = 'cur'; rerender('[data-block="wallet"]', blockWallet()); swapIn(); } },
+  showPast: () => { if (st.tab !== 'past') { st.tab = 'past'; rerender('[data-block="wallet"]', blockWallet()); swapIn(); } },
   tDl: (el) => {
     const it = itemById(el.dataset.id); if (!it) return;
     el.setAttribute('aria-disabled', 'true');
@@ -618,6 +622,40 @@ const handlers = {
   }
 };
 
+// ---------------------------------------------------------------- member card: tilt on hover
+// A mouse over the card tips it a few degrees toward the pointer, and it eases home when the pointer
+// leaves (css .mx-me-tilt reads --rx/--ry). One gesture only. Mouse only, hover-capable pointers only,
+// never under reduced motion; the flip keeps its own transform on the card itself.
+function wireCardTilt(root) {
+  const tilt = root.querySelector('.mx-me-tilt');
+  const card = root.querySelector('.mx-me-card');
+  if (!tilt || !card || !window.matchMedia) return;
+  const mq = window.matchMedia('(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)');
+  let raf = 0, px = 0, py = 0;
+  const apply = () => {
+    raf = 0;
+    // the card's UNtransformed box (offset geometry through the wrapper), so the tilt never feeds back into itself
+    const host = tilt.offsetParent, r = host ? host.getBoundingClientRect() : { left: 0, top: 0 };
+    const w = card.offsetWidth || 1, h = card.offsetHeight || 1;
+    const x = Math.min(1, Math.max(0, (px - r.left - tilt.offsetLeft - card.offsetLeft) / w));
+    const y = Math.min(1, Math.max(0, (py - r.top - tilt.offsetTop - card.offsetTop) / h));
+    tilt.style.setProperty('--ry', ((x - .5) * 6).toFixed(2) + 'deg');
+    tilt.style.setProperty('--rx', ((.5 - y) * 5).toFixed(2) + 'deg');
+  };
+  card.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse' || !mq.matches) return;
+    px = e.clientX; py = e.clientY;
+    tilt.classList.add('is-live');
+    if (!raf) raf = requestAnimationFrame(apply);
+  });
+  card.addEventListener('pointerleave', () => {
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+    tilt.classList.remove('is-live');
+    tilt.style.setProperty('--rx', '0deg'); tilt.style.setProperty('--ry', '0deg');
+  });
+}
+
 // ---------------------------------------------------------------- QR blob (Bearer-auth image)
 async function loadMemberQr() {
   try {
@@ -649,6 +687,7 @@ export default {
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     if (view === 'wallet') {
+      wireCardTilt(root);
       loadMemberQr();
       if (st.cardBack) {
         const card = root.querySelector('[data-block="card"]');

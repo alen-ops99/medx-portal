@@ -208,7 +208,7 @@ function ideaCard(i) {
   const sides = [i.croatian_side, i.international_side].filter(Boolean).join('  ×  ');
   const overdue = i.overdue;
   return `
-      <a href="/big-ideas/${esc(i.id)}" class="mxb-card" style="display:flex;flex-direction:column;gap:10px;padding:18px 20px;border:1px solid ${HAIR};background:#fff;color:${INK}" data-hover="border-color:#201b16">
+      <a href="/big-ideas/${esc(i.id)}" class="mxb-card mx-lift" style="display:flex;flex-direction:column;gap:10px;padding:18px 20px;border:1px solid ${HAIR};background:#fff;color:${INK}" data-hover="border-color:#201b16">
         <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="width:8px;height:8px;flex:none;background:${tone[0]}"></span>
           <span style="${MICRO};color:${PRIORITY_TONE[i.priority]}">${COPY.priority[i.priority]}</span>
@@ -249,8 +249,8 @@ function blockFilters() {
   return `
     <div data-block="filters" style="border:1px solid ${HAIR};background:#fff;padding:14px 20px;display:flex;flex-direction:column;gap:12px">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <span style="flex:1 1 260px;min-width:0;display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:8px 12px;box-sizing:border-box">
-          <span style="color:${SOFT}">⌕</span>
+        <span class="mx-field mxb-search" style="flex:1 1 260px;min-width:0;display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.18);background:#f6f2ea;padding:8px 12px;box-sizing:border-box">
+          <span aria-hidden="true" style="color:${SOFT}">⌕</span>
           <input data-role="search" type="search" value="${esc(st.q)}" placeholder="${esc(COPY.search)}" aria-label="${esc(COPY.search)}" style="border:none;background:transparent;font-size:12.5px;color:${INK};width:100%;padding:0">
         </span>
         <select data-role="area" aria-label="${esc(f.area)}" style="${INPUT2}"><option value="">${esc(f.anyArea)}</option>${(D.areas || []).map(a => `<option value="${esc(a)}"${a === st.area ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select>
@@ -299,8 +299,8 @@ function listTemplate() {
           ? emptyState(COPY.emptyFiltered.line, COPY.emptyFiltered.why, `<span data-act="clearFilters" style="${BTN_GHOST};margin-top:6px" data-hover="border-color:#201b16">${COPY.filters.clear}</span>`)
           : emptyState(COPY.empty.line, COPY.empty.why, `<span data-act="newOpen" style="${BTN_CRIMSON};margin-top:8px" data-hover="background:#7e151b">${COPY.empty.cta}</span>`)}</div>`;
   return `
-<div data-screen-label="Big Ideas" style="min-height:100vh;background:#f6f2ea;color:${INK};font-family:Inter,sans-serif">
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:20px">
+<div class="mxpj" data-screen-label="Big Ideas" style="min-height:100vh;background:#f6f2ea;color:${INK};font-family:Inter,sans-serif">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:20px">
     <div data-block="title" style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
       <span style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">
         <span style="width:28px;height:1px;background:${GOLD}"></span>
@@ -505,8 +505,8 @@ function blockFiles() {
 function detailTemplate() {
   if (D.error) {
     return `
-<div data-screen-label="Big Ideas" style="min-height:100vh;background:#f6f2ea;color:${INK};font-family:Inter,sans-serif">
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px">
+<div class="mxpj" data-screen-label="Big Ideas" style="min-height:100vh;background:#f6f2ea;color:${INK};font-family:Inter,sans-serif">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px">
     <a href="/big-ideas" style="${MICRO};color:${CRIMSON}">${COPY.detail.back}</a>
     <div style="border:1px solid ${HAIR};background:#fff;margin-top:16px;padding:10px 0">${D.error.isLocked ? ui.lockedBlock(perms.label(D.error.section || SECTION)) : `<div style="padding:16px 20px;font-size:12.5px;color:${CRIMSON}">${esc(D.error.message || COPY.err)}</div>`}</div>
   </div>
@@ -515,8 +515,8 @@ function detailTemplate() {
   const i = D.idea;
   const tone = STATUS_TONE[i.status] || STATUS_TONE.idea;
   return `
-<div data-screen-label="Big Ideas" style="min-height:100vh;background:#f6f2ea;color:${INK};font-family:Inter,sans-serif">
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:26px 28px 48px;display:flex;flex-direction:column;gap:18px">
+<div class="mxpj" data-screen-label="Big Ideas" style="min-height:100vh;background:#f6f2ea;color:${INK};font-family:Inter,sans-serif">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:26px 28px 48px;display:flex;flex-direction:column;gap:18px">
     <a href="/big-ideas" style="${MICRO};color:${CRIMSON}">${COPY.detail.back}</a>
     <div data-block="head" style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
       <span style="display:flex;flex-direction:column;gap:8px;flex:1;min-width:0">

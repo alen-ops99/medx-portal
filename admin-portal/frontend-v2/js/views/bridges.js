@@ -13,6 +13,9 @@ import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
 
+// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
+const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
+
 export const SOURCE = 'Admin Bridges Hub.dc.html';
 
 export const COPY = {
@@ -329,7 +332,7 @@ function eventTonight() {
 }
 function scannerBtn(where) {
   if (!eventTonight()) return '';
-  return `<a href="/event-day" class="bh-scan bh-scan-${where}" data-v2="door-scanner" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;background:#9b1b22;color:#fff;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap;text-decoration:none;${where === 'hub' ? 'align-self:flex-start' : ''}" data-hover="background:#7e151b">${COPY.scanner.cta}</a>`;
+  return `<a href="/event-day" class="bh-scan bh-scan-${where}" data-v2="door-scanner" style="display:inline-flex;align-items:center;justify-content:center;gap:0;padding:11px 16px;background:#9b1b22;color:#fff;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap;text-decoration:none;${where === 'hub' ? 'align-self:flex-start' : ''}" data-hover="background:#7e151b">${arr(COPY.scanner.cta)}</a>`;
 }
 // The three side blocks fold behind their headers on a phone: the header carries the toggle,
 // the body carries the closed class (CSS ≤700 hides it — inline display:flex beats `hidden`).
@@ -381,7 +384,7 @@ function blockTitle() {
         <div class="bh-sub" style="font-size:12.5px;color:#6d6459;margin-top:4px">${isPhone() ? COPY.subShort : COPY.sub}</div>
       </div>
       <div class="bh-sp" style="flex:1"></div>
-      <a href="/member-pages/bridges" class="bh-manage" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
+      <a href="/member-pages/bridges" class="bh-manage" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${arr(COPY.manage)}</a>
     </div>
     <!-- /dc -->`;
 }
@@ -471,7 +474,7 @@ function blockEvents() {
             <span data-act="ncAdd" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${c.add}</span>
           </div>` : ''}
         ${upcoming.map(e => `
-          <div data-row="${esc(e.id)}" class="bh-ev-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
+          <div data-row="${esc(e.id)}" class="bh-ev-row${isBostonRow(e) ? ' bh-ev-boston' : ''}" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
             <span class="bh-ev-date" style="font:600 9px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;width:76px;flex:none">${esc(dateLabel(e))}</span>
             <span class="bh-ev-main" ${isBostonRow(e) ? `data-act="bostonOpen" title="Open the Boston card" style="flex:1;min-width:0;cursor:pointer" data-hover="color:#9b1b22"` : `style="flex:1;min-width:0"`}><span style="display:block;font-size:13.5px;font-weight:600">${esc(e.city)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(e.venue_name || c.venueTBA)}</span></span>
             ${justHeld(e) ? `<span data-act="makeRecap" data-id="${esc(e.id)}" title="${esc(c.heldTitle)}" class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6f0e9;color:#2f7d4f;padding:3px 8px;white-space:nowrap;cursor:pointer" data-hover="background:#2f7d4f;color:#fff">${c.held}</span>` : e.is_published ? `<span class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e7ecf3;color:#31517e;padding:3px 8px;white-space:nowrap">${c.upcoming}</span>` : `<span class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:3px 8px;white-space:nowrap">${c.draft}</span>`}
@@ -566,7 +569,7 @@ function blockAfter() {
         <div data-block="after" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
           ${isPhone() ? `<div${foldHead('after')}><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>${foldMark('after')}</div><div${foldBody('after')} style="display:flex;flex-direction:column;gap:8px">` : `<span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>`}
           <span style="font-size:12.5px;color:#6d6459;line-height:1.6">${c.body}</span>
-          <a href="/inbox" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${c.cta}</a>
+          <a href="/inbox" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${arr(c.cta)}</a>
           ${lastPast ? `<!-- v2: one-click thank-you batch for the latest past evening --><span data-act="queueThanks" data-id="${esc(lastPast.id)}" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer" data-v2="queue-thanks" data-hover="color:#201b16">${esc(c.queueThanks(lastPast.city))}</span>` : ''}
           ${isPhone() ? '</div>' : ''}
         </div>
@@ -1037,7 +1040,7 @@ function blockStats() {
       </div>
       <div style="display:flex;align-items:center;gap:14px;border-top:1px solid rgba(32,27,22,.1);padding:12px 20px;flex-wrap:wrap">
         <span data-role="statLine" style="font-family:Fraunces,serif;font-size:15px;font-style:italic;flex:1;min-width:240px">“${esc(line)}”</span>
-        <span data-act="copyLine" style="padding:9px 14px;background:${st.copied ? '#1e6e42' : '#201b16'};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${st.copied ? c.copied : c.copy}</span>
+        <span data-act="copyLine"${st.copied ? ' class="mxpj-ok"' : ''} style="padding:9px 14px;background:${st.copied ? '#1e6e42' : '#201b16'};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${st.copied ? c.copied : c.copy}</span>
       </div>
     </div>
     <!-- /dc -->`;
@@ -1063,9 +1066,9 @@ function blockBostonSlot() {
 }
 function template() {
   return `
-<div data-screen-label="Admin Bridges Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+<div class="mxpj" data-screen-label="Admin Bridges Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
   ${blockSubnav()}
-  <div class="mx-gutter bh-col" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:24px">
+  <div class="mx-gutter mx-stagger bh-col" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:24px">
     ${scannerBtn('hub')}
     ${blockTitle()}
     ${blockBand()}

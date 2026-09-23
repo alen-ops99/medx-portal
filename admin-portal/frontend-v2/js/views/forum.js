@@ -19,6 +19,9 @@ import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
 
+// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
+const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
+
 export const SOURCE = 'Admin Forum Hub.dc.html';
 
 export const COPY = {
@@ -216,7 +219,7 @@ function blockTitle() {
         <div style="font-size:12.5px;color:#6d6459;margin-top:4px">${esc(COPY.sub(fmt.longRange(D.hub.gathering && D.hub.gathering.start_date || FACTS.forum.gathering.start, D.hub.gathering && D.hub.gathering.end_date || FACTS.forum.gathering.end)))}</div>
       </div>
       <div style="flex:1"></div>
-      <a href="/member-pages/forum" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
+      <a href="/member-pages/forum" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${arr(COPY.manage)}</a>
     </div>
     <!-- /dc -->`;
 }
@@ -243,7 +246,7 @@ function blockBand() {
         <div style="padding:16px 20px">
           <div style="display:flex;align-items:baseline;gap:10px"><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${b.map}</span><span style="font-size:11px;color:#9a9086">${b.mapHint}</span></div>
           ${countries.length ? `<div style="display:flex;flex-direction:column;gap:6px;margin-top:9px">
-            ${countries.map((c, i) => `<div style="display:flex;align-items:center;gap:10px"><span style="width:98px;flex:none;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.country)}</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span style="display:block;width:${Math.max(6, Math.round(c.count / max * 100))}%;height:100%;background:${i % 2 ? '#c9a962' : '#9b1b22'}"></span></span><span style="font:600 11px Inter,sans-serif;width:16px;text-align:right">${c.count}</span></div>`).join('')}
+            ${countries.map((c, i) => `<div style="display:flex;align-items:center;gap:10px"><span style="width:98px;flex:none;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.country)}</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span class="mxpj-bar" style="display:block;width:${Math.max(6, Math.round(c.count / max * 100))}%;height:100%;background:${i % 2 ? '#c9a962' : '#9b1b22'}"></span></span><span style="font:600 11px Inter,sans-serif;width:16px;text-align:right">${c.count}</span></div>`).join('')}
           </div>
           <div style="font-size:11px;color:#6d6459;margin-top:8px">${b.mapFoot}</div>`
           : `<div class="empty" style="padding:10px 0 2px"><span class="empty-line" style="font-family:Fraunces,serif;font-style:italic;font-size:14px">${b.mapEmpty}</span><span class="empty-why" style="font-size:11px;color:#6d6459">${b.mapEmptyWhy}</span></div>`}
@@ -253,7 +256,7 @@ function blockBand() {
         <span style="display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap"><span style="width:7px;height:7px;background:#c9a962;flex:none"></span><b>${esc(gatherLabel())}</b>&nbsp;${esc(b.gathering(gatherLabel(), gDays))}</span>
         <a href="#forum-codes" style="display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap;color:#201b16" data-hover="color:#9b1b22"><span style="width:7px;height:7px;background:#9b1b22;flex:none"></span><b>${h.codes_out}</b>&nbsp;${b.codes}</a>
         <div style="flex:1"></div>
-        <a href="/calendar" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${b.calendar}</a>
+        <a href="/calendar" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${arr(b.calendar)}</a>
       </div>
     </div>
     <!-- /dc -->`;
@@ -270,7 +273,7 @@ function blockFeed() {
         <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
         <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
         <div style="flex:1"></div>
-        <a href="${esc((cfg.memberPortalUrl || '') + '/app/forum')}" target="_blank" rel="noopener" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${c.open}</a>
+        <a href="${esc((cfg.memberPortalUrl || '') + '/app/forum')}" target="_blank" rel="noopener" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${arr(c.open)}</a>
       </div>
       <div class="fh-feed" style="display:grid;grid-template-columns:1fr 1fr">
         <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px;border-right:1px solid rgba(32,27,22,.1)">
@@ -285,7 +288,7 @@ function blockFeed() {
           <input data-role="fTitle" value="${esc(st.fTitle)}" placeholder="${esc(c.phTitle)}" aria-label="Headline" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16">`}
           <textarea data-role="fBody" placeholder="${esc(c.phBody)}" aria-label="Post body" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:10px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-height:72px;resize:vertical;box-sizing:border-box">${esc(st.fBody)}</textarea>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <span data-act="publish" style="padding:10px 18px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.publish}</span>
+            <span data-act="publish" style="padding:10px 18px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${arr(c.publish)}</span>
             <span style="font-size:11px;color:#6d6459">${c.publishNote}</span>
           </div>
         </div>
@@ -429,7 +432,7 @@ function blockCodes() {
               <span style="font:600 12px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.08em;flex:none">${esc(i.code)}</span>
               <span style="font-size:11px;color:#6d6459;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(line(i))}</span>
               ${i.status === 'open' && i.sent_at ? `<a href="/inbox/outbox" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432;white-space:nowrap" title="The invitation email waits for approval there">${c.outbox}</a>` : ''}
-              <span data-act="copyCode" data-code="${esc(i.code)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${st.copiedCode === i.code ? '#1e6e42' : '#9b1b22'};cursor:pointer;white-space:nowrap">${st.copiedCode === i.code ? c.copied : c.copy}</span>
+              <span data-act="copyCode" data-code="${esc(i.code)}"${st.copiedCode === i.code ? ' class="mxpj-swap"' : ''} style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${st.copiedCode === i.code ? '#1e6e42' : '#9b1b22'};cursor:pointer;white-space:nowrap">${st.copiedCode === i.code ? c.copied : c.copy}</span>
               ${i.status === 'open' && i.email ? `<span data-act="queueInvite" data-id="${esc(i.id)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${i.sent_at ? c.resend : c.send}</span>` : ''}
               ${i.status === 'open' ? `<span data-act="revoke" data-id="${esc(i.id)}" title="Revoke this code" style="font:600 11px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#9b1b22">${c.revoke}</span>` : ''}
             </div>`).join('')}
@@ -453,7 +456,7 @@ function blockForm() {
                 <input data-role="formDraft" value="${esc(st.formDraft)}" placeholder="${esc(c.addPh)}" aria-label="New question" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font-size:12px;color:#201b16;min-width:0">
                 <span data-act="addQ" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">${c.add}</span>
               </div>` : ''}
-            <span data-act="copyLink" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${st.linkCopied ? '#1e6e42' : '#9b1b22'};cursor:pointer">${st.linkCopied ? c.linkCopied : c.copyLink}</span>
+            <span data-act="copyLink"${st.linkCopied ? ' class="mxpj-swap"' : ''} style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${st.linkCopied ? '#1e6e42' : '#9b1b22'};cursor:pointer">${st.linkCopied ? c.linkCopied : c.copyLink}</span>
             <span style="font:400 10.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#9a9086">${c.url}</span>
           </div>
         </div>
@@ -486,18 +489,18 @@ function blockGathering() {
           <!-- v2: Split / Zagreb vote tally (v2_forum_votes read) -->
           <div data-v2="vote-tally" style="display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(32,27,22,.08);padding-top:9px">
             <div style="display:flex;align-items:baseline;gap:8px"><span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${c.vote}</span><span style="font-size:11px;color:#9a9086">${v.total ? esc(c.votes(v.total)) : c.noVotes}</span></div>
-            <div style="display:flex;align-items:center;gap:10px"><span style="width:60px;flex:none;font-size:12px">Split</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span style="display:block;width:${Math.round((v.counts.split || 0) / total * 100)}%;height:100%;background:#9b1b22"></span></span><span style="font:600 11px Inter,sans-serif;width:20px;text-align:right">${v.counts.split || 0}</span></div>
-            <div style="display:flex;align-items:center;gap:10px"><span style="width:60px;flex:none;font-size:12px">Zagreb</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span style="display:block;width:${Math.round((v.counts.zagreb || 0) / total * 100)}%;height:100%;background:#c9a962"></span></span><span style="font:600 11px Inter,sans-serif;width:20px;text-align:right">${v.counts.zagreb || 0}</span></div>
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:60px;flex:none;font-size:12px">Split</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span class="mxpj-bar" style="display:block;width:${Math.round((v.counts.split || 0) / total * 100)}%;height:100%;background:#9b1b22"></span></span><span style="font:600 11px Inter,sans-serif;width:20px;text-align:right">${v.counts.split || 0}</span></div>
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:60px;flex:none;font-size:12px">Zagreb</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span class="mxpj-bar" style="display:block;width:${Math.round((v.counts.zagreb || 0) / total * 100)}%;height:100%;background:#c9a962"></span></span><span style="font:600 11px Inter,sans-serif;width:20px;text-align:right">${v.counts.zagreb || 0}</span></div>
           </div>
-          <a href="/calendar" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${c.calendar}</a>
+          <a href="/calendar" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${arr(c.calendar)}</a>
         </div>
         <!-- /dc -->`;
 }
 function template() {
   return `
-<div data-screen-label="Admin Forum Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+<div class="mxpj" data-screen-label="Admin Forum Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
   ${blockSubnav()}
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:24px">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:24px">
     ${blockTitle()}
     ${blockBand()}
     ${blockFeed()}

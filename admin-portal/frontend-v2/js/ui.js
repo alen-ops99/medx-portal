@@ -98,8 +98,12 @@ function toast(text, opts = {}) {
   if (toastUndo) { const u = document.createElement('span'); u.className = 'undo'; u.setAttribute('role', 'button'); u.setAttribute('tabindex', '0'); u.textContent = opts.undoLabel || 'UNDO'; toastEl.appendChild(u); }
   toastEl.classList.toggle('error', opts.kind === 'error');
   clearTimeout(toastTimer);
+  const ms = opts.ms || (toastUndo ? 5000 : opts.kind === 'error' ? 4200 : 3000);
+  // an UNDO toast carries a gold hairline that runs out with the undo window (css .mx-toast.timed)
+  toastEl.classList.remove('timed');
+  if (toastUndo) { toastEl.style.setProperty('--toast-ms', ms + 'ms'); void toastEl.offsetWidth; toastEl.classList.add('timed'); }
   requestAnimationFrame(() => toastEl.classList.add('show'));
-  toastTimer = setTimeout(hide, opts.ms || (toastUndo ? 5000 : opts.kind === 'error' ? 4200 : 3000));
+  toastTimer = setTimeout(hide, ms);
 }
 
 // ---------------------------------------------------------------- modal / confirm
@@ -159,7 +163,12 @@ function bind(root, handlers) {
 function installDelegates() {
   if (installDelegates.done) return; installDelegates.done = true;
   const saved = new WeakMap();
+  // hover looks are for pointers that hover: on a phone a tap fires mouseover too, and the look
+  // then stuck until the next tap somewhere else
+  let canHover = { matches: true };
+  try { canHover = window.matchMedia('(hover: hover)'); } catch (e) {}
   document.addEventListener('mouseover', e => {
+    if (!canHover.matches) return;
     const el = e.target.closest && e.target.closest('[data-hover]');
     if (!el || saved.has(el)) return;
     const decls = el.getAttribute('data-hover').split(';').map(s => s.trim()).filter(Boolean).map(s => { const i = s.indexOf(':'); return [s.slice(0, i).trim(), s.slice(i + 1).trim()]; });

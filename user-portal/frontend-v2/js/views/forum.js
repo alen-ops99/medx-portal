@@ -189,8 +189,8 @@ const mkFeed = p => ({ tag: p.tag || '', when: ago(p.published_at), body: p.body
 // ---------------------------------------------------------------- blocks
 function blockCrumb() { return `
   <!-- dc: Biomedical Forum.dc.html › "Breadcrumb" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <span data-nav="/app/projects" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.projects}</span>
+  <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <a href="/app/projects" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.projects}</a>
     <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.here}</span>
   </div>
@@ -200,8 +200,8 @@ function blockHero() {
   const isMember = D.stage >= 2;
   return `
   <!-- dc: Biomedical Forum.dc.html › "Hero" -->
-  <div style="position:relative;overflow:hidden">
-    <img src="/assets/photo-forum.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 35%">
+  <div class="mx-ink" style="position:relative;overflow:hidden">
+    <img class="mx-hero-photo" src="/assets/photo-forum.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 35%">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.74) 0%,rgba(25,21,18,.58) 55%,rgba(25,21,18,.86) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:56px 36px 46px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em;text-align:center">${COPY.hero.badge}</span>
@@ -221,7 +221,7 @@ function blockBand() {
   const item = (t, gold) => `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:${gold ? '#c9a962' : 'rgba(247,241,230,.9)'};text-align:center">${t}</span>`;
   return `
   <!-- dc: Biomedical Forum.dc.html › "Facts band" -->
-  <div class="mx-wrap-center mx-pad-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
+  <div class="mx-wrap-center mx-pad-band mx-fo-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
     ${item(COPY.band[0])}${sep}${item(COPY.band[1])}${sep}${item(COPY.band[2])}${sep}${item(COPY.band[3], true)}
   </div>
   <!-- /dc -->`;
@@ -273,7 +273,7 @@ function blockFeed() {
         <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.feed.emptyLine}</span>
         <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.feed.emptyWhy}</span>
-        <span data-nav="/app/network" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap">${COPY.feed.emptyCta}</span>
+        <span data-nav="/app/network" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.feed.emptyCta}</span>
       </div>
     </div>
     <!-- /dc -->`;
@@ -438,7 +438,7 @@ function blockMembership() {
       <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962">${COPY.membership.n}</span>
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.membership.title}</span>
     </div>
-    <div style="display:flex;justify-content:center;gap:0;padding-bottom:22px;flex-wrap:wrap">
+    <div class="mx-forum-stages" style="display:flex;justify-content:center;gap:0;padding-bottom:22px;flex-wrap:wrap">
       ${stageIndicator()}
     </div>
     ${stageBody()}
@@ -685,6 +685,7 @@ const handlers = {
 
 export default {
   title: 'Biomedical Forum',
+  reveal: true,        // sections below the fold rise in on scroll (router › ui.revealOnScroll)
   async render(root, ctx) {
     rootEl = root;
     ensureCss();

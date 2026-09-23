@@ -302,7 +302,7 @@ function latestRows() {
           <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
           <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.latest.emptyLine}</span>
           <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.latest.emptyWhy}</span>
-          <span data-act="explore" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap">${COPY.latest.emptyCta}</span>
+          <span data-act="explore" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.latest.emptyCta}</span>
         </div>`;
   // READ → opens the announcement itself when it has text (it used to jump to the project page and the
   // body was never shown anywhere); the sheet then offers the project link
@@ -351,7 +351,7 @@ function blockLatest() {
 
 function blockNewsletter() {
   const picked = st.nlTopics;
-  const chip = label => { const on = picked.includes(label); return `<span data-act="nlTg" data-topic="${esc(label)}" role="checkbox" aria-checked="${on}" style="padding:5px 9px;border:1px solid ${on ? '#9b1b22' : 'rgba(25,21,18,.22)'};background:${on ? '#9b1b22' : 'transparent'};color:${on ? '#f7f1e6' : '#191512'};font:600 8.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">${esc(label)}</span>`; };
+  const chip = label => { const on = picked.includes(label); return `<span data-act="nlTg" data-topic="${esc(label)}" role="checkbox" aria-checked="${on}" style="padding:5px 9px;border:1px solid ${on ? '#9b1b22' : 'rgba(25,21,18,.22)'};background:${on ? '#9b1b22' : 'transparent'};color:${on ? '#f7f1e6' : '#191512'};font:600 8.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap"${on ? '' : ' data-hover="border-color:#191512"'}>${esc(label)}</span>`; };
   return `
     <!-- dc: Med&X Home.dc.html › "MED&X NEWSLETTER" -->
     <div data-block="newsletter" class="mx-nl" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-bottom:28px">
@@ -490,7 +490,7 @@ const handlers = {
 function startTimers() {
   // countdown ticks every 30 s like the artboard (minutes resolution)
   timers.push(ui.countdown(D.countdownTo, ({ days, hrs, min }) => {
-    const set = (k, v) => { const el = rootEl && rootEl.querySelector(`[data-cd="${k}"]`); if (el) el.textContent = v; };
+    const set = (k, v) => ui.tick(rootEl && rootEl.querySelector(`[data-cd="${k}"]`), v);
     set('days', days); set('hrs', hrs); set('min', min);
   }, 30000));
   // photo band rotation every 6 s (crossfade); the current artboard's hero has no photo, so the
@@ -510,6 +510,7 @@ function startTimers() {
 
 export default {
   title: 'Home',
+  reveal: true,        // sections below the fold rise in on scroll (router › ui.revealOnScroll)
   async render(root, ctx) {
     rootEl = root;
     D = await load();

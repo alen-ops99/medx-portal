@@ -293,7 +293,7 @@ function blockTabs() {
       const on = st.tab === id;
       const b = badges[id];
       const tip = id === 'messages' && b ? ` title="${esc(COPY.messages.badgeTitle(b))}"` : '';
-      return `<a href="/inbox/${TAB_TO_SLUG[id]}"${tip} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${COPY.tabs[id]}${b ? `<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">${b}</span>` : ''}</a>`;
+      return `<a href="/inbox/${TAB_TO_SLUG[id]}"${tip}${on ? ' class="on" aria-current="page"' : ''} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${COPY.tabs[id]}${b ? `<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">${b}</span>` : ''}</a>`;
     }).join('\n    ')}
   </div>
   <!-- /dc -->`;
@@ -494,7 +494,7 @@ function blockThreadList() {
         </div>
         <div class="mx-inbox-list">
         ${rows.map(t => `
-        <div data-act="openThread" data-key="${esc(t.key)}" style="padding:13px 16px;border-bottom:1px solid rgba(32,27,22,.08);cursor:pointer;background:${t.key === st.openKey ? '#f6f2ea' : '#fff'};${t.archived ? 'opacity:.6' : ''}">
+        <div data-act="openThread" data-key="${esc(t.key)}" class="mx-thread-row${t.key === st.openKey ? ' on' : ''}" style="padding:13px 16px;border-bottom:1px solid rgba(32,27,22,.08);cursor:pointer;background:${t.key === st.openKey ? '#f6f2ea' : '#fff'};${t.archived ? 'opacity:.6' : ''}">
           <div style="display:flex;gap:8px;align-items:center">${t.unread ? `<span style="width:7px;height:7px;border-radius:50%;background:#9b1b22;flex:none"></span>` : ''}<span style="font-size:13px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.name)}</span>${t.archived ? `<span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:2px 6px;white-space:nowrap">${m.archived}</span>` : t.topic ? `<span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:2px 6px;white-space:nowrap">${esc(String(t.topic).toUpperCase())}</span>` : ''}<span style="font:600 9px Inter,sans-serif;color:#6d6459;white-space:nowrap">${whenShort(t.last.at)}</span></div>
           <div style="font-size:11.5px;color:#6d6459;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.last.content || (t.last.attachment_name ? '\u2295 ' + t.last.attachment_name : ''))}</div>
         </div>`).join('')}
@@ -513,7 +513,7 @@ function blockConversation() {
   const msgs = st.thread || [];
   return `
       <div data-block="conv" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:flex;flex-direction:column;min-height:380px">
-        <div style="padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.12);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div class="mx-conv-head" style="padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.12);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:14px;font-weight:600">${esc(t.name)}</span>
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${esc(meta)}</span>
           <div style="flex:1"></div>
@@ -534,7 +534,7 @@ function blockConversation() {
           <span data-act="attachClear" role="button" aria-label="Remove attachment" style="font:600 11px Inter,sans-serif;color:#6d6459;cursor:pointer" data-hover="color:#9b1b22">\u2715</span>
         </div>` : ''}
         <div style="padding:14px 20px;border-top:1px solid rgba(32,27,22,.12);display:flex;flex-direction:column;gap:7px">
-          <div style="display:flex;gap:10px;align-items:flex-end">
+          <div class="mx-conv-compose" style="display:flex;gap:10px;align-items:flex-end">
             <span data-act="cannedOpen" data-v2="SAVED REPLIES picker (v2_canned_replies)" title="${esc(m.savedTitle)}" style="padding:10px 12px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16;color:#201b16">${m.saved}</span>
             <label data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault" title="${esc(m.attachTitle)}" style="padding:10px 12px;border:1px solid rgba(32,27,22,.2);font:600 12px Inter,sans-serif;color:#6d6459;cursor:pointer;display:flex;align-items:center" data-hover="border-color:#201b16;color:#201b16">\u2295<input type="file" data-role="msgFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>
             <textarea data-role="reply" rows="2" placeholder="${esc(m.replyPh)}" aria-label="Reply" style="flex:1;${INPUT};padding:10px 12px;resize:none">${esc(st.replyDraft || '')}</textarea>
@@ -870,7 +870,13 @@ function template() {
   </div>
 </div>`;
 }
-function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) { el.outerHTML = html; wire(); } }
+function rerender(sel, html) {
+  const el = rootEl && rootEl.querySelector(sel); if (!el) return;
+  // a redraw keeps keyboard focus on the same link (the tab strip redraws whenever a badge count moves)
+  const f = document.activeElement, key = f && f !== el && el.contains(f) && f.matches('a[href]') ? f.getAttribute('href') : null;
+  el.outerHTML = html; wire();
+  if (key) { const n = rootEl.querySelector(sel); const back = n && Array.from(n.querySelectorAll('a[href]')).find(a => a.getAttribute('href') === key); if (back) { try { back.focus({ preventScroll: true }); } catch (e) {} } }
+}
 function readRole(name) { const el = rootEl && rootEl.querySelector(`[data-role="${name}"]`); return el ? el.value : ''; }
 function isChecked(name) { const el = rootEl && rootEl.querySelector(`[data-role="${name}"]`); return !!(el && el.checked); }
 
@@ -1529,6 +1535,21 @@ export default {
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     wire();
+    // the tab you click takes the crimson underline at once: the router keeps this screen (dimmed) until
+    // the next tab's data lands, and the strip should already say where you are going
+    const onTab = e => {
+      const a = e.target.closest && e.target.closest('.mx-inbox-tabs > a[href]');
+      if (!a || a.classList.contains('on') || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      a.parentNode.querySelectorAll(':scope > a').forEach(x => {
+        const on = x === a;
+        x.classList.toggle('on', on);
+        if (on) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current');
+        x.style.color = on ? '#201b16' : '#6d6459';
+        x.style.borderBottom = on ? '2px solid #9b1b22' : '2px solid transparent';
+      });
+    };
+    root.addEventListener('click', onTab);
+    timers.push(() => root.removeEventListener('click', onTab));
     if (tab === 'messages') {
       const first = visibleThreads()[0] || D.threads[0];
       if (first) openThreadByKey(first.key);

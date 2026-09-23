@@ -15,6 +15,78 @@ const routes = [];
 let current = { module: null, root: null, path: null };
 let notFoundLoader = null, lockedLoader = null;
 const hooks = { beforeRender: null, afterRender: null, title: t => t ? t + ' · Med&X Admin' : 'Med&X Admin' };
+// ---- the hand-off between two screens ------------------------------------------------------------
+// Every view awaits its data, then writes `root.innerHTML`. Until that first write the screen that is
+// leaving STAYS: inert at once, dimmed after ~100 ms (css §8 #view.mx-pending). Past ~450 ms a crimson
+// hairline runs along the top edge (css §7 .mx-loadbar); only a real change of screen, and only once the
+// wait passes ~650 ms, swaps the dimmed screen for a skeleton shaped like the one that is coming. A
+// switch inside one view (Inbox tabs, hub sub-tabs) never shows one — its strip stays put. The live
+// backend answers most screens in ~400 ms, so both thresholds sit clear of it: a skeleton that shows
+// only for a blink is worse than none. All delays are timers, not CSS delays, so prefers-reduced-motion
+// (which zeroes every CSS delay) keeps them.
+const NATIVE_HTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+const reduceMotion = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+const EASE = 'cubic-bezier(.22,1,.36,1)';
+const rows = n => Array.from({ length: n }, () => '<span><i></i><i></i></span>').join('');
+const SK = {
+  title: '<div class="mx-skel-title"><i></i><i></i></div>',
+  band: `<div class="mx-skel-band">${rows(4)}</div>`,
+  card: `<div class="mx-skel-card">${rows(5)}</div>`,
+  tabs: '<div class="mx-skel-tabs"><i></i><i></i><i></i><i></i></div>',
+  board: `<div class="mx-skel-board">${'<span><i></i><b></b><b></b></span>'.repeat(4)}</div>`,
+  grid: `<div class="mx-skel-grid">${'<span><i></i><i></i><i></i></span>'.repeat(6)}</div>`
+};
+// which outline the coming screen has (first path segment; anything unlisted is a titled list)
+const SHAPES = { today: 'band', registrations: 'band', money: 'band', projects: 'band', gala: 'band', tasks: 'board', speakers: 'board', inbox: 'tabs', studio: 'grid' };
+function skeleton(pathname) {
+  const seg = pathname.split('/').filter(Boolean);
+  const shape = seg[0] === 'people' && seg[1] === 'speakers' ? 'board' : (SHAPES[seg[0]] || 'list');
+  const body = { band: SK.band + SK.card, board: SK.board, tabs: SK.tabs + SK.card, grid: SK.grid, list: SK.card }[shape];
+  return `<div class="mx-skel" data-shape="${shape}" aria-busy="true"><span class="mx-sr">Loading…</span>${SK.title}${body}</div>`;
+}
+let loadbar = null;
+function bar(on) {
+  if (!loadbar) { if (!on) return; loadbar = document.createElement('div'); loadbar.className = 'mx-loadbar'; loadbar.setAttribute('aria-hidden', 'true'); document.body.appendChild(loadbar); }
+  loadbar.classList.toggle('on', on);
+}
+let handoff = null;
+function endHandoff() { const h = handoff; handoff = null; if (h) h.end(); }
+// Holds the leaving screen until the view's first write, then calls onWrite(opacity the screen was at)
+// just BEFORE that write lands — so the scroll reset and the arrival classes are in place when the new
+// markup paints, and a view that scrolls to its own section during render keeps that position.
+function beginHandoff(root, { same, pathname, onSkeleton, onWrite }) {
+  endHandoff();
+  const old = Array.from(root.childNodes);
+  const empty = !root.firstElementChild;
+  const timers = [];
+  const later = (ms, fn) => timers.push(setTimeout(fn, ms));
+  const h = { fire: null, end: null };
+  root.inert = true;
+  if (!empty) later(100, () => root.classList.add('mx-pending'));
+  later(450, () => bar(true));
+  if (!same) later(empty ? 160 : 650, () => {
+    NATIVE_HTML.set.call(root, skeleton(pathname)); mo.takeRecords();
+    root.classList.remove('mx-pending');
+    onSkeleton();
+  });
+  const mo = new MutationObserver(() => h.fire());
+  h.end = () => { timers.forEach(clearTimeout); mo.disconnect(); delete root.innerHTML; root.inert = false; root.classList.remove('mx-pending'); bar(false); };
+  h.fire = () => {
+    if (handoff !== h) return;
+    const o = parseFloat(getComputedStyle(root).opacity);
+    endHandoff();
+    old.forEach(n => { if (n.parentNode === root) root.removeChild(n); });   // a view that appended instead of replacing
+    onWrite(isNaN(o) ? 1 : o, empty);
+  };
+  Object.defineProperty(root, 'innerHTML', { configurable: true, get() { return NATIVE_HTML.get.call(this); }, set(v) { h.fire(); NATIVE_HTML.set.call(this, v); } });
+  mo.observe(root, { childList: true });
+  handoff = h;
+  return h;
+}
+let arriveTimer = null, arriveAnim = null;
+// a KEYBOARD press on a link inside the view (an Inbox tab, a hub sub-tab) — the leaving screen goes
+// inert, which drops focus to <body>; when the same view redraws, focus returns to the same link
+let refocus = null;
 
 function compile(path) {
   const keys = [];
@@ -80,6 +152,7 @@ export const router = {
     const loader = lockedSection ? lockedLoader : (route ? route.view : notFoundLoader);
     if (!loader) { console.error('[router] no view for', pathname); return; }
     const seq = (this._seq = (this._seq || 0) + 1);
+    const rf = refocus; refocus = null;
     let mod;
     try { mod = await loader(); } catch (e) { console.error('[router] failed to load view for ' + pathname, e); mod = notFoundLoader ? await notFoundLoader() : null; }
     if (seq !== this._seq || !mod) return; // superseded by a newer navigation
@@ -91,18 +164,39 @@ export const router = {
     state.set({ layout, active });
     if (hooks.beforeRender) hooks.beforeRender({ route, params, query, layout, active, view });
     const root = document.getElementById('view');
-    root.innerHTML = '';
-    root.scrollTop = 0;
-    // forward navigation starts at the top BEFORE the view draws — a view that jumps to its own section
-    // during render (Settings › /settings/team, Inbox › /inbox/email …) keeps that position; the reset
-    // used to run after render and threw every such deep link back to the top
-    if (!popped && !location.hash) window.scrollTo(0, 0);
+    const same = !!current.module && current.module === view;
     current = { module: view, root, path: pathname };
     const title = typeof view.title === 'function' ? view.title(ctx) : (view.title || (route && route.title) || '');
     document.title = hooks.title(title);
-    root.classList.remove('mx-enter'); void root.offsetWidth; root.classList.add('mx-enter');   // a soft fade per screen (css: #view.mx-enter)
+    clearTimeout(arriveTimer);
+    if (arriveAnim) { try { arriveAnim.cancel(); } catch (e) {} arriveAnim = null; }
+    root.classList.remove('mx-arrive');
+    // forward navigation starts at the top when the NEW screen lands (its first write, or the skeleton)
+    // and before the view scrolls itself — a view that jumps to its own section during render
+    // (Settings › /settings/team, Inbox › /inbox/email …) keeps that position
+    const toTop = () => { root.scrollTop = 0; if (!popped && !location.hash) window.scrollTo(0, 0); };
+    const h = beginHandoff(root, {
+      same, pathname,
+      onSkeleton: toTop,
+      onWrite: (o, empty) => {
+        toTop();
+        // the finished screen fades up from where the leaving one rested (dimmed .55, a skeleton, or a
+        // quick swap from full); a new screen also lets its first KPI cells / cards settle in one after
+        // another (css §8 .mx-arrive — removed before anything re-renders, never replayed)
+        const from = same ? o : (empty ? 0 : Math.min(o, .7));
+        if (from < .98 && !reduceMotion() && root.animate) {
+          try { arriveAnim = root.animate([{ opacity: from }, { opacity: 1 }], { duration: same ? 200 : 300, easing: EASE }); } catch (e) {}
+        }
+        if (!same) { root.classList.add('mx-arrive'); arriveTimer = setTimeout(() => root.classList.remove('mx-arrive'), 800); }
+      }
+    });
     try { await view.render(root, ctx); } catch (e) { console.error('[router] render failed for ' + pathname, e); root.innerHTML = renderError(e); }
     if (seq !== this._seq) return;
+    if (handoff === h) h.fire();   // a view that drew nothing still releases the leaving screen
+    if (same && rf && (!document.activeElement || document.activeElement === document.body)) {
+      const back = Array.from(root.querySelectorAll(rf.attr === 'href' ? 'a[href]' : '[data-nav]')).find(el => el.getAttribute(rf.attr) === rf.to);
+      if (back) { try { back.focus({ preventScroll: true }); } catch (e) {} }
+    }
     if (hooks.afterRender) hooks.afterRender({ route, params, query, layout, active, view, title });
     const st = history.state || {};
     // A hash is arbitrary user text, not a selector: '#2026', '#a b', '#gala:seating' all throw
@@ -117,8 +211,10 @@ export const router = {
     // link delegate: <a href="/…"> and [data-nav="/…"] go through the router; server paths and external links fall through
     document.addEventListener('click', e => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const view = document.getElementById('view');
+      const kbd = el => (e.detail === 0 && view && view.contains(el));
       const nav = e.target.closest && e.target.closest('[data-nav]');
-      if (nav) { e.preventDefault(); this.navigate(nav.getAttribute('data-nav')); return; }
+      if (nav) { e.preventDefault(); refocus = kbd(nav) ? { attr: 'data-nav', to: nav.getAttribute('data-nav') } : null; this.navigate(nav.getAttribute('data-nav')); return; }
       const a = e.target.closest && e.target.closest('a[href]');
       if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
       const href = a.getAttribute('href');
@@ -126,6 +222,7 @@ export const router = {
       const url = new URL(href, location.origin);
       if (url.origin !== location.origin || isServerPath(url.pathname)) return;
       e.preventDefault();
+      refocus = kbd(a) ? { attr: 'href', to: href } : null;
       this.navigate(url.pathname + url.search + url.hash);
     });
     return this.resolve({ popped: false });

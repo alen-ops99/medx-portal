@@ -17,6 +17,9 @@ import { FACTS } from '../facts.js';
 import cfg from '../config.js';
 import { criteriaCardBody, criteriaHandlers, onCriteriaChange } from './_accel-criteria.js';
 
+// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
+const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
+
 export const SOURCE = 'Admin Accelerator Hub.dc.html';
 
 export const COPY = {
@@ -149,8 +152,8 @@ function blockTitle() {
         <div style="font-size:12.5px;color:#6d6459;margin-top:4px">${COPY.sub(esc(o.long))}</div>
       </div>
       <div style="flex:1"></div>
-      <a href="/member-pages/accelerator" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
-      <a href="/accelerator-review" style="padding:10px 16px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.review}</a>
+      <a href="/member-pages/accelerator" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${arr(COPY.manage)}</a>
+      <a href="/accelerator-review" style="padding:10px 16px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${arr(COPY.review)}</a>
     </div>
     <!-- /dc -->`;
 }
@@ -301,7 +304,7 @@ function blockReviewCard() {
             ${COPY.room.chips.map(([t, to]) => `<a href="${to}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:4px 8px" data-hover="color:#201b16">${t}</a>`).join('')}
             <a href="${COPY.room.chipGold[1]}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f1e7d4;color:#7a6432;padding:4px 8px" data-hover="color:#201b16">${COPY.room.chipGold[0]}</a>
           </div>
-          <a href="/accelerator-review" style="margin-top:4px;padding:11px 14px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;text-align:center" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.room.open}</a>
+          <a href="/accelerator-review" style="margin-top:4px;padding:11px 14px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;text-align:center" data-hover="background:#9b1b22;color:#f6f2ea">${arr(COPY.room.open)}</a>
           <!-- /dc -->
         </div>`;
 }
@@ -330,9 +333,9 @@ function blockNote() {
 
 function template() {
   return `
-<div data-screen-label="Admin Accelerator Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+<div class="mxpj" data-screen-label="Admin Accelerator Hub" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
   ${blockSubnav()}
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:24px">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 48px;display:flex;flex-direction:column;gap:24px">
     ${blockTitle()}
     ${blockStats()}
     <div class="mx-side" style="display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:start">

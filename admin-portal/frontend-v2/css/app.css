@@ -11,7 +11,7 @@
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: #f6f2ea; font-family: Inter, sans-serif; color: #201b16; }
 a { color: #9b1b22; text-decoration: none; }
-a:hover { color: #201b16; }
+@media (hover: hover) { a:hover { color: #201b16; } }
 input, textarea, select, button { font-family: Inter, sans-serif; }
 input:focus, select:focus, textarea:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
 img { max-width: 100%; }
@@ -30,7 +30,8 @@ img { max-width: 100%; }
 
 /* clickable spans from the artboards (onClick → data-act): pointer + keyboard focus ring */
 [data-act], [data-nav] { cursor: pointer; }
-[data-act]:focus-visible, [data-nav]:focus-visible, a:focus-visible, button:focus-visible { outline: 1px solid #9b1b22; outline-offset: 3px; }
+[data-act]:focus-visible, [data-nav]:focus-visible, a:focus-visible, button:focus-visible,
+[tabindex]:focus-visible, summary:focus-visible, label:focus-visible, [role="checkbox"]:focus-visible { outline: 1px solid #9b1b22; outline-offset: 3px; }
 [data-act][aria-disabled="true"] { opacity: .55; cursor: default; }
 
 /* ---- shell -------------------------------------------------------------- */
@@ -43,8 +44,12 @@ body[data-layout="signin"] #chrome { display: none; }
    0 12px 30px shadow). The PROJECTS dropdown has no artboard — same panel vocabulary. */
 .mx-pop { position: absolute; top: 37px; left: 0; width: 300px; background: #fff; border: 1px solid rgba(32,27,22,.18); box-shadow: 0 12px 30px rgba(32,27,22,.16); z-index: 70; max-height: 360px; overflow: auto; }
 .mx-pop-right { left: auto; right: 0; }
-.mx-pop-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 12px; border-bottom: 1px solid rgba(32,27,22,.06); color: #201b16; font-size: 12.5px; cursor: pointer; }
-.mx-pop-row:hover, .mx-pop-row[aria-selected="true"] { background: #f6f2ea; color: #201b16; }
+.mx-pop-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 12px; border-bottom: 1px solid rgba(32,27,22,.06); color: #201b16; font-size: 12.5px; cursor: pointer; box-shadow: inset 2px 0 0 transparent; }
+.mx-pop-row[aria-selected="true"] { background: #f6f2ea; color: #201b16; box-shadow: inset 2px 0 0 #9b1b22; }
+@media (hover: hover) { .mx-pop-row:hover { background: #f6f2ea; color: #201b16; } }
+@media (hover: none) { .mx-pop-row[aria-selected="true"] { box-shadow: none; background: transparent; } }
+/* the keyboard's row carries a quiet ↵ on the right — Enter opens exactly that one */
+.mx-pop-row[aria-selected="true"]:not([data-act="ask"])::after { content: "\21B5"; margin-left: auto; padding-left: 8px; font: 400 12px Inter, sans-serif; color: #9a9086; align-self: center; }
 .mx-pop-kind { font: 600 8px Inter, sans-serif; letter-spacing: .12em; color: #9b1b22; width: 54px; flex: none; text-transform: uppercase; }
 .mx-pop-note { padding: 10px 12px; font-size: 12px; color: #6d6459; }
 .mx-menu { position: absolute; top: 38px; right: 0; width: 260px; background: #fff; border: 1px solid rgba(32,27,22,.18); box-shadow: 0 12px 30px rgba(32,27,22,.16); z-index: 60; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; text-align: left; }
@@ -52,11 +57,16 @@ body[data-layout="signin"] #chrome { display: none; }
    hairline, the 0 12px 30px shadow; a row = crimson 8px key · label · muted note / count pills */
 .mx-dd { position: absolute; top: 58px; left: 0; min-width: 300px; width: max-content; max-width: min(380px, calc(100vw - 32px)); background: #fff; border: 1px solid rgba(32,27,22,.18); border-top: 0; box-shadow: 0 12px 30px rgba(32,27,22,.16); z-index: 65; padding: 8px 0; }
 .mx-dd-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 16px; color: #201b16; font-size: 13px; border-left: 2px solid transparent; }
-.mx-dd-row:hover, .mx-dd-row:focus-visible { background: #f6f2ea; color: #201b16; outline: none; }
+.mx-dd-row:focus-visible { background: #f6f2ea; color: #201b16; outline: 1px solid #9b1b22; outline-offset: -1px; }
+@media (hover: hover) {
+  .mx-dd-row:hover { background: #f6f2ea; color: #201b16; }
+  .mx-dd-row:not(.on):hover { border-left-color: rgba(155,27,34,.4); }
+  .mx-dd-row:hover .lbl { transform: translateX(3px); }
+}
 .mx-dd-row.on { border-left-color: #9b1b22; }
 .mx-dd-row.on .lbl { font-weight: 600; }
 .mx-dd .k { font: 600 8px Inter, sans-serif; letter-spacing: .12em; color: #9b1b22; width: 60px; flex: none; }
-.mx-dd .lbl { white-space: nowrap; }
+.mx-dd .lbl { white-space: nowrap; display: inline-block; transition: transform var(--t-fast) var(--ease); }
 .mx-dd .sub { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding-left: 14px; white-space: nowrap; }
 .mx-dd .sub .txt { font-size: 11px; color: #6d6459; }
 .mx-dd-rule { height: 1px; background: rgba(32,27,22,.08); margin: 6px 0; }
@@ -95,8 +105,7 @@ body[data-layout="signin"] #chrome { display: none; }
   body.menu-open .mx-nav > * { height: auto !important; padding: 0 !important; border-bottom: 0 !important; border-left: 2px solid transparent; box-sizing: border-box; flex-direction: column; align-items: stretch !important; }
   body.menu-open .mx-nav > a, body.menu-open .mx-nav > .mx-nav-item > a { padding: 13px 16px !important; height: auto !important; min-height: 44px; border-bottom: 0 !important; box-sizing: border-box; }
   body.menu-open .mx-nav > .active { border-left-color: #9b1b22 !important; }
-  body.menu-open .mx-nav-item.has-menu > a .mx-caret { margin-left: auto !important; font-size: 10px !important; opacity: 1 !important; transition: transform .15s ease; }
-  body.menu-open .mx-nav-item.has-menu.open > a .mx-caret { transform: rotate(180deg); }
+  body.menu-open .mx-nav-item.has-menu > a .mx-caret { margin-left: auto !important; font-size: 10px !important; opacity: 1 !important; }
   body.menu-open .mx-dd { position: static; width: auto; min-width: 0; max-width: none; box-shadow: none; border: 0; background: #faf8f3; padding: 4px 0 8px; }
   body.menu-open .mx-dd-row { padding: 12px 16px 12px 30px; min-height: 44px; box-sizing: border-box; }
   body.menu-open .mx-dd .k { display: none; }
@@ -107,12 +116,17 @@ body[data-layout="signin"] #chrome { display: none; }
 /* ---- toast (Admin Home.dc.html bottom toast, verbatim look; UNDO in gold) ----- */
 .mx-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(12px); background: #201b16; color: #f6f2ea; padding: 12px 18px;
   font: 600 10px Inter, sans-serif; letter-spacing: .14em; text-transform: uppercase; z-index: 80; border-left: 3px solid #c9a962; display: flex; gap: 14px; align-items: center; white-space: nowrap;
-  opacity: 0; transition: opacity .25s ease, transform .25s ease; max-width: calc(100vw - 32px); box-sizing: border-box; }
+  opacity: 0; transition: opacity var(--t-enter) var(--ease), transform var(--t-enter) var(--ease); max-width: calc(100vw - 32px); box-sizing: border-box;
+  box-shadow: 0 14px 34px -14px rgba(32,27,22,.55); }
 .mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
 /* a faded toast stays in the DOM — it must never catch the taps meant for the tab bar under it */
 .mx-toast:not(.show) { pointer-events: none; }
 .mx-toast.error { border-left-color: #9b1b22; }
-.mx-toast .undo { color: #c9a962; cursor: pointer; letter-spacing: .14em; }
+.mx-toast .undo { color: #c9a962; cursor: pointer; letter-spacing: .14em; transition: color var(--t-fast) var(--ease); }
+@media (hover: hover) { .mx-toast .undo:hover { color: #f6f2ea; } }
+/* an UNDO toast shows how long the undo stays open: a gold hairline that runs out with it */
+.mx-toast.timed::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(201,169,98,.6); transform-origin: left center; animation: mx-toast-time var(--toast-ms, 5000ms) linear both; }
+@keyframes mx-toast-time { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @media (max-width: 620px) { .mx-toast { white-space: normal; max-width: 88vw; text-align: center; flex-wrap: wrap; justify-content: center; } }
 
 /* ---- modal / confirm (brand vocabulary: ink scrim, white sheet, hairlines) ---- */
@@ -130,8 +144,8 @@ body[data-layout="signin"] #chrome { display: none; }
 .mx-waking .why { font-size: 14px; color: rgba(246,242,234,.8); margin: 14px 0 0; line-height: 1.6; }
 .mx-waking .status { font: 600 10px Inter, sans-serif; letter-spacing: .16em; color: #c9a962; margin-top: 22px; }
 .mx-waking .bar { width: 120px; height: 1px; background: rgba(246,242,234,.18); margin-top: 18px; position: relative; overflow: hidden; }
-.mx-waking .bar::after { content: ""; position: absolute; left: -40%; top: 0; width: 40%; height: 100%; background: #c9a962; animation: mx-sweep 1.6s ease-in-out infinite; }
-@keyframes mx-sweep { to { left: 100%; } }
+.mx-waking .bar::after { content: ""; position: absolute; left: 0; top: 0; width: 40%; height: 100%; background: #c9a962; transform: translateX(-100%); animation: mx-sweep 1.6s ease-in-out infinite; }
+@keyframes mx-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 
 /* ---- responsive (translated from admin-responsive.css; hooks = class names) ----- */
 @media (max-width: 960px) {
@@ -183,9 +197,215 @@ body[data-layout="signin"] #chrome { display: none; }
    pipeline rows pushed the page 66px sideways at 390px, the Accelerator key-dates note 6px) */
 .mx-two > *, .mx-side > *, .mx-kpi > *, .mx-grid-3 > *, .mx-grid-4 > *, .mx-grid-5 > *, .fh-band > *, .fh-feed > * { min-width: 0; }
 
-/* ---- motion: each screen arrives with a soft fade (opacity only — never a transform, so sticky bars
-   and fixed layers inside a view stay put); nothing moves for reduced-motion users ---- */
+/* ============================================================================
+   MOTION & TOUCH — the polish pass (2026-09-22). One language for every screen:
+     ease   cubic-bezier(.22,1,.36,1)   (var(--ease), tokens.css)
+     180 ms hover · press · colour      (var(--t-fast))
+     340 ms popovers · drawers · toasts · panels  (var(--t-enter))
+   Only opacity / transform / colour / box-shadow / filter animate — never a box dimension.
+   Hover looks live under @media (hover: hover) so a phone never keeps a stuck hover.
+   No transform ever lands on an ancestor of a sticky or fixed layer (#view fades by opacity only).
+   Everything stops for prefers-reduced-motion (the block at the very end).
+   ========================================================================== */
+
+/* ---- 1 · colour glides instead of snapping. The artboards' `data-hover` spans swap inline colour /
+   background / border on mouseover (ui.js installDelegates); these transitions turn the swap into
+   an 180 ms ease on every screen at once. Inputs ease their focus ring the same way. ---- */
+[data-hover], .mx-dd-row, .mx-pop-row, .mx-chat, .mx-nav-item, a {
+  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+              box-shadow var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+input, select, textarea { transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), outline-color var(--t-fast) var(--ease); }
+
+/* ---- 2 · press feedback: filled and hairline buttons dip for the length of the press. Selected by
+   the artboards' own inline vocabulary (crimson / ink fills, the .2 hairline) and only on things that
+   ARE buttons (a · [data-act] · button), so no row or card ever dims. ---- */
+:is(a, [data-act], button):is([style*="background:#9b1b22"], [style*="background:#201b16"], [style*="background:#191512"], [style*="border:1px solid rgba(32,27,22,.2)"], [style*="border:1px solid rgba(32,27,22,.18)"]):active,
+.btn-primary:active, .btn-ghost:active, .btn-ink:active { opacity: .8; transition-duration: 40ms; }
+.btn-primary:active, .btn-ghost:active, .btn-ink:active { transform: translateY(1px); }
+
+/* ---- 3 · the top bar ---- */
+/* nav: a crimson hairline draws in under the item you point at — a preview of the active underline */
+.mx-nav-item.has-menu > a { position: relative; }
+.mx-caret { display: inline-block; transition: transform var(--t-enter) var(--ease); }
+.mx-nav-item.has-menu.open .mx-caret { transform: rotate(180deg); opacity: 1 !important; }
+@media (min-width: 961px) {
+  .mx-nav > a.mx-nav-item:not(.active):not(.locked)::after,
+  .mx-nav-item.has-menu:not(.active):not(.locked) > a::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: #9b1b22;
+    transform: scaleX(0); transform-origin: left center; transition: transform .3s var(--ease); pointer-events: none;
+  }
+  .mx-nav-item.has-menu.open:not(.active) > a::after { transform: scaleX(1); }
+}
+/* keyboard focus on a top-bar item: a paper-tinted column with the crimson underline drawn in — the
+   bar-tall outline box it used to get read as a glitch */
+@media (min-width: 961px) {
+  .mx-nav > a:focus-visible, .mx-nav > .mx-nav-item > a:focus-visible { outline: none; background: #f6f2ea; box-shadow: -9px 0 0 #f6f2ea, 9px 0 0 #f6f2ea; }
+  .mx-nav > a:focus-visible::after, .mx-nav > .mx-nav-item > a:focus-visible::after { transform: scaleX(1) !important; }
+}
+@media (hover: hover) and (min-width: 961px) {
+  .mx-nav > a.mx-nav-item:not(.active):not(.locked):hover::after,
+  .mx-nav-item.has-menu:not(.active):not(.locked) > a:hover::after { transform: scaleX(1); }
+}
+/* dropdowns / search results / profile menu arrive with a short fade-and-settle (chrome.js adds
+   .mx-pop-in only when a panel OPENS — a redraw of an open panel never replays it) */
+@keyframes mx-drop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes mx-lift-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-6px); } }
+.mx-pop-in { animation: mx-drop .26s var(--ease) both; }
+/* the TEAM CHAT pill takes a soft shadow under the pointer */
+@media (hover: hover) {
+  .mx-chat:hover { box-shadow: 0 6px 16px -10px rgba(32,27,22,.45); }
+}
+/* search: the field itself carries focus (ink hairline, white fill) — no crimson box inside it */
+.mx-search-box { display: flex; align-items: center; gap: 8px; border: 1px solid rgba(32,27,22,.18); background: #f6f2ea; padding: 7px 12px; box-sizing: border-box;
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+.mx-search-box input:focus, .mx-search-box input:focus-visible { outline: none; }
+.mx-search-box:focus-within { border-color: #201b16; background: #fff; box-shadow: 0 8px 22px -14px rgba(32,27,22,.45); }
+@media (hover: hover) { .mx-search-box:not(:focus-within):hover { border-color: rgba(32,27,22,.4); } }
+.mx-search-glass { color: #6d6459; transition: color var(--t-fast) var(--ease); }
+.mx-search-box:focus-within .mx-search-glass { color: #9b1b22; }
+/* the same rule for every search drawn as a hairline box around a borderless input (People, Registrations,
+   the Tasks / Speakers / Notes filters): the box takes the focus, the glass turns crimson */
+:is(.mx-field, .mx-tasks-search, .mx-spk-search, .mx-nr-search) { transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+:is(.mx-field, .mx-tasks-search, .mx-spk-search, .mx-nr-search):focus-within { border-color: #201b16 !important; box-shadow: 0 8px 22px -16px rgba(32,27,22,.45); }
+:is(.mx-field, .mx-tasks-search, .mx-spk-search, .mx-nr-search):focus-within > span:first-child { color: #9b1b22 !important; }
+:is(.mx-field, .mx-tasks-search) input:focus { outline: none; }
+/* the ⌘K hint — desktop only, where the chord exists; it steps aside once you type */
+.mx-kbd { display: none; flex: none; font: 600 9px Inter, sans-serif; letter-spacing: .08em; color: #9a9086; border: 1px solid rgba(32,27,22,.16); background: #fff; padding: 2px 5px; line-height: 1.2; white-space: nowrap;
+  transition: opacity var(--t-fast) var(--ease); }
+@media (hover: hover) and (pointer: fine) and (min-width: 1200px) {
+  .mx-search { flex-basis: 236px !important; }
+  .mx-kbd { display: inline-block; }
+  .mx-search-box:focus-within .mx-kbd, .mx-search-box.has-q .mx-kbd { opacity: 0; }
+}
+
+/* ---- 4 · the phone MENU drawer: slides down under the bar and folds back up on close (.menu-closing,
+   ~200 ms); the page behind is dimmed by a real scrim element (chrome.js .mx-scrim — a tap on it closes
+   the drawer, iOS included) and cannot scroll away under it; the three bars fold into a cross ---- */
+.mx-burger > span { transition: transform var(--t-enter) var(--ease), opacity var(--t-fast) var(--ease); transform-origin: center; }
+body.menu-open .mx-burger > span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+body.menu-open .mx-burger > span:nth-child(2) { opacity: 0; }
+body.menu-open .mx-burger > span:nth-child(3) { transform: translate(3px, -6px) rotate(-45deg) scaleX(1.5); }
+body.menu-open.menu-closing .mx-burger > span { transform: none; opacity: 1; }   /* the cross unfolds with the drawer, not after it */
+@media (max-width: 960px) {
+  body.menu-open.menu-anim .mx-nav { animation: mx-drop .3s var(--ease) both; }
+  body.menu-open.menu-closing .mx-nav { animation: mx-lift-out .2s var(--ease) both; pointer-events: none; }
+  html:has(body.menu-open), body.menu-open { overflow: hidden; }
+  body.menu-open .mx-nav { overscroll-behavior: contain; }
+  body.menu-open .mx-scrim { display: block; animation: mx-fade .3s var(--ease) both; }
+  body.menu-open.menu-closing .mx-scrim { animation: mx-fade-out .2s var(--ease) both; pointer-events: none; }
+  body.menu-open .mx-dd-row { transition: background-color var(--t-fast) var(--ease); }
+  body.menu-open .mx-dd-row:active { background: #f1ebdf; }
+}
+
+.mx-scrim { display: none; position: fixed; inset: 0; background: rgba(32,27,22,.32); z-index: 45; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+/* ---- 5 · overlays: the modal sheet rises out of a fading scrim ---- */
+@keyframes mx-sheet { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+.mx-modal { animation: mx-fade .24s var(--ease) both; }
+.mx-modal-sheet { animation: mx-sheet var(--t-enter) var(--ease) both; box-shadow: 0 24px 60px -24px rgba(32,27,22,.5); }
+
+/* ---- 6 · things you point at. Whole-card links rise 2px with a soft shadow; list rows warm up;
+   KPI cells draw a crimson hairline along their top edge (the link's own affordance). ---- */
+.mx-lift { transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease); }
+.mx-kpi > a { transition: background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+@media (hover: hover) {
+  .mx-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+  .mx-kpi > a:hover { box-shadow: inset 0 2px 0 #9b1b22; }
+}
+
+/* a panel that opens in place (Studio's tool panel) settles in once — js adds the class on open only */
+.mx-rise-in { animation: mx-rise var(--t-enter) var(--ease) backwards; }
+
+/* the place a jump lands on glows gold once (Money's book links) */
+@keyframes mx-flash { 0% { box-shadow: 0 0 0 0 rgba(201,169,98,0); } 30% { box-shadow: 0 0 0 3px rgba(201,169,98,.55); } 100% { box-shadow: 0 0 0 3px rgba(201,169,98,0); } }
+.mx-flash { animation: mx-flash .9s var(--ease) .3s both; }
+
+/* ---- 7 · loading: every screen waits on its data before it draws. The router keeps the leaving screen
+   (dimmed — §8) and, on a change of screen whose wait passes ~650 ms, lays a quiet skeleton in #view
+   shaped like the screen that is coming (data-shape band / board / tabs / grid / list); the real
+   screen replaces it wholesale. The delays live in router.js timers, so reduced motion keeps them. ---- */
+.mx-skel { max-width: 1180px; margin: 0 auto; padding: 30px 28px 48px; box-sizing: content-box; display: flex; flex-direction: column; gap: 22px;
+  animation: mx-fade .36s var(--ease) both; }
+.mx-skel i { display: block; height: 10px; background: rgba(32,27,22,.075); animation: mx-skel-pulse 1.5s ease-in-out infinite; }
+.mx-skel-title { display: flex; flex-direction: column; gap: 10px; }
+.mx-skel-title i:first-child { width: min(260px, 70%); height: 28px; }
+.mx-skel-title i:last-child { width: min(420px, 90%); }
+.mx-skel-band { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: #fff; border: 1px solid rgba(32,27,22,.12); }
+.mx-skel-band > span { padding: 18px 22px 20px; display: flex; flex-direction: column; gap: 12px; border-right: 1px solid rgba(32,27,22,.1); }
+.mx-skel-band > span:last-child { border-right: 0; }
+.mx-skel-band i:first-child { width: 55%; height: 8px; }
+.mx-skel-band i:last-child { width: 38%; height: 24px; }
+.mx-skel-card { background: #fff; border: 1px solid rgba(32,27,22,.12); }
+.mx-skel-card > span { display: flex; align-items: center; gap: 16px; padding: 15px 20px; border-bottom: 1px solid rgba(32,27,22,.07); }
+.mx-skel-card > span:last-child { border-bottom: 0; }
+.mx-skel-card > span > i:first-child { flex: none; width: 44px; height: 8px; }
+.mx-skel-card > span > i:last-child { flex: 1; max-width: 62%; }
+.mx-skel-card > span:nth-child(2n) > i:last-child { max-width: 48%; }
+.mx-skel-card > span:nth-child(3n) > i:last-child { max-width: 70%; }
+.mx-skel-card > span:nth-child(2) i { animation-delay: .12s; }
+.mx-skel-card > span:nth-child(3) i { animation-delay: .24s; }
+.mx-skel-card > span:nth-child(4) i { animation-delay: .36s; }
+.mx-skel-card > span:nth-child(5) i { animation-delay: .48s; }
+/* tabs strip (Inbox) · a four-column board (Tasks, Speakers) · a card grid (Studio) */
+.mx-skel-tabs { display: flex; gap: 26px; padding: 4px 0 12px; border-bottom: 1px solid rgba(32,27,22,.1); }
+.mx-skel-tabs i { width: 84px; height: 8px; }
+.mx-skel-tabs i:first-child { width: 110px; }
+.mx-skel-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.mx-skel-board > span { display: flex; flex-direction: column; gap: 10px; }
+.mx-skel-board > span > i { width: 46%; height: 8px; margin-bottom: 4px; }
+.mx-skel-board b { display: block; height: 58px; background: #fff; border: 1px solid rgba(32,27,22,.1); }
+.mx-skel-board > span:nth-child(n+3) b:last-child { visibility: hidden; }
+.mx-skel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.mx-skel-grid > span { background: #fff; border: 1px solid rgba(32,27,22,.12); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.mx-skel-grid > span > i:first-child { width: 30%; height: 8px; }
+.mx-skel-grid > span > i:nth-child(2) { width: 58%; height: 18px; }
+.mx-skel-grid > span > i:last-child { width: 86%; }
+@keyframes mx-skel-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.mx-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* a wait past ~450 ms: a crimson hairline glides along the very top edge until the screen lands */
+.mx-loadbar { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 90; pointer-events: none; overflow: hidden; opacity: 0; transition: opacity .22s var(--ease); }
+.mx-loadbar.on { opacity: 1; }
+.mx-loadbar::after { content: ""; position: absolute; top: 0; left: 0; width: 32%; height: 100%; background: #9b1b22; transform: translateX(-100%); animation: mx-loadbar 1.15s var(--ease) infinite; }
+@keyframes mx-loadbar { from { transform: translateX(-100%); } to { transform: translateX(320%); } }
+@media (max-width: 960px) { .mx-skel { padding: 22px 16px 40px; } }
+@media (max-width: 760px) {
+  .mx-skel-board { grid-template-columns: 1fr; }
+  .mx-skel-board > span:nth-child(n+2) { display: none; }
+  .mx-skel-grid { grid-template-columns: 1fr; }
+  .mx-skel-grid > span:nth-child(n+4) { display: none; }
+  .mx-skel-tabs { gap: 18px; overflow: hidden; }
+}
+@media (max-width: 620px) {
+  .mx-skel-band { grid-template-columns: 1fr 1fr; }
+  .mx-skel-band > span:nth-child(2) { border-right: 0; }
+  .mx-skel-band > span:nth-child(-n+2) { border-bottom: 1px solid rgba(32,27,22,.1); }
+}
+
+/* ---- 8 · the hand-off (router.js): the leaving screen stays, inert, and dims after ~100 ms
+   (.mx-pending); the finished screen fades up from the opacity it replaces (Web Animations, opacity
+   only — never a transform, so sticky bars and fixed layers inside a view stay put) and, on a change of
+   screen, lets its first KPI cells and cards settle in one after another for ~0.8 s (.mx-arrive — gone
+   before anything re-renders, never replayed). ---- */
 @keyframes mx-fade { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: no-preference) {
-  #view.mx-enter { animation: mx-fade .32s cubic-bezier(.22,1,.36,1) both; }
+@keyframes mx-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes mx-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* never a filling animation on #view: one that keeps filling makes #view a stacking context for good,
+   and every fixed layer inside it (the Tasks / Speakers drawers, z 55) then sank under the top bar
+   (z 50) — the drawer's own head was hidden behind the header */
+#view.mx-pending { opacity: .55; transition: opacity .24s var(--ease); }
+#view[inert] { pointer-events: none; }
+#view.mx-arrive .mx-kpi > *, #view.mx-arrive .mx-stagger > * { animation: mx-rise .36s var(--ease) backwards; }
+#view.mx-arrive :is(.mx-kpi, .mx-stagger) > :nth-child(2) { animation-delay: 40ms; }
+#view.mx-arrive :is(.mx-kpi, .mx-stagger) > :nth-child(3) { animation-delay: 80ms; }
+#view.mx-arrive :is(.mx-kpi, .mx-stagger) > :nth-child(4) { animation-delay: 120ms; }
+#view.mx-arrive :is(.mx-kpi, .mx-stagger) > :nth-child(n+5) { animation-delay: 150ms; }
+
+/* ---- 9 · reduced motion: nothing moves, nothing pulses; state changes land at once ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
+  .mx-skel i { opacity: 1 !important; }
+  .mx-waking .bar::after { animation: none !important; transform: translateX(75%); }
+  .mx-loadbar::after { animation: none !important; transform: none; width: 100%; opacity: .55; }
 }

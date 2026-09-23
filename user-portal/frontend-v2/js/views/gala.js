@@ -205,7 +205,7 @@ function statusNote() {
 function blockCrumb() {
   return `
   <!-- dc: Gala Evening.dc.html › "Breadcrumb" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+  <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
     <a href="/app/projects" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.left}</a>
     <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.right}</span>
@@ -216,16 +216,16 @@ function blockCrumb() {
 function followToggle(label) {
   return `
       <div data-block="follow" style="display:flex;align-items:center;gap:10px;margin-top:20px">
-        <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="${esc(label)}" style="width:34px;height:18px;flex:none;cursor:pointer;background:${st.follow ? '#9b1b22' : 'rgba(247,241,230,.3)'};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:${st.follow ? '18px' : '2px'}"></span></span>
-        <span style="display:flex;flex-direction:column;gap:3px"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.follow(st.follow)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
+        <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="${esc(label)}" class="mx-switch"><span></span></span>
+        <span style="display:flex;flex-direction:column;gap:3px"><span data-role="follow-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.follow(st.follow)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
       </div>`;
 }
 
 function blockHero() {
   return `
   <!-- dc: Gala Evening.dc.html › "Hero" -->
-  <div style="position:relative;overflow:hidden">
-    <img src="/assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">
+  <div class="mx-ink" style="position:relative;overflow:hidden">
+    <img class="mx-hero-photo" src="/assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.7) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:58px 36px 48px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${COPY.hero.eyebrow}</span>
@@ -284,7 +284,7 @@ function blockStage() {
       <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
       <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.stage.emptyLine}</span>
       <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.stage.emptyWhy}</span>
-      <a href="/app/plexus/program" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;white-space:nowrap">${COPY.stage.all}</a>
+      <a href="/app/plexus/program" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.stage.all}</a>
     </div>`;
   return `
     <!-- dc: Gala Evening.dc.html › "01 · ON STAGE THAT NIGHT" -->
@@ -347,7 +347,7 @@ function blockMoments() {
   return `
     <!-- dc: Gala Evening.dc.html › "MOMENTS FROM PREVIOUS GALAS" -->
     <div class="mx-grid-4 mx-gala-gallery" style="display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;gap:12px;padding:24px 0">
-      ${COPY.moments.photos.map(p => `<img src="/assets/${p}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`).join('\n      ')}
+      ${COPY.moments.photos.map(p => `<span class="mx-ph" data-act="allPhotos" tabindex="-1" aria-hidden="true"><img src="/assets/${p}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>`).join('\n      ')}
       <div style="background:#efe7d8;padding:16px 18px;display:flex;flex-direction:column;justify-content:center;gap:7px">
         <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#9b1b22">${COPY.moments.label}</span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;line-height:1.35;color:#191512">${COPY.moments.line}</span>
@@ -385,7 +385,7 @@ function blockGlance() {
         </div>
         <div style="padding-top:24px;display:flex;flex-direction:column;gap:10px">
           <div style="border:1px solid rgba(201,169,98,.8);padding:9px">
-            <img src="/assets/photo-forum.jpg" alt="" style="width:100%;height:210px;object-fit:cover;object-position:center 40%;display:block">
+            <span style="display:block"><img src="/assets/photo-forum.jpg" alt="" style="width:100%;height:210px;object-fit:cover;object-position:center 40%;display:block"></span>
           </div>
           <div style="display:flex;align-items:center">
             <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#4a4239">${COPY.glance.photoCaption}</span>
@@ -467,18 +467,13 @@ const handlers = {
     }
     ui.toast(COPY.ics.added);
   },
-  tgFollow: async (el) => {
-    const on = !st.follow;
-    el.setAttribute('aria-disabled', 'true');
-    try {
-      await api.post('/api/notify-topics', { project: 'gala', on });
-      st.follow = on;
-      const block = rootEl.querySelector('[data-block="follow"]');
-      if (block) block.outerHTML = followToggle('Get updates from the Gala');
-      ui.toast(on ? COPY.followed : COPY.unfollowed);
-      chrome.refresh();
-    } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
-  },
+  // flips in place at once (ui.toggleSwitch) — the POST runs behind it and a failure flips it back
+  tgFollow: (el) => ui.toggleSwitch(el, async on => {
+    await api.post('/api/notify-topics', { project: 'gala', on });
+    if (st) st.follow = on;
+    ui.toast(on ? COPY.followed : COPY.unfollowed);
+    chrome.refresh();
+  }, on => { const l = el.parentElement && el.parentElement.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.follow(on); }),
   pay: async (el) => {
     const reg = D.state.reg;
     if (!reg) return ui.toast(COPY.status.none, { kind: 'error' });
@@ -509,13 +504,14 @@ const handlers = {
 
 function startTimers() {
   timers.push(ui.countdown(D.startAt, ({ days, hrs, min }) => {
-    const set = (k, v) => { const el = rootEl && rootEl.querySelector(`[data-cd="${k}"]`); if (el) el.textContent = v; };
+    const set = (k, v) => ui.tick(rootEl && rootEl.querySelector(`[data-cd="${k}"]`), v);
     set('days', days); set('hrs', hrs); set('min', min);
   }, 30000));
 }
 
 export default {
   title: 'Gala Evening',
+  reveal: true,        // sections below the fold rise in on scroll (router › ui.revealOnScroll)
   async render(root, ctx) {
     ensureCss();
     rootEl = root;

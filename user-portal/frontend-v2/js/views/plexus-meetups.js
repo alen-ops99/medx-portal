@@ -292,7 +292,7 @@ function boardBlock() {
         <span class="rule-gold" style="margin-bottom:6px"></span>
         <span class="empty-line">${esc(filtering ? COPY.board.emptyFilterLine : COPY.board.emptyLine)}</span>
         <span class="empty-why">${esc(filtering ? COPY.board.emptyFilterWhy : COPY.board.emptyWhy)}</span>
-        ${filtering ? `<span data-act="fClear" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap">${COPY.filters.clear}</span>` : ''}
+        ${filtering ? `<span data-act="fClear" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.filters.clear}</span>` : ''}
       </div>`}
       <!-- /v2 -->
     </div>`;
@@ -645,6 +645,7 @@ function scanBlock() {
 
 // ---------------------------------------------------------------- module
 export default {
+  reveal: true,        // sections below the fold rise in on scroll (router › ui.revealOnScroll)
   title: (ctx) => ((ctx && ctx.params && ctx.params.id) ? 'Hosting a meetup' : 'Meetups'),
   async render(root, ctx) {
     ensureCss();

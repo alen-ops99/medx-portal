@@ -17,8 +17,8 @@
 .mx-gala-row select[data-role="mealSel"],
 .mx-gala-row select[data-role="tableSel"] { min-width: 0; text-overflow: ellipsis; }
 
-/* the board is an input now (tap a tile → pick a guest) — keep the affordance visible on touch */
-[data-block="board"] > span:hover { border-color: #201b16; }
+/* the board is an input now (tap a tile → pick a guest) — the tile + chip hover / press states live in
+   the polish block at the end of this file (.mxg-tile · .mxg-chip) */
 
 @media (max-width: 960px) {
   /* board tiles: 5 across → 4 across once the right pane goes full-width */
@@ -76,3 +76,101 @@
   .mx-inv-list > div,
   .mx-menu-row { flex-wrap: wrap; }
 }
+
+/* ---- polish 2026-09-22 (behaviour only — the look stays inline) ---------------------------------- */
+/* seating board: a table tile lifts under the pointer and settles on the press; a 2 px gold rule
+   along its foot fills with the seats taken (--f = taken / capacity) */
+.mxg-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: #c9a962; transform: scaleX(var(--f, 0)); transform-origin: left center; pointer-events: none; }
+@keyframes mxg-fill { from { transform: scaleX(0); } to { transform: scaleX(var(--f, 0)); } }
+@media (hover: hover) {
+  .mxg-tile:hover { border-color: #201b16 !important; box-shadow: var(--shadow-lift, 0 12px 26px -16px rgba(32,27,22,.32)); }
+  .mxg-chip:hover { border-color: #201b16 !important; background: #fff !important; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mxg-tile { transition: border-color .18s cubic-bezier(.22,1,.36,1), box-shadow .22s cubic-bezier(.22,1,.36,1), transform .18s cubic-bezier(.22,1,.36,1); }
+  .mxg-tile:active { transform: translateY(1px) !important; box-shadow: none; }
+  #view.mx-arrive .mxg-fill { animation: mxg-fill .42s var(--ease, cubic-bezier(.22,1,.36,1)) .08s backwards; }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mxg-tile:hover { transform: translateY(-2px); }
+}
+
+/* guest rows: one column rhythm whatever the status says — a long CHECKOUT NOT COMPLETED chip used to
+   widen its own track and pull that row's two selects ~9 px left, and the empty head cell skewed the
+   header labels; fixed where the pane is wide enough to afford it */
+@media (min-width: 1200px) {
+  .mx-gala-row, .mx-gala-head { grid-template-columns: minmax(0, 1.7fr) 92px 112px minmax(146px, 1fr) 80px !important; }
+  .mx-gala-row > span:last-child { justify-self: end; }
+}
+
+/* ============================================================================================
+   MOTION KIT · Projects surfaces (2026-09-22). The SAME block closes every Projects view css
+   (plexus-hub · accelerator-hub · accelerator-review · forum-hub · bridges-hub · big-ideas · gala ·
+   program · event-day · member-pages · links), so whichever file loads first carries it; copies are
+   identical and harmless. It EXTENDS the portal-wide motion in css/app.css ("MOTION & TOUCH": the
+   --ease / --t-fast tokens, data-hover glides, press dips, #view.mx-arrive + .mx-stagger entrances,
+   the reduced-motion stop) to what only these screens have. Hooks: the view root carries .mxpj; each
+   view's page column carries .mx-stagger, so its blocks settle in one after another on arrival.
+   Only opacity · transform · colour · box-shadow move; hover looks live under (hover: hover); every
+   transition / animation here sits under prefers-reduced-motion: no-preference. :where() keeps the
+   .mxpj scope out of the weight; the few !important rules (field focus / hover, ghost-button hover) skip
+   chromeless fields (transparent, borderless inputs that live inside their own box).
+   ============================================================================================ */
+@keyframes mxpj-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes mxpj-swap { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes mxpj-ok { from { box-shadow: 0 0 0 0 rgba(201,169,98,.6); } to { box-shadow: 0 0 0 8px rgba(201,169,98,0); } }
+.mxpj .mxpj-arr { display: inline-block; font-style: normal; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* the things app.css does not already glide: action spans without data-hover, rows, fields, arrows */
+  :where(.mxpj) :where(button, [data-act], [data-row], [role="tab"], .mxpj-arr) {
+    transition: color var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)), background-color var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)),
+                border-color var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)), box-shadow var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)),
+                opacity var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)), transform var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1));
+  }
+  /* arrival (app.css §8 staggers .mx-stagger children): a block that holds a KPI strip only fades —
+     its cells already rise on their own — and so does a block that holds a sticky panel or a fixed
+     layer (never a transform on an ancestor of sticky / fixed) */
+  #view.mx-arrive .mxpj .mx-stagger > :is(.mx-kpi, :has(.mx-kpi, .mx-sticky, .mx-pg-sheet, .mx-ed-sheetwrap, [style*="position:fixed"], [style*="position: fixed"], [style*="position:sticky"], [style*="position: sticky"])) { animation-name: mx-fade; }
+  /* data bars draw from their left edge as the screen arrives */
+  #view.mx-arrive .mxpj .mxpj-bar { transform-origin: left center; animation: mxpj-grow .42s var(--ease, cubic-bezier(.22,1,.36,1)) .08s backwards; }
+  /* confirmation — a label that just changed (COPIED …) settles in; a button also sends out one gold ring */
+  .mxpj .mxpj-swap { animation: mxpj-swap .24s var(--ease, cubic-bezier(.22,1,.36,1)); }
+  .mxpj .mxpj-ok { animation: mxpj-swap .24s var(--ease, cubic-bezier(.22,1,.36,1)), mxpj-ok .6s var(--ease, cubic-bezier(.22,1,.36,1)); }
+}
+
+/* focus — a paper field lifts to white under its crimson outline (the search box's own focus idiom);
+   a chromeless field inside a box is left to that box */
+:where(.mxpj) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):not([style*="background:transparent"]):not([style*="border:none"]):focus { background-color: #fff !important; }
+
+@media (hover: hover) {
+  /* hairline ghost buttons (the artboards' 20 / 25 % ink edge) darken it, with or without data-hover */
+  :where(.mxpj) [data-act][style*="border:1px solid rgba(32,27,22,.2)"]:not([aria-disabled="true"]):hover,
+  :where(.mxpj) [data-act][style*="border:1px solid rgba(32,27,22,.25)"]:not([aria-disabled="true"]):hover { border-color: #201b16 !important; }
+  /* fields answer the pointer before the click */
+  :where(.mxpj) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):not([style*="background:transparent"]):not([style*="border:none"]):not(:disabled):not(:focus):hover { border-color: rgba(32,27,22,.4) !important; }
+  /* list rows warm to paper; a door row (link / action) also shows a crimson edge */
+  :where(.mxpj [data-block] [data-row]:not(.card)):hover { background-color: #fdfbf6; }
+  :where(.mxpj) :is(a, [data-act]).mx-row:hover { box-shadow: inset 2px 0 0 #9b1b22; }
+  /* a KPI cell that opens a panel draws the same crimson hairline app.css gives the linked ones */
+  :where(.mxpj) .mx-kpi > [data-act]:hover { box-shadow: inset 0 2px 0 #9b1b22; }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  /* the arrow of a label leans toward where it goes */
+  :where(.mxpj) :is(a, [data-act], [data-nav]):hover .mxpj-arr { transform: translateX(3px); }
+  :where(.mxpj) :is(a, [data-act], [data-nav]):hover .mxpj-arr.ne { transform: translate(2px, -2px); }
+}
+/* sub-nav: the top bar's idiom one level down — a crimson hairline draws in under the destination you
+   point at, level with the current one's rule (bottom 1 px); keyboard focus gets the top bar's focus
+   look too — a paper column with that line drawn in — instead of a bar-tall outline box that hung
+   below the bar's hairline */
+@media (hover: hover) and (min-width: 961px) {
+  :where(.mxpj) .mx-subnav > a { position: relative; align-self: stretch; display: inline-flex; align-items: center; }
+  :where(.mxpj) .mx-subnav > a::after { content: ""; position: absolute; left: 0; right: 0; bottom: 1px; height: 1px; background: #9b1b22; transform: scaleX(0); transform-origin: left center; pointer-events: none; }
+  :where(.mxpj) .mx-subnav > a:hover::after, :where(.mxpj) .mx-subnav > a:focus-visible::after { transform: scaleX(1); }
+  :where(.mxpj) .mx-subnav > a:focus-visible { outline: none; background-color: #f6f2ea; box-shadow: -9px 0 0 #f6f2ea, 9px 0 0 #f6f2ea; color: #201b16 !important; }
+}
+@media (hover: hover) and (min-width: 961px) and (prefers-reduced-motion: no-preference) {
+  :where(.mxpj) .mx-subnav > a::after { transition: transform .3s var(--ease, cubic-bezier(.22,1,.36,1)); }
+}
+/* ---- /MOTION KIT ---- */

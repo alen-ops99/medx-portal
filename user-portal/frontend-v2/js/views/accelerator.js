@@ -468,13 +468,13 @@ function blockCrumbs(applyTab) {
   <!-- /dc -->`;
 }
 function blockTabs(applyTab) {
-  const on = 'font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px;cursor:pointer;white-space:nowrap';
+  const on = 'font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;white-space:nowrap';   // the underline is drawn by .mx-tab.is-on (app.css)
   const off = 'font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none;white-space:nowrap';
   return `
   <!-- dc: Accelerator.dc.html › "Tabs" -->
-  <div class="mx-tabs mx-gutter" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    ${applyTab ? `<a href="/app/accelerator" style="${off}" data-hover="color:#191512">${COPY.tabs.overview}</a>` : `<span style="${on}" aria-current="page">${COPY.tabs.overview}</span>`}
-    ${applyTab ? `<span style="${on}" aria-current="page">${COPY.tabs.apply}</span>` : `<a href="/app/accelerator/apply" style="${off}" data-hover="color:#191512">${COPY.tabs.apply}</a>`}
+  <div class="mx-tabs mx-gutter" data-tabs="accelerator" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    ${applyTab ? `<a href="/app/accelerator" class="mx-tab" style="${off}" data-hover="color:#191512">${COPY.tabs.overview}</a>` : `<span class="mx-tab is-on" style="${on}" aria-current="page">${COPY.tabs.overview}</span>`}
+    ${applyTab ? `<span class="mx-tab is-on" style="${on}" aria-current="page">${COPY.tabs.apply}</span>` : `<a href="/app/accelerator/apply" class="mx-tab" style="${off}" data-hover="color:#191512">${COPY.tabs.apply}</a>`}
   </div>
   <!-- /dc -->`;
 }
@@ -498,17 +498,17 @@ function blockHero() {
     : COPY.hero.pill(fmt.upper(esc(opensInfo().label)), placementLabel());
   return `
   <!-- dc: Accelerator.dc.html › "Hero" -->
-  <div data-block="hero" style="position:relative;overflow:hidden">
-    <img src="${COPY.hero.photo.src}" alt="${COPY.hero.photo.alt}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 85%">
+  <div data-block="hero" class="mx-ink" style="position:relative;overflow:hidden">
+    <img class="mx-hero-photo" src="${COPY.hero.photo.src}" alt="${COPY.hero.photo.alt}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 85%">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${pill}</span>
       <div class="mx-ax-display-52" style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">${COPY.hero.title}</div>
       <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:560px">${esc(COPY.hero.sub(hostNames()))}</div>
-      <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">${heroCta()}</div>
+      <div data-role="hero-cta" style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">${heroCta()}</div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
-        <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Accelerator" style="width:34px;height:18px;flex:none;cursor:pointer;background:${st.follow ? '#9b1b22' : 'rgba(247,241,230,.3)'};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:${st.follow ? '18px' : '2px'}"></span></span>
-        <span style="display:flex;flex-direction:column;gap:3px;text-align:left"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.followLine(st.follow)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
+        <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Accelerator" class="mx-switch"><span></span></span>
+        <span style="display:flex;flex-direction:column;gap:3px;text-align:left"><span data-role="follow-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.followLine(st.follow)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
       </div>
     </div>
   </div>
@@ -538,7 +538,7 @@ function blockBand() {
 }
 function hostCards() {
   const cards = D.hosts.map((h, i) => `
-      <div data-act="pickHost" data-i="${i}" aria-expanded="${st.host === i}" style="border:1px solid ${st.host === i ? '#191512' : 'rgba(25,21,18,.16)'};background:#fdfaf3;padding:16px;display:flex;gap:13px;align-items:center;cursor:pointer" data-hover="border-color:#191512">
+      <div data-act="pickHost" data-i="${i}" aria-expanded="${st.host === i}" class="mx-card-link is-small" style="border:1px solid ${st.host === i ? '#191512' : 'rgba(25,21,18,.16)'};background:#fdfaf3;padding:16px;display:flex;gap:13px;align-items:center;cursor:pointer" data-hover="border-color:#191512">
         ${h.logo ? `<img src="${esc(h.logo)}" alt="" style="width:46px;height:46px;object-fit:contain;background:#191512;flex:none">` : `<span style="width:46px;height:46px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 ${String(h.abbr || '').length > 4 ? 8.5 : 11}px Fraunces,serif;flex:none;overflow:hidden;text-align:center;line-height:1">${esc(h.abbr)}</span>`}
         <span style="min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:14.5px;line-height:1.2">${esc(h.name)}</span><span style="display:block;font-size:11px;color:#4a4239;margin-top:2px">${esc(h.city)}</span></span>
       </div>`).join('');
@@ -565,7 +565,7 @@ function hostDetail(h) {
   const rows = c.rows.map(r => row(r, value(r[0]))).join('');
   const extras = c.extra.map(r => [r, value(r[0])]).filter(x => x[1]).map(([r, v]) => row(r, v)).join('');
   return `
-    <div data-block="host-detail" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:16px 20px 12px;margin-bottom:14px">
+    <div data-block="host-detail" class="mx-reveal" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:16px 20px 12px;margin-bottom:14px">
       <div style="display:flex;gap:14px;align-items:baseline;padding-bottom:8px">
         <span style="font-family:Fraunces,serif;font-size:17px;flex:1;min-width:0">${esc(h.name)}${h.city ? `<span style="font-family:Inter,sans-serif;font-size:11.5px;color:#4a4239"> · ${esc(h.city)}</span>` : ''}</span>
         <span data-act="closeHost" role="button" aria-label="Close" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;flex:none">${c.close} ×</span>
@@ -792,8 +792,8 @@ function faqRows() {
   const list = D.faq || COPY.faq.list(esc(opensInfo().label));
   return list.map((f, i) => `
         <div style="border-bottom:1px solid rgba(25,21,18,.12)">
-          <div data-act="faq" data-i="${i}" aria-expanded="${st.faqOpen === i}" style="display:flex;gap:12px;align-items:center;padding:11px 0;cursor:pointer"><span style="font-size:13px;flex:1">${D.faq ? esc(f.q) : f.q}</span><span style="color:#9b1b22;font-size:11px">${st.faqOpen === i ? '▲' : '▾'}</span></div>
-          ${st.faqOpen === i ? `<div style="font-size:12.5px;color:#4a4239;line-height:1.6;padding:0 0 14px;max-width:520px">${D.faq ? esc(f.a) : f.a}</div>` : ''}
+          <div data-act="faq" data-i="${i}" aria-expanded="${st.faqOpen === i}" style="display:flex;gap:12px;align-items:center;padding:11px 0;cursor:pointer" data-hover="color:#9b1b22"><span style="font-size:13px;flex:1">${D.faq ? esc(f.q) : f.q}</span><span style="color:#9b1b22;font-size:11px">${st.faqOpen === i ? '▲' : '▾'}</span></div>
+          ${st.faqOpen === i ? `<div class="mx-reveal" style="font-size:12.5px;color:#4a4239;line-height:1.6;padding:0 0 14px;max-width:520px">${D.faq ? esc(f.a) : f.a}</div>` : ''}
         </div>`).join('');
 }
 function blockFaq() {
@@ -1353,15 +1353,28 @@ function previewPdf() {
 }
 
 // ---------------------------------------------------------------- handlers
-async function setFollow(on, toastText) {
-  try {
+// The hero's follow switch and its ON / OFF line, painted in place (no hero re-draw — the photo and the
+// switch's own ease stay put); the CTA next to it follows once the save has landed.
+function paintFollow(on) {
+  const hero = rootEl && rootEl.querySelector('[data-block="hero"]');
+  if (!hero) return;
+  const sw = hero.querySelector('[role="switch"]'); if (sw) sw.setAttribute('aria-checked', String(!!on));
+  const l = hero.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.followLine(!!on);
+}
+function repaintAfterFollow() {
+  const cta = rootEl && rootEl.querySelector('[data-block="hero"] [data-role="hero-cta"]');
+  if (cta) cta.innerHTML = heroCta();
+  if (rootEl && rootEl.querySelector('[data-block="application"]')) rerender('[data-block="application"]', `<div data-block="application">${appSectionInner()}</div>`);
+}
+// flips in place at once (ui.toggleSwitch) — the POST runs behind it and a failure flips it back
+function setFollow(el) {
+  return ui.toggleSwitch(el, async on => {
     await api.post('/api/notify-topics', { project: 'accelerator', on });
     st.follow = on; if (on) st.notified = true;
-    ui.toast(toastText || (on ? COPY.hero.followOnToast : COPY.hero.followOffToast));
-    rerender('[data-block="hero"]', blockHero());
-    if (rootEl.querySelector('[data-block="application"]')) rerender('[data-block="application"]', `<div data-block="application">${appSectionInner()}</div>`);
+    ui.toast(on ? COPY.hero.followOnToast : COPY.hero.followOffToast);
+    repaintAfterFollow();
     chrome.refresh();
-  } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  }, paintFollow);
 }
 const handlers = {
   goApply: () => router.navigate('/app/accelerator/apply'),
@@ -1372,15 +1385,14 @@ const handlers = {
       await api.post('/api/notify-topics', { project: 'accelerator', on: true });
       st.follow = true; st.notified = true;
       ui.toast(COPY.hero.notedToast);
-      if (rootEl.querySelector('[data-block="hero"]')) rerender('[data-block="hero"]', blockHero());
-      const inApp = rootEl.querySelector('[data-block="application"]');
-      if (inApp) rerender('[data-block="application"]', `<div data-block="application">${appSectionInner()}</div>`);
+      paintFollow(true);                 // the hero switch eases on — the visible result of "notify me"
+      repaintAfterFollow();
       const gateBtn = rootEl.querySelector('[data-screen-label="Accelerator Application"] [data-act="notify"]');
       if (gateBtn) gateBtn.textContent = COPY.application.notified;
       chrome.refresh();
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
-  tgFollow: () => setFollow(!st.follow),
+  tgFollow: (el) => setFollow(el),
   pickHost: (el) => { const i = parseInt(el.dataset.i, 10); st.host = st.host === i ? null : i; rerender('[data-block="hosts"]', `<div data-block="hosts">${hostCards()}</div>`); },
   closeHost: (el, ev) => { ev.stopPropagation(); st.host = null; rerender('[data-block="hosts"]', `<div data-block="hosts">${hostCards()}</div>`); },
   faq: (el) => { const i = parseInt(el.dataset.i, 10); st.faqOpen = st.faqOpen === i ? null : i; rerender('[data-block="faq"]', `<div data-block="faq" class="mx-ax-faq" style="display:grid;grid-template-columns:1fr 1fr;gap:0 44px;align-items:start;padding-bottom:24px">${faqRows()}</div>`); },
@@ -1476,14 +1488,15 @@ function startTimers(applyTab) {
     const cd = countdownInfo();
     if (cd.target) {
       timers.push(ui.countdown(cd.target, () => {
-        const el = rootEl && rootEl.querySelector('[data-cd="opendays"]');
-        if (el) el.textContent = daysTo(cd.target);
+        ui.tick(rootEl && rootEl.querySelector('[data-cd="opendays"]'), daysTo(cd.target));
       }, 60000));
     }
   }
 }
 
 export default {
+  // sections below the fold rise in on scroll (router › ui.revealOnScroll) — not on the application form
+  reveal: (ctx) => !(ctx && ctx.params && ctx.params.tab === 'apply'),
   title(ctx) { return ctx && ctx.params && ctx.params.tab === 'apply' ? 'My Application' : 'The Accelerator'; },
   async render(root, ctx) {
     injectCss();

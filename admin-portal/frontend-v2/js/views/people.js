@@ -339,7 +339,7 @@ function blockSearch() {
   return `
   <!-- dc: Admin People.dc.html › "Search + segments" -->
   <div data-block="segs" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-    <span style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:10px 14px;flex:1;min-width:260px"><span style="color:#6d6459">⌕</span><input data-role="peopleQ" value="${esc(st.query)}" placeholder="${esc(COPY.searchPh)}" style="border:none;background:transparent;font:400 13.5px Inter,sans-serif;color:#201b16;flex:1;outline:none;padding:0"></span>
+    <span class="mx-field" style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:10px 14px;flex:1;min-width:260px"><span style="color:#6d6459">⌕</span><input data-role="peopleQ" value="${esc(st.query)}" placeholder="${esc(COPY.searchPh)}" style="border:none;background:transparent;font:400 13.5px Inter,sans-serif;color:#201b16;flex:1;outline:none;padding:0"></span>
     ${SEG_ORDER.map(k => {
       const divider = COPY.dividers[k] ? `<span style="display:flex;align-items:center;gap:8px;white-space:nowrap"><span style="width:1px;height:20px;background:rgba(32,27,22,.2)"></span><span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9a9086">${COPY.dividers[k]}</span></span>` : '';
       return divider + segChip(k, counts);
@@ -428,7 +428,7 @@ function listCard() {
     <div data-block="list" style="border:1px solid rgba(32,27,22,.14);background:#fff">
       <div class="mx-people-row" style="display:grid;grid-template-columns:2fr 1.1fr 1.6fr auto;gap:12px;padding:10px 18px;border-bottom:1px solid rgba(32,27,22,.14);font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459"><span>${COPY.cols.name}</span><span>${COPY.cols.country}</span><span>${COPY.cols.status}</span><span></span></div>
       ${shown.map(p => `
-      <div data-act="openRow" data-key="${esc(p.key)}" class="mx-people-row" style="display:grid;grid-template-columns:2fr 1.1fr 1.6fr auto;gap:12px;padding:9px 18px;border-bottom:1px solid rgba(32,27,22,.07);cursor:pointer;align-items:center;background:${sel && p.key === sel.key ? '#f6f2ea' : '#fff'}">
+      <div data-act="openRow" data-key="${esc(p.key)}" class="mx-people-row${sel && p.key === sel.key ? ' on' : ''}" style="display:grid;grid-template-columns:2fr 1.1fr 1.6fr auto;gap:12px;padding:9px 18px;border-bottom:1px solid rgba(32,27,22,.07);cursor:pointer;align-items:center;background:${sel && p.key === sel.key ? '#f6f2ea' : '#fff'}">
         <span style="min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:600">${esc(p.name)}</span>${p.email ? ` <span style="font-size:11px;color:#6d6459">· ${esc(p.email)}</span>` : ''}</span>
         <span style="font-size:12.5px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(countryName(p.country) || '—')}</span>
         <span style="display:flex;gap:6px;flex-wrap:wrap;min-width:0">${p.tags.map(t => { const s = tagStyle(t); return `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 7px;background:${s.bg};color:${s.fg};white-space:nowrap">${esc(t)}</span>`; }).join('')}</span>
@@ -559,7 +559,7 @@ const handlers = {
     });
     redraw('list'); redraw('panel'); enrich(selected());
   },
-  openRow: (el) => { st.selKey = el.dataset.key; st.noteDraft = null; redraw('list'); redraw('panel'); enrich(selected()); },
+  openRow: (el) => { const was = st.selKey; st.selKey = el.dataset.key; st.noteDraft = null; redraw('list'); redraw('panel'); if (was !== st.selKey) { const pn = rootEl.querySelector('[data-block="panel"]'); if (pn) { pn.classList.add('mx-panel-in'); setTimeout(() => pn.classList.remove('mx-panel-in'), 420); } } enrich(selected()); },
   addToggle: () => { st.addOpen = !st.addOpen; const el = rootEl.querySelector('[data-block="add"]'); if (el) el.outerHTML = blockAdd(); else { const t = rootEl.querySelector('[data-block="segs"]'); if (t) t.insertAdjacentHTML('beforebegin', blockAdd()); } const n = rootEl.querySelector('[data-role="npName"]'); if (n) n.focus(); },
   npAdd: async (el) => {
     const v = r => { const i = rootEl.querySelector(`[data-role="${r}"]`); return i ? i.value.trim() : ''; };

@@ -73,7 +73,7 @@ const AV_MEMBER = [{ bg: '#191512', fg: '#f7f1e6' }, { bg: '#c9a962', fg: '#1915
 
 // ---- view state ----
 let D = null;          // { me, threads, conns }
-let st = null;         // { cur, msgs, msgsKey, drafts, topic, filter, showArchived, mobileOpen, peer, sending, attach }
+let st = null;         // { cur, msgs, msgsKey, drafts, topic, filter, showArchived, mobileOpen, peer, sending, attach, shownKey, shownIds, dotAt }
 let timers = [];
 let unbind = null, unbindDoc = [];
 let rootEl = null;
@@ -152,20 +152,34 @@ function blockCrumb() { return `
 
 function blockTabs() { return `
   <!-- dc: Messages.dc.html › "Network tabs" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    <a href="/app/network" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.people}</a>
-    <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px;cursor:default">${COPY.tabs.messages}</span>
-    <a href="/app/me" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.card}</a>
+  <!-- the shared section-tab strip (app.css › .mx-tab), keyed like Network's so the underline slides across -->
+  <div class="mx-tabs mx-gutter" data-tabs="network" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <a href="/app/network" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.people}</a>
+    <span class="mx-tab is-on" aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:default">${COPY.tabs.messages}</span>
+    <a href="/app/me" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.card}</a>
   </div>
   <!-- /dc -->`; }
 
+// The unread dot pops in only when it is NEW — the first time a thread shows one, or when an unread
+// message arrives after it was read. The list is repainted by every 15 s poll, every keystroke in the
+// conversation search, every open and every send; a dot already on screen stays still through all of them.
+// st.dotAt = when each thread's current dot first appeared (a row filtered out keeps its entry). A repaint
+// that lands mid-pop (the arrival paints the list twice in one go) picks the pop up where it stood.
+const DOT_POP = 300;   // ms — css .mx-msg-dot-in
+function unreadDot(key, unread) {
+  if (!unread) { st.dotAt.delete(key); return ''; }
+  const now = performance.now();
+  if (!st.dotAt.has(key)) st.dotAt.set(key, now);
+  const age = Math.round(now - st.dotAt.get(key)), popping = age < DOT_POP;
+  return `<span class="mx-msg-dot${popping ? ' mx-msg-dot-in' : ''}" style="width:7px;height:7px;background:#9b1b22;flex:none;margin-top:5px${popping ? `;animation-delay:-${age}ms` : ''}"></span>`;
+}
 function threadRow(t, i) {
   const cur = t.key === st.cur;
   const unread = t.unread > 0 && !cur;
   const av = avatarOf(t);
   const when = t.archived ? `<span style="color:#6e5626">${COPY.archivedTag}</span>` : esc(whenLabel(t.last && t.last.created_at));
   return `
-      <div data-act="open" data-key="${esc(t.key)}" role="listitem" aria-current="${cur}" style="display:flex;gap:13px;align-items:flex-start;padding:14px 22px;cursor:pointer;border-top:1px solid rgba(25,21,18,.1);background:${cur ? 'rgba(201,169,98,.12)' : 'transparent'};border-left:2px solid ${cur ? '#c9a962' : 'transparent'}" data-hover="background:rgba(25,21,18,.04)">
+      <div data-act="open" data-key="${esc(t.key)}" role="listitem" aria-current="${cur}" class="mx-msg-row" style="display:flex;gap:13px;align-items:flex-start;padding:14px 22px;cursor:pointer;border-top:1px solid rgba(25,21,18,.1);background:${cur ? 'rgba(201,169,98,.12)' : 'transparent'};border-left:2px solid ${cur ? '#c9a962' : 'transparent'}" data-hover="background:rgba(25,21,18,.04)">
         <span style="width:36px;height:36px;background:${av.bg};color:${av.fg};display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;flex:none">${esc(threadInit(t))}</span>
         <span style="flex:1;min-width:0">
           <span style="display:flex;align-items:baseline;gap:8px">
@@ -175,7 +189,7 @@ function threadRow(t, i) {
           <span style="display:block;font-size:11px;color:#4a4239;margin-top:2px">${esc(threadSub(t))}</span>
           <span style="display:block;font-size:12px;color:${unread ? '#191512' : '#4a4239'};margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:${unread ? '600' : '400'}">${esc(previewOf(t))}</span>
         </span>
-        ${unread ? '<span style="width:7px;height:7px;background:#9b1b22;flex:none;margin-top:5px"></span>' : ''}
+        ${unreadDot(t.key, unread)}
       </div>`;
 }
 
@@ -188,15 +202,15 @@ function blockList() {
     <div style="display:flex;align-items:center;gap:12px;padding:16px 22px 12px">
       <span style="font-family:Fraunces,serif;font-size:22px">${COPY.inboxTitle}</span>
       <div style="flex:1"></div>
-      <span data-act="newMsg" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.newMessage}</span>
+      <span data-act="newMsg" class="mx-msg-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.newMessage}</span>
     </div>
     <div style="padding:0 22px 12px">
-      <input data-role="search" type="search" placeholder="${COPY.searchPh}" value="${esc(st.filter || '')}" aria-label="Search conversations" style="width:100%;box-sizing:border-box;border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:9px 12px;font-size:12.5px;color:#191512">
+      <input data-role="search" type="search" class="mx-msg-field" placeholder="${COPY.searchPh}" value="${esc(st.filter || '')}" aria-label="Search conversations" style="width:100%;box-sizing:border-box;border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:9px 12px;font-size:12.5px;color:#191512">
     </div>
     <div data-role="rows" data-v2="scrolling thread list (replaces the artboard's flex spacer)" role="list" aria-label="Conversations" style="flex:1;overflow-y:auto;min-height:0">
       ${rows.map((t, i) => threadRow(t, i)).join('')}
       ${!rows.length ? `<div style="padding:18px 22px;font-size:12px;color:#4a4239;border-top:1px solid rgba(25,21,18,.1)">${st.filter ? 'Nothing matches your search.' : 'No conversations yet.'}</div>` : ''}
-      ${archivedCount ? `<div data-v2="archived toggle" style="padding:12px 22px;border-top:1px solid rgba(25,21,18,.1)"><span data-act="toggleArchived" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6e5626;cursor:pointer">${st.showArchived ? COPY.hideArchived : COPY.showArchived(archivedCount)}</span></div>` : ''}
+      ${archivedCount ? `<div data-v2="archived toggle" style="padding:12px 22px;border-top:1px solid rgba(25,21,18,.1)"><span data-act="toggleArchived" class="mx-msg-link" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6e5626;cursor:pointer">${st.showArchived ? COPY.hideArchived : COPY.showArchived(archivedCount)}</span></div>` : ''}
     </div>
     <div style="padding:14px 22px;border-top:1px solid rgba(25,21,18,.16);font-size:11px;color:#4a4239;line-height:1.5">${COPY.footer(esc(session.displayName()))}</div>
   </div>
@@ -222,7 +236,7 @@ function bubbleAttachment(m, mine) {
   const img = attachIsImage(m) ? `<a href="${esc(url)}" target="_blank" rel="noopener" style="display:block;margin-top:9px"><img src="${esc(url)}" alt="${esc(name)}" loading="lazy" style="max-width:100%;max-height:180px;border:1px solid ${bd};display:block"></a>` : '';
   return `${img}<a href="${esc(url)}" target="_blank" rel="noopener" data-v2="attachment download (served with Content-Disposition: attachment)" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 10px;border:1px solid ${bd};font:600 9px Inter,sans-serif;letter-spacing:.12em;color:inherit;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\u2295 ${esc(name)}</a>`;
 }
-function bubble(m, meta, thread) {
+function bubble(m, meta, thread, isNew) {
   const mine = !!m.mine;
   const side = mine ? 'flex-end' : 'flex-start';
   const bg = mine ? '#191512' : '#f7f1e6';
@@ -230,14 +244,23 @@ function bubble(m, meta, thread) {
   const bd = mine ? '#191512' : 'rgba(25,21,18,.2)';
   const title = (!mine && m.title && thread.kind === 'team') ? `<strong style="display:block;margin-bottom:4px">${esc(m.title)}</strong>` : '';
   return `
-        <div style="display:flex;flex-direction:column;gap:4px;align-self:${side};max-width:62%;align-items:${side}">
+        <div class="mx-msg-bubble${mine ? ' mx-msg-mine' : ''}${isNew ? ' mx-msg-new' : ''}" style="display:flex;flex-direction:column;gap:4px;align-self:${side};max-width:62%;align-items:${side}">
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(meta)}</span>
           <span style="padding:12px 15px;font-size:13px;line-height:1.55;background:${bg};color:${fg};border:1px solid ${bd};white-space:pre-wrap;word-break:break-word">${title}${esc(m.content)}${bubbleAttachment(m, mine)}</span>
         </div>`;
 }
 
+// a message's identity across re-renders (team rows and DMs both carry an id; the fallback never collides in practice)
+const msgKey = m => String(m.id != null ? m.id : `${m.created_at}|${String(m.content || '').slice(0, 40)}`);
+
 function convMessages(thread) {
+  // The open thread's messages have not arrived yet: a quiet gold hairline (after a beat, so a fast
+  // answer shows nothing) instead of the PREVIOUS thread's bubbles under the new header.
+  if (st.msgsKey !== thread.key) return `<div class="mx-msg-wait" aria-hidden="true"><span></span></div>`;
   const msgs = st.msgs || [];
+  // a bubble is NEW when this thread has already been painted and its id was not in that paint —
+  // it rises in (css .mx-msg-new); a thread's first paint fades in as a whole (.mx-msg-fresh)
+  const repaint = st.shownKey === thread.key;
   if (!msgs.length) {
     if (thread.kind === 'team') return `
         <!-- dc: Empty States.dc.html › "MESSAGES · EMPTY INBOX" -->
@@ -245,7 +268,7 @@ function convMessages(thread) {
           <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
           <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.empty.line}</span>
           <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.empty.why}</span>
-          <span data-act="startMsg" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.empty.cta}</span>
+          <span data-act="startMsg" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.empty.cta}</span>
         </div>
         <!-- /dc -->`;
     if (thread.virtual && st.peer && !st.peer.connected) return `
@@ -254,9 +277,9 @@ function convMessages(thread) {
           <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${esc(COPY.gate.line(memberName(thread)))}</span>
           <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${st.peer.pending === 'received' ? esc(COPY.gate.pendingIn(threadName(thread))) : COPY.gate.why}</span>
           ${st.peer.pending ? (st.peer.pending === 'received'
-            ? `<a href="/app/network" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em">${COPY.gate.openNet}</a>`
+            ? `<a href="/app/network" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em">${COPY.gate.openNet}</a>`
             : `<span style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);color:#4a4239;font:600 10px Inter,sans-serif;letter-spacing:.16em">${COPY.gate.pending}</span>`)
-            : `<span data-act="connectPeer" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.gate.cta}</span>`}
+            : `<span data-act="connectPeer" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.gate.cta}</span>`}
         </div>`;
     return `<div class="empty" style="margin:auto" data-v2="empty 1:1 thread"><span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;color:#4a4239">${esc(COPY.emptyDm(memberName(thread)))}</span></div>`;
   }
@@ -273,7 +296,7 @@ function convMessages(thread) {
     let meta = who + ' · ' + timeLabel(m.created_at);
     if (m.mine && m.topic) { const t = COPY.topics.find(x => x[0] === m.topic); if (t) meta += ' · ' + t[1]; }
     if (lastReadMine && m.id === lastReadMine.id) meta += ' · ' + COPY.read;
-    out.push(bubble(m, meta, thread));
+    out.push(bubble(m, meta, thread, repaint && !st.shownIds.has(msgKey(m))));
   });
   return out.join('');
 }
@@ -300,7 +323,7 @@ function blockConv() {
   return `
   <!-- dc: Messages.dc.html › "Conversation" -->
   <div class="mx-msg-conv" style="display:flex;flex-direction:column;background:#fdfaf3;min-height:0">
-    <div style="display:flex;align-items:center;gap:13px;padding:14px 26px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <div class="mx-msg-head" style="display:flex;align-items:center;gap:13px;padding:14px 26px;border-bottom:1px solid rgba(25,21,18,.16)">
       <span data-act="backList" class="mx-msg-back" data-v2="mobile back to list" aria-label="Back to inbox" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap;align-items:center">${COPY.back}</span>
       <span style="width:34px;height:34px;background:${av.bg};color:${av.fg};display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(threadInit(t))}</span>
       <span style="display:flex;flex-direction:column;line-height:1.3;min-width:0">
@@ -308,15 +331,15 @@ function blockConv() {
         <span style="font-size:11px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(threadSub(t))}</span>
       </span>
       <div style="flex:1"></div>
-      ${isTeam ? `<span style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.team.tag}</span>` : ''}
-      ${t.virtual ? '' : `<span data-act="archive" data-v2="archive = hide, never delete" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;white-space:nowrap" data-hover="color:#191512">${t.archived ? COPY.unarchive : COPY.archive}</span>`}
+      ${isTeam ? `<span class="mx-msg-tag" style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.team.tag}</span>` : ''}
+      ${t.virtual ? '' : `<span data-act="archive" data-v2="archive = hide, never delete" class="mx-msg-link" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;white-space:nowrap" data-hover="color:#191512">${t.archived ? COPY.unarchive : COPY.archive}</span>`}
     </div>
-    <div data-role="msgs" aria-live="polite" style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
+    <div data-role="msgs" aria-live="polite" class="mx-msg-pane${st.msgsKey === t.key && st.shownKey !== t.key ? ' mx-msg-fresh' : ''}" style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
     ${canWrite ? `${isTeam ? topicChips() : ''}${attachChip}
     <div style="display:flex;gap:12px;align-items:flex-end;padding:16px 26px 20px;${isTeam ? '' : 'border-top:1px solid rgba(25,21,18,.16)'}">
-      <textarea data-role="draft" placeholder="${COPY.composer.ph}" rows="2" aria-label="${COPY.composer.ph}" style="flex:1;border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:11px 13px;font-size:13px;color:#191512;resize:none">${esc(st.drafts[t.key] || '')}</textarea>
+      <textarea data-role="draft" class="mx-msg-field" placeholder="${COPY.composer.ph}" rows="2" aria-label="${COPY.composer.ph}" style="flex:1;border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:11px 13px;font-size:13px;color:#191512;resize:none">${esc(st.drafts[t.key] || '')}</textarea>
       ${isTeam ? `<label data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault (the profile-photo trap)" title="${COPY.composer.attachTitle}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;padding-bottom:12px" data-hover="color:#191512">${COPY.composer.attach}<input type="file" data-role="attachFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>` : ''}
-      <span data-act="send" role="button" aria-label="Send message" ${st.sending ? 'aria-disabled="true"' : ''} style="padding:12px 18px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.composer.send}</span>
+      <span data-act="send" role="button" aria-label="Send message" ${st.sending ? 'aria-disabled="true"' : ''} class="mx-msg-btn" style="padding:12px 18px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.composer.send}</span>
     </div>` : ''}
   </div>
   <!-- /dc -->`;
@@ -324,17 +347,17 @@ function blockConv() {
 
 function template() {
   if (!D || !D.threads) return `
-<div data-screen-label="Messages" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Messages" class="mx-msg-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
   ${blockCrumb()}
   ${blockTabs()}
   <div class="empty" style="padding:64px 22px" data-v2="inbox unavailable">
     <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
     <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.loadFail}</span>
-    <span data-act="retry" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.retry}</span>
+    <span data-act="retry" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.retry}</span>
   </div>
 </div>`;
   return `
-<div data-screen-label="Messages" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh;display:flex;flex-direction:column">
+<div data-screen-label="Messages" class="mx-msg-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh;display:flex;flex-direction:column">
   ${blockCrumb()}
   ${blockTabs()}
   <div data-role="grid" class="mx-msg-grid${st.mobileOpen ? ' mx-msg-open' : ''}" style="display:grid;grid-template-columns:340px 1fr;align-items:stretch;min-height:560px">
@@ -372,6 +395,7 @@ function renderConv({ keepDraft = true } = {}) {
   const ta = rootEl && rootEl.querySelector('[data-role="draft"]');
   if (keepDraft && ta && st.cur) st.drafts[st.cur] = ta.value;
   rr('.mx-msg-conv', blockConv());
+  if (st.cur && st.msgsKey === st.cur) { st.shownKey = st.cur; st.shownIds = new Set((st.msgs || []).map(msgKey)); }
   const grid = rootEl && rootEl.querySelector('[data-role="grid"]');
   if (grid) grid.classList.toggle('mx-msg-open', !!st.mobileOpen);
   wireConv();
@@ -435,6 +459,7 @@ async function openThread(key, { focus = false, mobile = true } = {}) {
     if (t.last && !t.last.mine) t.last.read = true;
   } catch (e) {
     st.msgs = [];
+    st.msgsKey = key;                               // show the thread's empty state, not the loading hairline
     if (e && e.status !== 401) ui.toast(e.message, { kind: 'error' });
   }
   if (st.cur !== key) return;                       // switched while loading
@@ -466,7 +491,7 @@ async function poll() {
       if (st && st.cur === t.key) {
         const grew = msgs.length !== (st.msgs || []).length;
         const lastRead = JSON.stringify((st.msgs || []).map(m => m.read)) !== JSON.stringify(msgs.map(m => m.read));
-        if (grew || lastRead) { st.msgs = msgs; renderConv(); }
+        if (grew || lastRead) { st.msgs = msgs; st.msgsKey = t.key; renderConv(); }
       }
     }
   } finally { pollBusy = false; }
@@ -479,7 +504,13 @@ const handlers = {
   toggleArchived: () => { st.showArchived = !st.showArchived; renderList(); },
   startMsg: () => { const ta = rootEl.querySelector('[data-role="draft"]'); if (ta) ta.focus(); },
   attachClear: () => { st.attach = null; renderConv(); },
-  topic: (el) => { st.topic = el.dataset.topic; const box = rootEl.querySelector('[data-role="topics"]'); if (box) { box.outerHTML = topicChips(); } },
+  topic: (el) => {
+    st.topic = el.dataset.topic;
+    const box = rootEl.querySelector('[data-role="topics"]'); if (!box) return;
+    box.outerHTML = topicChips();
+    const on = rootEl.querySelector(`[data-role="topics"] [data-topic="${CSS.escape(st.topic)}"]`);
+    if (on) on.classList.add('mx-msg-pop');                                              // the picked chip settles in
+  },
   archive: async () => {
     const t = currentThread(); if (!t || t.virtual) return;
     const next = !t.archived;
@@ -541,7 +572,7 @@ const handlers = {
                init: fmt.initials(c.first_name, c.last_name) || 'M', inst: c.institution || '' };
     }).filter(c => c.id && c.id !== myId);
     const row = (act, extra, avBg, avFg, init, name, sub) => `
-      <div data-act="${act}" ${extra} role="button" tabindex="0" style="display:flex;gap:12px;align-items:center;padding:11px 2px;border-bottom:1px solid rgba(25,21,18,.1);cursor:pointer">
+      <div data-act="${act}" ${extra} role="button" tabindex="0" class="mx-msg-pick" style="display:flex;gap:12px;align-items:center;padding:11px 2px;border-bottom:1px solid rgba(25,21,18,.1);cursor:pointer">
         <span style="width:32px;height:32px;background:${avBg};color:${avFg};display:inline-flex;align-items:center;justify-content:center;font:600 11px Fraunces,serif;flex:none">${esc(init)}</span>
         <span style="min-width:0"><span style="display:block;font-size:13px;font-weight:600;color:#191512">${esc(name)}</span><span style="display:block;font-size:11px;color:#4a4239">${esc(sub)}</span></span>
       </div>`;
@@ -551,7 +582,7 @@ const handlers = {
         ${conns.length
           ? conns.map((c, i) => row('pickConn', `data-id="${esc(c.id)}"`, AV_MEMBER[i % 2].bg, AV_MEMBER[i % 2].fg, c.init, c.name, c.inst || COPY.memberFallbackSub)).join('')
           : `<div style="padding:14px 2px 4px;font-size:12.5px;color:#4a4239;line-height:1.55">${D.conns ? COPY.newModal.noConns : COPY.newModal.connsFail}</div>
-             <div style="padding:10px 2px 2px"><a href="/app/network" data-act="closeModal" style="display:inline-block;padding:10px 16px;border:1px solid rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#191512">${COPY.newModal.openNetwork}</a></div>`}
+             <div style="padding:10px 2px 2px"><a href="/app/network" data-act="closeModal" class="mx-msg-btn" style="display:inline-block;padding:10px 16px;border:1px solid rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#191512">${COPY.newModal.openNetwork}</a></div>`}
       </div>`;
     const m = ui.modal({ eyebrow: COPY.newModal.eyebrow, title: COPY.newModal.title, body });
     ui.bind(m.el, {
@@ -579,7 +610,8 @@ const module = {
     const topicQ = String(q.topic || q.about || '').toLowerCase();
     st = { cur: TEAM, msgs: [], msgsKey: null, drafts: {}, filter: '',
            topic: COPY.topics.some(t => t[0] === topicQ) ? topicQ : 'general',
-           showArchived: false, mobileOpen: false, peer: null, sending: false, attach: null };
+           showArchived: false, mobileOpen: false, peer: null, sending: false, attach: null,
+           shownKey: null, shownIds: new Set(), dotAt: new Map() };
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     if (!D.threads) return;                                   // backend route unavailable — retry UI only

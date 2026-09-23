@@ -92,7 +92,7 @@ const FIELD_KEYS = ['first_name', 'last_name', 'title', 'institution', 'city', '
 const LABEL = 'font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239';
 const INPUT = 'border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512';
 
-let D = null, unbind = null, timers = [], previewTimer = null, savedTimer = null, resendTimer = null, rootEl = null;
+let D = null, unbind = null, timers = [], previewTimer = null, savedTimer = null, resendTimer = null, rootEl = null, meterIO = null;
 
 // ---------------------------------------------------------------- data
 function draftFrom(p) {
@@ -157,7 +157,7 @@ function blockCrumbs() {
 function blockTitle() {
   return `
   <!-- dc: Profile.dc.html › "Profile & Settings" -->
-  <div class="mx-profile-pad" style="display:flex;align-items:baseline;gap:16px;padding:24px 36px 4px;flex-wrap:wrap">
+  <div class="mx-profile-pad mx-profile-head" style="display:flex;align-items:baseline;gap:16px;padding:24px 36px 4px;flex-wrap:wrap">
     <span class="mx-profile-title" style="font-family:Fraunces,serif;font-size:34px;white-space:nowrap">${COPY.title.main}</span>
     <span style="font-size:12.5px;color:#4a4239">${COPY.title.sub}</span>
   </div>
@@ -192,7 +192,7 @@ function blockIdentity() {
   const f = COPY.identity.fields, ph = COPY.identity.placeholders, d = D.draft;
   return `
       <!-- dc: Profile.dc.html › "01 · IDENTITY" -->
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
+      <div class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
         <div class="mx-cardrow" style="display:flex;align-items:baseline;gap:14px;padding:20px 26px 4px">
           <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.identity.n}</span>
           <span style="font:600 13px Inter,sans-serif;letter-spacing:.14em">${COPY.identity.title}</span>
@@ -201,7 +201,7 @@ function blockIdentity() {
           <span data-block="photoCell" style="display:contents">${photoCell()}</span>
           <span style="display:flex;flex-direction:column;gap:7px;align-items:flex-start">
             <span style="font-size:12px;color:#4a4239">${COPY.identity.photoWhy}</span>
-            <label data-act="pickPhoto" role="button" tabindex="0" aria-label="Upload a portrait photo" style="padding:8px 13px;border:1px solid rgba(25,21,18,.3);font:600 9.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" data-hover="border-color:#191512"><span data-role="photoBtn">${photoBtnLabel()}</span><input data-role="photoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none"></label>
+            <label data-act="pickPhoto" role="button" tabindex="0" aria-label="Upload a portrait photo" class="mx-profile-btn" style="padding:8px 13px;border:1px solid rgba(25,21,18,.3);font:600 9.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" data-hover="border-color:#191512"><span data-role="photoBtn">${photoBtnLabel()}</span><input data-role="photoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none"></label>
           </span>
         </div>
         <div class="mx-cardrow mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;padding:18px 26px 24px">
@@ -226,7 +226,7 @@ function chipRow() {
 function blockAbout() {
   return `
       <!-- dc: Profile.dc.html › "02 · ABOUT" -->
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
+      <div class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
         <div class="mx-cardrow" style="display:flex;align-items:baseline;gap:14px;padding:20px 26px 4px;flex-wrap:wrap">
           <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.about.n}</span>
           <span style="font:600 13px Inter,sans-serif;letter-spacing:.14em">${COPY.about.title}</span>
@@ -239,7 +239,7 @@ function blockAbout() {
           </div>
           <div class="mx-profile-row" style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
             <input data-role="specDraft" class="mx-w230" placeholder="${esc(COPY.about.addPlaceholder)}" aria-label="Add a specialty" style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:8px 11px;font-size:12.5px;color:#191512;width:230px">
-            <span data-act="addSpec" role="button" tabindex="0" style="padding:8px 13px;border:1px solid rgba(25,21,18,.3);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer" data-hover="border-color:#191512">${COPY.about.addBtn}</span>
+            <span data-act="addSpec" role="button" tabindex="0" class="mx-profile-btn" style="padding:8px 13px;border:1px solid rgba(25,21,18,.3);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer" data-hover="border-color:#191512">${COPY.about.addBtn}</span>
             <span style="font-size:11px;color:#4a4239">${COPY.about.addHint}</span>
           </div>
         </div>
@@ -252,7 +252,14 @@ function blockAbout() {
       </div>
       <!-- /dc -->`;
 }
-const toggle = (act, on, label) => `<span data-act="${act}" role="switch" tabindex="0" aria-checked="${on}" aria-label="${esc(label)}" style="width:34px;height:18px;flex:none;cursor:pointer;background:${on ? '#9b1b22' : 'rgba(25,21,18,.25)'};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:${on ? '18px' : '2px'}"></span></span>`;
+const toggle = (act, on, label) => `<span data-act="${act}" role="switch" tabindex="0" aria-checked="${on}" aria-label="${esc(label)}" class="mx-profile-switch" style="width:34px;height:18px;flex:none;cursor:pointer;background:${on ? '#9b1b22' : 'rgba(25,21,18,.25)'};position:relative"><span style="position:absolute;top:2px;left:2px;width:14px;height:14px;background:#f7f1e6;transform:translateX(${on ? '16px' : '0'})"></span></span>`;
+// flip a switch where it stands, so the knob glides (css .mx-profile-switch) instead of being re-rendered
+function setSwitch(el, on) {
+  if (!el) return;
+  el.setAttribute('aria-checked', String(on));
+  el.style.background = on ? '#9b1b22' : 'rgba(25,21,18,.25)';
+  if (el.firstElementChild) el.firstElementChild.style.transform = `translateX(${on ? '16px' : '0'})`;
+}
 function prefRows() {
   const d = D.draft, a = COPY.account;
   return `
@@ -269,8 +276,8 @@ function prefRows() {
 // above SAVE CHANGES with their own actions rather than inside the profile draft.
 function settingChips(list, rmAct, addAct, addLabel, noneLabel) {
   return `<span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-            ${list.length ? list.map(v => `<span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px;white-space:nowrap">${esc(v.label)} <span data-act="${rmAct}" data-key="${esc(v.key)}" role="button" tabindex="0" aria-label="Remove ${esc(v.label)}" style="cursor:pointer;color:#9b1b22">×</span></span>`).join('') : `<span style="font-size:12px;color:#4a4239;align-self:center">${noneLabel}</span>`}
-            <span data-act="${addAct}" role="button" tabindex="0" style="padding:5px 10px;border:1px dashed rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${addLabel}</span>
+            ${list.length ? list.map(v => `<span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px;white-space:nowrap">${esc(v.label)} <span data-act="${rmAct}" data-key="${esc(v.key)}" role="button" tabindex="0" aria-label="Remove ${esc(v.label)}" class="mx-profile-x" style="cursor:pointer;color:#9b1b22">×</span></span>`).join('') : `<span style="font-size:12px;color:#4a4239;align-self:center">${noneLabel}</span>`}
+            <span data-act="${addAct}" role="button" tabindex="0" class="mx-profile-btn mx-profile-add" style="padding:5px 10px;border:1px dashed rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${addLabel}</span>
           </span>`;
 }
 function accountExtraRows() {
@@ -280,7 +287,7 @@ function accountExtraRows() {
   return `
         <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
           <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.pw.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.pw.s}</span></span>
-          <span data-act="chgPw" role="button" tabindex="0" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${a.pw.change}</span>
+          <span data-act="chgPw" role="button" tabindex="0" class="mx-profile-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${a.pw.change}</span>
         </div>
         <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1);flex-wrap:wrap">
           <span style="flex:1;min-width:200px"><span style="display:block;font-size:13px;font-weight:600">${a.follow.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.follow.s}</span></span>
@@ -296,7 +303,7 @@ function saveRow() {
   const label = D.saving ? a.saving : (D.saved ? a.saved : a.save);
   return `
         <div class="mx-cardrow mx-profile-row" style="display:flex;align-items:center;gap:14px;padding:16px 26px 20px;border-top:1px solid rgba(25,21,18,.16)">
-          <span data-act="save" role="button" tabindex="0"${D.saving ? ' aria-disabled="true"' : ''} style="padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;flex:none" data-hover="background:#7e151b">${label}</span>
+          <span data-act="save" role="button" tabindex="0"${D.saving ? ' aria-disabled="true"' : ''} class="mx-profile-btn" style="padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;flex:none" data-hover="background:#7e151b">${label}</span>
           <span style="font-size:11.5px;color:#4a4239">${a.saveNote}</span>
         </div>`;
 }
@@ -305,14 +312,14 @@ function blockAccount() {
   const verified = Number(p.email_verified) === 1;
   return `
       <!-- dc: Profile.dc.html › "03 · ACCOUNT & PREFERENCES" -->
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
+      <div class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
         <div class="mx-cardrow" style="display:flex;align-items:baseline;gap:14px;padding:20px 26px 10px">
           <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${a.n}</span>
           <span style="font:600 13px Inter,sans-serif;letter-spacing:.14em">${a.title}</span>
         </div>
         <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
           <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.email}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${esc(p.email || '')} · ${verified ? `<span style="color:#6e5626">${a.confirmed}</span>` : `<span style="color:#9b1b22">${a.notConfirmed}</span>`}</span></span>
-          ${verified ? '' : `<span data-act="resend" role="button" tabindex="0" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${a.resend}</span>`}
+          ${verified ? '' : `<span data-act="resend" role="button" tabindex="0" class="mx-profile-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${a.resend}</span>`}
         </div>
         <span data-block="prefs" style="display:contents">${prefRows()}</span>
         <span data-block="accountExtras" style="display:contents">${accountExtraRows()}</span>
@@ -320,11 +327,13 @@ function blockAccount() {
       </div>
       <!-- /dc -->`;
 }
-function completionCard() {
+// intro = the screen's first paint: the gold bar fills from zero (css .mx-profile-bar-in). Later refreshes
+// animate from the previous value instead (refreshCompletion).
+function completionCard(intro) {
   const c = D.completion;
   const rows = c ? c.items.map(i => `
             <div style="display:flex;gap:11px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(25,21,18,.1)"${i.hint ? ` title="${esc(i.hint)}"` : ''}>
-              <span style="width:11px;height:11px;border:1px solid ${i.done ? '#c9a962' : 'rgba(25,21,18,.35)'};background:${i.done ? '#c9a962' : 'transparent'};flex:none"></span>
+              <span class="mx-profile-tick" data-label="${esc(i.label)}" data-done="${i.done ? 1 : 0}" style="width:11px;height:11px;border:1px solid ${i.done ? '#c9a962' : 'rgba(25,21,18,.35)'};background:${i.done ? '#c9a962' : 'transparent'};flex:none"></span>
               <span style="font-size:12px;color:${i.done ? '#191512' : '#4a4239'}">${esc(i.label)}</span>
             </div>`).join('') : `
             <div style="padding:8px 0;font-size:12px;color:#4a4239;line-height:1.5">${COPY.completion.offline}</div>`;
@@ -337,7 +346,7 @@ function completionCard() {
           <span data-role="pct" style="font-family:Fraunces,serif;font-size:30px;color:#c9a962">${pct}</span>
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${COPY.completion.complete}</span>
         </div>
-        <div style="height:3px;background:rgba(25,21,18,.12);position:relative;margin-top:6px"><span class="mx-profile-bar" style="position:absolute;left:0;top:0;bottom:0;background:#c9a962;width:${c ? c.percent : 0}%"></span></div>
+        <div style="height:3px;background:rgba(25,21,18,.12);position:relative;margin-top:6px;overflow:hidden"><span class="mx-profile-bar${intro ? ' mx-profile-bar-in' : ''}" style="position:absolute;left:0;top:0;bottom:0;width:100%;background:#c9a962;transform-origin:left center;transform:scaleX(${c ? Math.max(0, Math.min(100, c.percent)) / 100 : 0})"></span></div>
         <div style="font-size:11px;color:#4a4239;line-height:1.5;margin-top:10px">${COPY.completion.note}</div>`;
 }
 function previewCard() {
@@ -358,21 +367,21 @@ function previewCard() {
         </div>
         <div style="font-family:Fraunces,serif;font-style:italic;font-size:12.5px;color:rgba(247,241,230,.55);margin-top:12px">${esc(d.bio.trim() || COPY.preview.emptyBio)}</div>
         <div style="display:flex;gap:8px;margin-top:14px">
-          <span data-act="viewProfile" role="button" tabindex="0" style="flex:1;text-align:center;padding:8px 0;border:1px solid rgba(247,241,230,.3);font:600 9px Inter,sans-serif;letter-spacing:.15em;cursor:pointer" data-hover="border-color:#f7f1e6">${COPY.preview.view}</span>
-          <span data-act="connect" role="button" tabindex="0" style="flex:1;text-align:center;padding:8px 0;background:#9b1b22;font:600 9px Inter,sans-serif;letter-spacing:.15em;cursor:pointer" data-hover="background:#7e151b">${COPY.preview.connect}</span>
+          <span data-act="viewProfile" role="button" tabindex="0" class="mx-profile-btn" style="flex:1;text-align:center;padding:8px 0;border:1px solid rgba(247,241,230,.3);font:600 9px Inter,sans-serif;letter-spacing:.15em;cursor:pointer" data-hover="border-color:#f7f1e6">${COPY.preview.view}</span>
+          <span data-act="connect" role="button" tabindex="0" class="mx-profile-btn" style="flex:1;text-align:center;padding:8px 0;background:#9b1b22;font:600 9px Inter,sans-serif;letter-spacing:.15em;cursor:pointer" data-hover="background:#7e151b">${COPY.preview.connect}</span>
         </div>`;
 }
 function blockSidebar() {
   return `
     <div style="display:flex;flex-direction:column;gap:14px">
       <!-- dc: Profile.dc.html › "PROFILE COMPLETION" -->
-      <div data-block="completion" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:20px 22px">${completionCard()}</div>
+      <div data-block="completion" class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:20px 22px">${completionCard(true)}</div>
       <!-- /dc -->
       <!-- dc: Profile.dc.html › "DIRECTORY PREVIEW" -->
-      <div data-block="preview" style="border:1px solid rgba(25,21,18,.16);background:#191512;color:#f7f1e6;padding:20px 22px">${previewCard()}</div>
+      <div data-block="preview" class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#191512;color:#f7f1e6;padding:20px 22px">${previewCard()}</div>
       <!-- /dc -->
       <!-- dc: Profile.dc.html › "YOUR MEMBER CARD" -->
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px 22px;display:flex;flex-direction:column;gap:8px">
+      <div class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px 22px;display:flex;flex-direction:column;gap:8px">
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.card.title}</span>
         <span style="font-size:12px;color:#4a4239;line-height:1.55">${COPY.card.body}</span>
       </div>
@@ -388,9 +397,73 @@ function refreshPhoto() {
   const b = q('[data-role="photoBtn"]'); if (b) b.textContent = photoBtnLabel();
   rerender('[data-block="preview"]', previewCard());
 }
-function refreshCompletion() { rerender('[data-block="completion"]', completionCard()); }
-function refreshChips() { rerender('[data-block="chips"]', chipRow()); }
-function refreshPrefs() { rerender('[data-block="prefs"]', prefRows()); }
+// ---------------------------------------------------------------- completion meter motion
+const motionOK = () => !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const pctOf = el => { const n = parseInt(el && el.textContent, 10); return isNaN(n) ? null : n; };
+// the big percentage counts to its new value alongside the bar (textContent only — no layout work)
+function tweenPct(el, from, to) {
+  if (!el || from == null || to == null || from === to || !motionOK()) return;
+  const dur = 450;
+  let t0 = null;                                   // the frame clock, from the first frame (one clock throughout)
+  const step = now => {
+    if (!el.isConnected) return;
+    if (t0 == null) t0 = now;
+    const k = Math.min(1, Math.max(0, (now - t0) / dur)), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = Math.round(from + (to - from) * e) + '%';
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+// first paint: the meter fills from zero and its percentage counts up — right away when it is on screen,
+// otherwise (phones: the sidebar sits under the form, the meter at the foot of its checklist) once the
+// number itself has come into view, clear of the tab bar. Until then it reads 0 % over an empty bar, set in
+// the same task as the paint, so the number never shows its final value first and then drops back.
+const METER_FOLD = .85;   // the lowest 15 % of the screen (the phone tab bar sits there) does not count as seen
+function revealMeter(root) {
+  const box = root.querySelector('[data-block="completion"]');
+  const bar = box && box.querySelector('.mx-profile-bar'), pctEl = box && box.querySelector('[data-role="pct"]');
+  if (!bar || !pctEl || !D || !D.completion || !motionOK()) return;
+  const final = pctOf(pctEl), line = pctEl.parentElement;   // "35 %  COMPLETE"
+  if (!('IntersectionObserver' in window) || line.getBoundingClientRect().bottom <= window.innerHeight * METER_FOLD) return tweenPct(pctEl, 0, final);
+  const target = bar.style.transform;
+  bar.classList.remove('mx-profile-bar-in');
+  bar.style.transition = 'none'; bar.style.transform = 'scaleX(0)'; void bar.offsetWidth; bar.style.transition = '';
+  pctEl.textContent = '0%';
+  meterIO = new IntersectionObserver(entries => {
+    if (!entries.some(e => e.intersectionRatio >= .99)) return;
+    meterIO.disconnect(); meterIO = null;
+    if (!bar.isConnected) return;                       // an edit already redrew the card (and moved the meter)
+    bar.style.transform = target;                       // glides over (css .mx-profile-bar transition)
+    tweenPct(pctEl, 0, final);
+  }, { threshold: 1, rootMargin: `0px 0px -${Math.round((1 - METER_FOLD) * 100)}% 0px` });
+  meterIO.observe(line);
+}
+function refreshCompletion() {
+  const box = q('[data-block="completion"]');
+  const oldBar = box && box.querySelector('.mx-profile-bar');
+  const oldScale = oldBar ? parseFloat((oldBar.style.transform.match(/scaleX\(([\d.]+)\)/) || [])[1]) : NaN;
+  const oldPct = pctOf(box && box.querySelector('[data-role="pct"]'));
+  const wasDone = new Set(box ? [...box.querySelectorAll('.mx-profile-tick[data-done="1"]')].map(n => n.dataset.label) : []);
+  rerender('[data-block="completion"]', completionCard(false));
+  if (!motionOK() || !box) return;
+  // the bar glides from where it stood (a fresh node would otherwise jump straight to the new value)
+  const bar = box.querySelector('.mx-profile-bar');
+  if (bar && !isNaN(oldScale)) {
+    const target = bar.style.transform;
+    bar.style.transition = 'none'; bar.style.transform = `scaleX(${oldScale})`;
+    void bar.offsetWidth;
+    bar.style.transition = ''; bar.style.transform = target;
+  }
+  const pctEl = box.querySelector('[data-role="pct"]');
+  tweenPct(pctEl, oldPct, pctOf(pctEl));
+  // a checklist item that just became true ticks in
+  box.querySelectorAll('.mx-profile-tick[data-done="1"]').forEach(n => { if (!wasDone.has(n.dataset.label)) n.classList.add('mx-profile-tick-in'); });
+}
+function refreshChips(touched) {
+  rerender('[data-block="chips"]', chipRow());
+  // the chip the member just pressed settles into its new state (the re-render drops its :active press)
+  if (touched) { const el = q(`[data-block="chips"] [data-spec="${CSS.escape(touched)}"]`); if (el) el.classList.add('mx-profile-pop'); }
+}
 function refreshAccountExtras() { rerender('[data-block="accountExtras"]', accountExtraRows()); }
 function refreshSaveRow() { rerender('[data-block="saveRow"]', saveRow()); }
 function refreshPreviewCard() { rerender('[data-block="preview"]', previewCard()); }
@@ -463,7 +536,7 @@ function addSpecFromInput() {
   if (!COPY.fixedSpecs.includes(v) && !D.custom.includes(v)) D.custom.push(v);
   if (!D.draft.specialties.includes(v)) D.draft.specialties.push(v);
   if (input) input.value = '';
-  refreshChips(); schedulePreview();
+  refreshChips(v); schedulePreview();
 }
 function toggleSpec(label) {
   const on = D.draft.specialties.includes(label);
@@ -473,7 +546,7 @@ function toggleSpec(label) {
   } else {
     D.draft.specialties.push(label);
   }
-  refreshChips(); schedulePreview();
+  refreshChips(label); schedulePreview();
 }
 
 // ---------------------------------------------------------------- settings modals (moved from My Med&X)
@@ -576,8 +649,8 @@ const handlers = {
   pickPhoto: (el, e) => { if (e && e.target && e.target.tagName === 'INPUT') return; const input = q('[data-role="photoInput"]'); if (input) input.click(); },
   tgSpec: el => toggleSpec(el.dataset.spec),
   addSpec: () => addSpecFromInput(),
-  tgDir: () => { D.draft.is_public_profile = !D.draft.is_public_profile; refreshPrefs(); schedulePreview(); },
-  tgUpd: () => { D.draft.updates_opt_in = !D.draft.updates_opt_in; refreshPrefs(); schedulePreview(); },
+  tgDir: (el) => { D.draft.is_public_profile = !D.draft.is_public_profile; setSwitch(el, D.draft.is_public_profile); schedulePreview(); },
+  tgUpd: (el) => { D.draft.updates_opt_in = !D.draft.updates_opt_in; setSwitch(el, D.draft.updates_opt_in); schedulePreview(); },
   save: () => doSave(),
   resend: async el => {
     const email = D.profile.email || (session.user || {}).email;
@@ -651,7 +724,7 @@ export default {
     // the server (not a client guess) says whether the email is verified — let the shell banner agree
     if (data.v2) session.update({ email_verified: data.profile.email_verified });
     root.innerHTML = `
-<div data-screen-label="Profile &amp; Settings" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Profile &amp; Settings" class="mx-profile-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
   ${blockCrumbs()}
   ${blockTitle()}
   <div class="mx-profile-grid mx-profile-pad" style="display:grid;grid-template-columns:1fr 300px;gap:26px;padding:20px 36px 30px;align-items:start">
@@ -665,9 +738,11 @@ export default {
 </div>`;
     unbind = ui.bind(root, handlers);
     bindFields();
+    revealMeter(root);
   },
   destroy() {
     clearTimeout(previewTimer); clearTimeout(savedTimer); clearTimeout(resendTimer);
+    if (meterIO) { meterIO.disconnect(); meterIO = null; }
     timers.forEach(s => s()); timers = [];
     if (unbind) unbind(); unbind = null;
     D = null; rootEl = null;

@@ -268,7 +268,7 @@ function previewCard() {
   return `
         <div data-block="preview" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #c9a962;background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:10px">
           <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${COPY.preview.title}</span>
-          <div style="border:1px solid rgba(25,21,18,.16);background:#f7f1e6;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
+          <div class="mxm-prev" style="border:1px solid rgba(25,21,18,.16);background:#f7f1e6;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
             <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${esc(previewTag(k))}</span>
             <span data-role="prevTitle" style="font-family:Fraunces,serif;font-size:19px;line-height:1.2">${esc(fmt.detail(st.ps.status_label))}</span>
             <span data-role="prevDetail" style="font-size:12px;color:#4a4239">${esc(fmt.detail(st.ps.detail_line))}</span>
@@ -342,8 +342,8 @@ function blockMain() {
 }
 function template() {
   return `
-<div data-screen-label="Admin Member Pages" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:20px">
+<div class="mxpj" data-screen-label="Admin Member Pages" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:20px">
     ${blockTitle()}
     ${blockTabs()}
     ${blockMain()}
@@ -357,12 +357,19 @@ function markDirty() {
   st.dirty = true;
   if (st.saved) { st.saved = false; const b = rootEl.querySelector('[data-role="saveBtn"]'); if (b) { b.textContent = COPY.save; b.style.background = '#9b1b22'; } }
 }
+// the preview card glows gold while it follows the typing, and lets go shortly after (css .mxm-prev.is-live)
+let liveTimer = null;
+function livePreview() {
+  const c = rootEl && rootEl.querySelector('.mxm-prev'); if (!c) return;
+  c.classList.add('is-live'); clearTimeout(liveTimer);
+  liveTimer = setTimeout(() => c.classList.remove('is-live'), 700);
+}
 function wireInputs() {
   if (!rootEl) return;
   const on = (role, fn) => { const el = rootEl.querySelector(`[data-role="${role}"]`); if (el) el.addEventListener('input', () => { fn(el.value); markDirty(); }); };
-  on('ps-status', v => { st.ps.status_label = v; const t = rootEl.querySelector('[data-role="prevTitle"]'); if (t) t.textContent = fmt.detail(v); });
-  on('ps-detail', v => { st.ps.detail_line = v; const t = rootEl.querySelector('[data-role="prevDetail"]'); if (t) t.textContent = fmt.detail(v); });
-  on('ps-cta', v => { st.ps.cta_label = v; const t = rootEl.querySelector('[data-role="prevCta"]'); if (t) t.textContent = (v || 'Open').toUpperCase(); });
+  on('ps-status', v => { st.ps.status_label = v; const t = rootEl.querySelector('[data-role="prevTitle"]'); if (t) t.textContent = fmt.detail(v); livePreview(); });
+  on('ps-detail', v => { st.ps.detail_line = v; const t = rootEl.querySelector('[data-role="prevDetail"]'); if (t) t.textContent = fmt.detail(v); livePreview(); });
+  on('ps-cta', v => { st.ps.cta_label = v; const t = rootEl.querySelector('[data-role="prevCta"]'); if (t) t.textContent = (v || 'Open').toUpperCase(); livePreview(); });
   on('ps-target', v => { st.ps.cta_target = v; });
   on('block-body', v => { st.blockBody = v; });
   const kind = rootEl.querySelector('[data-role="ps-kind"]'); if (kind) kind.addEventListener('change', () => { st.ps.status_kind = kind.value; markDirty(); });
@@ -469,6 +476,7 @@ const handlers = {
     try { history.replaceState(null, '', '/member-pages/' + k); } catch (e) {}
     const tabs = rootEl.querySelector('[data-block="tabs"]'); if (tabs) tabs.outerHTML = blockTabs();
     redrawMain();
+    const m = rootEl.querySelector('[data-block="main"]'); if (m) m.classList.add('mxpj-swap');   // the new project's content settles in
   },
   blockToggle: (el) => { st.blockOn = !st.blockOn; markDirty(); el.outerHTML = chipBlock(); },
   save: (el) => saveAll(el),
@@ -544,5 +552,5 @@ export default {
     unbind = ui.bind(root, handlers);
     wireInputs();
   },
-  destroy() { clearTimeout(proofTimer); proofTimer = null; if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null; }
+  destroy() { clearTimeout(proofTimer); proofTimer = null; clearTimeout(liveTimer); if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null; }
 };

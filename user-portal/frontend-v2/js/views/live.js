@@ -71,12 +71,23 @@ const KIND_LABEL = { keynote: 'KEYNOTE', talk: 'TALK', panel: 'PANEL', presentat
 // dress code per event — from the FACTS (the Gala's from gala_settings when the event row carries one)
 const DRESS = { gala: FACTS.gala.dress, conference: 'Business casual', bridges: 'Business casual', boston: 'Business attire' };
 const CONTACT = { name: 'Laura Rodman', email: 'laura.rodman@medx.hr' };
-const LS = { program: k => 'live:program:' + k, att: t => 'live:attendance:' + t, event: t => 'live:event:' + t, tab: 'live:tab' };
+const LS = { program: k => 'live:program:' + k, att: t => 'live:attendance:' + t, event: t => 'live:event:' + t, tab: 'live:tab',
+  me: k => 'live:me:' + k, events: 'live:events' };
+// the person behind a token, cached so a returning guest's first paint is already theirs (name, chips, ON
+// toggles) instead of the anonymous state for a second. A signed-in member's cache is keyed by the account,
+// so a shared browser never shows the previous member; the email and the record ids are never stored.
+const meKey = tok => tok === 'user' ? (session.user && session.user.id ? 'user:' + session.user.id : null) : tok;
+const slimPerson = p => ({ first_name: p.first_name, is_speaker: !!p.is_speaker, speaker_session_ids: p.speaker_session_ids || [], events: p.events || [], party: p.party || {} });
 const MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DOW = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 
+const ICON_X = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 1.5l11 11M12.5 1.5l-11 11" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
+const ICON_BACK = '<svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M15 7H2M7.5 1.5 2 7l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
+const INK = '<i class="lv-tab-ink" aria-hidden="true"></i>';                 // the sliding tab underline
+
 // ---- state -------------------------------------------------------------------------------------
-let S = null, rootEl = null, unbind = null, timers = [], sheet = null, onVis = null, onKey = null;
+let S = null, rootEl = null, unbind = null, timers = [], sheet = null, sheetFrom = null, sheetStack = [], onVis = null, onKey = null, inkRO = null;
+const noop = () => {};
 
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } },
@@ -100,6 +111,19 @@ function setThemeColor(c) {
 }
 
 // ---- small helpers -----------------------------------------------------------------------------
+// reduced motion: the css switches every animation off; the js then skips its waits (sheet exit, card exit)
+const calm = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+// write a region only when its markup changed — a 60 s poll that brings nothing new leaves the DOM (hover,
+// focus, lazy images, running entrances) alone. Returns true when it wrote.
+const setHtml = (el, html) => { if (!el || el._html === html) return false; el.innerHTML = html; el._html = html; return true; };
+// (re)start a one-shot css entrance class and take it off again once it has run
+function replay(el, cls, ms = 700) {
+  if (!el || calm()) return;
+  el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+  clearTimeout(el['_t' + cls]); el['_t' + cls] = setTimeout(() => el.classList.remove(cls), ms);
+}
+// every match in the app AND in the open sheet (a sheet lives on <body>, outside the view root)
+const each = (sel, fn) => { if (rootEl) rootEl.querySelectorAll(sel).forEach(fn); if (sheet) sheet.querySelectorAll(sel).forEach(fn); };
 const pad = n => String(n).padStart(2, '0');
 const localYmd = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const at = iso => (iso ? new Date(iso).getTime() : NaN);
@@ -165,22 +189,31 @@ function guessEvent(events, mine) {
 }
 
 // ---- data --------------------------------------------------------------------------------------
+// every fetch writes into the state it started from — a guest who left (or opened another ticket) while the
+// backend woke never gets a late answer painted into the new screen
 async function fetchMe() {
-  const tok = S.token;
+  const st = S, tok = S.token;
   const r = await api.get(`/api/live/me/${encodeURIComponent(tok)}?today=${localYmd()}`, { noAuth: tok !== 'user', keepSession: true });
+  if (S !== st) return;
   S.person = r.person; S.events = r.events; S.speakerIds = r.person.speaker_session_ids || [];
   S.attendance = Object.assign({}, r.attendance || {});               // the server is the truth
   store.set(LS.att(tok), S.attendance);
+  const k = meKey(tok); if (k) store.set(LS.me(k), { person: slimPerson(r.person), events: r.events || [], current: r.current_event || null });
   S.current = r.current_event;
-  S.meError = null;
+  S.meError = null; S.mePending = false; S.eventsPending = false;
 }
 async function fetchEvents() {
+  const st = S;
   const r = await api.get(`/api/live/events?today=${localYmd()}`, { noAuth: true });
-  S.events = r.events || [];
+  if (S !== st) return;
+  S.events = r.events || []; S.eventsPending = false;
+  store.set(LS.events, S.events);
 }
 async function fetchProgram(key, { since } = {}) {
+  const st = S;
   const q = since ? `?since=${encodeURIComponent(since)}` : '';
   const r = await api.get(`/api/live/${encodeURIComponent(key)}/program${q}`, { noAuth: true });
+  if (S !== st) return { changed: false };
   if (r && r.changed === false) return { changed: false };
   S.programs[key] = r;
   store.set(LS.program(key), r);
@@ -222,33 +255,32 @@ function nowNext(key) {
 }
 
 // ---- templates ---------------------------------------------------------------------------------
-function tplHeader() {
+// the ink band: its three lines are fixed elements in the shell (tplShell) and only their text is written, so
+// a name arriving or a poll never restarts the band's entrance — it rises on the first paint and when the
+// event itself changes (paintHead)
+function headParts() {
   const ev = eventOf(S.current) || {};
   const p = S.person;
   const party = p && ev.key ? Number(p.party && p.party[ev.key]) : 0;
   const who = p ? `${esc(p.first_name)}${party > 1 ? ` · ${esc(COPY.party(party))}` : ''}` : '';
-  const back = session.isAuthed ? `<a href="/app/home" class="lv-back">${COPY.portal}</a>` : '';
   const meta = [ev.date_label, ev.start ? (ev.times_tbd ? `${ev.start} (tbc)` : `${ev.start}${ev.end ? '–' + ev.end : ''}`) : null, ev.venue].filter(Boolean).map(esc).join(' · ');
-  return `
-    <div class="lv-head-row">
-      <span class="lv-eyebrow">${COPY.eyebrow}</span>
-      <span class="lv-who">${who}</span>${back}
-    </div>
-    <h1 class="lv-title">${esc(ev.label || 'Plexus Week')}</h1>
-    <div class="lv-meta">${meta || COPY.loading}</div>
-    ${tplSwitcher()}`;
+  return { who, title: esc(ev.label || 'Plexus Week'), meta: meta || COPY.loading, loading: !meta, label: ev.label || '' };
 }
-function tplSwitcher() {
+// the chips only (the .lv-switch row lives in the shell). `cur` = the selected event; tplSwitcher('') is the
+// row's signature without a selection — same signature, only the selection moved → paintSwitch flips classes
+function tplSwitcher(cur = S.current) {
+  // the catalogue is still on its way: quiet chip-shaped placeholders hold the row, so the band keeps its height
+  if (S.eventsPending) return '<span class="lv-chip sk" aria-hidden="true"></span><span class="lv-chip sk w2" aria-hidden="true"></span><span class="lv-chip sk w3" aria-hidden="true"></span>';
   const events = S.events || [];
   if (!events.length) return '';
   const mine = heldEvents();
   const showAll = S.showAll || !S.token || !mine.length;
   const list = showAll ? events : mine;
   if (list.length <= 1 && !(mine.length && events.length > mine.length)) return '';
-  const chip = e => `<span data-act="ev" data-key="${esc(e.key)}" class="lv-chip${e.key === S.current ? ' on' : ''}${held(e.key) || !S.token ? '' : ' ro'}" role="tab" aria-selected="${e.key === S.current}">${esc(e.short || e.label)}${e.is_live ? '<i class="lv-dot" aria-label="live now"></i>' : ''}</span>`;
+  const chip = e => `<span data-act="ev" data-key="${esc(e.key)}" class="lv-chip${e.key === cur ? ' on' : ''}${held(e.key) || !S.token ? '' : ' ro'}" role="tab" aria-selected="${e.key === cur}">${esc(e.short || e.label)}${e.is_live ? '<i class="lv-dot" aria-label="live now"></i>' : ''}</span>`;
   const more = (S.token && mine.length && events.length > mine.length)
     ? `<span data-act="allEvents" class="lv-chip ghost" role="button">${showAll ? COPY.switcher.mine : COPY.switcher.all} ${showAll ? '▴' : '▾'}</span>` : '';
-  return `<div class="lv-switch" role="tablist" aria-label="Events">${list.map(chip).join('')}${more}</div>`;
+  return list.map(chip).join('') + more;
 }
 function tplNow() {
   const key = S.current; if (!key) return '';
@@ -286,9 +318,9 @@ function tplSlots() {
       <span class="lv-tag red">${COPY.slots.speaking}</span>
     </div>`; }).join('')}`;
 }
-function tplTabs() {
-  const n = S.token ? mySchedule().list.length : 0;
-  return TABS.map(t => `<span data-act="tab" data-tab="${t}" role="tab" aria-selected="${S.tab === t}" class="lv-tab${S.tab === t ? ' on' : ''}">${COPY.tabs[t]}${t === 'schedule' && n ? `<b class="lv-count">${n}</b>` : ''}</span>`).join('');
+const scheduleCount = () => (S.token && !S.mePending ? mySchedule().list.length : 0);
+function tplTabs({ n = scheduleCount(), bump = false } = {}) {
+  return TABS.map(t => `<span data-act="tab" data-tab="${t}" role="tab" aria-selected="${S.tab === t}" class="lv-tab${S.tab === t ? ' on' : ''}">${COPY.tabs[t]}${t === 'schedule' && n ? `<b class="lv-count${bump ? ' bump' : ''}">${n}</b>` : ''}</span>`).join('');
 }
 function tplSpeakersRow(s) {
   const people = (s.speakers || []).filter(x => x && x.name);
@@ -303,6 +335,9 @@ function tplToggle(s, { compact } = {}) {
   const on = attending(s.id), spk = speaking(s.id), ok = canToggle(s.event_key) || spk;
   if (spk) return `<span class="lv-att speak" aria-disabled="true">${COPY.att.speaking}</span>`;
   if (isMeetupSlot(s)) return `<span class="lv-att speak" aria-disabled="true">${COPY.att.meetup}</span>`;
+  // the ticket is still being read (a first visit on this device): a quiet placeholder the size of the toggle
+  // (its label hidden) — never a guessed state, never the read-only "not on your ticket" look
+  if (S.token && S.mePending) return `<span class="lv-att wait${compact ? ' compact' : ''}" aria-hidden="true">${COPY.att.on}</span>`;
   // a read-only toggle stays tappable on purpose: the tap answers with the one-line reason (ticket link /
   // not on your ticket) — ui.bind() would swallow the click on an aria-disabled element
   return `<span data-act="att" data-id="${esc(s.id)}" data-sid="${esc(s.id)}" role="switch" aria-checked="${on}" aria-label="${esc((on ? 'Attending: ' : 'Attend: ') + (s.title || 'session'))}" class="lv-att${on ? ' on' : ''}${ok ? '' : ' ro'}${compact ? ' compact' : ''}"${ok ? '' : ` title="${esc(S.token ? COPY.att.notHeld : COPY.att.ticket)}"`}>${on ? COPY.att.on : COPY.att.off}</span>`;
@@ -338,14 +373,14 @@ function tplCard(s, { schedule, conflict } = {}) {
 }
 function tplDayHead(date, extra) {
   const d = dayParts(date);
-  return `<div class="lv-day">${d ? `<span class="lv-day-n">${d.n}</span><span class="lv-day-t">${d.dow} · ${d.mon}</span>` : `<span class="lv-day-t">${COPY.program.tbdDay}</span>`}${extra || ''}</div>`;
+  return `<div class="lv-day" data-day="${esc(date || 'tbd')}">${d ? `<span class="lv-day-n">${d.n}</span><span class="lv-day-t">${d.dow} · ${d.mon}</span>` : `<span class="lv-day-t">${COPY.program.tbdDay}</span>`}${extra || ''}</div>`;
 }
 function tplProgram() {
   const key = S.current; const prog = S.programs[key];
   if (!prog) return tplSkeleton();
   const sessions = prog.sessions || [];
   if (!sessions.length) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.program.empty}</span></div>`;
-  const notice = S.token && !held(key) && !sessions.some(s => speaking(s.id)) ? `<div class="lv-note">${COPY.att.notHeld}</div>` : (!S.token ? `<div class="lv-note">${COPY.att.ticket}</div>` : '');
+  const notice = S.token && S.mePending ? '' : S.token && !held(key) && !sessions.some(s => speaking(s.id)) ?`<div class="lv-note">${COPY.att.notHeld}</div>` : (!S.token ? `<div class="lv-note">${COPY.att.ticket}</div>` : '');
   return notice + groupDays(sessions).map(day => {
     const blocks = [];
     for (const s of day.sessions) { const last = blocks[blocks.length - 1]; if (last && last.time === (s.start_time || '')) last.items.push(s); else blocks.push({ time: s.start_time || '', items: [s] }); }
@@ -358,6 +393,7 @@ function tplProgram() {
 }
 function tplSchedule() {
   if (!S.token) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.att.ticket}</span></div>`;
+  if (S.mePending) return tplSkeleton({ list: true });                  // not "Nothing here yet" while the ticket is read
   const { list, conflicts } = mySchedule();
   if (!list.length) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.schedule.emptyLine}</span><span class="lv-empty-why">${COPY.schedule.emptyWhy}</span></div>`;
   const tok = encodeURIComponent(S.token);
@@ -416,20 +452,32 @@ function tplGlance() {
       <dt>${COPY.info.contact}</dt><dd>${esc(CONTACT.name)}<br><a href="mailto:${CONTACT.email}">${CONTACT.email}</a></dd>
     </dl>`;
 }
-function tplSkeleton() {
-  const sk = '<div class="lv-sk"></div>';
-  return `<div class="lv-day"><span class="lv-sk short"></span></div><div class="lv-block"><div class="lv-block-time"><span class="lv-sk tiny"></span></div><div class="lv-block-cards">${sk}${sk}</div></div>`;
+// card-shaped placeholders under one slow sheen (the css) while the first program is on its way
+function tplSkeleton({ list } = {}) {
+  const card = '<div class="lv-sk card" aria-hidden="true"><span class="lv-sk w30"></span><span class="lv-sk w70"></span><span class="lv-sk w50"></span><span class="lv-sk btn"></span></div>';
+  const day = '<div class="lv-day"><span class="lv-sk short"></span></div>';
+  if (list) return `${day}<div class="lv-list">${card}${card}</div>`;
+  const block = `<div class="lv-block"><div class="lv-block-time"><span class="lv-sk tiny"></span></div><div class="lv-block-cards">${card}</div></div>`;
+  return `${day}${block}${block}`;
 }
 function tplShell() {
+  const back = session.isAuthed ? `<a href="/app/home" class="lv-back">${COPY.portal}</a>` : '';
   return `
   <div class="lv" data-screen-label="Plexus Week Live">
-    <header class="lv-head" data-role="head">${tplHeader()}</header>
+    <header class="lv-head" data-role="head">
+      <div class="lv-head-top" data-role="headtop">
+        <div class="lv-head-row"><span class="lv-eyebrow">${COPY.eyebrow}</span><span class="lv-who" data-role="who"></span>${back}</div>
+        <h1 class="lv-title" data-role="title"></h1>
+        <div class="lv-meta" data-role="meta"></div>
+      </div>
+      <div class="lv-switch" data-role="switch" role="tablist" aria-label="Events"></div>
+    </header>
     <aside class="lv-side">
       <section class="lv-now" data-role="now" aria-live="polite">${tplNow()}</section>
       <section class="lv-slots" data-role="slots">${tplSlots()}</section>
       <section class="lv-glance" data-role="glance">${tplGlance()}</section>
     </aside>
-    <nav class="lv-tabs" data-role="tabs" role="tablist">${tplTabs()}</nav>
+    <nav class="lv-tabs" data-role="tabs" role="tablist"></nav>
     <main class="lv-panels">
       ${TABS.map(t => `<section class="lv-panel" data-panel="${t}" role="tabpanel"${S.tab === t ? '' : ' hidden'}></section>`).join('')}
     </main>
@@ -439,61 +487,247 @@ function tplShell() {
 
 // ---- rendering ---------------------------------------------------------------------------------
 const q = sel => rootEl && rootEl.querySelector(sel);
-function paintPanel(tab) {
-  const el = q(`[data-panel="${tab}"]`); if (!el) return;
-  el.innerHTML = tab === 'program' ? tplProgram() : tab === 'schedule' ? tplSchedule() : tab === 'speakers' ? tplSpeakers() : tplInfo();
+// staggered entrance for a panel's rows (day lines, time blocks, cards, speaker tiles, info rows): the first
+// six step in 28 ms apart, the rest arrive with the sixth — done inside ~0.5 s. Runs on a tab switch and when a
+// panel's CONTENT IDENTITY changes (panelKey: another event, a skeleton replaced) — never on the first paint
+// (the router's screen fade frames that), a data repaint or a background poll.
+function enter(el) {
+  if (!el || calm()) return;
+  const items = el.querySelectorAll(':scope > :not(.lv-list):not(.lv-grid), :scope > .lv-list > *, :scope > .lv-grid > *');
+  items.forEach((x, i) => { x.classList.remove('lv-enter'); x.style.setProperty('--lv-d', Math.min(i, 6) * 28 + 'ms'); });
+  void el.offsetWidth;                                                  // restart when the same rows enter again
+  items.forEach(x => x.classList.add('lv-enter'));
+}
+// what a panel is showing, independent of its data state: the same key = the same content, repainted in place
+function panelKey(tab) {
+  if (tab === 'schedule') return !S.token ? 'anon' : S.mePending ? 'wait' : 'me';
+  if (tab === 'info') return S.current || '';
+  return (S.current || '') + (S.programs[S.current] ? '' : ':sk');
+}
+function paintPanel(tab, { force } = {}) {
+  const el = q(`[data-panel="${tab}"]`); if (!el) return false;
+  const html = tab === 'program' ? tplProgram() : tab === 'schedule' ? tplSchedule() : tab === 'speakers' ? tplSpeakers() : tplInfo();
+  if (force) el._html = null;
+  return setHtml(el, html);
+}
+function paintHead() {
+  const top = q('[data-role="headtop"]');
+  if (top) {
+    const h = headParts();
+    const who = q('[data-role="who"]'), title = q('[data-role="title"]'), meta = q('[data-role="meta"]');
+    // the band rises with the first paint and again only when the event itself changes; a name arriving on
+    // its own (the band staying put) just fades in
+    const rise = top._label !== h.label, hadWho = !!(who && who._html);
+    if (setHtml(who, h.who) && h.who && !hadWho && !rise) replay(who, 'lv-in', 400);
+    setHtml(title, h.title);
+    if (setHtml(meta, h.meta)) meta.classList.toggle('loading', h.loading);
+    if (rise) { top._label = h.label; replay(top, 'rise', 700); }
+  }
+  paintSwitch();
+}
+// same chips, new selection → flip the classes in place so the chip colours cross-fade; otherwise redraw
+function paintSwitch() {
+  const sw = q('[data-role="switch"]'); if (!sw) return;
+  const html = tplSwitcher(), sig = tplSwitcher('');
+  if (sw._html === html) return;
+  if (sw._sig === sig && sw._html) {
+    sw.querySelectorAll('.lv-chip[data-key]').forEach(c => { const on = c.dataset.key === S.current; c.classList.toggle('on', on); c.setAttribute('aria-selected', String(on)); });
+    sw._html = html;
+  } else { sw.innerHTML = html; sw._html = html; }
+  sw._sig = sig;
+}
+// the crimson underline: one element that slides (transform only) to the selected tab
+function placeInk(animate) {
+  const tabs = q('[data-role="tabs"]'); if (!tabs) return;
+  const ink = tabs.querySelector('.lv-tab-ink'), on = tabs.querySelector('.lv-tab.on');
+  if (!ink || !on || !on.offsetWidth) return;
+  if (!animate) ink.style.transition = 'none';
+  ink.style.transform = `translateX(${on.offsetLeft}px) scaleX(${on.offsetWidth})`;
+  if (!animate) { void ink.offsetWidth; ink.style.transition = ''; }
+  tabs.classList.add('inked');
+}
+// `bump`: the MY SCHEDULE count pops — only when the guest's own tap changed it, never when data lands
+function paintTabs({ bump } = {}) {
+  const tabs = q('[data-role="tabs"]'); if (!tabs) return;
+  const n = scheduleCount();
+  const pop = !!bump && S.lastCount != null && n !== S.lastCount && n > 0;
+  S.lastCount = n;
+  if (!setHtml(tabs, tplTabs({ n, bump: pop }) + INK)) return;
+  placeInk(false);
+  // fonts landing, the count appearing, a rotated phone: the tab widths move, the ink follows
+  if (window.ResizeObserver) {
+    if (!inkRO) inkRO = new ResizeObserver(() => placeInk(false));
+    inkRO.disconnect(); tabs.querySelectorAll('.lv-tab').forEach(t => inkRO.observe(t));
+  }
 }
 function paintAll() {
   if (!rootEl) return;
   const y = window.scrollY;
-  const head = q('[data-role="head"]'); if (head) head.innerHTML = tplHeader();
-  const now = q('[data-role="now"]'); if (now) now.innerHTML = tplNow();
-  const slots = q('[data-role="slots"]'); if (slots) { slots.innerHTML = tplSlots(); slots.hidden = !slots.innerHTML.trim(); }
-  const glance = q('[data-role="glance"]'); if (glance) glance.innerHTML = tplGlance();
-  const tabs = q('[data-role="tabs"]'); if (tabs) tabs.innerHTML = tplTabs();
-  TABS.forEach(paintPanel);
+  paintHead();
+  setHtml(q('[data-role="now"]'), tplNow());
+  const slots = q('[data-role="slots"]'); if (slots) { setHtml(slots, tplSlots()); slots.hidden = !slots.innerHTML.trim(); }
+  setHtml(q('[data-role="glance"]'), tplGlance());
+  paintTabs();
+  TABS.forEach(t => {
+    const el = q(`[data-panel="${t}"]`); if (!el) return;
+    const wrote = paintPanel(t), key = panelKey(t), was = el._enterKey;
+    el._enterKey = key;
+    if (wrote && was !== undefined && was !== key && t === S.tab) enter(el);
+  });
   const ev = eventOf(S.current) || {};
   const foot = q('[data-role="foot"]'); if (foot) foot.textContent = COPY.foot(S.programs[S.current] && S.programs[S.current].updated_at ? clock(S.programs[S.current].updated_at) : '');
   document.title = `${ev.label ? ev.label + ' · ' : ''}Plexus Week Live · Med&X`;
   window.scrollTo(0, y);
 }
+// MY SCHEDULE repainted while it is on screen: rows that stay glide to their new place (FLIP — transform
+// only, 280 ms) instead of jumping a card height in one frame; a row that is new rises in
+function reflowSchedule() {
+  const sched = q('[data-panel="schedule"]');
+  if (!sched || sched.hidden || calm()) { paintPanel('schedule', { force: true }); return; }
+  const rows = () => Array.from(sched.querySelectorAll('.lv-card[data-sid-card], .lv-day[data-day], .lv-note, .lv-empty'));
+  const keyOf = x => x.dataset.sidCard ? 'c:' + x.dataset.sidCard : x.dataset.day ? 'd:' + x.dataset.day : 'n:' + x.className;
+  const before = new Map(rows().map(x => [keyOf(x), x.getBoundingClientRect().top]));
+  paintPanel('schedule', { force: true });
+  const moved = [];
+  rows().forEach(x => {
+    const t0 = before.get(keyOf(x));
+    if (t0 === undefined) { x.style.setProperty('--lv-d', '0ms'); x.classList.add('lv-enter'); return; }
+    const dy = t0 - x.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1) return;
+    x.style.transition = 'none'; x.style.transform = `translateY(${dy}px)`; moved.push(x);
+  });
+  if (!moved.length) return;
+  void sched.offsetWidth;
+  moved.forEach(x => { x.style.transition = 'transform .28s var(--lv-ease)'; x.style.transform = ''; });
+  setTimeout(() => moved.forEach(x => { x.style.transition = ''; }), 320);
+}
 function paintToggle(id) {
   const s = sessionById(id); if (!s) return;
-  rootEl.querySelectorAll(`[data-sid="${CSS.escape(id)}"]`).forEach(el => { const on = attending(id); el.classList.toggle('on', on); el.classList.toggle('just', on); el.setAttribute('aria-checked', String(on)); el.textContent = on ? COPY.att.on : COPY.att.off; if (on) setTimeout(() => el.classList.remove('just'), 450); });
-  rootEl.querySelectorAll(`[data-sid-card="${CSS.escape(id)}"]`).forEach(el => el.classList.toggle('going', attending(id)));
-  const tabs = q('[data-role="tabs"]'); if (tabs) tabs.innerHTML = tplTabs();
-  paintPanel('schedule');
+  const on = attending(id);
+  each(`[data-sid="${CSS.escape(id)}"]`, el => { el.classList.toggle('on', on); el.classList.toggle('just', on); el.setAttribute('aria-checked', String(on)); el.textContent = on ? COPY.att.on : COPY.att.off; if (on) setTimeout(() => el.classList.remove('just'), 450); });
+  each(`[data-sid-card="${CSS.escape(id)}"]`, el => el.classList.toggle('going', on));
+  paintTabs({ bump: true });
+  // tapped OFF inside MY SCHEDULE: the card fades out, then the rows below glide up into the gap. Until they
+  // have settled, a second tap in the list is ignored — the next card is sliding under the finger (with reduced
+  // motion it snaps there at once, so a quick double tap is held off just as long)
+  const sched = q('[data-panel="schedule"]');
+  const off = S.tab === 'schedule' && sched && !on && !speaking(id);
+  const leaving = off && !calm() ? sched.querySelectorAll(`[data-sid-card="${CSS.escape(id)}"]`) : [];
+  if (off) S.settleUntil = Date.now() + (leaving.length ? 520 : 400);
+  if (leaving.length) {
+    leaving.forEach(el => el.classList.add('lv-leaving'));
+    const st = S; setTimeout(() => { if (S === st && rootEl) reflowSchedule(); }, 200);
+  } else if (S.tab === 'schedule') reflowSchedule();
+  else paintPanel('schedule', { force: true });
 }
-function showTab(tab, { push } = {}) {
+// `scroll`: a tab the guest picked starts at its top; the programmatic calls (first paint, the network
+// landing) never move a reader who has already started scrolling
+function showTab(tab, { push, animate, scroll = true } = {}) {
   if (!TABS.includes(tab)) tab = 'program';
   S.tab = tab; store.set(LS.tab, tab);
   rootEl.querySelectorAll('.lv-tab').forEach(el => { const on = el.dataset.tab === tab; el.classList.toggle('on', on); el.setAttribute('aria-selected', String(on)); });
-  rootEl.querySelectorAll('.lv-panel').forEach(el => { const on = el.dataset.panel === tab; if (on) { el.hidden = false; el.classList.remove('in'); void el.offsetWidth; el.classList.add('in'); } else el.hidden = true; });
+  rootEl.querySelectorAll('.lv-panel').forEach(el => { const on = el.dataset.panel === tab; el.hidden = !on; if (on && animate) enter(el); });
+  placeInk(!!animate);
   // deep in a long program, a tab switch starts the new panel at its top (the tab bar is sticky, so
   // the reader never loses it) instead of landing mid-way through a shorter panel
   const tabs = q('[data-role="tabs"]'), panels = q('.lv-panels');
-  if (tabs && panels) { const top = panels.getBoundingClientRect().top + window.scrollY - tabs.offsetHeight; if (window.scrollY > top + 4) window.scrollTo(0, Math.max(0, top)); }
+  if (scroll && tabs && panels) { const top = panels.getBoundingClientRect().top + window.scrollY - tabs.offsetHeight; if (window.scrollY > top + 4) window.scrollTo(0, Math.max(0, top)); }
   if (push !== false) { try { const u = new URL(location.href); u.searchParams.set('tab', tab); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { /* fine */ } }
 }
 
 // ---- sheets (session · speaker) -----------------------------------------------------------------
-function openSheet(html) {
-  closeSheet();
-  sheet = document.createElement('div');
-  sheet.className = 'lv-sheet-wrap';
-  sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true');
-  sheet.innerHTML = `<div class="lv-scrim" data-act="close"></div><div class="lv-sheet">${html}</div>`;
-  document.body.appendChild(sheet);
-  ui.lockScroll(true);
-  const off = ui.bind(sheet, Object.assign({}, handlers, { close: closeSheet }));
-  sheet._off = off;
-  requestAnimationFrame(() => sheet && sheet.classList.add('open'));
-  const first = sheet.querySelector('[data-act="close"].lv-x'); if (first) first.focus();
+// open: the scrim fades in and the sheet slides up (css). A sheet opened from a sheet (a speaker's session) is
+// the same sheet turning a page: scrim and sheet hold still, the old page slides out to the left, the new one
+// in from the right, and a quiet ← in the head turns back. Close: it slides away, then leaves the DOM, and
+// focus goes back to what opened it. A sheet is made by a function, so a page turned back to is redrawn fresh.
+function sheetHead(eyebrow) {
+  const back = sheetStack.length ? `<span data-act="back" class="lv-sback" role="button" tabindex="0" aria-label="Back">${ICON_BACK}</span>` : '';
+  return `<div class="lv-sheet-head">${back}<span class="lv-eyebrow ink">${eyebrow}</span><span data-act="close" class="lv-x" role="button" tabindex="0" aria-label="Close">${ICON_X}</span></div>`;
 }
-function closeSheet() {
+function openSheet(make) {
+  if (sheet) { sheetStack.push(sheet._make); swapSheet(make, 1); return; }
+  const from = document.activeElement;
+  sheetStack = []; sheetFrom = from;
+  const wrap = sheet = document.createElement('div');
+  wrap.className = 'lv-sheet-wrap'; wrap._make = make;
+  wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true');
+  wrap.innerHTML = `<div class="lv-scrim" data-act="close"></div><div class="lv-sheet">${make()}</div>`;
+  document.body.appendChild(wrap);
+  ui.lockScroll(true);
+  wrap._off = ui.bind(wrap, Object.assign({}, handlers, { close: () => closeSheet(), back: () => sheetBack() }));
+  grip(wrap);
+  void wrap.offsetWidth;                                                // commit the closed pose so the slide runs
+  wrap.classList.add('open');
+  const x = wrap.querySelector('.lv-x'); if (x) try { x.focus({ preventScroll: true }); } catch (e) { /* fine */ }
+}
+// turn the open sheet's page: dir 1 = forward (out left, in from the right), -1 = back
+function swapSheet(make, dir) {
+  const wrap = sheet, el = wrap && wrap.querySelector('.lv-sheet'); if (!el) return;
+  if (wrap._swap) wrap._swap();                                         // a turn already under way lands at once
+  wrap._make = make;
+  const put = () => {
+    wrap._swap = null; clearTimeout(wrap._swapT);
+    if (sheet !== wrap) return;
+    const top0 = el.getBoundingClientRect().top;
+    el.classList.remove('out-l', 'out-r');
+    el.innerHTML = make(); el.scrollTop = 0;
+    try { wrap._ungrip && wrap._ungrip(); } catch (e) { /* fine */ }
+    grip(wrap);
+    if (!calm()) {
+      replay(el, dir > 0 ? 'in-r' : 'in-l', 320);
+      // a taller page: the top edge glides up to its new place instead of jumping (the bottom stays put)
+      const dy = top0 - el.getBoundingClientRect().top;
+      if (dy > 1) {
+        el.style.transition = 'none'; el.style.transform = `translateY(${dy}px)`; void el.offsetWidth;
+        el.style.transition = 'transform .28s var(--lv-ease)'; el.style.transform = '';
+        clearTimeout(el._ft); el._ft = setTimeout(() => { el.style.transition = ''; }, 320);
+      }
+    }
+    const f = wrap.querySelector('.lv-sback') || wrap.querySelector('.lv-x'); if (f) try { f.focus({ preventScroll: true }); } catch (e) { /* fine */ }
+  };
+  if (calm()) { put(); return; }
+  el.style.minHeight = el.offsetHeight + 'px';                           // the sheet keeps its height: it never drops and re-rises
+  el.classList.add(dir > 0 ? 'out-l' : 'out-r');
+  wrap._swap = put; wrap._swapT = setTimeout(put, 150);
+}
+function sheetBack() { if (sheet && sheetStack.length) swapSheet(sheetStack.pop(), -1); }
+function closeSheet({ instant } = {}) {
   if (!sheet) return;
-  try { sheet._off && sheet._off(); } catch (e) { /* fine */ }
-  sheet.remove(); sheet = null; ui.lockScroll(false);
+  const wrap = sheet, from = sheetFrom; sheet = null; sheetFrom = null; sheetStack = [];
+  clearTimeout(wrap._swapT); wrap._swap = null;
+  try { wrap._off && wrap._off(); } catch (e) { /* fine */ }
+  try { wrap._ungrip && wrap._ungrip(); } catch (e) { /* fine */ }
+  ui.lockScroll(false);
+  if (instant || calm()) wrap.remove();
+  else {
+    const el = wrap.querySelector('.lv-sheet');
+    if (el) { el.classList.remove('drag'); el.style.transform = ''; el.style.transition = ''; }  // a dragged sheet leaves from where the finger let go
+    wrap.classList.remove('open'); wrap.classList.add('closing');
+    setTimeout(() => wrap.remove(), 340);
+  }
+  if (!instant && from && from.isConnected && typeof from.focus === 'function') try { from.focus({ preventScroll: true }); } catch (e) { /* fine */ }
+}
+// phones: drag the sheet's head down to dismiss it (past 110 px, or a quick flick); short of that it springs back
+function grip(wrap) {
+  const el = wrap.querySelector('.lv-sheet'), head = wrap.querySelector('.lv-sheet-head');
+  if (!el || !head || !window.PointerEvent) return;
+  let id = null, y0 = 0, t0 = 0, dy = 0;
+  const down = e => {
+    if (e.pointerType === 'mouse' || e.target.closest('.lv-x')) return;
+    id = e.pointerId; y0 = e.clientY; t0 = e.timeStamp; dy = 0;
+    el.classList.add('drag'); try { head.setPointerCapture(id); } catch (err) { /* fine */ }
+  };
+  const move = e => { if (e.pointerId !== id) return; dy = Math.max(0, e.clientY - y0); el.style.transform = dy ? `translateY(${dy}px)` : ''; };
+  const up = e => {
+    if (e.pointerId !== id) return;
+    id = null; el.classList.remove('drag');
+    const flick = dy > 36 && dy / Math.max(16, e.timeStamp - t0) > 0.6;   // px per ms, timed by the events themselves
+    if ((dy > 110 || flick) && sheet === wrap) closeSheet(); else el.style.transform = '';
+    dy = 0;
+  };
+  head.addEventListener('pointerdown', down); head.addEventListener('pointermove', move);
+  head.addEventListener('pointerup', up); head.addEventListener('pointercancel', up);
+  wrap._ungrip = () => { head.removeEventListener('pointerdown', down); head.removeEventListener('pointermove', move); head.removeEventListener('pointerup', up); head.removeEventListener('pointercancel', up); };
 }
 function sessionSheet(s) {
   const ev = eventOf(s.event_key) || {};
@@ -503,7 +737,7 @@ function sessionSheet(s) {
   const venue = ev.venue && !named.toLowerCase().includes(String(ev.venue).toLowerCase()) && !String(ev.venue).toLowerCase().includes(String(s.room || '—').toLowerCase()) ? ev.venue : null;
   const where = [s.room, s.location_note, venue].filter(Boolean).map(esc).join(' · ');
   return `
-    <div class="lv-sheet-head"><span class="lv-eyebrow ink">${esc(ev.short || ev.label || 'Plexus Week')} · ${esc(s.day_label || '')}</span><span data-act="close" class="lv-x" role="button" aria-label="Close">×</span></div>
+    ${sheetHead(`${esc(ev.short || ev.label || 'Plexus Week')} · ${esc(s.day_label || '')}`)}
     <div class="lv-sheet-body">
       <div class="lv-tags">${`<span class="lv-tag${s.kind === 'keynote' ? ' gold' : ''}">${kindLabel(s.kind)}</span>`}${s.is_tbd ? `<span class="lv-tag gold">${COPY.att.tbd}</span>` : ''}${speaking(s.id) ? `<span class="lv-tag red">${COPY.slots.speaking}</span>` : ''}</div>
       <h2 class="lv-sheet-title">${esc(s.title || 'Session')}</h2>
@@ -522,7 +756,7 @@ function speakerSheet(sp) {
   const mine = sessionsWith(S.current, sp);
   const sub = [sp.title, sp.institution].filter(Boolean).join(' · ');
   return `
-    <div class="lv-sheet-head"><span class="lv-eyebrow ink">${esc((eventOf(S.current) || {}).short || 'Speaker')}</span><span data-act="close" class="lv-x" role="button" aria-label="Close">×</span></div>
+    ${sheetHead(esc((eventOf(S.current) || {}).short || 'Speaker'))}
     <div class="lv-sheet-body">
       <div class="lv-pp big">${sp.photo_url ? `<img class="lv-av xl" src="${esc(sp.photo_url)}" alt="">` : `<span class="lv-av xl txt">${esc(initials(sp.name))}</span>`}<span><h2 class="lv-sheet-title">${esc(sp.name)}</h2>${sub ? `<div class="lv-soft">${esc(sub)}</div>` : ''}</span></div>
       ${sp.bio ? `<div class="lv-sheet-sec"><div class="lv-prose">${esc(sp.bio).replace(/\n+/g, '<br>')}</div></div>` : ''}
@@ -531,17 +765,24 @@ function speakerSheet(sp) {
 }
 
 // ---- handlers ----------------------------------------------------------------------------------
+// MY SCHEDULE is closing a gap under the finger (paintToggle): a tap in the list waits until the rows have settled
+const settling = el => S.settleUntil > Date.now() && !!el.closest('[data-panel="schedule"]');
 const handlers = {
-  tab: el => showTab(el.dataset.tab),
+  // a new tab slides the ink and steps its rows in; the tab already open just returns to its top
+  tab: el => showTab(el.dataset.tab, { animate: el.dataset.tab !== S.tab }),
   ev: async el => { closeSheet(); await switchEvent(el.dataset.key); },
-  allEvents: () => { S.showAll = !S.showAll; const head = q('[data-role="head"]'); if (head) head.innerHTML = tplHeader(); },
-  open: el => { const s = sessionById(el.dataset.id); if (s) openSheet(sessionSheet(s)); },
-  spk: el => { const sp = speakerList(S.current)[Number(el.dataset.i)]; if (sp) openSheet(speakerSheet(sp)); },
-  close: closeSheet,
-  refresh: async () => { await refreshAll({ toastOnSame: true }); },
+  allEvents: () => { S.showAll = !S.showAll; paintSwitch(); },
+  open: el => { if (settling(el)) return; const id = el.dataset.id, s = sessionById(id); if (s) openSheet(() => sessionSheet(sessionById(id) || s)); },
+  spk: el => { const sp = speakerList(S.current)[Number(el.dataset.i)]; if (sp) openSheet(() => speakerSheet(sp)); },
+  close: () => closeSheet(),
+  back: () => sheetBack(),
+  refresh: async el => { el.classList.add('busy'); try { await refreshAll({ toastOnSame: true }); } finally { el.classList.remove('busy'); } },
+  reload: () => location.reload(),
   att: async el => {
     const id = el.dataset.id; const s = sessionById(id); if (!s) return;
     if (!S.token) return ui.toast(COPY.att.ticket);
+    if (S.mePending) return;
+    if (settling(el)) return;
     if (!canToggle(s.event_key) && !speaking(id)) return ui.toast(COPY.att.notHeld);
     if (el.getAttribute('aria-busy') === 'true') return;
     const was = S.attendance[id], next = attending(id) ? 'declined' : 'attending';
@@ -549,7 +790,7 @@ const handlers = {
     el.setAttribute('aria-busy', 'true');
     try { await attend(id, next); if (s.show_counts) paintAll(); }
     catch (e) { S.attendance[id] = was; paintToggle(id); ui.toast(e.status === 403 ? COPY.att.notHeld : (e.message || COPY.att.failed), { kind: 'error' }); }
-    finally { rootEl && rootEl.querySelectorAll(`[data-sid="${CSS.escape(id)}"]`).forEach(x => x.removeAttribute('aria-busy')); }
+    finally { each(`[data-sid="${CSS.escape(id)}"]`, x => x.removeAttribute('aria-busy')); }
   }
 };
 
@@ -559,8 +800,9 @@ async function switchEvent(key) {
   S.current = key; store.set(LS.event(S.token || 'anon'), key);
   try { const u = new URL(location.href); u.searchParams.set('event', key); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { /* fine */ }
   if (!S.programs[key]) loadCached(key);
-  paintAll();
-  if (!S.programs[key] || navigator.onLine !== false) { try { await fetchProgram(key); } catch (e) { if (!S.programs[key]) ui.toast(e.message, { kind: 'error' }); } paintAll(); }
+  const st = S;
+  paintAll();                                                           // another event: the open panel steps in
+  if (!S.programs[key] || navigator.onLine !== false) { try { await fetchProgram(key); } catch (e) { if (S === st && !S.programs[key]) ui.toast(e.message, { kind: 'error' }); } if (S === st) paintAll(); }
 }
 async function refreshAll({ toastOnSame } = {}) {
   const key = S.current; if (!key) return;
@@ -574,29 +816,65 @@ async function refreshAll({ toastOnSame } = {}) {
 }
 function startTimers() {
   timers.push((() => { const id = setInterval(() => { if (document.visibilityState === 'visible') refreshAll(); }, POLL_MS); return () => clearInterval(id); })());
-  timers.push((() => { const id = setInterval(() => { const now = q('[data-role="now"]'); if (now) now.innerHTML = tplNow(); }, TICK_MS); return () => clearInterval(id); })());
+  timers.push((() => { const id = setInterval(() => setHtml(q('[data-role="now"]'), tplNow()), TICK_MS); return () => clearInterval(id); })());
+  // iOS paints :active (the press feedback on cards, tiles, toggles) only once a touch listener exists
+  document.addEventListener('touchstart', noop, { passive: true });
   onVis = () => { if (document.visibilityState === 'visible' && Date.now() - (S.lastPoll || 0) > 20000) refreshAll(); };
   document.addEventListener('visibilitychange', onVis); window.addEventListener('focus', onVis);
   onKey = e => { if (e.key === 'Escape' && sheet) closeSheet(); };
   document.addEventListener('keydown', onKey);
 }
 
-async function open(ctx) {
+// 1) the first paint, synchronous, from what this device already knows: the program, the attendance, the
+// person and the event catalogue as they were last loaded (or skeletons). The router's screen fade frames it.
+function open(ctx) {
   const token = (ctx.params && ctx.params.token) || (ctx.path.startsWith('/app/live') || session.isAuthed ? 'user' : null);
   S = { token, tab: 'program', events: [], programs: {}, attendance: {}, person: null, speakerIds: [], current: null, showAll: false, lastPoll: 0 };
   const qTab = ctx.query && ctx.query.tab; const savedTab = store.get(LS.tab);
   S.tab = TABS.includes(qTab) ? qTab : (TABS.includes(savedTab) ? savedTab : 'program');
-  // 1) paint instantly from the cache
-  if (token) S.attendance = store.get(LS.att(token)) || {};
+  let meCurrent = null;
+  if (token) {
+    S.attendance = store.get(LS.att(token)) || {};
+    const k = meKey(token), me = k ? store.get(LS.me(k)) : null;
+    if (me && me.person && Array.isArray(me.person.events)) {
+      S.person = me.person; S.speakerIds = me.person.speaker_session_ids || []; meCurrent = me.current || null;
+      if (Array.isArray(me.events) && me.events.length) S.events = me.events;
+    }
+  }
+  if (!S.events.length && !S.person) { const evs = store.get(LS.events); if (Array.isArray(evs) && evs.length) S.events = evs; }
+  S.mePending = !!token && !S.person;                                   // a first visit: the ticket is still being read
+  S.eventsPending = !S.events.length;
   const wantEvent = (ctx.query && ctx.query.event) || store.get(LS.event(token || 'anon'));
-  if (wantEvent && loadCached(wantEvent)) { S.current = wantEvent; S.events = [Object.assign({ key: wantEvent }, S.programs[wantEvent].event || {})]; }
+  const known = k => !!k && S.events.some(e => e.key === k);
+  let cur = null;
+  if (wantEvent && (loadCached(wantEvent) || known(wantEvent))) cur = wantEvent;
+  if (!cur && S.events.length) { cur = known(meCurrent) ? meCurrent : guessEvent(S.events, S.person ? S.person.events : []); if (cur) loadCached(cur); }
+  S.current = cur;
+  if (cur && !known(cur) && S.programs[cur]) S.events = S.events.concat([Object.assign({ key: cur }, S.programs[cur].event || {})]);
   rootEl.innerHTML = tplShell();
   unbind = ui.bind(rootEl, handlers);
-  paintAll(); showTab(S.tab, { push: false });
-  // 2) the network: who + which events (+ every held program in parallel), then repaint
+  paintAll(); showTab(S.tab, { push: false, scroll: false });
+  hydrate(token, wantEvent).catch(e => { if (S && rootEl) console.warn('[live]', e && e.message); });
+}
+// 2) the network: who + which events (+ every held program in parallel), then repaint in place.
+// `live()` — the guest may leave the app while the backend wakes; a late answer then paints nothing.
+async function hydrate(token, wantEvent) {
+  const st = S, live = () => S === st && !!rootEl;
   try {
-    if (token) { try { await fetchMe(); } catch (e) { if (e.status === 404 || e.status === 401) { S.token = null; S.meError = e; if (token !== 'user') ui.toast(COPY.badLink, { kind: 'error', ms: 5000 }); } else throw e; } }
-    if (!S.person) await fetchEvents();
+    if (token) {
+      try { await fetchMe(); }
+      catch (e) {
+        if (!live()) return;
+        if (e.status === 404 || e.status === 401) {                     // not (or no longer) a ticket: the anonymous app
+          const k = meKey(token); if (k) store.set(LS.me(k), null);
+          S.token = null; S.person = null; S.speakerIds = []; S.meError = e;
+          if (token !== 'user') ui.toast(COPY.badLink, { kind: 'error', ms: 5000 });
+        } else throw e;
+      } finally { if (live()) S.mePending = false; }
+    }
+    if (!live()) return;
+    if (!S.person || S.eventsPending) await fetchEvents();
+    if (!live()) return;
     const mine = S.person ? S.person.events : [];
     const chosen = (wantEvent && S.events.some(e => e.key === wantEvent) && (!S.person || mine.includes(wantEvent) || !mine.length || S.showAll)) ? wantEvent : null;
     S.current = chosen || (S.person && S.current && S.events.some(e => e.key === S.current) ? S.current : guessEvent(S.events, mine));
@@ -604,14 +882,17 @@ async function open(ctx) {
     const keys = Array.from(new Set([S.current].concat(mine).filter(Boolean)));
     keys.forEach(k => { if (!S.programs[k]) loadCached(k); });
     paintAll();
-    await Promise.all(keys.map(k => fetchProgram(k).catch(e => { if (!S.programs[k]) console.warn('[live] program failed', k, e.message); })));
+    await Promise.all(keys.map(k => fetchProgram(k).catch(e => { if (S && !S.programs[k]) console.warn('[live] program failed', k, e.message); })));
+    if (!live()) return;
     S.lastPoll = Date.now();
     if (S.person && !S.person.events.length && token === 'user') ui.toast(COPY.noEvents, { ms: 6000 });
   } catch (e) {
+    if (!live()) return;
+    S.mePending = false; S.eventsPending = false;
     if (e && e.status === 0 && S.current && S.programs[S.current]) ui.toast(COPY.offline, { ms: 5000 });
-    else if (!S.current) rootEl.innerHTML = `<div class="lv"><div class="lv-empty tall"><span class="lv-rule"></span><span class="lv-empty-line">${esc(e && e.message || 'Something went wrong.')}</span><span data-act="refresh" class="lv-att" style="margin-top:10px">${COPY.refresh}</span></div></div>`;
+    else if (!S.current) rootEl.innerHTML = `<div class="lv"><div class="lv-empty tall"><span class="lv-rule"></span><span class="lv-empty-line">${esc(e && e.message || 'Something went wrong.')}</span><span data-act="reload" class="lv-att lv-retry">${COPY.refresh}</span></div></div>`;
   }
-  paintAll(); showTab(S.tab, { push: false });
+  paintAll(); showTab(S.tab, { push: false, scroll: false });
   startTimers();
 }
 
@@ -623,13 +904,20 @@ export default {
     await ensureCss();
     if (rootEl !== root) return;
     setThemeColor('#191512');
-    await open(ctx);
+    // the sheet locks the page scroll; a reserved gutter keeps a desktop scrollbar from shifting the layout
+    try { document.documentElement.style.scrollbarGutter = 'stable'; } catch (e) { /* fine */ }
+    // resolve on the first paint — the router's fade then frames the screen the guest is already reading, and
+    // never blanks it again when the network (or a waking backend, up to a minute) answers
+    open(ctx);
   },
   destroy() {
     timers.forEach(stop => { try { stop(); } catch (e) { /* fine */ } }); timers = [];
     if (onVis) { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); onVis = null; }
     if (onKey) { document.removeEventListener('keydown', onKey); onKey = null; }
-    closeSheet();
+    document.removeEventListener('touchstart', noop);
+    if (inkRO) { inkRO.disconnect(); inkRO = null; }
+    try { document.documentElement.style.scrollbarGutter = ''; } catch (e) { /* fine */ }
+    closeSheet({ instant: true });
     if (unbind) unbind(); unbind = null;
     rootEl = null; S = null;
   }

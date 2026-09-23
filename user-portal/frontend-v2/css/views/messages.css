@@ -34,7 +34,90 @@
   .mx-msg-grid { overflow-x: clip; }
 }
 
+/* ≤480 conversation header: the rule above lets every span shrink, so "← INBOX" ran under the avatar and
+   the OFFICIAL · MED&X TEAM tag under ARCHIVE. The back and archive controls keep their size; the tag
+   steps aside (the sub-line under the name already says "Official team inbox"). */
+@media (max-width: 480px) {
+  .mx-msg-head { gap: 11px !important; padding-left: 18px !important; padding-right: 18px !important; }
+  .mx-msg-head .mx-msg-back, .mx-msg-head [data-act="archive"], .mx-msg-head > span:nth-child(2) { flex: none; min-width: auto; }
+  .mx-msg-head .mx-msg-tag { display: none; }
+}
+
 /* Attachments (team review Aug 2026): a thumbnail or file chip never widens its bubble —
    the look itself (borders, spacing) stays inline in the view templates per ARCHITECTURE.md §4. */
 .mx-msg-conv img { max-width: 100%; height: auto; }
 .mx-msg-conv a { min-width: 0; }
+
+/* ============================================================================
+   MOTION + HOVER (polish pass 2026-09-22). The shared layer in app.css carries
+   the screen fade, the section-tab underline (this strip is keyed like
+   Network's, so it slides across), the arrow lean, the data-hover glide and
+   the press. This file adds the conversation's own motion: a thread fading in,
+   a NEW message rising into place, the loading hairline, SEND's busy sweep,
+   and field focus. Same language: ease cubic-bezier(.22,1,.36,1) · 150–220 ms
+   hover / press / colour · 280–450 ms entrances · transform / opacity /
+   colour / shadow only · hover only on hover-capable pointers · nothing moves
+   under reduced motion.
+   ========================================================================== */
+
+@keyframes mx-msg-fade { from { opacity: 0; } }
+@keyframes mx-msg-rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes mx-msg-pop  { from { transform: scale(.94); } }
+@keyframes mx-msg-dot  { from { opacity: 0; transform: scale(.4); } }
+@keyframes mx-msg-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+/* conversation loading: a hairline with a gold sweep (the waking overlay's vocabulary), shown only after
+   a beat so a fast answer paints straight from nothing to the messages */
+.mx-msg-wait { margin: auto; width: 120px; height: 1px; background: rgba(25, 21, 18, .12); position: relative; overflow: hidden; flex: none; }
+.mx-msg-wait span { position: absolute; left: 0; top: 0; width: 40%; height: 100%; background: #c9a962; display: none; }
+
+/* a keyboard focus ring INSIDE the row — the scrolling list would clip one drawn outside it */
+.mx-msg-row:focus-visible { outline-offset: -2px !important; }
+
+/* fields: search + composer — the house focus (app.css › a 1px crimson frame over the hairline border),
+   faded in; an ink hairline on hover */
+.mx-msg-field { outline: 1px solid transparent; outline-offset: -1px; }
+.mx-msg-field:focus { outline-color: #9b1b22; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .mx-msg-screen [data-act], .mx-msg-screen label, .mx-msg-screen .chip, .mx-modal .mx-msg-pick {
+    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
+                border-color .18s cubic-bezier(.22,1,.36,1), opacity .18s cubic-bezier(.22,1,.36,1),
+                transform .15s cubic-bezier(.22,1,.36,1);
+  }
+  .mx-msg-field { transition: border-color .18s cubic-bezier(.22,1,.36,1), outline-color .18s cubic-bezier(.22,1,.36,1); }
+  .mx-msg-screen .mx-msg-btn, .mx-modal .mx-msg-btn {
+    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
+                border-color .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+  }
+  .mx-msg-btn:active:not([aria-disabled="true"]), .mx-msg-screen .chip:active { transform: translateY(1px); }
+
+  /* each thread's first paint fades in (the screen itself fades via the shared entrance); a NEW message rises */
+  .mx-msg-fresh { animation: mx-msg-fade .3s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-msg-new { animation: mx-msg-rise .34s cubic-bezier(.22,1,.36,1) backwards; }
+  /* an unread dot pops in when it is new — messages.js › unreadDot() keeps it still on every later repaint */
+  .mx-msg-dot-in { animation: mx-msg-dot .3s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-msg-pop { animation: mx-msg-pop .22s cubic-bezier(.22,1,.36,1); }
+
+  .mx-msg-wait { animation: mx-msg-fade .3s cubic-bezier(.22,1,.36,1) .35s backwards; }
+  .mx-msg-wait span { display: block; animation: mx-msg-sweep 1.4s cubic-bezier(.45,0,.55,1) infinite; }
+
+  /* SEND while it is on its way: the same gold sweep along the button's foot */
+  .mx-msg-btn[data-act="send"] { position: relative; overflow: hidden; }
+  .mx-msg-btn[data-act="send"][aria-disabled="true"]::after {
+    content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 2px; background: #c9a962;
+    animation: mx-msg-sweep 1.1s cubic-bezier(.45,0,.55,1) infinite;
+  }
+}
+
+@media (hover: hover) {
+  .mx-msg-link:hover { color: #191512 !important; }
+  .mx-msg-field:hover:not(:focus) { border-color: rgba(25, 21, 18, .45) !important; }
+  .mx-msg-screen .chip:not(.on):hover { border-color: #191512; }
+  .mx-msg-screen .chip.on:hover { background: #7e151b; border-color: #7e151b; }
+  .mx-modal .mx-msg-pick:hover { background: rgba(25, 21, 18, .04); }
+  .mx-modal a.mx-msg-btn:hover { border-color: #191512 !important; color: #191512; }
+  /* the empty-state / gate crimson CTAs darken like every crimson button (no data-hover on the artboard) */
+  .mx-msg-btn[style*="background:#9b1b22"]:hover { background: #7e151b !important; color: #f7f1e6; }
+  .mx-msg-btn[data-act="retry"]:hover { border-color: #191512 !important; }
+}

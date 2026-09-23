@@ -39,6 +39,9 @@ import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow } from '../facts.js';
 import router from '../router.js';
 
+// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
+const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
+
 export const SOURCE = 'Admin Gala.dc.html';
 
 // ---- COPY: every string that may change in a revision (dates/prices/venues via FACTS/API) ----
@@ -454,7 +457,7 @@ function blockTitle() {
     </div>
     <div style="flex:1"></div>
     <span data-act="kitchenCsv" style="padding:10px 15px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.csvBtn}</span>
-    <a href="/event-day" style="padding:11px 15px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.eventDay}</a>
+    <a href="/event-day" style="padding:11px 15px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${arr(COPY.eventDay)}</a>
   </div>
   <!-- /dc -->`;
 }
@@ -641,10 +644,11 @@ function boardCells() {
     const bg = n ? (n >= cap ? '#f1e7d4' : '#fdfbf6') : 'transparent';
     const bd = n ? '#c9a962' : 'rgba(32,27,22,.18)';
     const fg = n >= cap ? '#7a6432' : '#201b16';
-    return `<span data-act="tileSeat" data-id="${esc(t.id)}" data-label="${esc(t.label)}" title="${esc(who)}" style="position:relative;border:1px solid ${bd};background:${bg};padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">
+    return `<span data-act="tileSeat" class="mxg-tile" data-id="${esc(t.id)}" data-label="${esc(t.label)}" title="${esc(who)}" style="position:relative;border:1px solid ${bd};background:${bg};padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer">
         <span data-act="tblEdit" data-id="${esc(t.id)}" data-v2="table-tools" title="${COPY.board.editTitle}" style="position:absolute;top:1px;right:4px;font:400 10px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#201b16">✎</span>
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.1em;color:#201b16">${esc(t.label)}</span>
         <span style="font-family:Fraunces,serif;font-size:16px;color:${fg}">${n}/${cap}</span>
+        <span class="mxg-fill" aria-hidden="true" style="--f:${Math.min(1, n / cap)}"></span>
       </span>`;
   }).join('');
 }
@@ -655,7 +659,7 @@ function unseatedStrip() {
   return `<div data-v2="unseated-strip" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:0 18px 12px">
       <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;white-space:nowrap">${esc(COPY.board.unseated(un.length))}</span>
       ${un.length
-        ? shown.map(r => `<span data-act="seatGuest" data-id="${esc(r.id)}" title="${esc(COPY.board.seatTitle(nameOf(r)))}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.08em;padding:3px 7px;background:#fdfbf6;border:1px solid rgba(32,27,22,.18);cursor:pointer;white-space:nowrap">${esc(nameOf(r))}${seatsOf(r) > 1 ? ` +${seatsOf(r) - 1}` : ''}</span>`).join('')
+        ? shown.map(r => `<span data-act="seatGuest" class="mxg-chip" data-id="${esc(r.id)}" title="${esc(COPY.board.seatTitle(nameOf(r)))}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.08em;padding:3px 7px;background:#fdfbf6;border:1px solid rgba(32,27,22,.18);cursor:pointer;white-space:nowrap">${esc(nameOf(r))}${seatsOf(r) > 1 ? ` +${seatsOf(r) - 1}` : ''}</span>`).join('')
           + (un.length > MAXCHIPS ? `<span style="font-size:11px;color:#6d6459;font-style:italic">${esc(COPY.board.unseatedMore(un.length - MAXCHIPS))}</span>` : '')
         : `<span style="font-size:11px;color:#6d6459;font-style:italic">${COPY.board.unseatedNone}</span>`}
     </div>`;
@@ -693,9 +697,9 @@ function blockPlanner() {
     <div style="display:flex;align-items:center;gap:8px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.planner.title}</span>
       <div style="flex:1"></div>
-      <a href="${DVORANA_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#9b1b22;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#7e151b">${COPY.planner.dvorana}</a>
+      <a href="${DVORANA_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#9b1b22;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#7e151b">${arr(COPY.planner.dvorana)}</a>
       <label title="${COPY.planner.layoutTitle}" style="padding:6px 10px;border:1px solid #7a6432;background:#f8f1e2;color:#7a6432;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap;display:flex;align-items:center${st.layoutBusy ? ';opacity:.5;pointer-events:none' : ''}">${st.layoutBusy ? COPY.planner.importing : COPY.planner.layout}<input type="file" data-role="layoutFile" accept=".json,application/json" style="display:none"></label>
-      <a href="${PLANNER_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.planner.open}</a>
+      <a href="${PLANNER_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${arr(COPY.planner.open)}</a>
       <label title="${COPY.planner.importTitle}" style="padding:6px 10px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap;display:flex;align-items:center${st.taBusy ? ';opacity:.5;pointer-events:none' : ''}" data-hover="border-color:#201b16">${st.taBusy ? COPY.planner.importing : COPY.planner.import}<input type="file" data-role="taFile" accept=".csv,text/csv,text/plain" style="display:none"></label>
     </div>
     ${st.taReport ? `<div style="padding:8px 18px;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#22563a">${esc(st.taReport)}</div>` : ''}
@@ -711,7 +715,7 @@ function mealBars() {
   const counts = mealCounts();
   const max = Math.max(1, ...counts.map(m => m.n));
   return counts.map(m => `
-      <div style="display:flex;align-items:center;gap:10px"><span style="width:110px;flex:none;font-size:12px">${esc(m.option.label)}</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span style="display:block;width:${Math.round((m.n / max) * 100)}%;height:100%;background:#c9a962"></span></span><span style="font:600 11px Inter,sans-serif;width:24px;text-align:right">${m.n}</span></div>`).join('');
+      <div style="display:flex;align-items:center;gap:10px"><span style="width:110px;flex:none;font-size:12px">${esc(m.option.label)}</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span class="mxpj-bar" style="display:block;width:${Math.round((m.n / max) * 100)}%;height:100%;background:#c9a962"></span></span><span style="font:600 11px Inter,sans-serif;width:24px;text-align:right">${m.n}</span></div>`).join('');
 }
 function blockMeals() {
   return `
@@ -843,7 +847,7 @@ function blockNight() {
     <span style="font-size:12px;color:#4a4239;line-height:1.7">${schedLine}<br>${perfLine} ${COPY.night.line2}</span>
     <span style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
       <a href="/money" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">${COPY.night.money}</a>
-      <a href="/member-pages/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">${COPY.night.memberPage}</a>
+      <a href="/member-pages/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">${arr(COPY.night.memberPage)}</a>
       <span data-act="perfFlip" data-v2="performers-flip" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${meta.performers_announced ? '#6d6459' : '#7a6432'};cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${meta.performers_announced ? COPY.night.tbaBtn : COPY.night.announceBtn}</span>
     </span>
   </div>
@@ -852,8 +856,8 @@ function blockNight() {
 
 function template() {
   return `
-<div data-screen-label="Admin Gala Management" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:22px">
+<div class="mxpj" data-screen-label="Admin Gala Management" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:22px">
     ${blockTitle()}
     ${blockKpis()}
     <div class="mx-two" style="display:grid;grid-template-columns:1.55fr 1fr;gap:22px;align-items:start">

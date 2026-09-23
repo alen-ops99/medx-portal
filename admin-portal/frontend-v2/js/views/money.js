@@ -294,7 +294,7 @@ function blockStats() {
   const net = (s.collected.total || 0) - (s.spent.total || 0);
   const owedCount = (s.owed.sources || []).reduce((n, x) => n + (x.count || 0), 0);
   const cell = (extra, act, k, v, sub, vColor, title) => `
-      <span data-act="${act}"${title ? ` title="${esc(title)}"` : ''} style="padding:18px 22px;${extra}display:block;color:#201b16;cursor:pointer" data-hover="background:#fdfbf6">
+      <span data-act="${act}"${title ? ` title="${esc(title)}"` : ''} style="padding:18px 22px;${extra}display:block;color:#201b16;cursor:pointer" data-hover="background:#faf6ee">
         <span style="display:block;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${k}</span>
         <span class="mx-display-32" style="display:block;font-family:Fraunces,serif;font-size:32px;margin-top:4px${vColor ? ';color:' + vColor : ''}">${v}</span>
         <span style="display:block;font-size:11.5px;color:#6d6459">${sub}</span>
@@ -734,7 +734,13 @@ function template() {
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
 const roleVal = (r, scope) => { const el = (scope || rootEl).querySelector(`[data-role="${r}"]`); return el ? el.value.trim() : ''; };
 const parseAmt = v => Math.round((parseFloat(String(v).replace(',', '.').replace(/[^\d.-]/g, '')) || 0) * 100) / 100;
-const jumpTo = id => { const el = rootEl.querySelector('#' + id); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+// a jump glides to its book (instantly for reduced-motion users) and the book it lands on glows gold once
+const jumpTo = id => {
+  const el = rootEl.querySelector('#' + id); if (!el) return;
+  let calm = false; try { calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  el.scrollIntoView({ block: 'start', behavior: calm ? 'auto' : 'smooth' });
+  el.classList.remove('mx-flash'); void el.offsetWidth; el.classList.add('mx-flash');
+};
 
 async function refreshSummary() {
   try { D.summary = await api.get('/api/v2/money/summary?year=' + st.year); } catch (e) {}

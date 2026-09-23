@@ -44,3 +44,16 @@
   /* hygiene chips in the member file: let the long UNSUBSCRIBED label wrap on a phone */
   .mx-hyg-chip { white-space: normal !important; }
 }
+
+/* ---- polish pass (2026-09-22): directory rows warm under the pointer and their OPEN → leans in;
+   the open member's row carries a crimson edge; a newly opened file settles into the side panel ---- */
+.mx-people-row[data-act] { transition: background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+.mx-people-row[data-act] > span:last-child { transition: transform var(--t-fast) var(--ease); }
+.mx-people-row.on { box-shadow: inset 2px 0 0 #9b1b22; }
+@media (hover: hover) {
+  .mx-people-row[data-act]:not(.on):hover { background: var(--row-hover) !important; }
+  .mx-people-row[data-act]:hover > span:last-child { transform: translateX(3px); }
+}
+[data-block="panel"].mx-panel-in > * { animation: mx-rise .32s var(--ease) backwards; }
+[data-block="panel"].mx-panel-in > :nth-child(2) { animation-delay: 35ms; }
+[data-block="panel"].mx-panel-in > :nth-child(n+3) { animation-delay: 70ms; }

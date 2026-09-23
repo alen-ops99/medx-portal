@@ -415,10 +415,10 @@ function crumb(items) {
 function tabStrip() {
   return `
   <!-- dc: Plexus Conference.dc.html › "Section tabs" -->
-  <div class="mx-plexus-tabs mx-gutter" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+  <div class="mx-plexus-tabs mx-gutter" data-tabs="plexus" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
     ${TABS.map(t => t.key === tab
-      ? `<span aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;border-bottom:2px solid #9b1b22;padding-bottom:3px">${t.label}</span>`
-      : `<a href="${t.to}" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" data-hover="color:#191512">${t.label}</a>`).join('\n    ')}
+      ? `<span class="mx-tab is-on" aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22">${t.label}</span>`
+      : `<a href="${t.to}" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" data-hover="color:#191512">${t.label}</a>`).join('\n    ')}
     <a href="/app/live" data-v2="Plexus Week Live — the event app (docs/EVENT-APP-BRIEF.md)" style="display:inline-flex;align-items:center;gap:7px;font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;text-decoration:none;white-space:nowrap" data-hover="color:#7e151b"><span style="width:6px;height:6px;background:#9b1b22;display:inline-block"></span>${COPY.live}</a>
   </div>
   <!-- /dc -->`;
@@ -470,8 +470,8 @@ function ovHero() {
   const capBit = D.conf.cap ? `CAPPED AT ${fmt.num(D.conf.cap)} SEATS` : '';
   return `
   <!-- dc: Plexus Conference.dc.html › "Hero" -->
-  <div style="position:relative;overflow:hidden">
-    <img src="/assets/photo-stage.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+  <div class="mx-ink" style="position:relative;overflow:hidden">
+    <img class="mx-hero-photo" src="/assets/photo-stage.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.66) 0%,rgba(25,21,18,.5) 55%,rgba(25,21,18,.82) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${esc(D.statusLabel)} · FREE · ${FACTS.plexus.edition}TH YEAR${capBit ? ' · ' + esc(capBit) : ''}</span>
@@ -484,8 +484,8 @@ function ovHero() {
         <a href="/app/plexus/program" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="border-color:#f7f1e6;color:#f7f1e6">${COPY.hero.schedule}</a>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
-        <span data-act="tgFollow" role="switch" aria-checked="${on}" aria-label="Get updates from Plexus" style="width:34px;height:18px;flex:none;cursor:pointer;background:${on ? '#9b1b22' : 'rgba(247,241,230,.3)'};position:relative;transition:background .3s"><span style="position:absolute;top:2px;width:14px;height:14px;background:#f7f1e6;transition:left .3s;left:${on ? '18px' : '2px'}"></span></span>
-        <span style="display:flex;flex-direction:column;gap:3px;text-align:left"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.follow(on)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
+        <span data-act="tgFollow" role="switch" aria-checked="${on}" aria-label="Get updates from Plexus" class="mx-switch"><span></span></span>
+        <span style="display:flex;flex-direction:column;gap:3px;text-align:left"><span data-role="follow-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.follow(on)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
       </div>
     </div>
   </div>
@@ -497,7 +497,7 @@ function ovBand() {
   const ebLabel = D.gala.ebActive ? COPY.band.eb(fmt.upper(monthDay(D.gala.ebDeadline))) : COPY.band.ebPast;
   return `
   <!-- dc: Plexus Conference.dc.html › "Countdown band" -->
-  <div class="mx-pad-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
+  <div class="mx-pad-band mx-px-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.band.startsIn}</span>
     ${cell('days', COPY.band.units[0])}
     ${cell('hrs', COPY.band.units[1])}
@@ -520,8 +520,8 @@ function speakerCard(sp, { program } = {}) {
     ? `<img class="mx-logo" src="${esc(meta.institution_logo_url)}" alt="${esc(sp.institution || '')}" loading="lazy">`
     : '';   // no logo on file → nothing (the role line above already names the institution)
   if (program) return `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(speakerTag(sp))}</span></div>
+      <div class="mx-card-link mx-sp-card" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div class="mx-ph" style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(speakerTag(sp))}</span></div>
         <div style="padding:14px 16px;display:flex;flex-direction:column;gap:6px;flex:1">
           <span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(sp.name)}</span>
           <span style="font-size:11.5px;color:#4a4239">${esc(speakerRole(sp))}</span>
@@ -529,8 +529,8 @@ function speakerCard(sp, { program } = {}) {
         </div>
       </div>`;
   return `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}</div>
+      <div class="mx-card-link mx-sp-card" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+        <div class="mx-ph" style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}</div>
         <div style="padding:16px;display:flex;flex-direction:column;gap:7px;flex:1">
           <span style="align-self:flex-start;padding:3px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.stage.confirmed}</span>
           <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">${esc(sp.name)}</span>
@@ -562,7 +562,7 @@ function weekCard(b) {
   const to = (b.status_kind === 'open' && (b.key === 'conference' || b.key === 'bridges')) ? formUrl(b.key) : routeFor(b.cta_target || 'plexus', '/app/plexus');
   const detail = [b.date_label, b.venue, b.price_label].filter(Boolean).join(' · ');
   return `
-      <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid ${accent};background:#fdfaf3;display:flex;flex-direction:column;gap:8px;padding:16px;box-sizing:border-box">
+      <div${D.week.archived ? '' : ' class="mx-card-link mx-week-card"'} style="border:1px solid rgba(25,21,18,.16);border-top:2px solid ${accent};background:#fdfaf3;display:flex;flex-direction:column;gap:8px;padding:16px;box-sizing:border-box">
         <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${accent}">${esc(fmt.upper(fmt.detail(b.status || '')))}</span>
         <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${esc(b.title || '')}</span>
         <span style="font-size:12px;color:#4a4239;line-height:1.5">${esc(fmt.detail(detail))}</span>
@@ -609,7 +609,7 @@ function ovStage() {
     </div>
     <div style="font-size:13px;color:#4a4239;max-width:640px;line-height:1.55">${esc(COPY.stage.sub)}</div>
     ${n ? `
-    <a href="/app/plexus/program" class="mx-px-teaser" style="display:flex;align-items:center;gap:18px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:16px 20px;margin:16px 0 24px;color:#191512;text-decoration:none" data-hover="background:#f7efdf">
+    <a href="/app/plexus/program" class="mx-px-teaser mx-card-link" style="display:flex;align-items:center;gap:18px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:16px 20px;margin:16px 0 24px;color:#191512;text-decoration:none" data-hover="background:#f7efdf">
       <span class="mx-px-faces" aria-hidden="true">${D.speakers.slice(0, 6).map(sp => `<span class="mx-px-face">${sp.photo_url ? `<img src="${esc(sp.photo_url)}" alt="" loading="lazy">` : ui.monogram(sp.name, 17)}</span>`).join('')}</span>
       <span style="flex:1;min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:17px;line-height:1.25">${esc(COPY.stage.teaser(n))}</span><span style="display:block;font-size:12px;color:#4a4239;margin-top:3px">${esc(COPY.stage.teaserWhy)}</span></span>
       <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap;flex:none">${COPY.stage.all}</span>
@@ -681,13 +681,13 @@ function ovProgramInk() {
         </div>`).join('')}
       </div>
       <div class="mx-grid-photo" style="display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:center">
-        <div style="position:relative;min-height:210px"><img src="/assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top;border:1px solid rgba(201,169,98,.5)"></div>
+        <div style="position:relative;min-height:210px;border:1px solid rgba(201,169,98,.5);box-sizing:border-box;overflow:hidden"><img src="/assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top"></div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.2em;color:#c9a962">${COPY.galaBlock.eyebrow}</span>
           <span style="font-family:Fraunces,serif;font-size:23px;line-height:1.15">${COPY.galaBlock.title}</span>
           <span style="font-size:12px;color:rgba(247,241,230,.7);line-height:1.55">${esc(COPY.galaBlock.body(when, D.gala.venueFull))}</span>
           <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-            <a href="${formUrl('gala')}" style="padding:10px 16px;background:#c9a962;color:#191512;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;text-decoration:none;white-space:nowrap">${COPY.galaBlock.reserve(fmt.eur(D.gala.price))}</a>
+            <a href="${formUrl('gala')}" style="padding:10px 16px;background:#c9a962;color:#191512;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;text-decoration:none;white-space:nowrap" data-hover="background:#b8994f;color:#191512">${COPY.galaBlock.reserve(fmt.eur(D.gala.price))}</a>
             <span style="font-size:11px;color:rgba(247,241,230,.55)">${COPY.galaBlock.note}</span>
           </div>
         </div>
@@ -712,9 +712,9 @@ function ovPhotos() {
   return `
     <!-- dc: Plexus Conference.dc.html › "MOMENTS FROM PAST CONFERENCES" -->
     <div class="mx-grid-4 mx-photo-strip" style="display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;gap:12px;padding:34px 0 24px">
-      <img src="/assets/photo-hall.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
-      <img src="/assets/photo-ballroom.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
-      <img src="/assets/photo-candlelit.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+      <span class="mx-ph" data-act="gallery" tabindex="-1" aria-hidden="true"><img src="/assets/photo-hall.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
+      <span class="mx-ph" data-act="gallery" tabindex="-1" aria-hidden="true"><img src="/assets/photo-ballroom.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
+      <span class="mx-ph" data-act="gallery" tabindex="-1" aria-hidden="true"><img src="/assets/photo-candlelit.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
       <div style="background:#efe7d8;color:#191512;padding:18px 20px;display:flex;flex-direction:column;justify-content:center;gap:8px">
         <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#9b1b22">${COPY.photos.label}</span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;line-height:1.35">${esc(COPY.photos.line(n))}</span>
@@ -902,7 +902,7 @@ function zagrebTpl() {
     </div>
     <!-- /dc -->
     <!-- dc: Plexus Zagreb.dc.html › "03 · GETTING AROUND" -->
-    <div class="mx-wrap-row" style="background:#191512;color:#f7f1e6;padding:18px 24px;display:flex;align-items:center;gap:30px;flex-wrap:wrap;margin-bottom:24px">
+    <div class="mx-wrap-row mx-zg-around" style="background:#191512;color:#f7f1e6;padding:18px 24px;display:flex;align-items:center;gap:30px;flex-wrap:wrap;margin-bottom:24px">
       <span style="font:600 10px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${Z.aroundTitle}</span>
       ${Z.around.map(a => `<span style="display:flex;gap:9px;align-items:center;font-size:12.5px"><span style="width:6px;height:6px;background:#c9a962;flex:none"></span><strong>${a.b}</strong>${a.t}</span>`).join('\n      ')}
     </div>
@@ -1103,16 +1103,13 @@ function openBioFocus() {
 }
 
 const handlers = {
-  tgFollow: async () => {
-    const on = !D.followed;
-    try {
-      await api.post('/api/notify-topics', { project: 'plexus', on });
-      D.followed = on;
-      rerender('[data-block="hero"]', `<div data-block="hero">${ovHero()}</div>`);
-      ui.toast(on ? COPY.toasts.followed : COPY.toasts.unfollowed);
-      chrome.refresh();
-    } catch (e) { ui.toast(e.message, { kind: 'error' }); }
-  },
+  // flips in place at once (ui.toggleSwitch) — the POST runs behind it and a failure flips it back
+  tgFollow: (el) => ui.toggleSwitch(el, async on => {
+    await api.post('/api/notify-topics', { project: 'plexus', on });
+    if (D) D.followed = on;
+    ui.toast(on ? COPY.toasts.followed : COPY.toasts.unfollowed);
+    chrome.refresh();
+  }, on => { const l = el.parentElement && el.parentElement.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.follow(on); }),
   dlIcs: () => {
     const events = icsEvents();
     if (!events.length) return ui.toast(COPY.toasts.icsNone, { kind: 'error' });
@@ -1140,7 +1137,7 @@ const handlers = {
     });
     ui.bind(m.el, { pickEdition: (el) => { m.close(); const id = el.dataset.id; router.navigate(el.dataset.active === 'true' ? '/app/plexus' : `/app/plexus?edition=${encodeURIComponent(id)}`); } });
   },
-  vb: (el) => { st.bio = el.dataset.id; rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); openBioFocus(); },
+  vb: (el) => { st.bio = el.dataset.id; rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); const sc = rootEl.querySelector('[data-role="bio-scrim"]'); if (sc) sc.classList.add('mx-bio-in'); openBioFocus(); },
   bioClose: () => { st.bio = null; rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); },
   gallery: () => {
     const apiPhotos = D.photos || [];
@@ -1267,13 +1264,14 @@ async function confirmSeatTransfer(name, email) {
 function startCountdown() {
   if (!rootEl.querySelector('[data-cd="days"]')) return;
   timers.push(ui.countdown(D.countdownTo, ({ days, hrs, min }) => {
-    const set = (k, v) => { const el = rootEl && rootEl.querySelector(`[data-cd="${k}"]`); if (el) el.textContent = v; };
+    const set = (k, v) => ui.tick(rootEl && rootEl.querySelector(`[data-cd="${k}"]`), v);
     set('days', days); set('hrs', hrs); set('min', min);
   }, 30000));
 }
 
 // ---------------------------------------------------------------- module
 export default {
+  reveal: true,        // sections below the fold rise in on scroll (router › ui.revealOnScroll)
   title: (ctx) => (TABS.find(t => t.key === ((ctx.params && ctx.params.tab) || '')) || TABS[0]).title,
   async render(root, ctx) {
     ensureCss();

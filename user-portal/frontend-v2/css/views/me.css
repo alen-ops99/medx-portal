@@ -17,6 +17,7 @@
 
 /* ≤700px: record cards single column (mx-grid-3 handles it), wallet cards single column */
 @media (max-width: 700px) {
+  .mx-me-tilt { width: 100%; }
   .mx-me-card { width: 100% !important; max-width: 450px; }
 }
 
@@ -41,3 +42,71 @@
 .mx-ghost-ticket::before, .mx-ghost-ticket::after { content: ''; position: absolute; left: 56px; width: 16px; height: 16px; border-radius: 50%; background: #f7f1e6; border: 1px solid rgba(25,21,18,.16); }
 .mx-ghost-ticket::before { top: -9px; clip-path: inset(50% 0 0 0); }
 .mx-ghost-ticket::after { bottom: -9px; clip-path: inset(0 0 50% 0); }
+
+/* ============================================================================
+   MOTION + HOVER (polish pass 2026-09-22). The shared layer in app.css carries
+   the screen fade, the ticket / record grid cascade, the arrow lean on "→"
+   controls, the data-hover glide and the press. This file adds My Med&X's
+   own: the intro lines and the member card arriving, the card tipping toward
+   the pointer (one gesture — no light, no background drift), the drawn stub
+   straightening, and the wallet tab cross-fade. A ticket row holds several
+   actions (download, email, wallet), so the row itself never lifts — a lift
+   says "this whole thing is one link". Same language: ease
+   cubic-bezier(.22,1,.36,1) · 150–220 ms hover / press / colour · 280–450 ms
+   entrances · ≤ 900 ms drift · transform / opacity / colour / shadow only ·
+   hover only on hover-capable pointers · nothing moves under reduced motion.
+   ========================================================================== */
+
+@keyframes mx-me-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes mx-me-fade { from { opacity: 0; } }
+
+/* member card wrapper: carries the hover tilt (JS sets --rx/--ry) so the card keeps its own flip transform.
+   A flex box, so the card stays a flex item that shrinks into narrow panels exactly as it did unwrapped. */
+.mx-me-tilt { position: relative; display: flex; justify-content: center; min-width: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .mx-me-screen [data-act] {
+    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
+                border-color .18s cubic-bezier(.22,1,.36,1), box-shadow .18s cubic-bezier(.22,1,.36,1),
+                opacity .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+  }
+  .mx-me-screen .mx-me-btn {
+    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
+                border-color .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+  }
+  .mx-me-btn:active:not([aria-disabled="true"]) { transform: translateY(1px); }
+
+  /* the page arrives: intro lines settle one after another, the card rises in its lamplit panel */
+  .mx-me-intro > * { animation: mx-me-rise .36s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-me-intro > :nth-child(2) { animation-delay: .04s; }
+  .mx-me-intro > :nth-child(3) { animation-delay: .08s; }
+  .mx-me-intro > :nth-child(4) { animation-delay: .11s; }
+  .mx-me-intro > :nth-child(5) { animation-delay: .14s; }
+  .mx-me-tilt { animation: mx-me-rise .42s cubic-bezier(.22,1,.36,1) .06s backwards; }
+  /* the hero carries its own finer entrance — out of the shared grid cascade (app.css), which would lift
+     the whole intro column and the card panel on top of it */
+  #view.mx-enter .mx-me-hero > * { animation: none; }
+  .mx-me-certhead > * { animation: mx-me-rise .36s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-me-certhead > :nth-child(2) { animation-delay: .04s; }
+  .mx-me-certhead > :nth-child(3) { animation-delay: .08s; }
+  .mx-me-certhead > :nth-child(4) { animation-delay: .11s; }
+  /* CURRENT TICKETS ⇄ PAST PURCHASES: the new list cross-fades in (me.js adds .mx-me-swap on the switch) */
+  .mx-me-swap { animation: mx-me-fade .3s cubic-bezier(.22,1,.36,1) backwards; }
+
+  .mx-ghost-ticket { transition: transform .45s cubic-bezier(.22,1,.36,1); }
+}
+
+@media (hover: hover) {
+  .mx-me-link:hover { color: #191512 !important; }
+  .mx-me-tab[aria-selected="false"]:hover { color: #191512 !important; background: rgba(25, 21, 18, .04) !important; }
+  /* crimson CTAs without an artboard hover darken like every other crimson button */
+  .mx-me-btn[style*="background:#9b1b22"]:hover { background: #7e151b !important; color: #f7f1e6 !important; }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  /* tilt: follows the pointer quickly while it moves (.is-live), eases home when it leaves */
+  .mx-me-tilt { --rx: 0deg; --ry: 0deg; transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
+    transition: transform .45s cubic-bezier(.22,1,.36,1); }
+  .mx-me-tilt.is-live { transition-duration: .15s; }
+  /* the drawn stub (an illustration, not a control) straightens under the pointer — no lift */
+  .mx-ghost-ticket:hover { transform: rotate(-.5deg); }
+}

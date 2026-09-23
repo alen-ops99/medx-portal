@@ -35,3 +35,29 @@
 @media (max-width: 620px) {
   .mx-inbox-tabs { -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent); mask-image: linear-gradient(90deg, #000 82%, transparent); }
 }
+
+/* ---- polish pass (2026-09-22) ---- */
+/* tabs: the one you point at previews its crimson underline */
+@media (hover: hover) { .mx-inbox-tabs > a:not(.on):hover { border-bottom-color: rgba(155,27,34,.45) !important; } }
+/* keyboard focus sits INSIDE the tab — the strip scrolls sideways (overflow), which clipped an outside ring */
+.mx-inbox-tabs > a:focus-visible { outline: 1px solid #9b1b22; outline-offset: -4px; }
+/* rows that open something warm under the pointer; the open thread carries a crimson edge */
+.mx-outbox-row, .mx-thread-row { transition: background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+.mx-thread-row.on { box-shadow: inset 2px 0 0 #9b1b22; }
+@media (hover: hover) {
+  .mx-outbox-row:hover { background: var(--row-hover); }
+  .mx-thread-row:not(.on):hover { background: var(--row-hover) !important; }
+}
+/* the reply / chat composers never let a field's intrinsic width push the pane past its column */
+.mx-conv-compose textarea, [data-block="chatpane"] input[data-role="chDraft"] { min-width: 0; }
+[data-block="conv"], [data-block="chatpane"] { min-width: 0; }
+/* phone: the conversation head and the reply composer wrap (the SEND button and MARK READ used to hang
+   78px past a 390px screen) — the reply field takes the full row, the tools and SEND sit under it */
+@media (max-width: 620px) {
+  .mx-conv-head { row-gap: 8px !important; }
+  .mx-conv-head > div { display: none; }
+  .mx-conv-head > span:nth-child(2) { flex: 1 1 auto; min-width: 0; }
+  .mx-conv-compose { flex-wrap: wrap; }
+  .mx-conv-compose textarea { flex: 1 1 100% !important; order: -1; }
+  .mx-conv-compose [data-act="sendReply"] { margin-left: auto; }
+}

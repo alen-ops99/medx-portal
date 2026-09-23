@@ -20,6 +20,9 @@ import { FACTS } from '../facts.js';
 import cfg from '../config.js';
 import { TOTAL_SCALE, activeCriteria, maxOf, weightOf, weightedTotal, fmtTotal, criteriaCardBody, criteriaHandlers, onCriteriaChange } from './_accel-criteria.js';
 
+// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
+const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
+
 export const SOURCE = 'Admin Accelerator Review.dc.html';
 
 export const COPY = {
@@ -275,7 +278,7 @@ function blockStream() {
             <span style="width:28px;height:1px;background:#c9a962"></span>
             <span class="empty-line">${COPY.empty.line}</span>
             <span class="empty-why">${esc(COPY.empty.why(o))}</span>
-            <a href="${esc(cfg.memberPortalUrl)}/app/accelerator" target="_blank" rel="noopener" style="margin-top:8px;padding:9px 14px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#201b16;white-space:nowrap" data-hover="border-color:#201b16">${COPY.empty.cta}</a>
+            <a href="${esc(cfg.memberPortalUrl)}/app/accelerator" target="_blank" rel="noopener" style="margin-top:8px;padding:9px 14px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#201b16;white-space:nowrap" data-hover="border-color:#201b16">${arr(COPY.empty.cta)}</a>
           </div>
         </div>`}
         ${list.length ? `
@@ -377,9 +380,9 @@ function template() {
   if (!D || !D.program) {
     const y = FACTS.year + 1;
     return `
-<div data-screen-label="Admin Accelerator Review" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+<div class="mxpj" data-screen-label="Admin Accelerator Review" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
   ${blockSubnav()}
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:34px 28px 60px">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:34px 28px 60px">
     <div style="border:1px solid rgba(32,27,22,.14);background:#fff">
       <div class="empty" style="padding:38px 22px 40px">
         <span style="width:28px;height:1px;background:#c9a962"></span>
@@ -392,9 +395,9 @@ function template() {
 </div>`;
   }
   return `
-<div data-screen-label="Admin Accelerator Review" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
+<div class="mxpj" data-screen-label="Admin Accelerator Review" style="min-height:100vh;background:#f6f2ea;color:#201b16;font-family:Inter,sans-serif">
   ${blockSubnav()}
-  <div class="mx-gutter" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:22px">
+  <div class="mx-gutter mx-stagger" style="max-width:1180px;margin:0 auto;padding:30px 28px 56px;display:flex;flex-direction:column;gap:22px">
     ${blockTitle()}
     <div class="mx-side" style="display:grid;grid-template-columns:1.55fr 1fr;gap:22px;align-items:start">
       ${blockStream()}
