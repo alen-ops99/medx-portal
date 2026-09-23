@@ -263,7 +263,7 @@ function drawer() {
   if (!st.open) return '';
   const d = st.detail;
   const t = d ? d.task : (D.tasks.find(x => x.id === st.open) || null);
-  if (!t) return `<div class="mx-drawer" data-block="drawer"><div class="mx-drawer-sheet"><div style="padding:24px;font-size:12.5px;color:#6d6459">Loading…</div></div></div>`;
+  if (!t) return `<div class="mx-drawer" data-block="drawer" role="dialog" aria-label="Task"><div class="mx-drawer-sheet" tabindex="-1"><div style="padding:24px;font-size:12.5px;color:#6d6459">Loading…</div></div></div>`;
   const b = COPY.drawer;
   const comments = d ? d.comments.filter(c => c.kind === 'comment') : [];
   const activity = d ? d.comments.filter(c => c.kind !== 'comment') : [];
@@ -274,7 +274,7 @@ function drawer() {
   const label = 'font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;display:block;margin-bottom:5px';
   return `
   <div class="mx-drawer" data-block="drawer" role="dialog" aria-label="${esc(t.title)}">
-    <div class="mx-drawer-sheet">
+    <div class="mx-drawer-sheet" tabindex="-1">
       <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.12)">
         <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:${t.status === 'done' ? '#9b1b22' : '#6d6459'}">${b.eyebrow(STATUS_LABEL[t.status] || t.status.toUpperCase())}</span>
         ${t.archived_at ? `<span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:2px 6px;background:#eee7dc;color:#6d6459">ARCHIVED</span>` : ''}
@@ -396,13 +396,26 @@ async function refetch() {
   rerenderBoard();
 }
 function setUrl(id) { try { history.replaceState(history.state, '', id ? '/tasks/' + encodeURIComponent(id) : '/tasks'); } catch (e) {} }
+// keyboard focus follows the drawer: in on open (the sheet itself — the title stays a field you choose to
+// type in), and back to the card it came from on close (it was left on <body> both ways)
 async function openDrawer(id) {
   st.open = id; st.detail = null; st.showActivity = false; st.commentDraft = ''; st.linkUrl = ''; st.linkLabel = '';
   setUrl(id);
   rerenderBoard(); rerenderDrawer();
+  const sh = rootEl && rootEl.querySelector('[data-block="drawer"] > .mx-drawer-sheet');
+  if (sh && !sh.contains(document.activeElement)) { try { sh.focus({ preventScroll: true }); } catch (e) {} }
   if (await loadDetail(id)) { rerenderDrawer(); rerenderBoard(); }
 }
-function closeDrawer() { st.open = null; st.detail = null; setUrl(null); rerenderDrawer(); rerenderBoard(); }
+function closeDrawer() {
+  const id = st.open;
+  st.open = null; st.detail = null; setUrl(null); rerenderDrawer(); rerenderBoard();
+  const card = id && rootEl && rootEl.querySelector(`.mx-task[data-id="${CSS.escape(String(id))}"]`);
+  const a = document.activeElement;
+  if (card && (!a || a === document.body || !rootEl.contains(a) || a.closest('[data-block="drawer-leaving"]'))) {
+    if (!card.hasAttribute('tabindex')) card.setAttribute('tabindex', '0');
+    try { card.focus({ preventScroll: true }); } catch (e) {}
+  }
+}
 function patchLocal(task) {
   const i = D.tasks.findIndex(t => t.id === task.id);
   if (i >= 0) D.tasks[i] = Object.assign({}, D.tasks[i], task); else D.tasks.unshift(task);

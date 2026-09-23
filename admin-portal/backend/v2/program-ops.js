@@ -34,6 +34,7 @@
 
 const crypto = require('crypto');
 const core = require('../../../shared/live-program');
+const caMerge = require('../../../shared/ca-merge');   // liveLegSql — the one "counts as registered" rule
 
 module.exports = function mountProgramOps(app, ctx) {
     const { auth, adminOnly, saveDb } = ctx;
@@ -75,14 +76,15 @@ module.exports = function mountProgramOps(app, ctx) {
         const alive = "NOT IN ('cancelled','canceled','rejected','declined','withdrawn','merged')";   // merged legs = the survivor's duplicate
         let people = 0, seats = 0;
         const add = (sql, params, seatSql) => { try { const r = q.get(sql, params || []); people += Number((r && r.n) || 0); seats += Number((r && (seatSql ? r.s : r.n)) || 0); } catch (e) { /* table absent */ } };
+        // a /plexus conference leg counts by the shared live-leg rule (a held 'pending-review' row is nobody yet)
         if (key === 'conference') add(`SELECT COUNT(*) AS n,
-              COUNT(*) + COALESCE((SELECT COUNT(*) FROM ca_registration_guests g JOIN croatians_abroad_registrations c2 ON c2.id = g.registration_id WHERE COALESCE(g.conference, 0) = 1 AND COALESCE(c2.selected_conference, 0) = 1 AND LOWER(COALESCE(c2.conference_status, '')) ${alive}), 0) AS s FROM croatians_abroad_registrations WHERE COALESCE(selected_conference, 0) = 1 AND LOWER(COALESCE(conference_status, '')) ${alive}`, [], true);
+              COUNT(*) + COALESCE((SELECT COUNT(*) FROM ca_registration_guests g JOIN croatians_abroad_registrations c2 ON c2.id = g.registration_id WHERE COALESCE(g.conference, 0) = 1 AND COALESCE(c2.selected_conference, 0) = 1 AND ${caMerge.liveLegSql('c2.conference_status')}), 0) AS s FROM croatians_abroad_registrations WHERE COALESCE(selected_conference, 0) = 1 AND ${caMerge.liveLegSql('conference_status')}`, [], true);
         if (key === 'conference') {
             // people = distinct e-mails across both doors (the /plexus form ∪ the portal's My Plexus rows) —
             // the same number Today, the Plexus hub and Registrations print; seats keep rows + guests
             try {
                 const u = q.get(`SELECT COUNT(*) AS n FROM (
-                    SELECT lower(email) AS e FROM croatians_abroad_registrations WHERE COALESCE(selected_conference, 0) = 1 AND LOWER(COALESCE(conference_status, '')) ${alive} AND email IS NOT NULL AND TRIM(email) <> ''
+                    SELECT lower(email) AS e FROM croatians_abroad_registrations WHERE COALESCE(selected_conference, 0) = 1 AND ${caMerge.liveLegSql('conference_status')} AND email IS NOT NULL AND TRIM(email) <> ''
                     UNION
                     SELECT lower(COALESCE(NULLIF(r.email,''), u.email)) FROM registrations r LEFT JOIN users u ON u.id = r.user_id JOIN conferences cf ON cf.id = r.conference_id AND cf.slug = 'plexus-2026'
                     WHERE LOWER(COALESCE(r.status, '')) ${alive} AND COALESCE(r.revoked, 0) = 0 AND COALESCE(NULLIF(r.email,''), u.email) IS NOT NULL)`);

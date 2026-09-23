@@ -36,7 +36,7 @@ export const COPY = {
   band: ['SPLIT OR ZAGREB · MEMBERS VOTE ON THE VENUE', '150–200 SENIOR GUESTS', 'ANNUAL MEMBERSHIP · RENEWED EACH YEAR', 'MAY GATHERING · DINNER &amp; ANNUAL AWARDS'],
   network: {
     n: '01', title: 'THE NETWORK',
-    intro: cap => `The Forum is a network, not just an event — the leadership of Croatian and international biomedicine, limited to ${cap} members so every relationship stays personal. Membership is by invitation: your code arrives by email, and joining unlocks the member circle here in the portal along with registration for the annual gathering.`,
+    intro: cap => `The Forum is a standing network of the leadership of Croatian and international biomedicine, limited to ${cap} members so every relationship stays personal. Membership is by invitation: your code arrives by email, and joining unlocks the member circle here in the portal along with registration for the annual gathering.`,
     directory: 'Forum members appear alongside your connections in <a href="/app/network">the member network</a> — message and connect year-round.',
     cards: cap => [
       { tag: 'THE CIRCLE', title: `${cap} members, by invitation`, body: 'The leadership of Croatian and international biomedicine — heads of clinics, labs, and companies, reachable in the portal year-round.' },
@@ -240,15 +240,15 @@ function blockNetwork() {
       <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.network.n}</span>
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.network.title}</span>
     </div>
-    <div style="font-size:13.5px;color:#4a4239;line-height:1.65;max-width:860px">${COPY.network.intro(D.cap)}</div>
+    <div style="font-size:13.5px;color:#4a4239;line-height:1.65;max-width:68ch">${COPY.network.intro(D.cap)}</div>
     <div style="display:flex;gap:14px;align-items:baseline;padding:10px 0 0">
       <span style="font-size:12px;color:#4a4239">${COPY.network.directory}</span>
     </div>
-    <div class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:18px 0 8px;max-width:1000px;box-sizing:border-box">
+    <div class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:18px 0 8px;box-sizing:border-box">
       ${COPY.network.cards(D.cap).map(card).join('')}
     </div>
     <!-- v2: what membership includes — the three benefits and the one thing it is not (2026-09-17) -->
-    <div data-block="includes" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:18px 22px;margin-top:8px;max-width:1000px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px">
+    <div data-block="includes" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:18px 22px;margin-top:8px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px">
       <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${COPY.network.includes.title}</span>
       ${COPY.network.includes.points.map(t => `<span style="display:flex;gap:10px;align-items:baseline;font-size:13px;color:#4a4239;line-height:1.55"><span style="width:6px;height:6px;background:#c9a962;flex:none;align-self:center"></span><span>${t}</span></span>`).join('')}
       <span style="font-size:12px;color:#6d6459;font-style:italic;border-top:1px solid rgba(25,21,18,.1);padding-top:9px">${COPY.network.includes.note}</span>
@@ -268,7 +268,7 @@ function blockFeed() {
     </div>`;
   if (!featured) return `
     <!-- dc: Biomedical Forum.dc.html › "FROM THE FORUM" -->${head}
-    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;max-width:1000px;box-sizing:border-box">
+    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;box-sizing:border-box">
       <div class="empty">
         <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.feed.emptyLine}</span>
@@ -279,7 +279,7 @@ function blockFeed() {
     <!-- /dc -->`;
   return `
     <!-- dc: Biomedical Forum.dc.html › "FROM THE FORUM" -->${head}
-    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #c9a962;background:#fdfaf3;padding:22px 24px;max-width:1000px;box-sizing:border-box">
+    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #c9a962;background:#fdfaf3;padding:22px 24px;box-sizing:border-box">
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${esc(featured.tag)}</span>
       <div style="display:flex;gap:16px;align-items:center;margin-top:14px">
         ${featured.isSpot && featured.init ? `<span style="width:52px;height:52px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 18px Fraunces,serif">${esc(featured.init)}</span>` : ''}
@@ -289,7 +289,7 @@ function blockFeed() {
       <div style="font-size:11px;color:#6d6459;margin-top:13px;letter-spacing:.02em">${esc(featured.when)} · ${COPY.feed.by}</div>
     </div>
     ${rest.length ? `
-    <div class="mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1000px;box-sizing:border-box;margin-top:16px;padding-bottom:6px">
+    <div class="mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;box-sizing:border-box;margin-top:16px;padding-bottom:6px">
       ${rest.map(f => `
         <div style="border:1px solid rgba(25,21,18,.14);background:#fdfaf3;padding:16px 18px;display:flex;flex-direction:column;gap:9px">
           <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${esc(f.tag)}</span>
@@ -312,7 +312,7 @@ function blockSchedule() {
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.gathering.title}</span>
       <span style="font-size:12.5px;color:#4a4239">${COPY.gathering.sub}</span>
     </div>
-    <div style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:20px 24px;max-width:1000px;box-sizing:border-box">
+    <div style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:20px 24px;box-sizing:border-box">
       <div style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.6;color:#191512;text-wrap:pretty">${esc(D.gatherAbout)}</div>
     </div>
     <!-- /dc -->`;
@@ -322,7 +322,7 @@ function blockSpeakers() {
   const sp = (D.state.speakers || []);
   const filled = sp.length ? `
     <!-- v2: speakers grid (the artboard ships the empty state; cards appear when the admin confirms speakers) -->
-    <div class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:1000px;box-sizing:border-box;margin-bottom:26px">
+    <div class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;box-sizing:border-box;margin-bottom:26px">
       ${sp.map(s => `
       <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:16px 18px;display:flex;gap:13px;align-items:center">
         ${s.photo_url ? `<img src="${esc(s.photo_url)}" alt="" style="width:44px;height:44px;object-fit:cover;flex:none">` : `<span style="width:44px;height:44px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 15px Fraunces,serif">${esc((s.name || '·').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase())}</span>`}
@@ -333,7 +333,7 @@ function blockSpeakers() {
         </span>
       </div>`).join('')}
     </div>` : `
-    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:24px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;max-width:1000px;box-sizing:border-box;margin-bottom:26px">
+    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:24px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;box-sizing:border-box;margin-bottom:26px">
       <span style="width:28px;height:1px;background:#c9a962"></span>
       <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${esc(COPY.speakers.emptyLine(D.gatherYear))}</span>
       <span style="font-size:12px;color:#4a4239">${COPY.speakers.emptyWhy}</span>
@@ -433,7 +433,7 @@ function blockVote() {
 function blockMembership() {
   return `
   <!-- dc: Biomedical Forum.dc.html › "04 · YOUR MEMBERSHIP" -->
-  <div id="forum-invitation" data-block="membership" class="mx-pad-36" style="background:#191512;color:#f7f1e6;padding:34px 36px 38px">
+  <div id="forum-invitation" data-block="membership" class="mx-pad-36 mx-ink" style="background:#191512;color:#f7f1e6;padding:34px 36px 38px">
     <div style="display:flex;align-items:baseline;gap:14px;padding-bottom:14px">
       <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962">${COPY.membership.n}</span>
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.membership.title}</span>
@@ -452,13 +452,13 @@ function blockNominate() {
   const IN = 'border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box';
   const LB = 'font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239';
   const inner = st.nomSent ? `
-    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #c9a962;background:#fdfaf3;padding:28px 24px;max-width:1000px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
+    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #c9a962;background:#fdfaf3;padding:28px 24px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
       <span style="padding:4px 10px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.16em">${c.sentTag}</span>
       <span style="font-family:Fraunces,serif;font-size:21px">${c.sentHead}</span>
       <span style="font-size:12.5px;color:#4a4239;max-width:480px;line-height:1.6">${c.sentBody}</span>
       <span data-act="nomAgain" style="margin-top:6px;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer" data-hover="color:#191512">${c.another}</span>
     </div>` : `
-    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #9b1b22;background:#fdfaf3;padding:22px 24px;max-width:1000px;box-sizing:border-box">
+    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #9b1b22;background:#fdfaf3;padding:22px 24px;box-sizing:border-box">
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${c.eyebrow}</span>
       <div style="font-family:Fraunces,serif;font-size:22px;margin-top:8px">${c.title}</div>
       <div style="font-size:13px;color:#4a4239;line-height:1.6;margin-top:8px;max-width:720px;text-wrap:pretty">${c.intro}</div>

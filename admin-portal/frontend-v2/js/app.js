@@ -67,7 +67,7 @@ function boot() {
     else state.set({ user: null });
   });
   router.addAll(ROUTES).notFound(NOT_FOUND).locked(LOCKED)
-    .hook('beforeRender', ({ route }) => { state.set({ viewTitle: (route && route.title) || '' }); chrome.closePopover(); document.body.classList.remove('menu-open'); })
+    .hook('beforeRender', ({ route }) => { state.set({ viewTitle: (route && route.title) || '' }); chrome.closePopover(); document.body.classList.remove('menu-open'); const m = document.getElementById('mx-menu-btn'); if (m) m.setAttribute('aria-expanded', 'false'); })
     .hook('afterRender', ({ title }) => { if (title) state.set({ viewTitle: title }); });
   chrome.mount();
   router.start().then(() => { after.forEach(fn => { try { fn(); } catch (e) { console.error('[boot] entry handler failed', e); } }); });

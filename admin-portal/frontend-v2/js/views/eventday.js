@@ -276,8 +276,11 @@ async function refreshDoor() {
     st.door = d.rows || [];
     if (!st.doorQ) st.doorAll = st.door;   // the unfiltered list feeds the phone's filter counts + presenters-in
     paint('[data-block="doorRows"]', doorRowsHtml());
+    // every width: in rehearsal the counters are the test list's own totals (rehearsalTotals reads
+    // st.door), so they must repaint once it lands — the desktop room read 0 of 0 beside 6 test guests
+    paintCounts();
     if (isPhone()) {
-      paint('[data-block="listFilter"]', phoneFilter()); paintCounts();
+      paint('[data-block="listFilter"]', phoneFilter());
       const n = rootEl.querySelector('[data-role="tabOut"]'); if (n) n.textContent = String(st.door.filter(d => !rowIn(d)).length);
     }
   } catch (e) { /* keep the last list */ }
@@ -376,7 +379,7 @@ function idCardHtml() {
           ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#7a6432">${COPY.door.of(d.admitted, d.party_size)} IN</span>`
           : `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#2f7d4f">REGISTERED ✓${d.party_size > 1 ? ' · PARTY OF ' + d.party_size : ''}</span>`;
     const btn = d.ok && d.remaining > 0
-      ? `<span data-act="idAdmit" data-key="${esc(d.event)}"${d.meetup_id ? ` data-meetup="${esc(d.meetup_id)}"` : ''} data-code="${esc(c._code)}" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${COPY.scanner.admitAt(COPY.doors.names[d.event] || d.event.toUpperCase())}</span>`
+      ? `<span data-act="idAdmit" data-key="${esc(d.event)}"${d.meetup_id ? ` data-meetup="${esc(d.meetup_id)}"` : ''} data-code="${esc(c._code)}" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#9b1b22">${COPY.scanner.admitAt(COPY.doors.names[d.event] || d.event.toUpperCase())}</span>`
       : '';
     return `
       <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid rgba(32,27,22,.1);width:100%">
@@ -597,11 +600,11 @@ function resultHtml() {
   const overrideUi = r.result === 'over_capacity' ? `
       <div data-v2="over-capacity override" style="display:flex;flex-direction:column;gap:7px;margin-top:4px;width:100%">
         <input data-role="overrideReason" class="input" placeholder="${esc(COPY.scanner.overrideWhy)}" style="background:#fff">
-        <span data-act="overrideAdmit" data-code="${esc(r._code || '')}" style="padding:9px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;text-align:center">${COPY.scanner.overrideBtn}</span>
+        <span data-act="overrideAdmit" data-code="${esc(r._code || '')}" style="padding:9px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;text-align:center" data-hover="background:#7e151b">${COPY.scanner.overrideBtn}</span>
       </div>` : '';
   const moreUi = partial ? `
       <div style="display:flex;gap:8px;margin-top:4px">
-        <span data-act="admitMore" data-code="${esc(r._code || '')}" data-n="1" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${COPY.scanner.admitMore}</span>
+        <span data-act="admitMore" data-code="${esc(r._code || '')}" data-n="1" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" data-hover="background:#9b1b22">${COPY.scanner.admitMore}</span>
         ${r.remaining > 1 ? `<span data-act="admitMore" data-code="${esc(r._code || '')}" data-n="2" style="padding:8px 13px;border:1px solid rgba(32,27,22,.25);color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${COPY.scanner.admitTwo}</span>` : ''}
       </div>` : '';
   return `
@@ -657,7 +660,7 @@ function doorRowsHtml() {
       ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#2f7d4f;white-space:nowrap">${COPY.door.in}${partySize > 1 ? ' · ' + COPY.door.of(admitted, partySize) : (d.last_scan_at ? ' · ' + esc(fmt.when(d.last_scan_at)) : '')}</span>`
       : partIn
         ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#7a6432;white-space:nowrap">${COPY.door.of(admitted, partySize)} ${COPY.door.in}</span>
-           <span data-act="doorIn" data-ref="${esc(d.ref)}" style="padding:7px 12px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${COPY.door.plusOne}</span>`
+           <span data-act="doorIn" data-ref="${esc(d.ref)}" style="padding:7px 12px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#9b1b22">${COPY.door.plusOne}</span>`
         : (d.legacy_in
           ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#2f7d4f;white-space:nowrap">${COPY.door.in}</span>`
           : `<span data-act="doorIn" data-ref="${esc(d.ref)}" style="padding:7px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.door.checkIn}${partySize > 1 ? ' · ' + partySize : ''}</span>`);
@@ -712,7 +715,7 @@ function staffCardBody() {
         <span data-act="copyDoor" data-url="${esc(t.url)}" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copiedDoor ? COPY.staff.copied : COPY.staff.copy}</span>
         <span data-act="qrDoor" data-id="${esc(t.id)}" style="padding:9px 14px;border:1px solid rgba(32,27,22,.2);color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${st.qrUrl ? COPY.staff.hideQr : COPY.staff.qr}</span>
         <span data-act="revokeDoor" data-id="${esc(t.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${COPY.staff.revoke}</span>
-        <span style="font-size:11.5px;color:#6d6459">${esc(COPY.staff.expires(t.expires_at ? fmt.dayLabel(t.expires_at) + ' ' + String(t.expires_at).slice(11, 16) : 'when the event ends'))}</span>
+        <span style="font-size:11.5px;color:#6d6459">${esc(COPY.staff.expires(t.expires_at ? fmt.dayLabel(t.expires_at) + ' ' + fmt.hm(t.expires_at) : 'when the event ends'))}</span>
       </div>
       ${st.qrUrl ? `<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><img src="${st.qrUrl}" alt="Door link QR" style="width:150px;height:150px;border:1px solid rgba(32,27,22,.15)"><span style="font-size:11.5px;color:#6d6459;max-width:220px">${COPY.staff.handQr}</span></div>` : ''}`;
 }
@@ -741,7 +744,7 @@ function blockMap() {
       <div data-v2="ops notes — shared, saved server-side" style="display:flex;flex-direction:column;gap:6px">
         <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${COPY.map.notes}</span>
         <textarea data-role="notes" rows="3" ${canEdit ? '' : 'readonly'} placeholder="${esc(COPY.map.notesPh)}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;resize:vertical">${esc(D.notes.notes || '')}</textarea>
-        ${canEdit ? `<span data-act="notesSave" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;align-self:flex-start">${COPY.map.save}</span>` : ''}
+        ${canEdit ? `<span data-act="notesSave" style="padding:8px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;align-self:flex-start" data-hover="background:#9b1b22">${COPY.map.save}</span>` : ''}
       </div>
     </div>
     <!-- /dc -->`;
@@ -868,8 +871,9 @@ function hdrCountHtml() {
   const { checked, expected } = gateStats();
   return `${COPY.phone.inOf(checked, expected)}<small>${COPY.phone.inWord}</small>`;
 }
+// in rehearsal the amber banner right under the title says REHEARSAL — TEST GUESTS ONLY (the title used
+// to repeat it word for word); the title names the door the rehearsal runs at, as it does live
 function doorTitleHtml() {
-  if (st.rehearsal) return `${COPY.banner.split(' — ')[0]}<small>${esc(COPY.banner.split(' — ')[1] || '')}</small>`;
   if (st.gate === 'bridges') {
     const ev = currentBridgesEvent();
     const g = gateInfo('bridges');

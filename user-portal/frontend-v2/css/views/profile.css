@@ -16,6 +16,11 @@
 @media (max-width: 900px) {
   .mx-profile-grid { grid-template-columns: 1fr !important; }
   .mx-profile-pad { padding-left: 18px !important; padding-right: 18px !important; }
+  /* stacked, the sidebar (PROFILE COMPLETION — where Home's "Complete your profile" sends people — the directory
+     preview, the member card) comes before DELETE ACCOUNT, which closes the page: the main column opens up
+     into the grid and the danger zone is ordered last */
+  .mx-profile-main { display: contents !important; }
+  .mx-profile-grid > .mx-profile-main > .mx-profile-del { order: 1; }
 }
 @media (max-width: 500px) {
   .mx-profile-title { font-size: 26px !important; }

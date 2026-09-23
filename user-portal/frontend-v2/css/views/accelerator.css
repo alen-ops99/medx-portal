@@ -40,6 +40,14 @@
   .mx-ax-wizard { grid-template-columns: 1fr !important; }
   .mx-ax-stepper > div { padding: 0 10px 12px !important; }
 }
+/* stats band, one row needs 1,044 px: narrower, the countdown keeps the first line and the four facts share
+   the second (the rule after it goes); below ~740 the facts wrap without rules */
+@media (max-width: 1060px) {
+  .mx-ax-band { row-gap: 10px !important; }
+  .mx-ax-band > .mx-band-break { display: block; flex-basis: 100%; height: 0; }
+  .mx-ax-band > .mx-band-break + span[style*="width:1px"] { display: none; }
+}
+@media (max-width: 740px) { .mx-ax-band > span[style*="width:1px"] { display: none !important; } }
 @media (max-width: 700px) {
   .mx-ax-faq { grid-template-columns: 1fr !important; }
   .mx-ax-fields { grid-template-columns: 1fr !important; }

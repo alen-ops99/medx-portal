@@ -12,6 +12,11 @@
 /* ≤480: health-report lines carry long env-var names and file paths — wrap them rather
    than widen the page (team review Aug 2026: 421px inside a 390px viewport) */
 @media (max-width: 480px) {
-  [data-block="health"] span, [data-block="health"] code { overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
+  [data-block="health"] span, [data-block="health"] code { overflow-wrap: break-word; min-width: 0; }
   [data-block="health"] > div { min-width: 0; }
+  /* a row kept its 230px label column and left ~55px for the value, which broke one syllable per line
+     ("respondi / ng"): on a phone the value sits under its label, full width */
+  [data-block="health"] .mx-hl-row { flex-wrap: wrap; row-gap: 3px; }
+  [data-block="health"] .mx-hl-name { width: auto !important; flex: 1 1 0 !important; }
+  [data-block="health"] .mx-hl-detail { flex: 1 1 100% !important; padding-left: 20px; }
 }

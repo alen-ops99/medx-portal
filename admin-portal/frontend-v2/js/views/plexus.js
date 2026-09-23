@@ -26,6 +26,7 @@ import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow } from '../facts.js';
 import { perms } from '../perms.js';
 import router from '../router.js';
+import { outboxWaitingOf } from '../chrome.js';   // the header badge's count (weekly pulses fold to one)
 // v2 2026-09-11 — the AWARDS tab (design/AWARDS-SPEC.md §Admin). It is a fifth screen with its
 // own data, drawer and handlers, so it lives in its own module and this file delegates: one
 // import, one row in TAB_ORDER, one branch in template(), and its handler map merged below.
@@ -58,7 +59,9 @@ export const COPY = {
     // an older backend falls back to the local rows and says BOOKINGS, which is what rows are.
     gala: 'GALA SEATS', galaFallback: 'GALA BOOKINGS', galaSub: (p, c) => `${p} PAID · ${c} PAYMENT OPEN →`,
     speakers: 'SPEAKERS', speakersLive: n => `${n} live for members · manage →`, speakersDraft: 'program in draft · manage →',
-    money: 'COLLECTED', moneySub: 'OPEN MONEY →', calendar: 'CALENDAR →'
+    money: 'COLLECTED', moneySub: 'OPEN MONEY →', calendar: 'CALENDAR →',
+    // Money's own COLLECTED IN <year> (audit 2026-09-23) — without Money access, the gala + conference sum under its own name
+    moneyPartial: 'GALA + CONFERENCE', moneyPartialSub: 'OPEN THE GALA →'
   },
   dates: { earlyBird: p => `Early-bird ends → ${p}`, dayOne: 'Donor Night · Event Day wakes up', dayTwo: 'Conference day two + Gala' },
   before: {
@@ -70,7 +73,10 @@ export const COPY = {
       // the list both come from Bridges, not from this form's own (permanently empty) responses.
       liveStatus: (n, label, d) => `${n} registered via ${label}${d ? ` · ${d}` : ''}`, liveList: 'GUEST LIST' },
     speakers: { name: 'Speakers', tag: n => `${n} CONFIRMED`, none: '0 CONFIRMED', status: (t, l) => `${t} on file · ${l} live on the member page`, action: 'MANAGE' },
-    schedule: { name: 'Schedule & program', tag: n => `${n} PUBLISHED`, draft: 'IN DRAFT', status: t => `${t} session${t === 1 ? '' : 's'} · the member Program page renders the published rows`, none: 'No sessions yet — members see “Program in preparation”', action: 'BUILD' },
+    schedule: { name: 'Schedule & program', tag: n => `${n} PUBLISHED`, draft: 'IN DRAFT', status: t => `${t} session${t === 1 ? '' : 's'} · the member Program page renders the published rows`, none: 'No sessions yet — members see “Program in preparation”', action: 'BUILD',
+      // the Program editor (/program/conference) is where the conference program lives now — its sessions
+      // are what Plexus Week Live shows; the hub row reads the editor's own counts (audit 2026-09-23)
+      liveTag: n => `${n} LIVE`, liveStatus: (t, p) => `${t} session${t === 1 ? '' : 's'} · ${p} live in Plexus Week Live, the event app`, liveNone: 'No sessions yet — build the program in the Program editor' },
     travel: { tag: 'TRAVEL', name: 'Speaker itineraries', status: n => n ? `${n} itinerar${n === 1 ? 'y' : 'ies'} filed · flights, hotel nights & pickups per speaker` : 'Flights, hotel nights & airport pickups per speaker — nothing filed yet', action: 'MANAGE' },
     prices: { tag: 'SET', name: 'Tickets & prices', status: (a, b, d) => `Gala ${a} → ${b} on ${d}`, after: b => `Gala at the regular price ${b} — early bird is over`, action: 'EDIT' },
     outbox: { tag: 'QUEUED', clear: 'CLEAR', name: 'Emails to registrants', status: n => n ? `${n} batch${n === 1 ? '' : 'es'} queued in the Outbox — nothing sends without your OK` : 'Nothing queued — the Outbox is clear', action: 'REVIEW' },
@@ -352,6 +358,8 @@ async function load(tab, editionId) {
     gs: api.get('/api/admin/gala/settings'),
     galaOps: api.get('/api/v2/gala-ops/summary'),   // UXFIX closing: ONE truth for the gala tallies (seats incl. plus-ones)
     sessions: api.get('/api/admin/plexus/sessions'),
+    prog: api.get('/api/v2/program/conference/insight'),   // the Program editor's conference: sessions, live, registered people
+    money: api.get('/api/v2/money/summary?year=' + new Date().getFullYear()),   // COLLECTED = Money's own figure
     speakers: api.get('/api/admin/plexus/speakers'),
     meta: api.get('/api/v2/plexus-hub/speaker-meta'),
     forms: api.get('/api/admin/signup-forms'),
@@ -381,7 +389,10 @@ function shape(r) {
   return {
     errors: r.$errors, conf,
     cap: Number(conf.max_capacity) || FACTS.plexus.cap,
-    regs: r.summary ? Number(r.summary.plexus.registrations || 0) : (r.pstats ? Number(r.pstats.plexus.registrations || 0) : null),
+    // registered PEOPLE, counted the way Registrations and the Program editor count them (the summary is the fallback)
+    regs: r.prog && r.prog.registered != null ? Number(r.prog.registered) : r.summary ? Number(r.summary.plexus.registrations || 0) : (r.pstats ? Number(r.pstats.plexus.registrations || 0) : null),
+    prog: r.prog && r.prog.sessions != null ? r.prog : null,
+    moneyCollected: r.money && r.money.collected && r.money.collected.total != null ? Number(r.money.collected.total) : null,
     revenue: r.pstats && r.pstats.plexus ? Number(r.pstats.plexus.revenue || 0) : 0,
     gala: {
       rows: galaRows, paid, toChase: galaRows.filter(g => g.payment_status !== 'paid'),
@@ -481,8 +492,12 @@ function keyDates() {
   const add = (d, label, text, color) => { const dd = String(d || '').slice(0, 10); if (!dd) return; const n = fmt.daysUntil(dd); if (n == null || n < 0) return; out.push({ d: dd, label, text, color: color || (n <= 7 ? '#9b1b22' : '#c9a962') }); };
   if (D.gala.ebDays != null && D.gala.ebDays >= 0) add(D.gala.ebDeadline, fmt.dayLabel(D.gala.ebDeadline), COPY.dates.earlyBird(fmt.eur(D.gala.regular)));
   D.cal.forEach(e => { if (!e.starts_on || /early[- ]bird/i.test(e.title || '')) return; add(e.starts_on, fmt.rangeLabel(e.starts_on, e.ends_on), e.title); });
-  add(D.conf.start_date || FACTS.plexus.start, fmt.dayLabel(D.conf.start_date || FACTS.plexus.start), COPY.dates.dayOne, '#9b1b22');
-  add(D.conf.end_date || FACTS.plexus.end, fmt.dayLabel(D.conf.end_date || FACTS.plexus.end), COPY.dates.dayTwo, '#9b1b22');
+  // the two built-in day lines stand in only for a day the year board leaves empty — with "Plexus Donor
+  // Night" on Dec 4 the strip printed Donor Night twice and pushed the Gala (Dec 5) off the four slots
+  const onBoard = d => out.some(x => x.d === String(d || '').slice(0, 10));
+  const dayOne = D.conf.start_date || FACTS.plexus.start, dayTwo = D.conf.end_date || FACTS.plexus.end;
+  if (!onBoard(dayOne)) add(dayOne, fmt.dayLabel(dayOne), COPY.dates.dayOne, '#9b1b22');
+  if (!onBoard(dayTwo)) add(dayTwo, fmt.dayLabel(dayTwo), COPY.dates.dayTwo, '#9b1b22');
   return out.sort((a, b) => a.d.localeCompare(b.d)).slice(0, 4);
 }
 async function copyText(t) {
@@ -581,7 +596,8 @@ function blockStats() {
   const s = COPY.stats;
   const galaLocked = isLocked('gala');
   const ops = D.gala.ops;
-  const collected = galaLocked ? null : (ops ? ops.eur.collected : D.gala.collected) + D.revenue;
+  const moneyOk = D.moneyCollected != null;
+  const collected = moneyOk ? D.moneyCollected : galaLocked ? null : (ops ? ops.eur.collected : D.gala.collected) + D.revenue;
   const live = spLive().length;
   const cell = (inner, href, act) => href
     ? `<a href="${href}" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block" data-hover="background:var(--row-hover);color:#201b16">${inner}</a>`
@@ -609,10 +625,10 @@ function blockStats() {
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.speakers}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.speakers.length}</div>
           <div style="font-size:11px;color:${spLive().length ? '#6d6459' : '#9b1b22'}">${live ? esc(s.speakersLive(live)) : s.speakersDraft}</div>`, null, 'openSpeakers')}
-        <a href="/money" style="padding:16px 20px;color:#201b16;display:block" data-hover="background:var(--row-hover);color:#201b16">
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.money}</div>
+        <a href="${moneyOk ? '/money' : '/gala'}" style="padding:16px 20px;color:#201b16;display:block" data-hover="background:var(--row-hover);color:#201b16">
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${moneyOk || collected == null ? s.money : s.moneyPartial}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${collected == null ? '—' : esc(fmt.eur(collected))}</div>
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${s.moneySub}</div>
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${moneyOk || collected == null ? s.moneySub : s.moneyPartialSub}</div>
         </a>
       </div>
       <div class="mxp-dates" style="display:grid;grid-template-columns:repeat(4,1fr) auto;border-top:1px solid rgba(32,27,22,.1)">
@@ -762,11 +778,13 @@ function blockBefore() {
         : rowNav({ id: 'forms', tag: 'NONE YET', tagColor: '#b07d10', name: c.forms.none, status: c.forms.noneStatus, action: c.forms.noneAction, href: '/links' })}
       ${rowAct({ id: 'speakers', act: 'openSpeakers', panel: 'speakers', tag: confirmedN ? c.speakers.tag(confirmedN) : c.speakers.none, tagColor: confirmedN ? '#1e6e42' : '#9b1b22', name: c.speakers.name, status: c.speakers.status(D.speakers.length, spLive().length), action: c.speakers.action })}
       ${st.openPanel === 'speakers' ? panelSpeakers() : ''}
-      ${rowAct({ id: 'schedule', act: 'openSchedule', panel: 'schedule', tag: pubN ? c.schedule.tag(pubN) : c.schedule.draft, tagColor: pubN ? '#1e6e42' : '#9b1b22', name: c.schedule.name, status: D.sessions.length ? c.schedule.status(D.sessions.length) : c.schedule.none, action: c.schedule.action })}
+      ${D.prog
+        ? rowNav({ id: 'schedule', tag: D.prog.published ? c.schedule.liveTag(D.prog.published) : c.schedule.draft, tagColor: D.prog.published ? '#1e6e42' : '#9b1b22', name: c.schedule.name, status: D.prog.sessions ? c.schedule.liveStatus(D.prog.sessions, D.prog.published || 0) : c.schedule.liveNone, action: c.schedule.action, href: '/program/conference' })
+        : rowAct({ id: 'schedule', act: 'openSchedule', panel: 'schedule', tag: pubN ? c.schedule.tag(pubN) : c.schedule.draft, tagColor: pubN ? '#1e6e42' : '#9b1b22', name: c.schedule.name, status: D.sessions.length ? c.schedule.status(D.sessions.length) : c.schedule.none, action: c.schedule.action })}
       ${st.openPanel === 'schedule' ? panelSchedule() : ''}
       ${rowNav({ id: 'travel', tag: c.travel.tag, tagColor: '#b07d10', name: c.travel.name, status: c.travel.status(D.itins), action: c.travel.action, href: '/calendar' })}
       ${rowNav({ id: 'prices', tag: c.prices.tag, tagColor: '#6d6459', name: c.prices.name, status: D.gala.ebDays >= 0 ? c.prices.status(fmt.eur(D.gala.early), fmt.eur(D.gala.regular), fmt.dayShort(D.gala.ebDeadline)) : c.prices.after(fmt.eur(D.gala.regular)), action: c.prices.action, href: '/money' })}
-      ${rowNav({ id: 'outbox', tag: D.outbox.length ? c.outbox.tag : c.outbox.clear, tagColor: D.outbox.length ? '#b07d10' : '#6d6459', name: c.outbox.name, status: c.outbox.status(D.outbox.length), action: c.outbox.action, href: '/inbox/outbox' })}
+      ${rowNav({ id: 'outbox', tag: D.outbox.length ? c.outbox.tag : c.outbox.clear, tagColor: D.outbox.length ? '#b07d10' : '#6d6459', name: c.outbox.name, status: c.outbox.status(outboxWaitingOf(D.outbox)), action: c.outbox.action, href: '/inbox/outbox' })}
       ${rowNav({ id: 'links', tag: c.links.tag, tagColor: '#6d6459', name: c.links.name, status: c.links.status(D.links), action: c.links.action, href: '/links' })}
       ${cmeLocked ? lockedRow('cme', c.cme.name, 'cme')
         : rowNav({ id: 'cme', tag: D.cme && D.cme.is_accredited ? c.cme.on : c.cme.off, tagColor: D.cme && D.cme.is_accredited ? '#1e6e42' : '#b07d10', name: c.cme.name, status: D.cme && D.cme.is_accredited ? c.cme.status(D.cme.points_value, Number(D.cme.consented) || 0) : c.cme.offStatus, action: c.cme.door, href: '/settings', extra: `<span data-act="cmeExport" data-v2="cme-export" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;border:1px solid rgba(32,27,22,.2);padding:5px 9px;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16;color:#201b16">${c.cme.action}</span>` })}
@@ -847,7 +865,7 @@ function blockMembers() {
           <input data-role="msLabel" value="${esc(p.status_label || '')}" aria-label="${esc(c.label)}" style="width:100%;box-sizing:border-box;margin-top:6px;background:#f6f2ea;border:1px solid rgba(32,27,22,.25);padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16">
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;margin-top:12px">${c.detail}</div>
           <input data-role="msDetail" value="${esc(p.detail_line || '')}" aria-label="${esc(c.detail)}" style="width:100%;box-sizing:border-box;margin-top:6px;background:#f6f2ea;border:1px solid rgba(32,27,22,.25);padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16">
-          <button data-act="msSave" data-role="msSaveBtn" style="margin-top:14px;background:${saved ? '#1e6e42' : '#9b1b22'};color:#fff;border:none;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 18px;cursor:pointer;white-space:nowrap">${saved ? c.saved : c.save}</button>
+          <button data-act="msSave" data-role="msSaveBtn" style="margin-top:14px;background:${saved ? '#1e6e42' : '#9b1b22'};color:#fff;border:none;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 18px;cursor:pointer;white-space:nowrap" data-hover="background:${saved ? '#185a36' : '#7e151b'}">${saved ? c.saved : c.save}</button>
           <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(32,27,22,.1)"><a href="/member-pages/plexus" style="font:600 9px Inter,sans-serif;letter-spacing:.14em">${c.manage}</a></div>
           </div>
         </div>
@@ -1127,7 +1145,7 @@ function drawerAtt() {
           <input data-role="aInst" value="" placeholder="${esc(c.addInstPh)}" aria-label="${esc(c.addInstPh)}" style="width:100%;box-sizing:border-box;${INPUT2}">
           <input data-role="aPos" value="" placeholder="${esc(c.addPosPh)}" aria-label="${esc(c.addPosPh)}" style="width:100%;box-sizing:border-box;${INPUT2}">
         </div>
-        <span data-act="mAttAdd" style="padding:9px 14px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;align-self:flex-start;white-space:nowrap">${c.addBtn}</span>`}
+        <span data-act="mAttAdd" style="padding:9px 14px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;align-self:flex-start;white-space:nowrap" data-hover="background:#9b1b22">${c.addBtn}</span>`}
       </div>`}
       ${bucket('confirmed', c.confirmed, d.confirmed || [], c.countOf((d.confirmed || []).length, m.capacity || 0))}
       ${bucket('waitlist', c.waitlist, d.waitlist || [])}

@@ -102,7 +102,7 @@ module.exports = function mountTransfer(app, ctx) {
     function findSeat(user) {
         const em = user.email || '__none__';
         const g = tryGet(`SELECT * FROM gala_registrations
-                           WHERE (user_id = ? OR lower(email) = ?)
+                           WHERE (user_id = ? OR (user_id IS NULL AND lower(email) = ?))
                              AND COALESCE(status,'') NOT IN ('rejected','declined','cancelled')
                            ORDER BY created_at DESC LIMIT 1`, [user.id, em]);
         if (g) {
@@ -112,7 +112,7 @@ module.exports = function mountTransfer(app, ctx) {
         const ca = tryGet(`SELECT * FROM croatians_abroad_registrations
                             WHERE selected_gala = 1
                               AND COALESCE(gala_status,'') NOT IN ('rejected','declined','cancelled')
-                              AND (user_id = ? OR lower(email) = ?)
+                              AND (user_id = ? OR (user_id IS NULL AND lower(email) = ?))
                             ORDER BY created_at DESC LIMIT 1`, [user.id, em]);
         if (!ca) return null;
         if (ca.gala_registration_id) {

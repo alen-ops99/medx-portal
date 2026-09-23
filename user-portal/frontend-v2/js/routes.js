@@ -29,7 +29,7 @@ export const ROUTES = [
   { path: '/app/me/:tab?', view: () => import('./views/me.js'), auth: true, active: 'My Med&X', title: 'My Med&X' }, // certificates
   { path: '/app/mentorship', view: () => import('./views/mentorship.js'), auth: true, title: 'Mentorship' },
   { path: '/app/opportunities', view: () => import('./views/opportunities.js'), auth: true, title: 'Opportunity board' },
-  { path: '/app/projects', view: () => import('./views/projects.js'), auth: true, title: 'Projects' },           // mobile PROJECTS tab
+  { path: '/app/projects', view: () => import('./views/projects.js'), auth: true, active: 'Projects', title: 'Projects' },           // mobile PROJECTS tab
   // PLEXUS WEEK LIVE — the event app (docs/EVENT-APP-BRIEF.md). `/live/:token?` is PUBLIC like the ticket
   // pages: guests arrive from the ticket link with no account; no token → the read-only catalogue.
   // `/app/live` is the signed-in member's door (the literal 'user' token + Bearer). Both are 'bare'.

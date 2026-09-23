@@ -33,7 +33,8 @@ export const COPY = {
   party: n => `party of ${n}`,
   switcher: { all: 'ALL EVENTS', mine: 'MY EVENTS', readOnly: 'READ-ONLY' },
   now: {
-    now: 'NOW', next: 'NEXT', endsIn: m => `ends in ${m}`, inMin: m => `in ${m}`,
+    now: 'NOW', next: 'NEXT', endsIn: m => `ends in ${m}`, late: 'until late', inMin: m => `in ${m}`,
+    day: (n, d) => `Day ${n} · ${d}`,
     startsAt: (t, doors) => `Starts at ${t}${doors ? ` · doors ${doors}` : ''}`,
     startsOn: (d, t) => `${d}${t ? ` · ${t}` : ''}`, ended: d => `This event has ended · ${d}`,
     over: 'That was the last session — thank you for coming.', tbd: 'Times to be confirmed'
@@ -43,11 +44,12 @@ export const COPY = {
     ticket: 'Open this from your ticket link to build your schedule.',
     notHeld: 'This event is not on your ticket — the program is shown read-only.',
     failed: 'That did not save — check the connection and tap again.' },
-  program: { empty: 'The program is being written — check back soon.', tbdDay: 'Date to be confirmed' },
+  program: { empty: 'The program is being written — check back soon.', dayEmpty: 'The program for this day is being written — check back soon.', tbdDay: 'Date to be confirmed' },
   schedule: {
     emptyLine: 'Nothing here yet.', emptyWhy: 'Everything you registered for appears here on its own — and anything you add from the program.',
     auto: 'Built from your registration — tap a session off if you will skip it.',
-    ics: 'ADD TO CALENDAR', icsDay: 'ADD DAY TO CALENDAR', conflict: 'Two of your sessions overlap.'
+    ics: 'ADD TO CALENDAR', icsDay: 'ADD DAY TO CALENDAR', conflict: 'Two of your sessions overlap.',
+    icsNone: 'Times are still to be confirmed — nothing to add to a calendar yet.', icsDone: 'Calendar file downloaded — open it to add the sessions.'
   },
   speakers: { empty: 'Speakers are announced closer to the event.', sessions: 'SESSIONS', tbdSpeaker: 'To be announced' },
   info: {
@@ -56,8 +58,10 @@ export const COPY = {
     tz: tz => tz === 'America/New_York' ? 'Boston time' : 'Zagreb time'
   },
   updated: 'Program updated', offline: 'Offline — showing the last program you loaded.',
+  offlineFoot: t => `Offline · showing the program${t ? ` from ${t}` : ' you loaded last'}`,
   badLink: 'That link is not one of ours — open the app from your ticket.',
   noEvents: 'No tickets are linked to this account yet — register for Plexus Week and your events appear here.',
+  noTickets: { line: 'No tickets on this account yet.', why: 'Register for Plexus Week and your events, and their sessions, appear here on their own.', cta: 'REGISTER FOR PLEXUS WEEK →' },
   sheet: { close: 'CLOSE', ics: 'ADD TO CALENDAR →', where: 'WHERE', about: 'ABOUT', with: 'WITH' },
   foot: (t) => `Med&X · Plexus Week Live${t ? ` · updated ${t}` : ''}`, refresh: 'REFRESH'
 };
@@ -126,21 +130,59 @@ const each = (sel, fn) => { if (rootEl) rootEl.querySelectorAll(sel).forEach(fn)
 const pad = n => String(n).padStart(2, '0');
 const localYmd = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const at = iso => (iso ? new Date(iso).getTime() : NaN);
+// counted down the way the portal's countdowns (ui.countdown) count: whole minutes, hours and days left, so
+// "in 1 h 59 min" here reads the same as 0 DAYS 01 HOURS 59 MINUTES on Home and Plexus
 const rel = ms => {
-  const m = Math.round(ms / 60000);
+  const m = Math.floor(ms / 60000);
   if (m < 1) return 'a moment';
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
   if (h < 24) return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
-  const d = Math.round(h / 24); return `${d} day${d === 1 ? '' : 's'}`;
+  const d = Math.floor(h / 24); return `${d} day${d === 1 ? '' : 's'}`;
 };
-const duration = s => { const m = Math.round((at(s.ends_at) - at(s.starts_at)) / 60000); if (!isFinite(m) || m <= 0) return ''; return m >= 60 ? (m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`) : `${m} min`; };
-const timeRange = s => s.start_time ? `${s.start_time}${s.end_time ? '–' + s.end_time : ''}` : COPY.now.tbd;
+// a 23:59 end is the "until late" placeholder (below): no length is printed for it — "22:30–late · 1 h 29 min"
+// contradicted itself
+const duration = s => { if (s.end_time === '23:59') return ''; const m = Math.round((at(s.ends_at) - at(s.starts_at)) / 60000); if (!isFinite(m) || m <= 0) return ''; return m >= 60 ? (m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`) : `${m} min`; };
+const timeRange = s => s.start_time ? `${s.start_time}${s.end_time ? '–' + (s.end_time === '23:59' ? 'late' : s.end_time) : ''}` : COPY.now.tbd;
 const clock = ts => { const d = new Date(ts || Date.now()); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const dayParts = ymd => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || '')); if (!m) return null; const d = new Date(+m[1], +m[2] - 1, +m[3]); return { n: Number(m[3]), dow: DOW[d.getDay()], mon: MON[Number(m[2]) - 1].toUpperCase(), year: m[1] }; };
 // "Dr. Yi-Hsiang (Sean) Hsu" → "YH", "prim. dr. Gzim Redžepi" → "GR": titles and nicknames dropped, letters only
 const initials = name => String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\b(prof|dr|prim|mr|mrs|ms|md|phd)\.?\s+/gi, ' ').split(/\s+/).map(w => w.replace(/[^\p{L}]/gu, '')).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '·';
 const kindLabel = k => KIND_LABEL[k] || KIND_LABEL.other;
+// an event over two days (the conference runs 4–5 December) says so: "Fri 4 – Sat 5 Dec"; one day keeps the
+// server's "Friday 4 Dec". A 23:59 end is a placeholder for "until late", never a time anyone should read.
+const cap3 = w => w.slice(0, 1) + w.slice(1, 3).toLowerCase();
+const multiDay = ev => !!(ev && ev.end_date && ev.date && ev.end_date !== ev.date);
+function dateLabel(ev) {
+  if (!ev) return '';
+  const a = dayParts(ev.date), b = multiDay(ev) ? dayParts(ev.end_date) : null;
+  if (!a || !b) return ev.date_label || '';
+  return a.mon === b.mon ? `${cap3(a.dow)} ${a.n} – ${cap3(b.dow)} ${b.n} ${cap3(a.mon)}` : `${cap3(a.dow)} ${a.n} ${cap3(a.mon)} – ${cap3(b.dow)} ${b.n} ${cap3(b.mon)}`;
+}
+const endLabel = t => (t === '23:59' ? 'late' : t);
+// every date an event spans ('2026-12-04', '2026-12-05'), in order; one day for a one-day event
+function spanDays(ev) {
+  const a = dayParts(ev && ev.date) ? ev.date : null; if (!a) return [];
+  const out = [a]; if (!multiDay(ev)) return out;
+  const d = new Date(`${a}T12:00:00`);
+  while (out.length < 14) { d.setDate(d.getDate() + 1); const y = localYmd(d); if (y > ev.end_date) break; out.push(y); }
+  return out;
+}
+const shortDay = ymd => { const d = dayParts(ymd); return d ? `${cap3(d.dow)} ${d.n} ${cap3(d.mon)}` : ''; };
+function hoursLabel(ev) {
+  if (!ev || !ev.start) return '';
+  if (ev.times_tbd) return `${ev.start} (tbc)`;
+  if (multiDay(ev)) return `from ${ev.start}`;
+  return ev.end ? `${ev.start}–${endLabel(ev.end)}` : ev.start;
+}
+const venueOf = ev => String((ev && ev.venue) || '').replace(/\s*;\s*/g, ' · ');
+// the address line, minus a repeat of the venue's own name ("Esplanade Zagreb" · "Esplanade Zagreb, private salon")
+function addressOf(ev) {
+  const a = String((ev && ev.address) || '').trim(), v = String((ev && ev.venue) || '').trim();
+  if (!a || !v || !a.toLowerCase().startsWith(v.toLowerCase())) return a;
+  const rest = a.slice(v.length).replace(/^[\s,·;–-]+/, '');
+  return rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : '';
+}
 const isLight = s => LIGHT.has(s.kind);
 const eventOf = key => (S.events || []).find(e => e.key === key) || null;
 // IN the schedule: tapped on, or — the default — part of an event the person registered for (their
@@ -161,6 +203,14 @@ const sessionById = id => { for (const k of Object.keys(S.programs)) { const s =
 const heldEvents = () => (S.events || []).filter(e => held(e.key));
 const icsUrl = (path) => api.url(path);
 
+// ADD TO CALENDAR for a person's own schedule. A ticket link's token rides in the URL, so a plain download link
+// works; a signed-in member's token is the literal 'user' + a Bearer header a link cannot send — the server's
+// /api/live/me/user/schedule.ics answered 404 — so the member's file is built here from the loaded program.
+function icsLink(label, cls, { session: sid, date } = {}) {
+  if (S.token === 'user') return `<span data-act="icsMine" class="${cls}" role="button" tabindex="0"${sid ? ` data-session="${esc(sid)}"` : ''}${date ? ` data-date="${esc(date)}"` : ''}>${label}</span>`;
+  const q = sid ? `session=${encodeURIComponent(sid)}` : `date=${date}`;
+  return `<a class="${cls}" href="${esc(icsUrl(`/api/live/me/${encodeURIComponent(S.token)}/schedule.ics?${q}`))}" download>${label}</a>`;
+}
 // the sessions in a person's schedule: attending + speaking, chronological across every loaded program
 function mySchedule() {
   const list = [];
@@ -239,7 +289,14 @@ function nowNext(key) {
   const upcoming = list.filter(s => at(s.starts_at) > now);
   const next = upcoming[0] || null;
   if (live.length) return { mode: 'live', now: live.sort((a, b) => (isLight(a) ? 1 : 0) - (isLight(b) ? 1 : 0))[0], next };
-  if (list.length && !next) return { mode: 'ended', ev, last: list[list.length - 1] };
+  if (list.length && !next) {
+    // the conference runs 4–5 December but its program so far fills only the 4th: once that day's sessions are
+    // over, a day of it is still ahead, so NOW never says "This event has ended" before the 5th is out
+    const lastDay = list[list.length - 1].event_date || ev.date, today = localYmd();
+    const ahead = spanDays(ev).find(d => d > lastDay && d >= today);
+    if (ahead) return { mode: 'dayAhead', ev, day: ahead, n: spanDays(ev).indexOf(ahead) + 1 };
+    return { mode: 'ended', ev, last: list[list.length - 1] };
+  }
   if (next && ev.is_today) {
     const first = list[0];
     if (next === first) {                                             // before the doors: "Starts at 18:00 · doors 17:30"
@@ -262,7 +319,7 @@ function headParts() {
   const p = S.person;
   const party = p && ev.key ? Number(p.party && p.party[ev.key]) : 0;
   const who = p ? `${esc(p.first_name)}${party > 1 ? ` · ${esc(COPY.party(party))}` : ''}` : '';
-  const meta = [ev.date_label, ev.start ? (ev.times_tbd ? `${ev.start} (tbc)` : `${ev.start}${ev.end ? '–' + ev.end : ''}`) : null, ev.venue].filter(Boolean).map(esc).join(' · ');
+  const meta = [dateLabel(ev), hoursLabel(ev), venueOf(ev)].filter(Boolean).map(esc).join(' · ');
   return { who, title: esc(ev.label || 'Plexus Week'), meta: meta || COPY.loading, loading: !meta, label: ev.label || '' };
 }
 // the chips only (the .lv-switch row lives in the shell). `cur` = the selected event; tplSwitcher('') is the
@@ -291,14 +348,15 @@ function tplNow() {
       <span class="lv-now-title">${esc(s.title || 'Session')}${s.is_tbd ? ' <em>TBD</em>' : ''}</span>
       <span class="lv-now-sub">${[s.room, sub].filter(Boolean).map(esc).join(' · ')}</span>
     </div>`;
-  if (nn.mode === 'live') return card(COPY.now.now, nn.now, COPY.now.endsIn(rel(at(nn.now.ends_at) - now)), true) + (nn.next ? card(COPY.now.next, nn.next, COPY.now.inMin(rel(at(nn.next.starts_at) - now)), false) : '');
+  if (nn.mode === 'live') return card(COPY.now.now, nn.now, nn.now.end_time === '23:59' ? COPY.now.late : COPY.now.endsIn(rel(at(nn.now.ends_at) - now)), true) + (nn.next ? card(COPY.now.next, nn.next, COPY.now.inMin(rel(at(nn.next.starts_at) - now)), false) : '');
   if (nn.mode === 'gap') return card(COPY.now.next, nn.next, COPY.now.inMin(rel(at(nn.next.starts_at) - now)), false);
   const ev = nn.ev || {};
-  if (nn.mode === 'today') return `<div class="lv-now-line"><span class="lv-now-label">${COPY.now.next}</span><span class="lv-now-title">${esc(COPY.now.startsAt(nn.start.start_time, nn.doors ? nn.doors.start_time : null))}</span><span class="lv-now-sub">${esc(COPY.now.inMin(rel(at(nn.next.starts_at) - now)))}${ev.venue ? ' · ' + esc(ev.venue) : ''}</span></div>`;
-  if (nn.mode === 'ended') return `<div class="lv-now-line ended"><span class="lv-now-label">${COPY.now.now}</span><span class="lv-now-title">${esc(COPY.now.ended(ev.date_label || ''))}</span><span class="lv-now-sub">${COPY.now.over}</span></div>`;
-  if (nn.mode === 'tbd') return `<div class="lv-now-line"><span class="lv-now-label">${COPY.now.next}</span><span class="lv-now-title">${esc(ev.date_label || COPY.now.tbd)}</span><span class="lv-now-sub">${esc(ev.times_tbd || ev.tentative ? COPY.info.tentative : COPY.now.tbd)}</span></div>`;
+  if (nn.mode === 'today') return `<div class="lv-now-line"><span class="lv-now-label">${COPY.now.next}</span><span class="lv-now-title">${esc(COPY.now.startsAt(nn.start.start_time, nn.doors ? nn.doors.start_time : null))}</span><span class="lv-now-sub">${esc(COPY.now.inMin(rel(at(nn.next.starts_at) - now)))}${ev.venue ? ' · ' + esc(venueOf(ev)) : ''}</span></div>`;
+  if (nn.mode === 'dayAhead') return `<div class="lv-now-line"><span class="lv-now-label">${COPY.now.next}</span><span class="lv-now-title">${esc(COPY.now.day(nn.n, shortDay(nn.day)))}</span><span class="lv-now-sub">${esc(COPY.program.dayEmpty)}</span></div>`;
+  if (nn.mode === 'ended') return `<div class="lv-now-line ended"><span class="lv-now-label">${COPY.now.now}</span><span class="lv-now-title">${esc(COPY.now.ended(dateLabel(ev)))}</span><span class="lv-now-sub">${COPY.now.over}</span></div>`;
+  if (nn.mode === 'tbd') return `<div class="lv-now-line"><span class="lv-now-label">${COPY.now.next}</span><span class="lv-now-title">${esc(dateLabel(ev) || COPY.now.tbd)}</span><span class="lv-now-sub">${esc(ev.times_tbd || ev.tentative ? COPY.info.tentative : COPY.now.tbd)}</span></div>`;
   const first = nn.next;
-  return `<div class="lv-now-line"><span class="lv-now-label">${COPY.now.next}</span><span class="lv-now-title">${esc(COPY.now.startsOn(ev.date_label || first.day_label, first.start_time))}</span><span class="lv-now-sub">${esc(COPY.now.inMin(rel(at(first.starts_at) - now)))}${ev.venue ? ' · ' + esc(ev.venue) : ''}</span></div>`;
+  return `<div class="lv-now-line"><span class="lv-now-label">${COPY.now.next}</span><span class="lv-now-title">${esc(COPY.now.startsOn(first.day_label || ev.date_label, first.start_time))}</span><span class="lv-now-sub">${esc(COPY.now.inMin(rel(at(first.starts_at) - now)))}${ev.venue ? ' · ' + esc(venueOf(ev)) : ''}</span></div>`;
 }
 function tplSlots() {
   if (!S.person || !S.person.is_speaker) return '';
@@ -329,7 +387,8 @@ function tplSpeakersRow(s) {
   const av = p => p.photo_url ? `<img class="lv-av" src="${esc(p.photo_url)}" alt="" loading="lazy">` : `<span class="lv-av txt">${esc(initials(p.name))}</span>`;
   const all = people.map(p => ({ name: p.name, av: av(p) })).concat(names.map(p => ({ name: p.name, av: null })));
   const shown = all.slice(0, 3), rest = all.length - shown.length;
-  return `<div class="lv-spk"><span class="lv-avs">${shown.filter(x => x.av).map(x => x.av).join('')}</span><span class="lv-spk-names">${shown.map(x => esc(x.name)).join(', ')}${rest > 0 ? ` <b>+${rest} more</b>` : ''}</span></div>`;
+  // "+N more" is a sibling of the two-line clamp — inside it, it was the first thing the clamp cut off
+  return `<div class="lv-spk"><span class="lv-avs">${shown.filter(x => x.av).map(x => x.av).join('')}</span><span class="lv-spk-names">${shown.map(x => esc(x.name)).join(', ')}</span>${rest > 0 ? `<b class="lv-spk-more">+${rest} more</b>` : ''}</div>`;
 }
 function tplToggle(s, { compact } = {}) {
   const on = attending(s.id), spk = speaking(s.id), ok = canToggle(s.event_key) || spk;
@@ -354,9 +413,9 @@ function tplCard(s, { schedule, conflict } = {}) {
     s.show_counts && (s.count || s.capacity) ? `<span class="lv-tag soft">${[s.count ? COPY.att.going(s.count) : null, s.capacity ? COPY.att.seats(s.capacity) : null].filter(Boolean).join(' · ')}</span>` : ''
   ].join('');
   const where = [s.room, s.location_note].filter(Boolean).map(esc).join(' · ');
-  const when = schedule ? `${esc(timeRange(s))}${duration(s) ? ` · ${esc(duration(s))}` : ''}` : `${s.end_time ? `→ ${esc(s.end_time)}` : ''}${duration(s) ? ` · ${esc(duration(s))}` : ''}`;
+  const when = schedule ? `${esc(timeRange(s))}${duration(s) ? ` · ${esc(duration(s))}` : ''}` : `${s.end_time ? `→ ${esc(endLabel(s.end_time))}` : ''}${duration(s) ? ` · ${esc(duration(s))}` : ''}`;
   const evLine = schedule && heldEvents().length > 1 ? `<span class="lv-card-ev">${esc(ev.short || ev.label || '')}</span>` : '';
-  const foot = tplToggle(s) + (schedule && S.token ? `<a class="lv-ics" href="${esc(icsUrl(`/api/live/me/${encodeURIComponent(S.token)}/schedule.ics?session=${encodeURIComponent(s.id)}`))}" download>${COPY.schedule.ics}</a>` : '');
+  const foot = tplToggle(s) + (schedule && S.token ? icsLink(COPY.schedule.ics, 'lv-ics', { session: s.id }) : '');
   return `
     <article class="${cls}" data-sid-card="${esc(s.id)}">
       <div class="lv-card-body" data-act="open" data-id="${esc(s.id)}">
@@ -378,8 +437,17 @@ function tplProgram() {
   if (!prog) return tplSkeleton();
   const sessions = prog.sessions || [];
   if (!sessions.length) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.program.empty}</span></div>`;
-  const notice = S.token && S.mePending ? '' : S.token && !held(key) && !sessions.some(s => speaking(s.id)) ?`<div class="lv-note">${COPY.att.notHeld}</div>` : (!S.token ? `<div class="lv-note">${COPY.att.ticket}</div>` : '');
-  return notice + groupDays(sessions).map(day => {
+  const noTicket = S.person && !S.person.events.length && session.isAuthed;
+  const notice = S.token && S.mePending ? '' : noTicket ? `<div class="lv-note">${COPY.noEvents} <a href="/app/plexus/mine">${COPY.noTickets.cta}</a></div>`
+    : S.token && !held(key) && !sessions.some(s => speaking(s.id)) ?`<div class="lv-note">${COPY.att.notHeld}</div>` : (!S.token ? `<div class="lv-note">${COPY.att.ticket}</div>` : '');
+  // every day the event spans gets its head, a day whose sessions are not written yet included (the
+  // conference's 5 December), so the program reads as the two days the header says
+  const days = groupDays(sessions);
+  const ev = eventOf(key);
+  for (const d of spanDays(ev)) if (!days.some(x => x.date === d)) days.push({ date: d, sessions: [] });
+  days.sort((a, b) => String(a.date || '9').localeCompare(String(b.date || '9')));
+  return notice + days.map(day => {
+    if (!day.sessions.length) return tplDayHead(day.date) + `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.program.dayEmpty}</span></div>`;
     const blocks = [];
     for (const s of day.sessions) { const last = blocks[blocks.length - 1]; if (last && last.time === (s.start_time || '')) last.items.push(s); else blocks.push({ time: s.start_time || '', items: [s] }); }
     return tplDayHead(day.date) + blocks.map(b => `
@@ -392,12 +460,14 @@ function tplProgram() {
 function tplSchedule() {
   if (!S.token) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.att.ticket}</span></div>`;
   if (S.mePending) return tplSkeleton({ list: true });                  // not "Nothing here yet" while the ticket is read
+  // a signed-in member who holds no ticket has nothing to add from the program (it is read-only for them): the
+  // empty state says what to do instead, with the door to the registration
+  if (S.person && !S.person.events.length) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.noTickets.line}</span><span class="lv-empty-why">${COPY.noTickets.why}</span>${session.isAuthed ? `<a class="lv-att lv-retry" href="/app/plexus/mine">${COPY.noTickets.cta}</a>` : ''}</div>`;
   const { list, conflicts } = mySchedule();
   if (!list.length) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.schedule.emptyLine}</span><span class="lv-empty-why">${COPY.schedule.emptyWhy}</span></div>`;
-  const tok = encodeURIComponent(S.token);
   const auto = S.person && S.person.events.length ? `<div class="lv-note soft">${COPY.schedule.auto}</div>` : '';
   return auto + (conflicts.size ? `<div class="lv-note warn">${COPY.schedule.conflict}</div>` : '') + groupDays(list).map(day => {
-    const dayIcs = day.date ? `<a class="lv-ics day" href="${esc(icsUrl(`/api/live/me/${tok}/schedule.ics?date=${day.date}`))}" download>${COPY.schedule.icsDay}</a>` : '';
+    const dayIcs = day.date ? icsLink(COPY.schedule.icsDay, 'lv-ics day', { date: day.date }) : '';
     return tplDayHead(day.date, dayIcs) + `<div class="lv-list">${day.sessions.map(s => tplCard(s, { schedule: true, conflict: conflicts.has(s.id) })).join('')}</div>`;
   }).join('');
 }
@@ -411,8 +481,36 @@ function speakerList(key) {
 function sessionsWith(key, sp) {
   return sessionsOf(key).filter(s => (sp.id && (s.speaker_ids || []).includes(sp.id)) || (s.speaker_names || []).some(n => n && n.name && n.name.toLowerCase() === sp.name.toLowerCase()));
 }
-function tplSpeakers() {
+// The program's sessions name no speakers yet (the conference today) while the portal already lists the
+// confirmed roster on Program & speakers / the Gala page: the tab shows that roster instead of "announced
+// closer to the event". Read once per event from the same public reads those pages use.
+async function loadRoster(key) {
+  if (!S || S.roster[key] !== undefined) return;
+  S.roster[key] = null;                                                  // asked — one read per event
+  const st = S;
+  let list = [];
+  try {
+    if (key === 'conference') {
+      const r = await api.get('/api/plexus/speakers', { noAuth: true });
+      list = (Array.isArray(r) ? r : []).filter(x => x && x.name).map(x => ({ id: null, name: ui.fmt.person(x.name), title: x.title || '', institution: x.institution || '', photo_url: x.photo_url || null, bio: x.bio || '', named: false }));
+    } else if (key === 'gala') {
+      const r = await api.get('/api/gala/settings', { noAuth: true });
+      list = ((r && Array.isArray(r.speakers)) ? r.speakers : []).filter(x => x && x.name).map(x => ({ id: null, name: ui.fmt.person(x.name), title: x.title || x.role || '', institution: '', photo_url: x.image ? api.url(x.image) : null, bio: x.bio || '', named: false }));
+    }
+  } catch (e) { list = []; }
+  if (S !== st || !rootEl) return;
+  S.roster[key] = list;
+  if (list.length && S.current === key) paintPanel('speakers', { force: true });
+}
+function currentSpeakers() {
   const list = speakerList(S.current);
+  if (list.length) return list;
+  const r = S.roster[S.current];
+  if (r === undefined) loadRoster(S.current);
+  return r || [];
+}
+function tplSpeakers() {
+  const list = currentSpeakers();
   if (!list.length) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.speakers.empty}</span></div>`;
   return `<div class="lv-grid">${list.map((sp, i) => `
     <div class="lv-person" data-act="spk" data-i="${i}" role="button">
@@ -423,12 +521,13 @@ function tplSpeakers() {
 }
 function tplInfo() {
   const ev = eventOf(S.current) || {};
-  const q = encodeURIComponent([ev.venue, ev.address].filter(Boolean).join(', '));
+  const q = encodeURIComponent([venueOf(ev), ev.address].filter(Boolean).join(', '));
   const dress = ev.dress_code || DRESS[ev.key] || null;
-  const when = [ev.date_label, ev.start ? `${ev.start}${ev.end ? '–' + ev.end : ''}` : null].filter(Boolean).join(' · ');
+  const when = [dateLabel(ev), hoursLabel(ev)].filter(Boolean).join(' · ');
+  const addr = addressOf(ev);
   const row = (label, body) => body ? `<div class="lv-info-row"><span class="lv-info-label">${label}</span><div class="lv-info-body">${body}</div></div>` : '';
   return `
-    ${row(COPY.info.venue, `<b>${esc(ev.venue || '—')}</b>${ev.address ? `<br>${esc(ev.address)}` : ''}${ev.tentative ? `<br><i>${COPY.info.tentative}</i>` : ''}${q && !/to be announced/i.test(ev.venue || '') ? `<div class="lv-links"><a href="https://maps.apple.com/?q=${q}" target="_blank" rel="noopener">${COPY.info.apple}</a><a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">${COPY.info.google}</a></div>` : ''}`)}
+    ${row(COPY.info.venue, `<b>${esc(venueOf(ev) || '—')}</b>${addr ? `<br>${esc(addr)}` : ''}${ev.tentative ? `<br><i>${COPY.info.tentative}</i>` : ''}${q && !/to be announced/i.test(ev.venue || '') ? `<div class="lv-links"><a href="https://maps.apple.com/?q=${q}" target="_blank" rel="noopener">${COPY.info.apple}</a><a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">${COPY.info.google}</a></div>` : ''}`)}
     ${row(COPY.info.when, `<b>${esc(when || '—')}</b>${ev.tz ? `<br>${esc(COPY.info.tz(ev.tz))}` : ''}${ev.times_tbd ? `<br><i>${COPY.info.timesTbd}</i>` : ''}`)}
     ${row(COPY.info.dress, dress ? `<b>${esc(dress)}</b>` : '')}
     ${ev.wifi ? row(COPY.info.wifi, `<b>${esc(ev.wifi)}</b>`) : ''}
@@ -438,13 +537,14 @@ function tplInfo() {
 function tplGlance() {
   const ev = eventOf(S && S.current) || {};
   if (!ev.key) return '';
-  const q = encodeURIComponent([ev.venue, ev.address].filter(Boolean).join(', '));
+  const q = encodeURIComponent([venueOf(ev), ev.address].filter(Boolean).join(', '));
   const dress = ev.dress_code || DRESS[ev.key] || null;
-  const when = [ev.date_label, ev.start ? `${ev.start}${ev.end ? '–' + ev.end : ''}` : null].filter(Boolean).join(' · ');
+  const when = [dateLabel(ev), hoursLabel(ev)].filter(Boolean).join(' · ');
+  const addr = addressOf(ev);
   return `
     <span class="lv-eyebrow ink">AT A GLANCE</span>
     <dl class="lv-glance-list">
-      <dt>${COPY.info.venue}</dt><dd><b>${esc(ev.venue || '—')}</b>${ev.address ? `<br>${esc(ev.address)}` : ''}${q && !/to be announced/i.test(ev.venue || '') ? `<br><a class="lv-glance-map" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">${COPY.info.google}</a>` : ''}</dd>
+      <dt>${COPY.info.venue}</dt><dd><b>${esc(venueOf(ev) || '—')}</b>${addr ? `<br>${esc(addr)}` : ''}${q && !/to be announced/i.test(ev.venue || '') ? `<br><a class="lv-glance-map" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">${COPY.info.google}</a>` : ''}</dd>
       <dt>${COPY.info.when}</dt><dd>${esc(when || '—')}${ev.tz ? `<br><span class="lv-soft">${esc(COPY.info.tz(ev.tz))}</span>` : ''}</dd>
       ${dress ? `<dt>${COPY.info.dress}</dt><dd>${esc(dress)}</dd>` : ''}
       <dt>${COPY.info.contact}</dt><dd>${esc(CONTACT.name)}<br><a href="mailto:${CONTACT.email}">${CONTACT.email}</a></dd>
@@ -533,6 +633,16 @@ function paintSwitch() {
     sw._html = html;
   } else { sw.innerHTML = html; sw._html = html; }
   sw._sig = sig;
+  revealChip(sw, sw.querySelector('.lv-chip.on'), !!sw._shown); sw._shown = true;
+}
+// scroll the switcher (never the page — so no scrollIntoView) until `chip` sits inside the faded edges; a
+// selected chip past the right edge left a guest holding four events with nothing lit
+function revealChip(sw, chip, smooth) {
+  if (!sw || !chip || sw.scrollWidth <= sw.clientWidth + 1) return;
+  const r = chip.getBoundingClientRect(), b = sw.getBoundingClientRect(), edge = 28;
+  const dx = r.left < b.left + edge ? r.left - b.left - edge : r.right > b.right - edge ? r.right - b.right + edge : 0;
+  if (Math.abs(dx) < 1) return;
+  try { sw.scrollTo({ left: sw.scrollLeft + dx, behavior: smooth && !calm() ? 'smooth' : 'auto' }); } catch (e) { sw.scrollLeft += dx; }
 }
 // the crimson underline: one element that slides (transform only) to the selected tab
 function placeInk(animate) {
@@ -578,7 +688,8 @@ function paintAll() {
     if (wrote && was !== undefined && was !== key && t === S.tab) enter(el);
   });
   const ev = eventOf(S.current) || {};
-  const foot = q('[data-role="foot"]'); if (foot) foot.textContent = COPY.foot(S.programs[S.current] && S.programs[S.current].updated_at ? clock(S.programs[S.current].updated_at) : '');
+  const upd = S.programs[S.current] && S.programs[S.current].updated_at ? clock(S.programs[S.current].updated_at) : '';
+  const foot = q('[data-role="foot"]'); if (foot) { foot.textContent = S.offline ? COPY.offlineFoot(upd) : COPY.foot(upd); foot.classList.toggle('off', !!S.offline); }
   document.title = `${ev.label ? ev.label + ' · ' : ''}Plexus Week Live · Med&X`;
   window.scrollTo(0, y);
 }
@@ -646,6 +757,7 @@ function paintToggle(id) {
 function showTab(tab, { push, animate, scroll = true, glide } = {}) {
   if (!TABS.includes(tab)) tab = 'program';
   S.tab = tab; store.set(LS.tab, tab);
+  const lv = rootEl.querySelector('.lv'); if (lv) lv.dataset.tab = tab;
   rootEl.querySelectorAll('.lv-tab').forEach(el => { const on = el.dataset.tab === tab; el.classList.toggle('on', on); el.setAttribute('aria-selected', String(on)); });
   rootEl.querySelectorAll('.lv-panel').forEach(el => { const on = el.dataset.panel === tab; el.hidden = !on; if (on && animate) enter(el); });
   placeInk(!!animate);
@@ -678,6 +790,7 @@ function openSheet(make) {
   const behind = rootEl && rootEl.firstElementChild;
   if (behind) { behind.inert = true; wrap._inert = behind; }
   wrap._off = ui.bind(wrap, Object.assign({}, handlers, { close: () => closeSheet(), back: () => sheetBack() }));
+  wrap._release = ui.trapFocus(() => wrap.querySelector('.lv-sheet'));   // Tab stays in the sheet (aria-modal alone let it walk out)
   grip(wrap);
   void wrap.offsetWidth;                                                // commit the closed pose so the slide runs
   wrap.classList.add('open');
@@ -720,6 +833,7 @@ function closeSheet({ instant } = {}) {
   clearTimeout(wrap._swapT); wrap._swap = null;
   try { wrap._off && wrap._off(); } catch (e) { /* fine */ }
   try { wrap._ungrip && wrap._ungrip(); } catch (e) { /* fine */ }
+  try { wrap._release && wrap._release(); } catch (e) { /* fine */ }
   ui.lockScroll(false);
   if (wrap._inert) { wrap._inert.inert = false; wrap._inert = null; }
   if (instant || calm()) wrap.remove();
@@ -758,7 +872,8 @@ function sessionSheet(s) {
   const people = (s.speakers || []).filter(x => x && x.name).map(p => ({ name: p.name, sub: [p.title, p.institution].filter(Boolean).join(' · '), photo: p.photo_url }))
     .concat((s.speaker_names || []).filter(x => x && x.name).map(p => ({ name: p.name, sub: [p.institution, p.topic].filter(Boolean).join(' · '), photo: null })));
   const named = (s.room || '') + ' ' + (s.location_note || '');
-  const venue = ev.venue && !named.toLowerCase().includes(String(ev.venue).toLowerCase()) && !String(ev.venue).toLowerCase().includes(String(s.room || '—').toLowerCase()) ? ev.venue : null;
+  const v = venueOf(ev);
+  const venue = v && !named.toLowerCase().includes(String(ev.venue).toLowerCase()) && !v.toLowerCase().includes(String(s.room || '—').toLowerCase()) ? v : null;
   const where = [s.room, s.location_note, venue].filter(Boolean).map(esc).join(' · ');
   return `
     ${sheetHead(`${esc(ev.short || ev.label || 'Plexus Week')} · ${esc(s.day_label || '')}`)}
@@ -795,9 +910,21 @@ const handlers = {
   // a new tab slides the ink and steps its rows in; the tab already open just returns to its top
   tab: el => showTab(el.dataset.tab, { animate: el.dataset.tab !== S.tab, glide: el.dataset.tab === S.tab }),
   ev: async el => { closeSheet(); await switchEvent(el.dataset.key); },
-  allEvents: () => { S.showAll = !S.showAll; paintSwitch(); },
+  allEvents: () => { S.showAll = !S.showAll; paintSwitch(); const sw = q('[data-role="switch"]'); revealChip(sw, sw && sw.querySelector('.lv-chip.ghost'), true); },
   open: el => { if (settling(el)) return; const id = el.dataset.id, s = sessionById(id); if (s) openSheet(() => sessionSheet(sessionById(id) || s)); },
-  spk: el => { const sp = speakerList(S.current)[Number(el.dataset.i)]; if (sp) openSheet(() => speakerSheet(sp)); },
+  spk: el => { const sp = currentSpeakers()[Number(el.dataset.i)]; if (sp) openSheet(() => speakerSheet(sp)); },
+  icsMine: el => {
+    const list = el.dataset.session ? [sessionById(el.dataset.session)].filter(Boolean) : mySchedule().list.filter(s => s.event_date === el.dataset.date);
+    const evs = list.filter(s => s.starts_at).map(s => {
+      const ev = eventOf(s.event_key) || {};
+      const v = venueOf(ev), room = String(s.room || '');
+      const location = !room ? v : v && v.toLowerCase().includes(room.toLowerCase()) ? v : [room, v].filter(Boolean).join(', ');   // never "Room, Room, Hall"
+      return { uid: 'live-' + s.id, startAt: s.starts_at, endAt: s.ends_at || s.starts_at, summary: s.title || 'Session', location, description: ev.label || '' };
+    });
+    if (!evs.length) return ui.toast(COPY.schedule.icsNone);
+    ui.downloadIcs(el.dataset.session ? 'plexus-week-session.ics' : `plexus-week-${el.dataset.date}.ics`, evs);
+    ui.toast(COPY.schedule.icsDone);
+  },
   close: () => closeSheet(),
   back: () => sheetBack(),
   refresh: async el => { el.classList.add('busy'); try { await refreshAll({ toastOnSame: true }); } finally { el.classList.remove('busy'); } },
@@ -834,9 +961,14 @@ async function refreshAll({ toastOnSame } = {}) {
   try {
     const r = await fetchProgram(key, { since });
     S.lastPoll = Date.now();
+    const was = S.offline; S.offline = false;
     if (r.changed) { paintAll(); ui.toast(COPY.updated); }
-    else if (toastOnSame) ui.toast('Up to date.');
-  } catch (e) { if (toastOnSame) ui.toast(e.message, { kind: 'error' }); }
+    else { if (was) paintAll(); if (toastOnSame) ui.toast('Up to date.'); }
+  } catch (e) {
+    // a failed poll (status 0: no network) marks the program as the last one loaded — the footer says so
+    if (e && e.status === 0 && S && !S.offline) { S.offline = true; paintAll(); }
+    if (toastOnSame) ui.toast(e && e.status === 0 ? COPY.offline : e.message, { kind: 'error' });
+  }
 }
 function startTimers() {
   timers.push((() => { const id = setInterval(() => { if (document.visibilityState === 'visible') refreshAll(); }, POLL_MS); return () => clearInterval(id); })());
@@ -851,7 +983,7 @@ function startTimers() {
 // person and the event catalogue as they were last loaded (or skeletons). The router's screen fade frames it.
 function open(ctx) {
   const token = (ctx.params && ctx.params.token) || (ctx.path.startsWith('/app/live') || session.isAuthed ? 'user' : null);
-  S = { token, tab: 'program', events: [], programs: {}, attendance: {}, person: null, speakerIds: [], current: null, showAll: false, lastPoll: 0 };
+  S = { token, tab: 'program', events: [], programs: {}, attendance: {}, person: null, speakerIds: [], current: null, showAll: false, lastPoll: 0, roster: {}, offline: false };
   const qTab = ctx.query && ctx.query.tab; const savedTab = store.get(LS.tab);
   S.tab = TABS.includes(qTab) ? qTab : (TABS.includes(savedTab) ? savedTab : 'program');
   let meCurrent = null;
@@ -861,6 +993,9 @@ function open(ctx) {
     if (me && me.person && Array.isArray(me.person.events)) {
       S.person = me.person; S.speakerIds = me.person.speaker_session_ids || []; meCurrent = me.current || null;
       if (Array.isArray(me.events) && me.events.length) S.events = me.events;
+      // every held event's last program, not only the current one: offline (fetchMe fails, so the loop in
+      // hydrate never runs) MY SCHEDULE used to drop the Gala and every other held event
+      me.person.events.forEach(k => { if (!S.programs[k]) loadCached(k); });
     }
   }
   if (!S.events.length && !S.person) { const evs = store.get(LS.events); if (Array.isArray(evs) && evs.length) S.events = evs; }
@@ -904,13 +1039,15 @@ async function hydrate(token, wantEvent) {
     const keys = Array.from(new Set([S.current].concat(mine).filter(Boolean)));
     keys.forEach(k => { if (!S.programs[k]) loadCached(k); });
     paintAll();
-    await Promise.all(keys.map(k => fetchProgram(k).catch(e => { if (S && !S.programs[k]) console.warn('[live] program failed', k, e.message); })));
+    await Promise.all(keys.map(k => fetchProgram(k).catch(e => { if (e && e.status === 0 && S === st) S.offline = true; if (S && !S.programs[k]) console.warn('[live] program failed', k, e.message); })));
     if (!live()) return;
     S.lastPoll = Date.now();
-    if (S.person && !S.person.events.length && token === 'user') ui.toast(COPY.noEvents, { ms: 6000 });
+    // (a member with no ticket: the program and MY SCHEDULE say so in place, with the way to register —
+    //  it used to be a 6-second toast that also floated over the next screen)
   } catch (e) {
     if (!live()) return;
     S.mePending = false; S.eventsPending = false;
+    if (e && e.status === 0) S.offline = true;
     if (e && e.status === 0 && S.current && S.programs[S.current]) ui.toast(COPY.offline, { ms: 5000 });
     else if (!S.current) rootEl.innerHTML = `<div class="lv"><div class="lv-empty tall"><span class="lv-rule"></span><span class="lv-empty-line">${esc(e && e.message || 'Something went wrong.')}</span><span data-act="reload" class="lv-att lv-retry">${COPY.refresh}</span></div></div>`;
   }
@@ -939,6 +1076,7 @@ export default {
     if (inkRO) { inkRO.disconnect(); inkRO = null; }
     try { document.documentElement.style.scrollbarGutter = ''; } catch (e) { /* fine */ }
     closeSheet({ instant: true });
+    ui.hideToast();                                                     // a toast about this app never floats over the next screen
     if (unbind) unbind(); unbind = null;
     rootEl = null; S = null;
   }

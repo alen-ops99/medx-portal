@@ -55,6 +55,18 @@ const nowIso = () => new Date().toISOString();
 const isEventKey = k => EVENT_KINDS.includes(String(k || '')) || /^meetup:[A-Za-z0-9_.-]{1,80}$/.test(String(k || ''));
 const dayLabel = ymd => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || '')); if (!m) return ''; const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return DOW[d.getUTCDay()] + ' ' + Number(m[3]) + ' ' + MON[Number(m[2]) - 1]; };
 const shortDay = ymd => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || '')); return m ? Number(m[3]) + ' ' + MON[Number(m[2]) - 1] : ''; };
+// An event over more days names every day: 'Fri 4 – Sat 5 Dec' / '4–5 Dec' ('Mon 30 Nov – Tue 1 Dec' across a month);
+// one day stays 'Friday 4 Dec' / '4 Dec'.
+function spanLabels(from, to) {
+    if (!isYmd(to) || !isYmd(from) || String(to) <= String(from)) return { label: dayLabel(from), short: shortDay(from) };
+    const [aw, ad, am] = dayLabel(from).split(' '), [bw, bd, bm] = dayLabel(to).split(' ');
+    return am === bm
+        ? { label: `${aw.slice(0, 3)} ${ad} – ${bw.slice(0, 3)} ${bd} ${bm}`, short: `${ad}–${bd} ${bm}` }
+        : { label: `${aw.slice(0, 3)} ${ad} ${am} – ${bw.slice(0, 3)} ${bd} ${bm}`, short: `${ad} ${am} – ${bd} ${bm}` };
+}
+// 'Hotel Esplanade Emerald Ballroom; Zagreb, Croatia' → 'Hotel Esplanade Emerald Ballroom': the app prints the
+// address on its own line, so a venue string's trailing '; <city>, <country>' only repeats it.
+const venueOnly = (v, city) => String(v || '').split(/\s*;\s*/).filter((p, i) => p && (i === 0 || !city || !p.toLowerCase().includes(String(city).toLowerCase()))).join(' · ');
 const csvCell = v => { const s = String(v == null ? '' : v); return /[",\n\r;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 
 // The UTC offset of a zone at a given wall-clock instant, as '+01:00' — Intl only, no library.
@@ -397,7 +409,9 @@ function eventCatalogue(q, { today, now } = {}) {
         e.is_past = !!(e.date && (e.end_date || e.date) < td);
         e.is_upcoming = !!(e.date && e.date > td);
         e.times_tbd = !!e.times_tbd; e.tentative = !!e.tentative;
-        e.date_label = dayLabel(e.date); e.short_date = shortDay(e.date);
+        const span = spanLabels(e.date, e.end_date);
+        e.date_label = span.label; e.short_date = span.short;
+        e.venue = venueOnly(e.venue, e.city) || e.venue;
     }
     list.sort((x, y) => {
         const gx = x.is_today ? 0 : x.is_upcoming ? 1 : 2, gy = y.is_today ? 0 : y.is_upcoming ? 1 : 2;
@@ -576,7 +590,7 @@ function runSeed(q, { log } = {}) {
 
 module.exports = {
     EVENT_KINDS, KINDS, PERSON_KINDS, STATES, FACTS, SEED_MARKER, BOSTON_EVENT_ID, ZAGREB, BOSTON_TZ,
-    isYmd, isHm, hm, minutes, fromMinutes, cleanStr, uuid, nowIso, isEventKey, dayLabel, shortDay, csvCell, zonedIso, localNow,
+    isYmd, isHm, hm, minutes, fromMinutes, cleanStr, uuid, nowIso, isEventKey, dayLabel, shortDay, spanLabels, csvCell, zonedIso, localNow,
     liveSig, liveToken, liveUrl, verifyLiveToken,
     ensureSchema, hasTable, hasColumn,
     normalizeKind, guessKindFromTitle, parseIds, parseNames, speakerDirectory,

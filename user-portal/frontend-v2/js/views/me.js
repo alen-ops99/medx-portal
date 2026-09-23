@@ -24,7 +24,8 @@ export const COPY = {
   title: first => `Your membership, <i>${esc(first)}</i>.`,
   lede: "Your member card and tickets — one QR admits you to everything you're registered for.",
   dlCard: 'DOWNLOAD CARD', addWallet: 'ADD TO PHONE WALLET',
-  walletNote: 'Apple and Google Wallet supported · per-event tickets live below in <strong style="color:#191512">My wallet</strong>.',
+  // on an iPhone or iPad only Apple Wallet can take the pass, so the note (and the picker) name only it there
+  walletNote: apple => `${apple ? 'Apple Wallet' : 'Apple and Google Wallet'} supported · per-event tickets live below in <strong style="color:#191512">My wallet</strong>.`,
   card: {
     label: 'MEMBER CARD · 2026', member: 'MEMBER', motto: 'Jedna karta, sva vrata.',
     mottoSub: 'One card, every door · tap to flip back', fast: 'FAST CHECK-IN AT MED&X EVENTS',
@@ -40,7 +41,7 @@ export const COPY = {
     pastNote: 'Free registrations come with a confirmation rather than a receipt · certificates of attendance live under <strong style="color:#191512">My record</strong> below. Ask us anything about an order — ',
     contact: 'contact the team', receipt: 'RECEIPT →', confirmation: 'CONFIRMATION →',
     emailed: to => `Ticket sent to ${to} — check your inbox.`,
-    walletGate: 'Phone wallets switch on once the wallet keys are configured.',
+    walletGate: 'Wallet passes are on their way — until then, the QR on your card here works at the door.',
     status: {
       free: 'Free entry, confirmed', paidSeat: a => `${fmt.eur(a)}, seat reserved`, paid: a => `${fmt.eur(a)}, confirmed`,
       vip: 'Complimentary seat', pending: a => (a ? `${fmt.eur(a)} due — payment pending` : 'Payment pending'),
@@ -71,7 +72,7 @@ export const COPY = {
   settings: {
     n: '03', title: 'SETTINGS',
     line: 'Account settings live in your <i>Profile &amp; settings</i>.',
-    why: 'Your name, email, password, language, the projects you follow and your interests — all in one place.',
+    why: 'Your name, photo, password, the projects you follow and your interests — all in one place.',
     cta: 'OPEN PROFILE &amp; SETTINGS →'
   },
   help: {
@@ -173,7 +174,12 @@ function shortRange(it) {
   const s = fmt.longRange(it.date, it.end_date);
   return s ? s.replace(/,\s*\d{4}$/, '') : '';
 }
+// an iPhone / iPad (the iOS app, or Safari there) can only add to Apple Wallet — the picker (Google as the filled
+// primary button) is skipped and the Apple pass opens directly
+const appleOnly = () => document.documentElement.classList.contains('mx-ios') || /iPhone|iPad|iPod/.test(navigator.userAgent || '') ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 function walletProviderModal(onPick) {
+  if (appleOnly()) return onPick('apple');
   ui.modal({
     eyebrow: 'ADD TO PHONE WALLET', title: 'Pick your wallet',
     body: '<p>The pass carries the same QR the door scans — one card, every door.</p>',
@@ -249,7 +255,7 @@ function blockHero() {
         <span data-act="dlCard" class="mx-me-btn" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.dlCard}</span>
         <span data-act="cardWallet" class="mx-me-btn" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.addWallet}</span>
       </div>
-      <div style="font-size:12px;color:#4a4239;margin-top:16px;max-width:440px;line-height:1.55">${COPY.walletNote}</div>
+      <div style="font-size:12px;color:#4a4239;margin-top:16px;max-width:440px;line-height:1.55">${COPY.walletNote(appleOnly())}</div>
     </div>
     <div class="mx-me-cardpanel" style="position:relative;display:flex;align-items:center;justify-content:center;padding:36px;overflow:hidden">
       <div style="position:absolute;inset:0;background-image:url('/assets/photo-candlelit.jpg');background-size:cover;background-position:center"></div>

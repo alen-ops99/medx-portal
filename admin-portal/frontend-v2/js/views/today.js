@@ -11,7 +11,7 @@ import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow, routeForSection } from '../facts.js';
 import { buildTrend, dayTick, dayFull, normDays, RANGES, DEFAULT_DAYS } from '../trends.js';
 import { perms } from '../perms.js';
-import { chrome } from '../chrome.js';
+import { chrome, outboxWaitingList } from '../chrome.js';
 import { health } from '../health.js';
 import router from '../router.js';
 
@@ -42,13 +42,14 @@ export const COPY = {
       clear: tail => `all seats paid · ${tail}`,
       ebEnds: eb => `early bird ends ${eb}`, after: 'regular price now'
     },
-    // Audit W9: this total is gala money PLUS paid conference registrations, so the sub-line names
-    // both halves — Money's own "collected" has no conference source, and the gap used to look like
-    // one of the two screens being wrong.
+    // Audit 2026-09-23: the card is Money's own figure — /api/v2/money/summary collected.total, the number
+    // Money prints as COLLECTED IN <year> (the ledger + Gala seats not booked yet). It used to add the
+    // gala tally and the conference fees itself and landed €15 off Money. Without Money access the old
+    // sum shows under its own name (gala + conference), which is what it is.
     kMoney: {
-      k: 'COLLECTED THIS YEAR', label: 'Collected this year',
-      sub: n => `${n} paid Gala registration${n === 1 ? '' : 's'} · all of Money →`,
-      subWithConf: (n, confEur) => `${n} paid Gala registration${n === 1 ? '' : 's'} + ${confEur} conference · all of Money →`
+      k: 'COLLECTED THIS YEAR', label: 'Collected this year', kPartial: 'GALA + CONFERENCE COLLECTED',
+      sub: 'every project, every source · all of Money →',
+      subPartial: (n, confEur) => `${n} paid Gala registration${n === 1 ? '' : 's'}${confEur ? ' + ' + confEur + ' conference' : ''}`
     },
     kTrend: { label: 'Registrations chart' },
     locked: 'locked for you · ask Alen'
@@ -161,6 +162,8 @@ async function load(days) {
     galaSettings: api.get('/api/admin/gala/settings'),
     galaOps: api.get('/api/v2/gala-ops/summary'),   // UXFIX closing: ONE truth for the gala tallies (seats incl. plus-ones)
     finance: api.get('/api/finance/dashboard'),
+    money: api.get('/api/v2/money/summary?year=' + new Date().getFullYear()),   // COLLECTED THIS YEAR = Money's own figure
+    confIns: api.get('/api/v2/program/conference/insight'),   // CONFERENCE REGISTERED = the people Registrations and the Program editor count
     nag: api.get('/api/admin/nag/items'),
     tasks: api.get('/api/v2/tasks'),                  // the board: every live card + who I am on it
     tasksBadge: api.get('/api/v2/tasks/badge'),      // done-unseen for me · my open count
@@ -220,6 +223,8 @@ async function load(days) {
   const ops = r.galaOps && r.galaOps.seats && r.galaOps.eur ? r.galaOps : null;
   return {
     errors: r.$errors, me: session.user || r.me || {}, conf, summary: r.summary, trends: r.trends, pstats: r.pstats, finance: r.finance, galaSettings: gs,
+    moneyCollected: r.money && r.money.collected && r.money.collected.total != null ? Number(r.money.collected.total) : null,
+    confPeople: r.confIns && r.confIns.registered != null ? Number(r.confIns.registered) : null,
     gala: { rows: galaRows, paid, toChase, price, ebDeadline, ebDays: fmt.daysUntil(ebDeadline), collected: paid.reduce((n, g) => n + (Number(g.amount_paid) || 0), 0), owed: toChase.length * price, ops },
     nag: (r.nag && Array.isArray(r.nag.items)) ? r.nag.items : [],
     tasks, myTasks, tasksBadge,
@@ -246,7 +251,9 @@ async function load(days) {
 function kpiDefs() {
   const c = COPY.kpi, p = D.prefs, g = D.gala, conf = D.conf;
   const ops = g.ops;
-  const regs = D.summary ? Number(D.summary.plexus.registrations || 0) : (D.pstats ? Number(D.pstats.plexus.registrations || 0) : null);
+  // distinct people with a live conference registration — the same count as Registrations' CONFERENCE and
+  // the Program editor (the dashboard summary counted one fewer); the summary stays the fallback
+  const regs = D.confPeople != null ? D.confPeople : D.summary ? Number(D.summary.plexus.registrations || 0) : (D.pstats ? Number(D.pstats.plexus.registrations || 0) : null);
   const galaLocked = isLocked('gala');
   const tail = g.ebDays > 0 ? c.kGala.ebEnds(fmt.dayShort(g.ebDeadline)) : c.kGala.after;
   const chasing = ops ? ops.seats.chase : g.toChase.length;
@@ -258,7 +265,8 @@ function kpiDefs() {
   const galaPayments = ops ? ops.bookings.paid : g.paid.length;        // payments = registration rows, both paths
   const galaCollected = ops ? ops.eur.collected : g.collected;
   const confRevenue = D.pstats && D.pstats.plexus ? Number(D.pstats.plexus.revenue || 0) : 0;
-  const collected = isLocked('finance') && isLocked('gala') ? null : galaCollected + confRevenue;
+  const money = D.moneyCollected;                                       // Money's COLLECTED IN <year>
+  const collected = money != null ? money : isLocked('finance') && isLocked('gala') ? null : galaCollected + confRevenue;
   return [
     // Venue comes from the live conference row like the dates and the city beside it; FACTS is only
     // the fallback for a backend that has no conference yet (audit W7).
@@ -266,7 +274,7 @@ function kpiDefs() {
     { on: p.kConf, k: c.kConf.k, v: regs == null ? '—' : String(regs), sub: c.kConf.sub(D.cap), subColor: '#6d6459', href: '/registrations' },
     { on: p.kGala, k: ops ? c.kGala.k : c.kGala.kFallback, v: galaLocked ? '—' : String(galaPaid), sub: galaSub, subColor: !galaLocked && chasing ? '#9b1b22' : '#6d6459', href: '/gala',
       title: !galaLocked && ops && ops.buckets ? c.kGala.chaseSplit(ops.buckets) : '' },   // the open-payment split behind the seat count
-    { on: p.kMoney, k: c.kMoney.k, v: collected == null ? '—' : fmt.eur(collected), sub: collected == null ? c.locked : (confRevenue ? c.kMoney.subWithConf(galaPayments, fmt.eur(confRevenue)) : c.kMoney.sub(galaPayments)), subColor: '#6d6459', href: '/money' }
+    { on: p.kMoney, k: money != null || collected == null ? c.kMoney.k : c.kMoney.kPartial, v: collected == null ? '—' : fmt.eur(collected), sub: collected == null ? c.locked : money != null ? c.kMoney.sub : c.kMoney.subPartial(galaPayments, confRevenue ? fmt.eur(confRevenue) : ''), subColor: '#6d6459', href: money != null ? '/money' : '/gala' }
   ].filter(k => k.on);
 }
 function shortcutDefs() {
@@ -334,7 +342,9 @@ function trendSvg(m, W) {
 function overdueTasks() { const today = fmt.ymd(new Date()); return D.tasks.filter(t => t.due_date && String(t.due_date).trim() && fmt.ymd(t.due_date) < today); }
 function attentionItems() {
   const a = COPY.attention, items = [];
-  if (D.outbox.length) { const emails = D.outbox.reduce((n, b) => n + Number(b.count || 0), 0); const subjects = D.outbox.map(b => b.sample && b.sample.subject).filter(Boolean).slice(0, 2).join(' · '); items.push({ id: 'outbox', dot: '#c9a962', title: a.outbox.title(emails, D.outbox.length), sub: a.outbox.sub(subjects || fmt.plural(D.outbox.length, 'batch', 'batches')), cta: a.outbox.cta, href: '/inbox/outbox' }); }
+  // the header badge's rule (chrome.js outboxWaitingList): piled-up weekly pulses count once, as the Outbox folds them
+  const waiting = outboxWaitingList(D.outbox);
+  if (waiting.length) { const emails = waiting.reduce((n, b) => n + Number(b.count || 0), 0); const subjects = waiting.map(b => b.sample && b.sample.subject).filter(Boolean).slice(0, 2).join(' · '); items.push({ id: 'outbox', dot: '#c9a962', title: a.outbox.title(emails, waiting.length), sub: a.outbox.sub(subjects || fmt.plural(waiting.length, 'batch', 'batches')), cta: a.outbox.cta, href: '/inbox/outbox' }); }
   // UXFIX-A1 #4: member threads NEEDING A REPLY (the Inbox tab's own rule) — a guest must never wait invisibly.
   // Falls back to the old unread count when the threads endpoint is unavailable.
   const need = D.msgNeedsReply;
@@ -457,7 +467,7 @@ function blockTrend() {
   if (!D.prefs[TREND_KEY]) return '<!-- trend chart hidden via ✎ CUSTOMISE -->';
   const c = COPY.trends;
   const m = D.trends ? trendModel() : null;
-  const pill = (on, label, act, data, title) => `<span data-act="${act}" ${data} role="button" aria-pressed="${on}" title="${esc(title)}" style="padding:4px 9px;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;border:1px solid ${on ? '#201b16' : 'rgba(32,27,22,.18)'};background:${on ? '#201b16' : '#fff'};color:${on ? '#f6f2ea' : '#6d6459'}">${label}</span>`;
+  const pill = (on, label, act, data, title) => `<span data-act="${act}" ${data} role="button" aria-pressed="${on}" title="${esc(title)}" style="padding:4px 9px;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;border:1px solid ${on ? '#201b16' : 'rgba(32,27,22,.18)'};background:${on ? '#201b16' : '#fff'};color:${on ? '#f6f2ea' : '#6d6459'}"${on ? '' : ' data-hover="border-color:#201b16;color:#201b16"'}>${label}</span>`;
   const chip = s => `<span data-act="trChip" data-key="${s.key}" role="checkbox" aria-checked="${!s.hidden}" title="${esc(c.chipTitle(s.label, !s.hidden))}" style="display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid ${s.hidden ? 'rgba(32,27,22,.14)' : 'rgba(32,27,22,.3)'};background:${s.hidden ? 'transparent' : '#fff'};font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:${s.hidden ? '#a49a8d' : '#201b16'};cursor:pointer" data-hover="border-color:#201b16">
       <span style="width:9px;height:9px;flex:none;background:${s.hidden ? 'transparent' : s.color};border:1px solid ${s.color};opacity:${s.hidden ? '.45' : '1'}"></span>${s.label}<span style="color:${s.hidden ? '#bdb4a7' : '#6d6459'};letter-spacing:.06em">${s.sum}</span></span>`;
   return `
@@ -556,7 +566,7 @@ function blockAttention() {
         <div data-block="doit" style="border:1px solid rgba(32,27,22,.14);background:#fff">
           <div style="display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.doItNow.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${COPY.doItNow.hint}</span></div>
           <div style="padding:14px 20px 16px;display:flex;flex-direction:column;gap:10px">
-            ${shortcuts.map(s => `<a href="${s.href}" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:${s.bg};border:1px solid ${s.bd};color:${s.fg};font:600 10.5px Inter,sans-serif;letter-spacing:.14em" data-hover="border-color:#201b16">${s.gold ? '<span style="width:6px;height:6px;background:#c9a962"></span>' : ''}${s.label}</a>`).join('\n            ')}
+            ${shortcuts.map(s => `<a href="${s.href}" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:${s.bg};border:1px solid ${s.bd};color:${s.fg};font:600 10.5px Inter,sans-serif;letter-spacing:.14em" data-hover="${s.gold ? 'background:#9b1b22;border-color:#9b1b22' : 'border-color:#201b16'}">${s.gold ? '<span style="width:6px;height:6px;background:#c9a962"></span>' : ''}${s.label}</a>`).join('\n            ')}
             ${!shortcuts.length ? `<span style="font-size:12.5px;color:#6d6459;font-style:italic">${COPY.doItNow.empty}</span>` : ''}
           </div>
         </div>
@@ -843,7 +853,7 @@ function blockDoIt() {
   return `<div data-block="doit" style="border:1px solid rgba(32,27,22,.14);background:#fff">
           <div style="display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.doItNow.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${COPY.doItNow.hint}</span></div>
           <div style="padding:14px 20px 16px;display:flex;flex-direction:column;gap:10px">
-            ${shortcuts.map(s => `<a href="${s.href}" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:${s.bg};border:1px solid ${s.bd};color:${s.fg};font:600 10.5px Inter,sans-serif;letter-spacing:.14em" data-hover="border-color:#201b16">${s.gold ? '<span style="width:6px;height:6px;background:#c9a962"></span>' : ''}${s.label}</a>`).join('\n            ')}
+            ${shortcuts.map(s => `<a href="${s.href}" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:${s.bg};border:1px solid ${s.bd};color:${s.fg};font:600 10.5px Inter,sans-serif;letter-spacing:.14em" data-hover="${s.gold ? 'background:#9b1b22;border-color:#9b1b22' : 'border-color:#201b16'}">${s.gold ? '<span style="width:6px;height:6px;background:#c9a962"></span>' : ''}${s.label}</a>`).join('\n            ')}
             ${!shortcuts.length ? `<span style="font-size:12.5px;color:#6d6459;font-style:italic">${COPY.doItNow.empty}</span>` : ''}
           </div>
         </div>`;

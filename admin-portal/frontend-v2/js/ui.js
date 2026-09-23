@@ -28,10 +28,23 @@ function toDate(v) {
   const s = String(v).trim();
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);           // date or datetime → local midnight of that day
   if (m && s.length === 10) return new Date(+m[1], +m[2] - 1, +m[3]);
+  // SQLite's datetime('now') — 'YYYY-MM-DD HH:MM:SS', space-separated, no zone — is UTC: read it as UTC
+  // (a report filed at 14:15 Zagreb time printed 12:15). A 'T' form without a zone stays local
+  // (form inputs, poll slots); anything carrying Z or an offset is exact either way.
+  // A DATE-intent value stored with a clock (an announcement's end-of-day expiry '2026-12-04 23:59:59')
+  // is not a moment — read it with fmt.localDay, never through here, or it lands on the next day.
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(s)) { const u = new Date(s.replace(' ', 'T') + 'Z'); return isNaN(u) ? null : u; }
   const d = new Date(s.replace(' ', 'T'));
   return isNaN(d) ? null : d;
 }
 function midnight(v) { const d = toDate(v); return d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : null; }
+// the calendar day a DATE-intent value names ('2026-12-04', '2026-12-04 23:59:59', '2026-09-22 00:00:00'),
+// as local midnight of that day in every time zone — its date part is the intent, its clock is filler
+function localDay(v) {
+  if (v instanceof Date) return midnight(v);
+  const m = String(v == null ? '' : v).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
 
 export const fmt = {
   // "€150" — the € sign, never "EUR"; no decimals unless the amount has them; thousands separator
@@ -82,9 +95,11 @@ export const fmt = {
   sparkRange(days = 30, now = new Date()) { const start = new Date(now.getTime() - (days - 1) * DAY_MS); return fmt.dayLabel(start) + ' — ' + fmt.dayLabel(now); },
   ymd(d) { const x = toDate(d); if (!x) return ''; return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); },
   // 'TODAY 15:43' / 'AUG 8' (audit-log style)
-  when(v, now = new Date()) { const d = toDate(v); if (!d) return ''; const same = fmt.ymd(d) === fmt.ymd(now); return same ? 'TODAY ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : fmt.dayLabel(d); },
+  when(v, now = new Date()) { const d = toDate(v); if (!d) return ''; const same = fmt.ymd(d) === fmt.ymd(now); return same ? 'TODAY ' + fmt.hm(d) : fmt.dayLabel(d); },
+  // '15:43' — the local clock of a timestamp (never a slice of the raw UTC string)
+  hm(v) { const d = toDate(v); return d ? String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : ''; },
   initials(name) { return String(name || '').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase(); },
-  toDate, midnight
+  toDate, midnight, localDay
 };
 
 // ---------------------------------------------------------------- toast (Admin Home.dc.html)
@@ -118,18 +133,36 @@ function modal({ eyebrow = 'MED&X ADMIN', title = '', body = '', actions = [], c
       ${actions.length ? `<div class="mx-modal-foot">${actions.map((a, i) => `<span data-act="a${i}" role="button" tabindex="0" class="${a.kind === 'primary' ? 'btn-primary' : a.kind === 'ink' ? 'btn-ink' : 'btn-ghost'}">${esc(a.label)}</span>`).join('')}</div>` : ''}
     </div>`;
   let onclose = null;
+  // keyboard focus comes back to whatever opened the modal (REPORTS › SUSPEND …), not to <body>
+  const opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
   // the modal fades out (160 ms, css .mx-modal.is-leaving — the member portal's close) — callers have
   // already resolved; nothing waits on it. Reduced motion: gone at once.
   const close = () => {
     document.removeEventListener('keydown', onKey);
     if (!wrap.isConnected || wrap.classList.contains('is-leaving')) return;
+    const a = document.activeElement;
+    if (opener && opener.isConnected && (!a || a === document.body || wrap.contains(a))) { try { opener.focus({ preventScroll: true }); } catch (e) {} }
     if (reducedMotion()) { wrap.remove(); return; }
     wrap.classList.add('is-leaving');
     setTimeout(() => wrap.remove(), 170);
   };
-  const onKey = e => { if (e.key === 'Escape' && !wrap.classList.contains('is-leaving')) { close(); if (onclose) onclose(); } };
+  const isTop = () => Array.from(document.querySelectorAll('.mx-modal:not(.is-leaving)')).pop() === wrap;
+  const focusables = () => Array.from(wrap.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(el => el.offsetParent !== null || el === document.activeElement);
+  const onKey = e => {
+    if (wrap.classList.contains('is-leaving') || !isTop()) return;   // a modal on top of this one owns the keys
+    if (e.key === 'Escape') { close(); if (onclose) onclose(); return; }
+    // Tab stays inside the sheet — it used to walk out into the page behind the scrim
+    if (e.key !== 'Tab') return;
+    const f = focusables(); if (!f.length) return;
+    const i = f.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && (i === -1 || i === f.length - 1)) { e.preventDefault(); f[0].focus(); }
+  };
   const handlers = { close: () => { close(); if (onclose) onclose(); } };
-  actions.forEach((a, i) => { handlers['a' + i] = () => { const r = a.onClick ? a.onClick() : undefined; if (r !== false) close(); }; });
+  // a tap that lands within ~350 ms of the sheet opening is the tail of the tap (or double tap) that opened
+  // it, never a decision: the sheet's buttons ignore it (a confirm can sit right under the row's button)
+  const openedAt = Date.now();
+  actions.forEach((a, i) => { handlers['a' + i] = () => { if (Date.now() - openedAt < 350) return; const r = a.onClick ? a.onClick() : undefined; if (r !== false) close(); }; });
   bind(wrap, handlers);
   wrap.addEventListener('click', e => { if (closeOnScrim && e.target === wrap) handlers.close(); });
   document.addEventListener('keydown', onKey);
@@ -147,12 +180,24 @@ function confirm({ eyebrow = 'PLEASE CONFIRM', title = 'Are you sure?', body = '
 
 // ---------------------------------------------------------------- binding helpers
 // <span data-act="name"> → handlers.name(el, event). Delegated once per root; survives re-renders of children.
+// Two-step confirms ("✕ CANCEL" → "SURE? CANCEL" in the same spot): a double tap or double click must never
+// pass both steps in one motion. The first tap records when that control (act + id) was pressed; a tap on
+// its SURE? state within ARM_GUARD_MS of that is ignored, so confirming takes a deliberate second tap.
+const ARM_GUARD_MS = 450;
+const armedAt = new Map();
 function bind(root, handlers) {
   const onClick = e => {
     const el = e.target.closest('[data-act]');
     if (!el || !root.contains(el) || el.getAttribute('aria-disabled') === 'true') return;
     const h = handlers[el.dataset.act];
     if (!h) return;
+    const armKey = el.dataset.act + '|' + (el.dataset.id || '');
+    if (/^\s*SURE\?/i.test(el.textContent || '')) {
+      const t = armedAt.get(armKey);
+      if (t && Date.now() - t < ARM_GUARD_MS) { e.preventDefault(); e.stopPropagation(); return; }
+    } else {
+      armedAt.set(armKey, Date.now());
+    }
     // a real link INSIDE an actionable row is the user's target — let it open natively (member bind() twin)
     const link = e.target.closest('a[href]');
     if (link && link !== el && el.contains(link)) return;

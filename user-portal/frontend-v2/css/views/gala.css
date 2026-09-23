@@ -16,6 +16,17 @@
 @media (max-width: 900px) {
   .mx-gala-band { gap: 14px 18px !important; }
 }
+/* ON STAGE THAT NIGHT: five speakers are 3 + 2 on a tablet (two across left one alone and grew each portrait
+   to a 384 px square); on a phone each speaker is one row — a 96 px portrait beside the name — so a small
+   source image is never blown up to the full width of the screen */
+@media (min-width: 501px) and (max-width: 900px) {
+  .mx-gala-stage { grid-template-columns: repeat(3, 1fr) !important; }
+}
+@media (max-width: 500px) {
+  .mx-gala-stage { gap: 10px !important; }
+  .mx-gala-stage > div { flex-direction: row !important; align-items: center; }
+  .mx-gala-stage > div > div:first-child { width: 96px; flex: none; }
+}
 @media (max-width: 700px) {
   /* two fixed-width performer cards → stacked full-width */
   .mx-gala-perf { flex-wrap: wrap !important; }
@@ -29,9 +40,19 @@
   .mx-gala-glance-row { flex-wrap: wrap; }
 }
 
-/* "THE EVENING BEGINS IN" band on a phone: label on its own line, the three digits together, each fact
+/* "THE EVENING BEGINS IN" band — one row needs ~1,400 px (22 px gaps, so a desktop window with a scrollbar
+   still fits). Narrower (the Mac app's 1280 window, iPad landscape) the countdown keeps the first line and the
+   three facts share the second; below ~940 the facts no longer fit one line, so each takes its own centred
+   line — the phone pattern — instead of wrapping one fact alone after a dangling rule */
+.mx-gala-band { column-gap: 22px !important; }
+@media (max-width: 1419px) {
+  .mx-gala-band { row-gap: 10px !important; }
+  .mx-gala-band > .mx-band-break { display: block; flex-basis: 100%; height: 0; }
+  .mx-gala-band > .mx-band-break + span[style*="width:1px"] { display: none; }
+}
+/* the same band on a tablet or phone: label on its own line, the three digits together, each fact
    on a centred line; the vertical rules only read side by side, so they go */
-@media (max-width: 700px) {
+@media (max-width: 940px) {
   .mx-gala-band { gap: 10px 22px !important; padding-top: 16px !important; padding-bottom: 16px !important; }
   .mx-gala-band > span[style*="width:1px"] { display: none !important; }
   .mx-gala-band > span:first-child { flex-basis: 100%; text-align: center; }

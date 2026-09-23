@@ -33,6 +33,19 @@ export function chatUnreadOf(overview) {
   if (!overview) return 0;
   return [...chatChannelsOf(overview), ...(Array.isArray(overview.dms) ? overview.dms : [])].reduce((n, c) => n + Number(c.unread || 0), 0);
 }
+// ONE rule for what an outbox item WAITING for an answer is (the header TEAM / INBOX badges, the Inbox
+// tab, Today's "waiting for your OK" row and the Plexus hub's Outbox row): every pending batch, except
+// that piled-up routine digests (weekly pulse · nag digest) count once — the Outbox folds them the same
+// way, and only the newest one is worth sending. outboxWaitingList gives those batches (for an email
+// count), outboxWaitingOf their number.
+const ROUTINE_ENGINES = ['weekly-pulse', 'nag-digest'];
+export function outboxWaitingList(batches) {
+  const list = Array.isArray(batches) ? batches : [];
+  const routine = list.filter(b => ROUTINE_ENGINES.includes(b.source_engine));
+  const newest = routine.slice().sort((x, y) => String(y.created_at || '').localeCompare(String(x.created_at || '')))[0];
+  return list.filter(b => !ROUTINE_ENGINES.includes(b.source_engine) || b === newest);
+}
+export function outboxWaitingOf(batches) { return outboxWaitingList(batches).length; }
 
 export const COPY = {
   admin: 'ADMIN',
@@ -286,7 +299,7 @@ function searchResults() {
     assist = `<div style="padding:10px 12px;border-top:1px solid rgba(32,27,22,.08)">
       <div style="font:600 8px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;margin-bottom:4px">ASSISTANT</div>
       <div style="font-size:12.5px;line-height:1.5;color:#201b16">${esc(a.answer || '')}</div>
-      ${(a.pending || []).map((p, i) => `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><span style="font-size:12px;color:#6d6459;flex:1">${esc(p.description || p.tool)}</span><span data-act="execute" data-i="${i}" style="padding:6px 10px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${COPY.search.confirm}</span></div>`).join('')}
+      ${(a.pending || []).map((p, i) => `<div style="display:flex;gap:10px;align-items:center;margin-top:8px"><span style="font-size:12px;color:#6d6459;flex:1">${esc(p.description || p.tool)}</span><span data-act="execute" data-i="${i}" style="padding:6px 10px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.search.confirm}</span></div>`).join('')}
       ${a.deepLink && a.deepLink.target ? `<a href="${routeForSection(a.deepLink.target, '/today')}" style="display:inline-block;margin-top:8px;font:600 9px Inter,sans-serif;letter-spacing:.13em">${esc((a.deepLink.label || 'OPEN').toUpperCase())} →</a>` : ''}
       ${a.gated ? `<div style="font-size:11px;color:#6d6459;margin-top:6px">${COPY.search.gated}</div>` : ''}
     </div>`;
@@ -326,8 +339,8 @@ function header() {
   <div style="background:#fff;border-bottom:1px solid rgba(32,27,22,.14);position:relative;z-index:50">
     <div class="mx-topbar mx-gutter${s.eventDay ? ' event-day' : ''}" style="max-width:1180px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:26px;position:relative">
       <a href="/today" class="mx-brand" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#201b16"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:18px;display:block"><span style="font:600 8px Inter,sans-serif;letter-spacing:.3em;color:#9b1b22">${COPY.admin}</span></a>
-      <span id="mx-menu-btn" data-act="menu" aria-label="Menu" style="align-items:center;gap:8px;font:600 10.5px Inter,sans-serif;letter-spacing:.18em;cursor:pointer"><span class="mx-burger" style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#201b16"></span><span style="width:18px;height:2px;background:#201b16"></span><span style="width:12px;height:2px;background:#201b16"></span></span>${COPY.nav.menu}</span>
-      <div class="mx-nav" style="display:flex;gap:22px;align-items:center;height:100%">
+      <span id="mx-menu-btn" data-act="menu" role="button" tabindex="0" aria-label="Menu" aria-controls="mx-nav" aria-expanded="${menuShown()}" style="align-items:center;gap:8px;font:600 10.5px Inter,sans-serif;letter-spacing:.18em;cursor:pointer"><span class="mx-burger" style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#201b16"></span><span style="width:18px;height:2px;background:#201b16"></span><span style="width:12px;height:2px;background:#201b16"></span></span>${COPY.nav.menu}</span>
+      <div class="mx-nav" id="mx-nav" style="display:flex;gap:22px;align-items:center;height:100%">
         ${NAV.map(navItem).join('\n        ')}
       </div>
       <div style="flex:1"></div>
@@ -407,7 +420,7 @@ function closePopover({ refocus } = {}) {
   // keyboard closes (Escape) hand focus back to the trigger that opened the panel — the member portal's rule
   if (!refocus) return;
   const a = document.activeElement;
-  if (a && a !== document.body && !(a.closest && a.closest('[data-role="nav-pop"], .mx-pop'))) return;
+  if (a && a !== document.body && !(a.closest && a.closest('[data-role="nav-pop"], [data-role="menu-pop"], .mx-pop'))) return;
   const sel = was === 'menu' ? '[data-act="profile"]' : was === 'search' ? '[data-role="q"]' : `[data-act="navgroup"][data-nav-key="${String(was).replace(/^nav:/, '').replace(/"/g, '')}"]`;
   const t = els.chrome && els.chrome.querySelector(sel);
   if (t) { if (!t.hasAttribute('tabindex') && t.tagName === 'SPAN') t.setAttribute('tabindex', '0'); try { t.focus({ preventScroll: true }); } catch (e) { /* fine */ } }
@@ -455,13 +468,19 @@ function onSearchKey(e) {
 // the phone drawer: opens with a slide and the current screen's group unfolded; closes with a short
 // fold (css .menu-closing) — a tap on MENU mid-fold reopens it rather than toggling twice
 const reduceMotion = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+const menuExpanded = on => { const m = els.chrome && els.chrome.querySelector('#mx-menu-btn'); if (m) m.setAttribute('aria-expanded', String(on)); };
 function openMenu() {
   const b = document.body;
   clearTimeout(menuAnimTimer);
   const fresh = !b.classList.contains('menu-open');
+  // the drawer hangs under the bar, which wraps to two rows on a phone (~96 px, not 60): app.css sizes
+  // the drawer to what is left of the screen below the bar's real bottom edge, so every row scrolls into reach
+  const bar = els.chrome && els.chrome.firstElementChild;
+  if (bar) document.documentElement.style.setProperty('--mx-bar-b', Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) + 'px');
   b.classList.remove('menu-closing');
   b.classList.add('menu-open');
   if (fresh) { b.classList.add('menu-anim'); menuAnimTimer = setTimeout(() => b.classList.remove('menu-anim'), 420); }
+  menuExpanded(true);
   const g = groupOf(state.get()); const n = NAV.find(x => x.key === g); if (n && n.menu) openNav(g); else closePopover();
 }
 function closeMenu() {
@@ -470,6 +489,7 @@ function closeMenu() {
   if (!b.classList.contains('menu-open') || b.classList.contains('menu-closing')) return;
   clearTimeout(menuAnimTimer);
   b.classList.remove('menu-anim');
+  menuExpanded(false);
   if (reduceMotion()) { b.classList.remove('menu-open'); return; }
   b.classList.add('menu-closing');
   menuAnimTimer = setTimeout(() => b.classList.remove('menu-open', 'menu-closing'), 200);
@@ -582,9 +602,30 @@ export const chrome = {
       const i = searchRows().indexOf(row);
       if (i >= 0 && i !== searchState.sel) { searchState.sel = i; markSelection(); }
     });
+    // keyboard focus on a group opens its dropdown. Focus that a tap or click brings with it does not:
+    // Chromium focuses a link on a touch tap, and the dropdown opened by that focus made the same tap's
+    // click read as the SECOND tap and navigate away — handlers.navgroup's "first tap unfolds" decides
+    let pointerAt = 0;
+    els.chrome.addEventListener('pointerdown', () => { pointerAt = Date.now(); }, { passive: true });
     els.chrome.addEventListener('focusin', e => {
       const a = e.target.closest && e.target.closest('[data-act="navgroup"]');
-      if (a && !inDrawer() && !a.closest('.locked')) openNav(a.dataset.navKey);
+      if (a && !inDrawer() && !a.closest('.locked') && Date.now() - pointerAt > 300) openNav(a.dataset.navKey);
+    });
+    // the dropdowns are menus: ↓ / ↑ from a group step into its rows and through them (the page no longer
+    // scrolls under the open panel); Escape (the document handler) hands focus back to the group
+    els.chrome.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const group = e.target.closest && e.target.closest('[data-act="navgroup"]');
+      const row = e.target.closest && e.target.closest('.mx-dd-row');
+      if (!group && !row) return;
+      const item = (group || row).closest('.mx-nav-item.has-menu'); if (!item || item.classList.contains('locked')) return;
+      e.preventDefault();
+      if (group && popover !== 'nav:' + group.dataset.navKey) openNav(group.dataset.navKey);
+      const rows = Array.from(item.querySelectorAll('[data-role="nav-pop"] .mx-dd-row'));
+      if (!rows.length) return;
+      const i = row ? rows.indexOf(row) : -1;
+      const next = row ? rows[(i + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length] : rows[e.key === 'ArrowDown' ? 0 : rows.length - 1];
+      try { next.focus(); } catch (err) { /* fine */ }
     });
     state.subscribe((s, keys) => { if (keys.some(k => ['user', 'badges', 'active', 'layout', 'eventDay', 'token'].includes(k))) renderAll(); });
     renderAll();
@@ -604,7 +645,7 @@ export const chrome = {
       // PEOPLE: open member reports (App Store 1.2) — asked only by admins who can open the queue
       reports: perms.canAny(['member-ops']) ? api.get('/api/v2/safety/reports/count') : null
     });
-    const batches = r.outbox && Array.isArray(r.outbox.batches) ? r.outbox.batches.length : 0;
+    const batches = r.outbox ? outboxWaitingOf(r.outbox.batches) : 0;
     const unread = r.pstats && r.pstats.pending ? Number(r.pstats.pending.unreadMessages || 0) : 0;
     const chatUnread = chatUnreadOf(r.chat);   // filtered channels + my dms — the same list the Inbox chat tab shows
     const tasksDone = r.tasks ? Number(r.tasks.done_unseen || 0) : 0;

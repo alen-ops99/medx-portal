@@ -19,7 +19,8 @@ export const FACTS = Object.freeze({
   gala: Object.freeze({
     name: 'Gala Evening', date: '2026-12-05', dateLabel: 'Sat, December 5', time: '19:00',
     venue: 'Hotel Esplanade', city: 'Zagreb',
-    priceEarly: 150, priceRegular: 175, priceFlip: '2026-09-15', priceFlipLabel: 'Sep 15',
+    // fallback for the live gala setting early_bird_deadline (2026-10-01 since the Sept extension)
+    priceEarly: 150, priceRegular: 175, priceFlip: '2026-10-01', priceFlipLabel: 'Oct 1',
     refundable: false, seating: 'limited seating'
   }),
   accelerator: Object.freeze({

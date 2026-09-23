@@ -36,17 +36,19 @@ export const COPY = {
   inboxTitle: 'Inbox',
   newMessage: 'NEW MESSAGE →',
   searchPh: 'Search conversations…',
-  footer: name => `You're signed in as <strong style="color:#191512">${name}</strong> · replies also arrive by email if you're away.`,
+  // where replies arrive — one sentence across the portal: the team's reply is written into this inbox (and
+  // pushed to the member's devices); no email copy goes out
+  footer: name => `You're signed in as <strong style="color:#191512">${name}</strong> · replies land right here in your portal inbox.`,
   team: { name: 'Med&X Coordinators', sub: 'Official team inbox', init: 'MX', tag: 'OFFICIAL · MED&amp;X TEAM',
           meta: 'MED&X TEAM',                                        // rows from before sender_name existed (ask 1 backfill)
           staff: name => `${String(name).toUpperCase()} · MED&X`,     // staff identity on replies — "LAURA · MED&X"
-          nudge: 'Write to the team — replies land here, not in your email.' },
+          nudge: 'Write to the team — replies land right here in your portal inbox.' },
   composer: { ph: 'Write a message…', attach: 'ATTACH', attachTitle: 'Attach one image or PDF — up to 5 MB', send: 'SEND →', topicLabel: 'TOPIC' },
   // topic keys must match user-portal/backend/v2/messages.js › TOPICS
   topics: [['general', 'GENERAL'], ['plexus', 'PLEXUS'], ['gala', 'GALA'], ['accelerator', 'ACCELERATOR'], ['bridges', 'BUILDING BRIDGES'], ['forum', 'FORUM'], ['membership', 'MEMBERSHIP']],
   empty: {
     line: 'No messages — yet.',
-    why: 'Write to the Med&amp;X team about anything — tickets, programs, travel. Replies land right here, not in your email.',
+    why: 'Write to the Med&amp;X team about anything — tickets, programs, travel. Replies land right here in your portal inbox.',
     cta: 'START A MESSAGE →'
   },
   emptyDm: name => `Say hello — this is the start of your conversation with ${name}.`,
@@ -173,7 +175,6 @@ function blockTabs() { return `
   <div class="mx-tabs mx-gutter" data-tabs="network" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
     <a href="/app/network" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.people}</a>
     <span class="mx-tab is-on" aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:default">${COPY.tabs.messages}</span>
-    <a href="/app/me" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.card}</a>
   </div>
   <!-- /dc -->`; }
 
@@ -365,8 +366,8 @@ function blockConv() {
     ${canWrite ? `${isTeam ? topicChips() : ''}${attachChip}
     ${st.sendError && st.sendError.key === t.key ? `<p data-role="sendErr" role="alert" data-v2="a send the server refused (403 suspended / blocked · 422 content filter) — the draft stays" style="margin:0;padding:12px 26px 0;${isTeam ? '' : 'border-top:1px solid rgba(25,21,18,.16);'}font-size:12px;line-height:1.5;color:#9b1b22">${esc(st.sendError.text)}</p>` : ''}
     <div style="display:flex;gap:12px;align-items:flex-end;padding:16px 26px 20px;${isTeam || (st.sendError && st.sendError.key === t.key) ? '' : 'border-top:1px solid rgba(25,21,18,.16)'}">
-      <textarea data-role="draft" class="mx-msg-field" placeholder="${COPY.composer.ph}" rows="2" aria-label="${COPY.composer.ph}" style="flex:1;border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:11px 13px;font-size:13px;color:#191512;resize:none">${esc(st.drafts[t.key] || '')}</textarea>
-      ${isTeam ? `<label data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault (the profile-photo trap)" title="${COPY.composer.attachTitle}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;padding-bottom:12px" data-hover="color:#191512">${COPY.composer.attach}<input type="file" data-role="attachFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>` : ''}
+      <textarea data-role="draft" data-key="${esc(t.key)}" class="mx-msg-field" placeholder="${COPY.composer.ph}" rows="2" aria-label="${COPY.composer.ph}" style="flex:1;border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:11px 13px;font-size:13px;color:#191512;resize:none">${esc(st.drafts[t.key] || '')}</textarea>
+      ${isTeam ? `<label class="mx-msg-attach" tabindex="0" role="button" aria-label="${COPY.composer.attachTitle}" data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault (the profile-photo trap)" title="${COPY.composer.attachTitle}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;padding-bottom:12px" data-hover="color:#191512">${COPY.composer.attach}<input type="file" data-role="attachFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>` : ''}
       <span data-act="send" role="button" aria-label="Send message" ${st.sending ? 'aria-disabled="true"' : ''} class="mx-msg-btn" style="padding:12px 18px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.composer.send}</span>
     </div>` : ''}
   </div>
@@ -388,7 +389,7 @@ function template() {
 <div data-screen-label="Messages" class="mx-msg-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh;display:flex;flex-direction:column">
   ${blockCrumb()}
   ${blockTabs()}
-  <div data-role="grid" class="mx-msg-grid${st.mobileOpen ? ' mx-msg-open' : ''}" style="display:grid;grid-template-columns:340px 1fr;align-items:stretch;min-height:560px">
+  <div data-role="grid" class="mx-msg-grid${st.mobileOpen ? ' mx-msg-open' : ''}" style="display:grid;grid-template-columns:340px minmax(0,1fr);align-items:stretch;min-height:560px">
     ${blockList()}
     ${blockConv()}
   </div>
@@ -406,6 +407,10 @@ function normalizeDm(rows) {
   return (rows || []).map(m => ({ id: m.id, mine: String(m.sender_id) === myId, content: m.content || '', created_at: m.created_at, read: !!m.read_at }));
 }
 
+// The conversation is on screen: always beside the list on a wide screen; in the stacked phone layout (≤700 px)
+// only once opened. Reading a thread marks it read on the server (?mark=1, and GET /api/messages/:id always
+// does), so a phone showing only the list never fetches with a mark.
+function convShown() { return !!st && (st.mobileOpen || !window.matchMedia('(max-width: 700px)').matches); }
 async function fetchThreadMessages(t, { mark } = {}) {
   if (t.kind === 'team') {
     const r = await api.get('/api/v2/messages/team' + (mark ? '?mark=1' : ''));
@@ -420,8 +425,10 @@ async function fetchThreadMessages(t, { mark } = {}) {
 function rr(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) { el.outerHTML = html; } }
 function renderList() { rr('.mx-msg-list', blockList()); wireList(); }
 function renderConv({ keepDraft = true } = {}) {
+  // the draft on screen is saved under the thread it was TYPED in (its data-key) — openThread() moves st.cur
+  // before this runs, and saving under st.cur carried a DM's text into the next thread's composer
   const ta = rootEl && rootEl.querySelector('[data-role="draft"]');
-  if (keepDraft && ta && st.cur) st.drafts[st.cur] = ta.value;
+  if (keepDraft && ta && ta.dataset.key) st.drafts[ta.dataset.key] = ta.value;
   rr('.mx-msg-conv', blockConv());
   if (st.cur && st.msgsKey === st.cur) { st.shownKey = st.cur; st.shownIds = new Set((st.msgs || []).map(msgKey)); }
   const grid = rootEl && rootEl.querySelector('[data-role="grid"]');
@@ -435,7 +442,10 @@ function sizeGrid() {
   const tab = document.getElementById('mx-tabbar');
   const tabH = tab && getComputedStyle(tab).display !== 'none' ? tab.offsetHeight : 0;
   const small = window.matchMedia('(max-width: 700px)').matches;
-  const h = Math.max(small ? 430 : 560, window.innerHeight - g.getBoundingClientRect().top - tabH);
+  // the grid's DOCUMENT offset: render() runs before the router's scroll-to-top, so a viewport offset taken
+  // from a screen left scrolled down came out hundreds of px short and pushed the composer under the tab bar
+  const top = g.getBoundingClientRect().top + window.scrollY;
+  const h = Math.max(small ? 430 : 560, window.innerHeight - top - tabH);
   g.style.height = h + 'px';
 }
 
@@ -458,13 +468,16 @@ function wireConv() {
   const ta = rootEl && rootEl.querySelector('[data-role="draft"]');
   if (!ta) return;
   ta.addEventListener('input', () => {
-    if (st.cur) st.drafts[st.cur] = ta.value;
+    const k = ta.dataset.key || st.cur; if (k) st.drafts[k] = ta.value;
     if (st.sendError) { st.sendError = null; const e = rootEl.querySelector('[data-role="sendErr"]'); if (e) e.remove(); }
   });
   ta.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlers.send(); }   // Enter sends · Shift+Enter = newline
   });
   const af = rootEl.querySelector('[data-role="attachFile"]');
+  // the label is a keyboard stop too: Enter or Space opens the same picker a tap does
+  const al = af && af.closest('label');
+  if (al) al.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); af.click(); } });
   if (af) af.addEventListener('change', () => {                                       // validate client-side; the backend re-checks
     const f = af.files && af.files[0];
     af.value = '';
@@ -485,10 +498,11 @@ async function openThread(key, { focus = false, mobile = true } = {}) {
   renderList(); renderConv();
   if (!t) return;
   try {
-    st.msgs = await fetchThreadMessages(t, { mark: !document.hidden });
+    const seen = convShown() && !document.hidden;
+    if (t.kind !== 'team' && !convShown()) { if (st.cur === key) { st.msgs = []; st.msgsKey = null; } return; }   // a member thread: reading it marks it
+    st.msgs = await fetchThreadMessages(t, { mark: seen });
     st.msgsKey = key;
-    t.unread = 0;
-    if (t.last && !t.last.mine) t.last.read = true;
+    if (seen) { t.unread = 0; if (t.last && !t.last.mine) t.last.read = true; }
   } catch (e) {
     st.msgs = [];
     st.msgsKey = key;                               // show the thread's empty state, not the loading hairline
@@ -504,7 +518,7 @@ async function refreshThreads() {
     const r = await api.get('/api/v2/messages/threads');
     if (!st) return;
     D.threads = r.threads || [];
-    if (st.msgsKey === st.cur) {                    // the open thread stays read
+    if (st.msgsKey === st.cur && convShown()) {     // the open thread stays read (while it is on screen)
       const t = currentThread();
       if (t && !document.hidden) t.unread = 0;
     }
@@ -518,12 +532,14 @@ async function poll() {
   try {
     await refreshThreads();
     const t = currentThread();
-    if (t && !t.virtual) {
-      const msgs = await fetchThreadMessages(t, { mark: true });
+    const seen = convShown();
+    // a member thread can only be read by marking it — while the phone shows the list, it is left alone
+    if (t && !t.virtual && (seen || t.kind === 'team')) {
+      const msgs = await fetchThreadMessages(t, { mark: seen });
       if (st && st.cur === t.key) {
         const grew = msgs.length !== (st.msgs || []).length;
         const lastRead = JSON.stringify((st.msgs || []).map(m => m.read)) !== JSON.stringify(msgs.map(m => m.read));
-        if (grew || lastRead) { st.msgs = msgs; st.msgsKey = t.key; renderConv(); }
+        if (grew || lastRead || st.msgsKey !== t.key) { st.msgs = msgs; st.msgsKey = t.key; renderConv(); }
       }
     }
   } finally { pollBusy = false; }
@@ -712,6 +728,15 @@ const module = {
     const onResize = () => sizeGrid();
     window.addEventListener('resize', onResize);
     unbindDoc.push(() => window.removeEventListener('resize', onResize));
+    // whatever sits above the grid can still change height after this first measure — the web fonts landing,
+    // the chrome's stats strip or email banner arriving — so the grid is re-measured whenever it does
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(() => { if (rootEl) sizeGrid(); });
+      const chromeEl = document.getElementById('chrome'); if (chromeEl) ro.observe(chromeEl);
+      root.querySelectorAll('.mx-msg-screen > :not([data-role="grid"])').forEach(el => ro.observe(el));
+      unbindDoc.push(() => ro.disconnect());
+    }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (rootEl === root) sizeGrid(); });
     const onVis = () => { if (!document.hidden) poll(); };
     document.addEventListener('visibilitychange', onVis);
     unbindDoc.push(() => document.removeEventListener('visibilitychange', onVis));

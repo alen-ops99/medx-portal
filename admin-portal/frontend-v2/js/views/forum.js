@@ -452,7 +452,7 @@ function blockForm() {
             ${st.formEditing ? `
               <div style="display:flex;gap:8px;padding-top:4px">
                 <input data-role="formDraft" value="${esc(st.formDraft)}" placeholder="${esc(c.addPh)}" aria-label="New question" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font-size:12px;color:#201b16;min-width:0">
-                <span data-act="addQ" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">${c.add}</span>
+                <span data-act="addQ" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.add}</span>
               </div>` : ''}
             <span data-act="copyLink" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${st.linkCopied ? '#1e6e42' : '#9b1b22'};cursor:pointer">${st.linkCopied ? c.linkCopied : c.copyLink}</span>
             <span style="font:400 10.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#9a9086">${c.url}</span>

@@ -24,6 +24,8 @@ select.mx-pin { padding-right: 22px; background-image: linear-gradient(45deg, tr
 .mx-pg-chip-live { background: #1e6e42; }
 .mx-pg-chip-dot { position: absolute; top: 8px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: #9b1b22; }
 .mx-pg-chip.on .mx-pg-chip-dot { background: #c9a962; }
+/* a chip carrying the TBD dot keeps room for it — the dot sat on the name's last letter ("CONFERENCE●") */
+.mx-pg-chip:has(.mx-pg-chip-dot) { padding-right: 24px; }
 
 /* ---- insight strip ---- */
 .mx-pg-insight { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: stretch; }
@@ -85,6 +87,9 @@ select.mx-pin { padding-right: 22px; background-image: linear-gradient(45deg, tr
 .mx-pr-att { display: inline-flex; align-items: baseline; gap: 3px; justify-content: center; min-height: 34px; padding: 0 6px; border: 1px solid rgba(32,27,22,.12); background: #fdfbf6; cursor: pointer; white-space: nowrap; line-height: 34px; }
 .mx-pr-att b { font: 600 13px Inter, sans-serif; color: #201b16; }
 .mx-pr-att i { font: 500 10px Inter, sans-serif; font-style: normal; color: #9a9086; }
+/* the font shorthand above resets line-height to normal, so "0 / —" sat at the top of its 34 px box
+   beside the TBD / COUNTS / LIVE buttons — the children take the box's line again (baselines still align) */
+.mx-pr-att b, .mx-pr-att i { line-height: inherit; }
 .mx-pr-att.over { border-color: #9b1b22; background: #f7e3e4; }
 .mx-pr-att.over b, .mx-pr-att.over i { color: #9b1b22; }
 .mx-pr-toggles { display: flex; gap: 4px; }

@@ -308,8 +308,8 @@ function blockInterviews() {
             ${interviewers().map(iv => `
               <div style="display:flex;gap:12px;align-items:center;padding:2px 0" data-row="${esc(iv.id)}">
                 <span style="width:26px;height:26px;flex:none;background:#f6f2ea;border:1px solid rgba(32,27,22,.15);display:inline-flex;align-items:center;justify-content:center;font:600 10px Fraunces,serif">${esc(initialsOf(String(iv.name || '').replace(/^(prof\.|dr\.)\s*/i, '')))}</span>
-                <span style="flex:1;font-size:12.5px;min-width:0">${esc(iv.name)}${iv.institution || iv.specialty ? `<span style="display:block;font-size:10.5px;color:#6d6459">${esc([iv.institution, iv.specialty].filter(Boolean).join(' · '))}</span>` : ''}</span>
-                <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;white-space:nowrap">${COPY.int.slots}</span>
+                <span class="mxa-iv-name" style="flex:1;font-size:12.5px;min-width:0">${esc(iv.name)}${iv.institution || iv.specialty ? `<span style="display:block;font-size:10.5px;color:#6d6459">${esc([iv.institution, iv.specialty].filter(Boolean).join(' · '))}</span>` : ''}</span>
+                <span class="mxa-iv-slots" style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;white-space:nowrap">${COPY.int.slots}</span>
                 <span data-act="intRemove" data-id="${esc(iv.id)}" data-v2="int-remove" title="Remove interviewer" style="font:600 12px Inter,sans-serif;color:#9a9086;cursor:pointer;padding:4px" data-hover="color:#9b1b22">✕</span>
               </div>`).join('')}
             <span data-act="intToggle" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer">${COPY.int.addToggle}</span>
@@ -317,7 +317,7 @@ function blockInterviews() {
               <div data-v2="int-email" style="display:flex;gap:8px;flex-wrap:wrap">
                 <input data-role="intName" placeholder="${COPY.int.namePh}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12px Inter,sans-serif;color:#201b16;min-width:140px">
                 <input data-role="intEmail" placeholder="${COPY.int.emailPh}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12px Inter,sans-serif;color:#201b16;min-width:140px">
-                <span data-act="addInt" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;display:flex;align-items:center">${COPY.int.add}</span>
+                <span data-act="addInt" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;display:flex;align-items:center" data-hover="background:#7e151b">${COPY.int.add}</span>
               </div>` : ''}
           </div>
           <!-- /dc -->

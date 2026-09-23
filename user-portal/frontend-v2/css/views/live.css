@@ -54,13 +54,14 @@
 .lv-who.lv-in { animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }
 .lv-head-row { display: flex; align-items: center; gap: 12px; min-height: 24px; }
 .lv-who { font: 600 10px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: rgba(247,241,230,.7); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lv .lv-back { font: 600 10px var(--font-ui); letter-spacing: .16em; color: rgba(247,241,230,.7); white-space: nowrap; padding: 10px 0 10px 8px; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
+.lv .lv-back { font: 600 10px var(--font-ui); letter-spacing: .16em; color: rgba(247,241,230,.7); white-space: nowrap; padding: 0 0 0 8px; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease);
+                 display: inline-flex; align-items: center; min-height: 44px; margin: -10px 0; }   /* a 44 px target inside the 24 px row */
 .lv-title { font: 500 32px/1.1 var(--font-display); letter-spacing: -.01em; margin: 14px 0 0; color: var(--cream); }
 .lv-meta { font-size: 14px; color: rgba(247,241,230,.78); margin-top: 8px; line-height: 1.5; }
 .lv-meta.loading { animation: lv-breathe 1.4s var(--lv-ease) infinite; }
 @keyframes lv-breathe { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
 /* the event switcher: a horizontal scroller whose edges fade, so a clipped chip reads as "more this way" */
-.lv-switch { display: flex; gap: 8px; margin: 11px -20px -2px; padding: 5px 20px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+.lv-switch { display: flex; gap: 8px; margin: 10px -20px -3px; padding: 6px 20px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
              -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
              mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%); }
 .lv-switch:empty { display: none; }
@@ -96,6 +97,9 @@
 .lv-now-title { font: 500 17px/1.25 var(--font-display); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .lv-now-title em { font-style: italic; color: var(--gold-dark); }
 .lv-now-sub { font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the one-line statements (starts at · ended · tbd) wrap — only a live item's venue line keeps the ellipsis
+   ("That was the last session — thank you for co…" in the 340 px side column) */
+.lv-now-line .lv-now-sub { white-space: normal; }
 .lv-now-line.ended .lv-now-label { color: var(--soft); }
 @media (max-width: 400px) { .lv-now { grid-template-columns: 1fr; } .lv-now-item + .lv-now-item { border-left: 0; border-top: 1px solid var(--hair-soft); } }
 
@@ -182,9 +186,12 @@
 .lv-av.xl { width: 72px; height: 72px; font-size: 20px; }
 .lv-spk-names { font-size: 14px; color: var(--soft); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .lv-spk-names b { color: var(--crimson); font-weight: 600; }
+.lv-spk-more { flex: none; font-size: 14px; color: var(--crimson); font-weight: 600; white-space: nowrap; }
 .lv-where { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--soft); }
 .lv-where svg { flex: none; color: var(--gold-dark); }
 .lv-card-foot { display: flex; align-items: center; gap: 12px; padding: 0 16px 14px; }
+/* phones: two or three tags drop under the time instead of one tag floating alone beside the title */
+@media (max-width: 480px) { .lv-card-top { flex-direction: column; gap: 6px; } .lv-card-top .lv-tags { justify-content: flex-start; } }
 .lv-card.light .lv-card-foot, .lv-card.light .lv-card-body { padding-top: 10px; }
 
 /* THE toggle — one big ATTENDING switch, crimson when on */
@@ -269,6 +276,7 @@
 .lv-foot { display: flex; align-items: center; gap: 14px; padding: 18px 20px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--hair); font: 600 9.5px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
 .lv-refresh { margin-left: auto; color: var(--crimson); cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; }
 .lv-refresh.busy { opacity: .45; pointer-events: none; }
+.lv-foot .off { color: var(--crimson); }   /* offline: the program on screen is the last one loaded */
 
 /* ---- sheet (session / speaker detail): a bottom sheet that slides up on phones, a centred card on desktop ---- */
 .lv-sheet-wrap { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
@@ -335,6 +343,8 @@
 .lv-mini-time { font: 600 15px var(--font-ui); color: var(--crimson); }
 @media (max-width: 480px) { .lv-mini { grid-template-columns: 52px 1fr; row-gap: 8px; } .lv-mini > .lv-att { grid-column: 2; justify-self: start; } }   /* the title keeps the width */
 .lv-sheet-foot { display: flex; align-items: center; gap: 12px; padding: 12px 18px 18px; position: sticky; bottom: 0; background: var(--cream); border-top: 1px solid var(--hair-soft); }
+/* the toggle keeps one width through IN MY SCHEDULE ⇄ ADD TO MY SCHEDULE, so ADD TO CALENDAR beside it never jumps */
+.lv-sheet-foot .lv-att:not(.compact):not(.speak) { min-width: 17.5em; }
 
 /* ---- hover (mouse / trackpad only — a phone never keeps a stuck hover) ---- */
 @media (hover: hover) {
@@ -378,7 +388,7 @@
   .lv { --lv-w: 1180px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto auto 1fr auto; align-items: start; }
   .lv-head { grid-column: 1 / -1; padding: calc(28px + env(safe-area-inset-top)) 40px 24px; }
   .lv-title { font-size: 42px; }
-  .lv-switch { margin: 15px -40px 0; padding: 3px 40px; }
+  .lv-switch { margin: 12px -40px -3px; padding: 6px 40px; }   /* 6 px: the gold focus ring is never clipped by the scroller */
   .lv-tabs { grid-column: 1; grid-row: 2; }
   .lv-panels { grid-column: 1; grid-row: 3; min-width: 0; }
   .lv-foot { grid-column: 1 / -1; grid-row: 4; }
@@ -394,7 +404,11 @@
   .lv-side .lv-now-item, .lv-side .lv-now-line { padding: 20px 24px; }
   .lv-side .lv-now-title { font-size: 19px; }
   .lv-side .lv-slots { padding-top: 6px; }
+  /* INFO open: AT A GLANCE would repeat it word for word beside it */
+  .lv[data-tab="info"] .lv-glance { display: none; }
 }
+/* touch screens: the event chips are 44 px targets */
+@media (pointer: coarse) { .lv-chip { min-height: 44px; } }
 
 /* ---- reduced motion: every entrance, sheen, ping, slide and hover lift off; state changes stay instant ---- */
 @media (prefers-reduced-motion: reduce) {

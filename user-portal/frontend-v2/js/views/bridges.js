@@ -101,7 +101,7 @@ export const COPY = {
   unfollowed: 'Building Bridges updates are off.',
   footer: {
     line: 'Want Building Bridges in your city, or a seat at the next evening?',
-    sub: 'Message us · we reply by email to your account address.',
+    sub: 'Message us · replies land right here in your portal inbox.',
     cta: 'MESSAGE US →'
   }
 };
@@ -510,9 +510,10 @@ const handlers = {
     if (!Array.isArray(e.photos) || !e.photos.length) return ui.toast(COPY.been.gallerySoon(e.city));
     openModal = ui.modal({
       eyebrow: COPY.been.galleryEyebrow(e.city), title: esc(COPY.been.galleryTitle(e.city)),
-      body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${e.photos.map(p => `
+      // one photo takes the full width (it sat at half width beside an empty column)
+      body: `<div style="display:grid;grid-template-columns:${e.photos.length === 1 ? '1fr' : '1fr 1fr'};gap:10px">${e.photos.map(p => `
         <figure style="margin:0">
-          <img src="${esc(api.url(p.url))}" alt="${esc(p.caption || e.city)}" style="width:100%;height:150px;object-fit:cover;display:block">
+          <img src="${esc(api.url(p.url))}" alt="${esc(p.caption || e.city)}" style="width:100%;height:${e.photos.length === 1 ? '260px' : '150px'};object-fit:cover;display:block">
           ${p.caption ? `<figcaption style="font-size:11px;color:#4a4239;margin-top:4px">${esc(p.caption)}</figcaption>` : ''}
         </figure>`).join('')}</div>`,
       actions: [{ label: COPY.been.close }]

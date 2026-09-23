@@ -104,7 +104,7 @@ function entryCells(e, year) { // month indices the entry spans inside `year`
 }
 // ---- ONE early-bird truth (audit #9) ------------------------------------------------------
 // The price switch is a single fact with a single date: the live gala setting, falling back to
-// FACTS (Sep 15). Older board entries that describe the same switch on another day are strays —
+// FACTS (Oct 1). Older board entries that describe the same switch on another day are strays —
 // they are kept out of NEXT UP and KEY DATES, and the panel offers to delete them for good.
 const EARLY_BIRD_RE = /early[- ]?bird/i;
 const isEarlyBird = e => EARLY_BIRD_RE.test(String(e.title || '') + ' ' + String(e.notes || ''));

@@ -18,6 +18,13 @@ a { color: #9b1b22; text-decoration: none; transition: color var(--t-quick) var(
 ::selection { background: rgba(201,169,98,.34); }
 input, textarea, select, button { font-family: Inter, sans-serif; }
 input:focus, textarea:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
+/* every <select> is a square hairline field like the inputs beside it — WebKit on iOS drew a rounded pill
+   with its own double chevron. The chevron is drawn here (the Accelerator form's); the !important beats the
+   artboards' inline `background:` shorthand, which would otherwise reset the image */
+select { -webkit-appearance: none; appearance: none; border-radius: 0;
+  background-image: linear-gradient(45deg, transparent 50%, #4a4239 50%), linear-gradient(135deg, #4a4239 50%, transparent 50%) !important;
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50% !important; background-size: 5px 5px, 5px 5px !important;
+  background-repeat: no-repeat !important; padding-right: 30px !important; }
 img { max-width: 100%; }
 [hidden] { display: none !important; }
 
@@ -48,6 +55,17 @@ img { max-width: 100%; }
 #app { position: relative; min-height: 100vh; }
 #view { position: relative; }
 /* Home artboard root: position:relative;overflow:hidden;min-height:100vh (inline on the view root) */
+/* portal screens: the chrome and the screen share ONE window height. Each view root carries the artboard's
+   inline min-height:100vh, but it sits under ~103 px of chrome (top bar + stats strip), so every short page
+   scrolled that far into blank cream and Messages showed an empty band under its composer. #app is a column,
+   the view takes what the chrome leaves, and the screen root fills exactly that */
+body[data-layout="portal"] #app { display: flex; flex-direction: column; }
+body[data-layout="portal"] #view { flex: 1 0 auto; display: flex; flex-direction: column; }
+body[data-layout="portal"] #view > [data-screen-label] { flex: 1 0 auto; min-height: 0 !important; }
+/* notch / home-indicator devices (the web app added to the Home Screen runs viewport-fit=cover): the desktop
+   chrome, the drawer and the search sheet start below the status bar — the same elements and properties the
+   iOS app's native layer uses, so the two never add up */
+#mx-desktop-chrome { padding-top: env(safe-area-inset-top); }
 
 /* ---- Portal Chrome: drawer + scrim (Portal Chrome.dc.html) --------------- */
 /* The drawer/scrim markup and inline styles are verbatim; these rules only carry the
@@ -55,7 +73,7 @@ img { max-width: 100%; }
 #mx-scrim { position: fixed; inset: 0; z-index: 40; transition: background-color var(--t-reveal) var(--ease); background: rgba(25,21,18,0); pointer-events: none; cursor: pointer; }
 #mx-drawer { position: fixed; top: 0; left: -312px; width: 300px; max-height: 100%; height: 100%; z-index: 41; background: #191512; color: #f7f1e6;
   transform: translateX(0px); display: flex; flex-direction: column;
-  padding: 24px 0 28px; box-sizing: border-box; box-shadow: none; overflow-y: auto; visibility: hidden;
+  padding: calc(24px + env(safe-area-inset-top)) 0 calc(28px + env(safe-area-inset-bottom)); box-sizing: border-box; box-shadow: none; overflow-y: auto; visibility: hidden;
   transition: transform var(--t-reveal) var(--ease), box-shadow var(--t-reveal) var(--ease), visibility 0s linear var(--t-reveal); }
 /* the shadow only exists while the drawer is open — closed, its 44px blur used to bleed a grey band
    down the left edge of every page (the drawer parks at left:-312px, the blur reached ~40px in) */
@@ -83,7 +101,7 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-pop-row { transition: background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
 @media (hover: hover) { .mx-pop-row:hover { background: var(--row-hover); } }
 .mx-pop-row:last-child { border-bottom: 0; }
-.mx-search { position: fixed; inset: 0; z-index: 50; background: rgba(25,21,18,.55); display: flex; align-items: flex-start; justify-content: center; padding: 10vh 18px 0; }
+.mx-search { position: fixed; inset: 0; z-index: 50; background: rgba(25,21,18,.55); display: flex; align-items: flex-start; justify-content: center; padding: calc(10vh + env(safe-area-inset-top)) 18px 0; }
 .mx-search-panel { width: 640px; max-width: 100%; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: 0 16px 44px rgba(25,21,18,.35); }
 .mx-search-panel input { border: 0; border-bottom: 1px solid rgba(25,21,18,.16); background: transparent; padding: 18px 20px; font: 16px Inter, sans-serif; color: #191512; width: 100%; box-sizing: border-box; }
 .mx-search-panel input:focus { outline: 0; }
@@ -107,9 +125,10 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 /* ---- toast (Profile.dc.html bottom toast, verbatim look) -----------------
    width:max-content — with left:50% the shrink-to-fit width was capped at the right HALF of the viewport,
    so on a phone a long toast was squeezed into a 195 px column six lines tall. It rises in at the reveal
-   timing, lifted off the page by its shadow, and leaves at the exit timing. */
-.mx-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(12px); background: #191512; color: #f7f1e6; padding: 12px 20px;
-  font: 600 10px Inter, sans-serif; letter-spacing: .15em; text-transform: uppercase; z-index: 70; border-left: 3px solid #c9a962; white-space: nowrap;
+   timing, lifted off the page by its shadow, and leaves at the exit timing. A toast wider than the window
+   wraps (centred) instead of being cut off mid-word — it used to be nowrap above 500 px. */
+.mx-toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(12px); background: #191512; color: #f7f1e6; padding: 12px 20px;
+  font: 600 10px Inter, sans-serif; letter-spacing: .15em; text-transform: uppercase; z-index: 70; border-left: 3px solid #c9a962; white-space: normal; text-align: center; line-height: 1.5;
   width: max-content; max-width: calc(100vw - 36px); box-sizing: border-box; box-shadow: 0 14px 34px -14px rgba(25,21,18,.55);
   opacity: 0; transition: opacity var(--t-exit) var(--ease), transform var(--t-exit) var(--ease); }
 .mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto;
@@ -117,13 +136,18 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 /* a faded toast stays in the DOM — it must never catch the taps meant for the tab bar under it */
 .mx-toast:not(.show) { pointer-events: none; }
 .mx-toast.error { border-left-color: #9b1b22; }
-@media (max-width: 500px) { .mx-toast { white-space: normal; max-width: 86vw; text-align: center; } }
+@media (max-width: 500px) { .mx-toast { max-width: 86vw; } }
 /* phones: the toast rides above the ink tab bar (51 px) instead of sitting on it, where ink on ink read as part of the bar */
-@media (max-width: 430px) { body[data-layout="portal"] .mx-toast { bottom: 65px; } }
+@media (max-width: 500px) { body[data-layout="portal"] .mx-toast { bottom: calc(65px + env(safe-area-inset-bottom)); } }
 
 /* ---- modal / confirm (brand vocabulary: ink scrim, cream sheet, hairlines) ---- */
-.mx-modal { position: fixed; inset: 0; z-index: 60; background: rgba(25,21,18,.55); display: flex; align-items: center; justify-content: center; padding: 18px; }
-.mx-modal-sheet { background: #f7f1e6; width: 460px; max-width: 100%; box-shadow: 0 10px 34px rgba(25,21,18,.35); }
+.mx-modal { position: fixed; inset: 0; z-index: 60; background: rgba(25,21,18,.55); display: flex; align-items: safe center; justify-content: center; padding: 18px; overflow-y: auto; }
+/* a sheet taller than the window (REPORT on a small phone, the keyboard up) scrolls inside itself instead of
+   running off the top and bottom of the screen with its × out of reach */
+.mx-modal-sheet { background: #f7f1e6; width: 460px; max-width: 100%; box-shadow: 0 10px 34px rgba(25,21,18,.35);
+  max-height: calc(100vh - 36px); max-height: calc(100dvh - 36px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; }
+.mx-modal-sheet.is-wide { width: 880px; }   /* the photo viewer (ui.lightbox) */
+.mx-modal-sheet:focus { outline: none; }   /* it holds focus on open (ui.modal): a container, not a control, so no ring */
 .mx-modal-head { padding: 12px 22px; border-bottom: 1px solid rgba(25,21,18,.16); font: 600 9.5px Inter, sans-serif; letter-spacing: .16em; color: #9b1b22; text-transform: uppercase; display: flex; align-items: center; }
 .mx-modal-body { padding: 22px; font-size: 13px; color: #4a4239; line-height: 1.6; }
 .mx-modal-body .mx-modal-title { font-family: Fraunces, serif; font-size: 22px; line-height: 1.15; color: #191512; margin-bottom: 10px; }
@@ -162,10 +186,13 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   .mx-topbar { height: auto !important; flex-wrap: wrap !important; padding: 10px 18px !important; gap: 10px 14px !important; }
   .mx-topbar > span, .mx-topbar > a { white-space: nowrap; }
   .mx-stats { flex-wrap: wrap !important; gap: 6px 16px !important; }
-  .mx-stats > span:first-child { flex-basis: 100%; white-space: nowrap; }
+  /* the date strip and the email banner keep the 18 px gutter the top bar and the page switch to */
+  .mx-stats, [data-role="banner"] { padding-left: 18px !important; padding-right: 18px !important; }
   .mx-wrap-row { flex-wrap: wrap !important; }
   .mx-wrap-center { flex-wrap: wrap !important; gap: 10px 18px !important; }
-  .mx-grid-5, .mx-grid-4, .mx-grid-6 { grid-template-columns: 1fr 1fr !important; }
+  .mx-grid-4, .mx-grid-6 { grid-template-columns: 1fr 1fr !important; }
+  /* five cards: 3 + 2 on a tablet (two across left Building Bridges alone on a third row) */
+  .mx-grid-5 { grid-template-columns: repeat(3, 1fr) !important; }
   .mx-grid-side, .mx-grid-latest, .mx-grid-hero { grid-template-columns: 1fr !important; }
   /* home › GETTING STARTED: the desktop card hugs the right edge (padding 0 left, 20 right) — stacked it
      sat flush against the left screen edge; give it the page gutter on both sides */
@@ -173,12 +200,21 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   .mx-w250 { width: 100% !important; max-width: 250px; }
   .mx-pop { right: 18px; }
 }
+/* Home › NEXT EVENT band: one row needs ~1,080 px. Below that it wraps — title and countdown on the first
+   line, the two buttons together on their own — instead of an overflow:hidden ancestor cutting REGISTER off */
+@media (max-width: 1100px) {
+  .mx-next-event { flex-wrap: wrap !important; row-gap: 16px !important; }
+  .mx-next-event > .mx-vrule { display: none !important; }
+  .mx-next-event > .mx-cta-row { margin-left: 0 !important; flex-basis: 100%; flex-wrap: wrap; }
+}
 @media (max-width: 700px) {
   .mx-grid-3, .mx-grid-2 { grid-template-columns: 1fr !important; }
   .mx-topbar .mx-identity-text { display: none !important; }
-  .mx-next-event { flex-wrap: wrap !important; }
-  .mx-next-event > .mx-vrule { display: none !important; }
-  .mx-next-event > .mx-cta-row { margin-left: 0 !important; }
+  .mx-grid-5 { grid-template-columns: 1fr 1fr !important; }
+  .mx-grid-5 > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .mx-stats > span:first-child { flex-basis: 100%; white-space: nowrap; }
 }
 @media (max-width: 500px) {
   .mx-grid-5, .mx-grid-4, .mx-grid-6 { grid-template-columns: 1fr !important; }
@@ -188,42 +224,72 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   .mx-w230, .mx-w220 { width: 100% !important; }
 }
 
-/* ---- ≤430px: the Mobile Portal pattern (Mobile Portal.dc.html) ----------- */
+/* ---- ≤500px: the Mobile Portal pattern (Mobile Portal.dc.html) ----------- */
 /* Desktop chrome hides; the compact sticky top bar + ink bottom tab bar show. The view
-   content keeps its desktop templates (stacked by the rules above) — "carry full content". */
+   content keeps its desktop templates (stacked by the rules above) — "carry full content".
+   Every phone gets it, the 440 px Pro Max / Plus included (it used to switch at 430 and hand those the
+   desktop bar with 13 px text targets and no tab bar) — medx-native.css and boot.js say 500 too.
+   The bar sticks: #chrome (its box) is the sticky element — a sticky bar inside a static header exactly as
+   tall as itself had no room to stick and scrolled away with the page.
+   Safe areas: in the web app added to the Home Screen the bar clears the clock and the tab bar the home
+   indicator (same elements and values as the iOS app's layer, so the two never add up). */
 #mx-mobile-top, #mx-tabbar, .mx-mobile-only { display: none !important; }
-@media (max-width: 430px) {
+@media (max-width: 500px) {
+  body[data-layout="portal"] #chrome { position: sticky; top: 0; z-index: 20; }
   body[data-layout="portal"] #mx-desktop-chrome { display: none !important; }
   body[data-layout="portal"] #mx-mobile-top, body[data-layout="portal"] .mx-mobile-only { display: flex !important; }
-  body[data-layout="portal"] #mx-tabbar { display: flex !important; }
-  body[data-layout="portal"] #view { padding-bottom: 86px; }
-  .mx-pop { top: 52px; right: 0; width: 100vw; max-width: 100vw; }
+  body[data-layout="portal"] #mx-tabbar { display: flex !important; padding-bottom: env(safe-area-inset-bottom); }
+  body[data-layout="portal"] #mx-mobile-top { padding-top: calc(14px + env(safe-area-inset-top)) !important; }
+  body[data-layout="portal"] #view { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+  .mx-pop { top: calc(52px + env(safe-area-inset-top)); right: 0; width: 100vw; max-width: 100vw; }
 }
 
 /* Netlify HUD badge iframe overlaps bottom-right controls on the review deploy — hide it (2026-08-28) */
 #nl-badge-frame, iframe[id^="nl-badge"] { display: none !important; pointer-events: none !important; }
 
-/* ---- ≤480px: 44px tap targets on section tabs, breadcrumbs and chips (UXFIX-M2 #13, 2026-09-02) ----
+/* ---- 44px tap targets (UXFIX-M2 #13, 2026-09-02; widened 2026-09-23) --------------------------------
    The audit measured 12px-tall tab links and 11px breadcrumb links at 390px. Type size stays;
-   only the touch area grows (min-height:44px on the links, inline-flex centred). Section-tab
-   strips become one left-aligned horizontally scrollable row instead of two centred wrapped rows.
+   only the touch area grows. Two layers:
+   · LAYOUT, phones and narrow split views (≤600px): section-tab strips become one left-aligned
+     horizontally scrollable row instead of two centred wrapped rows; a long breadcrumb stays one row.
+   · TARGETS, every phone AND every touch screen (pointer: coarse — an iPad gets the desktop chrome at
+     every width, and it used to keep 11–14 px targets): tabs, breadcrumbs and chips take min-height:44px
+     (inline-flex, centred); the small text controls keep their drawn size and get an invisible 44 px hit
+     area (::after), so nothing on the page moves.
    Hooks: .mx-tabs (accelerator — class added), .mx-plexus-tabs (plexus). Strips and breadcrumb
    rows in views that carry no hook yet are matched by their verbatim artboard inline signature —
    the same [style*=…] technique the export's responsive.css used (see the header note above);
    when those views gain .mx-tabs / .mx-crumbs hooks the attribute selectors can be dropped. */
-@media (max-width: 480px) {
+@media (max-width: 600px) {
   .mx-tabs, .mx-plexus-tabs,
   .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"] {
     justify-content: flex-start !important; flex-wrap: nowrap !important;
     overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
-    padding-top: 0 !important; padding-bottom: 0 !important;
   }
   .mx-tabs::-webkit-scrollbar, .mx-plexus-tabs::-webkit-scrollbar,
   .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"]::-webkit-scrollbar { display: none; }
   .mx-tabs > a, .mx-tabs > span, .mx-plexus-tabs > a, .mx-plexus-tabs > span,
   .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"] > a,
+  .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"] > span { flex: none; }
+  /* a three-step trail (PROJECTS → PLEXUS WEEK → PROGRAM & SPEAKERS) used to wrap at 390 px into two
+     44 px rows with an arrow dangling at the end of the first; it stays one row, the current step
+     yields with an ellipsis if it must */
+  .mx-crumbs { flex-wrap: nowrap !important; gap: 9px !important; min-width: 0; }
+  .mx-crumbs > * { flex: none; }
+  .mx-crumbs > span[style*="color:#191512"] { display: block !important; flex: 0 1 auto; min-width: 0; min-height: 0 !important; line-height: 43px !important; padding-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* hero eyebrow boxes break evenly instead of leaving one word alone on the second line */
+  .mx-pad-hero > span:first-child { text-wrap: balance; }
+}
+@media (max-width: 600px), (pointer: coarse) {
+  .mx-tabs, .mx-plexus-tabs,
+  .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"] {
+    padding-top: 0 !important; padding-bottom: 0 !important;
+  }
+  .mx-tabs > a, .mx-tabs > span, .mx-plexus-tabs > a, .mx-plexus-tabs > span,
+  .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"] > a,
   .mx-gutter[style*="gap:26px;padding:13px 36px;border-bottom"] > span {
-    display: inline-flex !important; align-items: center; min-height: 44px; flex: none;
+    display: inline-flex !important; align-items: center; min-height: 44px;
   }
   .mx-crumbs, .mx-gutter[style*="gap:13px;padding:10px 36px"],
   .mx-profile-pad[style*="gap:13px;padding:10px 36px"] {
@@ -236,14 +302,32 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   .mx-profile-pad[style*="gap:13px;padding:10px 36px"] > span {
     display: inline-flex !important; align-items: center; min-height: 44px;
   }
-  .chip { min-height: 44px; display: inline-flex; align-items: center; }
-  /* a three-step trail (PROJECTS → PLEXUS WEEK → PROGRAM & SPEAKERS) used to wrap at 390 px into two
-     44 px rows with an arrow dangling at the end of the first; it stays one row, the current step
-     yields with an ellipsis if it must */
-  .mx-crumbs { flex-wrap: nowrap !important; gap: 9px !important; min-width: 0; }
-  .mx-crumbs > * { flex: none; }
-  .mx-crumbs > span[style*="color:#191512"] { display: block !important; flex: 0 1 auto; min-width: 0; min-height: 0 !important; line-height: 43px !important; padding-top: 1px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip, .mx-nl-chips > span, .mx-me-tab, .mx-profile-btn { min-height: 44px; display: inline-flex; align-items: center; box-sizing: border-box; }
+  .mx-me-tab, .mx-profile-btn { justify-content: center; }
+  /* small text controls: the drawn size stays, an invisible hit area reaches 44 × 44 around the centre */
+  .mx-topbar > [data-act], [data-act="hideStart"], [data-act="hideBanner"], .mx-switch, .mx-me-link, [data-act="present"],
+  .mx-msg-link, .mx-msg-back, .mx-profile-x, .mx-profile-link, [data-act="editions"], [data-act="dlIcs"], [data-act="bioClose"],
+  .mx-modal-head [data-act="close"], .mx-pop-head [data-act], #mx-mobile-top a[href="/app/me"],
+  .mx-auth-screen a[href="/app/auth/reset"], .mx-net-act, .mx-msg-attach { position: relative; }
+  .mx-topbar > [data-act]::after, [data-act="hideStart"]::after, [data-act="hideBanner"]::after, .mx-switch::after, .mx-me-link::after, [data-act="present"]::after,
+  .mx-msg-link::after, .mx-msg-back::after, .mx-profile-x::after, .mx-profile-link::after, [data-act="editions"]::after, [data-act="dlIcs"]::after, [data-act="bioClose"]::after,
+  .mx-modal-head [data-act="close"]::after, .mx-pop-head [data-act]::after, #mx-mobile-top a[href="/app/me"]::after,
+  .mx-auth-screen a[href="/app/auth/reset"]::after, .mx-net-act::after, .mx-msg-attach::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%);
+  }
+  /* …and every quiet text control on a screen (an unpadded link or [data-act] span: ALL SPEAKERS →, ALL PHOTOS →,
+     EDIT PROFILE →, a link in running text), the logo, the member link, the ⋯ menus and every switch. What already
+     draws with ::after keeps it: section tabs (their rule), the whole-card links (their stretched hit area), the
+     event app (its own targets) */
+  #view a[href]:not([style*="padding"]):not(.mx-tab):not(.mx-card-link):not(.mx-proj-card):not(.lv *):not(.mx-week-card > a),
+  #view span[data-act]:not([style*="padding"]):not(.mx-tab):not(.chip):not(.lv *):not([data-act="vb"]):not(.mx-ph),
+  .mx-brand, .mx-topbar > a[href="/app/me"], .mx-safe-more, [role="switch"]:not(.lv-att) { position: relative; }
+  #view a[href]:not([style*="padding"]):not(.mx-tab):not(.mx-card-link):not(.mx-proj-card):not(.lv *):not(.mx-week-card > a)::after,
+  #view span[data-act]:not([style*="padding"]):not(.mx-tab):not(.chip):not(.lv *):not([data-act="vb"]):not(.mx-ph)::after,
+  .mx-brand::after, .mx-topbar > a[href="/app/me"]::after, .mx-safe-more::after, [role="switch"]:not(.lv-att)::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%);
+  }
+  [data-act="tgSpec"] { min-height: 44px; display: inline-flex; align-items: center; box-sizing: border-box; }
 }
 
 /* ---- monogram portrait (ui.monogram) — a person without a photo: gold initials on the ink ground,
@@ -291,6 +375,10 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   /* photo heroes settle into place — a slow, barely-there zoom-out */
   #view.mx-enter .mx-hero-photo { animation: mx-settle var(--t-drift) var(--ease) backwards; }
 }
+/* ink fact bands (Plexus / Gala countdowns, Accelerator stats): a line break after the countdown that exists only
+   once the band no longer fits one row — each view's css switches it on at that width, together with hiding the
+   vertical rules, so a rule is never left dangling at a line end and no fact sits alone on a second row */
+.mx-band-break { display: none; }
 /* the photo heroes sit on ink, so a photo still arriving rises out of the dark, never out of cream */
 .mx-ink { background: #191512; }
 
@@ -367,18 +455,21 @@ a, [data-act], [data-nav], button { -webkit-tap-highlight-color: transparent; }
 .mx-tab.is-on::after { transform: none; }
 .mx-tab:not(.is-on)::after { height: 1px; opacity: .45; transform-origin: 0 50%; }
 @media (hover: hover) { .mx-tab:not(.is-on):hover::after { transform: none; } }
+/* phones and touch iPads draw the strip as 44px tap rows with no vertical padding (the tap layer above),
+   so the rule sits on the tab's own bottom edge; it must come after the base rule to win */
+@media (max-width: 600px), (pointer: coarse) { .mx-tab::after { bottom: 0; } }
 @keyframes mx-draw { from { transform: scaleX(0); } to { transform: none; } }
 @keyframes mx-tab-slide { from { transform: translateX(var(--tab-dx, 0)) scaleX(var(--tab-sx, 1)); } to { transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
   #view:is(.mx-enter, .mx-enter-tab) .mx-tab.is-on:not(.is-sliding)::after { animation: mx-draw var(--t-reveal) var(--ease) backwards; animation-delay: 60ms; }
   .mx-tab.is-on.is-sliding::after { transform-origin: 0 50%; animation: mx-tab-slide var(--t-reveal) var(--ease) backwards; }
 }
-@media (max-width: 480px) {
-  .mx-tab::after { bottom: 0; }
-  /* a strip that scrolls sideways fades at its edges, so a clipped tab reads as "more this way", not cut off */
+@media (max-width: 600px) {
+  /* a strip that scrolls sideways fades at its edges, so a clipped tab reads as "more this way", not cut off
+     (the right fade is long enough to read as a fade, not as a label cut mid-word) */
   :is(.mx-tabs, .mx-plexus-tabs)[data-tabs] {
-    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%);
-    mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 48px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 48px), transparent 100%);
   }
 }
 
@@ -409,6 +500,8 @@ a.mx-card-link { color: #191512; }
   .mx-rv { opacity: 0; transform: translateY(14px); }
   .mx-rv-in { transition: opacity var(--t-reveal) var(--ease) var(--rv-d, 0ms), transform var(--t-reveal) var(--ease) var(--rv-d, 0ms); }
 }
+/* blocks arriving together follow each other in (ui.js sets the class — never the block's inline style) */
+.mx-rv-d1 { --rv-d: 60ms; } .mx-rv-d2 { --rv-d: 120ms; } .mx-rv-d3 { --rv-d: 180ms; }
 @media print { .mx-rv { opacity: 1 !important; transform: none !important; } }
 
 /* ---- disclosure panels (FAQ answer, host detail): the opened panel fades down into place ---- */
@@ -466,6 +559,37 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important;
     transition-duration: 1ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; }
+}
+/* …except inside the drawer. It opens by switching visibility, and the rule above gave the drawer and every
+   box in it (their transition-property defaults to all) a 1 ms transition that carried the inherited
+   visibility too: its first link was still hidden at the instant chrome.openDrawer focused it, so keyboard
+   focus stayed on MENU. With reduced motion the drawer simply appears and goes. */
+@media (prefers-reduced-motion: reduce) { #mx-drawer, #mx-drawer * { transition: none !important; } }
+
+/* home › 01 OUR PROJECTS: the cards of one row share their row tracks (subgrid), so a status or a title that
+   wraps (APPLICATIONS OPEN 15 NOVEMBER, Plexus Conference 2026) moves the same line in every card of that row
+   at every width, three across on a tablet or five across on a laptop. Each card spans five tracks (photo,
+   status, title, detail, CTA); its body box steps aside (display: contents) and its 16px padding and 8px
+   rhythm move onto the lines. Without subgrid the cards keep their own flex column. */
+@supports (grid-template-rows: subgrid) {
+  .mx-grid-5 > .mx-proj-card { display: grid !important; grid-row: span 5; grid-template-rows: subgrid; row-gap: 8px; }
+  .mx-proj-card > div { display: contents !important; }
+  .mx-proj-card > div > * { margin: 0 16px; min-width: 0; }
+  .mx-proj-card > div > .mx-proj-status { margin-top: 8px; }
+  .mx-proj-card > div > .mx-proj-cta { align-self: end; margin-bottom: 16px; }
+}
+/* five across between 901 and 1439 px a long CTA (RESERVE A SEAT · €150 →) wraps inside its card instead of
+   running out through the border */
+@media (min-width: 901px) and (max-width: 1439px) {
+  .mx-proj-card .mx-proj-cta { white-space: normal !important; text-wrap: balance; }
+}
+
+/* /app/projects: a phone keeps the artboard's row (name left, CTA right); side by side on a wider screen each
+   card stacks it like Home's cards, the CTA on the card's foot */
+@media (min-width: 561px) {
+  .mx-projx-body { flex-direction: column; align-items: flex-start !important; gap: 10px !important; }
+  .mx-projx-body > span:first-child { flex: none !important; }
+  .mx-projx-body > span:last-child { margin-top: auto; }
 }
 
 /* home › newsletter: the topic chips get their own line (they used to wrap one chip onto a second row

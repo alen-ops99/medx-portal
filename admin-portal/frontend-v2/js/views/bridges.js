@@ -389,8 +389,16 @@ function blockTitle() {
 function blockBand() {
   const b = COPY.band;
   const eds = (D.hub.editions || []).filter(e => e.is_published);
-  const cities = new Set(eds.map(e => e.city)).size;
-  const countries = new Set(eds.map(e => e.country).filter(Boolean)).size;
+  // Today's rule (today.js › pastCount): the published recaps + every dated evening already held whose
+  // city has no recap yet — Boston (21 Sep) counted on Today's "5 past editions" but not here ("4 EVENTS")
+  const norm = v => String(v || '').toLowerCase().replace(/ü/g, 'u');
+  const today = fmt.ymd(new Date());
+  const recapCities = new Set(eds.map(e => norm(e.city)));
+  const held = hubEvents().filter(e => isoDate(e.event_date) && String(e.event_date).slice(0, 10) < today && e.status !== 'cancelled'
+    && !/^\[superseded\]/i.test(String(e.name || '')) && !recapCities.has(norm(e.city)));
+  const evenings = eds.length + held.length;
+  const cities = new Set([...eds, ...held].map(e => norm(e.city))).size;
+  const countries = new Set([...eds, ...held].map(e => e.country).filter(Boolean)).size;
   const stats = D.hub.stats && D.hub.stats.bridges ? D.hub.stats.bridges.effective : null;
   const guests = stats ? stats.guests : (D.hub.canonical_guests || FACTS.bridges.guests);
   const n = nextEvent();
@@ -398,7 +406,7 @@ function blockBand() {
   return `
     <!-- dc: Admin Bridges Hub.dc.html › "Stat band" -->
     <div data-block="band" class="bh-band" style="display:flex;gap:36px;align-items:baseline;border-top:1px solid rgba(32,27,22,.18);border-bottom:1px solid rgba(32,27,22,.18);padding:16px 2px;flex-wrap:wrap">
-      <a href="#bridges-events" class="bh-stat" style="white-space:nowrap;color:#201b16" data-hover="color:#9b1b22"><span class="bh-stat-n" style="font-family:Fraunces,serif;font-size:26px">${eds.length}</span> <span class="bh-stat-l" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.events(eds.length, cities, countries))}</span></a>
+      <a href="#bridges-events" class="bh-stat" style="white-space:nowrap;color:#201b16" data-hover="color:#9b1b22"><span class="bh-stat-n" style="font-family:Fraunces,serif;font-size:26px">${evenings}</span> <span class="bh-stat-l" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.events(evenings, cities, countries))}</span></a>
       <span class="bh-stat" style="white-space:nowrap"><span class="bh-stat-n" style="font-family:Fraunces,serif;font-size:26px">${esc(guests)}</span> <span class="bh-stat-l" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${b.guests}</span></span>
       ${n ? `<a href="/registrations" class="bh-stat" style="white-space:nowrap;color:#201b16" data-hover="color:#9b1b22"><span class="bh-stat-n" style="font-family:Fraunces,serif;font-size:26px">${n.registration_count || 0}</span> <span class="bh-stat-l" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.signups(n.city, n.capacity))}</span></a>` : ''}
       ${n && isoDate(n.event_date) ? `<span class="bh-stat" style="white-space:nowrap"><span class="bh-stat-n" style="font-family:Fraunces,serif;font-size:26px">${days}</span> <span class="bh-stat-l" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${esc(b.days(n.city, nextRange(n)))}</span></span>` : ''}
@@ -469,7 +477,7 @@ function blockEvents() {
           <div style="display:flex;gap:8px;align-items:center;padding:12px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08);flex-wrap:wrap">
             <input data-role="ncCity" value="${esc(st.ncCity)}" placeholder="${esc(c.ncCity)}" aria-label="City" style="flex:1;min-width:130px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
             <input data-role="ncWhen" value="${esc(st.ncWhen)}" placeholder="${esc(c.ncWhen)}" aria-label="When" style="width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
-            <span data-act="ncAdd" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${c.add}</span>
+            <span data-act="ncAdd" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" data-hover="background:#7e151b">${c.add}</span>
           </div>` : ''}
         ${upcoming.map(e => `
           <div data-row="${esc(e.id)}" class="bh-ev-row${isBostonRow(e) ? ' bh-ev-boston' : ''}" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
@@ -1038,7 +1046,7 @@ function blockStats() {
       </div>
       <div style="display:flex;align-items:center;gap:14px;border-top:1px solid rgba(32,27,22,.1);padding:12px 20px;flex-wrap:wrap">
         <span data-role="statLine" style="font-family:Fraunces,serif;font-size:15px;font-style:italic;flex:1;min-width:240px">“${esc(line)}”</span>
-        <span data-act="copyLine" style="padding:9px 14px;background:${st.copied ? '#1e6e42' : '#201b16'};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${st.copied ? c.copied : c.copy}</span>
+        <span data-act="copyLine" style="padding:9px 14px;background:${st.copied ? '#1e6e42' : '#201b16'};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap"${st.copied ? '' : ' data-hover="background:#9b1b22"'}>${st.copied ? c.copied : c.copy}</span>
       </div>
     </div>
     <!-- /dc -->`;

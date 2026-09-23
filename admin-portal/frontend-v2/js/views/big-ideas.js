@@ -146,13 +146,17 @@ const cardHead = (title, right) => `<div class="mxb-cardhead" style="display:fle
 const avatar = (name) => `<span title="${esc(name || '')}" style="width:24px;height:24px;flex:none;background:${INK};color:#f6f2ea;display:inline-flex;align-items:center;justify-content:center;font:600 10px Fraunces,serif">${esc(fmt.initials(name || '?') || '?')}</span>`;
 
 const statusLabel = (s) => (D && D.status_labels && D.status_labels[s]) || s;
+// 'Oct 15' — the rest of the admin never prints a raw ISO date ('2026-10-15 · in 22 days' read like a log)
+const dayOf = v => fmt.dayShort(v) || String(v || '');
+// a log entry's day ('2026-09-15' → 'SEP 15', with the year when it is not this one) — its own calendar day
+const logDay = v => { const d = fmt.localDay(v); return d ? fmt.dayLabel(d) + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '') : String(v || ''); };
 function dueLine(i) {
   if (!i.next_step_due) return '';
-  const d = i.days_until;
-  if (d == null) return i.next_step_due;
-  if (d < 0) return i.next_step_due + ' · ' + COPY.due.overdue(Math.abs(d));
-  if (d === 0) return i.next_step_due + ' · ' + COPY.due.today;
-  return i.next_step_due + ' · ' + COPY.due.soon(d);
+  const d = i.days_until, day = dayOf(i.next_step_due);
+  if (d == null) return day;
+  if (d < 0) return day + ' · ' + COPY.due.overdue(Math.abs(d));
+  if (d === 0) return day + ' · ' + COPY.due.today;
+  return day + ' · ' + COPY.due.soon(d);
 }
 
 // authed download / print — window.open cannot carry the Bearer header (plexus-awards.js note)
@@ -224,7 +228,7 @@ function ideaCard(i) {
           <span style="font-size:12.5px;flex:1;min-width:0">${esc(i.next_step)}</span>
         </span>` : ''}
         ${i.next_step_due ? `<span style="${MICRO};color:${overdue ? CRIMSON : MUTED}">${esc(dueLine(i))}</span>` : ''}
-        <span style="font-size:11px;color:${MUTED}">${esc(COPY.counts(i.people_count || 0, i.institution_count || 0, i.log_count || 0, i.file_count || 0))}${i.last_activity ? ' · last ' + esc(i.last_activity) : ''}</span>
+        <span style="font-size:11px;color:${MUTED}">${esc(COPY.counts(i.people_count || 0, i.institution_count || 0, i.log_count || 0, i.file_count || 0))}${i.last_activity ? ' · last ' + esc(dayOf(i.last_activity)) : ''}</span>
       </a>`;
 }
 function statusGroups() {
@@ -464,7 +468,7 @@ function blockLog() {
   const rows = !D.log.length ? emptyState(c.empty, c.emptyWhy) : D.log.map(l => `
       <div class="mx-row" data-row="l-${esc(l.id)}" style="display:flex;gap:14px;align-items:baseline;padding:13px 20px;border-bottom:1px solid ${HAIR08}">
         <span style="width:96px;flex:none;display:flex;flex-direction:column;gap:2px">
-          <span style="${MICRO};color:${CRIMSON}">${esc(l.at)}</span>
+          <span style="${MICRO};color:${CRIMSON}">${esc(logDay(l.at))}</span>
           <span style="font-size:10.5px;color:${MUTED};text-transform:uppercase;letter-spacing:.1em">${esc(l.kind)}</span>
         </span>
         <span class="mx-row-text" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
@@ -487,7 +491,7 @@ function blockFiles() {
       <div class="mx-row" data-row="f-${esc(f.id)}" style="display:flex;gap:14px;align-items:center;padding:12px 20px;border-bottom:1px solid ${HAIR08}">
         <span class="mx-row-text" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
           <span style="font-size:13px;overflow-wrap:anywhere">${esc(f.original_name)}</span>
-          <span style="font-size:11px;color:${MUTED}">${Math.max(1, Math.round(Number(f.size || 0) / 1024))} KB${f.uploaded_by ? ' · ' + esc(f.uploaded_by) : ''}${f.created_at ? ' · ' + esc(String(f.created_at).slice(0, 10)) : ''}</span>
+          <span style="font-size:11px;color:${MUTED}">${Math.max(1, Math.round(Number(f.size || 0) / 1024))} KB${f.uploaded_by ? ' · ' + esc(f.uploaded_by) : ''}${f.created_at ? ' · ' + esc(dayOf(f.created_at)) : ''}</span>
         </span>
         ${act('fileDownload', f.id, c.download, ` data-name="${esc(f.original_name)}"`)}
         ${act('fileRemove', f.id, c.remove, ` data-name="${esc(f.original_name)}"`)}
@@ -570,7 +574,7 @@ const raw = (role) => { const e = el(role); return e ? String(e.value || '') : '
 // ---------------------------------------------------------------- handlers
 const handlers = {
   // ---- list
-  newOpen: () => { st.newOpen = true; paint(); const n = rootEl.querySelector('#mxbNew'); if (n && n.scrollIntoView) n.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); },
+  newOpen: () => { st.newOpen = true; paint(); const n = rootEl.querySelector('#mxbNew'); if (n && n.scrollIntoView) n.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); const t = rootEl.querySelector('[data-role="nTitle"]'); if (t) t.focus({ preventScroll: true }); },
   newClose: () => { st.newOpen = false; paint(); },
   newSave: async (e) => {
     const title = val('nTitle');
@@ -777,6 +781,7 @@ export default {
     if (rootEl !== root) return;                        // navigated away while loading
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
+    if (st.newOpen) { const t = root.querySelector('[data-role="nTitle"]'); if (t) t.focus(); }
     onInput = onInputEvent; onChange = onChangeEvent;
     root.addEventListener('input', onInput);
     root.addEventListener('change', onChange);

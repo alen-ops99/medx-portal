@@ -253,7 +253,7 @@ const tdNum = v => td(`<span style="font-family:Fraunces,serif;font-size:14px;wh
 const tdActs = acts => td(`<span style="display:flex;gap:6px;justify-content:flex-end">${acts}</span>`, 'text-align:right;white-space:nowrap');
 const actBtn = (act, id, label, title) => `<span data-act="${act}" data-id="${esc(id)}"${title ? ` title="${esc(title)}"` : ''} style="${BTN_GHOST}" data-hover="border-color:#201b16">${label}</span>`;
 const csvBtn = (act, label) => `<span data-act="${act}" style="${BTN_GHOST}" data-hover="border-color:#201b16" title="Exports exactly what you are looking at — the filtered set">${label}</span>`;
-const addBtn = (act, label, title) => `<span data-act="${act}"${title ? ` title="${esc(title)}"` : ''} style="padding:7px 12px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${label}</span>`;
+const addBtn = (act, label, title) => `<span data-act="${act}"${title ? ` title="${esc(title)}"` : ''} style="padding:7px 12px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#9b1b22">${label}</span>`;
 function selProject(role, val, withAll) {
   const opts = (withAll ? [['', COPY.filters.project]] : []).concat(COPY.projects);
   return `<select data-role="${role}" aria-label="Project" style="${INPUT}">${opts.map(([v, l]) => `<option value="${v}"${v === (val || (withAll ? '' : 'general')) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;

@@ -7,7 +7,7 @@
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import { FACTS, galaPriceNow, CTA, routeFor, setLiveGalaPrice } from '../facts.js';
+import { FACTS, galaPriceNow, CTA, routeFor, setLiveGalaPrice, plexusStartsAt, plexusStartTime } from '../facts.js';
 import { chrome } from '../chrome.js';
 import router from '../router.js';
 
@@ -60,7 +60,7 @@ export const COPY = {
     sub: 'Global hospital and university leaders headline Plexus 2026, alongside the full conference speaker programme.',
     confirmed: 'CONFIRMED', viewBio: 'VIEW BIO →',
     teaser: n => `${n} speaker${n === 1 ? '' : 's'} confirmed for the stage.`,
-    teaserWhy: 'Portraits, full bios and the session each one leads live on Program & speakers.',
+    teaserWhy: 'Portraits are up on Program & speakers — bios and sessions follow there as they are published.',
     emptyLine: 'Speakers are announced as they confirm.', emptyWhy: 'The team is confirming this year’s speakers now — follow Plexus and hear the moment names go up.'
   },
   threads: {
@@ -152,8 +152,8 @@ export const COPY = {
     eyebrow: { open: 'MY PLEXUS · PRE-REGISTRATION OPEN', closed: 'MY PLEXUS · PRE-REGISTRATION OPENS SOON', registered: 'MY PLEXUS · YOU ARE REGISTERED', galaPending: 'MY PLEXUS · GALA SEAT REQUESTED', galaApproved: 'MY PLEXUS · GALA SEAT APPROVED — PAYMENT OPEN', galaPaid: 'MY PLEXUS · REGISTERED · GALA SEAT PAID' },
     title: 'Your Plexus <i>2026</i>.',
     lead: {
-      none: 'The conference is <strong style="color:#191512">free</strong> — two full days, keynotes, workshops, and the welcome reception. The Gala Evening seat is the only thing with a price. One form covers both.',
-      registered: 'You are in — two full days, keynotes, workshops, and the welcome reception, <strong style="color:#191512">free</strong>. The Gala Evening seat is the only thing left with a price.',
+      none: 'The conference is <strong style="color:#191512">free</strong> — two full days, keynotes, workshops, and the opening evening. The Gala Evening seat is the only thing with a price. One form covers both.',
+      registered: 'You are in — two full days, keynotes, workshops, and the opening evening, <strong style="color:#191512">free</strong>. The Gala Evening seat is the only thing left with a price.',
       galaPending: 'Your Gala seat request is with the team. Once it is approved you get a payment link — and your conference registration stays free either way.',
       galaApproved: 'Your Gala seat is approved — settle the payment and the seat is yours. Everything else about your Plexus stays free.',
       galaPaid: 'Everything is set: conference registered, Gala seat paid. Your QR pass below opens every door you registered for.'
@@ -164,7 +164,7 @@ export const COPY = {
     includedN: '01', includedTitle: "WHAT'S INCLUDED",
     confCard: {
       title: 'Plexus Conference', tag: 'FREE ENTRY', tagDone: '✓ REGISTERED',
-      items: (d, first) => [`Both conference days — ${d}`, 'All keynotes, panels, and research sessions', 'Workshops and poster sessions', `Welcome Reception — ${first}, 18:00`, 'Certificate of attendance'],
+      items: (d, first, from) => [`Both conference days — ${d}`, 'All keynotes, panels, and research sessions', 'Workshops and poster sessions', `Opening &amp; networking evening — ${first}, from ${from}`, 'Certificate of attendance'],
       cta: `${CTA.register} →`, ctaDone: 'VIEW TICKET →'
     },
     galaCard: {
@@ -230,6 +230,7 @@ export const COPY = {
 
 // ---------------------------------------------------------------- module state
 let D = null, st = null, rootEl = null, unbind = null, timers = [], tab = '', edition = null;
+let bioTrap = null;                               // releases the bio sheet's focus trap (ui.trapFocus)
 const CACHE = new Map();                          // public reads, 60 s — snappy tab switches
 function cget(path, opts) {
   const hit = CACHE.get(path);
@@ -273,7 +274,8 @@ async function load(t) {
     schedule: cget('/api/plexus/schedule', { noAuth: true }),
     meta: cget('/api/v2/plexus/speaker-meta', { noAuth: true }),
     topics: api.get('/api/notify-topics'),
-    next: api.get('/api/me/next-event')
+    next: api.get('/api/me/next-event'),
+    live: cget('/api/live/events', { noAuth: true })          // the conference's first session: countdown + copy
   };
   if (t === '' || t === 'program') { want.mySched = api.get('/api/plexus/my-schedule'); }
   if (t === '') {
@@ -327,9 +329,10 @@ async function load(t) {
       city: conf.venue_city || confFull.venue_city || FACTS.plexus.city,
       open: conf.registration_open !== undefined ? !!conf.registration_open : true,
       cap: Number(confFull.max_capacity) || null,
-      spotsLeft: Number.isFinite(Number(confFull.spots_remaining)) ? Number(confFull.spots_remaining) : null
+      spotsLeft: Number.isFinite(Number(confFull.spots_remaining)) ? Number(confFull.spots_remaining) : null,
+      startTime: plexusStartTime(r.live)
     },
-    countdownTo: `${String(start).slice(0, 10)}T09:00:00+01:00`,
+    countdownTo: plexusStartsAt(r.live, start),
     statusLabel: fmt.upper(fmt.detail((projects.plexus || {}).status_label || 'Pre-registration open')),
     gala: {
       title: gala.title || `Plexus Gala Evening ${FACTS.year}`,
@@ -443,7 +446,7 @@ function blockBio() {
   <!-- dc: Plexus Conference.dc.html › "Bio modal" -->
   <div data-role="bio-scrim" role="dialog" aria-modal="true" aria-label="Speaker bio" style="position:fixed;inset:0;background:rgba(25,21,18,.55);z-index:70;display:flex;align-items:center;justify-content:center;padding:30px">
     <div class="mx-bio-sheet" style="background:#fdfaf3;max-width:520px;width:100%;padding:26px 30px;border-top:3px solid #9b1b22">
-      <div style="display:flex;align-items:baseline;gap:12px"><span style="font-family:Fraunces,serif;font-size:24px;flex:1">${esc(sp.name)}</span><span data-act="bioClose" role="button" tabindex="0" aria-label="Close" style="cursor:pointer;color:#4a4239;font-size:18px">×</span></div>
+      <div style="display:flex;align-items:baseline;gap:12px"><span style="font-family:Fraunces,serif;font-size:24px;flex:1">${esc(fmt.person(sp.name))}</span><span data-act="bioClose" role="button" tabindex="0" aria-label="Close" style="cursor:pointer;color:#4a4239;font-size:18px">×</span></div>
       <div style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:4px">${esc(fmt.upper(speakerRole(sp)))}</div>
       <div style="font-size:13px;color:#4a4239;line-height:1.65;margin-top:12px">${sp.bio ? esc(sp.bio) : `<i>${esc(COPY.bio.pending)}</i>`}</div>
       <div data-v2="speaker sessions + add-to-my-schedule (Program page wiring map)" style="margin-top:16px;border-top:1px solid rgba(25,21,18,.12);padding-top:12px">
@@ -472,7 +475,7 @@ function ovHero() {
   <!-- dc: Plexus Conference.dc.html › "Hero" -->
   <div class="mx-ink" style="position:relative;overflow:hidden">
     <img class="mx-hero-photo" src="/assets/photo-stage.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.66) 0%,rgba(25,21,18,.5) 55%,rgba(25,21,18,.82) 100%)"></div>
+    <div class="mx-px-scrim" style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.66) 0%,rgba(25,21,18,.5) 55%,rgba(25,21,18,.82) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${esc(D.statusLabel)} · FREE · ${FACTS.plexus.edition}TH YEAR${capBit ? ' · ' + esc(capBit) : ''}</span>
       <div class="mx-display-52" style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">${esc(D.conf.name.replace(/\s*\d{4}$/, ''))} <i style="color:#c9a962">${esc(String(D.conf.year))}</i></div>
@@ -502,6 +505,7 @@ function ovBand() {
     ${cell('days', COPY.band.units[0])}
     ${cell('hrs', COPY.band.units[1])}
     ${cell('min', COPY.band.units[2])}
+    <span class="mx-band-break" aria-hidden="true"></span>
     ${vr}
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${esc(ebLabel)}</span>
     ${vr}
@@ -523,7 +527,7 @@ function speakerCard(sp, { program } = {}) {
       <div class="mx-card-link mx-sp-card" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
         <div class="mx-ph" style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(speakerTag(sp))}</span></div>
         <div style="padding:14px 16px;display:flex;flex-direction:column;gap:6px;flex:1">
-          <span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(sp.name)}</span>
+          <span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(fmt.person(sp.name))}</span>
           <span style="font-size:11.5px;color:#4a4239">${esc(speakerRole(sp))}</span>
           <span data-act="vb" data-id="${esc(sp.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:auto;cursor:pointer;white-space:nowrap">${speakerSessions(sp).length ? COPY.prog.bioAdd : COPY.stage.viewBio}</span>
         </div>
@@ -533,7 +537,7 @@ function speakerCard(sp, { program } = {}) {
         <div class="mx-ph" style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}</div>
         <div style="padding:16px;display:flex;flex-direction:column;gap:7px;flex:1">
           <span style="align-self:flex-start;padding:3px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.stage.confirmed}</span>
-          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">${esc(sp.name)}</span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">${esc(fmt.person(sp.name))}</span>
           <span style="font-size:12px;color:#4a4239">${esc(speakerRole(sp))}</span>
           ${logo}
           <span data-act="vb" data-id="${esc(sp.id)}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto;cursor:pointer;white-space:nowrap">${COPY.stage.viewBio}</span>
@@ -547,7 +551,8 @@ const WEEK_ACCENT = { open: '#9b1b22', soon: '#6e5626', full: '#6e5626', closed:
 // Two verbs, everywhere (facts.js › CTA): the conference registers, the Gala reserves — whatever
 // wording the server's block carries. Every other block keeps the label the server gave it.
 function weekCta(b) {
-  if (b.key === 'conference') return CTA.register;
+  if (b.key === 'conference') return D.next.registered ? 'MY TICKET' : CTA.register;   // registered: never asked again
+  if (b.key === 'gala' && D.next.has_gala) return 'YOUR SEAT';
   if (b.key === 'bridges' && b.status_kind === 'open') return CTA.register;
   if (b.key === 'gala') {
     const p = b.price && Number(b.price.current);
@@ -559,11 +564,18 @@ function weekCard(b) {
   const accent = WEEK_ACCENT[b.status_kind] || '#4a4239';
   // an open sign-up goes straight to the form with that event ticked — the server's targets were the
   // program page (conference: nothing to register there) and /app/bridges (Zagreb isn't listed there)
-  const to = (b.status_kind === 'open' && (b.key === 'conference' || b.key === 'bridges')) ? formUrl(b.key) : routeFor(b.cta_target || 'plexus', '/app/plexus');
-  const detail = [b.date_label, b.venue, b.price_label].filter(Boolean).join(' · ');
+  const to = b.key === 'conference' && D.next.registered ? '/app/plexus/mine'
+    : (b.status_kind === 'open' && (b.key === 'conference' || b.key === 'bridges')) ? formUrl(b.key) : routeFor(b.cta_target || 'plexus', '/app/plexus');
+  // one wording per fact: the conference's status is the one the hero and Home print (the status feed's
+  // PRE-REGISTRATION OPEN, not the week block's own); a venue "To be announced" says nothing, so the Zagreb
+  // evening reads "During Plexus Week" as Home and Building Bridges do; the venue's raw semicolon goes
+  const status = b.key === 'conference' && D.statusLabel ? D.statusLabel : b.status;
+  const venue = String(b.venue || '').replace(/\s*;\s*/g, ', ').replace(/^to be announced\s*(·\s*)?/i, '').trim();
+  const date = b.date_label || (b.key === 'bridges' ? 'During Plexus Week' : '');
+  const detail = [date, venue, b.price_label].filter(Boolean).join(' · ');
   return `
       <div${D.week.archived ? '' : ' class="mx-card-link mx-week-card"'} style="border:1px solid rgba(25,21,18,.16);border-top:2px solid ${accent};background:#fdfaf3;display:flex;flex-direction:column;gap:8px;padding:16px;box-sizing:border-box">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${accent}">${esc(fmt.upper(fmt.detail(b.status || '')))}</span>
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${accent}">${esc(fmt.upper(fmt.detail(status || '')))}</span>
         <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${esc(b.title || '')}</span>
         <span style="font-size:12px;color:#4a4239;line-height:1.5">${esc(fmt.detail(detail))}</span>
         ${D.week.archived
@@ -665,7 +677,7 @@ function ovProgramInk() {
   const when = `${(fmt.toDate(D.gala.date) ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][fmt.toDate(D.gala.date).getDay()] : 'Saturday')}, ${fmt.longRange(D.gala.date, D.gala.date).replace(/, \d{4}$/, '')}, ${D.gala.time}`;
   return `
   <!-- dc: Plexus Conference.dc.html › "03 · THE PROGRAM" (+ Gala + "04 · CONNECT WITH PARTICIPANTS") -->
-  <div class="mx-pad-ink" style="background:#191512;color:#f7f1e6;padding:32px 36px 34px">
+  <div class="mx-pad-ink mx-ink" style="background:#191512;color:#f7f1e6;padding:32px 36px 34px">
     <div class="mx-grid-side" style="display:grid;grid-template-columns:1fr 1.1fr;gap:48px">
       <div>
         <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding-bottom:12px">
@@ -712,9 +724,9 @@ function ovPhotos() {
   return `
     <!-- dc: Plexus Conference.dc.html › "MOMENTS FROM PAST CONFERENCES" -->
     <div class="mx-grid-4 mx-photo-strip" style="display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;gap:12px;padding:34px 0 24px">
-      <span class="mx-ph" data-act="gallery" tabindex="-1" aria-hidden="true"><img src="/assets/photo-hall.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
-      <span class="mx-ph" data-act="gallery" tabindex="-1" aria-hidden="true"><img src="/assets/photo-ballroom.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
-      <span class="mx-ph" data-act="gallery" tabindex="-1" aria-hidden="true"><img src="/assets/photo-candlelit.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
+      <span class="mx-ph" data-act="gallery" data-i="0" tabindex="-1" aria-hidden="true"><img src="/assets/photo-hall.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
+      <span class="mx-ph" data-act="gallery" data-i="1" tabindex="-1" aria-hidden="true"><img src="/assets/photo-ballroom.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
+      <span class="mx-ph" data-act="gallery" data-i="2" tabindex="-1" aria-hidden="true"><img src="/assets/photo-candlelit.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
       <div style="background:#efe7d8;color:#191512;padding:18px 20px;display:flex;flex-direction:column;justify-content:center;gap:8px">
         <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#9b1b22">${COPY.photos.label}</span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;line-height:1.35">${esc(COPY.photos.line(n))}</span>
@@ -987,7 +999,7 @@ function mineIncluded() {
     <div class="mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding-bottom:26px">
       <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #9b1b22;background:#fdfaf3;padding:24px;display:flex;flex-direction:column;gap:10px">
         <div style="display:flex;align-items:baseline;gap:12px"><span style="font-family:Fraunces,serif;font-size:20px">${COPY.mine.confCard.title}</span><span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-left:auto;white-space:nowrap">${COPY.mine.confCard.tag}</span></div>
-        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:#4a4239">${bullets(COPY.mine.confCard.items(esc(confDays), esc(fmt.longRange(D.conf.start, D.conf.start).replace(/, \d{4}$/, ''))))}
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:#4a4239">${bullets(COPY.mine.confCard.items(esc(confDays), esc(fmt.longRange(D.conf.start, D.conf.start).replace(/, \d{4}$/, '')), esc(D.conf.startTime)))}
         </div>
         ${confCta}
       </div>
@@ -1054,7 +1066,7 @@ function minePassAndWho() {
         <!-- dc: My Plexus.dc.html › "04 · WHO FROM YOUR NETWORK ATTENDS" -->
         <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 8px">
           <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.mine.whoN}</span>
-          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.mine.whoTitle}</span>
+          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em;flex:1 1 0;min-width:0">${COPY.mine.whoTitle}</span>
           ${att.length ? `<span style="padding:2px 6px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;white-space:nowrap">${esc(COPY.mine.attending(att.length))}</span>` : ''}
         </div>
         ${att.length ? att.slice(0, 5).map((a, i) => `
@@ -1095,6 +1107,7 @@ function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); i
 function closeBio() {
   if (!st || !st.bio) return;
   const id = st.bio; st.bio = null;
+  if (bioTrap) { bioTrap(); bioTrap = null; }
   const scrim = rootEl && rootEl.querySelector('[data-role="bio-scrim"]');
   const done = () => {
     if (!rootEl || st.bio) return;                                   // re-opened meanwhile: leave the new sheet alone
@@ -1114,6 +1127,9 @@ function openBioFocus() {
   const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); closeBio(); document.removeEventListener('keydown', onKey, true); } };
   document.addEventListener('keydown', onKey, true);
   timers.push(() => document.removeEventListener('keydown', onKey, true));
+  // Tab and Shift+Tab stay in the sheet (aria-modal alone let focus walk into the page behind); the sheet is
+  // re-drawn when a session is added, so the trap looks it up each time
+  if (!bioTrap) bioTrap = ui.trapFocus(() => rootEl && rootEl.querySelector('.mx-bio-sheet'));
   const x = scrim.querySelector('[data-act="bioClose"]');
   if (x) x.focus();
 }
@@ -1155,16 +1171,14 @@ const handlers = {
   },
   vb: (el) => { st.bio = el.dataset.id; rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); const sc = rootEl.querySelector('[data-role="bio-scrim"]'); if (sc) sc.classList.add('mx-bio-in'); openBioFocus(); },
   bioClose: () => closeBio(),
-  gallery: () => {
+  // the gallery: one photo at a time at full size (ui.lightbox — ← / →, arrow keys, Esc); a tile on the page
+  // opens on its own photo while the export's pictures stand in for the team's gallery
+  gallery: (el) => {
     const apiPhotos = D.photos || [];
-    const imgs = apiPhotos.length
-      ? apiPhotos.map(p => `<figure style="margin:0"><img src="${esc(api.url(p.file_path))}" alt="${esc(p.title || 'Plexus photo')}" style="width:100%;height:150px;object-fit:cover;display:block">${p.title ? `<figcaption style="font-size:10.5px;color:#4a4239;padding-top:4px">${esc(p.title)}</figcaption>` : ''}</figure>`).join('')
-      : EXPORT_PHOTOS.map(p => `<img src="/assets/${p}" alt="" style="width:100%;height:150px;object-fit:cover;display:block">`).join('');
-    ui.modal({
-      eyebrow: COPY.photos.modalEyebrow, title: COPY.photos.modalTitle,
-      body: `${apiPhotos.length ? '' : `<p style="margin:0 0 12px">${esc(COPY.photos.pending)}</p>`}<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${imgs}</div>`,
-      actions: [{ label: 'CLOSE' }]
-    });
+    const list = apiPhotos.length
+      ? apiPhotos.map(p => ({ src: api.url(p.file_path), alt: p.title || 'Plexus photo', caption: p.title || '' }))
+      : EXPORT_PHOTOS.map(p => ({ src: '/assets/' + p }));
+    ui.lightbox(list, { start: apiPhotos.length ? 0 : el && el.dataset.i, eyebrow: COPY.photos.modalEyebrow, title: COPY.photos.modalTitle, note: apiPhotos.length ? '' : esc(COPY.photos.pending) });
   },
   pdf: () => { window.open(api.url('/api/v2/plexus/program.pdf'), '_blank', 'noopener'); ui.toast(COPY.toasts.pdfOpen); },
   guide: () => {
@@ -1306,6 +1320,7 @@ export default {
   destroy() {
     timers.forEach(stop => { try { stop(); } catch (e) {} }); timers = [];
     if (unbind) unbind(); unbind = null;
+    if (bioTrap) { bioTrap(); bioTrap = null; }
     rootEl = null; D = null; st = null; edition = null;
   }
 };

@@ -25,7 +25,7 @@ import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
-import { chrome, chatChannelsOf, chatUnreadOf } from '../chrome.js';
+import { chrome, chatChannelsOf, chatUnreadOf, outboxWaitingOf } from '../chrome.js';
 import router from '../router.js';
 
 export const SOURCE = 'Admin Inbox.dc.html';
@@ -86,6 +86,7 @@ export const COPY = {
     viewPerson: 'VIEW PERSON →', replyPh: 'Write your reply — nothing goes out until you click SEND…', send: 'SEND',
     badgeTitle: (n) => `${fmt.plural(n, 'member thread')} waiting for a reply`,
     sentToast: 'REPLY SENT — LANDS IN THEIR PORTAL INBOX',
+    noAccount: who => `${who} HAS NO PORTAL ACCOUNT — PORTAL MESSAGES REACH MEMBERS ONLY. YOUR TEXT IS STILL IN THE BOX TO EMAIL THEM`,
     archivedToast: 'THREAD ARCHIVED — HIDDEN, NEVER DELETED', unarchivedToast: 'THREAD IS BACK IN THE LIST',
     // staff identity on replies (team review ask 1) — members see the same attribution
     teamFallback: 'MED&X TEAM',                                       // rows from before sender_name existed
@@ -103,7 +104,10 @@ export const COPY = {
     // ONE attachment per message (team review ask 4)
     attachTitle: 'Attach one image or PDF — up to 5 MB',
     attachTooBig: 'THAT FILE IS OVER 5 MB', attachBadType: 'IMAGES (JPG, PNG, WEBP, GIF) OR PDF ONLY',
-    file: 'FILE'
+    file: 'FILE',
+    // People › MESSAGE on someone with no thread yet: an empty conversation with them, never another member's
+    fresh: name => `No messages with ${name} yet — your reply starts the conversation.`,
+    freshTag: 'NEW CONVERSATION'
   },
   announce: {
     title: 'POST TO MEMBERS’ NOTIFICATION BELL', who: 'WHO SHOULD SEE THIS?',
@@ -126,7 +130,7 @@ export const COPY = {
       ? `${m} member${m === 1 ? '' : 's'} will get this.`
       : `${all} registered · ${m} of them ${m === 1 ? 'has' : 'have'} a portal account and will get this. A bell item only reaches members — the other ${all - m} need an email.`,
     scopeErr: 'Could not size that audience just now — the announcement still publishes.',
-    t: 'TITLE', tPh: 'e.g. Gala early-bird ends September 15', m: 'MESSAGE', mPh: 'Write the details members should read.',
+    t: 'TITLE', tPh: 'e.g. Gala early-bird ends October 1', m: 'MESSAGE', mPh: 'Write the details members should read.',
     link: 'LINK (OPTIONAL)', linkPh: 'e.g. the Gala page', until: 'SHOW UNTIL',
     untils: [['', 'Removed by hand'], ['7', 'One week'], ['14', 'Two weeks'], ['event', 'The event date']],
     push: 'Also send a push notification to followers’ phones',
@@ -231,8 +235,10 @@ async function load(tab) {
     needs: api.get('/api/v2/inbox/needs-reply'),        // MEMBER MESSAGES tab badge (audit #4)
     chat: api.get('/api/teamchat/overview')
   };
+  // the pending list on every tab: the EMAIL & OUTBOX badge counts it with the header's rule (routine
+  // pulses once — chrome.js outboxWaitingOf), not the server's raw batch count
+  want.pending = api.get('/api/admin/outbox?status=pending_approval');
   if (tab === 'outbox') {
-    want.pending = api.get('/api/admin/outbox?status=pending_approval');
     want.scheduled = api.get('/api/admin/outbox?status=scheduled');
     want.audiences = api.get('/api/v2/inbox/audiences');
   }
@@ -256,6 +262,7 @@ async function load(tab) {
     chatChannels,
     chatUnread: chatUnreadOf(r.chat),   // audit 2026-09-17 B: the SAME filtered list the header pill sums, never the raw channel array
     pending: r.pending && Array.isArray(r.pending.batches) ? r.pending.batches : [],
+    pendingRead: !!r.pending,
     deferred: r.scheduled ? futureBatches(r.scheduled.batches) : [],
     audiences: r.audiences && Array.isArray(r.audiences.groups) ? r.audiences.groups : [],
     threads,
@@ -280,7 +287,7 @@ function blockTitle() {
 }
 function blockTabs() {
   const badges = {
-    outbox: D.badges.outbox_batches || 0,
+    outbox: D.pendingRead ? outboxWaitingOf(D.pending) : (D.badges.outbox_batches || 0),
     // NEEDS A REPLY count, not raw unread — an opened-but-unanswered guest thread still shows (audit #4)
     messages: D.needsReply || 0,
     announce: 0, news: 0,
@@ -481,6 +488,10 @@ function visibleThreads() {
   return D.threads.filter(t => !t.archived && (t.unread > 0 || !t.last.mine));
 }
 function openThreadObj() { return D.threads.find(t => t.key === st.openKey) || null; }
+// People › MESSAGE (?to=<user id or email>&name=…) for someone with no thread yet — a blank conversation
+// with THAT person (the reply route accepts either key), until the first reply creates the thread
+function freshThreadObj() { return st.newTo && !st.openKey ? { key: st.newTo.key, name: st.newTo.name || st.newTo.key, email: st.newTo.email || null, fresh: true, unread: 0, archived: false } : null; }
+const threadFor = (to) => { const k = String(to || '').trim().toLowerCase(); return k ? D.threads.find(t => String(t.key).toLowerCase() === k || String(t.email || '').toLowerCase() === k) || null : null; };
 function blockThreadList() {
   const m = COPY.messages;
   const rows = visibleThreads();
@@ -504,12 +515,12 @@ function blockThreadList() {
 }
 function blockConversation() {
   const m = COPY.messages;
-  const t = openThreadObj();
+  const t = openThreadObj() || freshThreadObj();
   if (!t) return `
       <div data-block="conv" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:flex;flex-direction:column;min-height:380px">
         <div class="empty" style="margin:auto"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">${m.empty.line}</span><span class="empty-why">${m.empty.why}</span></div>
       </div>`;
-  const meta = [t.topic ? String(t.topic).toUpperCase() : null, t.institution ? String(t.institution).toUpperCase() : null].filter(Boolean).join(' · ');
+  const meta = t.fresh ? m.freshTag : [t.topic ? String(t.topic).toUpperCase() : null, t.institution ? String(t.institution).toUpperCase() : null].filter(Boolean).join(' · ');
   const msgs = st.thread || [];
   return `
       <div data-block="conv" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:flex;flex-direction:column;min-height:380px">
@@ -517,15 +528,16 @@ function blockConversation() {
           <span style="font-size:14px;font-weight:600">${esc(t.name)}</span>
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6d6459">${esc(meta)}</span>
           <div style="flex:1"></div>
-          <span data-act="toggleRead" style="padding:6px 10px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;color:#6d6459;white-space:nowrap" data-hover="color:#201b16;border-color:#201b16">${t.unread ? m.markRead : m.markUnread}</span>
-          <span data-act="archiveThread" style="padding:6px 10px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;color:#6d6459;white-space:nowrap" data-hover="color:#9b1b22;border-color:#9b1b22">${t.archived ? m.unarchive : m.archive}</span>
-          <a href="/people" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap">${m.viewPerson}</a>
+          ${t.fresh ? '' : `<span data-act="toggleRead" style="padding:6px 10px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;color:#6d6459;white-space:nowrap" data-hover="color:#201b16;border-color:#201b16">${t.unread ? m.markRead : m.markUnread}</span>
+          <span data-act="archiveThread" style="padding:6px 10px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;color:#6d6459;white-space:nowrap" data-hover="color:#9b1b22;border-color:#9b1b22">${t.archived ? m.unarchive : m.archive}</span>`}
+          <a href="${t.email ? '/people?q=' + encodeURIComponent(t.email) : '/people'}" style="font:600 10px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="color:#201b16">${m.viewPerson}</a>
         </div>
         <div class="mx-inbox-log" style="flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:12px" data-role="msgLog">
+          ${t.fresh ? `<div style="font-family:Fraunces,serif;font-style:italic;font-size:15px;color:#4a4239">${esc(m.fresh(t.name))}</div>` : ''}
           ${msgs.map(x => {
             const mine = String(x.sender_type || 'user') === 'admin';
             const who = mine ? (x.sender_name ? m.staffTag(x.sender_name) : m.teamFallback) : '';
-            return `<div style="max-width:70%;align-self:${mine ? 'flex-end' : 'flex-start'};background:${mine ? '#191512' : '#f6f2ea'};color:${mine ? '#f6f2ea' : '#201b16'};padding:10px 14px;font-size:13px;line-height:1.5">${who ? `<span data-v2="staff identity (direct_messages.sender_name)" style="display:block;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;margin-bottom:4px;opacity:.65">${esc(who)}</span>` : ''}<span style="white-space:pre-wrap;word-break:break-word">${esc(x.content || '')}</span>${msgAttachment(x, mine)}<span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.1em;margin-top:5px;opacity:.6">${whenShort(x.created_at)} ${esc(String(x.created_at || '').slice(11, 16))}</span></div>`;
+            return `<div style="max-width:70%;align-self:${mine ? 'flex-end' : 'flex-start'};background:${mine ? '#191512' : '#f6f2ea'};color:${mine ? '#f6f2ea' : '#201b16'};padding:10px 14px;font-size:13px;line-height:1.5">${who ? `<span data-v2="staff identity (direct_messages.sender_name)" style="display:block;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;margin-bottom:4px;opacity:.65">${esc(who)}</span>` : ''}<span style="white-space:pre-wrap;word-break:break-word">${esc(x.content || '')}</span>${msgAttachment(x, mine)}<span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.1em;margin-top:5px;opacity:.6">${whenShort(x.created_at)} ${esc(fmt.hm(x.created_at))}</span></div>`;
           }).join('')}
         </div>
         ${st.msgAttach ? `
@@ -656,7 +668,7 @@ function blockRecentAnn() {
   };
   const meta = r => esc([
     cap(r.project_key || a.everyone), scopeLabel(r), fmt.dayShort(r.created_at),
-    r.expires_at ? a.showsUntil(fmt.dayShort(r.expires_at)) : a.showsForever
+    r.expires_at ? a.showsUntil(fmt.dayShort(fmt.localDay(r.expires_at))) : a.showsForever   // an end-of-day expiry: its own day (fmt.localDay)
   ].filter(Boolean).join(' · '));
   const editor = r => `
       <div style="padding:12px 18px;border-bottom:1px solid rgba(32,27,22,.08);display:flex;flex-direction:column;gap:8px;background:#fdfbf6">
@@ -821,7 +833,7 @@ function blockChatPane() {
           <div style="display:flex;gap:10px">
             <span style="width:28px;height:28px;background:${esc(m.avatar_color || '#201b16')};color:#fff;display:inline-flex;align-items:center;justify-content:center;font:600 10px Inter,sans-serif;flex:none">${esc(fmt.initials(m.sender_name || '?'))}</span>
             <span style="flex:1;min-width:0">
-              <span style="font-size:12.5px;font-weight:600">${esc(m.sender_name || 'Teammate')} <span style="font:400 10px Inter,sans-serif;color:#6d6459;margin-left:6px">${whenShort(m.created_at)} ${esc(String(m.created_at || '').slice(11, 16))}</span></span>
+              <span style="font-size:12.5px;font-weight:600">${esc(m.sender_name || 'Teammate')} <span style="font:400 10px Inter,sans-serif;color:#6d6459;margin-left:6px">${whenShort(m.created_at)} ${esc(fmt.hm(m.created_at))}</span></span>
               ${m.reply_message ? `<span style="display:block;font-size:11px;color:#6d6459;border-left:2px solid #c9a962;padding-left:8px;margin-top:3px">↩ ${esc((m.reply_sender_name ? m.reply_sender_name + ': ' : '') + String(m.reply_message).slice(0, 90))}</span>` : ''}
               ${m.message ? `<span style="display:block;font-size:13px;line-height:1.5;margin-top:2px;${m.kind === 'system' ? 'color:#6d6459;font-style:italic' : ''}">${esc(m.message)}</span>` : ''}
               ${(m.attachments || []).map(a => a.kind === 'image'
@@ -874,8 +886,37 @@ function rerender(sel, html) {
   const el = rootEl && rootEl.querySelector(sel); if (!el) return;
   // a redraw keeps keyboard focus on the same link (the tab strip redraws whenever a badge count moves)
   const f = document.activeElement, key = f && f !== el && el.contains(f) && f.matches('a[href]') ? f.getAttribute('href') : null;
+  const x = el.scrollLeft;                       // …and a sideways-scrolled tab strip keeps its place
   el.outerHTML = html; wire();
-  if (key) { const n = rootEl.querySelector(sel); const back = n && Array.from(n.querySelectorAll('a[href]')).find(a => a.getAttribute('href') === key); if (back) { try { back.focus({ preventScroll: true }); } catch (e) {} } }
+  const n = rootEl.querySelector(sel);
+  if (n && x) n.scrollLeft = x;
+  if (n && n.classList.contains('mx-inbox-tabs')) tabEdges(n);
+  if (key) { const back = n && Array.from(n.querySelectorAll('a[href]')).find(a => a.getAttribute('href') === key); if (back) { try { back.focus({ preventScroll: true }); } catch (e) {} } }
+}
+// phone: the tab strip scrolls sideways — the open tab (ANNOUNCEMENTS, NEWSLETTER, TEAM CHAT sat past the
+// right edge) is centred in view once the screen lands
+function revealTab() {
+  const s = rootEl && rootEl.querySelector('.mx-inbox-tabs'), on = s && s.querySelector('a.on');
+  if (!s) return;
+  if (on && s.scrollWidth > s.clientWidth) {
+    const left = on.getBoundingClientRect().left - s.getBoundingClientRect().left + s.scrollLeft;
+    s.scrollLeft = Math.max(0, left - (s.clientWidth - on.offsetWidth) / 2);
+  }
+  tabEdges(s);
+}
+// the strip fades only an edge that has more tabs past it (inbox.css .mx-edge-l / -r) — a fixed right-edge
+// fade dimmed TEAM CHAT itself once the strip had scrolled to its end
+function tabEdges(s) {
+  const max = s.scrollWidth - s.clientWidth;
+  s.classList.toggle('mx-edge-l', max > 1 && s.scrollLeft > 1);
+  s.classList.toggle('mx-edge-r', max > 1 && s.scrollLeft < max - 1);
+}
+// one column (≤960: phone, iPad portrait): the list sits above the pane, so a tapped thread or channel
+// opened below the fold and the tap looked dead — bring the pane into view
+function revealPane(sel) {
+  let one = false; try { one = window.matchMedia('(max-width: 960px)').matches; } catch (e) {}
+  const p = one && rootEl && rootEl.querySelector(sel);
+  if (p) p.scrollIntoView({ block: 'start', behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
 }
 function readRole(name) { const el = rootEl && rootEl.querySelector(`[data-role="${name}"]`); return el ? el.value : ''; }
 function isChecked(name) { const el = rootEl && rootEl.querySelector(`[data-role="${name}"]`); return !!(el && el.checked); }
@@ -927,6 +968,7 @@ async function reloadOutbox() {
   const r = await api.settle({ pending: api.get('/api/admin/outbox?status=pending_approval'), scheduled: api.get('/api/admin/outbox?status=scheduled'), badges: api.get('/api/v2/inbox/badges') });
   if (!rootEl) return;
   D.pending = r.pending && Array.isArray(r.pending.batches) ? r.pending.batches : [];
+  D.pendingRead = !!r.pending;
   D.deferred = r.scheduled ? futureBatches(r.scheduled.batches) : [];
   if (r.badges) D.badges = r.badges;
   rerender('[data-block="waiting"]', blockWaiting());
@@ -1002,7 +1044,7 @@ function cannedForm(r) {
       <input data-role="cnTitle" value="${esc(r ? r.title : '')}" placeholder="${esc(m.savedTitlePh)}" aria-label="Title" style="${INPUT}">
       <textarea data-role="cnBody" rows="6" placeholder="${esc(m.savedBodyPh)}" aria-label="Reply text" style="${INPUT};resize:vertical">${esc(r ? r.body : '')}</textarea>
       <div style="display:flex;gap:10px">
-        <span data-act="cannedSave" data-id="${esc(r ? r.id : '')}" style="padding:8px 14px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${m.savedSave}</span>
+        <span data-act="cannedSave" data-id="${esc(r ? r.id : '')}" style="padding:8px 14px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" data-hover="background:#9b1b22">${m.savedSave}</span>
         <span data-act="cannedCancel" style="padding:8px 14px;border:1px solid rgba(32,27,22,.2);font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;cursor:pointer">${m.savedCancel}</span>
       </div>
     </div>`;
@@ -1253,7 +1295,7 @@ const handlers = {
   // ----- messages -----
   msgNeeds: () => { st.msgFilter = 'needs'; rerender('[data-block="messages"]', tabMessages()); },
   msgAll: () => { st.msgFilter = 'all'; rerender('[data-block="messages"]', tabMessages()); },
-  openThread: (el) => openThreadByKey(el.dataset.key),
+  openThread: (el) => { st.newTo = null; openThreadByKey(el.dataset.key); revealPane('[data-block="conv"]'); },
   toggleRead: async () => {
     const t = openThreadObj(); if (!t) return;
     const read = t.unread > 0;
@@ -1275,7 +1317,7 @@ const handlers = {
   // reply goes through the v2 route so the row carries sender_name ("Laura · Med&X" on the
   // member's side) and an optional attachment; upload first, then post (teamchat pattern)
   sendReply: async (el) => {
-    const t = openThreadObj(); if (!t || st.replySending) return;
+    const t = openThreadObj() || freshThreadObj(); if (!t || st.replySending) return;
     const text = readRole('reply').trim();
     if (!text && !st.msgAttach) return;
     st.replySending = true;
@@ -1292,12 +1334,20 @@ const handlers = {
         attachment_name: att ? att.attachment_name : undefined
       });
       st.replyDraft = ''; st.msgAttach = null; st.replySending = false;
-      await openThreadByKey(t.key);
+      if (t.fresh) {
+        // the first reply created the thread (keyed by the member's user id) — open it
+        await reloadThreads();
+        const made = threadFor(t.key) || threadFor(t.email);
+        if (made) { st.newTo = null; await openThreadByKey(made.key); }
+      } else await openThreadByKey(t.key);
       ui.toast(COPY.messages.sentToast);
     } catch (e) {
       st.replySending = false;
       if (el && el.removeAttribute) el.removeAttribute('aria-disabled');
-      ui.toast(e.message, { kind: 'error' });
+      // a fresh conversation with someone who has no portal account: the route answers 404 — say what it
+      // means (the draft stays in the box to copy into an email)
+      if (t.fresh && e && e.status === 404) ui.toast(COPY.messages.noAccount(t.email || t.name), { kind: 'error' });
+      else ui.toast(e.message, { kind: 'error' });
     }
   },
   msgFilePicked: (input) => {                       // validate client-side; the backend re-checks
@@ -1418,7 +1468,7 @@ const handlers = {
     el.removeAttribute('aria-disabled');
   },
   // ----- team chat -----
-  chOpenC: (el, ev) => { if (ev.target.closest('[data-act="chDel"]')) return; st.chDelConfirm = null; st.replyTo = null; loadChat(el.dataset.id); },
+  chOpenC: (el, ev) => { if (ev.target.closest('[data-act="chDel"]')) return; st.chDelConfirm = null; st.replyTo = null; loadChat(el.dataset.id); revealPane('[data-block="chatpane"]'); },
   chAddToggle: () => { st.chAdding = !st.chAdding; rerender('[data-block="channels"]', blockChannels()); if (st.chAdding) { const i = rootEl.querySelector('[data-role="chNew"]'); if (i) i.focus(); } },
   chCreate: async () => {
     const name = readRole('chNew').trim();
@@ -1524,7 +1574,7 @@ export default {
     st = {
       tab, focusCompose: String((ctx.params && ctx.params.tab) || '') === 'email',
       audience: 'everyone', filter: '', manual: false, picked: new Set(), subject: '', body: '',
-      msgFilter: 'needs', openKey: null, thread: [], replyDraft: '', msgAttach: null, replySending: false, canned: null,
+      msgFilter: 'needs', openKey: null, newTo: null, thread: [], replyDraft: '', msgAttach: null, replySending: false, canned: null,
       annWho: 'all', annScope: 'interested', annAud: {}, annTitle: '', annBody: '', annLink: '', annUntil: '', annPush: false, annConfirm: null, annEditId: null,
       nlCompose: false, nlSubject: '', nlBody: '', nlTopic: 'all', nlEmail: true, nlPortal: true, nlReplace: null,
       chOpen: null, chAdding: false, chNew: '', chDraft: '', chMsgs: [], replyTo: null, chDelConfirm: null,
@@ -1535,6 +1585,7 @@ export default {
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     wire();
+    revealTab();
     // the tab you click takes the crimson underline at once: the router keeps this screen (dimmed) until
     // the next tab's data lands, and the strip should already say where you are going
     const onTab = e => {
@@ -1550,9 +1601,23 @@ export default {
     };
     root.addEventListener('click', onTab);
     timers.push(() => root.removeEventListener('click', onTab));
+    const onStripScroll = e => { if (e.target && e.target.classList && e.target.classList.contains('mx-inbox-tabs')) tabEdges(e.target); };
+    root.addEventListener('scroll', onStripScroll, true);
+    timers.push(() => root.removeEventListener('scroll', onStripScroll, true));
     if (tab === 'messages') {
-      const first = visibleThreads()[0] || D.threads[0];
-      if (first) openThreadByKey(first.key);
+      // People › MESSAGE sends ?to=<user id or email>&name=… — THAT person's thread opens (the list switches
+      // to ALL when it is not waiting on a reply), or a blank conversation with them; never the first row,
+      // which was somebody else's thread with the reply box ready (audit 2026-09-23)
+      const to = String((ctx.query && ctx.query.to) || '').trim();
+      if (to) {
+        const t = threadFor(to);
+        if (t) { if (!visibleThreads().includes(t)) st.msgFilter = 'all'; openThreadByKey(t.key); }
+        else { st.newTo = { key: to, name: String((ctx.query && ctx.query.name) || '').trim() || to, email: /@/.test(to) ? to : (String((ctx.query && ctx.query.email) || '').trim() || null) }; rerender('[data-block="messages"]', tabMessages()); }
+        revealPane('[data-block="conv"]');
+      } else {
+        const first = visibleThreads()[0] || D.threads[0];
+        if (first) openThreadByKey(first.key);
+      }
     }
     if (tab === 'chat') {
       const general = D.chatChannels.find(c => Number(c.is_default)) || D.chatChannels.find(c => (c.display_name || c.name) === 'general') || D.chatChannels[0];

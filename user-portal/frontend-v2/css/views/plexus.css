@@ -10,8 +10,19 @@
 .mx-portrait { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
 .mx-logo { height: 24px; width: auto; max-width: 130px; object-fit: contain; margin-top: 2px; align-self: flex-start; display: block; }
 
-/* bio modal sheet (Plexus Conference.dc.html › bio overlay): tall bios scroll inside the sheet */
-.mx-bio-sheet { max-height: 88vh; overflow-y: auto; box-sizing: border-box; }
+/* bio modal sheet (Plexus Conference.dc.html › bio overlay): tall bios scroll inside the sheet — measured
+   against the VISIBLE height (dvh), so Safari's toolbars or the keyboard never push its × off screen */
+.mx-bio-sheet { max-height: 88vh; max-height: calc(100dvh - 36px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; }
+@media (max-width: 500px) { [data-role="bio-scrim"] { padding: 18px !important; } }
+
+/* hero: narrower crops put the stage photo's projected slide ("Welcome to Gala Evening · Plexus Conference
+   2025") and the Plexus banner right behind the headline and VIEW SCHEDULE — the scrim deepens there so the
+   copy, not the photo's own text, is what reads */
+@media (max-width: 1100px) {
+  .mx-px-scrim { background: linear-gradient(180deg, rgba(25,21,18,.8) 0%, rgba(25,21,18,.74) 55%, rgba(25,21,18,.88) 100%) !important; }
+  /* the photo stays as atmosphere; its own lettering is softened out of reading range */
+  .mx-ink > .mx-hero-photo[src$="photo-stage.jpg"] { filter: blur(2.5px); }
+}
 
 /* QR pass image (My Plexus › "03 · MY PASS") */
 .mx-qr { width: 148px; height: 148px; object-fit: contain; background: #fff; border: 1px solid rgba(25,21,18,.16); padding: 8px; box-sizing: content-box; display: block; }
@@ -57,6 +68,9 @@
 .mx-px-face { position: relative; width: 46px; height: 46px; margin-left: -10px; border: 2px solid #fdfaf3; background: #191512; overflow: hidden; box-sizing: content-box; }
 .mx-px-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
 .mx-px-face .mx-mono::after { display: none; }
+/* speakers without a photo: initials in the part of the tile the next one leaves visible (the overlap hid half of each) */
+.mx-px-face:has(> .mx-mono) + .mx-px-face { margin-left: -5px; }
+.mx-px-face > .mx-mono { font-size: 14px !important; letter-spacing: 0; }
 @media (max-width: 560px) {
   /* phone: the sentence takes the whole first row; the faces and ALL SPEAKERS → share the row under it.
      (The text span's inline flex:1 is a 0% basis, so a plain wrap never wrapped it — it shrank to one
@@ -77,6 +91,13 @@
 }
 [data-role="bio-scrim"].is-leaving { pointer-events: none; }
 
+/* countdown band, 701–1130 px (one row needs 1,119): the countdown keeps the first line and the three facts
+   share the second, instead of ADD TO CALENDAR wrapping alone after a dangling rule */
+@media (max-width: 1130px) {
+  .mx-px-band { row-gap: 10px !important; }
+  .mx-px-band > .mx-band-break { display: block; flex-basis: 100%; height: 0; }
+  .mx-px-band > .mx-band-break + span[style*="width:1px"] { display: none; }
+}
 /* countdown band on a phone: the label takes its own line, the three digits share the next, each fact
    below gets a centred line — the vertical rules only made sense side by side, so they go */
 @media (max-width: 700px) {

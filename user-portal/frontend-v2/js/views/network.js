@@ -157,19 +157,19 @@ function blockCrumb() { return `
   <!-- /dc -->`; }
 
 function blockTabs() { return `
-  <!-- dc: Network.dc.html › "PEOPLE · MESSAGES · MY CARD" -->
+  <!-- dc: Network.dc.html › "PEOPLE · MESSAGES · MY CARD" — MY CARD opened /app/me, another section with no
+       strip: a link dressed as a tab, so the strip keeps the two tabs that are this section -->
   <!-- the shared section-tab strip (app.css › .mx-tab): data-tabs="network" is shared with Messages, so the
        underline slides across when the member switches between the two screens -->
   <div class="mx-tabs mx-gutter" data-tabs="network" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
     <span class="mx-tab is-on" aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22">${COPY.tabs.people}</span>
     <a href="/app/messages" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.messages}</a>
-    <a href="/app/me" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.card}</a>
   </div>
   <!-- /dc -->`; }
 
 function searchPlaceholder() {
   const narrow = typeof window !== 'undefined' && window.matchMedia
-    ? window.matchMedia('(max-width: 430px)').matches
+    ? window.matchMedia('(max-width: 500px)').matches
     : false;
   return narrow ? COPY.hero.placeholderShort : COPY.hero.placeholder;
 }
@@ -231,6 +231,9 @@ function cardRequest(m) { return `
             </div>
           </div>`; }
 
+// MESSAGE is offered where it can work — a connection (or a Med&X team account, which may write to anyone).
+// Before that it only toasted "send a request first": eight dead-end buttons on the first screen.
+function canMessage(m) { return cstate(m).state === 'connected' || !!(session.user || {}).is_admin; }
 function cardSuggestion(m) {
   const face = connFace(m);
   const why = m.why_label || (COPY.reasons[m.why] ? (typeof COPY.reasons[m.why] === 'function' ? COPY.reasons[m.why]((m.reasons && m.reasons[0] && m.reasons[0].n) || 1) : COPY.reasons[m.why]) : '');
@@ -242,7 +245,7 @@ function cardSuggestion(m) {
               <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(subLine(m))}</span>
               <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
                 <span data-act="connect" data-id="${esc(m.id)}" data-face="${face.hv}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${face.label}</span>
-                <span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;border:1px solid rgba(25,21,18,.25);font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.forYou.message}</span>
+                ${canMessage(m) ? `<span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;border:1px solid rgba(25,21,18,.25);font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.forYou.message}</span>` : ''}
               </span>
             </div>
           </div>`;
@@ -279,7 +282,7 @@ function blockMyNetwork() {
         <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.net.title}</span>
         <span style="font-size:12px;color:#4a4239">${n === 0 ? COPY.net.zero : COPY.net.count(n)}</span>
       </div>
-      ${n ? `<div style="max-width:960px">
+      ${n ? `<div>
         ${D.conns.map(m => `
           <div class="mx-net-row" data-card="${esc(m.id)}" style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
             <span style="width:40px;height:40px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="width:100%;height:100%;object-fit:cover">` : esc(initialsOf(m.name))}</span>
@@ -290,7 +293,7 @@ function blockMyNetwork() {
             ${moreButton({ id: m.id, name: m.name })}
           </div>`).join('')}
       </div>` : `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:22px;display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;max-width:960px">
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:22px;display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center">
         <span style="width:28px;height:1px;background:#c9a962"></span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.net.emptyLine}</span>
         <span style="font-size:12px;color:#4a4239">${COPY.net.emptyWhy}</span>
@@ -312,7 +315,7 @@ function rowMember(m, i, matched) {
           <span style="width:40px;height:40px;background:${av[0]};color:${av[1]};display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="width:100%;height:100%;object-fit:cover">` : esc(m.initials || initialsOf(m.name))}</span>
           <span class="mx-net-id" style="flex:1;min-width:0"><span data-act="peek" data-id="${esc(m.id)}" style="display:block;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">${esc(m.name)}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${esc(subLine(m))}${matchNote}</span></span>
           <span data-act="connect" data-id="${esc(m.id)}" ${s === 'pending_in' ? `data-cid="${esc(cstate(m).id)}"` : ''} data-face="${face.hv}" class="mx-net-act" style="padding:9px 15px;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap">${face.label}</span>
-          <span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="padding:9px 15px;border:1px solid rgba(25,21,18,.25);font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.net.message}</span>
+          ${canMessage(m) ? `<span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="padding:9px 15px;border:1px solid rgba(25,21,18,.25);font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.net.message}</span>` : ''}
           ${moreButton({ id: m.id, name: m.name })}
         </div>`;
 }
@@ -336,7 +339,7 @@ function blockBrowse() {
       </div>
       ${d.open ? `
       <!-- v2: paginated directory list (no artboard section — rows reuse the artboard's search-result row) -->
-      <div${fresh === 'dir' ? ' class="mx-net-fresh"' : ''} style="max-width:960px;margin:0 auto;padding-bottom:26px">
+      <div${fresh === 'dir' ? ' class="mx-net-fresh"' : ''} style="padding-bottom:26px">
         ${d.loading ? `<div style="padding:18px 0;text-align:center;font-size:12px;color:#4a4239">Loading the directory…</div>`
           : (d.items || []).map((m, i) => rowMember(m, i, false)).join('') + pager('dirPage', d.page, d.pages)}
       </div>` : ''}
@@ -353,11 +356,11 @@ function blockResults() {
         <div style="flex:1"></div>
         <span style="font-size:11.5px;color:#4a4239">${r ? COPY.results.count(fmt.num(r.total), fmt.num(D.total)) : 'Searching…'}</span>
       </div>
-      <div${fresh === 'res' ? ' class="mx-net-fresh"' : ''} style="max-width:960px">
+      <div${fresh === 'res' ? ' class="mx-net-fresh"' : ''}>
         ${r ? r.items.map((m, i) => rowMember(m, i, true)).join('') : ''}
       </div>
       ${r && r.total === 0 ? `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:26px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;max-width:960px">
+      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:26px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.results.noneLine(esc(st.q))}</span>
         <span style="font-size:12px;color:#4a4239">${COPY.results.noneWhy}</span>
       </div>` : ''}
@@ -550,6 +553,10 @@ const handlers = {
     if (!m) return ui.toast('Profile details are not loaded for this member.');
     const parts = [m.title, m.institution, [m.city, m.country].filter(Boolean).join(', ')].filter(Boolean);
     const chips = (m.specialties || []).concat(m.tags || []);
+    const s = cstate(m).state;
+    const primary = canMessage(m) ? { label: COPY.net.message, run: () => router.navigate('/app/messages?to=' + encodeURIComponent(m.id)) }
+      : s === 'none' ? { label: COPY.btn.connect, run: () => handlers.connect({ dataset: { id: m.id } }) }
+      : s === 'pending_in' ? { label: COPY.btn.accept, run: () => handlers.accept({ dataset: { id: m.id, cid: cstate(m).id } }) } : null;
     const md = ui.modal({
       eyebrow: COPY.peek.eyebrow,
       title: esc(m.name),
@@ -560,7 +567,7 @@ const handlers = {
           <span data-act="peekReport" class="mx-safe-link">${SAFETY.menu.report}</span>
           ${m.is_team || isTeamMember(m.id) ? '' : `<span data-act="peekBlock" class="mx-safe-link" style="color:#9b1b22">${SAFETY.menu.block}</span>`}
         </div>`,
-      actions: [{ label: COPY.peek.close }]
+      actions: primary ? [{ label: COPY.peek.close }, { label: primary.label, kind: 'primary', onClick: primary.run }] : [{ label: COPY.peek.close }]
     });
     ui.bind(md.el, {
       peekReport: () => { md.close(); reportSheet({ kind: 'member', targetId: m.id, name: m.name }); },

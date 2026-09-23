@@ -232,7 +232,7 @@ function blockInstitutions() {
               <input data-role="eName" value="${esc(st.eName)}" placeholder="${COPY.inst.namePh}" style="flex:2;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
               <input data-role="ePlace" value="${esc(st.ePlace)}" placeholder="${fromInst ? COPY.inst.cityPh : COPY.inst.placePh}" style="flex:2;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
               <input data-role="eSpots" value="${esc(st.eSpots)}" placeholder="${COPY.inst.spotsPh}" style="width:90px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
-              <span data-act="instSave" data-id="${esc(s.id)}" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer">${COPY.inst.save}</span>
+              <span data-act="instSave" data-id="${esc(s.id)}" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer" data-hover="background:#7e151b">${COPY.inst.save}</span>
               <span data-act="instCancel" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer" data-hover="color:#201b16">${COPY.inst.cancel}</span>
               <span data-act="instRemove" data-id="${esc(s.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:${st.instRemoveConfirm ? '#9b1b22' : '#6d6459'};cursor:pointer" data-hover="color:#9b1b22">${st.instRemoveConfirm ? COPY.inst.removeSure : COPY.inst.remove}</span>
             </div>` : ''}`;
@@ -243,7 +243,7 @@ function blockInstitutions() {
             <span class="empty-why">${esc(COPY.inst.emptyWhy(FACTS.accelerator.hosts))}</span>
           </div>`}
         <div style="display:flex;gap:10px;padding:14px 20px">
-          <input data-role="instDraft" placeholder="${COPY.inst.placeholder}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-width:0">
+          <input data-role="instDraft" placeholder="${COPY.inst.placeholder}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-width:0;box-sizing:border-box">
           <span data-act="addInst" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;display:flex;align-items:center" data-hover="background:#7e151b">${COPY.inst.add}</span>
         </div>
         <div style="padding:0 20px 14px;font-size:11px;color:#6d6459">${COPY.inst.footer}</div>
@@ -275,7 +275,7 @@ function blockAlumni() {
               <input data-role="aName" value="${esc(st.aName)}" placeholder="${COPY.alumni.namePh}" style="flex:2;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
               <input data-role="aPlace" value="${esc(st.aPlace)}" placeholder="${COPY.alumni.placePh}" style="flex:2;min-width:150px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
               <input data-role="aYear" value="${esc(st.aYear)}" placeholder="${COPY.alumni.yearPh}" style="width:74px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font-size:12.5px;color:#201b16">
-              <span data-act="aluSave" data-id="${esc(r.id)}" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer">${COPY.inst.save}</span>
+              <span data-act="aluSave" data-id="${esc(r.id)}" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer" data-hover="background:#7e151b">${COPY.inst.save}</span>
               <span data-act="aluCancel" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer" data-hover="color:#201b16">${COPY.inst.cancel}</span>
               <span data-act="aluRemove" data-id="${esc(r.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:${st.aluRemoveConfirm ? '#9b1b22' : '#6d6459'};cursor:pointer" data-hover="color:#9b1b22">${st.aluRemoveConfirm ? COPY.inst.removeSure : COPY.inst.remove}</span>
             </div>` : ''}`;
@@ -286,7 +286,7 @@ function blockAlumni() {
             <span class="empty-why">${esc(COPY.alumni.emptyWhy)}</span>
           </div>`}
         <div style="display:flex;gap:10px;padding:14px 20px">
-          <input data-role="aluDraft" placeholder="${COPY.alumni.placeholder}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-width:0">
+          <input data-role="aluDraft" placeholder="${COPY.alumni.placeholder}" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-width:0;box-sizing:border-box">
           <span data-act="addAlu" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;display:flex;align-items:center" data-hover="background:#7e151b">${COPY.alumni.add}</span>
         </div>
       </div>`;

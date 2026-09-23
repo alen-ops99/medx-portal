@@ -94,7 +94,7 @@ export const COPY = {
   unfollowed: 'Gala updates are off.',
   footer: {
     line: 'Questions about the Gala · seats, tables, dietary needs?',
-    sub: 'Message us · we reply by email to your account address.',
+    sub: 'Message us · replies land right here in your portal inbox.',
     cta: 'MESSAGE US →'
   }
 };
@@ -256,6 +256,7 @@ function blockBand() {
     ${cell('days', COPY.band.units[0])}
     ${cell('hrs', COPY.band.units[1])}
     ${cell('min', COPY.band.units[2])}
+    <span class="mx-band-break" aria-hidden="true"></span>
     <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${COPY.band.when(esc(D.bandMonth), esc(D.bandDay), esc(D.time), esc(D.venueShort))}</span>
     <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
@@ -271,13 +272,13 @@ function speakerCard(sp) {
   return `
       <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
         <div style="position:relative;aspect-ratio:1/1;background:#191512;overflow:hidden">${img || ui.monogram(sp.name, 54)}</div>
-        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(sp.name)}</span><span style="font-size:11.5px;color:#4a4239">${esc(sp.title || sp.role || '')}</span></div>
+        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(fmt.person(sp.name))}</span><span style="font-size:11.5px;color:#4a4239">${esc(sp.title || sp.role || '')}</span></div>
       </div>`;
 }
 
 function blockStage() {
   const grid = D.speakers.length ? `
-    <div class="mx-grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:18px 0 10px">
+    <div class="mx-grid-4 mx-gala-stage" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:18px 0 10px">
       ${D.speakers.map(speakerCard).join('')}
     </div>` : `
     <div class="empty" style="padding:26px 0 18px">
@@ -331,7 +332,7 @@ function blockPerformersLine() {
 function blockWhy() {
   return `
   <!-- dc: Gala Evening.dc.html › "02 · WHY WE GATHER" -->
-  <div class="mx-pad-36" style="background:#191512;color:#f7f1e6;padding:30px 32px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:11px;margin:2px 0 24px">
+  <div class="mx-pad-36 mx-ink" style="background:#191512;color:#f7f1e6;padding:30px 32px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:11px;margin:2px 0 24px">
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.why.eyebrow}</span>
       <span class="mx-display-26" style="font-family:Fraunces,serif;font-size:23px;line-height:1.3;max-width:660px">${COPY.why.line}</span>
       <span style="font-size:12.5px;color:rgba(247,241,230,.7);line-height:1.6;max-width:680px">${COPY.why.body}</span>
@@ -347,7 +348,7 @@ function blockMoments() {
   return `
     <!-- dc: Gala Evening.dc.html › "MOMENTS FROM PREVIOUS GALAS" -->
     <div class="mx-grid-4 mx-gala-gallery" style="display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;gap:12px;padding:24px 0">
-      ${COPY.moments.photos.map(p => `<span class="mx-ph" data-act="allPhotos" tabindex="-1" aria-hidden="true"><img src="/assets/${p}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>`).join('\n      ')}
+      ${COPY.moments.photos.map((p, i) => `<span class="mx-ph" data-act="allPhotos" data-i="${i}" tabindex="-1" aria-hidden="true"><img src="/assets/${p}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>`).join('\n      ')}
       <div style="background:#efe7d8;padding:16px 18px;display:flex;flex-direction:column;justify-content:center;gap:7px">
         <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#9b1b22">${COPY.moments.label}</span>
         <span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;line-height:1.35;color:#191512">${COPY.moments.line}</span>
@@ -486,18 +487,11 @@ const handlers = {
     el.removeAttribute('aria-disabled');
   },
   closed: () => ui.toast(COPY.hero.closedNote.replace(/&amp;/g, '&')),
-  allPhotos: () => {
-    // v2: no gala gallery endpoint exists yet — show the export's real event photos, full size
-    openModal = ui.modal({
-      eyebrow: COPY.moments.modalEyebrow,
-      title: COPY.moments.modalTitle,
-      body: `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          ${COPY.moments.photos.map(p => `<img src="/assets/${p}" alt="" style="width:100%;height:150px;object-fit:cover;display:block">`).join('')}
-          <img src="/assets/photo-forum.jpg" alt="" style="width:100%;height:150px;object-fit:cover;display:block">
-        </div>
-        <p style="margin-top:12px;font-size:12px;color:#4a4239">${COPY.moments.modalNote}</p>`,
-      actions: [{ label: COPY.moments.close }]
+  // v2: no gala gallery endpoint exists yet — the export's real event photos, one at a time at full size
+  // (ui.lightbox: ← / →, arrow keys, Esc), opening on the photo that was clicked
+  allPhotos: (el) => {
+    openModal = ui.lightbox(COPY.moments.photos.concat(['photo-forum.jpg']).map(p => ({ src: '/assets/' + p })), {
+      start: el && el.dataset.i, eyebrow: COPY.moments.modalEyebrow, title: COPY.moments.modalTitle, note: COPY.moments.modalNote
     });
   }
 };

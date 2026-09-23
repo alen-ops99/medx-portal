@@ -349,7 +349,7 @@ function blockBrand() {
         <div style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.08)">
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459;margin-bottom:10px">${COPY.brand.colours}</div>
           <div style="display:flex;flex-direction:column;gap:6px">
-            ${COLOURS.map(([hex, name]) => `<span data-act="copyHex" data-hex="${hex}" title="Click to copy" style="display:flex;align-items:center;gap:10px;cursor:pointer"><span style="width:22px;height:22px;background:${hex};${hex === '#F7F1E6' ? 'border:1px solid rgba(32,27,22,.15);' : ''}flex:none"></span><span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums">${hex}</span><span style="font-size:11px;color:#6d6459">${esc(name)}</span></span>`).join('')}
+            ${COLOURS.map(([hex, name]) => `<span data-act="copyHex" data-hex="${hex}" title="Click to copy" style="display:flex;align-items:center;gap:10px;cursor:pointer" data-hover="color:#9b1b22"><span style="width:22px;height:22px;background:${hex};${hex === '#F7F1E6' ? 'border:1px solid rgba(32,27,22,.15);' : ''}flex:none"></span><span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums">${hex}</span><span style="font-size:11px;color:#6d6459">${esc(name)}</span></span>`).join('')}
           </div>
         </div>
         <div style="padding:16px 20px">
@@ -392,7 +392,7 @@ function libGrid() {
 function blockLibrary() {
   const counts = { all: D.photos.length };
   LIB_TAGS.forEach(t => { counts[t] = D.photos.filter(p => p.tag === t).length; });
-  const chip = (key, label) => `<span data-act="libTag" data-tag="${key}" style="padding:5px 10px;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;background:${st.libTag === key ? '#201b16' : 'transparent'};color:${st.libTag === key ? '#f6f2ea' : '#6d6459'};border:1px solid ${st.libTag === key ? '#201b16' : 'rgba(32,27,22,.2)'};white-space:nowrap">${label}${counts[key] ? ` · ${counts[key]}` : ''}</span>`;
+  const chip = (key, label) => `<span data-act="libTag" data-tag="${key}" style="padding:5px 10px;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;background:${st.libTag === key ? '#201b16' : 'transparent'};color:${st.libTag === key ? '#f6f2ea' : '#6d6459'};border:1px solid ${st.libTag === key ? '#201b16' : 'rgba(32,27,22,.2)'};white-space:nowrap"${st.libTag === key ? '' : ' data-hover="border-color:#201b16;color:#201b16"'}>${label}${counts[key] ? ` · ${counts[key]}` : ''}</span>`;
   return `
     <!-- v2: PHOTO LIBRARY (team review Aug 2026 §C — Laura; table v2_studio_assets) -->
     <div data-block="library" style="border:1px solid rgba(32,27,22,.14);background:#fff">

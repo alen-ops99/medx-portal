@@ -13,6 +13,8 @@
 //   ui.tick(el, '05');                                   // countdown digit: set it, and fade it up only if it changed
 //   ui.toggleSwitch(el, async on => api.post(…), on => label.textContent = …);  // a .mx-switch flips at once, reverts if the save fails
 //   ui.revealOnScroll(root);                              // sections below the fold rise in on scroll (router, views with reveal: true)
+//   const release = ui.trapFocus(sheetEl);                // Tab / Shift+Tab stay inside a dialog until release()
+//   ui.hideToast();                                       // take a toast down early (a screen that owned it is leaving)
 
 export function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -100,6 +102,9 @@ export const fmt = {
   },
   ymd(d) { const x = toDate(d); if (!x) return ''; return x.getFullYear() + String(x.getMonth() + 1).padStart(2, '0') + String(x.getDate()).padStart(2, '0'); },
   initials(first, last) { return (((first || '').trim()[0] || '') + ((last || '').trim()[0] || '')).toUpperCase(); },
+  // one way to write a title before a name on every screen: 'Dr Kevin Smith' (Program) and 'Dr. Kevin Smith'
+  // (the Gala) → 'Dr. Kevin Smith'; 'Prof' likewise. Lower-case Croatian titles (prim. dr.) are left alone.
+  person: s => String(s == null ? '' : s).replace(/\b(Dr|Prof)\.?(?=\s)/g, '$1.'),
   toDate
 };
 
@@ -114,22 +119,72 @@ function toast(text, opts = {}) {
   requestAnimationFrame(() => toastEl.classList.add('show'));
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), opts.ms || (opts.kind === 'error' ? 4200 : 2800));
 }
+function hideToast() { clearTimeout(toastTimer); if (toastEl) toastEl.classList.remove('show'); }
+
+// ---------------------------------------------------------------- focus trap
+// A dialog keeps keyboard focus inside itself (aria-modal alone does not): Tab past the last control comes
+// back to the first, Shift+Tab before the first goes to the last, and a Tab pressed while focus sits outside
+// (on <body> after a click on the scrim) lands inside. The newest trap wins — a confirm opened over a sheet.
+// `box` is the element, or a function returning it (a sheet that re-draws itself). Returns release().
+const traps = [];
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex], [data-act], [data-nav]';
+function focusables(box) {
+  return [...box.querySelectorAll(FOCUSABLE)].filter(el => el.getAttribute('tabindex') !== '-1' && !el.closest('[inert], [aria-hidden="true"]') &&
+    el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden');
+}
+function onTrapKey(e) {
+  if (e.key !== 'Tab' || !traps.length) return;
+  const t = traps[traps.length - 1];
+  const box = typeof t.box === 'function' ? t.box() : t.box;
+  if (!box || !box.isConnected) return;
+  const list = focusables(box);
+  if (!list.length) { e.preventDefault(); return; }
+  const first = list[0], last = list[list.length - 1], a = document.activeElement;
+  // the dialog box itself holds focus on open (ui.modal): Tab from it goes in, Shift+Tab wraps to the last control
+  if (!box.contains(a) || a === box || (e.shiftKey && a === first) || (!e.shiftKey && a === last)) {
+    e.preventDefault();
+    try { (e.shiftKey ? last : first).focus(); } catch (err) { /* fine */ }
+  }
+}
+function trapFocus(box) {
+  if (!traps.length) document.addEventListener('keydown', onTrapKey, true);
+  const t = { box }; traps.push(t);
+  return () => {
+    const i = traps.indexOf(t); if (i < 0) return;
+    traps.splice(i, 1);
+    if (!traps.length) document.removeEventListener('keydown', onTrapKey, true);
+  };
+}
+// Focus goes back to the control that opened a dialog — only when it would otherwise be lost (on <body>, or
+// still inside the dialog that is leaving); a dialog opened from this one keeps its own focus.
+function returnFocus(to, leaving) {
+  const a = document.activeElement;
+  if (!to || !to.isConnected || typeof to.focus !== 'function') return;
+  if (a && a !== document.body && !(leaving && leaving.contains(a))) return;
+  try { to.focus({ preventScroll: true }); } catch (e) { /* fine */ }
+}
 
 // ---------------------------------------------------------------- modal / confirm
-function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOnScrim = true } = {}) {
+let modalSeq = 0;
+function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOnScrim = true, wide = false } = {}) {
   const wrap = document.createElement('div');
+  const opener = document.activeElement;
   wrap.className = 'mx-modal';
-  wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true');
+  const lid = 'mx-modal-l' + (++modalSeq);
+  wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('aria-labelledby', lid);
   wrap.innerHTML = `
-    <div class="mx-modal-sheet">
-      <div class="mx-modal-head"><span>${esc(eyebrow)}</span><div style="flex:1"></div><span data-act="close" role="button" tabindex="0" aria-label="Close" style="color:#4a4239;cursor:pointer;font:400 18px Inter,sans-serif;letter-spacing:0">×</span></div>
-      <div class="mx-modal-body">${title ? `<div class="mx-modal-title">${title}</div>` : ''}${body}</div>
+    <div class="mx-modal-sheet${wide ? ' is-wide' : ''}" tabindex="-1">
+      <div class="mx-modal-head"><span${title ? '' : ` id="${lid}"`}>${esc(eyebrow)}</span><div style="flex:1"></div><span data-act="close" role="button" tabindex="0" aria-label="Close" style="color:#4a4239;cursor:pointer;font:400 18px Inter,sans-serif;letter-spacing:0">×</span></div>
+      <div class="mx-modal-body">${title ? `<div class="mx-modal-title" id="${lid}">${title}</div>` : ''}${body}</div>
       ${actions.length ? `<div class="mx-modal-foot">${actions.map((a, i) => `<span data-act="a${i}" role="button" tabindex="0" class="${a.kind === 'primary' ? 'btn-primary' : a.kind === 'gold' ? 'btn-gold' : 'btn-ghost'}">${esc(a.label)}</span>`).join('')}</div>` : ''}
     </div>`;
   // the sheet fades out (160 ms, css .mx-modal.is-leaving) — callers already resolved; nothing waits on it
+  let release = null;
   const close = () => {
     document.removeEventListener('keydown', onKey);
     if (!wrap.isConnected || wrap.classList.contains('is-leaving')) return;
+    if (release) { release(); release = null; }
+    returnFocus(opener, wrap);
     if (reducedMotion()) { wrap.remove(); return; }
     wrap.classList.add('is-leaving');
     setTimeout(() => wrap.remove(), 170);
@@ -142,9 +197,42 @@ function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOn
   wrap.addEventListener('click', e => { if (closeOnScrim && e.target === wrap) handlers.close(); });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(wrap);
-  const first = wrap.querySelector('.mx-modal-foot [data-act]') || wrap.querySelector('[data-act="close"]');
-  if (first) first.focus();
+  const sheet = wrap.querySelector('.mx-modal-sheet');
+  release = trapFocus(sheet);
+  // focus lands on the sheet itself, read from its top (eyebrow, title, ×): focusing the first footer action
+  // scrolled a tall sheet to its foot on a short phone, with the × out of view. The first Tab goes to the ×.
+  try { sheet.focus({ preventScroll: true }); } catch (e) { /* fine */ }
+  sheet.scrollTop = 0; wrap.scrollTop = 0;
   return { close, onClose(fn) { opts_onclose = fn; return this; }, el: wrap };
+}
+// A photo viewer on the modal: one photo at a time at full size, ← / → (buttons and arrow keys), Esc closes.
+// photos = [{ src, alt?, caption? }]; `start` = the index the member clicked.
+function lightbox(photos, { start = 0, eyebrow = 'PHOTOS', title = '', note = '' } = {}) {
+  const list = (photos || []).filter(p => p && p.src);
+  if (!list.length) return null;
+  let i = Math.max(0, Math.min(list.length - 1, Number(start) || 0));
+  const m = modal({ eyebrow, title, wide: true, body: `<div data-role="lb"></div>${note ? `<p style="margin:12px 0 0;font-size:12px;color:#4a4239">${note}</p>` : ''}` });
+  const box = m.el.querySelector('[data-role="lb"]');
+  const ctl = 'font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap;padding:12px 0';
+  const paint = () => {
+    const p = list[i];
+    box.innerHTML = `<figure style="margin:0;background:#191512"><img src="${esc(p.src)}" alt="${esc(p.alt || '')}" style="display:block;width:100%;height:min(62vh,560px);object-fit:contain"></figure>
+      ${p.caption ? `<div style="font-size:11.5px;color:#4a4239;margin-top:6px">${esc(p.caption)}</div>` : ''}
+      ${list.length > 1 ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+        <span data-act="lbPrev" role="button" tabindex="0" aria-label="Previous photo" style="${ctl}">← PREV</span>
+        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;font-variant-numeric:tabular-nums">${i + 1} / ${list.length}</span>
+        <span data-act="lbNext" role="button" tabindex="0" aria-label="Next photo" style="${ctl}">NEXT →</span></div>` : ''}`;
+  };
+  const go = d => { i = (i + d + list.length) % list.length; paint(); };
+  const onKey = e => {
+    if (!m.el.isConnected) { document.removeEventListener('keydown', onKey); return; }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); } else if (e.key === 'ArrowRight') { e.preventDefault(); go(1); }
+  };
+  document.addEventListener('keydown', onKey);
+  bind(m.el, { lbPrev: () => go(-1), lbNext: () => go(1) });
+  m.onClose(() => document.removeEventListener('keydown', onKey));
+  paint();
+  return m;
 }
 function confirm({ eyebrow = 'PLEASE CONFIRM', title = 'Are you sure?', body = '', ok = 'CONFIRM', cancel = 'CANCEL', danger = false } = {}) {
   return new Promise(resolve => {
@@ -227,9 +315,12 @@ function revealOnScroll(root) {
     for (const en of entries) {
       if (!en.isIntersecting) continue;
       const el = en.target; obs.unobserve(el);
-      el.style.setProperty('--rv-d', Math.min(i++, 3) * 60 + 'ms');   // blocks arriving together follow each other in
-      el.classList.add('mx-rv-in'); el.classList.remove('mx-rv');
-      setTimeout(() => { el.classList.remove('mx-rv-in'); el.style.removeProperty('--rv-d'); }, 700);
+      // blocks arriving together follow each other in. The delay rides a class (.mx-rv-d1…3), never the
+      // block's own style: writing a custom property re-serialised the artboard's inline style
+      // ('background:#191512' → 'background: rgb(25, 21, 18)'), and the ink bands lost their gold focus ring
+      const d = Math.min(i++, 3), dc = d ? 'mx-rv-d' + d : null;
+      el.classList.add('mx-rv-in'); if (dc) el.classList.add(dc); el.classList.remove('mx-rv');
+      setTimeout(() => { el.classList.remove('mx-rv-in'); if (dc) el.classList.remove(dc); }, 700);
     }
   }, { threshold: 0 });   // the first visible pixel: a block at the very foot of the page must still arrive
   hide.forEach(el => obs.observe(el));
@@ -242,17 +333,25 @@ function flipSwitch(el) {
 }
 
 // ---------------------------------------------------------------- .ics
-function icsEscape(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+function icsEscape(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
 function buildIcs(events) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MedX//Portal v2//EN', 'CALSCALE:GREGORIAN'];
   events.forEach(ev => {
+    // a timed event ({ startAt, endAt } — ISO with an offset, e.g. a session's starts_at) is written in UTC;
+    // everything else stays an all-day event
+    const utc = v => { const d = new Date(v); return isNaN(d) ? '' : d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); };
+    if (ev.startAt && utc(ev.startAt)) {
+      lines.push('BEGIN:VEVENT', 'UID:' + (ev.uid || utc(ev.startAt) + '-' + Math.random().toString(36).slice(2, 8)) + '@medx.hr', 'DTSTAMP:' + stamp,
+        'DTSTART:' + utc(ev.startAt), 'DTEND:' + (utc(ev.endAt) || utc(ev.startAt)), 'SUMMARY:' + icsEscape(ev.summary || 'Med&X'));
+    } else {
     const start = typeof ev.start === 'string' && /^\d{8}$/.test(ev.start) ? ev.start : fmt.ymd(ev.start);
     let end = typeof ev.end === 'string' && /^\d{8}$/.test(ev.end) ? ev.end : (ev.end ? fmt.ymd(ev.end) : '');
     if (!start) return;
     if (!end) { const d = toDate(start.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')); d.setDate(d.getDate() + 1); end = fmt.ymd(d); }
     lines.push('BEGIN:VEVENT', 'UID:' + (ev.uid || start + '-' + Math.random().toString(36).slice(2, 8)) + '@medx.hr', 'DTSTAMP:' + stamp,
       'DTSTART;VALUE=DATE:' + start, 'DTEND;VALUE=DATE:' + end, 'SUMMARY:' + icsEscape(ev.summary || 'Med&X'));
+    }
     if (ev.location) lines.push('LOCATION:' + icsEscape(ev.location));
     if (ev.description) lines.push('DESCRIPTION:' + icsEscape(ev.description));
     if (ev.url) lines.push('URL:' + ev.url);
@@ -334,7 +433,7 @@ function installDelegates() {
 }
 // A control whose label ends in → (or ↗) gets that arrow in its own span, so css can lean it forward
 // on hover (app.css › .mx-arr). The label text keeps its own node; screen readers skip the glyph.
-const ARROWS = /\s*([→↗])\s*$/;
+const ARROWS = /\s*([→↗])\uFE0E?\s*$/;
 const CONTROL = 'a[href], [data-act], [data-nav], button';
 function dressArrows(root) {
   if (!root || typeof document.createTreeWalker !== 'function') return;
@@ -350,8 +449,10 @@ function dressArrows(root) {
     const at = m.index + m[0].indexOf(m[1]);
     const wrap = document.createElement('span');
     const arr = document.createElement('span');
-    arr.className = 'mx-arr' + (m[1] === '↗' ? ' ne' : ''); arr.setAttribute('aria-hidden', 'true'); arr.textContent = m[1];
-    wrap.append(t.nodeValue.slice(0, at), arr, t.nodeValue.slice(at + 1));
+    // ↗ carries the text-presentation selector: the bundled Inter / Fraunces subsets lack U+2197, and WebKit's
+    // fallback drew it as a blue Apple Color Emoji tile
+    arr.className = 'mx-arr' + (m[1] === '↗' ? ' ne' : ''); arr.setAttribute('aria-hidden', 'true'); arr.textContent = m[1] === '↗' ? '↗\uFE0E' : m[1];
+    wrap.append(t.nodeValue.slice(0, at), arr, t.nodeValue.slice(at + 1).replace(/^\uFE0E/, ''));
     t.replaceWith(wrap);
     ctl.classList.add('mx-has-arr');      // the NEAREST control owns the lean (a whole-overlay [data-act] never does)
   }
@@ -377,7 +478,7 @@ function fadeImages(root) {
   });
 }
 
-export const ui = { toast, modal, confirm, countdown, tick, toggleSwitch, flipSwitch, revealOnScroll, reducedMotion, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials,
+export const ui = { toast, hideToast, trapFocus, returnFocus, modal, lightbox, confirm, countdown, tick, toggleSwitch, flipSwitch, revealOnScroll, reducedMotion, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials,
   lockScroll(on) { document.body.style.overflow = on ? 'hidden' : ''; },
   // quick DOM helper
   h(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }

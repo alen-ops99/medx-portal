@@ -26,6 +26,9 @@
 @media (max-width: 500px) {
   .mx-me-row { flex-wrap: wrap !important; row-gap: 6px; }
   .mx-me-row > .mx-me-label { width: 100% !important; }
+  /* a certificate: the title keeps the row, DOWNLOAD PDF · VERIFY LINK · COPY LINK go on their own line under it
+     (side by side they squeezed the title into a 120 px column five lines tall) */
+  .mx-me-row > span:last-child:not(:first-child) { flex: 1 1 100%; }
   .mx-me-card { padding: 22px 18px !important; }
 }
 
@@ -64,7 +67,8 @@
 .mx-me-tilt { position: relative; display: flex; justify-content: center; min-width: 0; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .mx-me-screen [data-act] {
+  .mx-me-screen .mx-me-card { transition: transform .5s var(--ease), box-shadow var(--t-quick) var(--ease) !important; }
+  .mx-me-screen [data-act]:not(.mx-me-card) {
     transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease),
                 border-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease),
                 opacity var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
@@ -97,6 +101,8 @@
 
 @media (hover: hover) {
   .mx-me-link:hover { color: #191512 !important; }
+  /* the member card flips on a click: under the pointer it answers — the shadow deepens and a gold hairline rises */
+  .mx-me-card:hover { box-shadow: 0 30px 70px rgba(0,0,0,.58), 0 0 0 1px rgba(201,169,98,.4) !important; }
   .mx-me-tab[aria-selected="false"]:hover { color: #191512 !important; background: var(--row-hover) !important; }
   /* crimson CTAs without an artboard hover darken like every other crimson button */
   .mx-me-btn[style*="background:#9b1b22"]:hover { background: #7e151b !important; color: #f7f1e6 !important; }

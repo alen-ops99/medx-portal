@@ -141,6 +141,13 @@
   .mx-nc-body { font-size: 17px; min-height: 96px; }
   .mx-nc > .mx-nc-events, [data-block="composer"] > .mx-nc-events { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: 0 -12px; padding: 2px 12px; }
   .mx-nc-events::-webkit-scrollbar { display: none; }
+  /* an edge with more chips past it fades (notes.js stripEdges): a chip half-scrolled past it reads as
+     "more this way", never as a clipped glitch. The left fade stays inside the strip's 12 px padding — the
+     strip opens with a whole chip (the pick) at that padding edge (notes.js revealChip), and a wider fade
+     washed the pick's own first letters out */
+  .mx-nc-events.mx-edge-l { -webkit-mask-image: linear-gradient(90deg, transparent 0 8px, #000 12px); mask-image: linear-gradient(90deg, transparent 0 8px, #000 12px); }
+  .mx-nc-events.mx-edge-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+  .mx-nc-events.mx-edge-l.mx-edge-r { -webkit-mask-image: linear-gradient(90deg, transparent 0 8px, #000 12px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, transparent 0 8px, #000 12px, #000 calc(100% - 40px), transparent); }
   .mx-chip { flex: 0 0 auto; min-height: 44px; max-width: 80vw; }
   .mx-chip .mx-chip-today + * { overflow: hidden; text-overflow: ellipsis; }
   .mx-nc-date { flex: 1 1 100%; }

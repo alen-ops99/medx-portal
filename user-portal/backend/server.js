@@ -760,13 +760,14 @@ function formatRichText(str) {
         .map(line => line.replace(/^\s*[-*•]\s+/, '• '))
         .join('<br>');
 }
-// The Gala's four confirmed keynote speakers + live music, shown on the public
+// The Gala's five confirmed keynote speakers + live music, shown on the public
 // registration/invite pages. Kept as a static list here because gala_settings only
 // models a single keynote; this supersedes that single card without a schema change.
 const GALA_KEYNOTES_2026 = [
     { name: 'Lord Smith of Finsbury (Chris Smith)', role: 'Chancellor, University of Cambridge', place: 'United Kingdom', img: '/assets/gala/kn512_smith_finsbury.jpg' },
     { name: 'Marcela del Carmen, MD', role: 'President, Massachusetts General Hospital', place: 'United States', img: '/assets/gala/kn512_delcarmen.jpg' },
     { name: 'Chris Coburn', role: 'Chief Innovation Officer, Mass General Brigham', place: 'United States', img: '/assets/gala/kn512_coburn.jpg' },
+    { name: 'Giles Boland, MD', role: 'President, Brigham and Women’s Hospital', place: 'United States', img: '/assets/gala/kn512_boland.jpg' },
     { name: 'Dr. Kevin Smith', role: 'President & CEO, University Health Network, Toronto', place: 'Canada', img: '/assets/gala/kn512_kevin_smith.jpg' }
 ];
 // Fully self-contained (inline styles only) so it renders identically on every public
@@ -1122,7 +1123,7 @@ app.get('/terms', (req, res) => {
         <h1>Terms &amp; Conditions</h1>
         <div class="updated">Last updated: 23 September 2026</div>
 
-        <p>These terms govern registration for events organized by <strong>Med&amp;X</strong>, a Croatian non-profit organization, including the Plexus Conference, the Plexus Gala Evening, the Annual Biomedical Forum, and other Med&amp;X-organized events, and the use of the Med&amp;X member portal and the My Med&amp;X app.</p>
+        <p>These terms govern registration for events organized by <strong>Med&amp;X</strong>, a Croatian non-profit organization, including the Plexus Conference, the Plexus Gala Evening, the Annual Biomedical Forum, and other Med&amp;X-organized events, and the use of the Med&amp;X member portal and the Med&amp;X apps for iPhone, iPad and Mac.</p>
 
         <h2>1. Registration and Payment</h2>
         <p>By submitting a registration form, you confirm that the information you provide is accurate and that you accept these terms. Paid registrations are processed via Stripe; receipt of payment confirms your registration. Complimentary (VIP) registrations are confirmed at the moment of form submission.</p>
@@ -1145,13 +1146,13 @@ app.get('/terms', (req, res) => {
         <p>Med&amp;X is committed to providing a respectful environment for all participants. Harassment, discrimination, or behaviour that disrupts the event will not be tolerated and may result in removal without refund.</p>
 
         <h2>6. Member Content and Conduct</h2>
-        <p>The Med&amp;X member portal and the My Med&amp;X app let members publish a profile and write to one another. By creating an account you accept these rules for everything you post or send:</p>
+        <p>The Med&amp;X member portal and the Med&amp;X apps let members publish a profile and write to one another. By creating an account you accept these rules for everything you post or send:</p>
         <ul>
             <li>There is no tolerance for objectionable content or abusive users. Harassment, threats, hate speech, sexual content or solicitation, spam, impersonation, and content that is unlawful or infringes the rights of others are not allowed in profiles, messages or requests.</li>
             <li>You are responsible for what you post. Keep your profile accurate and your messages respectful and professional.</li>
             <li>Every member can report a profile or a message, and block another member, from the member's card, the member list or the conversation. A blocked member can no longer message you, send you requests or find you in the member lists.</li>
             <li>The Med&amp;X team reviews every report within 24 hours. Content that breaks these rules is removed, and the accounts of those who post it are suspended or closed.</li>
-            <li>Messages, requests and profile texts (including the name and institution given at sign-up) that contain slurs, sexual solicitation, direct abuse or threats are refused automatically before they are published.</li>
+            <li>An automatic filter screens messages, requests and profile texts (including the name and institution given at sign-up) for slurs, sexual solicitation, direct abuse and threats, and holds back what it catches before it is published. The team&rsquo;s review of reports covers anything the filter misses.</li>
         </ul>
         <p>To report something that needs attention at once, write to <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
 
@@ -1180,7 +1181,7 @@ app.get('/privacy', (req, res) => {
         <h1>Privacy Policy</h1>
         <div class="updated">Last updated: 23 September 2026</div>
 
-        <p><strong>Med&amp;X</strong>, a Croatian non-profit organization, is the controller of personal data collected through this portal and the My Med&amp;X app. This policy explains what data we collect, why we collect it, how we use it, and your rights under the EU General Data Protection Regulation (GDPR) and the Croatian Personal Data Protection Act.</p>
+        <p><strong>Med&amp;X</strong>, a Croatian non-profit organization, is the controller of personal data collected through this portal and the Med&amp;X apps for iPhone, iPad and Mac. This policy explains what data we collect, why we collect it, how we use it, and your rights under the EU General Data Protection Regulation (GDPR) and the Croatian Personal Data Protection Act.</p>
 
         <h2>1. Data We Collect</h2>
         <p>When you register for a Med&amp;X event, we collect the personal data you submit through the registration form, which may include:</p>
@@ -1194,7 +1195,7 @@ app.get('/privacy', (req, res) => {
         </ul>
 
         <h2>2. Your Member Account (Portal and App)</h2>
-        <p>If you create a Med&amp;X account, used in the member portal and in the My Med&amp;X app, we also process:</p>
+        <p>If you create a Med&amp;X account, used in the member portal and in the Med&amp;X apps, we also process:</p>
         <ul>
             <li>Profile: name, title, institution, city, country, specialties, a short bio and, if you add one, a profile photo. You decide whether your profile appears in the member directory.</li>
             <li>Messages you send to other members and to the Med&amp;X team, and any file you attach to them.</li>
@@ -1219,6 +1220,9 @@ app.get('/privacy', (req, res) => {
             <li><strong>Render</strong> &mdash; cloud hosting of this portal</li>
             <li><strong>Turso</strong> &mdash; database hosting</li>
             <li><strong>Cloudinary</strong> &mdash; storage of profile photos and message attachments</li>
+            <li><strong>Netlify</strong> &mdash; hosting of the portal&rsquo;s web pages</li>
+            <li><strong>Amazon Web Services (S3)</strong> &mdash; storage of files you upload for an event, such as presentation slides and one-slide summaries</li>
+            <li><strong>Google Wallet</strong> &mdash; only when you choose to add a ticket to Google Wallet</li>
             <li><strong>Google Workspace</strong> &mdash; spreadsheet record of registrations</li>
             <li><strong>FIRA</strong> &mdash; Croatian fiscal-invoicing service (paid registrations only)</li>
         </ul>
@@ -1468,11 +1472,11 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
         const galaTitle = pps.gala_title || 'Plexus Gala Evening';
         const galaStatus = pps.gala_status || '';
         const galaDate = (pps.gala_date || '').replace(/\{venue\}/g, galaVenue);
-        // Computed from live gala_settings so the card always shows the start time AND all four
+        // Computed from live gala_settings so the card always shows the start time AND all five
         // keynotes. (The admin gala_desc DB field still holds old single-keynote copy with no time.)
         // Anchor to local noon so date-only strings never roll back a day across timezones.
         const galaWhen = galaSettings.date ? fmtD(String(galaSettings.date).slice(0, 10) + 'T12:00:00') : '5 December 2026';
-        const galaDesc = `${galaWhen}${galaSettings.time ? ' · ' + galaSettings.time : ''} · ${galaVenue} · Black-tie evening with four keynote speakers from leading universities and hospitals (listed below), a fireside panel, and live music. Limited places.`;
+        const galaDesc = `${galaWhen}${galaSettings.time ? ' · ' + galaSettings.time : ''} · ${galaVenue} · Black-tie evening with five keynote speakers from leading universities and hospitals (listed below), a fireside panel, and live music. Limited places.`;
         // Admin-configurable mandatory fields (plexus_page_settings.req_*). 'required' => the
         // browser enforces it (the form is a real <form onsubmit>) AND the server re-checks it.
         const reqStar = (k) => (pps['req_' + k] === 'required') ? ' <span style="color:#c9a962;">*</span>' : '';
@@ -1510,7 +1514,7 @@ app.get(['/plexus', '/plexus/:token'], async (req, res) => {
             offered.includes('bridges') ? calItem('/calendar/building-bridges.ics', 'Bridges') : ''
         ].join('');
 
-        // Gala keynote highlight — shown when the Gala is offered. Four confirmed keynotes
+        // Gala keynote highlight — shown when the Gala is offered. Five confirmed keynotes
         // + live music (see galaKeynoteBlock); supersedes the single gala_settings keynote.
         const keynoteCard = offered.includes('gala') ? galaKeynoteBlock(true) : '';
 
@@ -13891,7 +13895,7 @@ async function submitReset(e){
                 }
             } catch (e) { /* table absent on an older DB — fall through to the seating plan */ }
             const ids = [];
-            query.all('SELECT id FROM gala_registrations WHERE user_id = ? OR LOWER(email) = LOWER(?)', [user.id, user.email || '']).forEach(r => ids.push(r.id));
+            query.all('SELECT id FROM gala_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?))', [user.id, user.email || '']).forEach(r => ids.push(r.id));
             query.all("SELECT id FROM registrations WHERE user_id = ? AND (registration_type = 'gala' OR includes_gala = 1)", [user.id]).forEach(r => ids.push(r.id));
             if (!ids.length) return res.json({ assigned: false });
             const placeholders = ids.map(() => '?').join(',');
@@ -14343,41 +14347,47 @@ async function submitReset(e){
         const out = { events: [], members: [], talks: [], mine: [] };
         // One failing group must never kill the whole search.
         const grp = (fn) => { try { fn(); } catch (e) { /* group skipped */ } };
+        // Dates read '4 December 2026' ('4–5 December 2026' for a two-day event), never the raw ISO
+        // value. An event that is over says 'Past' first; upcoming events list first (soonest), past after.
+        const today = new Date().toISOString().slice(0, 10);
+        const ymd = v => (/^\d{4}-\d{2}-\d{2}/.test(String(v || '')) ? String(v).slice(0, 10) : null);
+        const when = (from, to) => {
+            const a = ymd(from), b = ymd(to);
+            if (!a) return '';
+            if (!b || b <= a) return fmtEventDate(a);
+            if (a.slice(0, 7) === b.slice(0, 7)) return Number(a.slice(8)) + '\u2013' + fmtEventDate(b);
+            return fmtEventDate(a) + ' \u2013 ' + fmtEventDate(b);
+        };
+        const pushEvent = (item, lead, from, to) => {
+            const date = ymd(from), last = [date, ymd(to)].filter(Boolean).sort().pop(), past = !!(last && last < today);
+            out.events.push(Object.assign(item, { date, past, detail: [past ? 'Past' : null, lead, when(from, to)].filter(Boolean).join(' \u00b7 ') }));
+        };
 
         // --- Events: conferences (Plexus etc.) ---
         grp(() => {
-            query.all(`SELECT id, name, slug, start_date, venue_name, venue_city FROM conferences
+            query.all(`SELECT id, name, slug, start_date, end_date, venue_name, venue_city FROM conferences
                 WHERE name LIKE ? OR venue_name LIKE ? OR venue_city LIKE ?
                 ORDER BY start_date DESC LIMIT 5`, [like, like, like])
-                .forEach(c => out.events.push({
-                    kind: 'conference', id: c.id, title: c.name,
-                    detail: [c.venue_city, c.start_date].filter(Boolean).join(' \u00b7 '),
-                    section: 'plexus'
-                }));
+                .forEach(c => pushEvent({ kind: 'conference', id: c.id, title: c.name, section: 'plexus' }, c.venue_city, c.start_date, c.end_date));
         });
         // --- Events: Building Bridges + Donor Night (published only, same as GET /api/bridges/events) ---
         grp(() => {
             query.all(`SELECT id, slug, name, city, venue_name, event_date FROM bridges_events
                 WHERE is_published = 1 AND (name LIKE ? OR city LIKE ? OR venue_name LIKE ?)
                 ORDER BY event_date ASC LIMIT 5`, [like, like, like])
-                .forEach(e => out.events.push({
-                    kind: 'bridges', id: e.id, title: e.name,
-                    detail: [e.city, e.event_date].filter(Boolean).join(' \u00b7 '),
-                    section: 'bridges'
-                }));
+                .forEach(e => pushEvent({ kind: 'bridges', id: e.id, title: e.name, section: 'bridges' }, e.city, e.event_date));
         });
         // --- Events: Forum convenings (published only, same visibility as GET /api/forum/events) ---
         grp(() => {
-            query.all(`SELECT id, title, start_date, location_name FROM forum_events
+            query.all(`SELECT id, title, start_date, end_date, location_name FROM forum_events
                 WHERE (status = 'published' OR is_published = 1)
                   AND (title LIKE ? OR description LIKE ? OR location_name LIKE ?)
                 ORDER BY start_date ASC LIMIT 5`, [like, like, like])
-                .forEach(e => out.events.push({
-                    kind: 'forum_event', id: e.id, title: e.title,
-                    detail: ['Forum convening', e.start_date].filter(Boolean).join(' \u00b7 '),
-                    section: /annual forum/i.test(e.title || '') ? 'af26' : 'forum'
-                }));
+                .forEach(e => pushEvent({ kind: 'forum_event', id: e.id, title: e.title, section: /annual forum/i.test(e.title || '') ? 'af26' : 'forum' },
+                    'Forum convening', e.start_date, e.end_date));
         });
+        out.events.sort((x, y) => (x.past - y.past)
+            || (x.past ? String(y.date || '').localeCompare(String(x.date || '')) : String(x.date || '9999').localeCompare(String(y.date || '9999'))));
 
         // Both member groups leave out closed / suspended / team-hidden accounts and either side of a block
         // (shared/safety-core.js) — the same rule as the Network directory.
@@ -14436,17 +14446,22 @@ async function submitReset(e){
         });
 
         // --- Mine: the caller's own tickets and registrations ---
+        // A query that reads like "ticket" / "wallet" / "pass" / "QR" (typed in part too) opens the wallet,
+        // where every ticket lives whichever form it came from, and lists the caller's tickets unfiltered.
+        const walletAsk = qLower === 'qr' || (qLower.length >= 3
+            && ['tickets', 'wallet', 'passes', 'qr code', 'my tickets', 'my wallet'].some(w => w.startsWith(qLower)));
+        if (walletAsk) out.mine.push({ kind: 'wallet', id: 'wallet', title: 'My wallet', detail: 'Your tickets and passes', section: 'mymedx' });
         grp(() => {
-            query.all(`SELECT r.id, r.invoice_number, c.name AS conference_name, c.start_date, t.name AS ticket_name
+            query.all(`SELECT r.id, r.invoice_number, c.name AS conference_name, c.start_date, c.end_date, t.name AS ticket_name
                 FROM registrations r
                 JOIN conferences c ON r.conference_id = c.id
                 JOIN ticket_types t ON r.ticket_type_id = t.id
-                WHERE r.user_id = ? AND (c.name LIKE ? OR t.name LIKE ? OR r.invoice_number LIKE ?)
-                ORDER BY r.created_at DESC LIMIT 5`, [req.user.id, like, like, like])
+                WHERE r.user_id = ? AND (? = 1 OR c.name LIKE ? OR t.name LIKE ? OR r.invoice_number LIKE ?)
+                ORDER BY r.created_at DESC LIMIT 5`, [req.user.id, walletAsk ? 1 : 0, like, like, like])
                 .forEach(r => out.mine.push({
                     kind: 'ticket', id: r.id,
                     title: (r.conference_name || 'Med&X event') + (r.ticket_name ? ' \u2014 ' + r.ticket_name : ''),
-                    detail: ['Your ticket', r.start_date].filter(Boolean).join(' \u00b7 '),
+                    detail: ['Your ticket', when(r.start_date, r.end_date)].filter(Boolean).join(' \u00b7 '),
                     section: 'mymedx'
                 }));
         });
@@ -14455,22 +14470,22 @@ async function submitReset(e){
             if (!me || !me.email) return;
             // Gala registration has no free-text name column — surface it when the query
             // reads like a gala lookup (e.g. "gala", "evening", "seat").
-            if ('gala evening 2026 dinner seat'.includes(qLower)) {
+            if (walletAsk || 'gala evening 2026 dinner seat'.includes(qLower)) {
                 query.all('SELECT id, status FROM gala_registrations WHERE LOWER(email) = LOWER(?) LIMIT 2', [me.email])
                     .forEach(g => out.mine.push({
                         kind: 'gala_registration', id: g.id,
                         title: 'Gala Evening 2026 \u2014 your registration',
-                        detail: g.status ? ('Status: ' + g.status) : 'Your registration',
+                        detail: g.status ? ('Status: ' + String(g.status).replace(/[_-]+/g, ' ')) : 'Your registration',
                         section: 'gala'
                     }));
             }
             query.all(`SELECT br.id, be.name, be.event_date FROM bridges_registrations br
                 JOIN bridges_events be ON br.event_id = be.id
-                WHERE LOWER(br.email) = LOWER(?) AND be.name LIKE ? LIMIT 3`, [me.email, like])
+                WHERE LOWER(br.email) = LOWER(?) AND (? = 1 OR be.name LIKE ?) LIMIT 3`, [me.email, walletAsk ? 1 : 0, like])
                 .forEach(b => out.mine.push({
                     kind: 'bridges_registration', id: b.id,
                     title: (b.name || 'Med&X event') + ' \u2014 your registration',
-                    detail: ['Your registration', b.event_date].filter(Boolean).join(' \u00b7 '),
+                    detail: ['Your registration', when(b.event_date)].filter(Boolean).join(' \u00b7 '),
                     section: 'mymedx'
                 }));
         });
@@ -28824,8 +28839,9 @@ By applying to this program, I provide the following consents:
     // Get current user's gala registration status
     app.get('/api/gala/my-status', auth, (req, res) => {
         const reg = query.get(
-            `SELECT * FROM gala_registrations WHERE email = ? ORDER BY created_at DESC LIMIT 1`,
-            [req.user.email]
+            // an address match only counts for a row no account owns yet (a freed address never inherits a seat)
+            `SELECT * FROM gala_registrations WHERE (user_id = ? OR (user_id IS NULL AND lower(email) = lower(?))) ORDER BY created_at DESC LIMIT 1`,
+            [req.user.id, req.user.email || '']
         );
         if (!reg) return res.json({ registered: false });
         res.json({ registered: true, registration: reg });
@@ -28845,7 +28861,7 @@ By applying to this program, I provide the following consents:
                 `SELECT id, first_name, last_name, email, institution, status, payment_status, amount_paid,
                         checked_in, checked_in_at, invoice_number, pricing, created_at
                  FROM gala_registrations
-                 WHERE (user_id = ? OR lower(email) = lower(?))
+                 WHERE (user_id = ? OR (user_id IS NULL AND lower(email) = lower(?)))
                    AND COALESCE(status, '') NOT IN ('rejected', 'declined', 'cancelled')
                  ORDER BY created_at DESC`, [me.id, me.email || '']);
             res.json(rows.map(r => ({

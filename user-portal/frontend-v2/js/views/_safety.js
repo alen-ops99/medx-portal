@@ -137,7 +137,9 @@ export function openMenu(anchor, items) {
   anchor.setAttribute('aria-expanded', 'true');
 
   const itemsEls = () => Array.from(el.querySelectorAll('[role="menuitem"]'));
-  const pick = (i) => { close(false); const it = items[i]; if (it && it.onPick) it.onPick(); };
+  // the picked line is removed with the menu: focus steps back to ⋯ first, so the sheet an item opens (REPORT,
+  // BLOCK) returns focus there when it closes instead of dropping it on <body>
+  const pick = (i) => { close(false); if (anchor.isConnected) { try { anchor.focus({ preventScroll: true }); } catch (e) {} } const it = items[i]; if (it && it.onPick) it.onPick(); };
   const onDown = e => { if (!el.contains(e.target)) { if (anchor.contains(e.target)) lastClosed = { anchor, at: performance.now() }; close(false); } };
   const onKey = e => {
     const list = itemsEls(); const i = list.indexOf(document.activeElement);

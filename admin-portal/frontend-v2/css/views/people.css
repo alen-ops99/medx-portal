@@ -63,3 +63,8 @@
 .mx-report-ctx[open] > summary::before { content: '\2212'; }
 @media (hover: hover) { .mx-report-ctx > summary:hover { color: #201b16 !important; } }
 @media (max-width: 480px) { .mx-report-acts { flex-basis: 100% !important; } }
+/* touch: the report actions (REVIEWED · DISMISS · REMOVE MESSAGE · HIDE PROFILE · SUSPEND …) were 26 px
+   tall buttons — a thumb gets 44 */
+@media (pointer: coarse) {
+  [data-block="reports"] [data-act^="report"][style*="padding:7px 10px"] { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+}

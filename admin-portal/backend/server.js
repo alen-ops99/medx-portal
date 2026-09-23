@@ -18315,11 +18315,12 @@ By applying to this program, I provide the following consents:
     // `const` here would be a TDZ trap for any caller that runs before this line at boot.)
     function plexusRegistrantCount(extraWhere, args) {
         // The total is PEOPLE across both doors: the /plexus form (croatians_abroad_registrations) ∪ the member
-        // portal's My Plexus rows (registrations) — Registrations and the Program editor count the same union.
+        // portal's My Plexus rows (registrations) — Registrations and the Program editor count the same union,
+        // with the same live-leg rule (shared/ca-merge.js liveLegSql: a held 'pending-review' row is nobody yet).
         if (!extraWhere) {
             try {
                 return query.get(`SELECT COUNT(*) AS c FROM (
-                    SELECT lower(email) AS e FROM croatians_abroad_registrations WHERE selected_conference = 1 AND conference_status IN ('pre-registered','confirmed','registered') AND email IS NOT NULL AND TRIM(email) <> ''
+                    SELECT lower(email) AS e FROM croatians_abroad_registrations WHERE selected_conference = 1 AND ${caMerge.liveLegSql('conference_status')} AND email IS NOT NULL AND TRIM(email) <> ''
                     UNION
                     SELECT lower(COALESCE(NULLIF(r.email,''), u.email)) FROM registrations r LEFT JOIN users u ON u.id = r.user_id
                      JOIN conferences c ON c.id = r.conference_id AND c.slug = 'plexus-2026'
@@ -18327,7 +18328,7 @@ By applying to this program, I provide the following consents:
                       AND COALESCE(NULLIF(r.email,''), u.email) IS NOT NULL)`)?.c || 0;
             } catch (e) { /* fall through to the form-only count */ }
         }
-        const sql = "SELECT COUNT(DISTINCT lower(email)) AS c FROM croatians_abroad_registrations WHERE selected_conference = 1 AND conference_status IN ('pre-registered','confirmed','registered')";
+        const sql = "SELECT COUNT(DISTINCT lower(email)) AS c FROM croatians_abroad_registrations WHERE selected_conference = 1 AND " + caMerge.liveLegSql('conference_status');
         try { return query.get(sql + (extraWhere ? ' AND ' + extraWhere : ''), args || [])?.c || 0; }
         catch (e) { return 0; }
     }
@@ -34821,16 +34822,14 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // (message + registrations + FAQ), and falls back to the label stored at triage time.
     app.post('/api/admin/messages/:userId/draft-reply', auth, adminOnly, async (req, res) => {
         try {
-            const userId = req.params.userId;
-            // The UI passes the member's email; rows store users.id — try both keys.
-            const u = query.get('SELECT id FROM users WHERE id = ? OR LOWER(email) = LOWER(?)', [userId, userId]);
-            const k2 = u ? u.id : userId;
+            // The UI passes the thread key (users.id, or an email) — rows carry either (messageKeys).
+            const keys = messageKeys(req.params.userId);
             const msg = query.get(
-                "SELECT * FROM direct_messages WHERE sender_id IN (?, ?) AND receiver_type = 'admin' ORDER BY created_at DESC LIMIT 1",
-                [userId, k2]
+                "SELECT * FROM direct_messages WHERE LOWER(sender_id) IN (?, ?, ?) AND receiver_type = 'admin' ORDER BY created_at DESC LIMIT 1",
+                keys
             ) || query.get(
-                "SELECT * FROM direct_messages WHERE (sender_id IN (?, ?) OR receiver_id IN (?, ?)) ORDER BY created_at DESC LIMIT 1",
-                [userId, k2, userId, k2]
+                "SELECT * FROM direct_messages WHERE (LOWER(sender_id) IN (?, ?, ?) OR LOWER(receiver_id) IN (?, ?, ?)) ORDER BY created_at DESC LIMIT 1",
+                [...keys, ...keys]
             );
             if (!msg) return res.status(404).json({ error: 'No message found for that member.' });
             // Make sure it carries a label even if the sweep has not reached it yet.
@@ -34856,6 +34855,14 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         return query.get('SELECT id, email FROM users WHERE id = ?', [v])
             || query.get('SELECT id, email FROM users WHERE LOWER(email) = LOWER(?)', [v])
             || null;
+    };
+    // Every value a member's rows can carry in sender_id / receiver_id, lower-cased: the thread key,
+    // users.id AND users.email. Member-side writes (Messages, the assistant's escalate, purchase questions,
+    // replies) store the member's EMAIL, admin sends store users.id — GET /api/v2/inbox/threads groups both
+    // under users.id, so a thread read by id alone opened empty. Compare with LOWER(column) IN (?, ?, ?).
+    const messageKeys = (idOrEmail) => {
+        const k = String(idOrEmail || '').trim(), u = resolveMessageUser(k);
+        return [k, u ? u.id : k, u && u.email ? u.email : k].map(v => String(v).toLowerCase());
     };
 
     app.get('/api/admin/messages', auth, adminOnly, async (req, res) => {
@@ -34965,21 +34972,20 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // so inbound questions addressed to e.g. coordinators@medx.hr still thread correctly.
     app.get('/api/admin/messages/:userId', auth, adminOnly, (req, res) => {
         try {
-            // The UI keys threads by email; rows key by users.id. Match on both so
-            // the thread also picks up any legacy email-keyed rows.
-            const u = resolveMessageUser(req.params.userId);
-            const k1 = req.params.userId, k2 = u ? u.id : req.params.userId;
+            // The thread key is users.id (an email on older clients); the member's own rows carry their
+            // EMAIL — match every form (messageKeys), or the thread opens with its questions missing.
+            const keys = messageKeys(req.params.userId);
             const messages = query.all(`
                 SELECT * FROM direct_messages
-                WHERE (sender_id IN (?, ?) OR receiver_id IN (?, ?))
+                WHERE (LOWER(sender_id) IN (?, ?, ?) OR LOWER(receiver_id) IN (?, ?, ?))
                   AND (sender_type = 'admin' OR receiver_type = 'admin')
                 ORDER BY created_at ASC`,
-                [k1, k2, k1, k2]);
+                [...keys, ...keys]);
 
             // Mark this member's inbound messages as read.
             db.run(`UPDATE direct_messages SET is_read = 1
-                WHERE sender_id IN (?, ?) AND receiver_type = 'admin' AND is_read = 0`,
-                [k1, k2]);
+                WHERE LOWER(sender_id) IN (?, ?, ?) AND receiver_type = 'admin' AND is_read = 0`,
+                keys);
             saveDb();
 
             res.json(messages);

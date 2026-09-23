@@ -100,12 +100,14 @@ body[data-layout="signin"] #chrome { display: none; }
    drawer takes over. IF YOU ADD A TOP-LEVEL ITEM: re-measure at 1000px with EVENT DAY on. */
 @media (min-width: 961px) {
   .mx-search { min-width: 70px !important; }
-  .mx-topbar.event-day .mx-chat-label { display: none; }
-  .mx-topbar.event-day .mx-chat { padding: 7px 9px !important; }
 }
 @media (min-width: 961px) and (max-width: 1100px) {
   .mx-topbar { gap: 14px !important; }
   .mx-topbar .mx-nav { gap: 14px !important; }
+  /* the TEAM CHAT label steps aside for EVENT DAY only where the bar is really tight — at 1180 (an iPad
+     in landscape) there is room, and an unlabeled square with a dot explained nothing on touch */
+  .mx-topbar.event-day .mx-chat-label { display: none; }
+  .mx-topbar.event-day .mx-chat { padding: 7px 9px !important; }
 }
 
 /* ---- collapsed nav (≤960px: the nav row collapses behind MENU — note 0a) ----
@@ -115,7 +117,13 @@ body[data-layout="signin"] #chrome { display: none; }
 @media (max-width: 960px) {
   #mx-menu-btn { display: inline-flex; }
   .mx-nav { display: none !important; }
-  body.menu-open .mx-nav { display: flex !important; flex-direction: column; align-items: stretch !important; gap: 0 !important; position: absolute; left: 0; right: 0; top: 100%; background: #fff; border-bottom: 1px solid rgba(32,27,22,.14); box-shadow: 0 12px 30px rgba(32,27,22,.16); z-index: 66; padding: 6px 0 10px; height: auto !important; max-height: calc(100vh - 60px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  /* one column that scrolls, never wraps: the bar's own ≤960 rule (.mx-topbar .mx-nav { flex-wrap: wrap })
+     turned a capped column into a second column off the right edge (TEAM · PEOPLE · MONEY · MORE out of
+     reach on an iPhone with PROJECTS unfolded). The cap is the screen below the bar's real bottom edge
+     (--mx-bar-b, measured by chrome.js openMenu — the phone bar wraps to ~96 px), border-box so the
+     padding stays inside it, and dvh so Safari's own toolbars are not counted as room */
+  body.menu-open .mx-nav { display: flex !important; flex-direction: column; flex-wrap: nowrap !important; align-items: stretch !important; gap: 0 !important; position: absolute; left: 0; right: 0; top: 100%; background: #fff; border-bottom: 1px solid rgba(32,27,22,.14); box-shadow: 0 12px 30px rgba(32,27,22,.16); z-index: 66; padding: 6px 0 10px; box-sizing: border-box; height: auto !important; max-height: calc(100vh - var(--mx-bar-b, 60px)); max-height: calc(100dvh - var(--mx-bar-b, 60px)); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  body.menu-open .mx-nav > * { flex: none; }
   body.menu-open .mx-nav > * { height: auto !important; padding: 0 !important; border-bottom: 0 !important; border-left: 2px solid transparent; box-sizing: border-box; flex-direction: column; align-items: stretch !important; }
   body.menu-open .mx-nav > a, body.menu-open .mx-nav > .mx-nav-item > a { padding: 13px 16px !important; height: auto !important; min-height: 44px; border-bottom: 0 !important; box-sizing: border-box; }
   body.menu-open .mx-nav > .active { border-left-color: #9b1b22 !important; }
@@ -189,6 +197,42 @@ body[data-layout="signin"] #chrome { display: none; }
   .mx-row { flex-wrap: wrap !important; row-gap: 8px; }
   .mx-row-text { flex: 1 1 100% !important; }
   .mx-row > a, .mx-row > [data-act] { margin-left: 22px; }
+}
+
+/* a file panel stacked under its list (People, Registrations at ≤960) carries a way back up to the list */
+.mx-back-list { display: none; }
+@media (max-width: 960px) { .mx-back-list { display: block; } }
+
+/* touch targets — each one is the control's OWN box, never an invisible layer hung over its neighbours.
+   (An earlier pass put ::before hit areas around the small text actions; on the Gala list the one under
+   MARK PAID covered the lower half of the status chip above it, so a tap on LINK SENT marked the guest
+   paid, a tick selected the next registration and the Projects switcher opened the wrong project.)
+   Rules: a hit area never reaches past its control; money and destructive text actions (MARK PAID ·
+   CHASE · ✕ CANCEL · DISCARD · RESEND · REMOVE · DECLINE · UNPUBLISH · PAUSE · QUEUE …) keep exactly the
+   size they are drawn at.
+   · MENU is 44 px tall inside the bar's own padding (negative margins: the bar keeps its height);
+   · the modal × is a 44 px square inside the head's padding;
+   · where the Projects switcher wraps (≤960) its links are 44 px rows that touch, never overlap;
+   · plain text links that lead somewhere (label ending in → / ↗, marked .mx-has-arr by ui.js) and the
+     text toggles below, which only open, show or edit something, grow to 44 px tall in place — the row
+     around them grows with them;
+   · the Registrations tick fills its whole grid cell (registrations.js). */
+@media (max-width: 960px) {
+  #mx-menu-btn { min-height: 44px; margin: -7px -8px; padding: 0 8px; box-sizing: border-box; }
+}
+@media (pointer: coarse) {
+  .mx-modal-head [data-act="close"] { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; margin: -11px -14px -11px 0; box-sizing: border-box; }
+  :is(a.mx-has-arr, span[data-act].mx-has-arr,
+      span:is([data-act="snooze"], [data-act="permsToggle"], [data-act="teamAll"], [data-act="auditToggle"], [data-act="toggleOlderPulses"],
+              [data-act="toggleCancelled"], [data-act="showAll"], [data-act="showAllRows"], [data-act="intToggle"], [data-act="kdToggle"],
+              [data-act="fieldsToggle"], [data-act="formToggle"], [data-act="gatherToggle"], [data-act="editList"], [data-act="editConf"],
+              [data-act="aluEdit"], [data-act="instEdit"], [data-act="intakeEdit"], [data-act="annEdit"], [data-act="evEdit"], [data-act="recap"],
+              [data-act="consNote"], [data-act="openTx"], [data-act="backToList"], [data-act="copyLink"]))[style*="letter-spacing"]:not([style*="padding"]):not([style*="background"]):not([style*="border"]):not([style*="position"]):not([style*="display:block"]):not(.mx-nav *):not(.mx-dd *) {
+    display: inline-flex; align-items: center; min-height: 44px; box-sizing: border-box; }
+}
+@media (pointer: coarse) and (max-width: 960px) {
+  .mx-subnav { row-gap: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+  .mx-subnav > a { min-height: 44px; display: inline-flex; align-items: center; box-sizing: border-box; }
 }
 
 /* Netlify HUD badge iframe overlaps bottom-right controls on review deploys — hide it */

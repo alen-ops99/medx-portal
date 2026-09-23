@@ -55,6 +55,9 @@
    mid-fade carries the fade on (--swap-d). Closing slides the sheet back out at --t-exit. */
 .mx-drawer.swap .mx-drawer-sheet > * { animation: mx-fade var(--t-reveal) var(--ease) var(--swap-d, 0ms) both; }
 .mx-drawer.out, .mx-drawer.out .mx-drawer-sheet { pointer-events: none; }
+/* the sheet takes focus when it opens (tasks.js openDrawer) so the keyboard starts inside it; a whole
+   panel wears no ring for that — the controls inside keep theirs */
+.mx-drawer-sheet:focus, .mx-drawer-sheet:focus-visible { outline: none; }
 .mx-drawer.out .mx-drawer-sheet { animation: mx-drawer-out var(--t-exit) var(--ease) forwards; }
 @keyframes mx-drawer-out { from { transform: none; opacity: 1; } to { transform: translateX(36px); opacity: 0; } }
 @keyframes mx-drawer-down { from { transform: none; opacity: 1; } to { transform: translateY(22px); opacity: 0; } }

@@ -40,6 +40,7 @@ export const COPY = {
   cols: { who: 'WHO', event: 'EVENT', status: 'STATUS', when: 'WHEN' },
   empty: 'Nothing matches these filters.',
   foot: (n, t) => `Showing ${n} of ${t} registration${t === 1 ? '' : 's'}`, more: 'SHOW MORE', showAll: n => `SHOW ALL ${n}`,
+  bridgesShort: city => `Bridges · ${city}`, backToList: '← BACK TO THE LIST',
   linkFilter: l => `SOURCE LINK · ${l}`, clearLink: '× CLEAR',
   panel: {
     registered: w => `registered ${w}`, none: 'No registrations to show — the file panel fills as sign-ups arrive.',
@@ -148,7 +149,7 @@ function blockStats() {
   <!-- dc: Admin Registrations.dc.html › "Stat strip" -->
   <div data-block="stats" class="mx-grid-4 mx-kpi" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(4,1fr)">
     ${cell('statAll', COPY.stats.all, s.all == null ? '—' : s.all, cxAll ? COPY.stats.cancelled(cxAll) : '', '#9a9086')}
-    ${cell('statConf', COPY.stats.conference, s.conference_people != null ? s.conference_people : s.conference == null ? '—' : s.conference, (cap ? COPY.stats.of(cap) : '') + (s.conference_people != null && s.conference != null && s.conference !== s.conference_people ? ' · ' + COPY.stats.rows(s.conference) : ''), '#6d6459')}
+    ${cell('statConf', COPY.stats.conference, s.conference_people != null ? s.conference_people : s.conference == null ? '—' : s.conference, (cap ? COPY.stats.of(cap) : '') + (s.conference_people != null && s.conference != null && s.conference !== s.conference_people ? ' <span style="white-space:nowrap">· ' + COPY.stats.rows(s.conference) + '</span>' : ''), '#6d6459')}
     ${cell('statGala', COPY.stats.gala, s.gala == null ? '—' : s.gala, s.gala_unpaid ? COPY.stats.unpaid(s.gala_unpaid) : '', '#9b1b22', false, galaSplit)}
     ${cell('statBoston', COPY.stats.boston, s.boston == null ? '—' : s.boston, s.boston_cap ? COPY.stats.of(s.boston_cap) : '', '#6d6459', true)}
   </div>
@@ -161,10 +162,18 @@ function blockFilters() {
   <div data-block="filters" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <span class="mx-field" style="display:flex;align-items:center;gap:8px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 13px;flex:1;min-width:220px"><span style="color:#6d6459">⌕</span><input data-role="regq" value="${esc(st.q)}" placeholder="${esc(COPY.searchPh)}" aria-label="Search registrations" style="border:none;background:transparent;font:400 13px Inter,sans-serif;color:#201b16;flex:1;outline:none;padding:0"></span>
     <select data-role="ev" aria-label="Event filter" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:9px 11px;font:600 11px Inter,sans-serif;color:#201b16">${COPY.events.map(([k, label]) => `<option value="${k}"${st.event === k ? ' selected' : ''}>${label}</option>`).join('')}</select>
-    ${COPY.chips.map(c => `<span data-act="chip" data-chip="${c}" style="padding:9px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;${chip(st.status === c)};white-space:nowrap">${c}</span>`).join('')}
+    ${COPY.chips.map(c => `<span data-act="chip" data-chip="${c}" style="padding:9px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;${chip(st.status === c)};white-space:nowrap"${st.status === c ? '' : ' data-hover="border-color:#201b16;color:#201b16"'}>${c}</span>`).join('')}
     ${st.link ? `<span data-v2="link-filter" style="display:flex;align-items:center;gap:8px;padding:9px 13px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;background:#f8f1e2;color:#7a6432;white-space:nowrap">${esc(COPY.linkFilter(st.linkLabel || st.link.slice(0, 10)))}<span data-act="clearLink" style="cursor:pointer;color:#9b1b22">${COPY.clearLink}</span></span>` : ''}
   </div>
   <!-- /dc -->`;
+}
+// the EVENT column's short label: the long Bridges names ellipsized to "Building Bridges in Biomedicine — B…"
+// (the city lost), and the Plexus form's Zagreb rows read only "Building Bridges". The file panel keeps the full name.
+function eventShort(r) {
+  const ev = String(r.event || '');
+  if (!/building bridges/i.test(ev)) return ev;
+  const city = (ev.split(/\s[—–-]\s/)[1] || '').trim() || (r.type === 'croatians-abroad' ? FACTS.plexus.city : '');
+  return city ? COPY.bridgesShort(city) : ev;
 }
 function rowHtml(r, selected) {
   const c = ST[r.status] || ST.FREE;
@@ -172,9 +181,9 @@ function rowHtml(r, selected) {
   // audit #11: one line per row — name with the email inline and dimmed (~40px, was two lines)
   return `
       <div data-act="open" data-key="${esc(r.key)}" role="button" aria-label="Open ${esc(r.name)}" class="mx-regrow${selected ? ' on' : ''}" style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:8px 16px;border-bottom:1px solid rgba(32,27,22,.07);align-items:center;cursor:pointer;background:${selected ? '#f6f2ea' : '#fff'}">
-        <span data-act="tick" data-key="${esc(r.key)}" role="checkbox" aria-checked="${st.ticked.has(r.key)}" aria-label="Select ${esc(r.name)}" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:${st.ticked.has(r.key) ? '#9b1b22' : 'transparent'};flex:none"></span>
+        <span data-act="tick" data-key="${esc(r.key)}" role="checkbox" aria-checked="${st.ticked.has(r.key)}" aria-label="Select ${esc(r.name)}" class="mx-tick-cell" style="align-self:stretch;display:flex;align-items:center;margin:-8px -5px -8px -16px;padding:0 5px 0 16px;cursor:pointer"><span style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);background:${st.ticked.has(r.key) ? '#9b1b22' : 'transparent'};flex:none"></span></span>
         <span style="min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="font-weight:600;${r.status === 'CANCELLED' ? 'color:#9a9086;text-decoration:line-through' : ''}">${esc(r.name)}</span>${r.email ? ` <span style="font-size:10.5px;color:#6d6459">· ${esc(r.email)}</span>` : ''}</span>
-        <span class="mx-reg-event" style="min-width:0;display:flex;align-items:center;gap:6px"><span style="font-size:11.5px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.event)}</span>${lt ? `<span data-act="linkTag" data-link="${esc(r.link.ref)}" data-label="${esc(r.link.label)}" title="Source link — click to see every sign-up from it" style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:${lt[0]};color:${lt[1]};white-space:nowrap;cursor:pointer;flex:none">${esc(r.link.kind === 'LINK' ? 'LINK' : r.link.kind)}</span>` : ''}</span>
+        <span class="mx-reg-event" style="min-width:0;display:flex;align-items:center;gap:6px"><span title="${esc(r.event)}" style="font-size:11.5px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(eventShort(r))}</span>${lt ? `<span data-act="linkTag" data-link="${esc(r.link.ref)}" data-label="${esc(r.link.label)}" title="Source link — click to see every sign-up from it" style="font:600 7.5px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:${lt[0]};color:${lt[1]};white-space:nowrap;cursor:pointer;flex:none">${esc(r.link.kind === 'LINK' ? 'LINK' : r.link.kind)}</span>` : ''}</span>
         <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:${c[0]};color:${c[1]};white-space:nowrap;justify-self:start">${esc(r.status)}</span>
         <span class="mx-reg-when" style="font:600 9px Inter,sans-serif;color:#9a9086;white-space:nowrap">${esc(fmt.dayLabel(r.when) || '')}</span>
       </div>`;
@@ -188,10 +197,10 @@ function blockTable() {
   const more = D && D.total > list.length;                 // server fetch window (SHOW MORE)
   return `
       <div data-block="table" style="border:1px solid rgba(32,27,22,.14);background:#fff">
-        <div style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:9px 16px;border-bottom:1px solid rgba(32,27,22,.14);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;align-items:center"><span data-act="selAll" role="checkbox" aria-checked="${!!allTicked}" title="Select everything shown" style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);cursor:pointer;background:${allTicked ? '#9b1b22' : 'transparent'}"></span><span>${COPY.cols.who}</span><span class="mx-reg-event">${COPY.cols.event}</span><span>${COPY.cols.status}</span><span class="mx-reg-when">${COPY.cols.when}</span></div>
+        <div style="display:grid;grid-template-columns:auto 1.9fr 1.2fr 1fr auto;gap:10px;padding:9px 16px;border-bottom:1px solid rgba(32,27,22,.14);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;align-items:center"><span data-act="selAll" role="checkbox" aria-checked="${!!allTicked}" title="Select everything shown" class="mx-tick-cell" style="align-self:stretch;display:flex;align-items:center;margin:-9px -5px -9px -16px;padding:0 5px 0 16px;cursor:pointer"><span style="width:13px;height:13px;border:1px solid rgba(32,27,22,.4);background:${allTicked ? '#9b1b22' : 'transparent'};flex:none"></span></span><span>${COPY.cols.who}</span><span class="mx-reg-event">${COPY.cols.event}</span><span>${COPY.cols.status}</span><span class="mx-reg-when">${COPY.cols.when}</span></div>
         ${visible.map(r => rowHtml(r, sel && r.key === sel.key)).join('')}
         ${!list.length ? `<div style="padding:24px 16px;text-align:center;font-size:13px;color:#6d6459">${COPY.empty}</div>` : ''}
-        <div style="padding:10px 16px;font-size:11px;color:#6d6459;display:flex;gap:14px;align-items:baseline">${COPY.foot(visible.length, D ? D.total : 0)}<div style="flex:1"></div>${canExpand ? `<span data-act="showAll" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.showAll(list.length)}</span>` : more ? `<span data-act="more" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.more} · ${D.total - list.length}</span>` : ''}</div>
+        <div style="padding:10px 16px;font-size:11px;color:#6d6459;display:flex;gap:14px;align-items:baseline">${COPY.foot(visible.length, D ? D.total : 0)}<div style="flex:1"></div>${canExpand ? `<span data-act="showAll" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.showAll(list.length)}</span>` : more ? `<span data-act="more" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.more} · ${D.total - list.length}</span>` : ''}</div>
       </div>`;
 }
 function panelActions(r) {
@@ -221,6 +230,7 @@ function blockPanel() {
   return `
       <!-- dc: Admin Registrations.dc.html › "Registration file" -->
       <div data-block="panel" class="mx-sticky" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #9b1b22;background:#fff;position:sticky;top:16px">
+        <div class="mx-back-list" style="padding:12px 18px 0"><span data-act="backToList" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer" data-hover="color:#201b16">${COPY.backToList}</span></div>
         <div style="padding:15px 18px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;gap:12px;align-items:center">
           <span style="width:38px;height:38px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none">${esc(ini)}</span>
           <span style="min-width:0"><span style="display:block;font-size:14.5px;font-weight:600">${esc(r.name)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(r.event)} · ${esc(COPY.panel.registered(fmt.dayLabel(r.when) || '—'))}</span></span>
@@ -286,8 +296,8 @@ function authorName(a) {
 }
 function tlWhen(at) {
   if (!at) return '—';
-  const t = String(at).match(/[T ](\d{2}:\d{2})/);
-  return (fmt.dayLabel(at) || String(at).slice(0, 10)) + (t ? ' · ' + t[1] : '');
+  const t = /[T ]\d{2}:\d{2}/.test(String(at)) ? fmt.hm(at) : '';   // the local clock (SQL stamps are UTC)
+  return (fmt.dayLabel(at) || String(at).slice(0, 10)) + (t ? ' · ' + t : '');
 }
 async function loadTimeline(email) {
   const my = ++tlReq;
@@ -379,6 +389,13 @@ function template() {
 // comes off again once the entrance has run; a TIMELINE redraw inside the panel meanwhile carries the
 // entrance on (redrawTimeline › settle.carry) instead of rising in all over again
 function panelIn() { ui.settle(rootEl && rootEl.querySelector('[data-block="panel"]')); }
+// one column (≤960: phone, iPad portrait) stacks the file under the whole table — a tapped row redrew it
+// 2,000 px below the fold and the tap looked dead; bring it into view
+function revealPanel() {
+  let one = false; try { one = window.matchMedia('(max-width: 960px)').matches; } catch (e) {}
+  const p = one && rootEl && rootEl.querySelector('[data-block="panel"]');
+  if (p) p.scrollIntoView({ block: 'start', behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
+}
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
 function redrawData() {
   rerender('[data-block="stats"]', blockStats());
@@ -448,7 +465,8 @@ function composeModal(recipients) {
 }
 
 const handlers = {
-  open: (el, ev) => { if (ev.target.closest('[data-act]') !== el) return; const was = st.sel; st.sel = el.dataset.key; st.cancelConfirm = null; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); if (was !== st.sel) panelIn(); ensureTimeline(); },
+  open: (el, ev) => { if (ev.target.closest('[data-act]') !== el) return; const was = st.sel; st.sel = el.dataset.key; st.cancelConfirm = null; rerender('[data-block="table"]', blockTable()); rerender('[data-block="panel"]', blockPanel()); if (was !== st.sel) panelIn(); ensureTimeline(); revealPanel(); },
+  backToList: () => { const r = rootEl.querySelector('.mx-regrow.on') || rootEl.querySelector('[data-block="table"]'); if (r) r.scrollIntoView({ block: 'center', behavior: ui.reducedMotion() ? 'auto' : 'smooth' }); },
   tick: (el) => { const k = el.dataset.key; st.ticked.has(k) ? st.ticked.delete(k) : st.ticked.add(k); rerender('[data-block="table"]', blockTable()); syncButtons(); },
   selAll: () => { const list = rows(); const all = list.length && list.every(r => st.ticked.has(r.key)); list.forEach(r => all ? st.ticked.delete(r.key) : st.ticked.add(r.key)); rerender('[data-block="table"]', blockTable()); syncButtons(); },
   chip: (el) => setFilter({ status: el.dataset.chip }),
@@ -478,6 +496,9 @@ const handlers = {
   },
   markPaid: async (el) => {
     const r = selRow(); if (!r) return;
+    // the Gala list's question, word for word: no undo — a stray tap is never enough
+    const ok = await ui.confirm({ eyebrow: 'MARK PAID', title: esc(`Mark ${r.name || r.email || 'this registration'} paid?`), body: `<div style="font-size:13px;line-height:1.6;color:#4a4239">For a payment that arrived outside the checkout, such as a bank transfer. It cannot be undone from here.</div>`, ok: 'MARK PAID', cancel: 'KEEP IT OPEN' });
+    if (!ok || !rootEl || selRow() !== r) return;
     el.setAttribute('aria-disabled', 'true');
     try { await api.post(`/api/admin/registrant/${encodeURIComponent(r.type)}/${encodeURIComponent(r.id)}/mark-paid`); ui.toast(COPY.toast.markedPaid); await refetch(false); }
     catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }

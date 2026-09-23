@@ -38,6 +38,8 @@
 // a broken gala-ops module degrades to "no buckets", never to a crash of this module.
 let galaTruth = null;
 try { galaTruth = require('./gala-ops.js'); } catch (e) { galaTruth = null; }
+// isLiveLeg — the one "counts as registered" rule for a /plexus leg (Today and the Program editor use it too)
+const caMerge = require('../../../shared/ca-merge');
 
 module.exports = function mountRegistrations(app, ctx) {
     const { db, auth, adminOnly, saveDb } = ctx;
@@ -71,6 +73,16 @@ module.exports = function mountRegistrations(app, ctx) {
     // a leg folded into its survivor (shared/ca-merge.js) is the same person twice — never a row here
     // (15 merged conference legs used to count as live FREE rows: "125 of 200" for 107 people)
     const isMerged = s => String(s || '').toLowerCase() === 'merged';
+    // A free /plexus leg (conference · bridges) wears FREE only when it counts (caMerge.isLiveLeg — the rule
+    // behind "109 of 200"). The review gate's held 'pending-review' leg, or a leg with no live status, is still a
+    // sign-up row but counts nowhere, so it is tagged HELD instead of looking like a counted FREE row.
+    function freeLeg(raw) {
+        const s = trim(raw);
+        if (isCancelled(s)) return { status: 'CANCELLED', entry: 'Cancelled' };
+        if (caMerge.isLiveLeg(s)) return { status: 'FREE', entry: 'Free · ' + s };
+        if (s.toLowerCase() === 'pending-review') return { status: 'HELD', entry: 'Held for review · counts once approved' };
+        return { status: 'HELD', entry: (s ? 'Held · status “' + s + '”' : 'Held · no status') + ' · not counted' };
+    }
 
     // ---------------------------------------------------------------- the union
     function buildRows() {
@@ -225,19 +237,19 @@ module.exports = function mountRegistrations(app, ctx) {
             if (trim(r.applied_for)) commonFacts.push(['APPLIED FOR', trim(r.applied_for)]);
 
             if (Number(r.selected_conference) === 1 && !isMerged(r.conference_status)) {
-                const cancelled = isCancelled(r.conference_status);
+                const leg = freeLeg(r.conference_status);
                 rows.push({ ...base, key: 'ca:' + r.id + ':conference', ca_event: 'conference',
-                    event: 'Plexus Conference', event_key: 'conference',
-                    status: cancelled ? 'CANCELLED' : 'FREE', checked_in: Number(r.conference_checked_in) === 1,
-                    facts: [['ENTRY', cancelled ? 'Cancelled' : 'Free · ' + (r.conference_status || 'pre-registered')], ...commonFacts],
+                    event: 'Plexus Conference', event_key: 'conference', live_leg: caMerge.isLiveLeg(r.conference_status),
+                    status: leg.status, checked_in: Number(r.conference_checked_in) === 1,
+                    facts: [['ENTRY', leg.entry], ...commonFacts],
                     can_mark_paid: false });
             }
             if (Number(r.selected_bridges) === 1 && !isMerged(r.bridges_status)) {
-                const cancelled = isCancelled(r.bridges_status);
+                const leg = freeLeg(r.bridges_status);
                 rows.push({ ...base, key: 'ca:' + r.id + ':bridges', ca_event: 'bridges',
                     event: 'Building Bridges', event_key: 'bridges',
-                    status: cancelled ? 'CANCELLED' : 'FREE', checked_in: Number(r.bridges_checked_in) === 1,
-                    facts: [['ENTRY', cancelled ? 'Cancelled' : 'Free · ' + (r.bridges_status || 'pre-registered')], ...commonFacts],
+                    status: leg.status, checked_in: Number(r.bridges_checked_in) === 1,
+                    facts: [['ENTRY', leg.entry], ...commonFacts],
                     can_mark_paid: false });
             }
             if (Number(r.selected_gala) === 1 && !trim(r.gala_registration_id) && !isMerged(r.gala_status)) {
@@ -295,8 +307,9 @@ module.exports = function mountRegistrations(app, ctx) {
         return {
             all: live.length,
             conference: live.filter(r => r.event_key === 'conference').length,
-            // people, not rows — the same count Today and the Plexus hub print (one person, two forms = one)
-            conference_people: new Set(live.filter(r => r.event_key === 'conference').map(r => String(r.email || r.key).trim().toLowerCase())).size,
+            // people, not rows — the same count Today and the Plexus hub print (one person, two forms = one;
+            // a held 'pending-review' form row stays a sign-up row but is nobody yet — live_leg)
+            conference_people: new Set(live.filter(r => r.event_key === 'conference' && r.live_leg !== false).map(r => String(r.email || r.key).trim().toLowerCase())).size,
             conference_cap: Number(conf.max_capacity) || null,
             gala: gala.length,
             gala_unpaid,
@@ -409,6 +422,18 @@ module.exports = function mountRegistrations(app, ctx) {
     // ---------------------------------------------------------------- soft-cancel + restore (UNDO)
     const CA_COLS = { conference: 'conference_status', bridges: 'bridges_status', gala: 'gala_status' };
     const RESTORE_OK = new Set(['pending', 'confirmed', 'approved', 'registered', 'awaiting_payment', 'pre-registered', 'paid', '']);
+    // A free /plexus leg (conference · bridges) restores only inside its own vocabulary: a live status
+    // (caMerge.LIVE_LEG) or the review gate's hold — UNDO on a held leg used to be refused and left it cancelled,
+    // while 'pending' / 'approved' / 'paid' wrote a status no count reads (the leg vanished from every count).
+    // The client sends 'pending' when the leg had no status, so '' / 'pending' put the empty status back.
+    const FREE_LEG_COLS = new Set(['conference_status', 'bridges_status']);
+    function freeLegRestore(next) {
+        const raw = String(next == null ? '' : next).trim(), s = raw.toLowerCase();
+        if (s === '' || s === 'pending') return { ok: true, value: null };
+        if (s === 'pending-review') return { ok: true, value: 'pending-review' };   // the gate matches it exactly
+        if (caMerge.isLiveLeg(s)) return { ok: true, value: raw };
+        return { ok: false };
+    }
 
     function setStatus(req, res, nextStatus) {
         const type = req.params.type;
@@ -423,12 +448,16 @@ module.exports = function mountRegistrations(app, ctx) {
         }
         const previous = r[col] == null ? '' : String(r[col]);
         if (nextStatus !== 'cancelled') {           // restore path — validate the target status
-            if (!RESTORE_OK.has(String(nextStatus).toLowerCase())) return res.status(400).json({ error: 'Cannot restore to that status.' });
+            if (type === 'croatians-abroad' && FREE_LEG_COLS.has(col)) {
+                const fl = freeLegRestore(nextStatus);
+                if (!fl.ok) return res.status(400).json({ error: 'Cannot restore to that status.' });
+                nextStatus = fl.value;
+            } else if (!RESTORE_OK.has(String(nextStatus).toLowerCase())) return res.status(400).json({ error: 'Cannot restore to that status.' });
         }
         db().run(`UPDATE ${t.table} SET ${col} = ? WHERE id = ?`, [nextStatus, req.params.id]);
         saveDb();
-        audit(req, nextStatus === 'cancelled' ? 'registrations.cancel' : 'registrations.restore', `${r.email || req.params.id} (${type}${col !== 'status' ? '/' + col : ''}) ${previous || '—'} → ${nextStatus}`);
-        res.json({ success: true, previous_status: previous, status: nextStatus });
+        audit(req, nextStatus === 'cancelled' ? 'registrations.cancel' : 'registrations.restore', `${r.email || req.params.id} (${type}${col !== 'status' ? '/' + col : ''}) ${previous || '—'} → ${nextStatus || '—'}`);
+        res.json({ success: true, previous_status: previous, status: nextStatus == null ? '' : nextStatus });
     }
 
     app.post('/api/v2/registrations/:type/:id/cancel', auth, adminOnly, (req, res) => {

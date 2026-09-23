@@ -10,7 +10,8 @@
  * counts; photos_json = [{url, caption}] ≤ 40; unpublish hides, never deletes).
  *
  * Admin-side surface:
- *   GET  /api/v2/bridges/hub                    — one read for the whole hub screen
+ *   GET  /api/v2/bridges/hub                    — one read for the whole hub screen (+ past_evenings: held evenings
+ *                                                 with no recap yet, shared/bridges-evenings.js — the member recap's rule)
  *   PUT  /api/v2/bridges/editions/:id           — recap editing (guests · connections · note · photos · venue …)
  *   POST /api/v2/bridges/editions               — a new past-edition row
  *   GET  /api/v2/bridges/stats?scope=           — the reusable "Stats for media & sponsors" widget payload
@@ -26,6 +27,7 @@
  */
 'use strict';
 const crypto = require('crypto');
+const bridgesEvenings = require('../../../shared/bridges-evenings');   // the one "held evening" rule (member recap too)
 
 const MAX_PHOTOS = 40;
 const STAT_KEYS = ['guests', 'cities', 'countries', 'speakers'];
@@ -304,9 +306,14 @@ module.exports = function mountBridgesOps(app, ctx) {
                 thankyou_queued: eventQueued('bridges-thankyou', e.id)
             }));
             const editions = q.all(`SELECT * FROM v2_bridges_editions ORDER BY edition_no DESC`).map(shapeEdition);
+            // past_evenings: the held evenings no published recap covers yet, by the member recap's own rule
+            // (shared/bridges-evenings.js) — published editions + past_evenings = the member page's "N evenings so far".
+            let pastEvenings = [];
+            try { pastEvenings = bridgesEvenings.pastEvenings(editions.filter(e => e.is_published), q.all(bridgesEvenings.HELD_EVENINGS_SQL, [nowIso().slice(0, 10)])); }
+            catch (e) { pastEvenings = []; }
             const followups = q.all(`SELECT * FROM v2_bridges_followups WHERE done_at IS NULL ORDER BY datetime(created_at) DESC LIMIT 50`);
             const diaspora = count(`SELECT COUNT(*) AS c FROM croatians_abroad_registrations WHERE selected_bridges = 1 AND COALESCE(source,'croatians-abroad') <> 'plexus'`);
-            res.json({ ok: true, events, editions, followups, stats: statsPayload(), diaspora_bridges_contacts: diaspora, canonical_guests: CANON_GUESTS });
+            res.json({ ok: true, events, editions, past_evenings: pastEvenings, followups, stats: statsPayload(), diaspora_bridges_contacts: diaspora, canonical_guests: CANON_GUESTS });
         } catch (e) { fail(res, e, 'hub'); }
     });
 

@@ -8,7 +8,7 @@ export const FACTS = Object.freeze({
   plexus: Object.freeze({
     name: 'Plexus Conference 2026', short: 'Plexus 2026', edition: 9,
     start: '2026-12-04', end: '2026-12-05',
-    startAt: '2026-12-04T09:00:00+01:00',           // countdown target (README "Interactions")
+    startAt: '2026-12-04T17:00:00+01:00',           // countdown fallback — the live value is plexusStartsAt() below
     dateRange: 'December 4–5, 2026', dateShort: 'Dec 4–5',
     venue: 'Novinarski dom', city: 'Zagreb', country: 'Croatia',
     free: true, cap: 100, abstracts: false
@@ -99,6 +99,21 @@ export function galaPriceNow(now = new Date()) {
     if (L.current != null) return L.current;
   }
   return now < flipAt(FACTS.gala.priceFlip) ? FACTS.gala.priceEarly : FACTS.gala.priceRegular;
+}
+
+// ---------------------------------------------------------------------------------------------
+// ONE START TIME for the conference. Every countdown ticks to the first session as the event app knows it
+// (GET /api/live/events › the 'conference' row's starts_at — 17:00 on day one today); the Home and Plexus
+// countdowns used to append a hard-coded T09:00 and ran eight hours short of the program.
+export function plexusStartsAt(liveEvents, startDate) {
+  const ev = ((liveEvents && liveEvents.events) || []).find(e => e && e.key === 'conference');
+  if (ev && ev.starts_at) return ev.starts_at;
+  return startDate ? String(startDate).slice(0, 10) + FACTS.plexus.startAt.slice(10) : FACTS.plexus.startAt;
+}
+// …and its first clock time ('17:00'), for copy that names it
+export function plexusStartTime(liveEvents) {
+  const ev = ((liveEvents && liveEvents.events) || []).find(e => e && e.key === 'conference');
+  return (ev && ev.start) || FACTS.plexus.startAt.slice(11, 16);
 }
 
 // ---------------------------------------------------------------------------------------------

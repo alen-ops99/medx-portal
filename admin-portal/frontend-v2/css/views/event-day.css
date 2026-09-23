@@ -3,6 +3,15 @@
 
 /* camera feed fills the artboard's 180px scan square; the laser line stays on top */
 .mx-ed-cam { flex: none; }
+/* the laser line is the camera's — while the camera is closed it would only strike through the idle hint
+   ("tap SCAN — the camera opens here") */
+.mx-ed-cam:not(.is-live) :is(.mx-ed-laser, .laser) { opacity: 0; }
+
+/* the three counters stay one row down to the phone door mode (≤700): .mx-grid-3 goes two-up at ≤960,
+   which left STILL EXPECTED alone beside an empty grey cell on an iPad in portrait */
+@media (min-width: 701px) and (max-width: 960px) {
+  [data-block="counters"].mx-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
 .mx-ed-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
 
 /* long door lists scroll inside the card, never the page sideways */
@@ -73,6 +82,9 @@
 .mx-ed-reh { border: 1px solid #c9a962; background: #f8f1e2; padding: 10px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: 600 10.5px Inter, sans-serif; letter-spacing: .13em; color: #7a6432; }
 .mx-ed-reh .dot { width: 8px; height: 8px; background: #b7791f; border-radius: 50%; }
 .mx-ed-reh [data-act] { text-decoration: underline; cursor: pointer; margin-left: auto; min-height: 30px; display: inline-flex; align-items: center; }
+/* the words sit beside the dot and wrap in place (the dot used to stand alone on a line of its own above
+   them); RESET THE REHEARSAL takes the line below, right-aligned */
+.mx-ed-reh > span:nth-child(2) { flex: 1 1 200px; min-width: 0; }
 
 /* counts strip: one row */
 .mx-ed-counts { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 1px; background: rgba(32,27,22,.14); border: 1px solid rgba(32,27,22,.14); }

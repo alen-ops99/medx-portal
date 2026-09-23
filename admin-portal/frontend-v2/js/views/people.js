@@ -41,7 +41,7 @@ export const COPY = {
   kinds: ['Member', 'Gala guest', 'Plexus registrant', 'Contact only'],
   addedMember: 'ADDED — INVITATION QUEUED IN THE OUTBOX', added: 'ADDED TO PEOPLE',
   nameFirst: 'THE NAME IS THE ONE THING I NEED',
-  searchPh: 'Type a name, email or country — e.g. “Ivana”, “Ireland”, “not paid”',
+  searchPh: 'Name, email or country',
   // Audit W11: GALA here is distinct PEOPLE (one per email — plus-ones are not separate people),
   // which is a smaller number than the Gala screen's seats and the Registrations row count.
   segs: {
@@ -52,14 +52,18 @@ export const COPY = {
   dividers: { MEMBERS: 'CIRCLES', REGISTRANTS: 'REGISTRANTS', TEAM: 'STAFF' },
   quick: 'REGISTRATIONS:',
   cols: { name: 'NAME', country: 'COUNTRY', status: 'STATUS' },
-  open: 'OPEN →', emptyList: 'No one matches — try fewer words.',
+  open: 'OPEN →', emptyList: 'No one matches — try fewer words.', backToList: '← BACK TO THE LIST',
   rowsNote: (n, total) => `Showing ${n} of ${total} people · everyone in the database, live`,
   showAll: n => `SHOW ALL ${n}`,
   panelNote: 'Actions match the person — guests with a payment still open get payment tools, team members get access tools.',
-  actions: { message: 'MESSAGE', markPaid: 'MARK PAID', chase: 'CHASE PAYMENT', resend: 'RESEND TICKET', copyPass: 'COPY PASS LINK', perms: 'PERMISSIONS →', regs: 'REGISTRATIONS →' },
+  // portal messages land in a member's portal inbox, so they need an account (the reply route answers 404 without one)
+  noAccount: email => `No portal account: portal messages reach members only. EMAIL opens a new message to ${email} in your mail app.`,
+  noContact: 'No email or portal account on file, so there is no way to message them yet.',
+  actions: { message: 'MESSAGE', email: 'EMAIL ↗', markPaid: 'MARK PAID', chase: 'CHASE PAYMENT', resend: 'RESEND TICKET', copyPass: 'COPY PASS LINK', perms: 'PERMISSIONS →', regs: 'REGISTRATIONS →' },
   toasts: {
     markPaid: 'MARKED PAID — LEDGER & MONEY UPDATE TOO', chased: 'REMINDER QUEUED IN THE OUTBOX FOR YOUR OK',
     chaseInOutbox: 'THE REMINDER IS ALREADY IN THE OUTBOX — APPROVE IT THERE', chaseNone: 'NO REMINDER PREPARED YET — THE NAG ENGINE ADDS ONE AS THE PAYMENT AGES',
+    noMessage: 'NO EMAIL OR PORTAL ACCOUNT ON FILE — NOTHING TO MESSAGE YET',
     passCopied: 'PASS LINK COPIED — SEND IT ANYWHERE', minted: 'PASS MINTED — COPY THE LINK TO SEND IT', passName: 'TYPE THE GUEST’S NAME FIRST'
   },
   facts: {
@@ -158,10 +162,27 @@ const COUNTRY_NAMES = {
   ca: 'Canada', au: 'Australia', nz: 'New Zealand', jp: 'Japan', cn: 'China', kr: 'South Korea', il: 'Israel', ae: 'United Arab Emirates', qa: 'Qatar', sa: 'Saudi Arabia',
   br: 'Brazil', ar: 'Argentina', mx: 'Mexico', in: 'India', za: 'South Africa'
 };
+// local-language names and the misspellings seen in the directory (audit 2026-09-23: "Bosna i Hercegovina"
+// beside "Bosnia and Herzegovina", "the Netherlnads", a bare "DZ")
+Object.assign(COUNTRY_NAMES, {
+  'bosna i hercegovina': 'Bosnia and Herzegovina', 'bosnia & herzegovina': 'Bosnia and Herzegovina', 'bosnia-herzegovina': 'Bosnia and Herzegovina',
+  nizozemska: 'Netherlands', 'the netherlnads': 'Netherlands', netherlnads: 'Netherlands', 'the netherland': 'Netherlands', netherland: 'Netherlands',
+  austrija: 'Austria', 'österreich': 'Austria', njemacka: 'Germany', 'švicarska': 'Switzerland', svicarska: 'Switzerland', schweiz: 'Switzerland',
+  italija: 'Italy', francuska: 'France', 'španjolska': 'Spain', irska: 'Ireland', 'velika britanija': 'United Kingdom', 'ujedinjeno kraljevstvo': 'United Kingdom',
+  sad: 'United States', 'sjedinjene američke države': 'United States', 'sjedinjene americke drzave': 'United States', kanada: 'Canada',
+  'crna gora': 'Montenegro', 'sjeverna makedonija': 'North Macedonia', 'mađarska': 'Hungary', madjarska: 'Hungary', 'češka': 'Czechia', slovacka: 'Slovakia', 'slovačka': 'Slovakia',
+  poljska: 'Poland', 'švedska': 'Sweden', norveska: 'Norway', 'norveška': 'Norway', danska: 'Denmark', finska: 'Finland', belgija: 'Belgium', grcka: 'Greece', 'grčka': 'Greece', turska: 'Turkey'
+});
+let regionNames = null;
+try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) { regionNames = null; }
 export function countryName(v) {
   const s = String(v == null ? '' : v).trim();
   if (!s) return '';
-  return COUNTRY_NAMES[s.toLowerCase()] || s;
+  const known = COUNTRY_NAMES[s.toLowerCase()];
+  if (known) return known;
+  // any other two-letter ISO code ('DZ' → Algeria) — the browser knows every region's English name
+  if (/^[A-Za-z]{2}$/.test(s) && regionNames) { try { const n = regionNames.of(s.toUpperCase()); if (n && n.toUpperCase() !== s.toUpperCase()) return n; } catch (e) { /* not a region */ } }
+  return s;
 }
 
 const SEG_ORDER = ['ALL', 'MEMBERS', 'FORUM', 'REGISTRANTS', 'GALA', 'BOSTON', 'TEAM'];
@@ -326,7 +347,11 @@ function factsFor(p) {
     rows.push([F.lastOpened, v.last_viewed_at ? whenNice(v.last_viewed_at) + ' · ' + v.page_views + ' view' + (v.page_views === 1 ? '' : 's') : F.never]);
   });
   if (p.contact && !p.member && !p.team) rows.push([F.contact, 'Internal contact' + (p.contact.organization ? ' · ' + p.contact.organization : '')]);
-  if (prof && prof.summary) {
+  // EVENTS comes from the member profile, which does not count the public /plexus form — for someone
+  // registered there it read "0 registrations" under "PLEXUS Registered". It shows only when it holds
+  // at least what the rows above already say.
+  const onFile = [p.plexus, p.gala, p.bridges].filter(Boolean).length;
+  if (prof && prof.summary && Number(prof.summary.totalRegistrations || 0) >= onFile) {
     rows.push([F.events, prof.summary.totalRegistrations + ' registration' + (prof.summary.totalRegistrations === 1 ? '' : 's') + ' · ' + prof.summary.eventsAttended + ' attended']);
     if (prof.summary.totalPaid) rows.push([F.paidTotal, fmt.eur(prof.summary.totalPaid)]);
   }
@@ -340,7 +365,11 @@ function nagFor(p) {
 }
 function actionsFor(p) {
   const A = COPY.actions, solid = { bg: '#9b1b22', bd: '#9b1b22', fg: '#fff' }, ghost = { bg: 'transparent', bd: 'rgba(32,27,22,.2)', fg: '#201b16' };
-  const out = [{ label: A.message, ...solid, act: 'goMessages' }];
+  // MESSAGE only for a portal account; anyone else gets their address in the admin's own mail app
+  // (a portal conversation with them would never send), or a disabled MESSAGE with the reason
+  const out = [p.user_id ? { label: A.message, ...solid, act: 'goMessages' }
+    : p.email ? { label: A.email, ...solid, href: 'mailto:' + p.email }
+    : { label: A.message, ...solid, act: 'goMessages', disabled: true }];
   // an open seat gets the payment tools; a held row gets MARK PAID only — the review gate, not a
   // reminder, is what moves it (nothing is ever chased before the owner released it)
   if (galaOpen(p)) { out.push({ label: A.markPaid, ...ghost, act: 'markPaid' }); if (p.gala.bucket !== 'held') out.push({ label: A.chase, ...ghost, act: 'chase' }); }
@@ -377,7 +406,7 @@ function blockAdd() {
     <select data-role="npKind" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px;font:400 12.5px Inter,sans-serif;color:#201b16">
       ${COPY.kinds.map(k => `<option>${k}</option>`).join('')}
     </select>
-    <span data-act="npAdd" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${COPY.add}</span>
+    <span data-act="npAdd" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" data-hover="background:#7e151b">${COPY.add}</span>
     <span style="font-size:11px;color:#6d6459;flex-basis:100%">${COPY.addNote}</span>
   </div>
   <!-- /dc -->`;
@@ -701,6 +730,7 @@ function panelCard() {
   const loading = p.user_id && !D.profiles[p.user_id] && st.profileLoading === p.user_id;
   return `
     <div data-block="panel" style="border:1px solid rgba(32,27,22,.14);background:#fff">
+      <div class="mx-back-list" style="padding:12px 18px 0"><span data-act="backToList" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer" data-hover="color:#201b16">${COPY.backToList}</span></div>
       <div style="padding:16px 18px;border-bottom:1px solid rgba(32,27,22,.12);display:flex;gap:12px;align-items:center">
         <span style="width:40px;height:40px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 14px Fraunces,serif;flex:none">${esc(ini)}</span>
         <span style="min-width:0"><span style="display:block;font-size:15px;font-weight:600">${esc(p.name)}</span><span style="display:block;font-size:11.5px;color:#6d6459">${esc([countryName(p.country), p.email].filter(Boolean).join(' · ') || '—')}</span></span>
@@ -712,8 +742,11 @@ function panelCard() {
       </div>
       ${hygieneRows(p)}
       <div style="padding:14px 18px 16px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid rgba(32,27,22,.12)">
-        ${actionsFor(p).map(a => `<span data-act="${a.act}" style="padding:8px 12px;background:${a.bg};border:1px solid ${a.bd};color:${a.fg};font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${a.label}</span>`).join('\n        ')}
+        ${actionsFor(p).map(a => a.href
+          ? `<a href="${esc(a.href)}" style="padding:8px 12px;background:${a.bg};border:1px solid ${a.bd};color:${a.fg};font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${a.label}</a>`
+          : `<span data-act="${a.act}"${a.disabled ? ' aria-disabled="true"' : ''} style="padding:8px 12px;background:${a.bg};border:1px solid ${a.bd};color:${a.fg};font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${a.label}</span>`).join('\n        ')}
       </div>
+      ${!p.user_id ? `<div data-v2="no-portal-account" style="padding:0 18px 8px;font-size:11px;color:#6d6459;overflow-wrap:anywhere">${esc(p.email ? COPY.noAccount(p.email) : COPY.noContact)}</div>` : ''}
       <div style="padding:0 18px 14px;font-size:11px;color:#6d6459">${COPY.panelNote}</div>
     </div>`;
 }
@@ -764,6 +797,14 @@ function template() {
 }
 
 // ---------------------------------------------------------------- behaviour
+// one column (≤960: phone, iPad portrait) stacks the file panel under the whole list — OPEN → redrew it
+// 2,000 px below the fold and the tap looked dead. Brings the panel into view; true when it did.
+function revealPanel() {
+  let one = false; try { one = window.matchMedia('(max-width: 960px)').matches; } catch (e) {}
+  const p = one && rootEl && rootEl.querySelector('[data-block="panel"]');
+  if (p) p.scrollIntoView({ block: 'start', behavior: ui.reducedMotion() ? 'auto' : 'smooth' });
+  return !!p;
+}
 function redraw(part) {
   if (!rootEl) return;
   const swap = (sel, html) => { const el = rootEl.querySelector(sel); if (el) el.outerHTML = html; };
@@ -817,7 +858,8 @@ const handlers = {
     });
     redraw('list'); redraw('panel'); enrich(selected());
   },
-  openRow: (el) => { const was = st.selKey; st.selKey = el.dataset.key; st.noteDraft = null; redraw('list'); redraw('panel'); if (was !== st.selKey) ui.settle(rootEl.querySelector('[data-block="panel"]')); enrich(selected()); },
+  openRow: (el) => { const was = st.selKey; st.selKey = el.dataset.key; st.noteDraft = null; redraw('list'); redraw('panel'); if (was !== st.selKey) ui.settle(rootEl.querySelector('[data-block="panel"]')); enrich(selected()); revealPanel(); },
+  backToList: () => { const r = rootEl.querySelector('.mx-people-row.on') || rootEl.querySelector('[data-block="list"]'); if (r) r.scrollIntoView({ block: 'center', behavior: ui.reducedMotion() ? 'auto' : 'smooth' }); },
   addToggle: () => { st.addOpen = !st.addOpen; const el = rootEl.querySelector('[data-block="add"]'); if (el) el.outerHTML = blockAdd(); else { const t = rootEl.querySelector('[data-block="segs"]'); if (t) t.insertAdjacentHTML('beforebegin', blockAdd()); } const n = rootEl.querySelector('[data-role="npName"]'); if (n) n.focus(); },
   npAdd: async (el) => {
     const v = r => { const i = rootEl.querySelector(`[data-role="${r}"]`); return i ? i.value.trim() : ''; };
@@ -1035,14 +1077,24 @@ const handlers = {
       c.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     redraw('list'); redraw('panel'); ui.settle(rootEl.querySelector('[data-block="panel"]')); enrich(p);
+    if (revealPanel()) return;
     const dir = rootEl.querySelector('[data-block="directory"]'); if (dir) dir.scrollIntoView({ behavior: ui.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
   },
   dupDismiss: (el) => { st.dupDismissed.push(el.dataset.sig); redraw('dups'); ui.toast(COPY.dups.dismissed); },
-  goMessages: () => router.navigate('/inbox/messages'),
+  // THIS person's conversation (Inbox opens their thread, or a blank one with them) — a bare
+  // /inbox/messages opened whichever thread sat first, i.e. another member's, reply box ready
+  goMessages: () => {
+    const p = selected(); if (!p) return;
+    if (!p.user_id) { ui.toast(p.email ? COPY.noAccount(p.email) : COPY.toasts.noMessage); return; }
+    router.navigate('/inbox/messages?to=' + encodeURIComponent(p.user_id) + '&name=' + encodeURIComponent(p.name || '') + (p.email ? '&email=' + encodeURIComponent(p.email) : ''));
+  },
   goPerms: () => router.navigate('/settings/team'),
   goRegs: () => router.navigate('/registrations'),
   markPaid: async (el) => {
     const p = selected(); if (!p || !p.gala) return;
+    // the Gala list's question, word for word: no undo, Money books it — a stray tap is never enough
+    const ok = await ui.confirm({ eyebrow: 'GALA · MARK PAID', title: esc(`Mark ${p.name || p.email || 'this guest'} paid?`), body: `<div style="font-size:13px;line-height:1.6;color:#4a4239">For a payment that arrived outside the checkout, such as a bank transfer. It cannot be undone from here.</div>`, ok: 'MARK PAID', cancel: 'KEEP IT OPEN' });
+    if (!ok || !rootEl || selected() !== p) return;
     el.setAttribute('aria-disabled', 'true');
     try {
       await api.post('/api/admin/registrant/gala/' + encodeURIComponent(p.gala.id) + '/mark-paid');

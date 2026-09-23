@@ -49,7 +49,8 @@ export const COPY = {
     removeTitle: 'Remove this question?', removeBody: 'Answers already given stay stored — the question just leaves the form.',
     types: { text: 'Short answer', textarea: 'Long answer', select: 'Dropdown', checkbox: 'Checkbox' },
     notes: {
-      plexus: 'Free conference registration — name, email, institution. Gala seats are a paid add-on with the early-bird price switch on Sep 15.',
+      // the switch date is the live gala setting (early_bird_deadline) — it read "Sep 15" while the switch ran on Oct 1
+      plexus: flip => `Free conference registration — name, email, institution. Gala seats are a paid add-on with the early-bird price switch on ${flip}.`,
       gala: 'Seat reservation with payment — the price switch runs on the early-bird date. The waitlist opens itself when seats run out.',
       accelerator: 'The 7-step application wizard — personal, education, motivation, documents. Submissions land in the Review Room.',
       forum: 'Two doors: the invitation-code unlock for invitees, and the public interest form that feeds your candidate pipeline.',
@@ -170,7 +171,7 @@ function kdRow() {
         </div>`;
   return rowShell(COPY.rows.keyDates,
     `<span data-role="kd-summary" style="flex:1;min-width:180px;font-size:13px;color:#201b16">${esc(summary)}</span>
-          <span data-act="kdToggle" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap">${st.kdOpen ? COPY.kd.close : COPY.kd.edit}</span>`,
+          <span data-act="kdToggle" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.kdOpen ? COPY.kd.close : COPY.kd.edit}</span>`,
     chipLive) .replace('</div>', editor + '</div>');
 }
 function accKdRow() {
@@ -188,7 +189,7 @@ function accKdRow() {
         </div>`;
   return rowShell(COPY.rows.keyDates,
     `<span data-role="acc-summary" style="flex:1;min-width:180px;font-size:13px;color:#201b16">${esc(summary)}</span>
-          <span data-act="accToggle" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap">${st.accOpen ? COPY.kd.close : COPY.kd.edit}</span>`,
+          <span data-act="accToggle" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.accOpen ? COPY.kd.close : COPY.kd.edit}</span>`,
     chipLive).replace('</div>', editor + '</div>');
 }
 function galaRows() {
@@ -302,7 +303,7 @@ function fieldEditor() {
               <select data-role="newFieldType" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:7px 6px;font:400 12px Inter,sans-serif;color:#201b16">
                 ${Object.entries(COPY.form.types).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
               </select>
-              <span data-act="fieldAdd" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${COPY.form.add}</span>
+              <span data-act="fieldAdd" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.form.add}</span>
             </div>
             <span style="font-size:10.5px;color:#9a9086;line-height:1.5">${esc(COPY.form.where[k] || '')}</span>
           </div>`;
@@ -313,11 +314,11 @@ function formCard() {
   return `
         <div data-block="form" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
           <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.form.title}</span>
-          <span style="font-size:12.5px;color:#6d6459;line-height:1.6">${esc(COPY.form.notes[k])}</span>
+          <span style="font-size:12.5px;color:#6d6459;line-height:1.6">${esc(typeof COPY.form.notes[k] === 'function' ? COPY.form.notes[k](fmt.dayShort((D.galaSettings.early_bird_deadline || FACTS.gala.priceFlip).slice(0, 10))) : COPY.form.notes[k])}</span>
           ${fixed
             ? `<span data-nav="${fixed.href}" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer">${fixed.cta}</span>
           <span style="font-size:10.5px;color:#9a9086;line-height:1.5">${esc(fixed.note)}</span>`
-            : `<span data-act="fieldsToggle" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer">${st.fieldsOpen ? COPY.form.close : COPY.form.edit}</span>
+            : `<span data-act="fieldsToggle" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer" data-hover="color:#201b16">${st.fieldsOpen ? COPY.form.close : COPY.form.edit}</span>
           ${fieldEditor()}`}
         </div>`;
 }

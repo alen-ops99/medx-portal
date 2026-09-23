@@ -16,7 +16,7 @@ export const SOURCE = 'Admin Settings.dc.html';
 export const COPY = {
   title: 'Settings &amp; tools', sub: 'the once-in-a-while things — everything is here, nothing was deleted',
   health: { title: 'SYSTEM HEALTH', tag: (o, w, f) => `${o} OK · ${w} TO CHECK · ${f} FAILING`,
-    lastRun: (row) => row ? `last run ${fmt.when(row.ran_at.replace(' ', 'T') + 'Z').toLowerCase()} by ${String(row.by_email || '').split('@')[0]}` : 'not run by hand yet',
+    lastRun: (row) => row ? `last run ${fmt.when(row.ran_at).toLowerCase()} by ${String(row.by_email || '').split('@')[0]}` : 'not run by hand yet',
     run: 'RUN CHECKS AGAIN', running: 'CHECKING…',
     note: 'Run this before every event and any time something seems off — it checks email, payments, database and event setup in one go.',
     probes: { admin: 'Admin backend', member: 'Member portal', report: 'Health report' },
@@ -67,7 +67,7 @@ export const COPY = {
 };
 
 const DOT = { ok: '#2f7d4f', warn: '#b7791f', fail: '#9b1b22' };
-let D = null, st = null, rootEl = null, unbind = null, off = null;
+let D = null, st = null, rootEl = null, unbind = null, off = null, anchorOff = null;
 
 // ---------------------------------------------------------------- data
 async function load() {
@@ -108,19 +108,19 @@ function healthCard() {
       </div>
       <div style="padding:6px 20px 14px">
         ${probes.map(([k, p]) => `
-        <div style="display:flex;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.06)">
+        <div class="mx-hl-row" style="display:flex;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.06)">
           <span style="width:8px;height:8px;background:${p.ok ? DOT.ok : DOT.fail};flex:none;transform:translateY(-1px)"></span>
-          <span style="font-size:13px;font-weight:600;width:230px;flex:none">${COPY.health.probes[k]}</span>
-          <span style="font-size:12px;color:#6d6459;flex:1">${esc(p.detail || (p.ok ? 'reachable' : 'unreachable'))}</span>
+          <span class="mx-hl-name" style="font-size:13px;font-weight:600;width:230px;flex:none">${COPY.health.probes[k]}</span>
+          <span class="mx-hl-detail" style="font-size:12px;color:#6d6459;flex:1">${esc(p.detail || (p.ok ? 'reachable' : 'unreachable'))}</span>
         </div>`).join('')}
         ${h && h.probes.report && !h.probes.report.ok && h.probes.report.locked ? `<div style="padding:10px 0;font-size:12px;color:#6d6459">${COPY.health.locked}</div>` : ''}
         ${groups.map(g => `
         <div style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;padding:14px 0 4px">${esc(String(g.group || '').toUpperCase())}</div>
         ${(g.checks || []).map(c => `
-        <div style="display:flex;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.06)">
+        <div class="mx-hl-row" style="display:flex;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid rgba(32,27,22,.06)">
           <span style="width:8px;height:8px;background:${DOT[c.status] || DOT.warn};flex:none;transform:translateY(-1px)"></span>
-          <span style="font-size:13px;font-weight:600;width:230px;flex:none">${esc(c.name)}</span>
-          <span style="font-size:12px;color:#6d6459;flex:1">${esc(c.detail || '')}${c.fix ? ` <span style="color:#7a6432">· ${esc(c.fix)}</span>` : ''}</span>
+          <span class="mx-hl-name" style="font-size:13px;font-weight:600;width:230px;flex:none">${esc(c.name)}</span>
+          <span class="mx-hl-detail" style="font-size:12px;color:#6d6459;flex:1">${esc(c.detail || '')}${c.fix ? ` <span style="color:#7a6432">· ${esc(c.fix)}</span>` : ''}</span>
         </div>`).join('')}`).join('')}
         <span style="display:block;font-size:11.5px;color:#6d6459;margin-top:10px">${COPY.health.note}</span>
       </div>
@@ -174,14 +174,14 @@ function teamCard() {
       <div data-block="invite" style="display:flex;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6;flex-wrap:wrap">
         <input data-role="invEmail" value="${esc(st.invEmail)}" placeholder="${esc(COPY.team.emailPh)}" aria-label="Invite email" style="flex:1;min-width:170px;border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16">
         <select data-role="invRole" aria-label="Role" style="border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px;font:400 12.5px Inter,sans-serif;color:#201b16"><option${st.invRole === 'ADMIN' ? ' selected' : ''}>ADMIN</option><option${st.invRole === 'SCANNER' ? ' selected' : ''}>SCANNER</option></select>
-        <span data-act="sendInvite" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer">${COPY.team.send}</span>
+        <span data-act="sendInvite" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer" data-hover="background:#7e151b">${COPY.team.send}</span>
         <span style="font-size:11px;color:#6d6459;flex-basis:100%">${COPY.team.inviteNote}</span>
       </div>` : ''}
       ${shown.map(m => `
       <div data-row="${esc(m.id)}" style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.07);flex-wrap:wrap">
         <span style="width:28px;height:28px;background:#eee9df;color:#4a4239;display:inline-flex;align-items:center;justify-content:center;font:600 10px Inter,sans-serif;flex:none">${esc(fmt.initials(nameOf(m)))}</span>
         <span style="flex:1;min-width:140px"><span style="display:block;font-size:13px;font-weight:600">${esc(nameOf(m))}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(m.email)} · ${esc(accessLine(m))}</span></span>
-        ${Number(m.must_change_password) ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f8f1e2;color:#7a6432;padding:3px 7px;white-space:nowrap">${COPY.team.pending}</span><span data-act="resend" data-email="${esc(m.email)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer">${COPY.team.resend}</span>` : ''}
+        ${Number(m.must_change_password) ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f8f1e2;color:#7a6432;padding:3px 7px;white-space:nowrap">${COPY.team.pending}</span><span data-act="resend" data-email="${esc(m.email)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer" data-hover="color:#201b16">${COPY.team.resend}</span>` : ''}
         <span class="tag" style="white-space:nowrap">${roleOf(m)}</span>
         <span data-act="permsToggle" data-id="${esc(m.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.team.perms}</span>
       </div>
@@ -208,7 +208,7 @@ function orgCard() {
       ${input('orgOib', COPY.org.oib, 'e.g. 12345678901', o.oib)}
       ${input('orgIban', COPY.org.iban, 'HR__ ____ ____ ____ ____ _', o.iban)}
       ${input('orgFira', COPY.org.fira, 'paste the key from FIRA', o.fira_key)}
-      <span data-act="orgSave" style="padding:9px 13px;background:${st.orgSaved ? '#1e6e42' : '#9b1b22'};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;text-align:center">${st.orgSaved ? COPY.org.saved : COPY.org.save}</span>
+      <span data-act="orgSave" style="padding:9px 13px;background:${st.orgSaved ? '#1e6e42' : '#9b1b22'};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;text-align:center" data-hover="background:${st.orgSaved ? '#185a36' : '#7e151b'}">${st.orgSaved ? COPY.org.saved : COPY.org.save}</span>
       <span style="font-size:11px;color:#6d6459">${COPY.org.note}</span>
     </div>
     <!-- /dc -->`;
@@ -254,7 +254,7 @@ function auditRows() {
   return `<div data-block="auditRows">
       ${shown.map(a => `
       <div style="display:flex;gap:12px;align-items:baseline;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.06)">
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;width:88px;flex:none">${esc(fmt.when(String(a.created_at || '').replace(' ', 'T') + 'Z'))}</span>
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;width:88px;flex:none">${esc(fmt.when(a.created_at))}</span>
         <span style="font-size:12.5px;flex:1;min-width:0"><span style="font-weight:600">${esc(String(a.actor_email || '').split('@')[0])}</span> · ${esc(a.action)}${a.detail ? ` — <span style="color:#6d6459">${esc(String(a.detail).slice(0, 140))}</span>` : ''}</span>
       </div>`).join('')}
       ${!shown.length ? `<div style="padding:20px;font-size:12.5px;color:#6d6459;font-style:italic;text-align:center">${COPY.audit.empty}</div>` : ''}
@@ -294,7 +294,7 @@ function libRows() {
       ${rows.map(f => `
       <div style="display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.06)">
         <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f1e7d4;color:#7a6432;padding:3px 7px;white-space:nowrap;flex:none">${esc(KIND(f.mime))}</span>
-        <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc([f.uploaded_by_name, fmt.when(String(f.created_at || '').replace(' ', 'T') + 'Z').toLowerCase(), f.size ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : ''].filter(Boolean).join(' · '))}</span></span>
+        <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc([f.uploaded_by_name, fmt.when(f.created_at).toLowerCase(), f.size ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : ''].filter(Boolean).join(' · '))}</span></span>
         <span data-act="libOpen" data-id="${esc(f.id)}" data-name="${esc(f.name)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.lib.open}</span>
       </div>`).join('')}
       ${!rows.length ? `<div class="empty"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">${COPY.lib.empty}</span><span class="empty-why">${COPY.lib.emptyWhy}</span></div>` : ''}
@@ -486,11 +486,25 @@ export default {
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);
     wireInputs();
-    off = state.subscribe((s, keys) => { if (keys.includes('health') && rootEl) paint('[data-block="health"]', healthCard()); });
-    health.refresh({ force: !state.get().health });
     const anchors = { health: '#health', team: '#team', org: '#org', audit: '#audit', library: '#library' };
     const a = anchors[ctx.params.tab];
-    if (a) { const t = root.querySelector(a); if (t) t.scrollIntoView({ block: 'start' }); }
+    // /settings/health opened by URL (a reload, a bookmark, the Mac deep link) painted the health block
+    // AFTER the jump — ~1,000 px of report arriving above the viewport carried the page down into Team
+    // access. So the jump runs once more after the FIRST health paint, then lets go for good; it lets go
+    // sooner the moment the person moves the page themselves (wheel, touch, keys, a pointer on the
+    // scrollbar, any scroll it did not cause) — a later RUN CHECKS AGAIN never throws the page back.
+    let aim = a || null, landedAt = 0;
+    const land = () => { const t = aim && rootEl && rootEl.querySelector(aim); if (t) { landedAt = performance.now(); t.scrollIntoView({ block: 'start' }); } };
+    const ctl = anchorOff = new AbortController();      // this mount's own — a later visit has its own
+    const letGo = () => { aim = null; ctl.abort(); if (anchorOff === ctl) anchorOff = null; };
+    if (aim) {
+      ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(ev => window.addEventListener(ev, letGo, { passive: true, signal: ctl.signal }));
+      window.addEventListener('scroll', () => { if (performance.now() - landedAt > 250) letGo(); }, { passive: true, signal: ctl.signal });
+      setTimeout(letGo, 15000);
+    } else letGo();
+    off = state.subscribe((s, keys) => { if (keys.includes('health') && rootEl) { paint('[data-block="health"]', healthCard()); if (aim) { land(); letGo(); } } });
+    health.refresh({ force: !state.get().health });
+    land();
   },
-  destroy() { if (unbind) unbind(); unbind = null; if (off) off(); off = null; rootEl = null; D = null; st = null; }
+  destroy() { if (anchorOff) anchorOff.abort(); anchorOff = null; if (unbind) unbind(); unbind = null; if (off) off(); off = null; rootEl = null; D = null; st = null; }
 };

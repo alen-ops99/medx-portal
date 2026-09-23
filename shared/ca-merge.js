@@ -33,9 +33,19 @@ function followMerge(get, row) {
     return cur;
 }
 
+/**
+ * A /plexus leg (conference_status · bridges_status · gala_status) that counts as a REGISTRANT — ONE list for
+ * every count (Today, the Plexus hub, Registrations, the Program editor used to disagree by the one held row).
+ * Held ('pending-review', the review gate), cancelled and merged legs never count; case-blind.
+ */
+const LIVE_LEG = ['pre-registered', 'confirmed', 'registered'];
+const isLiveLeg = (status) => LIVE_LEG.includes(String(status || '').trim().toLowerCase());
+/** The same rule as SQL over a column, e.g. liveLegSql('c.conference_status'). */
+const liveLegSql = (col) => `LOWER(TRIM(COALESCE(${col}, ''))) IN (${LIVE_LEG.map(s => `'${s}'`).join(', ')})`;
+
 /** Guarded schema step for both backends' boot sequences. */
 function ensureColumn(run) {
     try { run('ALTER TABLE croatians_abroad_registrations ADD COLUMN merged_into TEXT'); } catch (e) { /* exists */ }
 }
 
-module.exports = { MERGED, isMerged, followMerge, ensureColumn };
+module.exports = { MERGED, isMerged, followMerge, ensureColumn, LIVE_LEG, isLiveLeg, liveLegSql };

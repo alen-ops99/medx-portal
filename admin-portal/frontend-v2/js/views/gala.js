@@ -64,7 +64,9 @@ export const COPY = {
       .filter(k => b[k] && Number(b[k].seats))
       .map(k => `${b[k].seats} ${String(b[k].tag || k).toLowerCase()}`).join(' · ') : '',
     seated: 'SEATED', seatedSub: r => `of ${r} seats · rest unassigned`,
-    room: 'ROOM', roomSub: 'tables × seats · limited by design'
+    room: 'ROOM', roomSub: 'tables × seats · limited by design',
+    // reserved seats past the room's size (97 reserved, 10 × 8 = 80) — said on the ROOM cell, presentation only
+    roomOver: (n, t) => `${n} more guest${n === 1 ? '' : 's'} than seats — add ${t} table${t === 1 ? '' : 's'}`
   },
   list: {
     title: 'GUEST LIST', search: 'Find a guest…', add: '+ ADD GUEST',
@@ -96,7 +98,11 @@ export const COPY = {
     subject: 'Your Gala Evening seat — payment pending',
     body: (price) => `Dear {first_name},\n\nYour seat at the Med&X Gala Evening (December 5, Hotel Esplanade) is reserved — the payment of ${fmt.eur(price)} confirms it. You can pay from the member portal's Gala section in one click.\n\nIf the payment is already on its way, please ignore this note.\n\nWarm regards,\nThe Med&X Team`
   },
-  pay: { label: 'MARK PAID', done: 'MARKED PAID — MONEY UPDATES TOO' },
+  // MARK PAID asks first, in a sheet: it has no undo and Money books it, so a stray tap (2026-09-23: a touch
+  // hit area over the status chip fired it) or a double tap on the row must never be enough
+  pay: { label: 'MARK PAID', title: 'Records this seat as paid — Money updates too. It asks before it does.', done: 'MARKED PAID — MONEY UPDATES TOO',
+    sureTitle: name => `Mark ${name} paid?`, sureBody: 'For a payment that arrived outside the checkout, such as a bank transfer. It cannot be undone from here.',
+    sureOk: 'MARK PAID', sureCancel: 'KEEP IT OPEN' },
   cancel: {
     label: '✕ CANCEL', sure: 'SURE? CANCEL',
     title: 'Frees the seat — the waitlist gets an automatic offer. Seats are non-refundable.',
@@ -463,6 +469,8 @@ function blockTitle() {
 function blockKpis() {
   const s = stats();
   const room = D.ops.room || {};
+  const tables = room.table_count || 10, perTable = room.seats_per_table || 8;
+  const over = (Number(s.reserved) || 0) - tables * perTable;           // reserved seats with no chair on the board
   const cell = 'padding:15px 18px;border-right:1px solid rgba(32,27,22,.1);color:inherit;display:block';
   const k = 'font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459';
   const n = 'font-family:Fraunces,serif;font-size:28px;margin-top:2px';
@@ -474,7 +482,7 @@ function blockKpis() {
     <span data-act="kpiPaid" title="Show only paid seats" style="${cell};cursor:pointer"><div style="${k}">${COPY.kpi.paid}</div><div style="${n};color:#1e6e42">${s.paidSeats}</div><div style="${sub}">${esc(COPY.kpi.paidSub(s.collected))}</div></span>
     <span data-act="kpiChase" title="Show only seats still expected to pay" style="${cell};cursor:pointer"><div style="${k}">${COPY.kpi.chase}</div><div style="${n};color:#9b1b22">${s.chaseSeats}</div><div style="${sub}">${esc(COPY.kpi.chaseSub(s.owed))}</div>${s.buckets ? `<div data-v2="gala-open-split" style="${sub};font-size:10px;margin-top:2px">${esc(COPY.kpi.chaseSplit(s.buckets))}</div>` : ''}</span>
     <span data-act="kpiSeated" title="Jump to the seating board" style="${cell};cursor:pointer"><div style="${k}">${COPY.kpi.seated}</div><div style="${n}">${s.seated}</div><div style="${sub}">${esc(COPY.kpi.seatedSub(s.reserved))}</div></span>
-    <span data-act="kpiRoom" title="Jump to the seating board" style="padding:15px 18px;display:block;cursor:pointer"><div style="${k}">${COPY.kpi.room}</div><div style="${n}">${room.table_count || 10} × ${room.seats_per_table || 8}</div><div style="${sub}">${COPY.kpi.roomSub}</div></span>
+    <span data-act="kpiRoom" title="Jump to the seating board" style="padding:15px 18px;display:block;cursor:pointer"><div style="${k}">${COPY.kpi.room}</div><div style="${n}">${tables} × ${perTable}</div><div style="${sub}">${COPY.kpi.roomSub}</div>${over > 0 ? `<div data-v2="room-over" style="${sub};color:#7a6432;font-weight:600;margin-top:3px">${esc(COPY.kpi.roomOver(over, Math.ceil(over / perTable)))}</div>` : ''}</span>
   </div>
   <!-- /dc -->`;
 }
@@ -524,7 +532,7 @@ function guestRow(r) {
         ${isChaseable(r) ? (chased
           ? `<span title="Approve it on the Inbox → Outbox tab" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;white-space:nowrap">${COPY.chase.queued}</span>`
           : `<span data-act="chase" data-id="${esc(r.id)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.chase.label}</span>`) : ''}
-        ${!isPaid(r) && stateOf(r) !== 'paid_twins' ? `<span data-act="pay" data-id="${esc(r.id)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#1e6e42;cursor:pointer;white-space:nowrap">${COPY.pay.label}</span>` : ''}
+        ${!isPaid(r) && stateOf(r) !== 'paid_twins' ? `<span data-act="pay" data-id="${esc(r.id)}" title="${COPY.pay.title}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#1e6e42;cursor:pointer;white-space:nowrap">${COPY.pay.label}</span>` : ''}
       </span>
       <span data-act="cancel" data-id="${esc(r.id)}" title="${COPY.cancel.title}" style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:${sure ? '#9b1b22' : '#9a9086'};cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${sure ? COPY.cancel.sure : COPY.cancel.label}</span>
     </div>`;
@@ -823,7 +831,7 @@ function blockWaitlist() {
     <div style="display:flex;gap:8px;padding:11px 18px;flex-wrap:wrap">
       <input data-role="wlName" placeholder="${COPY.wl.addName}" aria-label="Waitlist name" style="flex:1.2;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12px Inter,sans-serif;color:#201b16;min-width:120px">
       <input data-role="wlEmail" placeholder="${COPY.wl.addEmail}" aria-label="Waitlist email" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12px Inter,sans-serif;color:#201b16;min-width:110px">
-      <span data-act="addWl" style="padding:8px 12px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;display:flex;align-items:center">${COPY.wl.addBtn}</span>
+      <span data-act="addWl" style="padding:8px 12px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;display:flex;align-items:center" data-hover="background:#9b1b22">${COPY.wl.addBtn}</span>
     </div>
     <div style="padding:0 18px 12px;font-size:11px;color:#6d6459">${COPY.wl.foot}</div>
   </div>
@@ -1332,7 +1340,9 @@ const handlers = {
 
   // MARK PAID — the existing registrant route (FIRA on payment stays its business, untouched)
   pay: async (el) => {
-    const id = el.dataset.id; if (!regById(id)) return;
+    const id = el.dataset.id; const r = regById(id); if (!r) return;
+    const ok = await ui.confirm({ eyebrow: 'GALA · MARK PAID', title: esc(COPY.pay.sureTitle(nameOf(r))), body: `<div style="font-size:13px;line-height:1.6;color:#4a4239">${esc(COPY.pay.sureBody)}</div>`, ok: COPY.pay.sureOk, cancel: COPY.pay.sureCancel });
+    if (!ok || !rootEl) return;
     busy(el, true);
     try {
       await api.post('/api/admin/registrant/gala/' + encodeURIComponent(id) + '/mark-paid');

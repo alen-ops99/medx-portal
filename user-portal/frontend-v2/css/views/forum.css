@@ -19,7 +19,7 @@
 
 /* stage indicator: hide the 56px connector lines once the stages wrap — and on a phone the three stages
    share one row as equal columns (the third used to drop alone onto a second line) */
-@media (max-width: 500px) {
+@media (max-width: 600px) {
   .mx-forum-stageline { display: none !important; }
   .mx-forum-stages { display: grid !important; grid-template-columns: repeat(3, 1fr); align-items: start; }
   .mx-forum-stages > div { justify-content: center; }
@@ -28,15 +28,21 @@
 }
 
 /* invitation-code row: input takes the full line at phone width */
-@media (max-width: 430px) {
+@media (max-width: 500px) {
   .mx-forum-coderow { width: 100%; }
   .mx-forum-coderow input[data-role="code"] { flex: 1 1 100%; width: 100% !important; }
   .mx-forum-coderow [data-act="unlock"] { flex: 1 1 auto; text-align: center; }
 }
 
+/* facts band: one row needs 1,236 px. Narrower (iPad portrait and landscape, a laptop window) the four facts
+   sit two by two without rules — they used to wrap three plus one, with a rule dangling after the third */
+@media (max-width: 1250px) {
+  .mx-fo-band { display: grid !important; grid-template-columns: auto auto; justify-content: center; justify-items: center; gap: 10px 44px !important; }
+  .mx-fo-band > span[style*="width:1px"] { display: none !important; }
+}
 /* facts band on a phone: one centred fact per line — the vertical rules only read side by side */
 @media (max-width: 700px) {
-  .mx-fo-band { gap: 9px 20px !important; padding-top: 16px !important; padding-bottom: 16px !important; }
+  .mx-fo-band { grid-template-columns: 1fr; gap: 9px 20px !important; padding-top: 16px !important; padding-bottom: 16px !important; }
   .mx-fo-band > span[style*="width:1px"] { display: none !important; }
   .mx-fo-band > * { flex-basis: 100%; text-align: center; }
 }

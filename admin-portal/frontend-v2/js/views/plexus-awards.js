@@ -34,6 +34,7 @@ export const COPY_AW = {
     title: 'THE FOUR AWARDS', sub: 'nominations, the reading panel, and who takes the stage',
     windows: { none: 'ORGANIZERS CHOOSE', before: 'NOT OPEN YET', open: 'OPEN', closed: 'CLOSED' },
     closes: n => n == null ? '' : (n < 0 ? 'closed' : n === 0 ? 'closes today' : `${n} day${n === 1 ? '' : 's'} to close`),
+    opensOn: (a, b) => `opens ${a}${b ? ' · closes ' + b : ''}`, closedOn: d => `closed ${d}`,
     counts: (e, c) => `${e} entr${e === 1 ? 'y' : 'ies'} · ${c} candidate${c === 1 ? '' : 's'}`,
     open: 'OPEN', ranking: 'RANKING', settings: 'SETTINGS', add: 'ADD LAUREATE', notify: 'DECIDE & NOTIFY', csv: 'CSV',
     empty: 'No awards on this edition yet — they seed themselves on the next boot.'
@@ -222,14 +223,21 @@ function catRow(c) {
   const ro = readOnly();
   const wTone = { none: ['#f6f2ea', '#6d6459'], before: ['#f8f1e2', '#7a6432'], open: ['#1e6e42', '#fff'], closed: ['#f6f2ea', '#9a9086'] }[c.window] || ['#f6f2ea', '#6d6459'];
   const laur = (c.laureate_rows || []);
-  const acts = [
+  // two fixed rows: the working buttons, then CSV · SETTINGS as quiet text links — six ghost buttons in one
+  // cell wrapped 3 + 3 on one award and 4 + 1 on the next, SETTINGS alone on its own line
+  const quiet = (a, label) => `<span data-act="${a}" data-id="${esc(c.id)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${label}</span>`;
+  const main = [
     act('awOpen', c.id, t.open),
     act('awRank', c.id, t.ranking),
     c.intake === 'none' && !ro ? act('awLaureate', c.id, t.add) : '',
-    ro ? '' : act('awNotify', c.id, t.notify),
-    act('awCsv', c.id, t.csv),
-    ro ? '' : act('awSettings', c.id, t.settings)
+    ro ? '' : act('awNotify', c.id, t.notify)
   ].filter(Boolean).join('');
+  const links = [quiet('awCsv', t.csv), ro ? '' : quiet('awSettings', t.settings)].filter(Boolean).join('');
+  const acts = `<span style="display:flex;flex-direction:column;gap:9px;align-items:flex-end"><span class="mxp-aw-acts" style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:nowrap">${main}</span><span style="display:flex;gap:16px;justify-content:flex-end">${links}</span></span>`;
+  const day = v => fmt.dayShort(String(v || '').slice(0, 10));
+  const when = c.window === 'open' ? t.closes(c.days_to_close)
+    : c.window === 'before' && c.opens_at ? t.opensOn(day(c.opens_at), c.closes_at ? day(c.closes_at) : '')
+    : c.window === 'closed' && c.closes_at ? t.closedOn(day(c.closes_at)) : '';
   return `
       <tr data-row="aw-${esc(c.id)}">
         ${td(`<span style="display:flex;flex-direction:column;gap:3px;min-width:0">
@@ -238,7 +246,7 @@ function catRow(c) {
               ${laur.length ? `<span style="display:flex;gap:7px;flex-wrap:wrap;margin-top:3px">${laur.map(l => chip(l.name, '#1e6e42', '#fff')).join('')}</span>` : ''}
             </span>`, 'min-width:280px')}
         ${td(`<span style="display:flex;flex-direction:column;gap:3px">${chip(t.windows[c.window] || String(c.window || '').toUpperCase(), wTone[0], wTone[1])}
-              <span style="font-size:11px;color:#6d6459">${esc(c.window === 'open' ? t.closes(c.days_to_close) : (c.closes_at ? String(c.closes_at).slice(0, 10) : ''))}</span></span>`)}
+              <span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(when)}</span></span>`)}
         ${td(`<span style="font-size:12px;color:#6d6459">${esc(t.counts(c.counts.entries, c.counts.candidates))}</span>`)}
         ${tdNum(c.counts.shortlisted || '<span style="color:#9a9086">—</span>')}
         ${tdNum(c.laureates ? `${c.laureates} / ${c.laureates_max}` : `<span style="color:#9a9086">0 / ${c.laureates_max}</span>`)}
@@ -261,7 +269,7 @@ function blockAwCats() {
         ${act('awRoster', 'roster', COPY_AW.roster.csv)}
         ${act('awOnePager', 'sheet', COPY_AW.roster.sheet)}
       </div>
-      ${rows.length ? tbl(headers, rows.map(catRow).join(''), 1080)
+      ${rows.length ? tbl(headers, rows.map(catRow).join(''), 900)   /* 900: below 1180 the actions sit 2 × 2 (plexus-hub.css), so the table fits the card down to ~960 px; wider, it fills the card */
         : `<div class="empty" style="padding:30px 20px"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">${t.empty}</span></div>`}
     </div>`;
 }

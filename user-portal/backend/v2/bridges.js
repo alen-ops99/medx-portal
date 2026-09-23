@@ -2,6 +2,7 @@
  * v2/bridges.js — Building Bridges additions for the redesigned member portal (frontend-v2 › js/views/bridges.js).
  *
  *   GET  /api/v2/bridges/editions      public           → { editions: [...], totals: { cities, events, guests } }
+ *                                                         (curated rows + any past evening not entered yet — pastEvenings)
  *   POST /api/v2/bridges/editions      auth + adminOnly ← new edition row
  *   PUT  /api/v2/bridges/editions/:id  auth + adminOnly ← partial update (recap figures, note, photos…)
  *
@@ -19,6 +20,7 @@
  */
 'use strict';
 const crypto = require('crypto');
+const evenings = require('../../../shared/bridges-evenings');   // the one "held evening" rule (admin hub too)
 
 module.exports = function mountBridges(app, ctx) {
     const { db, auth, adminOnly } = ctx;
@@ -105,9 +107,21 @@ module.exports = function mountBridges(app, ctx) {
         };
     }
 
+    // An evening that has happened joins the recap on its own, numbered after the curated rows, until an admin
+    // enters its edition. The rule (published, dated before today, not Donor Night, not cancelled, not a
+    // '[superseded]' row; covered by the same event_id, date or undated city) is shared/bridges-evenings.js —
+    // the admin hub reads the same file, so both sides count the same evenings. Read-only: nothing is written.
+    function pastEvenings(list) {
+        let evs = [];
+        try { evs = rows(evenings.HELD_EVENINGS_SQL, [new Date().toISOString().slice(0, 10)]); }
+        catch (e) { return []; }
+        return evenings.pastEvenings(list, evs);
+    }
+
     app.get('/api/v2/bridges/editions', (req, res) => {
         try {
-            const list = rows('SELECT * FROM v2_bridges_editions WHERE is_published = 1 ORDER BY edition_no DESC').map(shape);
+            const curated = rows('SELECT * FROM v2_bridges_editions WHERE is_published = 1 ORDER BY edition_no DESC').map(shape);
+            const list = pastEvenings(curated).reverse().concat(curated);
             const cities = new Set(list.map(e => e.city)).size;
             const withGuests = list.filter(e => e.guests !== null);
             const guests = list.length && withGuests.length === list.length ? withGuests.reduce((a, e) => a + e.guests, 0) : null;

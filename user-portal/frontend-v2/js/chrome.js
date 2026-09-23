@@ -1,5 +1,5 @@
 // Source: Portal Chrome.dc.html (desktop chrome: top bar · member-stats strip · email-confirm
-//         banner · scrim · 300px ink drawer) + Mobile Portal.dc.html (≤430px: sticky compact
+//         banner · scrim · 300px ink drawer) + Mobile Portal.dc.html (≤500px: sticky compact
 //         top bar + ink bottom tab bar). ONE implementation, mounted once by app.js; every
 //         view renders below it. Markup and inline styles are the artboard's; only the bound
 //         props ({{ todayLabel }}, {{ navHome }}, {{ dx }} …) became data.
@@ -33,7 +33,9 @@ export const COPY = {
 // drawer PORTAL group — order and labels exactly as Portal Chrome.dc.html
 const NAV = [
   { key: 'Home', label: 'Home', to: '/app/home' },
-  { label: COPY.drawer.projects, group: true },
+  // Projects opens the five project cards (/app/projects) — it used to be an inert span dressed exactly like
+  // the links above and below it, so a tap did nothing
+  { key: 'Projects', label: COPY.drawer.projects, to: '/app/projects' },
   // "Plexus Week" is the umbrella (conference · gala · Building Bridges Zagreb · meetups) —
   // design/MEETUPS-SPEC.md §1. The key stays 'Plexus': it is the router's `active` value.
   { key: 'Plexus', label: 'Plexus Week', to: '/app/plexus', sub: true },
@@ -67,7 +69,9 @@ const NAV_SUB_ACT = 'display:block;padding:5px 26px 5px 40px;border-left:2px sol
 
 const TAB_ROOTS = { HOME: '/app/home', PROJECTS: '/app/projects', PEOPLE: '/app/network', INBOX: '/app/messages', 'MY M&X': '/app/me' };
 // the five project screens sit under PROJECTS — standing on one used to leave the tab bar with nothing lit
-const PROJECT_ROOTS = ['/app/plexus', '/app/gala', '/app/accelerator', '/app/forum', '/app/bridges'];
+const PROJECT_ROOTS = ['/app/plexus', '/app/gala', '/app/accelerator', '/app/forum', '/app/bridges', '/app/opportunities'];
+// …and Profile & settings sits under MY M&X (its breadcrumb reads MY MED&X → PROFILE & SETTINGS), Mentorship under PEOPLE
+const TAB_EXTRA = { 'MY M&X': ['/app/profile'], PEOPLE: ['/app/mentorship'] };
 const VERIFY_DISMISS_KEY = 'medx_verify_dismissed'; // legacy sessionStorage key, kept
 
 let els = {};
@@ -76,6 +80,8 @@ let searchTimer = null;
 let popOpenedAt = 0, popCloseTimer = null;   // entrance runs once per opening, exit fades (app.css › .mx-pop-in / .mx-pop-out)
 let searchActive = -1;                       // the row ↑ / ↓ has reached in the search results (-1 = none)
 let drawerTimer = null;
+// keyboard focus stays inside the open overlay (ui.trapFocus); these release it and remember who opened it
+let popTrap = null, drawerTrap = null, drawerFrom = null;
 
 // ---------------------------------------------------------------- templates
 function topBar() {
@@ -147,9 +153,7 @@ function drawer() {
     <div style="display:flex;align-items:center;padding:0 26px"><img src="/assets/logo-white.png" alt="med&amp;X" style="height:20px;display:block"><div style="flex:1"></div><span data-act="cl" aria-label="Close menu" style="font-size:20px;color:rgba(247,241,230,.7);cursor:pointer" data-hover="color:#f7f1e6">×</span></div>
     <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin:30px 0 8px">${COPY.drawer.portal}</div>
     <div style="display:flex;flex-direction:column">
-      ${NAV.map(n => n.group
-        ? `<span style="display:block;padding:9px 26px;font-size:14px;color:rgba(247,241,230,.72)">${n.label}</span>`
-        : `<a href="${n.to}" style="${nav(n.key, n.sub)}" data-hover="color:#f7f1e6"${n.v2 ? ' data-v2="nav entry not in Portal Chrome.dc.html"' : ''}>${n.label}</a>`).join('\n      ')}
+      ${NAV.map(n => `<a href="${n.to}" style="${nav(n.key, n.sub)}" data-hover="color:#f7f1e6"${n.v2 ? ' data-v2="nav entry not in Portal Chrome.dc.html"' : ''}>${n.label}</a>`).join('\n      ')}
     </div>
     <div style="height:1px;background:rgba(247,241,230,.14);margin:14px 26px"></div>
     <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin-bottom:8px">${COPY.drawer.quick}</div>
@@ -167,14 +171,16 @@ function mobileTop() {
   const title = path === '/app/home' || path === '/' || path === '/app' ? COPY.mobile.home : fmt.upper(s.viewTitle || '');
   return `
   <!-- dc: Mobile Portal.dc.html › "Top bar" -->
-  <div id="mx-mobile-top" style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(25,21,18,.16);position:sticky;top:0;background:#f7f1e6;z-index:20">
+  <!-- the bar sticks through its host: app.css makes #chrome sticky at phone widths (a sticky bar inside a header
+       exactly its own height had no room to stick). Search and alerts are 44 px targets drawn at 36 (-4 px margin) -->
+  <div id="mx-mobile-top" style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(25,21,18,.16);position:relative;background:#f7f1e6">
     ${isRoot
       ? `<a href="/app/home" class="mx-brand" style="display:block"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:17px;display:block"></a>`
-      : `<span data-act="back" aria-label="Back" style="font-size:17px;cursor:pointer;color:#9b1b22;min-width:44px;min-height:24px;display:inline-flex;align-items:center">←</span>`}
+      : `<span data-act="back" aria-label="Back" style="font-size:17px;cursor:pointer;color:#9b1b22;min-width:44px;min-height:44px;margin:-10px 0;display:inline-flex;align-items:center">←</span>`}
     <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(title)}</span>
     <div style="flex:1"></div>
-    <span data-act="search" role="button" aria-label="Search" style="width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;color:#191512;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21" stroke-linecap="square"/></svg></span>
-    <span data-act="alerts" role="button" aria-label="Alerts" style="position:relative;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;color:#191512;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span style="position:absolute;top:8px;right:8px;width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'block' : 'none'}"></span></span>
+    <span data-act="search" role="button" aria-label="Search" style="width:44px;height:44px;margin:-4px;display:inline-flex;align-items:center;justify-content:center;color:#191512;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21" stroke-linecap="square"/></svg></span>
+    <span data-act="alerts" role="button" aria-label="Alerts" style="position:relative;width:44px;height:44px;margin:-4px;display:inline-flex;align-items:center;justify-content:center;color:#191512;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span style="position:absolute;top:12px;right:12px;width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'block' : 'none'}"></span></span>
     <a href="/app/me" aria-label="My Med&X" style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 10.5px Fraunces,serif;text-decoration:none">${esc(session.initials())}</a>
     <div data-role="popover-m"></div>
   </div>
@@ -197,10 +203,10 @@ function mobileBanner() {
 function tabBar() {
   const path = router.path;
   const under = root => path === root || path.startsWith(root + '/');
-  const on = label => under(TAB_ROOTS[label]) || (label === 'HOME' && (path === '/' || path === '/app')) || (label === 'PROJECTS' && PROJECT_ROOTS.some(under));
+  const on = label => under(TAB_ROOTS[label]) || (label === 'HOME' && (path === '/' || path === '/app')) || (label === 'PROJECTS' && PROJECT_ROOTS.some(under)) || (TAB_EXTRA[label] || []).some(under);
   return `
   <!-- dc: Mobile Portal.dc.html › "Tab bar" -->
-  <div id="mx-tabbar" role="tablist" style="position:fixed;bottom:0;left:0;right:0;max-width:430px;margin:0 auto;background:#191512;display:flex;z-index:30">
+  <div id="mx-tabbar" role="tablist" style="position:fixed;bottom:0;left:0;right:0;max-width:500px;margin:0 auto;background:#191512;display:flex;z-index:30">
     ${COPY.mobile.tabs.map(label => { const a = on(label); return `<a href="${TAB_ROOTS[label]}" role="tab" aria-selected="${a}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:13px 0 16px;cursor:pointer;border-top:2px solid ${a ? '#c9a962' : 'transparent'};min-height:44px;box-sizing:border-box;text-decoration:none">
         <span style="width:5px;height:5px;background:${a ? '#c9a962' : 'rgba(247,241,230,.28)'};transform:rotate(45deg)"></span>
         <span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:${a ? '#f7f1e6' : 'rgba(247,241,230,.55)'};white-space:nowrap">${label}</span>
@@ -218,7 +224,7 @@ function alertsPanel() {
       <span style="font:600 8px Inter,sans-serif;letter-spacing:.12em;color:#9b8f80;white-space:nowrap">${fmt.shortDate(n.created_at)}</span>
     </div>`;
   return `<div class="mx-pop" role="dialog" aria-label="Alerts">
-    <div class="mx-pop-head"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${COPY.alertsPanel.title}${s.unread ? ' · ' + s.unread + ' NEW' : ''}</span><div style="flex:1"></div>${list.length ? `<span data-act="markAll" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${COPY.alertsPanel.markAll}</span>` : ''}<span data-act="closePop" aria-label="Close" style="margin-left:14px;color:#4a4239;cursor:pointer">×</span></div>
+    <div class="mx-pop-head"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${COPY.alertsPanel.title}${s.unread ? ' · ' + s.unread + ' NEW' : ''}</span><div style="flex:1"></div>${list.length ? `<span data-act="markAll" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${COPY.alertsPanel.markAll}</span>` : ''}<span data-act="closePop" role="button" tabindex="0" aria-label="Close" style="margin-left:14px;color:#4a4239;cursor:pointer">×</span></div>
     <div class="mx-pop-list">${s.msgUnread > 0 ? `<div class="mx-pop-row" data-act="openInbox"><span style="width:7px;height:7px;flex:none;margin-top:5px;background:#c9a962"></span><span style="flex:1;min-width:0;font-size:13px;font-weight:600;line-height:1.3">${s.msgUnread} unread message${s.msgUnread === 1 ? '' : 's'}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap">OPEN →</span></div>` : ''}${list.length ? list.map(row).join('') : s.msgUnread > 0 ? '' : `<div class="empty"><span class="rule-gold" style="margin-bottom:6px"></span><span class="empty-line">${COPY.alertsPanel.emptyLine}</span><span class="empty-why">${COPY.alertsPanel.emptyWhy}</span></div>`}</div>
   </div>`;
 }
@@ -263,7 +269,7 @@ function renderAll() {
 function renderPopover() {
   clearTimeout(popCloseTimer);
   // the phone bar has its own host — the desktop one sits inside the hidden desktop chrome
-  const phone = window.matchMedia && window.matchMedia('(max-width: 430px)').matches;
+  const phone = window.matchMedia && window.matchMedia('(max-width: 500px)').matches;
   els.chrome.querySelectorAll('[data-role="popover"], [data-role="popover-m"]').forEach(h => { h.innerHTML = ''; });
   const host = els.chrome.querySelector(phone ? '[data-role="popover-m"]' : '[data-role="popover"]');
   if (!host) return;
@@ -275,12 +281,20 @@ function renderPopover() {
   if (panel && t < 360) { panel.classList.add('mx-pop-in'); if (t > 16) panel.style.setProperty('--pop-t', (-t).toFixed(0) + 'ms'); }
   if (popover === 'search') { const q = host.querySelector('[data-role="q"]'); if (q) { q.focus(); q.addEventListener('input', onSearchInput); q.addEventListener('keydown', onSearchKey); searchActive = -1; } }
 }
-function openPopover(kind) { popover = kind; popOpenedAt = performance.now(); renderPopover(); }
+// SEARCH and ALERTS keep keyboard focus inside themselves while open (the panel is re-drawn when its data
+// lands, so the trap looks it up each time); ALERTS takes focus on opening — it used to stay on <body>
+const popPanel = () => els.chrome && els.chrome.querySelector(popover === 'search' ? '.mx-search-panel' : '.mx-pop');
+function openPopover(kind) {
+  popover = kind; popOpenedAt = performance.now(); renderPopover();
+  if (!popTrap) popTrap = ui.trapFocus(popPanel);
+  if (kind === 'alerts') { const x = els.chrome.querySelector('.mx-pop [data-act="closePop"]'); if (x) { try { x.focus({ preventScroll: true }); } catch (e) {} } }
+}
 // `refocus`: closed by the member (Escape, ×, the scrim) — focus goes back to SEARCH / ALERTS, where it came
 // from, instead of dropping to <body> when the panel leaves. A close that navigates passes nothing.
 function closePopover({ refocus } = {}) {
   const was = popover;
   popover = null;
+  if (popTrap) { popTrap(); popTrap = null; }
   if (refocus && was) {
     const host = els.chrome && els.chrome.querySelector('.mx-pop, .mx-search');
     const a = document.activeElement;
@@ -342,7 +356,12 @@ const handlers = {
   cl: () => chrome.closeDrawer(),
   back: () => (history.length > 1 ? history.back() : router.navigate('/app/home')),
   search: () => { if (popover === 'search') closePopover({ refocus: true }); else openPopover('search'); },
-  alerts: async () => { if (popover === 'alerts') return closePopover({ refocus: true }); openPopover('alerts'); await chrome.refresh({ only: 'notifications' }); if (popover === 'alerts') renderPopover(); },
+  alerts: async () => {
+    if (popover === 'alerts') return closePopover({ refocus: true });
+    openPopover('alerts'); await chrome.refresh({ only: 'notifications' });
+    // the refreshed panel is a new node: keep focus in it (on its × unless the member already moved on)
+    if (popover === 'alerts') { const a = document.activeElement; renderPopover(); if (!a || a === document.body || !a.isConnected) { const x = els.chrome.querySelector('.mx-pop [data-act="closePop"]'); if (x) { try { x.focus({ preventScroll: true }); } catch (e) {} } } }
+  },
   closePop: (el, e) => { if (e && e.target.closest && e.target.closest('[data-stop]')) return; closePopover({ refocus: true }); },
   openInbox: () => { closePopover(); router.navigate('/app/messages'); },
   markAll: async () => { try { await api.put('/api/user-notifications/mark-all-read'); await chrome.refresh({ only: 'notifications' }); renderPopover(); ui.toast('All alerts marked as read.'); } catch (e) { ui.toast(e.message, { kind: 'error' }); } },
@@ -374,7 +393,19 @@ export const chrome = {
     els.overlays = document.getElementById('chrome-overlays') || (() => { const d = document.createElement('div'); d.id = 'chrome-overlays'; document.body.appendChild(d); return d; })();
     ui.bind(els.chrome, handlers);
     ui.bind(els.overlays, handlers);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (popover) closePopover({ refocus: true }); else chrome.closeDrawer(); } });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { if (popover) closePopover({ refocus: true }); else chrome.closeDrawer(); return; }
+      // the portal's finder from the keyboard: ⌘K / Ctrl+K anywhere, "/" outside a text field. The Mac app binds
+      // ⌘K in its own menu (medx-desktop › menu.js), so the page leaves that one to it there.
+      if (state.get().layout !== 'portal' || !session.isAuthed || popover === 'search') return;
+      const cmdK = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && String(e.key).toLowerCase() === 'k' && !document.documentElement.classList.contains('mx-desktop');
+      const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      const slash = e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !typing && !document.querySelector('.mx-modal, [role="dialog"][aria-modal="true"]');
+      if (!cmdK && !slash) return;
+      e.preventDefault();
+      if (document.body.classList.contains('drawer-open')) chrome.closeDrawer();
+      openPopover('search');
+    });
     document.addEventListener('click', e => { if (popover === 'alerts' && !e.target.closest('.mx-pop') && !e.target.closest('[data-act="alerts"]')) closePopover(); });
     state.subscribe((s, keys) => { if (keys.some(k => ['user', 'stats', 'unread', 'msgUnread', 'active', 'layout', 'viewTitle', 'notifications'].includes(k))) renderAll(); });
     renderAll();
@@ -393,9 +424,22 @@ export const chrome = {
       d.classList.remove('is-entering'); void d.offsetWidth; d.classList.add('is-entering');
       clearTimeout(drawerTimer); drawerTimer = setTimeout(() => d.classList.remove('is-entering'), 700);
     }
+    // keyboard focus stays in the menu while it is open (Tab used to walk out past "Website ↗" into the page)
+    // and goes back to MENU when it closes
+    if (!drawerTrap) { const a = document.activeElement; drawerFrom = a && a !== document.body ? a : null; drawerTrap = ui.trapFocus(() => els.overlays.querySelector('#mx-drawer')); }
     const first = els.overlays.querySelector('#mx-drawer a'); if (first) first.focus({ preventScroll: true });
   },
-  closeDrawer() { document.body.classList.remove('drawer-open'); const s = els.overlays.querySelector('#mx-scrim'); if (s) s.setAttribute('aria-hidden', 'true'); },
+  closeDrawer() {
+    const wasOpen = document.body.classList.contains('drawer-open');
+    document.body.classList.remove('drawer-open'); const s = els.overlays.querySelector('#mx-scrim'); if (s) s.setAttribute('aria-hidden', 'true');
+    if (drawerTrap) { drawerTrap(); drawerTrap = null; }
+    if (wasOpen) {
+      const d = els.overlays.querySelector('#mx-drawer'), a = document.activeElement;
+      const menu = drawerFrom && drawerFrom.isConnected ? drawerFrom : [...els.chrome.querySelectorAll('[data-act="tg"]')].find(t => t.offsetParent !== null);
+      if (menu && (!a || a === document.body || (d && d.contains(a)))) { try { menu.focus({ preventScroll: true }); } catch (e) {} }
+    }
+    drawerFrom = null;
+  },
   closePopover,
   // stats strip + unread dot — all live reads, never hardcoded
   async refresh({ only } = {}) {

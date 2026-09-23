@@ -33,6 +33,9 @@
 /* phone: a person card turns sideways — portrait on the left, name and actions on the right — so
    eight suggestions read as a list instead of eight full-width 150px portrait slabs */
 @media (max-width: 560px) {
+  /* the sideways card needs the full width: a two-column grid (the ≤900 rule, up to 500 px) left each card
+     229 px wide at iPad Split View, with MESSAGE and the ⋯ hanging over its edge */
+  .mx-net-screen .mx-grid-4 { grid-template-columns: 1fr !important; }
   .mx-net-card { display: grid !important; grid-template-columns: 104px 1fr; }
   .mx-net-face { height: auto !important; min-height: 128px; }
   .mx-net-face .mx-mono { font-size: 30px !important; }

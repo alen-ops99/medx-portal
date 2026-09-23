@@ -878,7 +878,7 @@ export default {
   ${blockCrumbs()}
   ${blockTitle()}
   <div class="mx-profile-grid mx-profile-pad" style="display:grid;grid-template-columns:1fr 300px;gap:26px;padding:20px 36px 30px;align-items:start">
-    <div style="display:flex;flex-direction:column;gap:22px">
+    <div class="mx-profile-main" style="display:flex;flex-direction:column;gap:22px">
       ${blockIdentity()}
       ${blockAbout()}
       ${blockAccount()}

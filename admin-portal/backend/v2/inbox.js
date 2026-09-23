@@ -489,7 +489,8 @@ ${paragraphs(body)}
             const u = one('SELECT id, email FROM users WHERE id = ?', [key]) || one('SELECT id, email FROM users WHERE LOWER(email) = LOWER(?)', [key]);
             const k1 = key, k2 = u ? u.id : key, k3 = u && u.email ? u.email : key;
             const read = !(req.body && (req.body.read === false || req.body.read === 0));
-            run(`UPDATE direct_messages SET is_read = ? WHERE sender_id IN (?, ?, ?) AND COALESCE(receiver_type,'user') = 'admin'`, [read ? 1 : 0, k1, k2, k3]);
+            // case-blind like the thread grouping above (LOWER(email) = LOWER(?)) and server.js messageKeys()
+            run(`UPDATE direct_messages SET is_read = ? WHERE LOWER(sender_id) IN (LOWER(?), LOWER(?), LOWER(?)) AND COALESCE(receiver_type,'user') = 'admin'`, [read ? 1 : 0, k1, k2, k3]);
             save();
             res.json({ ok: true, key, read });
         } catch (err) { fail(res, err, 'Could not update that thread.'); }

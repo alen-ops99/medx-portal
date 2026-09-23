@@ -22,13 +22,13 @@ export const COPY = {
     create: 'CREATE ACCOUNT →', signin: 'SIGN IN',
     projects: ['PLEXUS CONFERENCE', 'GALA EVENING', 'THE ACCELERATOR', 'BIOMEDICAL FORUM', 'BUILDING BRIDGES']
   },
-  panel: { quote: '"The room where Croatian medicine meets the world."', tagline: 'ONE ACCOUNT · EVERY MED&X PROJECT · ONE WORLDWIDE NETWORK' },
+  panel: { quote: '“The room where Croatian medicine meets the world.”', tagline: 'ONE ACCOUNT · EVERY MED&X PROJECT · ONE WORLDWIDE NETWORK' },
   steps: { details: 'DETAILS', confirm: 'CONFIRM EMAIL', done: "YOU'RE IN" },
   create: {
     headline: 'Join the Med&amp;X <i>community</i>.',
     blurb: 'One account for the Plexus Conference, the Gala, the Accelerator, the Forum, and Building Bridges.',
     fields: { first: 'FIRST NAME *', last: 'LAST NAME *', email: 'EMAIL *', password: 'PASSWORD *', institution: 'INSTITUTION', country: 'COUNTRY *' },
-    placeholders: { first: 'Alen', last: 'Juginović', email: 'you@institution.edu', password: 'Min 8 characters', institution: 'University / company', country: 'Croatia' },
+    placeholders: { first: 'Ana', last: 'Horvat', email: 'you@institution.edu', password: 'Min 8 characters', institution: 'University / company', country: 'Croatia' },
     terms: 'I agree to the <a href="/terms" target="_blank" rel="noopener" style="color:#9b1b22;text-decoration:underline">Terms and Privacy Policy</a>. We never share your data.',
     submit: 'CREATE ACCOUNT →', busy: 'CREATING…', already: 'Already a member? ', signin: 'Sign in', back: '← Back',
     errors: { first: 'Add your first name.', last: 'Add your last name.', email: 'Enter a valid email address.', password: 'Use at least 8 characters.', country: 'Add your country.', terms: 'Please accept the Terms and Privacy Policy.', exists: 'That email already has an account — sign in instead.' }

@@ -19,4 +19,12 @@
   [data-screen-label="Admin Accelerator Review"] [data-act="filter"][style*="background:#eee9df"]:hover { background: #e4dccd !important; }
 }
 
+/* phone: an interviewer row kept GETS THE LINK PER INTERVIEW and the × beside the name, which left the
+   name ~120 px (one or two words per line) — the label drops under the name, the × stays on its line */
+@media (max-width: 620px) {
+  [data-block="interviews"] [data-row] { flex-wrap: wrap; row-gap: 2px; }
+  [data-block="interviews"] .mxa-iv-name { flex: 1 1 calc(100% - 80px) !important; }
+  [data-block="interviews"] .mxa-iv-slots { order: 5; flex: 1 1 100%; padding-left: 38px; white-space: normal !important; }
+}
+
 /* the Projects motion kit (row warmth, field focus, sub-nav hover, arrival fades) lives once in css/app.css §10 */

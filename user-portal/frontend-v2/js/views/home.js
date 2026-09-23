@@ -7,7 +7,7 @@
 import { api } from '../api.js';
 import { session, state } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import { FACTS, routeFor, CTA, trueDateFor, reconcileEarlyBird, galaPriceNow, setLiveGalaPrice } from '../facts.js';
+import { FACTS, routeFor, CTA, trueDateFor, reconcileEarlyBird, galaPriceNow, setLiveGalaPrice, plexusStartsAt } from '../facts.js';
 import { chrome } from '../chrome.js';
 import { profileCompletion } from '../member.js';
 import router from '../router.js';
@@ -20,6 +20,8 @@ export const COPY = {
     eyebrow: 'YOUR NEXT EVENT',
     greetings: ['Good morning', 'Good afternoon', 'Good evening'],   // time-of-day; text easter eggs removed by decision
     open: (name, city) => `${name} is open for registration — two days in ${city}, this December. Discover what's next.`,
+    // the status feed says PRE-REGISTRATION OPEN: the hero says the same thing, not "open for registration"
+    preOpen: (name, city) => `Pre-registration for ${name} is open — two days in ${city}, this December. Discover what's next.`,
     soon: (name, city) => `${name} opens for registration soon — two days in ${city}, this December. Discover what's next.`,
     // UX audit 2026-09-02 › item 2: under "…is open for registration", the hero's own buttons could
     // not start that task — two of the three opened an empty wallet and the third was a status
@@ -38,7 +40,8 @@ export const COPY = {
   projects: {
     n: '01', title: 'OUR PROJECTS', sub: 'Apply, register, and follow every Med&amp;X project from here.',
     cards: {
-      plexus: { title: 'Plexus Week 2026', photo: 'photo-stage.jpg' },
+      // the card carries the conference (its status, 4–5 December, free entry) — Plexus Week itself runs 3–6 December
+      plexus: { title: 'Plexus Conference 2026', photo: 'photo-stage.jpg' },
       gala: { title: 'Gala <i style="color:#c9a962">Evening</i>', photo: 'photo-gala.jpg' },
       accelerator: { title: 'The Accelerator', photo: 'photo-candlelit.jpg' },
       forum: { title: 'Biomedical Forum', photo: 'photo-ballroom.jpg' },
@@ -131,7 +134,8 @@ async function load() {
     // one directory, one count (audit small notes): this band said 59 MEMBERS while the Network
     // screen offered "BROWSE ALL 48 MEMBERS" — /api/public/impact counts every row in `users`,
     // the directory counts the members you can actually open. The directory number is the true one.
-    netSummary: api.get('/api/v2/network/summary')
+    netSummary: api.get('/api/v2/network/summary'),
+    live: api.get('/api/live/events', { noAuth: true })   // the conference's real start (the countdown target)
   });
   if (r.me) session.update(Object.assign({}, r.me, { email_verified: (session.user || {}).email_verified }));
   const me = session.user || r.me || {};
@@ -155,7 +159,7 @@ async function load() {
       : profileCompletion(me, r.net), // fallback while the server formula is unavailable
     nl: r.nl || null,
     keyDates: keyDates || COPY.keyDates.fallback, keyDatesFromApi: !!keyDates,
-    countdownTo: conf && conf.start_date ? String(conf.start_date).slice(0, 10) + 'T09:00:00+01:00' : FACTS.plexus.startAt,
+    countdownTo: plexusStartsAt(r.live, conf && conf.start_date),
     shortName: ((r.next && r.next.event_name) || (conf && conf.name) || FACTS.plexus.name).replace(/\s*Conference\s*/i, ' ').trim(),
     forumTop: feed.find(i => i.source === 'forum') || null
   };
@@ -171,6 +175,7 @@ function blockHero() {
   const hour = new Date().getHours();
   const greeting = COPY.hero.greetings[hour < 12 ? 0 : hour < 18 ? 1 : 2];
   const open = D.conf ? !!D.conf.registration_open : true;
+  const pre = /pre-?registration/i.test((D.projects.plexus || {}).status_label || '');
   const city = (D.conf && D.conf.venue_city) || FACTS.plexus.city;
   const holdsTicket = !!D.next.registered;
   const checkInOpen = new Date() >= new Date(FACTS.plexus.start + 'T00:00:00');
@@ -178,14 +183,14 @@ function blockHero() {
   <!-- dc: Med&X Home.dc.html › "YOUR NEXT EVENT" -->
   <div style="border-bottom:1px solid rgba(25,21,18,.16);position:relative;overflow:hidden">
     <div class="mx-grid-hero" style="display:grid;grid-template-columns:minmax(240px,300px) 1fr minmax(240px,300px);align-items:start;position:relative">
-    <div data-block="start" style="display:flex;flex-direction:column;gap:8px;padding:16px 20px 0 0;order:3">
+    <div data-block="start" style="display:flex;flex-direction:column;gap:8px;padding:16px 36px 0 0;order:3">
       ${showStart ? `
         <div style="display:flex;flex-direction:column;background:#fdfaf3;border:1px solid rgba(25,21,18,.16)">
           <div style="display:flex;align-items:center;gap:10px;padding:9px 12px 7px">
             <span style="width:6px;height:6px;background:#c9a962;flex:none"></span>
             <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6e5626">${COPY.start.title} · ${COPY.start.left(steps)}</span>
             <div style="flex:1"></div>
-            <span data-act="hideStart" aria-label="Dismiss" style="color:#4a4239;cursor:pointer;line-height:1">×</span>
+            <span data-act="hideStart" aria-label="Dismiss" style="color:#4a4239;cursor:pointer;line-height:1" data-hover="color:#191512">×</span>
           </div>
           ${emailOk ? '' : `
             <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 12px;border-top:1px solid rgba(25,21,18,.08)">
@@ -212,7 +217,7 @@ function blockHero() {
         <span style="width:28px;height:1px;background:#c9a962"></span>
       </div>
       <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:46px;line-height:1.08">${esc(greeting)}, <i>${esc((me.first_name || '').trim() || session.displayName())}</i>.</div>
-      <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:460px;margin-top:14px">${esc((open ? COPY.hero.open : COPY.hero.soon)(D.shortName, city))}</div>
+      <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:460px;margin-top:14px">${esc((open ? (pre ? COPY.hero.preOpen : COPY.hero.open) : COPY.hero.soon)(D.shortName, city))}</div>
       <div class="mx-wrap-center" style="display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;justify-content:center">
         ${holdsTicket
           ? `<a href="/app/me" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.tickets}</a>`
@@ -261,21 +266,23 @@ function blockNextEvent() {
 // The two registration cards say the two verbs (item 6) whatever wording the status feed carries;
 // every other card keeps the admin's own label. Detail lines pass through the early-bird repair so
 // a stale "€150 through 1 Sep" can't outrank the Gala page (item 1).
+// A member who already holds the ticket (or the seat) is not asked to register again — the Home hero and My
+// Plexus already say REGISTERED; the cards now agree.
 function cardCta(key, p) {
-  if (key === 'plexus') return CTA.register;
-  if (key === 'gala') return CTA.reserve(fmt.eur(D.galaPrice));
+  if (key === 'plexus') return D.next.registered ? 'MY TICKET' : CTA.register;
+  if (key === 'gala') return D.next.has_gala ? 'YOUR SEAT' : CTA.reserve(fmt.eur(D.galaPrice));
   return fmt.upper(p.cta_label || 'Open');
 }
 function blockProjects() {
   const card = key => {
     const p = D.projects[key] || COPY.projects.fallback[key]; const c = CARD[key]; const meta = COPY.projects.cards[key];
-    const to = routeFor(p.cta_target || key, routeFor(key));
+    const to = key === 'plexus' && D.next.registered ? '/app/plexus/mine' : routeFor(p.cta_target || key, routeFor(key));
     // the whole card is the door (only the small CTA line used to be clickable)
     return `
       <a href="${to}" class="mx-proj-card${key === 'gala' ? ' dark' : ''}" style="${c.wrap};${key === 'gala' ? '' : 'color:#191512;'}text-decoration:none">
         <span class="mx-proj-photo" style="display:block;overflow:hidden"><img src="/assets/${meta.photo}" alt="" style="${c.img}"></span>
         <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${c.status}">${esc(fmt.upper(fmt.detail(p.status_label || '')))}</span>
+          <span class="mx-proj-status" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${c.status}">${esc(fmt.upper(fmt.detail(p.status_label || '')))}</span>
           <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${meta.title}</span>
           <span style="font-size:12px;color:${c.detail};line-height:1.5">${esc(fmt.detail(reconcileEarlyBird(p.detail_line || '')))}</span>
           <span class="mx-proj-cta" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:${c.cta};margin-top:auto;white-space:nowrap">${esc(cardCta(key, p))} →</span>

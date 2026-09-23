@@ -26,7 +26,7 @@ export const COPY = {
     saved: 'SAVED', savedWithFiles: n => `SAVED · ${n} FILE${n === 1 ? '' : 'S'} ATTACHED`
   },
   rail: {
-    search: 'Search notes, people, events…', all: 'ALL NOTES', pinned: 'PINNED', day: 'DAY NOTES', archived: 'ARCHIVED',
+    search: 'Search notes or people', all: 'ALL NOTES', pinned: 'PINNED', day: 'DAY NOTES', archived: 'ARCHIVED',
     events: 'EVENTS', people: 'PEOPLE', morePeople: n => `ALL ${n} PEOPLE`, fewerPeople: 'FEWER', noEvents: 'No event has notes yet.', noPeople: 'No one tagged yet.'
   },
   stream: {
@@ -313,8 +313,45 @@ function rerenderComposer(keepFocus) {
   revealChip();
   if (keepFocus && role) { const el = rootEl.querySelector(`[data-role="${role}"]`); if (el) { el.focus(); try { if (pos != null && el.setSelectionRange) el.setSelectionRange(pos, pos); } catch (e) {} } }
 }
-// the phone strip scrolls sideways — keep the selected event chip in view
-function revealChip() { const strip = rootEl && rootEl.querySelector('[data-role="cEvents"]'); const on = strip && strip.querySelector('.mx-chip.on'); if (strip && on && strip.scrollWidth > strip.clientWidth) strip.scrollLeft = Math.max(0, on.offsetLeft - 12); }
+// the phone strip scrolls sideways — keep the selected event chip in view, a WHOLE chip at the strip's
+// left padding (offsetLeft is measured from #view, not the strip, and left half of the chip before it
+// showing at the edge — "· 15 MAR"); notes.css fades both edges of the strip
+function revealChip() {
+  const strip = rootEl && rootEl.querySelector('[data-role="cEvents"]'); const on = strip && strip.querySelector('.mx-chip.on');
+  if (!strip) return;
+  const old = strip.querySelector('.mx-nc-tail'); if (old) old.remove();
+  if (!on || strip.scrollWidth <= strip.clientWidth) { stripEdges(strip); return; }
+  const pad = parseFloat(getComputedStyle(strip).paddingLeft) || 0;
+  const origin = strip.getBoundingClientRect().left - strip.scrollLeft + pad;          // scrollLeft that puts x at the padding edge = x - origin
+  const starts = Array.from(strip.querySelectorAll('.mx-chip')).map(c => c.getBoundingClientRect().left - origin);
+  const onStart = on.getBoundingClientRect().left - origin, onEnd = onStart + on.offsetWidth;
+  const max = strip.scrollWidth - strip.clientWidth;
+  // near the end the strip cannot scroll the pick to the left edge: step back to the chip boundary before
+  // it, so the edge always starts on a whole chip, as long as the pick still fits in view
+  let x = Math.min(onStart, max);
+  const snap = starts.filter(s => s <= x + 0.5).pop();
+  if (snap != null && snap < x - 0.5 && onEnd - snap <= strip.clientWidth - 2 * pad) x = snap;
+  else if (onStart > max + 0.5) {
+    // no whole chip before the pick fits with it (the default pick NO EVENT · DAY NOTE sits near the end,
+    // after a 250 px event chip): an empty tail after the last chip lets the strip scroll the pick itself
+    // to the left edge, instead of stopping with half of the chip before it showing ("· 15 MAR")
+    const tail = document.createElement('span');
+    tail.className = 'mx-nc-tail'; tail.setAttribute('aria-hidden', 'true');
+    const gap = parseFloat(getComputedStyle(strip).columnGap) || 0;                   // the tail brings its own gap
+    tail.style.cssText = 'flex:0 0 ' + Math.max(0, Math.ceil(onStart - max - gap)) + 'px;height:1px';
+    strip.appendChild(tail);
+    x = Math.min(onStart, strip.scrollWidth - strip.clientWidth);
+  }
+  strip.scrollLeft = Math.max(0, x);
+  stripEdges(strip);
+}
+// a strip scrolled away from its start fades its left edge, one with more to come fades its right — a chip
+// cut at an edge then reads as "more this way", never as a clipped glitch (notes.css .mx-edge-l / -r)
+function stripEdges(strip) {
+  const max = strip.scrollWidth - strip.clientWidth;
+  strip.classList.toggle('mx-edge-l', max > 1 && strip.scrollLeft > 1);
+  strip.classList.toggle('mx-edge-r', max > 1 && strip.scrollLeft < max - 1);
+}
 function autosize(ta) { ta.style.height = 'auto'; ta.style.height = Math.max(ta.scrollHeight, 44) + 'px'; }
 function autosizeAll() { rootEl.querySelectorAll('textarea[data-role="cBody"], textarea[data-role="eBody"]').forEach(autosize); }
 function syncUrl(replace) {
@@ -502,11 +539,14 @@ function bindRootListeners(root) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && t.matches('[data-role="eBody"]')) { e.preventDefault(); t.blur(); const b = root.querySelector(`[data-act="doneEdit"][data-id="${CSS.escape(t.dataset.id)}"]`); if (b) handlers.doneEdit(b); return; }
     if (e.key === 'Escape' && st.editing) { st.editing = null; rerenderMain(); autosizeAll(); }
   };
+  // the event strip's edge fades follow its scroll (scroll does not bubble — caught on the way down)
+  const onScroll = e => { const t = e.target; if (t && t.matches && t.matches('[data-role="cEvents"]')) stripEdges(t); };
   root.addEventListener('input', onInput);
   root.addEventListener('change', onChange);
   root.addEventListener('focusout', onBlur);
   root.addEventListener('keydown', onKey);
-  return () => { clearTimeout(qTimer); root.removeEventListener('input', onInput); root.removeEventListener('change', onChange); root.removeEventListener('focusout', onBlur); root.removeEventListener('keydown', onKey); };
+  root.addEventListener('scroll', onScroll, true);
+  return () => { clearTimeout(qTimer); root.removeEventListener('input', onInput); root.removeEventListener('change', onChange); root.removeEventListener('focusout', onBlur); root.removeEventListener('keydown', onKey); root.removeEventListener('scroll', onScroll, true); };
 }
 function freshComposer() { return { body: '', title: '', date: todayYmd(), eventKey: null, customLabel: '', people: [], personDraft: '', files: [], saving: false }; }
 function filterFromQuery(qs) {

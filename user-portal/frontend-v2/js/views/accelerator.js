@@ -57,7 +57,8 @@ export const COPY = {
   },
   band: {
     openIn: 'APPLICATIONS OPEN IN', closeIn: 'APPLICATIONS CLOSE IN', open: 'APPLICATIONS', openNow: 'NOW', closed: 'CLOSED',
-    days: 'DAYS', duration: '8–12 WEEKS', hosts: n => `${n} HOST INSTITUTIONS · USA &amp; EUROPE`,
+    // the region is read from the host list (all eight are in the USA today — the band said USA & EUROPE)
+    days: 'DAYS', duration: '8–12 WEEKS', hosts: (n, region) => `${n} HOST INSTITUTIONS${region ? ' · ' + region : ''}`,
     positions: r => `${r} POSITIONS`, stipend: '€800–1,000 STIPEND'
   },
   program: {
@@ -68,10 +69,10 @@ export const COPY = {
     chipGold: 'CROATIAN CITIZENSHIP REQUIRED',
     hostsTitle: 'HOST LABS &amp; CLINICS', hostsSub: 'Click an institution to learn more · specific placements depend on mentor availability.',
     positions: n => `${n} ${Number(n) === 1 ? 'position' : 'positions'}`, positionsTbc: 'Positions TBC', site: 'Website →',
-    // The host drawer (2026-09-17): every field the public endpoints carry, one row each. A field
-    // nobody has filled in reads "Details coming" — never a blank row, never invented text.
+    // The host drawer (2026-09-17): every field the public endpoints carry that holds something, one row
+    // each — a panel of six "Details coming" rows read as unfinished. What is not filled in yet is said once.
     detail: {
-      soon: 'Details coming', close: 'CLOSE',
+      soon: 'Details coming', close: 'CLOSE', more: opens => `Mentors, program type and dates for this host are published with the call on ${opens}.`,
       rows: [['about', 'ABOUT'], ['lab', 'LAB / CLINIC'], ['mentor', 'MENTOR'], ['fields', 'PROGRAM TYPE'], ['duration', 'DURATION'], ['spots', 'SPOTS'], ['year', 'YEAR'], ['website', 'WEBSITE']],
       extra: [['requirements', 'REQUIREMENTS'], ['stipend', 'STIPEND'], ['accommodation', 'ACCOMMODATION'], ['visa', 'VISA'], ['contact', 'CONTACT']]
     }
@@ -177,6 +178,8 @@ export const COPY = {
     closes: d => `CLOSES ${d}`, opens: d => `OPENS ${d}`, open: 'APPLICATIONS OPEN', closed: 'APPLICATIONS CLOSED',
     title: 'My <i style="color:#c9a962">Application</i>',
     sub: 'Your progress saves automatically · leave and come back any time.',
+    // before opening the pill and the gate card below already carry the date, so this line does not repeat it
+    subSoon: 'Once applications open, your progress saves as you go · leave and come back any time.',
     subDone: 'Submitted — the committee takes it from here. We’ll reach you by email at every stage.',
     steps: ['PERSONAL', 'EDUCATION', 'PROGRAM', 'SUPPLEMENTARY', 'DOCUMENTS', 'CONSENT', 'REVIEW'],
     stepTitles: ['Personal Information', 'Education', 'Program Preferences', 'Supplementary', 'Documents', 'Consent', 'Review & Submit'],
@@ -342,7 +345,7 @@ function buildHosts(sitesRes, instRes) {
       key: 's:' + s.id,
       abbr: (inst && inst.short_name) || abbrOf(s.institution),
       name: s.institution || '',
-      city: [s.city, s.country].filter(Boolean).join(', '),
+      city: [s.city, s.country].filter(Boolean).join(', '), country: s.country || (inst && inst.country) || '',
       blurb: (inst && inst.description) || '',
       lab: s.lab_or_clinic || '', mentor: mentorOk(s.mentor_line) ? s.mentor_line : d.mentor,
       spots: numOrNull(s.spots) !== null ? numOrNull(s.spots) : d.spots,
@@ -356,7 +359,7 @@ function buildHosts(sitesRes, instRes) {
     const d = details(i);
     cards.push(Object.assign({
       key: 'i:' + i.id, abbr: i.short_name || abbrOf(i.name), name: i.name || '',
-      city: [i.city, i.country].filter(Boolean).join(', '), blurb: i.description || '',
+      city: [i.city, i.country].filter(Boolean).join(', '), country: i.country || '', blurb: i.description || '',
       lab: '', mentor: d.mentor, spots: d.spots !== null ? d.spots : numOrNull(i.available_spots), year: d.year,
       logo: i.logo_url || null, website: i.website_url || null, instId: i.id
     }, d.rest));
@@ -525,16 +528,31 @@ function blockBand() {
   <div class="mx-ax-band mx-pad-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${cd.label}</span>
     <span style="display:flex;align-items:baseline;gap:6px"><span data-cd="opendays" style="font-family:Fraunces,serif;font-size:24px">${cd.target ? daysTo(cd.target) : cd.big}</span>${cd.target ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">${COPY.band.days}</span>` : ''}</span>
+    <span class="mx-band-break" aria-hidden="true"></span>
     ${sep}
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${duration}</span>
     ${sep}
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${COPY.band.hosts(D.hosts.length)}</span>
+    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${COPY.band.hosts(D.hosts.length, hostRegion())}</span>
     ${sep}
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${positions}</span>
     ${sep}
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.band.stipend}</span>
   </div>
   <!-- /dc -->`;
+}
+// a host card just re-drawn takes focus back (its tabindex is normally added a beat later by ui.js)
+function focusCard(i) {
+  const card = rootEl && rootEl.querySelector(`[data-act="pickHost"][data-i="${i}"]`);
+  if (!card) return;
+  if (!card.hasAttribute('tabindex')) { card.setAttribute('tabindex', '0'); card.setAttribute('role', 'button'); }
+  try { card.focus({ preventScroll: true }); } catch (e) {}
+}
+// 'USA' · 'EUROPE' · 'USA &amp; EUROPE' from the hosts' own countries ('' when none is on file)
+function hostRegion() {
+  const cs = (D.hosts || []).map(h => String(h.country || '').trim()).filter(Boolean);
+  if (!cs.length) return '';
+  const us = cs.filter(c => /^(usa|us|u\.s\.a?\.?|united states( of america)?|america)$/i.test(c)).length;
+  return us === cs.length ? 'USA' : us ? 'USA &amp; EUROPE' : 'EUROPE';
 }
 function hostCards() {
   const cards = D.hosts.map((h, i) => `
@@ -562,10 +580,12 @@ function hostDetail(h) {
         <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;flex:none;width:120px">${label}</span>
         <span style="font-size:12.5px;color:#191512;line-height:1.55;flex:1;min-width:0;overflow-wrap:anywhere">${v || soon}</span>
       </div>`;
-  const rows = c.rows.map(r => row(r, value(r[0]))).join('');
+  const filled = c.rows.map(r => [r, value(r[0])]).filter(x => x[1]);
+  const rows = filled.map(([r, v]) => row(r, v)).join('')
+    + (filled.length < c.rows.length ? `<div style="padding:9px 0 3px;border-top:1px solid rgba(25,21,18,.1);font-size:12px;color:#6d6459;font-style:italic;line-height:1.5">${esc(c.more(opensInfo().label))}</div>` : '');
   const extras = c.extra.map(r => [r, value(r[0])]).filter(x => x[1]).map(([r, v]) => row(r, v)).join('');
   return `
-    <div data-block="host-detail" class="mx-reveal" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:16px 20px 12px;margin-bottom:14px">
+    <div data-block="host-detail" class="mx-reveal" tabindex="-1" aria-label="${esc(h.name)}" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:16px 20px 12px;margin-bottom:14px">
       <div style="display:flex;gap:14px;align-items:baseline;padding-bottom:8px">
         <span style="font-family:Fraunces,serif;font-size:17px;flex:1;min-width:0">${esc(h.name)}${h.city ? `<span style="font-family:Inter,sans-serif;font-size:11.5px;color:#4a4239"> · ${esc(h.city)}</span>` : ''}</span>
         <span data-act="closeHost" role="button" aria-label="Close" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;flex:none">${c.close} ×</span>
@@ -582,7 +602,7 @@ function blockProgram() {
       <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.program.n}</span>
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.program.title}</span>
     </div>
-    <div style="font-size:13.5px;color:#4a4239;line-height:1.65;max-width:860px">${about}</div>
+    <div style="font-size:13.5px;color:#4a4239;line-height:1.65;max-width:68ch">${about}</div>
     <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:16px 0 8px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.program.whoTitle}</span><span style="font-size:12px;color:#4a4239">${COPY.program.whoSub}</span></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 18px">
       ${COPY.program.chips.map(c => `<span class="mx-ax-chip" style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${c}</span>`).join('\n      ')}
@@ -911,12 +931,17 @@ function savedLabel() {
 
 function blockWizHeader(preview) {
   const state = openState();
-  const sub = W.submitted ? COPY.wiz.subDone : COPY.wiz.sub;
+  const sub = W.submitted ? COPY.wiz.subDone : (!preview && openState() !== 'open' && appState().kind !== 'draft') ? COPY.wiz.subSoon : COPY.wiz.sub;
+  // DRAFT · NOT YET SUBMITTED only where a draft can exist (applications open, or one already saved); before
+  // opening the badge says when they open, and the line beside it is not repeated
+  const gate = !W.submitted && !preview && state !== 'open' && appState().kind !== 'draft';
   const pill = W.submitted
     ? COPY.wiz.pillSubmitted(W.submitted.submitted_at || W.submitted.created_at ? fmt.longRange(String(W.submitted.submitted_at || W.submitted.created_at).slice(0, 10)) : '')
     : (preview && state !== 'open') ? COPY.wiz.pillPreview(fmt.upper(esc(opensInfo().label)))
+    : gate ? (state === 'closed' ? COPY.wiz.closed : COPY.wiz.opens(fmt.upper(esc(opensInfo().label))))
     : COPY.wiz.pillDraft;
-  const right = state === 'open'
+  const right = gate ? ''
+    : state === 'open'
     ? (D.intake && D.intake.closes_at ? COPY.wiz.closes(fmt.upper(esc(zagrebDate(D.intake.closes_at)))) : COPY.wiz.open)
     : state === 'closed' ? COPY.wiz.closed
     : COPY.wiz.opens(fmt.upper(esc(opensInfo().label)));
@@ -1393,8 +1418,21 @@ const handlers = {
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
   tgFollow: (el) => setFollow(el),
-  pickHost: (el) => { const i = parseInt(el.dataset.i, 10); st.host = st.host === i ? null : i; rerender('[data-block="hosts"]', `<div data-block="hosts">${hostCards()}</div>`); },
-  closeHost: (el, ev) => { ev.stopPropagation(); st.host = null; rerender('[data-block="hosts"]', `<div data-block="hosts">${hostCards()}</div>`); },
+  // the detail opens BELOW the grid — often under the fold, so a click seemed to do nothing and the re-draw
+  // dropped keyboard focus to <body>. It is brought into view (smoothly unless reduced motion) and takes focus;
+  // closing returns focus to the card that opened it.
+  pickHost: (el) => {
+    const i = parseInt(el.dataset.i, 10); st.host = st.host === i ? null : i;
+    rerender('[data-block="hosts"]', `<div data-block="hosts">${hostCards()}</div>`);
+    const panel = st.host !== null && rootEl.querySelector('[data-block="host-detail"]');
+    if (panel) { panel.scrollIntoView({ block: 'nearest', behavior: ui.reducedMotion() ? 'auto' : 'smooth' }); try { panel.focus({ preventScroll: true }); } catch (e) {} }
+    else focusCard(i);
+  },
+  closeHost: (el, ev) => {
+    ev.stopPropagation(); const i = st.host; st.host = null;
+    rerender('[data-block="hosts"]', `<div data-block="hosts">${hostCards()}</div>`);
+    if (i !== null) focusCard(i);
+  },
   faq: (el) => { const i = parseInt(el.dataset.i, 10); st.faqOpen = st.faqOpen === i ? null : i; rerender('[data-block="faq"]', `<div data-block="faq" class="mx-ax-faq" style="display:grid;grid-template-columns:1fr 1fr;gap:0 44px;align-items:start;padding-bottom:24px">${faqRows()}</div>`); },
   viewResults: async (el) => {
     const input = rootEl.querySelector('[data-role="code"]');

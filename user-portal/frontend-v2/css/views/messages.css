@@ -14,7 +14,18 @@
 .mx-msg-grid textarea { min-width: 0; }
 
 @media (max-width: 900px) {
-  .mx-msg-grid { grid-template-columns: 300px 1fr !important; }
+  /* minmax(0,1fr): the conversation may shrink below its min-content — between 701 and 779 px its header
+     (the OFFICIAL · MED&X TEAM tag + a nowrap ARCHIVE) and composer made the grid 779 px wide on a 744 px
+     iPad mini and the whole screen panned sideways. The tag steps aside here as it does on phones (the
+     sub-line under the name already says "Official team inbox"). */
+  .mx-msg-grid { grid-template-columns: 300px minmax(0, 1fr) !important; }
+  .mx-msg-conv, .mx-msg-conv > * { min-width: 0; }
+  .mx-msg-head .mx-msg-tag { display: none; }
+}
+/* phones: the grid is sized to end exactly at the tab bar (messages.js › sizeGrid), so the view's own
+   86 px tab-bar clearance would only add a scroll into blank cream under the composer */
+@media (max-width: 500px) {
+  body[data-layout="portal"] #app > #view:has(> .mx-msg-screen) { padding-bottom: 0; }
 }
 
 @media (max-width: 700px) {
