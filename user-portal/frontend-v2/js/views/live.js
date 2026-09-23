@@ -400,6 +400,22 @@ function tplInfo() {
     ${ev.wifi ? row(COPY.info.wifi, `<b>${esc(ev.wifi)}</b>`) : ''}
     ${row(COPY.info.contact, `<b>${esc(CONTACT.name)}</b><br><a href="mailto:${CONTACT.email}">${CONTACT.email}</a>`)}`;
 }
+// wide screens only (css): the event at a glance beside the program — where, when, what to wear, who to call
+function tplGlance() {
+  const ev = eventOf(S && S.current) || {};
+  if (!ev.key) return '';
+  const q = encodeURIComponent([ev.venue, ev.address].filter(Boolean).join(', '));
+  const dress = ev.dress_code || DRESS[ev.key] || null;
+  const when = [ev.date_label, ev.start ? `${ev.start}${ev.end ? '–' + ev.end : ''}` : null].filter(Boolean).join(' · ');
+  return `
+    <span class="lv-eyebrow ink">AT A GLANCE</span>
+    <dl class="lv-glance-list">
+      <dt>${COPY.info.venue}</dt><dd><b>${esc(ev.venue || '—')}</b>${ev.address ? `<br>${esc(ev.address)}` : ''}${q && !/to be announced/i.test(ev.venue || '') ? `<br><a class="lv-glance-map" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">${COPY.info.google}</a>` : ''}</dd>
+      <dt>${COPY.info.when}</dt><dd>${esc(when || '—')}${ev.tz ? `<br><span class="lv-soft">${esc(COPY.info.tz(ev.tz))}</span>` : ''}</dd>
+      ${dress ? `<dt>${COPY.info.dress}</dt><dd>${esc(dress)}</dd>` : ''}
+      <dt>${COPY.info.contact}</dt><dd>${esc(CONTACT.name)}<br><a href="mailto:${CONTACT.email}">${CONTACT.email}</a></dd>
+    </dl>`;
+}
 function tplSkeleton() {
   const sk = '<div class="lv-sk"></div>';
   return `<div class="lv-day"><span class="lv-sk short"></span></div><div class="lv-block"><div class="lv-block-time"><span class="lv-sk tiny"></span></div><div class="lv-block-cards">${sk}${sk}</div></div>`;
@@ -408,8 +424,11 @@ function tplShell() {
   return `
   <div class="lv" data-screen-label="Plexus Week Live">
     <header class="lv-head" data-role="head">${tplHeader()}</header>
-    <section class="lv-now" data-role="now" aria-live="polite">${tplNow()}</section>
-    <section class="lv-slots" data-role="slots">${tplSlots()}</section>
+    <aside class="lv-side">
+      <section class="lv-now" data-role="now" aria-live="polite">${tplNow()}</section>
+      <section class="lv-slots" data-role="slots">${tplSlots()}</section>
+      <section class="lv-glance" data-role="glance">${tplGlance()}</section>
+    </aside>
     <nav class="lv-tabs" data-role="tabs" role="tablist">${tplTabs()}</nav>
     <main class="lv-panels">
       ${TABS.map(t => `<section class="lv-panel" data-panel="${t}" role="tabpanel"${S.tab === t ? '' : ' hidden'}></section>`).join('')}
@@ -430,6 +449,7 @@ function paintAll() {
   const head = q('[data-role="head"]'); if (head) head.innerHTML = tplHeader();
   const now = q('[data-role="now"]'); if (now) now.innerHTML = tplNow();
   const slots = q('[data-role="slots"]'); if (slots) { slots.innerHTML = tplSlots(); slots.hidden = !slots.innerHTML.trim(); }
+  const glance = q('[data-role="glance"]'); if (glance) glance.innerHTML = tplGlance();
   const tabs = q('[data-role="tabs"]'); if (tabs) tabs.innerHTML = tplTabs();
   TABS.forEach(paintPanel);
   const ev = eventOf(S.current) || {};

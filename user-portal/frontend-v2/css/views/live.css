@@ -204,3 +204,29 @@
 .lv-mini:first-of-type { border-top: 0; }
 .lv-mini-time { font: 600 15px var(--font-ui); color: var(--crimson); }
 .lv-sheet-foot { display: flex; align-items: center; gap: 12px; padding: 12px 18px 18px; position: sticky; bottom: 0; background: var(--cream); border-top: 1px solid var(--hair-soft); }
+
+/* ---- wide screens (desktop browser, the Mac app): the program gets room and NOW / NEXT + YOUR SLOTS
+   ride along in a sticky side column instead of one 720 px phone strip in the middle of the window ---- */
+.lv-side { display: contents; }
+.lv-glance { display: none; }
+@media (min-width: 1100px) {
+  .lv { --lv-w: 1180px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto auto 1fr auto; align-items: start; }
+  .lv-head { grid-column: 1 / -1; padding: 28px 40px 24px; }
+  .lv-title { font-size: 42px; }
+  .lv-switch { margin: 18px -40px 0; padding: 0 40px; }
+  .lv-tabs { grid-column: 1; grid-row: 2; }
+  .lv-panels { grid-column: 1; grid-row: 3; min-width: 0; }
+  .lv-foot { grid-column: 1 / -1; grid-row: 4; }
+  .lv-side { display: block; grid-column: 2; grid-row: 2 / span 2; position: sticky; top: 0; align-self: start;
+             border-left: 1px solid var(--hair); border-bottom: 1px solid var(--hair); background: var(--card); max-height: 100vh; overflow-y: auto; }
+  .lv-glance { display: block; padding: 20px 24px 24px; }
+  .lv-glance-list { margin: 12px 0 0; display: grid; grid-template-columns: 1fr; gap: 4px; font-size: 14px; line-height: 1.5; }
+  .lv-glance-list dt { font: 600 9.5px var(--font-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--gold-dark); margin-top: 12px; }
+  .lv-glance-list dd { margin: 0; color: var(--ink); }
+  .lv-glance-list .lv-glance-map { display: inline-block; margin-top: 6px; font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
+  .lv-side .lv-now { grid-template-columns: 1fr; border-bottom: 1px solid var(--hair); }
+  .lv-side .lv-now-item + .lv-now-item { border-left: 0; border-top: 1px solid var(--hair-soft); }
+  .lv-side .lv-now-item, .lv-side .lv-now-line { padding: 20px 24px; }
+  .lv-side .lv-now-title { font-size: 19px; }
+  .lv-side .lv-slots { padding-top: 6px; }
+}
