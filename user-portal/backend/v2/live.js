@@ -141,6 +141,33 @@ module.exports = function mountLive(app, ctx) {
             else if (galas.length) { kind = 'gala'; ref = galas[0].id; }
             else if (bridges.length) { kind = 'bridges'; ref = bridges[0].id; }
         } else return null;
+        // ONE person across every form: whatever link they opened (a Gala ticket, the Boston page, a speaker link),
+        // every other registration under the same e-mail joins their events — conference · Bridges · Gala ·
+        // Donor Night — so the schedule is complete whichever door they came in by. The /plexus form row is the
+        // canonical identity (the same one its own ticket link resolves to), so taps never split across doors.
+        if (email && tok.kind !== 'user') {
+            try {
+                const cas = q.all('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC', [email]);
+                for (const ca of cas) mergeParty(party, caParty(ca));
+                const galas = q.all('SELECT * FROM gala_registrations WHERE LOWER(email) = LOWER(?)', [email]);
+                for (const g of galas) if (!cas.some(c => c.gala_registration_id === g.id) && alive(g.status) && alive(g.payment_status)) mergeParty(party, { gala: 1 + Math.max(0, parseInt(g.guest_count, 10) || 0) });
+                let brs = []; try { brs = q.all('SELECT * FROM bridges_registrations WHERE LOWER(email) = LOWER(?)', [email]); } catch (e) { brs = []; }
+                for (const b of brs) { const ek = eventOfBridgesRow(b.event_id); if (ek && alive(b.status)) mergeParty(party, { [ek]: 1 }); }
+                const live = cas.find(c => ['conference_status', 'bridges_status', 'gala_status'].some(k => alive(c[k]) && String(c[k] || '').toLowerCase() !== 'merged'));
+                if (live && kind !== 'ca') { kind = 'ca'; ref = live.id; }
+            } catch (e) { /* a table absent on a fresh DB */ }
+        }
+        // meetups: a confirmed (or promoted) place, or hosting one, holds that meetup — found by account or e-mail
+        try {
+            const uid = tok.kind === 'user' && req && req.user ? req.user.id : null;
+            if (email || uid) {
+                q.all(`SELECT DISTINCT meetup_id AS id FROM plexus_meetup_attendees WHERE status IN ('confirmed', 'promoted')
+                         AND ((? IS NOT NULL AND user_id = ?) OR (? <> '' AND LOWER(email) = LOWER(?)))`, [uid, uid, email || '', email || ''])
+                    .concat(q.all(`SELECT id FROM plexus_meetups WHERE status IN ('published', 'completed')
+                         AND ((? IS NOT NULL AND host_user_id = ?) OR (? <> '' AND LOWER(host_email) = LOWER(?)))`, [uid, uid, email || '', email || '']))
+                    .forEach(m => { if (m && m.id) party['meetup:' + m.id] = Math.max(1, Number(party['meetup:' + m.id] || 0)); });
+            }
+        } catch (e) { /* meetup tables absent */ }
         // a registrant who is also a speaker (by e-mail) gets their slots too
         if (!speakerId) { const sp = speakerByEmail(email); if (sp) speakerId = sp.id; }
         const slots = speakerSessions(speakerId);
@@ -205,6 +232,7 @@ module.exports = function mountLive(app, ctx) {
             const state = String(body.state || 'attending').toLowerCase();
             if (!sessionId) return res.status(400).json({ error: 'Which session?' });
             if (!core.STATES.includes(state)) return res.status(400).json({ error: 'State must be attending or declined.' });
+            if (/^meetup:/.test(sessionId)) return res.status(400).json({ error: 'Your meetup place is kept on the meetup page.' });
             const row = q.get('SELECT * FROM sessions WHERE id = ? AND event_key IS NOT NULL', [sessionId]);
             if (!row || !Number(row.is_published)) return res.status(404).json({ error: 'That session is not on the program.' });
             const speaking = p.speaker_session_ids.includes(row.id);
@@ -217,14 +245,23 @@ module.exports = function mountLive(app, ctx) {
         } catch (e) { fail(res, e, 'attend'); }
     });
 
+    // The person's schedule builds itself from what they registered for: every published session of every
+    // event they hold (conference · Gala · Bridges · Donor Night · their meetups) is IN unless they tapped it
+    // off ('declined'), plus anything they tapped on elsewhere, plus the slots where they speak.
     function scheduleOf(p) {
         const att = core.attendanceOf(q, p.kind, p.ref);
-        const ids = new Set(Object.keys(att).filter(id => att[id] === 'attending').concat(p.speaker_session_ids));
-        if (!ids.size) return { sessions: [], days: [], conflicts: [] };
-        const rows = q.all(`SELECT * FROM sessions WHERE id IN (${Array.from(ids).map(() => '?').join(',')}) AND COALESCE(is_published, 0) = 1 AND event_key IS NOT NULL`, Array.from(ids));
+        const byId = new Map();
+        for (const key of p.events) {
+            let list = []; try { list = core.loadSessions(q, key, { publishedOnly: true, withCounts: false }); } catch (e) { list = []; }
+            for (const s of list) if (att[s.id] !== 'declined') byId.set(s.id, Object.assign({}, s, { auto: att[s.id] !== 'attending' }));
+        }
+        const extra = Object.keys(att).filter(id => att[id] === 'attending').concat(p.speaker_session_ids).filter(id => !byId.has(id));
+        const rows = extra.length ? q.all(`SELECT * FROM sessions WHERE id IN (${extra.map(() => '?').join(',')}) AND COALESCE(is_published, 0) = 1 AND event_key IS NOT NULL`, extra) : [];
         const dir = core.speakerDirectory(q, [].concat(...rows.map(r => core.parseIds(r.speaker_ids))));
+        rows.forEach(r => byId.set(r.id, Object.assign(core.rowToSession(r, dir), { auto: false })));
+        if (!byId.size) return { sessions: [], days: [], conflicts: [] };
         const events = {}; core.eventCatalogue(q).forEach(e => { events[e.key] = e; });
-        const sessions = rows.map(r => Object.assign(publicSession(core.rowToSession(r, dir)), { event_label: (events[r.event_key] || {}).label || r.event_key, venue: (events[r.event_key] || {}).venue || '', speaking: p.speaker_session_ids.includes(r.id), state: att[r.id] || (p.speaker_session_ids.includes(r.id) ? 'speaking' : null) }))
+        const sessions = Array.from(byId.values()).map(r => Object.assign(publicSession(r), { event_label: (events[r.event_key] || {}).label || r.event_key, venue: (events[r.event_key] || {}).venue || '', speaking: p.speaker_session_ids.includes(r.id), state: p.speaker_session_ids.includes(r.id) ? 'speaking' : (att[r.id] || 'included') }))
             .sort((a, b) => String(a.event_date || '').localeCompare(String(b.event_date || '')) || String(a.start_time || '99').localeCompare(String(b.start_time || '99')) || a.sort_order - b.sort_order);
         const conflicts = Array.from(core.scheduleConflicts(sessions));
         sessions.forEach(s => { s.conflict = conflicts.includes(s.id); });

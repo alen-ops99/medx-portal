@@ -253,7 +253,7 @@ function stubApp() {
         assert.ok(v.includes("'live:program:' + k") && v.includes("'live:attendance:' + t"), 'cache keys');
         assert.ok(v.includes('Program updated'), 'the toast');
         assert.ok(v.includes('Open this from your ticket link to build your schedule.'), 'the no-token line');
-        assert.ok(v.includes('Tap ATTENDING on anything in the program — it lands here.'), 'the empty schedule');
+        assert.ok(v.includes('Everything you registered for appears here on its own'), 'the empty schedule (the schedule builds itself from the registration)');
         assert.ok(v.includes("['program', 'schedule', 'speakers', 'info']"), 'four tabs');
         assert.ok(/KEYNOTE.*TALK.*PANEL.*PRESENTATIONS.*BREAK.*LUNCH.*NETWORKING.*RECEPTION.*CEREMONY/.test(v), 'kind chips');
         assert.ok(v.includes('maps.apple.com/?q=') && v.includes('google.com/maps/search/?api=1&query='), 'map links');

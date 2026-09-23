@@ -329,20 +329,33 @@ const call = (m, p, opts = {}) => app.call(m, p, opts);
         assert.strictEqual(bos.status, 200); assert.strictEqual(bos.body.counted, 1);
     });
 
-    await t('GET schedule — the tapped sessions in order with event labels; overlapping picks are flagged; a speaker sees their slot as speaking', async () => {
-        // Ana: panel (18:00–19:00) + an overlapping keynote-2 picked deliberately after a shift
+    await t('GET schedule — built from the registration (every published session of a held event, minus the ones tapped off), in order with event labels; overlaps flagged; a speaker sees their slot as speaking', async () => {
+        // Ana holds the conference: everything published there is IN except keynote-1, which she declined above;
+        // keynote-2 is shifted to overlap the panel
         const keynote2 = conf[4];
         q.run("UPDATE sessions SET start_time = '18:30', end_time = '19:15' WHERE id = ?", [keynote2.id]);
         await call('POST', '/api/live/me/:token/attend', { params: { token: tok('ca', CA) }, body: { session_id: keynote2.id } });
         const r = await call('GET', '/api/live/me/:token/schedule', { params: { token: tok('ca', CA) } });
         assert.strictEqual(r.status, 200, JSON.stringify(r.body));
-        assert.deepStrictEqual(r.body.sessions.map(s => s.id), [panelId, keynote2.id]);
-        assert.strictEqual(r.body.sessions[0].event_label, 'Plexus Conference'); assert.strictEqual(r.body.sessions[0].venue, 'Novinarski dom');
-        assert.deepStrictEqual(r.body.conflicts.sort(), [panelId, keynote2.id].sort());
-        assert.strictEqual(r.body.sessions[0].conflict, true);
-        assert.strictEqual(r.body.days.length, 1);
+        const ids = r.body.sessions.map(s => s.id);
+        const published = q.all("SELECT id FROM sessions WHERE event_key = 'conference' AND COALESCE(is_published, 0) = 1").map(x => x.id);
+        const confIds = r.body.sessions.filter(s => s.event_key === 'conference').map(s => s.id);
+        assert.deepStrictEqual(confIds.slice().sort(), published.filter(id => id !== keynote1.id).sort(), 'every published conference session except the declined keynote');
+        const held = (await call('GET', '/api/live/me/:token', { params: { token: tok('ca', CA) } })).body.person.events;
+        assert.ok(r.body.sessions.every(s => held.includes(s.event_key)), 'only events on her ticket');
+        assert.ok(!ids.includes(keynote1.id), 'a session tapped off stays off');
+        const starts = r.body.sessions.map(s => (s.event_date || '') + ' ' + (s.start_time || '99'));
+        assert.deepStrictEqual(starts, starts.slice().sort(), 'chronological');
+        const panel = r.body.sessions.find(s => s.id === panelId);
+        assert.strictEqual(panel.event_label, 'Plexus Conference'); assert.strictEqual(panel.venue, 'Novinarski dom');
+        assert.strictEqual(panel.state, 'attending'); assert.strictEqual(panel.auto, false);
+        assert.ok(r.body.sessions.some(s => s.state === 'included' && s.auto === true), 'untapped sessions ride along from the registration');
+        assert.ok(r.body.conflicts.includes(panelId) && r.body.conflicts.includes(keynote2.id));
+        assert.strictEqual(panel.conflict, true);
+        assert.strictEqual(r.body.days.length, new Set(r.body.sessions.map(x => x.event_date)).size);
         const s = await call('GET', '/api/live/me/:token/schedule', { params: { token: tok('speaker', SPK) } });
-        assert.strictEqual(s.body.sessions[0].id, keynote1.id); assert.strictEqual(s.body.sessions[0].speaking, true);
+        const slot = s.body.sessions.find(x => x.id === keynote1.id);
+        assert.ok(slot, 'the speaker\'s slot is on their schedule'); assert.strictEqual(slot.speaking, true); assert.strictEqual(slot.state, 'speaking');
         q.run("UPDATE sessions SET start_time = '19:20', end_time = '20:05' WHERE id = ?", [keynote2.id]);
     });
 
@@ -359,11 +372,12 @@ const call = (m, p, opts = {}) => app.call(m, p, opts);
         assert.ok(body.includes('SUMMARY:Plexus Conference — Panel (TBD)'));
         assert.ok(body.includes('BEGIN:VTIMEZONE') && body.includes('TZID:Europe/Zagreb'));
         assert.ok(body.includes('/live/' + tok('ca', CA)), 'the app link rides in the description');
+        const mine = (await call('GET', '/api/live/me/:token/schedule', { params: { token: tok('ca', CA) } })).body.sessions;
         const day = await call('GET', '/api/live/me/:token/schedule.ics', { params: { token: tok('ca', CA) }, query: { date: '2026-12-04' } });
-        assert.strictEqual((String(day.body).match(/BEGIN:VEVENT/g) || []).length, 2);
+        assert.strictEqual((String(day.body).match(/BEGIN:VEVENT/g) || []).length, mine.filter(x => x.event_date === '2026-12-04').length);
         assert.match(day.headers['content-disposition'], /plexus-live-2026-12-04\.ics/);
         const all = await call('GET', '/api/live/me/:token/schedule.ics', { params: { token: tok('ca', CA) } });
-        assert.strictEqual((String(all.body).match(/BEGIN:VEVENT/g) || []).length, 2);
+        assert.strictEqual((String(all.body).match(/BEGIN:VEVENT/g) || []).length, mine.length);
         assert.strictEqual((await call('GET', '/api/live/me/:token/schedule.ics', { params: { token: tok('ca', CA) }, query: { date: '2026-12-25' } })).status, 404);
         const pub = await call('GET', '/api/live/:eventKey/sessions/:id.ics', { params: { eventKey: 'boston', id: block1.id } });
         assert.strictEqual(pub.status, 200); assert.ok(String(pub.body).includes('DTSTART;TZID=America/New_York:20260921T181500')); assert.ok(String(pub.body).includes('TZID:America/New_York'));

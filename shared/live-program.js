@@ -215,8 +215,28 @@ function loadSessionRows(q, eventKey, { publishedOnly = false } = {}) {
     try { return q.all(`SELECT * FROM sessions WHERE event_key = ?${publishedOnly ? ' AND COALESCE(is_published, 0) = 1' : ''} ${ORDER}`, [eventKey]); }
     catch (e) { return []; }
 }
+// A meetup is ONE networking slot in the guest app: when no session rows exist for 'meetup:<id>', the
+// meetup row itself becomes a read-only session (the place is held on the meetup page, not by a tap here).
+function meetupSession(q, eventKey) {
+    const id = String(eventKey || '').replace(/^meetup:/, '');
+    if (!id || !hasTable(q, 'plexus_meetups')) return null;
+    let r = null; try { r = q.get("SELECT * FROM plexus_meetups WHERE id = ? AND status IN ('published', 'completed')", [id]); } catch (e) { r = null; }
+    if (!r) return null;
+    const d = String(r.starts_at || '').slice(0, 10); if (!isYmd(d)) return null;
+    const start = hm(String(r.starts_at || '').slice(11, 16)), end = hm(String(r.ends_at || '').slice(11, 16));
+    return {
+        id: 'meetup:' + r.id, event_key: 'meetup:' + r.id, event_date: d, day_label: dayLabel(d),
+        start_time: start, end_time: end, starts_at: zonedIso(d, start, ZAGREB), ends_at: zonedIso(d, end, ZAGREB), tz: ZAGREB,
+        title: String(r.title || 'Meetup').trim(), kind: 'networking', description: r.description || '',
+        room: r.venue_name || '', location_note: r.venue_address || '', track: '',
+        capacity: r.capacity == null || r.capacity === '' ? null : Number(r.capacity),
+        speaker_ids: [], speakers: [], speaker_names: r.host_name ? [{ name: String(r.host_name), topic: 'Host', institution: r.host_title || '' }] : [],
+        is_tbd: false, show_counts: false, is_published: true, sort_order: 0, updated_at: r.updated_at || null, synthetic: 'meetup', count: 0
+    };
+}
 function loadSessions(q, eventKey, opts = {}) {
     const rows = loadSessionRows(q, eventKey, opts);
+    if (!rows.length && /^meetup:/.test(String(eventKey || ''))) { const m = meetupSession(q, eventKey); return m ? [m] : []; }
     const dir = speakerDirectory(q, [].concat(...rows.map(r => parseIds(r.speaker_ids))));
     const counts = opts.withCounts === false ? {} : attendanceCounts(q, eventKey);
     return rows.map(r => Object.assign(rowToSession(r, dir, opts), { count: counts[r.id] || 0 }));
@@ -557,7 +577,7 @@ module.exports = {
     liveSig, liveToken, liveUrl, verifyLiveToken,
     ensureSchema, hasTable, hasColumn,
     normalizeKind, guessKindFromTitle, parseIds, parseNames, speakerDirectory,
-    rowToSession, loadSessionRows, loadSessions, groupByDay, roomConflicts, scheduleConflicts, lastUpdated, touchEvent,
+    rowToSession, loadSessionRows, loadSessions, meetupSession, groupByDay, roomConflicts, scheduleConflicts, lastUpdated, touchEvent,
     attendanceCounts, attendanceOf, setAttendance, recordOpen,
     eventCatalogue, eventByKey, plexusSettings,
     icsForSessions, cleanSessionInput,

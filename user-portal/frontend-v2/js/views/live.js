@@ -39,13 +39,14 @@ export const COPY = {
     over: 'That was the last session — thank you for coming.', tbd: 'Times to be confirmed'
   },
   slots: { title: 'YOUR SLOTS', sub: 'Where you speak', speaking: 'SPEAKING' },
-  att: { on: 'ATTENDING ✓', off: 'ATTEND', speaking: 'YOU SPEAK HERE', tbd: 'TBD', over: 'OVERLAPS', going: n => `${n} going`, seats: n => `${n} seats`,
+  att: { on: 'IN MY SCHEDULE', off: 'ADD TO MY SCHEDULE', speaking: 'YOU SPEAK HERE', meetup: 'YOUR PLACE IS HELD', tbd: 'TBD', over: 'OVERLAPS', going: n => `${n} going`, seats: n => `${n} seats`,
     ticket: 'Open this from your ticket link to build your schedule.',
     notHeld: 'This event is not on your ticket — the program is shown read-only.',
     failed: 'That did not save — check the connection and tap again.' },
   program: { empty: 'The program is being written — check back soon.', tbdDay: 'Date to be confirmed' },
   schedule: {
-    emptyLine: 'Nothing here yet.', emptyWhy: 'Tap ATTENDING on anything in the program — it lands here.',
+    emptyLine: 'Nothing here yet.', emptyWhy: 'Everything you registered for appears here on its own — and anything you add from the program.',
+    auto: 'Built from your registration — tap a session off if you will skip it.',
     ics: 'ADD TO CALENDAR', icsDay: 'ADD DAY TO CALENDAR', conflict: 'Two of your sessions overlap.'
   },
   speakers: { empty: 'Speakers are announced closer to the event.', sessions: 'SESSIONS', tbdSpeaker: 'To be announced' },
@@ -119,7 +120,16 @@ const initials = name => String(name || '').replace(/\([^)]*\)/g, ' ').replace(/
 const kindLabel = k => KIND_LABEL[k] || KIND_LABEL.other;
 const isLight = s => LIGHT.has(s.kind);
 const eventOf = key => (S.events || []).find(e => e.key === key) || null;
-const attending = id => S.attendance[id] === 'attending';
+// IN the schedule: tapped on, or — the default — part of an event the person registered for (their
+// registration picks conference · Gala · Bridges · Donor Night · meetups); a tap OFF ('declined') removes it
+const attending = id => {
+  const st = S.attendance[id];
+  if (st === 'attending') return true;
+  if (st === 'declined') return false;
+  const s = sessionById(id);
+  return !!(s && held(s.event_key));
+};
+const isMeetupSlot = s => !!(s && s.synthetic === 'meetup');
 const speaking = id => (S.speakerIds || []).includes(id);
 const held = key => !!(S.person && S.person.events.includes(key));
 const canToggle = key => !!S.token && held(key);
@@ -292,6 +302,7 @@ function tplSpeakersRow(s) {
 function tplToggle(s, { compact } = {}) {
   const on = attending(s.id), spk = speaking(s.id), ok = canToggle(s.event_key) || spk;
   if (spk) return `<span class="lv-att speak" aria-disabled="true">${COPY.att.speaking}</span>`;
+  if (isMeetupSlot(s)) return `<span class="lv-att speak" aria-disabled="true">${COPY.att.meetup}</span>`;
   // a read-only toggle stays tappable on purpose: the tap answers with the one-line reason (ticket link /
   // not on your ticket) — ui.bind() would swallow the click on an aria-disabled element
   return `<span data-act="att" data-id="${esc(s.id)}" data-sid="${esc(s.id)}" role="switch" aria-checked="${on}" aria-label="${esc((on ? 'Attending: ' : 'Attend: ') + (s.title || 'session'))}" class="lv-att${on ? ' on' : ''}${ok ? '' : ' ro'}${compact ? ' compact' : ''}"${ok ? '' : ` title="${esc(S.token ? COPY.att.notHeld : COPY.att.ticket)}"`}>${on ? COPY.att.on : COPY.att.off}</span>`;
@@ -350,7 +361,8 @@ function tplSchedule() {
   const { list, conflicts } = mySchedule();
   if (!list.length) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.schedule.emptyLine}</span><span class="lv-empty-why">${COPY.schedule.emptyWhy}</span></div>`;
   const tok = encodeURIComponent(S.token);
-  return (conflicts.size ? `<div class="lv-note warn">${COPY.schedule.conflict}</div>` : '') + groupDays(list).map(day => {
+  const auto = S.person && S.person.events.length ? `<div class="lv-note soft">${COPY.schedule.auto}</div>` : '';
+  return auto + (conflicts.size ? `<div class="lv-note warn">${COPY.schedule.conflict}</div>` : '') + groupDays(list).map(day => {
     const dayIcs = day.date ? `<a class="lv-ics day" href="${esc(icsUrl(`/api/live/me/${tok}/schedule.ics?date=${day.date}`))}" download>${COPY.schedule.icsDay}</a>` : '';
     return tplDayHead(day.date, dayIcs) + `<div class="lv-list">${day.sessions.map(s => tplCard(s, { schedule: true, conflict: conflicts.has(s.id) })).join('')}</div>`;
   }).join('');
@@ -427,7 +439,7 @@ function paintAll() {
 }
 function paintToggle(id) {
   const s = sessionById(id); if (!s) return;
-  rootEl.querySelectorAll(`[data-sid="${CSS.escape(id)}"]`).forEach(el => { const on = attending(id); el.classList.toggle('on', on); el.setAttribute('aria-checked', String(on)); el.textContent = on ? COPY.att.on : COPY.att.off; });
+  rootEl.querySelectorAll(`[data-sid="${CSS.escape(id)}"]`).forEach(el => { const on = attending(id); el.classList.toggle('on', on); el.classList.toggle('just', on); el.setAttribute('aria-checked', String(on)); el.textContent = on ? COPY.att.on : COPY.att.off; if (on) setTimeout(() => el.classList.remove('just'), 450); });
   rootEl.querySelectorAll(`[data-sid-card="${CSS.escape(id)}"]`).forEach(el => el.classList.toggle('going', attending(id)));
   const tabs = q('[data-role="tabs"]'); if (tabs) tabs.innerHTML = tplTabs();
   paintPanel('schedule');
