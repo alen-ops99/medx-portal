@@ -182,8 +182,12 @@ const call = (m, p, opts = {}) => app.call(m, p, opts);
         // is_today follows the phone's date
         const r2 = await call('GET', '/api/live/events', { query: { today: '2026-12-05' } });
         const by2 = {}; r2.body.events.forEach(e => { by2[e.key] = e; });
-        assert.strictEqual(by2.gala.is_today, true); assert.strictEqual(by2.bridges.is_today, true); assert.strictEqual(by2.conference.is_past, true);
-        assert.deepStrictEqual(r2.body.events.slice(0, 2).map(e => e.key), ['bridges', 'gala'], "today's events first, by start time");
+        assert.strictEqual(by2.gala.is_today, true); assert.strictEqual(by2.bridges.is_today, true);
+        assert.strictEqual(by2.conference.is_today, true, 'the conference runs 4–5 December, so day 2 is still today'); assert.strictEqual(by2.conference.is_past, false);
+        assert.deepStrictEqual(r2.body.events.filter(e => e.is_today).map(e => e.key).sort(), ['bridges', 'conference', 'gala'], "today's events: day 2 of the conference, Bridges and the Gala");
+        assert.ok(r2.body.events.slice(0, 3).every(e => e.is_today), "today's events first");
+        const r3 = await call('GET', '/api/live/events', { query: { today: '2026-12-06' } });
+        assert.strictEqual(r3.body.events.find(e => e.key === 'conference').is_past, true, 'past from 6 December');
     });
 
     await t('GET /api/live/:eventKey/program — published rows grouped by day, TBD rows flagged, kinds normalised, zoned times; 404 for an unknown event', async () => {
