@@ -1,6 +1,6 @@
 // Med&X member portal v2 — service worker.
 // Keep the CACHE_NAME line shape: scripts/stamp-sw.sh rewrites '…-vN' → '…-vN-<sha>' on deploy.
-const CACHE_NAME = 'medx-portal-v2-4';   // bumped 2026-09-22: Plexus Week Live (/live) view + css join the shell (cache-first JS must roll)
+const CACHE_NAME = 'medx-portal-v2-5';   // bumped 2026-09-22: Plexus Week Live (/live) view + css join the shell (cache-first JS must roll)
 
 // App shell (same-origin only — cross-origin entries make cache.addAll() reject and the SW never installs).
 // /js/views/live.js + /css/views/live.css are precached so a guest's second open of /live/<token> paints

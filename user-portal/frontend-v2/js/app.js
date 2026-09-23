@@ -85,7 +85,15 @@ function registerSw() {
   if (!('serviceWorker' in navigator)) return;
   const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   if (local && !/[?&]sw=1/.test(location.search)) return; // dev: no cache-first JS unless asked (?sw=1)
-  navigator.serviceWorker.register('/sw.js').catch(e => console.warn('[sw] register failed', e.message));
+  // When a new worker takes over (cache bumped — new views/routes shipped), reload ONCE so the page
+  // is not driven by a stale routes.js. Without this a guest who had the old shell saw the 404 page
+  // for /live/<token> until the second visit (Alen, 2026-09-22).
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded || !navigator.serviceWorker.controller) return;
+    reloaded = true; location.reload();
+  });
+  navigator.serviceWorker.register('/sw.js').then(reg => { try { reg.update(); } catch (e) {} }).catch(e => console.warn('[sw] register failed', e.message));
 }
 
 function boot() {
