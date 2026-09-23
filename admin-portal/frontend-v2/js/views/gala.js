@@ -675,8 +675,9 @@ function blockBoard() {
 // ---- 3D ballroom planner (v2 addition, build 2026-08-31 — no artboard block; the old portal's
 // console CSV loop, brought beside the board: link out · import · the email-keyed "Stol N" list) ----
 const PLANNER_URL = 'https://plexus-tables.netlify.app';
-// the walkable three.js Smaragdna dvorana (artifact; local source Esplanade_Emerald_Ballroom/)
-const DVORANA_URL = 'https://claude.ai/code/artifact/fe4ad6bc-95f4-4f5b-9ef9-c8326d201841';
+// the walkable Smaragdna dvorana — the PUBLIC planner page (it pointed at a private claude.ai artifact
+// only Alen's account could open; the rest of the team hit a login wall)
+const DVORANA_URL = 'https://plexus-tables.netlify.app/planner.html';
 function plannerRow(t) {
   return `<div style="display:flex;align-items:center;gap:8px;padding:7px 18px;border-bottom:1px solid rgba(32,27,22,.06)">
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;background:#f1e7d4;color:#7a6432;padding:3px 7px;white-space:nowrap">${esc(COPY.planner.stol(String(t.table_no == null ? '' : t.table_no).trim()))}</span>

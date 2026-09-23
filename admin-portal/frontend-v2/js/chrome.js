@@ -77,12 +77,13 @@ const MENUS = {
     { k: 'PLEXUS', label: COPY.projects.plexus, to: '/projects/plexus', sub: FACTS.plexus.dateShort, sections: ['plexus'] },
     { k: 'ACCEL', label: COPY.projects.accelerator, to: '/projects/accelerator', sub: 'opens ' + FACTS.accelerator.opensShort, sections: ['accelerator'] },
     { k: 'FORUM', label: COPY.projects.forum, to: '/projects/forum', sub: 'by invitation', sections: ['forum'] },
-    { k: 'BRIDGES', label: COPY.projects.bridges, to: '/projects/bridges', sub: FACTS.bridges.next.city + ' · ' + FACTS.bridges.next.short, sections: ['bridges'] },
+    { k: 'BRIDGES', label: COPY.projects.bridges, to: '/projects/bridges', sub: 'next · Zagreb · Dec', sections: ['bridges'] },
     // BIG IDEAS — the long game; a primary row of PROJECTS, never buried below the divider
     { k: 'IDEAS', label: 'Big Ideas', to: '/big-ideas', sub: 'the long game', sections: ['big-ideas'] },
     { divider: true },
     { k: 'GALA', label: COPY.projects.gala, to: '/gala', sub: 'seats · chase', sections: ['plexus'] },
     { k: 'MEETUPS', label: COPY.projects.meetups, to: '/projects/plexus/meetups', sub: COPY.meetups.sub, sections: ['plexus-meetups'] },
+    { k: 'PROGRAM', label: 'Program — event app', to: '/program/conference', sub: 'sessions · attending' },
     { k: 'ROOM', label: COPY.projects.review, to: '/accelerator-review', sub: 'applications', sections: ['accelerator'] },
     { k: 'PAGES', label: COPY.projects.pages, to: '/member-pages', sub: 'publish', sections: ['pr-media', 'plexus', 'accelerator'] },
     { k: 'LINKS', label: COPY.projects.links, to: '/links', sub: 'invitation links', sections: ['plexus', 'bridges'] }
@@ -138,6 +139,7 @@ const PALETTE = [
   { kind: 'SCREEN', label: 'Accelerator — Review Room', href: '/accelerator-review' },
   { kind: 'SCREEN', label: 'Biomedical Forum hub', href: '/projects/forum' },
   { kind: 'SCREEN', label: 'Building Bridges hub', href: '/projects/bridges' },
+  { kind: 'SCREEN', label: 'Program editor — the event app (Plexus Week Live)', syn: 'program programme raspored agenda sessions sesije schedule event app live plexus week satnica', href: '/program/conference' },
   { kind: 'SCREEN', label: 'Gala Evening — guests, seating, chase', syn: 'seating stol stolovi raspored sjedenja meal menu večera kitchen gosti naplata', href: '/gala' },
   { kind: 'SCREEN', label: COPY.meetups.screen, syn: 'meetup meetups kava coffee ručak lunch dinner večera walk šetnja stol table host domaćin waitlist lista čekanja plexus week', href: '/projects/plexus/meetups' },
   { kind: 'ACTION', label: COPY.meetups.action, syn: 'meetup meetups new napravi kava coffee ručak lunch stol table host domaćin capacity kapacitet waitlist lista čekanja invite pozovi', href: '/projects/plexus/meetups' },
@@ -240,7 +242,13 @@ function searchResults() {
   if (!qv) return '';
   const rows = [];
   paletteMatches(q).slice(0, 6).forEach(p => rows.push({ kind: p.kind, label: p.label, href: p.href }));
-  searchState.people.slice(0, 6).forEach(p => rows.push({ kind: 'PERSON', label: `${p.name} — ${p.event || p.type}${p.status ? ', ' + p.status : ''}`, href: routeForSection(p.section || 'people', '/people') }));
+  // a person opens THAT person: People (or Registrations for a registrant) filtered to their name — it used
+  // to open the whole list with nothing selected
+  searchState.people.slice(0, 6).forEach(p => {
+    const base = String(routeForSection(p.section || 'people', '/people') || '/people').split(/[?#]/)[0];
+    const to = /^\/(registrations|gala)/.test(base) ? '/registrations' : '/people';
+    rows.push({ kind: 'PERSON', label: `${p.name} — ${p.event || p.type}${p.status ? ', ' + p.status : ''}`, href: to + '?q=' + encodeURIComponent(p.name || '') });
+  });
   const a = searchState.assistant;
   let assist = '';
   if (searchState.busy) assist = `<div class="mx-pop-note">${COPY.search.asking}</div>`;

@@ -735,7 +735,7 @@ export default {
   async render(root, ctx) {
     ensureCss();
     rootEl = root;
-    st = { query: '', segs: [], selKey: null, addOpen: false, passDraft: '', passEvent: '', copiedPass: null, profileLoading: null, noteDraft: null, dupDismissed: [], sessionMerges: [], showAll: false };
+    st = { query: String((ctx && ctx.query && ctx.query.q) || ''), segs: [], selKey: null, addOpen: false, passDraft: '', passEvent: '', copiedPass: null, profileLoading: null, noteDraft: null, dupDismissed: [], sessionMerges: [], showAll: false };
     D = await load();
     if (rootEl !== root) return;                        // navigated away while loading
     st.passEvent = (D.passEvents[0] && D.passEvents[0].key) || 'gala';

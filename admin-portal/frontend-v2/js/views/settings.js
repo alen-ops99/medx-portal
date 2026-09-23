@@ -46,7 +46,6 @@ export const COPY = {
     rows: [
       { name: 'Publish news', note: 'one post — member portal, website, or both', href: '/inbox/announcements' },
       { name: 'Member portal text', note: 'home-screen cards, project pages', href: '/member-pages' },
-      { name: 'Website text', note: 'medx.hr page copy — same editor, website tab', href: '/member-pages/website' },
       { name: 'Sign-up form pages', note: 'public links for short events', href: '/links' }
     ]
   },
@@ -56,8 +55,7 @@ export const COPY = {
     open: 'OPEN THE STUDIO →',
     rows: [
       { name: 'Content studio', note: 'social cards & member share cards', href: '/studio/social' },
-      { name: 'Brand studio', note: 'logos, colours, type — the official kit', href: '/studio#brand' },
-      { name: 'Merch studio', note: 'its own tool, one link deep', href: '/studio#merch' }
+      { name: 'Brand studio', note: 'logos, colours, type — the official kit', href: '/studio#brand' }
     ]
   },
   audit: { title: 'AUDIT LOG', sub: 'who changed what, forever', more: 'FULL LOG →', less: 'SHOW LESS', filter: 'Filter — a name, an action…', empty: 'Nothing logged yet.' },

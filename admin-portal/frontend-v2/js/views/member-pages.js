@@ -127,7 +127,7 @@ function previewTag(k) {
   if (k === 'gala') return `${fmt.dayLabel(gs.date || FACTS.gala.date)} · ${(gs.venue || FACTS.gala.venue).toUpperCase()}`;
   if (k === 'accelerator') return `OPENS ${FACTS.accelerator.opensShort.toUpperCase()}`;
   if (k === 'forum') return 'BY INVITATION';
-  return `NEXT · ${FACTS.bridges.next.city.toUpperCase()}, ${fmt.rangeLabel(FACTS.bridges.next.start, FACTS.bridges.next.end)}`;
+  return 'NEXT · ZAGREB · DURING PLEXUS WEEK';   // Boston (21 Sept) is held; the canonical FACTS row stays Boston for the registrant filters
 }
 const chipLive = `<span class="mx-chip" title="${esc(COPY.liveTitle)}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;padding:4px 9px;background:#e4efe7;color:#22563a;white-space:nowrap;cursor:default">${COPY.chips.live}</span>`;
 const chipHub = href => `<span data-nav="${href}" class="mx-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;padding:4px 9px;cursor:pointer;background:#f8f1e2;color:#7a6432;white-space:nowrap">${COPY.chips.hub}</span>`;

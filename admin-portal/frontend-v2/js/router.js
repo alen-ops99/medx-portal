@@ -93,6 +93,10 @@ export const router = {
     const root = document.getElementById('view');
     root.innerHTML = '';
     root.scrollTop = 0;
+    // forward navigation starts at the top BEFORE the view draws — a view that jumps to its own section
+    // during render (Settings › /settings/team, Inbox › /inbox/email …) keeps that position; the reset
+    // used to run after render and threw every such deep link back to the top
+    if (!popped && !location.hash) window.scrollTo(0, 0);
     current = { module: view, root, path: pathname };
     const title = typeof view.title === 'function' ? view.title(ctx) : (view.title || (route && route.title) || '');
     document.title = hooks.title(title);
@@ -105,7 +109,7 @@ export const router = {
     // id and swallow anything the engine still refuses.
     const target = hashTarget(location.hash);
     if (target) target.scrollIntoView();
-    else window.scrollTo(0, popped ? (st.scrollY || 0) : 0);
+    else if (popped) window.scrollTo(0, st.scrollY || 0);
   },
   start() {
     window.addEventListener('popstate', () => this.resolve({ popped: true }));

@@ -224,7 +224,7 @@ const toggles = s => `
     <span class="mx-tg pub${s.is_published ? ' on' : ''}" data-act="toggle" data-k="is_published" data-id="${esc(s.id)}" role="switch" aria-checked="${!!s.is_published}">${s.is_published ? COPY.row.live : COPY.row.draft}</span>
   </div>`;
 const attCell = s => { const over = s.capacity != null && s.count > s.capacity; return `<span class="mx-pr-att${over ? ' over' : ''}" data-act="attendance" data-id="${esc(s.id)}" role="button" title="${COPY.row.att}"><b>${fmt.num(s.count || 0)}</b><i>/ ${s.capacity == null ? '—' : fmt.num(s.capacity)}</i></span>`; };
-const orderBtns = (i, n, s) => `<div class="mx-pr-order"><span data-act="moveUp" data-id="${esc(s.id)}" role="button" aria-label="${COPY.row.up}"${i === 0 ? ' aria-disabled="true"' : ''}>↑</span><span data-act="moveDown" data-id="${esc(s.id)}" role="button" aria-label="${COPY.row.down}"${i === n - 1 ? ' aria-disabled="true"' : ''}>↓</span></div>`;
+const orderBtns = (i, n, s) => `<div class="mx-pr-order"><span data-act="moveUp" data-id="${esc(s.id)}" role="button" aria-label="${COPY.row.up}"${i === 0 || !canMove(s.id, -1) ? ' aria-disabled="true"' : ''}>↑</span><span data-act="moveDown" data-id="${esc(s.id)}" role="button" aria-label="${COPY.row.down}"${i === n - 1 || !canMove(s.id, 1) ? ' aria-disabled="true"' : ''}>↓</span></div>`;
 const speakerChip = (s, sp) => `<span class="mx-sp-chip">${sp.photo_url ? `<img src="${esc(sp.photo_url)}" alt="">` : `<b>${esc(fmt.initials(sp.name))}</b>`}<span>${esc(sp.name || sp.id)}</span><span class="mx-x" data-act="dropSpeaker" data-id="${esc(s.id)}" data-sid="${esc(sp.id)}" role="button" aria-label="Remove ${esc(sp.name)}">×</span></span>`;
 function speakersBlock(s) {
   const open = st.sp && st.sp.id === s.id;
@@ -509,6 +509,15 @@ function chronoOk(order, id) {
   const prev = at > 0 ? toMin((byId(order[at - 1]) || {}).start_time) : null;
   const next = at < order.length - 1 ? toMin((byId(order[at + 1]) || {}).start_time) : null;
   return (prev == null || prev <= t) && (next == null || t <= next);
+}
+// would ↑/↓ keep the day in clock order? (timed rows follow their start time — the arrows used to
+// look enabled and only answer "rows follow the clock")
+function canMove(id, dir) {
+  const s = byId(id); if (!s) return false;
+  const rows = dayRows(dayKey(s)); const i = rows.findIndex(x => x.id === id); const j = i + dir;
+  if (i < 0 || j < 0 || j >= rows.length) return false;
+  const order = rows.map(x => x.id); order.splice(i, 1); order.splice(j, 0, id);
+  return chronoOk(order, id);
 }
 function move(id, dir) {
   const s = byId(id); if (!s) return;

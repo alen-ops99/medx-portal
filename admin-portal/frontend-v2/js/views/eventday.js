@@ -731,7 +731,7 @@ function blockMap() {
       <!-- the striped "staff dots" map it replaces was never built — link the real floor plan + seating instead -->
       <span style="font-size:11.5px;color:#6d6459">${COPY.map.sub}</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="https://plexus-tables.netlify.app" target="_blank" rel="noopener" style="padding:9px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#000;color:#fff">${COPY.map.planner}</a>
+        <a href="https://plexus-tables.netlify.app/planner.html" target="_blank" rel="noopener" style="padding:9px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#000;color:#fff">${COPY.map.planner}</a>
         <a href="/gala#mx-gala-board" style="padding:8px 12px;border:1px solid rgba(32,27,22,.25);color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${COPY.map.seating}</a>
       </div>
       <div data-v2="ops notes — shared, saved server-side" style="display:flex;flex-direction:column;gap:6px">

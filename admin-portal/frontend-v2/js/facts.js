@@ -69,7 +69,7 @@ export const SECTION_ROUTES = Object.freeze({
   finances: '/money', money: '/money', transparency: '/money', reconcile: '/money', sponsors: '/money',
   'year-calendar': '/calendar', calendar: '/calendar', tasks: '/tasks', 'task-board': '/tasks', board: '/tasks',
   gameday: '/event-day', 'gameday-settings': '/event-day', scanner: '/event-day', 'event-tracking': '/event-day', 'event-day': '/event-day',
-  settings: '/settings', health: '/settings/health', 'system-health': '/settings/health', audit: '/settings/audit', tech: '/settings/tech', files: '/settings/library', resources: '/settings/library',
+  settings: '/settings', health: '/settings/health', 'system-health': '/settings/health', audit: '/settings/audit', tech: '/settings/health', files: '/settings/library', resources: '/settings/library',
   'pr-media': '/studio', 'content-studio': '/studio', 'merch-studio': '/studio', print: '/studio', studio: '/studio',
   'portal-content': '/member-pages', 'website-content': '/member-pages', 'member-feed': '/member-pages', 'member-pages': '/member-pages',
   'signup-forms': '/links', 'registration-links': '/links', 'event-invites': '/links', links: '/links',

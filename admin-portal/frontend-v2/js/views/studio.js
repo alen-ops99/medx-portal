@@ -101,7 +101,7 @@ export const COPY = {
   engineDown: 'The print engine (headless Chrome) is off on this machine — the on-screen preview is exact; the print-ready PDF renders on the staging service.'
 };
 
-const PLANNER_URL = 'https://plexus-tables.netlify.app';   // external tool (team review: replace the broken tile link)
+const PLANNER_URL = 'https://plexus-tables.netlify.app/planner.html';   // the 3D planner (the site root is the guests' table picker)
 const COLOURS = [['#9B1B22', 'Med&X red'], ['#C9A962', 'gold'], ['#15110f', 'ink'], ['#fbf9f6', 'paper'], ['#f3efe9', 'paper-2']]; // values from medx.hr/styles.css (team review Aug 2026 — the kit had drifted)
 // social-card background system — solid grounds + their legible text/rule colours; photos ride under a dark scrim
 const SOCIAL_BGS = {
@@ -418,7 +418,7 @@ function template() {
       <span class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px">${COPY.title}</span>
       <span style="font-size:12.5px;color:#6d6459">${COPY.sub}</span>
       <div style="flex:1"></div>
-      <a id="merch" href="${esc(cfg.memberPortalUrl || 'https://medx.hr')}/shop" target="_blank" rel="noopener" data-v2="merch — one link deep (README R.8)" title="${esc(COPY.merch.note)}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6d6459" data-hover="color:#9b1b22">${COPY.merch.open}</a>
+      <!-- MERCH → used to open <member portal>/shop, which does not exist (404) — removed until a real shop URL exists -->
     </div>
     ${blockTools()}
     ${blockDrawer()}
