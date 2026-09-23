@@ -346,6 +346,7 @@ function attentionItems() {
   let actionedCount = 0;
   D.nag.forEach(n => {
     if (n.kind === 'content_plan_missing') return;                    // #5: feature ad, not urgent — quiet corner
+    if (n.kind === 'message_unanswered' && need) return;              // the MEMBER MESSAGES row above already carries these (it showed twice, once as "Reply to A member")
     if (n.status === 'actioned') { actionedCount++; return; }         // #5: collapsed into one row after the loop
     const p = n.action_payload || {}; const who = p.who || p.name || '';
     let sub = '';
