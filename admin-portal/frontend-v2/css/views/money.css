@@ -31,3 +31,7 @@
 @media (max-width: 620px) {
   [data-block="tool"] .mx-row > span[style*="Fraunces"] { margin-left: 22px; }
 }
+
+/* a jump (the summary's book links) glides to its book and lands 16 px below the window's top edge, so
+   the gold landing glow (app.css .mx-flash) shows on all four sides */
+#moneyin, #owed, #bookin, #bookout { scroll-margin-top: 16px; }

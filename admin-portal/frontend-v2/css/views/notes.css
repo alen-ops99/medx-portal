@@ -74,7 +74,7 @@
 .mx-day-head { position: sticky; top: 0; z-index: 3; display: flex; align-items: baseline; gap: 10px; padding: 10px 2px 8px; background: #f6f2ea; border-bottom: 1px solid rgba(32,27,22,.14); font-size: 12.5px; color: #4a4239; }
 .mx-day-head b { font: 600 10px Inter, sans-serif; letter-spacing: .16em; color: #9b1b22; }
 .mx-day-n { margin-left: auto; font: 600 10px Inter, sans-serif; color: #6d6459; }
-.mx-note { background: #fff; border: 1px solid rgba(32,27,22,.14); padding: 12px 16px 6px; display: flex; flex-direction: column; gap: 8px; min-width: 0; transition: border-color .12s ease, box-shadow .12s ease; }
+.mx-note { background: #fff; border: 1px solid rgba(32,27,22,.14); padding: 12px 16px 6px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .mx-note > * { min-width: 0; max-width: 100%; }
 .mx-note.pinned { border-left: 3px solid #9b1b22; }
 .mx-note.hi { box-shadow: 0 0 0 2px #c9a962; }
@@ -161,17 +161,17 @@
   .mx-notes-body { grid-template-columns: 1fr; }
 }
 
-/* ---- polish pass (2026-09-22): every control eases its colour; hover looks only where a pointer
-   hovers; filled buttons dip while pressed; a rail item leans in ---- */
+/* ---- polish: every control eases its colour; hover looks only where a pointer hovers; buttons and
+   chips sink a pixel while pressed (the one press gesture of both portals — no dimming) ---- */
 .mx-notes :is(.mx-chip, .mx-note-btn, .mx-nr-item, .mx-person, .mx-x, .mx-ev-back, .mx-nc-save, .mx-nc-attach, .mx-nr-more, .mx-note-more, .mx-ev-export, .mx-btn-ink) {
-  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
 }
-.mx-note { transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+.mx-note { transition: border-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
 @media (hover: hover) {
   .mx-note:not(.editing):hover { border-color: rgba(32,27,22,.28); }
   .mx-nc-save:not([aria-disabled="true"]):hover, .mx-ev-export:hover { background: #7e151b; }
 }
-.mx-nc-save:active, .mx-note-btn.primary:active, .mx-ev-export:active, .mx-chip:active { opacity: .82; transition-duration: 40ms; }
+.mx-nc-save:not([aria-disabled="true"]):active, .mx-note-btn:active, .mx-ev-export:active, .mx-chip:active, .mx-btn-ink:active { transform: translateY(1px); }
 /* the composer wakes when you start writing: its top rule already crimson, the box gains a soft shadow */
-.mx-nc { transition: box-shadow var(--t-enter) var(--ease); }
+.mx-nc { transition: box-shadow var(--t-reveal) var(--ease); }
 .mx-nc:focus-within { box-shadow: 0 14px 34px -22px rgba(32,27,22,.45); }

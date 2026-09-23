@@ -389,7 +389,7 @@ function peopleAdder() {
         </label>
         ${st.personTerm.trim().length >= 2 ? (hits.length
           ? `<div style="display:flex;flex-direction:column;border:1px solid ${HAIR12};background:#fff;max-height:220px;overflow:auto">${hits.map(h => `
-              <span data-act="personPick" data-ref="${esc(h.ref)}" style="display:flex;align-items:baseline;gap:10px;padding:9px 12px;border-bottom:1px solid ${HAIR08};cursor:pointer;font-size:12.5px" data-hover="background:#f6f2ea">
+              <span data-act="personPick" data-ref="${esc(h.ref)}" style="display:flex;align-items:baseline;gap:10px;padding:9px 12px;border-bottom:1px solid ${HAIR08};cursor:pointer;font-size:12.5px" data-hover="background:var(--row-hover)">
                 <span style="${MICRO};color:${CRIMSON};width:60px;flex:none">${esc(h.kind)}</span>
                 <span style="flex:1;min-width:0">${esc(h.name)}${h.institution ? ` <span style="color:${MUTED}">· ${esc(h.institution)}</span>` : ''}</span>
                 <span style="${MICRO}">${esc(COPY.people.attach)}</span>

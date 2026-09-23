@@ -23,7 +23,9 @@ export const COPY = {
   drawer: { portal: 'PORTAL', projects: 'Projects', quick: 'QUICK LINKS', website: 'Website ↗' },
   searchPanel: { placeholder: 'Search events, people, tickets…', hint: 'Type at least two characters.', none: 'Nothing matched — try a name, a city or an event.', groups: { projects: 'PROJECTS', events: 'EVENTS', members: 'PEOPLE', mine: 'MINE' } },
   alertsPanel: { title: 'ALERTS', markAll: 'MARK ALL READ', emptyLine: 'All quiet.', emptyWhy: 'Announcements and replies land here the moment they arrive.' },
-  mobile: { title: 'MEMBER PORTAL', tabs: ['HOME', 'PROJECTS', 'PEOPLE', 'INBOX', 'MY M&X'] },
+  // title: the artboard's label for Home. At 390 px it ran out of room beside the logo ('MEMBER PORT…'),
+  // so Home shows `home` — the logo already names the portal, and every other root tab shows its own name
+  mobile: { title: 'MEMBER PORTAL', home: 'HOME', tabs: ['HOME', 'PROJECTS', 'PEOPLE', 'INBOX', 'MY M&X'] },
   talksRetired: 'The Talk Library was retired — recordings return when real Plexus talks exist.'
 };
 
@@ -71,6 +73,7 @@ let els = {};
 let popover = null; // 'alerts' | 'search' | null
 let searchTimer = null;
 let popOpenedAt = 0, popCloseTimer = null;   // entrance runs once per opening, exit fades (app.css › .mx-pop-in / .mx-pop-out)
+let searchActive = -1;                       // the row ↑ / ↓ has reached in the search results (-1 = none)
 let drawerTimer = null;
 
 // ---------------------------------------------------------------- templates
@@ -138,7 +141,7 @@ function drawer() {
   const nav = (k, isSub) => a === k ? (isSub ? NAV_SUB_ACT : NAV_ACT) : (isSub ? NAV_SUB : NAV_BASE);
   return `
   <!-- dc: Portal Chrome.dc.html › "Drawer" -->
-  <div id="mx-scrim" data-act="cl" aria-hidden="true"></div>
+  <div id="mx-scrim" data-act="cl" aria-hidden="true" tabindex="-1"></div>
   <div id="mx-drawer" role="navigation" aria-label="Portal menu">
     <div style="display:flex;align-items:center;padding:0 26px"><img src="/assets/logo-white.png" alt="med&amp;X" style="height:20px;display:block"><div style="flex:1"></div><span data-act="cl" aria-label="Close menu" style="font-size:20px;color:rgba(247,241,230,.7);cursor:pointer" data-hover="color:#f7f1e6">×</span></div>
     <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin:30px 0 8px">${COPY.drawer.portal}</div>
@@ -160,7 +163,7 @@ function drawer() {
 function mobileTop() {
   const s = state.get(); const path = router.path;
   const isRoot = Object.values(TAB_ROOTS).includes(path.replace(/\/$/, '')) || path === '/' || path === '/app';
-  const title = path === '/app/home' || path === '/' || path === '/app' ? COPY.mobile.title : fmt.upper(s.viewTitle || '');
+  const title = path === '/app/home' || path === '/' || path === '/app' ? COPY.mobile.home : fmt.upper(s.viewTitle || '');
   return `
   <!-- dc: Mobile Portal.dc.html › "Top bar" -->
   <div id="mx-mobile-top" style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(25,21,18,.16);position:sticky;top:0;background:#f7f1e6;z-index:20">
@@ -219,7 +222,7 @@ function alertsPanel() {
   </div>`;
 }
 function searchOverlay() {
-  return `<div class="mx-search" data-act="closePop" role="dialog" aria-label="Search">
+  return `<div class="mx-search" data-act="closePop" tabindex="-1" role="dialog" aria-label="Search">
     <div class="mx-search-panel" data-stop="1">
       <input data-role="q" type="search" placeholder="${esc(COPY.searchPanel.placeholder)}" aria-label="Search" autocomplete="off">
       <div data-role="results" class="mx-pop-list"><div style="padding:14px 20px;font-size:12px;color:#4a4239">${COPY.searchPanel.hint}</div></div>
@@ -269,22 +272,44 @@ function renderPopover() {
   const panel = host.firstElementChild;
   const t = performance.now() - popOpenedAt;
   if (panel && t < 360) { panel.classList.add('mx-pop-in'); if (t > 16) panel.style.setProperty('--pop-t', (-t).toFixed(0) + 'ms'); }
-  if (popover === 'search') { const q = host.querySelector('[data-role="q"]'); if (q) { q.focus(); q.addEventListener('input', onSearchInput); } }
+  if (popover === 'search') { const q = host.querySelector('[data-role="q"]'); if (q) { q.focus(); q.addEventListener('input', onSearchInput); q.addEventListener('keydown', onSearchKey); searchActive = -1; } }
 }
 function openPopover(kind) { popover = kind; popOpenedAt = performance.now(); renderPopover(); }
-function closePopover() {
+// `refocus`: closed by the member (Escape, ×, the scrim) — focus goes back to SEARCH / ALERTS, where it came
+// from, instead of dropping to <body> when the panel leaves. A close that navigates passes nothing.
+function closePopover({ refocus } = {}) {
+  const was = popover;
   popover = null;
+  if (refocus && was) {
+    const host = els.chrome && els.chrome.querySelector('.mx-pop, .mx-search');
+    const a = document.activeElement;
+    if (!a || a === document.body || (host && host.contains(a))) {
+      const trigger = [...els.chrome.querySelectorAll(`[data-act="${was}"]`)].find(t => t.offsetParent !== null);
+      if (trigger) { try { trigger.focus({ preventScroll: true }); } catch (e) {} }
+    }
+  }
   const live = els.chrome ? els.chrome.querySelectorAll('.mx-pop, .mx-search') : [];
   if (!live.length || ui.reducedMotion()) return renderPopover();
   live.forEach(n => { n.classList.remove('mx-pop-in'); n.classList.add('mx-pop-out'); });
   clearTimeout(popCloseTimer);
   popCloseTimer = setTimeout(() => { if (!popover) renderPopover(); }, 170);
 }
+// SEARCH: ↑ / ↓ walk the result rows (a visible active row, kept in view), Enter opens the active one
+function onSearchKey(e) {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
+  const rows = [...els.chrome.querySelectorAll('.mx-search [data-role="results"] .mx-pop-row')];
+  if (!rows.length) return;
+  if (e.key === 'Enter') { if (searchActive >= 0 && rows[searchActive]) { e.preventDefault(); rows[searchActive].click(); } return; }
+  e.preventDefault();
+  searchActive = e.key === 'ArrowDown' ? Math.min(rows.length - 1, searchActive + 1) : Math.max(-1, searchActive - 1);
+  rows.forEach((r, i) => r.classList.toggle('is-active', i === searchActive));
+  if (rows[searchActive]) rows[searchActive].scrollIntoView({ block: 'nearest' });
+}
 function onSearchInput(e) {
   const q = e.target.value.trim();
   clearTimeout(searchTimer);
   const box = els.chrome.querySelector('[data-role="results"]');
-  if (q.length < 2) { if (box) box.innerHTML = `<div style="padding:14px 20px;font-size:12px;color:#4a4239">${COPY.searchPanel.hint}</div>`; return; }
+  if (q.length < 2) { searchActive = -1; if (box) box.innerHTML = `<div style="padding:14px 20px;font-size:12px;color:#4a4239">${COPY.searchPanel.hint}</div>`; return; }
   searchTimer = setTimeout(async () => {
     try {
       // the server's search only knew confirmed Plexus registrants as people — the member directory
@@ -299,7 +324,7 @@ function onSearchInput(e) {
       const people = ((net && net.results) || []).map(m => ({ kind: 'member', id: m.id, title: m.name, detail: [m.institution, m.city || m.country].filter(Boolean).join(' · ') || 'Med&X member', to: '/app/network?q=' + encodeURIComponent(m.name || q) }));
       res.members = people.concat(res.members || []).filter(m => { const k = String(m.title || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
       delete res.talks;   // the Talk Library is retired
-      if (box && popover === 'search') box.innerHTML = searchResults(res);
+      if (box && popover === 'search') { box.innerHTML = searchResults(res); searchActive = -1; }
     }
     catch (err) { if (box) box.innerHTML = `<div style="padding:14px 20px;font-size:12px;color:#9b1b22">${esc(err.message)}</div>`; }
   }, 250);
@@ -309,9 +334,9 @@ const handlers = {
   tg: () => chrome.toggleDrawer(),
   cl: () => chrome.closeDrawer(),
   back: () => (history.length > 1 ? history.back() : router.navigate('/app/home')),
-  search: () => { if (popover === 'search') closePopover(); else openPopover('search'); },
-  alerts: async () => { if (popover === 'alerts') return closePopover(); openPopover('alerts'); await chrome.refresh({ only: 'notifications' }); if (popover === 'alerts') renderPopover(); },
-  closePop: (el, e) => { if (e && e.target.closest && e.target.closest('[data-stop]')) return; closePopover(); },
+  search: () => { if (popover === 'search') closePopover({ refocus: true }); else openPopover('search'); },
+  alerts: async () => { if (popover === 'alerts') return closePopover({ refocus: true }); openPopover('alerts'); await chrome.refresh({ only: 'notifications' }); if (popover === 'alerts') renderPopover(); },
+  closePop: (el, e) => { if (e && e.target.closest && e.target.closest('[data-stop]')) return; closePopover({ refocus: true }); },
   openInbox: () => { closePopover(); router.navigate('/app/messages'); },
   markAll: async () => { try { await api.put('/api/user-notifications/mark-all-read'); await chrome.refresh({ only: 'notifications' }); renderPopover(); ui.toast('All alerts marked as read.'); } catch (e) { ui.toast(e.message, { kind: 'error' }); } },
   openAlert: async (el) => {
@@ -342,7 +367,7 @@ export const chrome = {
     els.overlays = document.getElementById('chrome-overlays') || (() => { const d = document.createElement('div'); d.id = 'chrome-overlays'; document.body.appendChild(d); return d; })();
     ui.bind(els.chrome, handlers);
     ui.bind(els.overlays, handlers);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (popover) closePopover(); else chrome.closeDrawer(); } });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (popover) closePopover({ refocus: true }); else chrome.closeDrawer(); } });
     document.addEventListener('click', e => { if (popover === 'alerts' && !e.target.closest('.mx-pop') && !e.target.closest('[data-act="alerts"]')) closePopover(); });
     state.subscribe((s, keys) => { if (keys.some(k => ['user', 'stats', 'unread', 'msgUnread', 'active', 'layout', 'viewTitle', 'notifications'].includes(k))) renderAll(); });
     renderAll();
@@ -352,7 +377,15 @@ export const chrome = {
     document.body.classList.add('drawer-open'); const s = els.overlays.querySelector('#mx-scrim'); if (s) s.setAttribute('aria-hidden', 'false');
     // one pass of the entries following the panel in (app.css › #mx-drawer.is-entering); a re-drawn drawer stays still
     const d = els.overlays.querySelector('#mx-drawer');
-    if (d) { d.classList.remove('is-entering'); void d.offsetWidth; d.classList.add('is-entering'); clearTimeout(drawerTimer); drawerTimer = setTimeout(() => d.classList.remove('is-entering'), 700); }
+    if (d) {
+      // every menu line steps in on its own, 22 ms apart (capped at 160 ms): the headings, each entry of the
+      // two lists, the rules, the website link — a list no longer arrives as one slab
+      const lines = [];
+      for (const c of d.children) { if (c.tagName === 'DIV' && c.querySelector(':scope > a')) lines.push(...c.children); else lines.push(c); }
+      lines.forEach((el, i) => { el.classList.add('mx-dr-i'); el.style.setProperty('--dr-d', Math.min(i * 22, 160) + 'ms'); });
+      d.classList.remove('is-entering'); void d.offsetWidth; d.classList.add('is-entering');
+      clearTimeout(drawerTimer); drawerTimer = setTimeout(() => d.classList.remove('is-entering'), 700);
+    }
     const first = els.overlays.querySelector('#mx-drawer a'); if (first) first.focus({ preventScroll: true });
   },
   closeDrawer() { document.body.classList.remove('drawer-open'); const s = els.overlays.querySelector('#mx-scrim'); if (s) s.setAttribute('aria-hidden', 'true'); },

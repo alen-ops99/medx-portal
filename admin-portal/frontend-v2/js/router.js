@@ -17,8 +17,8 @@ let notFoundLoader = null, lockedLoader = null;
 const hooks = { beforeRender: null, afterRender: null, title: t => t ? t + ' · Med&X Admin' : 'Med&X Admin' };
 // ---- the hand-off between two screens ------------------------------------------------------------
 // Every view awaits its data, then writes `root.innerHTML`. Until that first write the screen that is
-// leaving STAYS: inert at once, dimmed after ~100 ms (css §8 #view.mx-pending). Past ~450 ms a crimson
-// hairline runs along the top edge (css §7 .mx-loadbar); only a real change of screen, and only once the
+// leaving STAYS: inert at once, dimmed after ~100 ms (css §8 #view.mx-pending). Past ~450 ms a gold
+// hairline creeps along the top edge (css §7 .mx-loadbar); only a real change of screen, and only once the
 // wait passes ~650 ms, swaps the dimmed screen for a skeleton shaped like the one that is coming. A
 // switch inside one view (Inbox tabs, hub sub-tabs) never shows one — its strip stays put. The live
 // backend answers most screens in ~400 ms, so both thresholds sit clear of it: a skeleton that shows
@@ -26,7 +26,7 @@ const hooks = { beforeRender: null, afterRender: null, title: t => t ? t + ' · 
 // (which zeroes every CSS delay) keeps them.
 const NATIVE_HTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
 const reduceMotion = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
-const EASE = 'cubic-bezier(.22,1,.36,1)';
+const EASE = 'cubic-bezier(.22,1,.36,1)';   // var(--ease) — Web Animations cannot read a css variable
 const rows = n => Array.from({ length: n }, () => '<span><i></i><i></i></span>').join('');
 const SK = {
   title: '<div class="mx-skel-title"><i></i><i></i></div>',
@@ -44,10 +44,22 @@ function skeleton(pathname) {
   const body = { band: SK.band + SK.card, board: SK.board, tabs: SK.tabs + SK.card, grid: SK.grid, list: SK.card }[shape];
   return `<div class="mx-skel" data-shape="${shape}" aria-busy="true"><span class="mx-sr">Loading…</span>${SK.title}${body}</div>`;
 }
-let loadbar = null;
+// the slow-load hairline (css §7 .mx-loadbar — the member portal's): gold, it creeps across the top edge
+// while the wait lasts, and when the screen lands it sweeps home and fades (.home), then resets unseen
+let loadbar = null, barTimer = null;
 function bar(on) {
-  if (!loadbar) { if (!on) return; loadbar = document.createElement('div'); loadbar.className = 'mx-loadbar'; loadbar.setAttribute('aria-hidden', 'true'); document.body.appendChild(loadbar); }
-  loadbar.classList.toggle('on', on);
+  if (on) {
+    if (!loadbar) { loadbar = document.createElement('div'); loadbar.className = 'mx-loadbar'; loadbar.setAttribute('aria-hidden', 'true'); document.body.appendChild(loadbar); }
+    clearTimeout(barTimer);
+    if (loadbar.classList.contains('on')) return;
+    loadbar.classList.remove('home'); void loadbar.offsetWidth;   // back to zero width before the creep starts
+    loadbar.classList.add('on');
+    return;
+  }
+  if (!loadbar || !loadbar.classList.contains('on')) return;
+  loadbar.classList.remove('on'); loadbar.classList.add('home');
+  clearTimeout(barTimer);
+  barTimer = setTimeout(() => { if (loadbar) loadbar.classList.remove('home'); }, 700);
 }
 let handoff = null;
 function endHandoff() { const h = handoff; handoff = null; if (h) h.end(); }
@@ -185,7 +197,7 @@ export const router = {
         // another (css §8 .mx-arrive — removed before anything re-renders, never replayed)
         const from = same ? o : (empty ? 0 : Math.min(o, .7));
         if (from < .98 && !reduceMotion() && root.animate) {
-          try { arriveAnim = root.animate([{ opacity: from }, { opacity: 1 }], { duration: same ? 200 : 300, easing: EASE }); } catch (e) {}
+          try { arriveAnim = root.animate([{ opacity: from }, { opacity: 1 }], { duration: same ? 180 : 340, easing: EASE }); } catch (e) {}
         }
         if (!same) { root.classList.add('mx-arrive'); arriveTimer = setTimeout(() => root.classList.remove('mx-arrive'), 800); }
       }

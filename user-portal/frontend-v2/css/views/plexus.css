@@ -67,12 +67,15 @@
   .mx-px-face { width: 38px; height: 38px; }
 }
 
-/* bio sheet opens like every other sheet (app.css › .mx-modal): scrim fades, sheet rises a few px.
+/* bio sheet opens and closes like every other sheet (app.css › .mx-modal): scrim fades, sheet rises a few px;
+   on close it fades out over the exit timing (plexus.js › closeBio adds .is-leaving, then redraws the block).
    .mx-bio-in is added only when a bio is opened, so a re-draw (adding a session) stays still. */
 @media (prefers-reduced-motion: no-preference) {
-  [data-role="bio-scrim"].mx-bio-in { animation: mx-fade var(--t-reveal) var(--ease) both; }
-  [data-role="bio-scrim"].mx-bio-in .mx-bio-sheet { animation: mx-rise var(--t-reveal) var(--ease) both; }
+  [data-role="bio-scrim"].mx-bio-in { animation: mx-fade var(--t-reveal) var(--ease) backwards; }
+  [data-role="bio-scrim"].mx-bio-in .mx-bio-sheet { animation: mx-rise var(--t-reveal) var(--ease) backwards; }
+  [data-role="bio-scrim"].is-leaving { animation: mx-fade-out var(--t-exit) var(--ease) forwards; }
 }
+[data-role="bio-scrim"].is-leaving { pointer-events: none; }
 
 /* countdown band on a phone: the label takes its own line, the three digits share the next, each fact
    below gets a centred line — the vertical rules only made sense side by side, so they go */
@@ -88,6 +91,9 @@
    keyboard focus and the accessible name stay on that control */
 .mx-sp-card, .mx-week-card { position: relative; }
 .mx-sp-card [data-act="vb"]::after, .mx-week-card > a::after { content: ""; position: absolute; inset: 0; }
+/* …and the keyboard ring draws around the whole card (what a click and a hover act on), not the small label */
+.mx-sp-card:has([data-act="vb"]:focus-visible), .mx-week-card:has(> a:focus-visible) { outline: 2px solid #9b1b22; outline-offset: 3px; }
+.mx-sp-card [data-act="vb"]:focus-visible, .mx-week-card > a:focus-visible { outline: none; }
 
 /* Plexus Week band on a phone: one card per row. The ≤1100 two-across rule above outranked the shared
    ≤560 single-column rule in app.css (same weight, later file), so at 390 px two cramped cards sat side

@@ -15,7 +15,14 @@ let current = { module: null, root: null, path: null };
 let notFoundLoader = null;
 let hooks = { beforeRender: null, afterRender: null, title: t => t ? t + ' · Med&X' : 'Med&X Member Portal' };
 let tabFrom = null;   // the active section tab's box when a sibling tab was clicked — the new underline slides from it
-let enterTimer = null, heldTimer = null;
+let enterTimer = null, heldTimer = null, slowTimer = null;
+const SLOW_MS = 250;  // a wait past this dims the leaving screen and runs the gold hairline (app.css › body.mx-slow)
+// A KEYBOARD press on a link inside the view (a section tab, a breadcrumb): the new view's innerHTML replaces
+// the pressed link, which drops focus to <body>; when the same view redraws, focus returns to the link with
+// the same target. Ported from the admin router (same name, same rule). One member difference: the artboards
+// draw the CURRENT tab as a <span aria-current>, so a pressed tab that became current has no link to return
+// to — focus then lands on that current tab itself (focusable by script only, never a Tab stop).
+let refocus = null;
 const ENTER_CLASSES = ['mx-enter', 'mx-enter-tab'];
 
 function compile(path) {
@@ -88,6 +95,7 @@ export const router = {
     const loader = route ? route.view : notFoundLoader;
     if (!loader) { console.error('[router] no view for', pathname); return; }
     const seq = (this._seq = (this._seq || 0) + 1);
+    const rf = refocus; refocus = null;
     let mod;
     try { mod = await loader(); } catch (e) { console.error('[router] failed to load view for ' + pathname, e); mod = notFoundLoader ? await notFoundLoader() : null; }
     if (seq !== this._seq || !mod) return; // superseded by a newer navigation
@@ -104,9 +112,12 @@ export const router = {
     // The screen being left stays on view (inert, dimmed if the wait drags) until the next one draws
     // over it — portal to portal only; the auth and bare layouts start from a clean slate as before.
     const hold = prevLayout === 'portal' && layout === 'portal' && root.firstElementChild;
-    const tabKey = hold ? holdLeaving(root, current.module === view) : (root.innerHTML = '', null);
+    const sameView = current.module === view;
+    const tabKey = hold ? holdLeaving(root, sameView) : (root.innerHTML = '', null);
     const body = document.body;                                      // the progress hairline (app.css › body.mx-holding)
-    clearTimeout(heldTimer); body.classList.remove('mx-held'); body.classList.toggle('mx-holding', !!hold);
+    clearTimeout(heldTimer); clearTimeout(slowTimer); body.classList.remove('mx-held', 'mx-slow'); body.classList.toggle('mx-holding', !!hold);
+    // a timer, not a css delay, so reduced motion (which zeroes every css delay) keeps the threshold
+    if (hold) slowTimer = setTimeout(() => { if (seq === this._seq) body.classList.add('mx-slow'); }, SLOW_MS);
     root.scrollTop = 0;
     current = { module: view, root, path: pathname };
     const title = typeof view.title === 'function' ? view.title(ctx) : (view.title || (route && route.title) || '');
@@ -114,10 +125,11 @@ export const router = {
     root.classList.remove(...ENTER_CLASSES); clearTimeout(enterTimer); ui.revealOnScroll(null);
     try { await view.render(root, ctx); } catch (e) { console.error('[router] render failed for ' + pathname, e); root.innerHTML = renderError(e); }
     if (seq !== this._seq) return;
+    clearTimeout(slowTimer);
     root.querySelectorAll('.mx-leaving').forEach(n => n.remove());     // a view that appended instead of replacing
     if (body.classList.contains('mx-holding')) {                        // the top hairline sweeps home and fades
       body.classList.remove('mx-holding'); body.classList.add('mx-held');
-      heldTimer = setTimeout(() => body.classList.remove('mx-held'), 700);
+      heldTimer = setTimeout(() => body.classList.remove('mx-held', 'mx-slow'), 700);
     }
     // The screen's entrance starts once the view has drawn its content, in the same task, so the page
     // never paints un-faded first; and it runs once: later partial re-renders inside the view stay still.
@@ -129,6 +141,14 @@ export const router = {
     void root.offsetWidth; root.classList.add(strip ? 'mx-enter-tab' : 'mx-enter');
     enterTimer = setTimeout(() => root.classList.remove(...ENTER_CLASSES), 1000);
     settleTabs(root);
+    if (rf && current.module === view && sameView && (!document.activeElement || document.activeElement === document.body)) {
+      let back = [...root.querySelectorAll(rf.attr === 'href' ? 'a[href]' : '[data-nav]')].find(el => el.getAttribute(rf.attr) === rf.to);
+      if (!back && rf.strip) {
+        back = root.querySelector(`[data-tabs="${cssAttr(rf.strip)}"] .mx-tab.is-on`);
+        if (back && !back.hasAttribute('tabindex')) back.setAttribute('tabindex', '-1');
+      }
+      if (back) { try { back.focus({ preventScroll: true }); } catch (e) {} }
+    }
     if (hooks.afterRender) hooks.afterRender({ route, params, query, layout, active, view, title });
     // scroll: restore on back/forward, top on forward navigation, hash targets when present
     const st = history.state || {};
@@ -145,8 +165,10 @@ export const router = {
     // external links fall through to the browser (full load).
     document.addEventListener('click', e => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const view = document.getElementById('view');
+      const kbd = el => e.detail === 0 && !!view && view.contains(el);   // Enter on a focused control (a mouse click has detail ≥ 1)
       const nav = e.target.closest && e.target.closest('[data-nav]');
-      if (nav) { e.preventDefault(); this.navigate(nav.getAttribute('data-nav')); return; }
+      if (nav) { e.preventDefault(); refocus = kbd(nav) ? { attr: 'data-nav', to: nav.getAttribute('data-nav') } : null; this.navigate(nav.getAttribute('data-nav')); return; }
       const a = e.target.closest && e.target.closest('a[href]');
       if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
       const href = a.getAttribute('href');
@@ -154,6 +176,7 @@ export const router = {
       const url = new URL(href, location.origin);
       if (url.origin !== location.origin || isServerPath(url.pathname)) return;
       e.preventDefault();
+      refocus = kbd(a) ? { attr: 'href', to: href, strip: a.closest('[data-tabs]') ? a.closest('[data-tabs]').getAttribute('data-tabs') : null } : null;
       rememberTab(a);
       this.navigate(url.pathname + url.search + url.hash);
     });

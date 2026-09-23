@@ -196,13 +196,16 @@ function blockForumTeaser() {
 
 // CONNECT-button face for a member card/row — extends the artboard's two states (CONNECT /
 // CONNECTED ✓) with the live ones the server knows: pending_out · pending_in · declined.
+// `hv` names the face's hover (network.css › .mx-net-act[data-face]): 'fill' darkens a crimson face, 'line'
+// firms an outlined one to ink, '' = no hover — CONNECTED and a request THEY declined only answer with a
+// line of text, so they never promise an action under the pointer
 function connFace(c) {
   const s = cstate(c).state;
-  if (s === 'connected') return { label: COPY.btn.connected, bg: 'transparent', fg: '#6e5626', bd: 'rgba(201,169,98,.65)' };
-  if (s === 'pending_out') return { label: COPY.btn.sent, bg: 'transparent', fg: '#4a4239', bd: 'rgba(25,21,18,.25)' };
-  if (s === 'pending_in') return { label: COPY.btn.accept, bg: '#9b1b22', fg: '#f7f1e6', bd: '#9b1b22' };
-  if (s === 'declined' || s === 'declined_by_me') return { label: COPY.btn.declined, bg: 'transparent', fg: 'rgba(25,21,18,.45)', bd: 'rgba(25,21,18,.18)' };
-  return { label: COPY.btn.connect, bg: '#9b1b22', fg: '#f7f1e6', bd: '#9b1b22' };
+  if (s === 'connected') return { label: COPY.btn.connected, bg: 'transparent', fg: '#6e5626', bd: 'rgba(201,169,98,.65)', hv: '' };
+  if (s === 'pending_out') return { label: COPY.btn.sent, bg: 'transparent', fg: '#4a4239', bd: 'rgba(25,21,18,.25)', hv: 'line' };
+  if (s === 'pending_in') return { label: COPY.btn.accept, bg: '#9b1b22', fg: '#f7f1e6', bd: '#9b1b22', hv: 'fill' };
+  if (s === 'declined' || s === 'declined_by_me') return { label: COPY.btn.declined, bg: 'transparent', fg: 'rgba(25,21,18,.45)', bd: 'rgba(25,21,18,.18)', hv: s === 'declined_by_me' ? 'line' : '' };
+  return { label: COPY.btn.connect, bg: '#9b1b22', fg: '#f7f1e6', bd: '#9b1b22', hv: 'fill' };
 }
 
 function cardRequest(m) { return `
@@ -228,7 +231,7 @@ function cardSuggestion(m) {
               <span data-act="peek" data-id="${esc(m.id)}" style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>
               <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(subLine(m))}</span>
               <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
-                <span data-act="connect" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${face.label}</span>
+                <span data-act="connect" data-id="${esc(m.id)}" data-face="${face.hv}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${face.label}</span>
                 <span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;border:1px solid rgba(25,21,18,.25);font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.forYou.message}</span>
               </span>
             </div>
@@ -297,7 +300,7 @@ function rowMember(m, i, matched) {
         <div class="mx-net-row" data-card="${esc(m.id)}" style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
           <span style="width:40px;height:40px;background:${av[0]};color:${av[1]};display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="width:100%;height:100%;object-fit:cover">` : esc(m.initials || initialsOf(m.name))}</span>
           <span class="mx-net-id" style="flex:1;min-width:0"><span data-act="peek" data-id="${esc(m.id)}" style="display:block;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">${esc(m.name)}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${esc(subLine(m))}${matchNote}</span></span>
-          <span data-act="connect" data-id="${esc(m.id)}" ${s === 'pending_in' ? `data-cid="${esc(cstate(m).id)}"` : ''} class="mx-net-act" style="padding:9px 15px;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap">${face.label}</span>
+          <span data-act="connect" data-id="${esc(m.id)}" ${s === 'pending_in' ? `data-cid="${esc(cstate(m).id)}"` : ''} data-face="${face.hv}" class="mx-net-act" style="padding:9px 15px;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap">${face.label}</span>
           <span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="padding:9px 15px;border:1px solid rgba(25,21,18,.25);font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.net.message}</span>
         </div>`;
 }

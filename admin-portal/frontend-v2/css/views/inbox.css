@@ -37,12 +37,18 @@
 }
 
 /* ---- polish pass (2026-09-22) ---- */
-/* tabs: the one you point at previews its crimson underline */
-@media (hover: hover) { .mx-inbox-tabs > a:not(.on):hover { border-bottom-color: rgba(155,27,34,.45) !important; } }
+/* tabs — the tab hover of every strip in both portals: a crimson hairline (1 px, ~.45) draws in from the
+   left under the tab you point at, a preview of the current tab's 2 px rule. The strip's hairline is an
+   inset shadow and the tabs no longer hang 1 px below it, so the strip's sideways scroll clips neither the
+   2 px rule nor the hover line */
+.mx-inbox-tabs > a { position: relative; }
+.mx-inbox-tabs > a:not(.on)::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: #9b1b22; opacity: .45;
+  transform: scaleX(0); transform-origin: 0 50%; transition: transform var(--t-quick) var(--ease); pointer-events: none; }
+@media (hover: hover) { .mx-inbox-tabs > a:not(.on):hover::after { transform: scaleX(1); } }
 /* keyboard focus sits INSIDE the tab — the strip scrolls sideways (overflow), which clipped an outside ring */
-.mx-inbox-tabs > a:focus-visible { outline: 1px solid #9b1b22; outline-offset: -4px; }
+.mx-inbox-tabs > a:focus-visible { outline: 2px solid #9b1b22; outline-offset: -4px; }
 /* rows that open something warm under the pointer; the open thread carries a crimson edge */
-.mx-outbox-row, .mx-thread-row { transition: background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+.mx-outbox-row, .mx-thread-row { transition: background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); }
 .mx-thread-row.on { box-shadow: inset 2px 0 0 #9b1b22; }
 @media (hover: hover) {
   .mx-outbox-row:hover { background: var(--row-hover); }

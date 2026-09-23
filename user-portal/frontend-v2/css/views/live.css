@@ -3,12 +3,15 @@
    Fraunces, crimson for the one action, gold for the premium moments, square corners, hairlines.
    Phone-first (360–430 px), one centred 720 px column on desktop, base 16 px, 44 px targets.
 
-   Motion (one language across the portals): ease cubic-bezier(.22,1,.36,1); 150–220 ms for hover / press /
-   colour, 280–450 ms for entrances; only opacity / transform / colour / box-shadow / filter move; hover
-   only under (hover: hover); nothing moves under prefers-reduced-motion (the block at the end). No
-   transform ever sits on an ancestor of the sticky tabs / day headers / side column. */
+   Motion (one language across the portals — the tokens.css motion tokens, aliased below): the house ease,
+   quick for hover / press / colour, reveal for entrances, exit for anything leaving; only opacity /
+   transform / colour / box-shadow / filter move; hover only under (hover: hover); nothing moves under
+   prefers-reduced-motion (the block at the end). No transform ever sits on an ancestor of the sticky tabs /
+   day headers / side column. The interaction vocabulary is the portals': a 2 px gold focus ring on ink
+   (crimson on cream, app.css), buttons and chips sink 1 px when pressed, cards lift 2 px on --shadow-lift
+   and on touch answer the press at .86 opacity, tabs draw a crimson hairline in from the left. */
 
-.lv, .lv-sheet-wrap { --lv-ease: cubic-bezier(.22,1,.36,1); --lv-fast: .18s; --lv-slow: .38s; }
+.lv, .lv-sheet-wrap { --lv-ease: var(--ease); --lv-fast: var(--t-quick); --lv-slow: var(--t-reveal); --lv-exit: var(--t-exit); }
 .lv { --lv-w: 720px; max-width: var(--lv-w); margin: 0 auto; min-height: 100vh; background: var(--cream); color: var(--ink);
       font: 16px/1.5 var(--font-ui); -webkit-font-smoothing: antialiased; position: relative; padding-bottom: env(safe-area-inset-bottom); }
 @media (min-width: 761px) { .lv { border-left: 1px solid var(--hair); border-right: 1px solid var(--hair); } }
@@ -21,7 +24,8 @@
 /* shared entrances — `backwards` fill only, so a finished entrance never pins opacity / transform */
 @keyframes lv-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes lv-fade { from { opacity: 0; } to { opacity: 1; } }
-.lv-enter { animation: lv-rise .34s var(--lv-ease) var(--lv-d, 0ms) backwards; }
+.lv-enter { animation: lv-rise var(--lv-slow) var(--lv-ease) var(--lv-d, 0ms) backwards; }
+.lv-swap { animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }   /* the side sections on an event switch (js paintAll) */
 
 /* ---- micro vocabulary ---- */
 .lv-eyebrow { font: 600 10px var(--font-ui); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
@@ -44,45 +48,45 @@
 .lv-head { background: var(--ink); color: var(--cream); padding: calc(16px + env(safe-area-inset-top)) 20px 18px; }
 /* the band's three lines rise with the first paint and when the event changes (js paintHead adds .rise) —
    never on a repaint, so a name arriving or a poll leaves them still */
-.lv-head-top.rise > * { animation: lv-rise .42s var(--lv-ease) backwards; }
+.lv-head-top.rise > * { animation: lv-rise var(--lv-slow) var(--lv-ease) backwards; }
 .lv-head-top.rise > .lv-title { animation-delay: 40ms; }
 .lv-head-top.rise > .lv-meta { animation-delay: 80ms; }
-.lv-who.lv-in { animation: lv-fade .28s var(--lv-ease) backwards; }
+.lv-who.lv-in { animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }
 .lv-head-row { display: flex; align-items: center; gap: 12px; min-height: 24px; }
 .lv-who { font: 600 10px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: rgba(247,241,230,.7); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lv-back { font: 600 10px var(--font-ui); letter-spacing: .16em; color: rgba(247,241,230,.7); white-space: nowrap; padding: 10px 0 10px 8px; transition: color var(--lv-fast) var(--lv-ease); }
+.lv .lv-back { font: 600 10px var(--font-ui); letter-spacing: .16em; color: rgba(247,241,230,.7); white-space: nowrap; padding: 10px 0 10px 8px; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
 .lv-title { font: 500 32px/1.1 var(--font-display); letter-spacing: -.01em; margin: 14px 0 0; color: var(--cream); }
 .lv-meta { font-size: 14px; color: rgba(247,241,230,.78); margin-top: 8px; line-height: 1.5; }
-.lv-meta.loading { animation: lv-breathe 1.4s ease-in-out infinite; }
+.lv-meta.loading { animation: lv-breathe 1.4s var(--lv-ease) infinite; }
 @keyframes lv-breathe { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
 /* the event switcher: a horizontal scroller whose edges fade, so a clipped chip reads as "more this way" */
-.lv-switch { display: flex; gap: 8px; margin: 13px -20px 0; padding: 3px 20px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+.lv-switch { display: flex; gap: 8px; margin: 11px -20px -2px; padding: 5px 20px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
              -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
              mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%); }
 .lv-switch:empty { display: none; }
 .lv-switch::-webkit-scrollbar { display: none; }
 .lv-chip { flex: none; display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border: 1px solid rgba(247,241,230,.35); color: rgba(247,241,230,.85);
            font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; cursor: pointer;
-           transition: background-color .22s var(--lv-ease), color .22s var(--lv-ease), border-color .22s var(--lv-ease), transform .15s var(--lv-ease);
-           animation: lv-fade .3s var(--lv-ease) backwards; }
+           transition: background-color var(--lv-fast) var(--lv-ease), color var(--lv-fast) var(--lv-ease), border-color var(--lv-fast) var(--lv-ease), transform var(--lv-fast) var(--lv-ease);
+           animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }
 .lv-chip:nth-child(2) { animation-delay: 30ms; } .lv-chip:nth-child(3) { animation-delay: 60ms; } .lv-chip:nth-child(4) { animation-delay: 90ms; } .lv-chip:nth-child(n+5) { animation-delay: 120ms; }
-.lv-chip:active { transform: scale(.97); }
+.lv-chip:active { transform: translateY(1px); }
 .lv-chip.on { background: var(--cream); color: var(--ink); border-color: var(--cream); }
 .lv-chip.ro { border-style: dashed; color: rgba(247,241,230,.6); }
 .lv-chip.on.ro { color: var(--ink); border-style: dashed; border-color: var(--cream); }   /* a read-only event, selected: still legible */
 .lv-chip.ghost { border-color: transparent; color: var(--gold); padding-left: 4px; }
 /* the catalogue on its way: chip-shaped placeholders hold the row so the band never grows when it lands */
-.lv-chip.sk { width: 76px; border-color: rgba(247,241,230,.14); background: rgba(247,241,230,.04); cursor: default; animation: lv-breathe 1.6s ease-in-out infinite; }
+.lv-chip.sk { width: 76px; border-color: rgba(247,241,230,.14); background: rgba(247,241,230,.04); cursor: default; animation: lv-breathe 1.6s var(--lv-ease) infinite; }
 .lv-chip.sk.w2 { width: 104px; animation-delay: .15s; }
 .lv-chip.sk.w3 { width: 64px; animation-delay: .3s; }
-.lv-chip:focus-visible, .lv-head a:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+/* the ink band: the portals' 2 px ring, gold on ink */
+.lv-chip:focus-visible, .lv-head :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 
 /* ---- NOW / NEXT strip ---- */
 .lv-now { display: grid; grid-template-columns: 1fr 1fr; background: var(--card); border-bottom: 1px solid var(--hair); min-height: 76px; }
 .lv-now:empty { display: none; }
 .lv-now-item, .lv-now-line { display: flex; flex-direction: column; gap: 3px; padding: 14px 20px; min-width: 0; cursor: pointer; }
-.lv-now-item { transition: box-shadow var(--lv-fast) var(--lv-ease); }
-.lv-now-item:active { box-shadow: inset 0 0 0 999px rgba(25,21,18,.05); }
+.lv-now-item { transition: box-shadow var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
 .lv-now-item:focus-visible { outline-offset: -3px; }
 .lv-now-item + .lv-now-item { border-left: 1px solid var(--hair-soft); }
 .lv-now-item:only-child, .lv-now-line { grid-column: 1 / -1; cursor: default; }
@@ -102,7 +106,6 @@
 .lv-slots-sub { font-size: 13px; color: var(--soft); }
 .lv-slot { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: center; min-height: 56px; padding: 8px 0; border-top: 1px solid var(--hair-soft); cursor: pointer;
            transition: opacity var(--lv-fast) var(--lv-ease); }
-.lv-slot:active { opacity: .7; }
 .lv-slot-time { font: 600 16px var(--font-ui); color: var(--crimson); }
 .lv-slot-body { display: flex; flex-direction: column; min-width: 0; }
 .lv-slot-title { font: 500 17px/1.25 var(--font-display); }
@@ -113,13 +116,17 @@
 .lv-tab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 0 6px; border-bottom: 2px solid transparent; color: var(--soft);
           font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: color var(--lv-fast) var(--lv-ease); }
 .lv-tab.on { color: var(--ink); border-bottom-color: var(--crimson); }
+/* an inactive tab under the pointer draws a crimson hairline in from the left (the portals' tab hover) */
+.lv-tab { position: relative; }
+.lv-tab::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--crimson); opacity: .45;
+                 transform: scaleX(0); transform-origin: 0 50%; transition: transform var(--lv-fast) var(--lv-ease); pointer-events: none; }
 .lv-tabs.inked .lv-tab { border-bottom-color: transparent; }
 .lv-tab:focus-visible { outline-offset: -5px; }
 .lv-tab-ink { position: absolute; left: 0; bottom: 0; width: 1px; height: 2px; background: var(--crimson); transform-origin: 0 0; pointer-events: none;
               opacity: 0; transition: transform var(--lv-slow) var(--lv-ease); }
 .lv-tabs.inked .lv-tab-ink { opacity: 1; }
 .lv-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; background: var(--crimson); color: var(--cream); font: 600 9.5px var(--font-ui); letter-spacing: 0; }
-.lv-count.bump { animation: lv-bump .36s var(--lv-ease) backwards; }
+.lv-count.bump { animation: lv-bump var(--lv-slow) var(--lv-ease) backwards; }
 @keyframes lv-bump { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: none; } }
 @media (max-width: 360px) { .lv-tab { font-size: 9px; letter-spacing: .1em; } }
 
@@ -136,28 +143,26 @@
 .lv-day .lv-ics { margin-left: auto; }   /* drops to its own right-aligned row on a narrow phone */
 /* frosted sticky bars: the program slides under the tabs and the day line instead of being cut off */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .lv-tabs, .lv-day { background: rgba(247,241,230,.92); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
+  .lv-tabs { background: rgba(247,241,230,.86); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
 }
 
 /* time blocks */
 .lv-block { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 14px 20px 0; }
-.lv-block-time { font: 600 17px/1.2 var(--font-ui); padding-top: 14px; letter-spacing: -.01em; transition: color var(--lv-fast) var(--lv-ease); }
+.lv-block-time { font: 600 17px/1.2 var(--font-ui); padding-top: 14px; letter-spacing: -.01em; }
 .lv-block-cards { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .lv-list { display: flex; flex-direction: column; gap: 12px; padding: 14px 20px 0; }
 @media (max-width: 380px) { .lv-block { grid-template-columns: 54px 1fr; gap: 10px; padding-left: 14px; padding-right: 14px; } .lv-block-time { font-size: 15px; } .lv-list, .lv-day, .lv-note, .lv-slots, .lv-empty, .lv-info-row, .lv-grid { padding-left: 14px; padding-right: 14px; } .lv-head, .lv-now-item, .lv-now-line { padding-left: 16px; padding-right: 16px; } }
 
 /* session card */
 .lv-card { background: var(--card); border: 1px solid var(--hair); border-left: 3px solid var(--ink); display: flex; flex-direction: column;
-           transition: border-color var(--lv-fast) var(--lv-ease), background-color var(--lv-fast) var(--lv-ease), box-shadow .22s var(--lv-ease), transform .22s var(--lv-ease), opacity .2s var(--lv-ease); }
+           transition: border-color var(--lv-fast) var(--lv-ease), background-color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease), transform var(--lv-fast) var(--lv-ease), opacity var(--lv-exit) var(--lv-ease); }
 .lv-card.going { border-left-color: var(--crimson); }
 .lv-card.mine { border-left-color: var(--gold); }
 .lv-card.light { background: transparent; border-left-width: 1px; border-left-color: var(--hair); }
 .lv-card.tbd { border-style: dashed; background: transparent; }
 .lv-card.tbd:not(.going):not(.mine) { border-left-width: 1px; border-left-color: rgba(25,21,18,.35); }
 .lv-list .lv-card.lv-leaving { opacity: 0; transform: scale(.98); pointer-events: none; }   /* tapped out of MY SCHEDULE */
-.lv-card-body { padding: 14px 16px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; transition: box-shadow var(--lv-fast) var(--lv-ease); }
-.lv-card-body:active { box-shadow: inset 0 0 0 999px rgba(25,21,18,.035); }
-.lv-card:has(> .lv-card-body:active) { transform: scale(.992); }
+.lv-card-body { padding: 14px 16px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; }
 .lv-card-body:focus-visible { outline-offset: -3px; }
 .lv-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .lv-when { font: 500 13px var(--font-ui); color: var(--soft); white-space: nowrap; padding-top: 3px; }
@@ -185,23 +190,21 @@
 /* THE toggle — one big ATTENDING switch, crimson when on */
 .lv-att { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 46px; padding: 0 18px; border: 1px solid rgba(25,21,18,.35); background: transparent; color: var(--ink);
           font: 600 11px var(--font-ui); letter-spacing: .18em; text-transform: uppercase; white-space: nowrap; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
-          transition: background-color var(--lv-fast) var(--lv-ease), color var(--lv-fast) var(--lv-ease), border-color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease), transform .15s var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
-.lv-att:active { transform: scale(.975); }
+          transition: background-color var(--lv-fast) var(--lv-ease), color var(--lv-fast) var(--lv-ease), border-color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease), transform var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
+.lv-att:active { transform: translateY(1px); }
 /* ON = in my schedule. Everything a guest registered for starts ON, so ON is the calm state: a crimson
    hairline + tint with a drawn check — the solid ink outline is the call to action (ADD TO MY SCHEDULE) */
 .lv-att.on { background: rgba(155,27,34,.07); color: var(--crimson); border-color: rgba(155,27,34,.5); }
 .lv-att.on::before { content: ''; width: 11px; height: 6px; border-left: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor;
   transform: translateY(-2px) rotate(-45deg); flex: none; }
-.lv-att.on.just::before { animation: lv-check .32s cubic-bezier(.22,1,.36,1) both; }
-.lv-att.on.just { animation: lv-pop .28s cubic-bezier(.22,1,.36,1); }   /* only the one just tapped moves */
+.lv-att.on.just::before { animation: lv-check var(--lv-slow) var(--lv-ease) backwards; }   /* only the one just tapped draws its check */
 @keyframes lv-check { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-@keyframes lv-pop { 0% { transform: scale(.96); } 60% { transform: scale(1.02); } 100% { transform: scale(1); } }
 .lv-att.ro { flex: none; min-height: 34px; padding: 0 12px; font-size: 9.5px; border-style: dashed; color: var(--soft); cursor: default; }   /* read-only: a quiet chip, never a full-width primary button */
 .lv-att.speak { border-color: rgba(201,169,98,.75); color: var(--gold-dark); cursor: default; }
 .lv-att.speak:active { transform: none; }
 .lv-att.compact { flex: none; min-height: 40px; padding: 0 12px; font-size: 10px; }
 .lv-att[aria-busy="true"] { opacity: .7; }
-.lv-att.wait { color: transparent; border-color: rgba(25,21,18,.14); cursor: progress; animation: lv-breathe 1.6s ease-in-out infinite; }   /* the ticket is being read (first visit): a placeholder, not a guess */
+.lv-att.wait { color: transparent; border-color: rgba(25,21,18,.14); cursor: progress; animation: lv-breathe 1.6s var(--lv-ease) infinite; }   /* the ticket is being read (first visit): a placeholder, not a guess */
 .lv-att.wait:active { transform: none; }
 .lv-card.light .lv-att { min-height: 40px; font-size: 10px; }
 .lv-retry { margin-top: 10px; }
@@ -211,7 +214,9 @@
 .lv-ics, .lv-links a, .lv-glance-map, .lv-refresh { position: relative; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
 .lv-ics::after, .lv-links a::after, .lv-glance-map::after, .lv-refresh::after {
   content: ''; position: absolute; left: 0; right: 0; top: calc(50% + 8px); height: 1px; background: currentColor; opacity: .6;
-  transform: scaleX(0); transform-origin: 0 50%; transition: transform .22s var(--lv-ease); pointer-events: none; }
+  transform: scaleX(0); transform-origin: 0 50%; transition: transform var(--lv-fast) var(--lv-ease); pointer-events: none; }
+/* touch: the grey tap flash is off (above), so the quiet links, ← PORTAL and the mail link dim while pressed */
+.lv-ics:active, .lv-links a:active, .lv-glance-map:active, .lv-refresh:active, .lv .lv-back:active, .lv-info-body a:active, .lv-glance-list a:active { opacity: .55; }
 .lv-ics::after { left: 4px; right: calc(4px + .16em); }
 .lv-glance-map::after { top: auto; bottom: -3px; }
 .lv-info-body a, .lv-glance-list a:not(.lv-glance-map) { text-decoration: underline 1px transparent; text-underline-offset: 3px; transition: text-decoration-color var(--lv-fast) var(--lv-ease); }
@@ -219,7 +224,7 @@
 /* skeleton (first paint before the cache or network): card-shaped bars under one slow sheen */
 .lv-sk { position: relative; overflow: hidden; display: block; background: rgba(25,21,18,.06); }
 .lv-sk::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%);
-                background: linear-gradient(90deg, transparent, rgba(253,250,243,.8) 50%, transparent); animation: lv-sheen 1.4s ease-in-out infinite; }
+                background: linear-gradient(90deg, transparent, rgba(253,250,243,.8) 50%, transparent); animation: lv-sheen 1.4s var(--lv-ease) infinite; }
 @keyframes lv-sheen { to { transform: translateX(100%); } }
 .lv-sk.card { display: flex; flex-direction: column; gap: 10px; min-height: 132px; padding: 16px; background: var(--card); border: 1px solid var(--hair); border-left: 3px solid rgba(25,21,18,.12); }
 .lv-sk.card > .lv-sk { height: 10px; }
@@ -233,7 +238,7 @@
 /* empty state */
 .lv-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 44px 20px; }
 .lv-empty.tall { min-height: 60vh; justify-content: center; }
-.lv-empty .lv-rule { animation: lv-draw .45s var(--lv-ease) .1s backwards; transform-origin: 50% 50%; }
+.lv-empty .lv-rule { animation: lv-draw var(--lv-slow) var(--lv-ease) .1s backwards; transform-origin: 50% 50%; }
 @keyframes lv-draw { from { transform: scaleX(0); } to { transform: none; } }
 .lv-empty-line { font: italic 400 19px/1.3 var(--font-display); color: var(--ink); }
 .lv-empty-why { font-size: 14px; color: var(--soft); max-width: 380px; line-height: 1.55; }
@@ -242,11 +247,13 @@
 .lv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px 20px 0; }
 @media (min-width: 560px) { .lv-grid { grid-template-columns: repeat(4, 1fr); } }
 .lv-person { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 14px 8px 12px; background: var(--card); border: 1px solid var(--hair); cursor: pointer; min-height: 150px;
-             transition: border-color var(--lv-fast) var(--lv-ease), box-shadow .22s var(--lv-ease), transform .22s var(--lv-ease); }
-.lv-person:active { transform: scale(.975); }
+             transition: border-color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease), transform var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
 .lv-person:focus-visible { outline-offset: 2px; }
 .lv-portrait { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; object-position: top; display: inline-flex; align-items: center; justify-content: center; background: var(--ink); color: var(--cream); font: 600 18px var(--font-ui); letter-spacing: .04em;
-               box-shadow: 0 0 0 3px var(--card), 0 0 0 3px rgba(201,169,98,0); transition: box-shadow .22s var(--lv-ease); }
+               box-shadow: 0 0 0 3px var(--card), 0 0 0 3px rgba(201,169,98,0); transition: box-shadow var(--lv-fast) var(--lv-ease); }
+/* a photo portrait also carries the shared image fade (app.css › img.mx-img-in), whose transition list would
+   otherwise replace this one and snap the gold ring */
+.lv img.lv-portrait { transition: opacity var(--t-reveal) var(--ease), box-shadow var(--lv-fast) var(--lv-ease); }
 .lv-person-name { font: 500 14px/1.2 var(--font-display); margin-top: 4px; transition: color var(--lv-fast) var(--lv-ease); }
 .lv-person-sub { font-size: 11px; color: var(--soft); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
@@ -266,34 +273,35 @@
 /* ---- sheet (session / speaker detail): a bottom sheet that slides up on phones, a centred card on desktop ---- */
 .lv-sheet-wrap { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
 .lv-sheet-wrap.closing { pointer-events: none; }   /* the page under a leaving sheet takes taps at once */
-.lv-scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .34s var(--lv-ease); }
+.lv-scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity var(--lv-slow) var(--lv-ease); }
+.lv-sheet-wrap.closing .lv-scrim { transition-duration: var(--lv-exit); }
 .lv-sheet-wrap.open .lv-scrim { opacity: 1; }
 .lv-sheet { display: flex; flex-direction: column; position: relative; width: 100%; max-width: 720px; max-height: 88vh; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--cream); color: var(--ink); border-top: 1px solid var(--gold);
-            transform: translateY(100%); transition: transform .44s var(--lv-ease); padding-bottom: env(safe-area-inset-bottom); font: 16px/1.5 var(--font-ui);
+            transform: translateY(100%); transition: transform var(--lv-slow) var(--lv-ease); padding-bottom: env(safe-area-inset-bottom); font: 16px/1.5 var(--font-ui);
             box-shadow: 0 -18px 40px -28px rgba(25,21,18,.5); }
 .lv-sheet-wrap.open .lv-sheet { transform: none; }
-.lv-sheet-wrap.closing .lv-sheet { transition-duration: .3s; }   /* leaves quicker than it arrives */
+.lv-sheet-wrap.closing .lv-sheet { transition-duration: var(--lv-exit); }   /* leaves quicker than it arrives */
 .lv-sheet.drag { transition: none; }
 .lv-sheet > .lv-sheet-head, .lv-sheet > .lv-sheet-foot { flex: none; }
 .lv-sheet > .lv-sheet-body { flex: 1 0 auto; }   /* a sheet held at its height keeps the foot at the bottom */
 /* a page turn inside the open sheet (a speaker's session, and ← back): scrim and sheet hold still, the page
    slides out and the next one in from the other side. Only the body moves (head and foot are sticky: they fade) */
-.lv-sheet > .lv-sheet-body, .lv-sheet > .lv-sheet-foot, .lv-sheet-head > .lv-eyebrow { transition: opacity .15s var(--lv-ease), transform .15s var(--lv-ease); }
+.lv-sheet > .lv-sheet-body, .lv-sheet > .lv-sheet-foot, .lv-sheet-head > .lv-eyebrow { transition: opacity var(--lv-exit) var(--lv-ease), transform var(--lv-exit) var(--lv-ease); }
 .lv-sheet.out-l > .lv-sheet-body { opacity: 0; transform: translateX(-16px); }
 .lv-sheet.out-r > .lv-sheet-body { opacity: 0; transform: translateX(16px); }
 .lv-sheet:is(.out-l, .out-r) > .lv-sheet-foot, .lv-sheet:is(.out-l, .out-r) .lv-sheet-head > .lv-eyebrow, .lv-sheet:is(.out-l, .out-r) .lv-sback { opacity: 0; }
-.lv-sheet.in-r > .lv-sheet-body { animation: lv-push-r .22s var(--lv-ease) backwards; }
-.lv-sheet.in-l > .lv-sheet-body { animation: lv-push-l .22s var(--lv-ease) backwards; }
-.lv-sheet:is(.in-r, .in-l) > .lv-sheet-foot, .lv-sheet:is(.in-r, .in-l) .lv-sheet-head > .lv-eyebrow, .lv-sheet:is(.in-r, .in-l) .lv-sback { animation: lv-fade .22s var(--lv-ease) backwards; }
+.lv-sheet.in-r > .lv-sheet-body { animation: lv-push-r var(--lv-slow) var(--lv-ease) backwards; }
+.lv-sheet.in-l > .lv-sheet-body { animation: lv-push-l var(--lv-slow) var(--lv-ease) backwards; }
+.lv-sheet:is(.in-r, .in-l) > .lv-sheet-foot, .lv-sheet:is(.in-r, .in-l) .lv-sheet-head > .lv-eyebrow, .lv-sheet:is(.in-r, .in-l) .lv-sback { animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }
 @keyframes lv-push-r { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 @keyframes lv-push-l { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
 @media (min-width: 761px) {
   .lv-sheet-wrap { align-items: center; padding: 24px; }
   .lv-scrim { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }   /* desktop: a light frost behind the card */
   .lv-sheet { max-width: 560px; border: 1px solid var(--hair); box-shadow: var(--shadow-sheet), 0 30px 60px -30px rgba(25,21,18,.35);
-              opacity: 0; transform: translateY(14px) scale(.985); transition: transform .4s var(--lv-ease), opacity .26s var(--lv-ease); }
+              opacity: 0; transform: translateY(10px); transition: transform var(--lv-slow) var(--lv-ease), opacity var(--lv-slow) var(--lv-ease); }
   .lv-sheet-wrap.open .lv-sheet { opacity: 1; transform: none; }
-  .lv-sheet-wrap.closing .lv-sheet { transition-duration: .22s; }
+  .lv-sheet-wrap.closing .lv-sheet { transition-duration: var(--lv-exit); }
 }
 .lv-sheet-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--hair); position: sticky; top: 0; background: var(--cream); z-index: 2; }
 @media (max-width: 760px) {
@@ -304,7 +312,7 @@
 .lv-sheet-head > .lv-eyebrow { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* ← back: a quiet twin of the close button, on the left */
 .lv-sback { flex: none; width: 44px; height: 44px; margin: 0 -8px 0 -13px; display: inline-flex; align-items: center; justify-content: center; color: var(--soft); cursor: pointer;
-            transition: color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease), opacity .15s var(--lv-ease); }
+            transition: color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease), opacity var(--lv-exit) var(--lv-ease); }
 .lv-sback svg { transition: transform var(--lv-fast) var(--lv-ease); }
 .lv-sback:active { box-shadow: inset 0 0 0 999px rgba(25,21,18,.07); }
 .lv-sback:focus-visible { outline-offset: -6px; }
@@ -323,7 +331,6 @@
 .lv-pp.big { gap: 16px; align-items: center; }
 .lv-mini { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--hair-soft); cursor: pointer; font-size: 14px; line-height: 1.35;
            transition: opacity var(--lv-fast) var(--lv-ease); }
-.lv-mini:active { opacity: .7; }
 .lv-mini:first-of-type { border-top: 0; }
 .lv-mini-time { font: 600 15px var(--font-ui); color: var(--crimson); }
 @media (max-width: 480px) { .lv-mini { grid-template-columns: 52px 1fr; row-gap: 8px; } .lv-mini > .lv-att { grid-column: 2; justify-self: start; } }   /* the title keeps the width */
@@ -331,26 +338,36 @@
 
 /* ---- hover (mouse / trackpad only — a phone never keeps a stuck hover) ---- */
 @media (hover: hover) {
-  .lv-back:hover { color: var(--cream); }
+  .lv .lv-back:hover { color: var(--cream); }
   .lv-chip:not(.on):not(.ghost):hover { border-color: rgba(247,241,230,.8); color: var(--cream); }
   .lv-chip.ghost:hover { color: var(--gold-hover); }
   .lv-tab:not(.on):hover { color: var(--ink); }
-  .lv-now-item:hover { box-shadow: inset 0 0 0 999px rgba(25,21,18,.025); }
+  .lv-tab:not(.on):hover::after { transform: none; }
+  .lv-now-item:hover { box-shadow: inset 0 0 0 999px var(--row-hover); }
   .lv-now-item:hover .lv-now-title, .lv-slot:hover .lv-slot-title, .lv-mini:hover .lv-mini-body b, .lv-card-body:hover .lv-card-title { text-decoration-color: rgba(155,27,34,.55); }
-  .lv-card:hover { border-top-color: rgba(25,21,18,.26); border-right-color: rgba(25,21,18,.26); border-bottom-color: rgba(25,21,18,.26);
-                   box-shadow: 0 16px 30px -24px rgba(25,21,18,.5), 0 2px 6px -4px rgba(25,21,18,.1); transform: translateY(-1px); }
-  .lv-card.light:hover, .lv-card.tbd:hover { background-color: var(--card); }
-  .lv-block:hover .lv-block-time { color: var(--crimson); }
   .lv-att:not(.on):not(.ro):not(.speak):not(.wait):hover { border-color: var(--ink); box-shadow: inset 0 0 0 999px rgba(25,21,18,.035); }
   .lv-att.on:not(.wait):hover { background: rgba(155,27,34,.12); border-color: rgba(155,27,34,.7); }
   .lv-ics:hover::after, .lv-links a:hover::after, .lv-glance-map:hover::after, .lv-refresh:hover::after { transform: none; }
-  .lv-ics:hover, .lv-links a:hover, .lv-glance-map:hover, .lv-refresh:hover { color: var(--crimson-hover); }
+  .lv-ics:hover, .lv-links a:hover, .lv-glance-map:hover, .lv-refresh:hover { color: var(--ink); }
   .lv-info-body a:hover, .lv-glance-list a:not(.lv-glance-map):hover { text-decoration-color: currentColor; }
-  .lv-person:hover { border-color: rgba(25,21,18,.4); box-shadow: 0 18px 32px -26px rgba(25,21,18,.55); transform: translateY(-2px); }
+  .lv-person:hover { border-color: rgba(25,21,18,.4); }
   .lv-person:hover .lv-portrait { box-shadow: 0 0 0 3px var(--card), 0 0 0 4px var(--gold); }
   .lv-person:hover .lv-person-name { color: var(--crimson); }
   .lv-x:hover, .lv-sback:hover { color: var(--ink); box-shadow: inset 0 0 0 999px rgba(25,21,18,.05); }
-  .lv-sback:hover svg { transform: translateX(-2px); }
+}
+/* cards: a session card (its body opens the sheet) and a speaker tile lift 2px on the shared lift shadow and,
+   pressed, settle most of the way back — the portals' card gesture. The light / TBD rows stay flat: a hover
+   underlines their title and nothing more (they sit quieter than the sessions around them) */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .lv-card:not(.light):not(.tbd):hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+  .lv-person:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+  .lv-sback:hover svg { transform: translateX(-2px); }   /* ← leans back, like the portals' trailing arrows lean on */
+  .lv-card:not(.light):not(.tbd):has(> .lv-card-body:active), .lv-person:active { transform: translateY(-1px); box-shadow: 0 10px 22px -18px rgba(25,21,18,.5); }
+}
+/* touch: no hover, so a card or a row answers the press itself (the portals' touch-card press) */
+@media (hover: none) {
+  .lv-card:has(> .lv-card-body:active), .lv-person:active, .lv-now-item:active, .lv-slot:active, .lv-mini:active { opacity: .86; }
+  .lv-tab:active { background-color: var(--row-hover); }
 }
 
 /* ---- wide screens (desktop browser, the Mac app): the program gets room and NOW / NEXT + YOUR SLOTS
@@ -382,5 +399,5 @@
 /* ---- reduced motion: every entrance, sheen, ping, slide and hover lift off; state changes stay instant ---- */
 @media (prefers-reduced-motion: reduce) {
   .lv *, .lv *::before, .lv *::after, .lv-sheet-wrap, .lv-sheet-wrap *, .lv-sheet-wrap *::before, .lv-sheet-wrap *::after { animation: none !important; transition: none !important; }
-  .lv-card:hover, .lv-person:hover, .lv-card:has(> .lv-card-body:active), .lv-person:active, .lv-att:active, .lv-chip:active { transform: none !important; }
+  .lv-card, .lv-person, .lv-att:active, .lv-chip:active { transform: none !important; }
 }

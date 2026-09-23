@@ -57,12 +57,18 @@
   --shadow-pop: 0 12px 30px rgba(32,27,22,.16);
   --shadow-lift: 0 12px 26px -16px rgba(32,27,22,.32);   /* a card raised by the pointer          */
 
-  /* motion — ONE language across both portals (2026-09-22 polish pass): a long, soft ease-out;
-     150–220 ms for hover / press / colour, 280–450 ms for entrances. Only opacity, transform,
-     colour, box-shadow and filter ever animate; everything stops for prefers-reduced-motion. */
+  /* motion — ONE language across both portals (the member tokens.css carries the same names and
+     values): a long, soft ease-out; 180 ms for hover / press / colour, 340 ms for entrances, 160 ms
+     for exits, 900 ms for slow drifts. Only opacity, transform, colour, box-shadow and filter ever
+     animate; everything stops for prefers-reduced-motion. --t-fast / --t-enter are the older admin
+     names for the same two durations (kept for inline styles in the views). */
   --ease: cubic-bezier(.22,1,.36,1);
-  --t-fast: .18s;                /* hover · press · colour                                */
-  --t-enter: .34s;               /* popovers · drawers · toasts · panels                  */
+  --t-quick: 180ms;              /* hover · press · colour                                */
+  --t-reveal: 340ms;             /* popovers · drawers · modals · toasts · panels          */
+  --t-exit: 160ms;               /* anything leaving: modal, popover, drawer               */
+  --t-drift: 900ms;              /* slow settles: a landing glow, a moved row              */
+  --t-fast: var(--t-quick);
+  --t-enter: var(--t-reveal);
 }
 
 /* ---- repeated utility vocabulary (only where the design repeats itself) ---- */
@@ -81,7 +87,7 @@
   display: inline-block; padding: 8px 14px; font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase;
   text-decoration: none; cursor: pointer; white-space: nowrap; border-radius: var(--radius); border: 0; line-height: normal; text-align: center; box-sizing: border-box;
 }
-.btn-primary, .btn-ghost, .btn-ink { transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform .12s var(--ease); }
+.btn-primary, .btn-ghost, .btn-ink { transition: background-color var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease), color var(--t-quick) var(--ease), transform var(--t-quick) var(--ease); }
 .btn-primary { background: var(--crimson); color: #fff; }
 .btn-ghost   { border: 1px solid rgba(32,27,22,.2); color: var(--ink); background: transparent; }
 .btn-ink     { background: var(--ink); color: var(--paper); }

@@ -51,9 +51,8 @@
    the pointer (one gesture — no light, no background drift), the drawn stub
    straightening, and the wallet tab cross-fade. A ticket row holds several
    actions (download, email, wallet), so the row itself never lifts — a lift
-   says "this whole thing is one link". Same language: ease
-   cubic-bezier(.22,1,.36,1) · 150–220 ms hover / press / colour · 280–450 ms
-   entrances · ≤ 900 ms drift · transform / opacity / colour / shadow only ·
+   says "this whole thing is one link". Same language: the tokens.css motion tokens: --ease · --t-quick hover / press / colour · --t-reveal
+   entrances · --t-drift for the slow photo zoom · transform / opacity / colour / shadow only ·
    hover only on hover-capable pointers · nothing moves under reduced motion.
    ========================================================================== */
 
@@ -66,47 +65,48 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .mx-me-screen [data-act] {
-    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
-                border-color .18s cubic-bezier(.22,1,.36,1), box-shadow .18s cubic-bezier(.22,1,.36,1),
-                opacity .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease),
+                border-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease),
+                opacity var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
   }
   .mx-me-screen .mx-me-btn {
-    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
-                border-color .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease),
+                border-color var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
   }
   .mx-me-btn:active:not([aria-disabled="true"]) { transform: translateY(1px); }
 
   /* the page arrives: intro lines settle one after another, the card rises in its lamplit panel */
-  .mx-me-intro > * { animation: mx-me-rise .36s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-me-intro > * { animation: mx-me-rise var(--t-reveal) var(--ease) backwards; }
   .mx-me-intro > :nth-child(2) { animation-delay: .04s; }
   .mx-me-intro > :nth-child(3) { animation-delay: .08s; }
   .mx-me-intro > :nth-child(4) { animation-delay: .11s; }
   .mx-me-intro > :nth-child(5) { animation-delay: .14s; }
-  .mx-me-tilt { animation: mx-me-rise .42s cubic-bezier(.22,1,.36,1) .06s backwards; }
+  .mx-me-tilt { animation: mx-me-rise var(--t-reveal) var(--ease) .06s backwards; }
   /* the hero carries its own finer entrance — out of the shared grid cascade (app.css), which would lift
      the whole intro column and the card panel on top of it */
   #view.mx-enter .mx-me-hero > * { animation: none; }
-  .mx-me-certhead > * { animation: mx-me-rise .36s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-me-certhead > * { animation: mx-me-rise var(--t-reveal) var(--ease) backwards; }
   .mx-me-certhead > :nth-child(2) { animation-delay: .04s; }
   .mx-me-certhead > :nth-child(3) { animation-delay: .08s; }
   .mx-me-certhead > :nth-child(4) { animation-delay: .11s; }
   /* CURRENT TICKETS ⇄ PAST PURCHASES: the new list cross-fades in (me.js adds .mx-me-swap on the switch) */
-  .mx-me-swap { animation: mx-me-fade .3s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-me-swap { animation: mx-me-fade var(--t-reveal) var(--ease) backwards; }
 
-  .mx-ghost-ticket { transition: transform .45s cubic-bezier(.22,1,.36,1); }
+  .mx-ghost-ticket { transition: transform var(--t-reveal) var(--ease); }
 }
 
 @media (hover: hover) {
   .mx-me-link:hover { color: #191512 !important; }
-  .mx-me-tab[aria-selected="false"]:hover { color: #191512 !important; background: rgba(25, 21, 18, .04) !important; }
+  .mx-me-tab[aria-selected="false"]:hover { color: #191512 !important; background: var(--row-hover) !important; }
   /* crimson CTAs without an artboard hover darken like every other crimson button */
   .mx-me-btn[style*="background:#9b1b22"]:hover { background: #7e151b !important; color: #f7f1e6 !important; }
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   /* tilt: follows the pointer quickly while it moves (.is-live), eases home when it leaves */
   .mx-me-tilt { --rx: 0deg; --ry: 0deg; transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
-    transition: transform .45s cubic-bezier(.22,1,.36,1); }
-  .mx-me-tilt.is-live { transition-duration: .15s; }
-  /* the drawn stub (an illustration, not a control) straightens under the pointer — no lift */
-  .mx-ghost-ticket:hover { transform: rotate(-.5deg); }
+    transition: transform var(--t-reveal) var(--ease); }
+  .mx-me-tilt.is-live { transition-duration: var(--t-quick); }
+  /* the drawn stub is an illustration, not a control: it never answers the pointer itself. It straightens
+     when the member reaches for the CTA under it (FIND YOUR SEAT), the one thing on the card that acts */
+  [data-block="wallet-list"]:has(.mx-me-btn:hover) .mx-ghost-ticket { transform: rotate(-.5deg); }
 }

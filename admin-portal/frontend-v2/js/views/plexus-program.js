@@ -64,7 +64,7 @@ const BTN_SOLID = 'padding:9px 14px;border:1px solid #201b16;background:#201b16;
 const BTN_OFF = 'padding:9px 14px;border:1px solid rgba(32,27,22,.2);background:#f6f2ea;color:#9a9083;font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:not-allowed;white-space:nowrap';
 const INPUT = 'border:1px solid rgba(32,27,22,.25);background:#fff;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;width:100%;box-sizing:border-box';
 const td = (v, extra) => `<td style="font-size:12.5px;padding:9px 10px;border-bottom:1px solid ${HAIR07};vertical-align:top;${extra || ''}">${v}</td>`;
-const pill = (t, bg, fg) => `<span style="display:inline-block;padding:3px 8px;border-radius:2px;background:${bg};color:${fg};font:600 9px Inter,sans-serif;letter-spacing:.1em;white-space:nowrap">${t}</span>`;
+const pill = (t, bg, fg) => `<span style="display:inline-block;padding:3px 8px;background:${bg};color:${fg};font:600 9px Inter,sans-serif;letter-spacing:.1em;white-space:nowrap">${t}</span>`;
 const STATE_PILL = {
   paid: ['#e6f1e8', '#1f5c2e'], 'unpaid-gala': ['#fbf1d9', '#7a5a0b'], free: ['#e9eef6', '#28466f'],
   held: ['#fbe4e4', '#9b1b22'], cancelled: ['#eee9e1', '#6d6459'], 'unpaid-only': ['#fbf1d9', '#7a5a0b']

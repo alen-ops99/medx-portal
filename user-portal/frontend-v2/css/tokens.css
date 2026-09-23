@@ -35,10 +35,10 @@
   --gutter: 36px;                      /* page gutter (desktop)                  */
   --gutter-m: 18px;                    /* page gutter (≤900px)                   */
   --drawer-w: 300px;
-  --ease-drawer: cubic-bezier(.22,1,.36,1);
+  --ease-drawer: var(--ease);
   --shadow-drawer: 12px 0 44px rgba(25,21,18,.4);
 
-  /* motion language — ONE easing and four durations for every surface (both portals):
+  /* motion language — ONE easing and four durations for every surface (both portals, the event app):
      quick = hover · press · colour (cards lift on it too); reveal = entrances · overlays · drawers ·
      sheets · toasts; exit = anything fading away; drift = slow photo zoom only. Hover, entrance and
      exit timings use these, never literals (only stagger delays and the slow-load hairline's creep are
@@ -51,8 +51,11 @@
   --t-drift: 900ms;
   --t-fast: var(--t-quick);
   --t-enter: var(--t-reveal);
-  --shadow-lift: 0 16px 30px -20px rgba(25,21,18,.5);   /* a clickable card, hovered */
+  --shadow-lift: 0 16px 30px -20px rgba(25,21,18,.5);   /* a clickable card, hovered (lifts 2px) */
   --shadow-sheet: 0 10px 34px rgba(25,21,18,.15);
+  /* a list row under the pointer (alerts, search results, thread list, directory, pickers). Translucent
+     ink, so it reads the same on the card cream and on the page cream */
+  --row-hover: rgba(25,21,18,.04);
 }
 
 /* ---- repeated utility vocabulary (only where the design repeats itself) ---- */

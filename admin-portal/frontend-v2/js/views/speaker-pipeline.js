@@ -410,7 +410,7 @@ function rerenderTitle() { rerender('[data-block="title"]', blockTitle()); }
 // The sheet slides in once, when it OPENS; a redraw of the same card (its detail arriving, a status
 // change, a comment) keeps the very same sheet element and swaps only what is inside it — so a slide or
 // cross-fade still running carries on to its end and the sheet keeps its scroll; another card
-// cross-fades in, and closing slides it back out (css .mx-drawer.swap / .out).
+// cross-fades in on the same sheet, and closing slides it back out (css .mx-drawer.swap / .out).
 function morphSheet(cur, html) {
   const t = document.createElement('template'); t.innerHTML = html.trim();
   const next = t.content.firstElementChild;
@@ -428,10 +428,17 @@ function rerenderDrawer() {
   const was = cur ? cur.getAttribute('data-for') : null;
   if (cur && !html) {
     cur.setAttribute('data-block', 'drawer-leaving'); cur.classList.add('out');
-    setTimeout(() => cur.remove(), 220);
-  } else if (cur && was === String(st.open || '') && morphSheet(cur, html)) {
-    // same card — nothing replaced, nothing replayed
-  } else if (cur) { cur.outerHTML = html; const nu = host.querySelector('[data-block="drawer"]'); if (nu) nu.classList.add('swap'); }
+    setTimeout(() => cur.remove(), ui.reducedMotion() ? 0 : 200);
+  } else if (cur && morphSheet(cur, html)) {
+    // the sheet element stays — its slide never replays and it keeps its scroll. Another card: the
+    // content cross-fades in on the opaque sheet (css .mx-drawer.swap); the same card redrawn while that
+    // fade still runs carries it on (--swap-d) instead of starting it over
+    if (was !== String(st.open || '')) {
+      const sh = cur.querySelector(':scope > .mx-drawer-sheet'); if (sh) sh.scrollTop = 0;
+      cur.style.removeProperty('--swap-d'); cur.classList.remove('swap'); void cur.offsetWidth; cur.classList.add('swap');
+      cur._swapAt = Date.now(); clearTimeout(cur._swapT); cur._swapT = setTimeout(() => { cur.classList.remove('swap'); cur.style.removeProperty('--swap-d'); }, 420);
+    } else if (cur.classList.contains('swap')) cur.style.setProperty('--swap-d', -(Date.now() - (cur._swapAt || 0)) + 'ms');
+  } else if (cur) { cur.outerHTML = html; }
   else if (html) host.insertAdjacentHTML('beforeend', html);
   const nu = html && host.querySelector('[data-block="drawer"]');
   if (nu) nu.setAttribute('data-for', String(st.open || ''));
@@ -656,6 +663,9 @@ function bindRootListeners(root) {
   root.addEventListener('change', onChange);
   root.addEventListener('focusout', onBlur);
   root.addEventListener('keydown', onKey);
+  // Escape closes the drawer wherever focus is (after a mouse click it sits on <body>, outside the view)
+  const onDocKey = e => { if (e.key === 'Escape' && st.open && !(root.contains && root.contains(e.target))) closeDrawer(); };
+  document.addEventListener('keydown', onDocKey);
   root.addEventListener('dragstart', onDragStart);
   root.addEventListener('dragend', onDragEnd);
   root.addEventListener('dragover', onDragOver);
@@ -663,7 +673,7 @@ function bindRootListeners(root) {
   root.addEventListener('drop', onDrop);
   return () => {
     clearTimeout(qTimer);
-    root.removeEventListener('input', onInput); root.removeEventListener('change', onChange); root.removeEventListener('focusout', onBlur); root.removeEventListener('keydown', onKey);
+    root.removeEventListener('input', onInput); root.removeEventListener('change', onChange); root.removeEventListener('focusout', onBlur); root.removeEventListener('keydown', onKey); document.removeEventListener('keydown', onDocKey);
     root.removeEventListener('dragstart', onDragStart); root.removeEventListener('dragend', onDragEnd); root.removeEventListener('dragover', onDragOver); root.removeEventListener('dragleave', onDragLeave); root.removeEventListener('drop', onDrop);
   };
 }

@@ -111,12 +111,23 @@ const MENUS = {
 // the ⌘K hint in the search field names the chord this keyboard actually has
 const KBD = (() => { try { return /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || '') ? '⌘K' : 'Ctrl K'; } catch (e) { return '⌘K'; } })();
 // a panel that OPENS (its host was empty) gets the short fade-and-settle; a redraw of an open panel
-// (typing in the search field, a badge refresh) never replays it
-function fill(host, html) {
+// (typing in the search field, a badge refresh) never replays it; a panel that CLOSES fades out
+// (css .mx-pop-out, --t-exit — the member portal's popover exit) and is removed after it. `instant`
+// skips both: moving from one open nav group to the next swaps the panels at once (menubar mode), and
+// the phone drawer's accordion folds at once (a fading panel would hold its space).
+function fill(host, html, instant) {
   if (!host) return;
-  const was = !!host.firstElementChild;
+  const cur = host.firstElementChild;
+  const leaving = !!cur && cur.classList.contains('mx-pop-out');
+  clearTimeout(host._popOut);
+  if (!html && cur && !leaving && !instant && !inDrawer() && !reduceMotion()) {
+    cur.classList.remove('mx-pop-in'); cur.classList.add('mx-pop-out');
+    host._popOut = setTimeout(() => { if (cur.parentNode === host) host.innerHTML = ''; }, 170);
+    return;
+  }
+  if (!html && leaving) return;
   host.innerHTML = html;
-  if (!was && host.firstElementChild) host.firstElementChild.classList.add('mx-pop-in');
+  if ((!cur || leaving) && host.firstElementChild && !instant) host.firstElementChild.classList.add('mx-pop-in');
 }
 const isHoverDevice = () => { try { return window.matchMedia('(hover: hover) and (pointer: fine)').matches; } catch (e) { return true; } };
 const inDrawer = () => document.body.classList.contains('menu-open');
@@ -232,7 +243,9 @@ function navItem(n) {
   const locked = n.menu ? !rows.length : !!(n.sections && !perms.canAny(n.sections));
   // a group lands on its first visible row when its usual door is locked for this admin
   const to = n.menu && rows.length && !rows.some(r => r.to === n.to) ? rows[0].to : n.to;
-  const inner = `${n.red ? '<span style="width:6px;height:6px;border-radius:50%;background:#9b1b22;margin-right:7px;flex:none"></span>' : ''}${n.label}${badgePair(n, s)}${n.menu ? '<span class="mx-caret" style="font-size:8px;margin-left:5px;opacity:.7">▾</span>' : ''}`;
+  // a group with count pills already has the row's 6 px gap before its caret — it sits as close to its
+  // last pill as the other carets sit to their label
+  const inner = `${n.red ? '<span style="width:6px;height:6px;border-radius:50%;background:#9b1b22;margin-right:7px;flex:none"></span>' : ''}${n.label}${badgePair(n, s)}${n.menu ? `<span class="mx-caret" style="font-size:8px;margin-left:${n.badge ? '-1px' : '5px'};opacity:.7">▾</span>` : ''}`;
   const style = (on ? NAV_ON : NAV_OFF) + (n.badge ? ';gap:6px' : '') + (n.red ? ';color:#9b1b22' : '');
   const title = locked ? ` title="${esc(COPY.menu.locked)}"` : (n.eventDayOnly ? ' title="Event Day — the control room is live today"' : '');
   if (n.menu) {
@@ -273,12 +286,19 @@ function searchResults() {
       ${a.gated ? `<div style="font-size:11px;color:#6d6459;margin-top:6px">${COPY.search.gated}</div>` : ''}
     </div>`;
   }
-  const askRow = !a && !searchState.busy ? `<div class="mx-pop-row" data-act="ask"><span class="mx-pop-kind">ASK</span><span style="flex:1;min-width:0">“${esc(q)}” — ask the assistant ↵</span></div>` : '';
-  return `<div class="mx-pop" role="listbox" data-stop="1" style="left:auto;right:0;width:min(320px,calc(100vw - 32px))">
-    ${rows.map(r => `<a href="${esc(r.href)}" class="mx-pop-row" data-act="result" data-href="${esc(r.href)}"><span class="mx-pop-kind">${r.kind}</span><span style="flex:1;min-width:0">${esc(r.label)}</span></a>`).join('')}
+  const askRow = !a && !searchState.busy ? `<div class="mx-pop-row" data-act="ask" role="option" id="mx-sr-ask"><span class="mx-pop-kind">ASK</span><span style="flex:1;min-width:0">“${esc(q)}” — ask the assistant ↵</span></div>` : '';
+  // a real listbox: every row is an option with an id, so the field can name the highlighted one
+  // (aria-activedescendant, markSelection) and a screen reader follows ↑ / ↓; the typed words stand out
+  return `<div class="mx-pop" id="mx-search-list" role="listbox" aria-label="Results" data-stop="1" style="left:auto;right:0;width:min(320px,calc(100vw - 32px))">
+    ${rows.map((r, i) => `<a href="${esc(r.href)}" class="mx-pop-row" data-act="result" data-href="${esc(r.href)}" role="option" id="mx-sr-${i}"><span class="mx-pop-kind">${r.kind}</span><span style="flex:1;min-width:0">${hit(r.label, q)}</span></a>`).join('')}
     ${!rows.length && !a && !searchState.busy ? `<div class="mx-pop-note">${COPY.search.none}</div>` : ''}
     ${askRow}${assist}
   </div>`;
+}
+// the words the admin typed, picked out in a result label (escaped piece by piece)
+function hit(label, q) {
+  const s = String(label || ''), i = q ? s.toLowerCase().indexOf(String(q).toLowerCase()) : -1;
+  return i < 0 ? esc(s) : esc(s.slice(0, i)) + '<b class="mx-pop-hit">' + esc(s.slice(i, i + q.length)) + '</b>' + esc(s.slice(i + q.length));
 }
 function profileMenu() {
   const name = session.displayName();
@@ -308,7 +328,7 @@ function header() {
       <div style="flex:1"></div>
       <a href="/inbox/chat" class="mx-chat" title="${esc(COPY.chat.title)}" style="display:flex;align-items:center;gap:7px;border:1px solid rgba(32,27,22,.18);background:#fff;padding:7px 11px;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#201b16;white-space:nowrap;flex:none" data-hover="border-color:#201b16;color:#201b16"><span style="width:6px;height:6px;border-radius:50%;background:#2f7d4f"></span><span class="mx-chat-label">${COPY.chat.label}</span><span data-role="badge-chat" style="min-width:15px;height:15px;padding:0 4px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;display:${s.badges.chat > 0 ? 'inline-flex' : 'none'};align-items:center;justify-content:center">${s.badges.chat || 0}</span></a>
       <span class="mx-search" style="position:relative;flex:0 1 200px;min-width:70px">
-        <span class="mx-search-box${searchState.q ? ' has-q' : ''}"><span class="mx-search-glass" aria-hidden="true">⌕</span><input data-role="q" value="${esc(searchState.q)}" placeholder="${esc(COPY.search.placeholder)}" aria-label="Search or type a task" autocomplete="off" role="combobox" aria-expanded="${popover === 'search'}" aria-autocomplete="list" style="border:none;background:transparent;font-size:12px;color:#201b16;width:100%;min-width:0;padding:0"><kbd class="mx-kbd" aria-hidden="true">${KBD}</kbd></span>
+        <span class="mx-search-box${searchState.q ? ' has-q' : ''}"><span class="mx-search-glass" aria-hidden="true">⌕</span><input data-role="q" value="${esc(searchState.q)}" placeholder="${esc(COPY.search.placeholder)}" aria-label="Search or type a task" autocomplete="off" role="combobox" aria-controls="mx-search-list" aria-expanded="${popover === 'search'}" aria-autocomplete="list" style="border:none;background:transparent;font-size:12px;color:#201b16;width:100%;min-width:0;padding:0"><kbd class="mx-kbd" aria-hidden="true">${KBD}</kbd></span>
         <div data-role="search-pop">${popover === 'search' ? searchResults() : ''}</div>
       </span>
       <span style="position:relative;flex:none">
@@ -343,10 +363,10 @@ function renderSearchPop() {
 }
 // the keyboard highlight: ↑/↓ move it; with no explicit pick it rests on what Enter would open
 // (the first match — or ASK when the phrase reads as an instruction, note 14)
-function searchRows() { return Array.from(els.chrome.querySelectorAll('[data-role="search-pop"] .mx-pop-row')); }
+function searchRows() { return Array.from(els.chrome.querySelectorAll('[data-role="search-pop"] .mx-pop:not(.mx-pop-out) .mx-pop-row')); }
 function markSelection(scroll) {
   const rows = searchRows();
-  if (!rows.length) return;
+  if (!rows.length) { const q = els.chrome && els.chrome.querySelector('[data-role="q"]'); if (q) q.removeAttribute('aria-activedescendant'); return; }
   if (searchState.sel >= rows.length) searchState.sel = rows.length - 1;   // the list shrank under the pick
   let i = searchState.sel;
   if (i < 0) {
@@ -356,20 +376,37 @@ function markSelection(scroll) {
   }
   rows.forEach((r, n) => r.setAttribute('aria-selected', String(n === i)));
   const on = rows[i];
+  const q = els.chrome.querySelector('[data-role="q"]');
+  if (q) { if (on && on.id) q.setAttribute('aria-activedescendant', on.id); else q.removeAttribute('aria-activedescendant'); }
   if (on && scroll) { try { on.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
 }
 function renderMenuPop() { const host = els.chrome.querySelector('[data-role="menu-pop"]'); fill(host, popover === 'menu' ? profileMenu() : ''); const p = els.chrome.querySelector('[data-act="profile"]'); if (p) p.setAttribute('aria-expanded', String(popover === 'menu')); }
-// every group's dropdown host is redrawn from `popover` — one open at a time, the rest empty
-function renderNavPops() {
+// every group's dropdown host is redrawn from `popover` — one open at a time, the rest empty. `swap`:
+// another group's panel was already open, so the two trade places at once (no fade out, no drop in)
+function renderNavPops(swap) {
   els.chrome.querySelectorAll('[data-role="nav-pop"]').forEach(host => {
     const key = host.dataset.key, open = popover === 'nav:' + key;
-    fill(host, open ? navPanel(key) : '');
+    fill(host, open ? navPanel(key) : '', swap);
     const item = host.closest('.mx-nav-item'); if (item) item.classList.toggle('open', open);
     const a = item && item.querySelector('[data-act="navgroup"]'); if (a) a.setAttribute('aria-expanded', String(open));
   });
 }
-function openNav(key) { clearTimeout(hoverTimer); if (popover === 'nav:' + key) return; popover = 'nav:' + key; renderNavPops(); renderMenuPop(); renderSearchPop(); }
-function closePopover() { clearTimeout(hoverTimer); if (!popover) return; popover = null; renderSearchPop(); renderMenuPop(); renderNavPops(); }
+function openNav(key) {
+  clearTimeout(hoverTimer); if (popover === 'nav:' + key) return;
+  const swap = !inDrawer() && !!popover && popover.indexOf('nav:') === 0;   // the phone drawer's accordion still unfolds with its settle
+  popover = 'nav:' + key; renderNavPops(swap); renderMenuPop(); renderSearchPop();
+}
+function closePopover({ refocus } = {}) {
+  clearTimeout(hoverTimer); if (!popover) return;
+  const was = popover; popover = null; renderSearchPop(); renderMenuPop(); renderNavPops();
+  // keyboard closes (Escape) hand focus back to the trigger that opened the panel — the member portal's rule
+  if (!refocus) return;
+  const a = document.activeElement;
+  if (a && a !== document.body && !(a.closest && a.closest('[data-role="nav-pop"], .mx-pop'))) return;
+  const sel = was === 'menu' ? '[data-act="profile"]' : was === 'search' ? '[data-role="q"]' : `[data-act="navgroup"][data-nav-key="${String(was).replace(/^nav:/, '').replace(/"/g, '')}"]`;
+  const t = els.chrome && els.chrome.querySelector(sel);
+  if (t) { if (!t.hasAttribute('tabindex') && t.tagName === 'SPAN') t.setAttribute('tabindex', '0'); try { t.focus({ preventScroll: true }); } catch (e) { /* fine */ } }
+}
 
 function onSearchInput(e) {
   searchState.q = e.target.value; searchState.assistant = null; searchState.busy = false; searchState.sel = -1;
@@ -486,7 +523,7 @@ export const chrome = {
     els.overlays = document.getElementById('chrome-overlays');
     ui.bind(els.chrome, handlers);
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { closePopover(); closeMenu(); return; }
+      if (e.key === 'Escape') { closePopover({ refocus: true }); closeMenu(); return; }
       // audit #10: "/" and ⌘K / Ctrl+K land the cursor in the search box. "/" steps aside
       // while any field has focus (people type slashes); the chord works from anywhere.
       const cmdK = (e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'k';

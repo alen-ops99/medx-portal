@@ -20,8 +20,6 @@ import { FACTS } from '../facts.js';
 import cfg from '../config.js';
 import { TOTAL_SCALE, activeCriteria, maxOf, weightOf, weightedTotal, fmtTotal, criteriaCardBody, criteriaHandlers, onCriteriaChange } from './_accel-criteria.js';
 
-// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
-const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
 
 export const SOURCE = 'Admin Accelerator Review.dc.html';
 
@@ -278,7 +276,7 @@ function blockStream() {
             <span style="width:28px;height:1px;background:#c9a962"></span>
             <span class="empty-line">${COPY.empty.line}</span>
             <span class="empty-why">${esc(COPY.empty.why(o))}</span>
-            <a href="${esc(cfg.memberPortalUrl)}/app/accelerator" target="_blank" rel="noopener" style="margin-top:8px;padding:9px 14px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#201b16;white-space:nowrap" data-hover="border-color:#201b16">${arr(COPY.empty.cta)}</a>
+            <a href="${esc(cfg.memberPortalUrl)}/app/accelerator" target="_blank" rel="noopener" style="margin-top:8px;padding:9px 14px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#201b16;white-space:nowrap" data-hover="border-color:#201b16">${COPY.empty.cta}</a>
           </div>
         </div>`}
         ${list.length ? `

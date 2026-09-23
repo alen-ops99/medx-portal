@@ -17,18 +17,17 @@
   [data-block="footer"]    { order: 8; }
 }
 
-/* ---- polish pass (2026-09-22): what the pointer finds on Today ---- */
-/* project cards lift (app.css .mx-lift); a crimson arrow slides in after the title — the card IS the link */
-.mx-card-go { display: inline-block; margin-left: 7px; font: 400 13px Inter, sans-serif; color: #9b1b22; opacity: 0; transform: translateX(-5px);
-  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
-@media (hover: hover) { .mx-card-link:hover .mx-card-go { opacity: 1; transform: none; } }
+/* ---- polish: what the pointer finds on Today ---- */
+/* project cards lift (app.css .mx-lift); the crimson arrow after the title is always there — the card IS
+   the link — and leans forward under the pointer like every trailing arrow (app.css .mx-arr) */
+.mx-card-go { display: inline-block; margin-left: 2px; font: 400 13px Inter, sans-serif; color: #9b1b22; }
 /* the registrations chart: the pointed-at day's bar stays full, the other days recede */
-[data-role="trBars"] rect { transition: opacity var(--t-fast) var(--ease); }
+[data-role="trBars"] rect { transition: opacity var(--t-quick) var(--ease); }
 [data-role="trBars"].hov rect { opacity: .3; }
 [data-role="trBars"].hov rect.on { opacity: 1; }
-[data-role="trTip"] { animation: mx-fade .16s var(--ease) both; }
+[data-role="trTip"] { animation: mx-fade var(--t-reveal) var(--ease) both; }   /* plays when the tip appears (display none → block), never per bar */
 /* attention rows warm up under the pointer, like every other list */
 @media (hover: hover) {
-  [data-block="attn"] [data-row] { transition: background-color var(--t-fast) var(--ease); }
+  [data-block="attn"] [data-row] { transition: background-color var(--t-quick) var(--ease); }
   [data-block="attn"] [data-row]:hover { background: var(--row-hover); }
 }

@@ -92,7 +92,7 @@
 /* scanner: square camera, one big button, code field + CHECK */
 .mx-ed-scan { display: flex; flex-direction: column; gap: 10px; }
 .mx-ed-phone .mx-ed-cam { width: 100% !important; height: auto !important; aspect-ratio: 1 / 1; max-height: 62vh; background: repeating-linear-gradient(45deg, #f6f2ea, #f6f2ea 8px, #efe9dc 8px, #efe9dc 16px); border: 1px solid rgba(32,27,22,.18); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-.mx-ed-phone .mx-ed-cam [data-role="camHint"] { font: 500 13px ui-monospace, monospace; color: #6d6459; max-width: 240px; text-align: center; line-height: 1.5; padding: 0 16px; }
+.mx-ed-phone .mx-ed-cam [data-role="camHint"] { font: 500 13px Inter, sans-serif; font-variant-numeric: tabular-nums; color: #6d6459; max-width: 240px; text-align: center; line-height: 1.5; padding: 0 16px; }
 .mx-ed-phone .mx-ed-cam .laser { position: absolute; left: 12%; right: 12%; top: 50%; height: 2px; background: rgba(155,27,34,.6); z-index: 2; }
 .mx-ed-phone .mx-ed-cam .corner { position: absolute; width: 26px; height: 26px; border: 2.5px solid rgba(246,242,234,.95); z-index: 2; mix-blend-mode: difference; }
 .mx-ed-phone .mx-ed-cam .corner.tl { left: 10%; top: 10%; border-right: 0; border-bottom: 0; }
@@ -156,7 +156,7 @@
 .mx-ed-sheet.bad { border-top-color: #9b1b22; }
 .mx-ed-sheet.warn { border-top-color: #c9a962; }
 @keyframes mx-ed-up { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
-@media (prefers-reduced-motion: no-preference) { .mx-ed-sheet { animation: mx-ed-up .32s cubic-bezier(.22,1,.36,1) both; } }
+@media (prefers-reduced-motion: no-preference) { .mx-ed-sheet { animation: mx-ed-up var(--t-reveal) var(--ease) backwards; } }
 .mx-ed-sheet .head { display: flex; flex-wrap: nowrap !important; align-items: center; gap: 10px; min-height: 36px; }
 .mx-ed-sheet .eyebrow { font: 600 10.5px Inter, sans-serif; letter-spacing: .16em; color: #6d6459; }
 .mx-ed-sheet .x { margin-left: auto; width: 44px; height: 44px; margin-right: -8px; display: flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; color: #6d6459; cursor: pointer; }
@@ -208,92 +208,23 @@
 .mx-ed-switch[aria-checked="false"] .mx-ed-knob { transform: translateX(0) !important; }
 .mx-ed-switch[aria-checked="false"] .mx-ed-switch-l { color: #6d6459 !important; }
 @media (prefers-reduced-motion: no-preference) {
-  .mx-ed-knob, .mx-ed-set .sw::after { transition: transform .2s cubic-bezier(.22,1,.36,1); }
+  .mx-ed-knob, .mx-ed-set .sw::after { transition: transform var(--t-quick) var(--ease); }
   .mx-ed-switch, .mx-ed-track, .mx-ed-switch-l, .mx-ed-set, .mx-ed-set .sw, .mx-ed-tab, .mx-ed-tab .n, .mx-ed-filter span, .mx-ed-more, .mx-ed-big, .mx-ed-cta, .mx-ed-prow, .mx-ed-search, .mx-ed-manual input {
-    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1), border-color .18s cubic-bezier(.22,1,.36,1), opacity .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
   }
   /* door mode: a big button or a row answers the thumb with a one-pixel press */
   .mx-ed-big:not(:disabled):not([aria-disabled="true"]):active, .mx-ed-cta:active, .mx-ed-set:active, .mx-ed-more:active { transform: translateY(1px); }
-  /* the scanner's laser breathes while it waits — the only loop on the page, slow and faint */
-  .mx-ed-laser, .mx-ed-phone .mx-ed-cam .laser { animation: mx-ed-breathe 2.4s ease-in-out infinite; }
+  /* the scanner's laser breathes only while the camera is really scanning (eventday.js marks the box
+     .is-live) — a line that pulsed over an idle, closed camera told the door staff it was reading */
+  .mx-ed-cam.is-live :is(.mx-ed-laser, .laser) { animation: mx-ed-breathe 1.2s var(--ease) infinite alternate; }
 }
-@keyframes mx-ed-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes mx-ed-breathe { from { opacity: .55; } to { opacity: 1; } }
 @media (hover: hover) {
   .mx-ed-set:hover { border-color: #201b16; }
   .mx-ed-switch:hover { border-color: #201b16 !important; }
-  .mx-ed-tab[aria-selected="false"]:hover, .mx-ed-filter span[aria-selected="false"]:hover { background: #f6f2ea; color: #201b16; }
-  .mx-ed-prow:hover { background: #fdfbf6; }
+  .mx-ed-tab[aria-selected="false"]:hover, .mx-ed-filter span[aria-selected="false"]:hover { background: var(--row-hover); color: #201b16; }
+  .mx-ed-prow:hover { background: var(--row-hover); }
   .mx-ed-more[aria-expanded="false"]:hover { border-color: #201b16; }
 }
 
-/* ============================================================================================
-   MOTION KIT · Projects surfaces (2026-09-22). The SAME block closes every Projects view css
-   (plexus-hub · accelerator-hub · accelerator-review · forum-hub · bridges-hub · big-ideas · gala ·
-   program · event-day · member-pages · links), so whichever file loads first carries it; copies are
-   identical and harmless. It EXTENDS the portal-wide motion in css/app.css ("MOTION & TOUCH": the
-   --ease / --t-fast tokens, data-hover glides, press dips, #view.mx-arrive + .mx-stagger entrances,
-   the reduced-motion stop) to what only these screens have. Hooks: the view root carries .mxpj; each
-   view's page column carries .mx-stagger, so its blocks settle in one after another on arrival.
-   Only opacity · transform · colour · box-shadow move; hover looks live under (hover: hover); every
-   transition / animation here sits under prefers-reduced-motion: no-preference. :where() keeps the
-   .mxpj scope out of the weight; the few !important rules (field focus / hover, ghost-button hover) skip
-   chromeless fields (transparent, borderless inputs that live inside their own box).
-   ============================================================================================ */
-@keyframes mxpj-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-@keyframes mxpj-swap { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-@keyframes mxpj-ok { from { box-shadow: 0 0 0 0 rgba(201,169,98,.6); } to { box-shadow: 0 0 0 8px rgba(201,169,98,0); } }
-.mxpj .mxpj-arr { display: inline-block; font-style: normal; }
-
-@media (prefers-reduced-motion: no-preference) {
-  /* the things app.css does not already glide: action spans without data-hover, rows, fields, arrows */
-  :where(.mxpj) :where(button, [data-act], [data-row], [role="tab"], .mxpj-arr) {
-    transition: color var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)), background-color var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)),
-                border-color var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)), box-shadow var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)),
-                opacity var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)), transform var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1));
-  }
-  /* arrival (app.css §8 staggers .mx-stagger children): a block that holds a KPI strip only fades —
-     its cells already rise on their own — and so does a block that holds a sticky panel or a fixed
-     layer (never a transform on an ancestor of sticky / fixed) */
-  #view.mx-arrive .mxpj .mx-stagger > :is(.mx-kpi, :has(.mx-kpi, .mx-sticky, .mx-pg-sheet, .mx-ed-sheetwrap, [style*="position:fixed"], [style*="position: fixed"], [style*="position:sticky"], [style*="position: sticky"])) { animation-name: mx-fade; }
-  /* data bars draw from their left edge as the screen arrives */
-  #view.mx-arrive .mxpj .mxpj-bar { transform-origin: left center; animation: mxpj-grow .42s var(--ease, cubic-bezier(.22,1,.36,1)) .08s backwards; }
-  /* confirmation — a label that just changed (COPIED …) settles in; a button also sends out one gold ring */
-  .mxpj .mxpj-swap { animation: mxpj-swap .24s var(--ease, cubic-bezier(.22,1,.36,1)); }
-  .mxpj .mxpj-ok { animation: mxpj-swap .24s var(--ease, cubic-bezier(.22,1,.36,1)), mxpj-ok .6s var(--ease, cubic-bezier(.22,1,.36,1)); }
-}
-
-/* focus — a paper field lifts to white under its crimson outline (the search box's own focus idiom);
-   a chromeless field inside a box is left to that box */
-:where(.mxpj) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):not([style*="background:transparent"]):not([style*="border:none"]):focus { background-color: #fff !important; }
-
-@media (hover: hover) {
-  /* hairline ghost buttons (the artboards' 20 / 25 % ink edge) darken it, with or without data-hover */
-  :where(.mxpj) [data-act][style*="border:1px solid rgba(32,27,22,.2)"]:not([aria-disabled="true"]):hover,
-  :where(.mxpj) [data-act][style*="border:1px solid rgba(32,27,22,.25)"]:not([aria-disabled="true"]):hover { border-color: #201b16 !important; }
-  /* fields answer the pointer before the click */
-  :where(.mxpj) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):not([style*="background:transparent"]):not([style*="border:none"]):not(:disabled):not(:focus):hover { border-color: rgba(32,27,22,.4) !important; }
-  /* list rows warm to paper; a door row (link / action) also shows a crimson edge */
-  :where(.mxpj [data-block] [data-row]:not(.card)):hover { background-color: #fdfbf6; }
-  :where(.mxpj) :is(a, [data-act]).mx-row:hover { box-shadow: inset 2px 0 0 #9b1b22; }
-  /* a KPI cell that opens a panel draws the same crimson hairline app.css gives the linked ones */
-  :where(.mxpj) .mx-kpi > [data-act]:hover { box-shadow: inset 0 2px 0 #9b1b22; }
-}
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  /* the arrow of a label leans toward where it goes */
-  :where(.mxpj) :is(a, [data-act], [data-nav]):hover .mxpj-arr { transform: translateX(3px); }
-  :where(.mxpj) :is(a, [data-act], [data-nav]):hover .mxpj-arr.ne { transform: translate(2px, -2px); }
-}
-/* sub-nav: the top bar's idiom one level down — a crimson hairline draws in under the destination you
-   point at, level with the current one's rule (bottom 1 px); keyboard focus gets the top bar's focus
-   look too — a paper column with that line drawn in — instead of a bar-tall outline box that hung
-   below the bar's hairline */
-@media (hover: hover) and (min-width: 961px) {
-  :where(.mxpj) .mx-subnav > a { position: relative; align-self: stretch; display: inline-flex; align-items: center; }
-  :where(.mxpj) .mx-subnav > a::after { content: ""; position: absolute; left: 0; right: 0; bottom: 1px; height: 1px; background: #9b1b22; transform: scaleX(0); transform-origin: left center; pointer-events: none; }
-  :where(.mxpj) .mx-subnav > a:hover::after, :where(.mxpj) .mx-subnav > a:focus-visible::after { transform: scaleX(1); }
-  :where(.mxpj) .mx-subnav > a:focus-visible { outline: none; background-color: #f6f2ea; box-shadow: -9px 0 0 #f6f2ea, 9px 0 0 #f6f2ea; color: #201b16 !important; }
-}
-@media (hover: hover) and (min-width: 961px) and (prefers-reduced-motion: no-preference) {
-  :where(.mxpj) .mx-subnav > a::after { transition: transform .3s var(--ease, cubic-bezier(.22,1,.36,1)); }
-}
-/* ---- /MOTION KIT ---- */
+/* the Projects motion kit (row warmth, field focus, sub-nav hover, arrival fades) lives once in css/app.css §10 */

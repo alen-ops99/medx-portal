@@ -1090,7 +1090,23 @@ function mineTpl() {
 
 // ---------------------------------------------------------------- behaviour
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
-function closeBio() { if (!st || !st.bio) return; st.bio = null; rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); }
+// the bio sheet closes like every modal (app.css › .mx-modal.is-leaving): the scrim and sheet fade out over
+// the exit timing, then the block is redrawn empty; focus returns to the card's VIEW BIO that opened it
+function closeBio() {
+  if (!st || !st.bio) return;
+  const id = st.bio; st.bio = null;
+  const scrim = rootEl && rootEl.querySelector('[data-role="bio-scrim"]');
+  const done = () => {
+    if (!rootEl || st.bio) return;                                   // re-opened meanwhile: leave the new sheet alone
+    rerender('[data-block="bio"]', '<div data-block="bio"></div>');
+    const back = rootEl.querySelector(`[data-act="vb"][data-id="${CSS.escape(id)}"]`);
+    const a = document.activeElement;
+    if (back && (!a || a === document.body)) { try { back.focus({ preventScroll: true }); } catch (e) {} }
+  };
+  if (!scrim || ui.reducedMotion()) return done();
+  scrim.classList.remove('mx-bio-in'); scrim.classList.add('is-leaving');
+  setTimeout(done, 170);
+}
 function openBioFocus() {
   const scrim = rootEl.querySelector('[data-role="bio-scrim"]');
   if (!scrim) return;
@@ -1138,7 +1154,7 @@ const handlers = {
     ui.bind(m.el, { pickEdition: (el) => { m.close(); const id = el.dataset.id; router.navigate(el.dataset.active === 'true' ? '/app/plexus' : `/app/plexus?edition=${encodeURIComponent(id)}`); } });
   },
   vb: (el) => { st.bio = el.dataset.id; rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); const sc = rootEl.querySelector('[data-role="bio-scrim"]'); if (sc) sc.classList.add('mx-bio-in'); openBioFocus(); },
-  bioClose: () => { st.bio = null; rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); },
+  bioClose: () => closeBio(),
   gallery: () => {
     const apiPhotos = D.photos || [];
     const imgs = apiPhotos.length

@@ -320,7 +320,7 @@ function sheet() {
   const cm = conflictMap();
   const others = (cm[s.id] || []).map(id => byId(id)).filter(Boolean);
   return `
-  <div class="mx-pg-sheet" data-block="sheet" role="dialog" aria-label="${esc(s.title || COPY.add.newTitle)}">
+  <div class="mx-pg-sheet" data-block="sheet" data-id="${esc(s.id)}" role="dialog" aria-label="${esc(s.title || COPY.add.newTitle)}">
     <div class="mx-pg-sheet-in">
       <div class="mx-pg-sheet-head">
         <span style="${micro};color:#6d6459">${esc(COPY.row.sheetEyebrow(s.start_time, KIND_LABEL[s.kind] || s.kind))}</span>
@@ -389,12 +389,27 @@ function rerenderRow(id) {
   cur.outerHTML = row(s, conflictMap(), i, rows.length);
   const ta = rootEl.querySelector(`[data-row="${CSS.escape(id)}"] textarea.mx-pr-desc`); if (ta) autosize(ta);
 }
+// The sheet slides in once, when it OPENS; a redraw (a save landing, a toggle, another session) keeps the
+// sheet element and swaps only what is inside it — the slide never replays and the sheet keeps its
+// scroll — and closing slides it back out (css .mx-pg-sheet.out): the Tasks / Speakers drawer pattern.
 function rerenderSheet() {
   const host = rootEl && rootEl.querySelector('.mx-program'); if (!host) return;
   const cur = host.querySelector('[data-block="sheet"]');
   if (cur && focusInside(cur)) { listDirty = true; return; }
   const html = sheet();
-  if (cur) { if (html) cur.outerHTML = html; else cur.remove(); }
+  if (cur && !html) {
+    cur.setAttribute('data-block', 'sheet-leaving'); cur.classList.add('out');
+    setTimeout(() => cur.remove(), ui.reducedMotion() ? 0 : 200);
+  } else if (cur) {
+    const t = document.createElement('template'); t.innerHTML = html.trim();
+    const next = t.content.firstElementChild;
+    const inCur = cur.querySelector(':scope > .mx-pg-sheet-in'), inNext = next && next.querySelector(':scope > .mx-pg-sheet-in');
+    if (inCur && inNext) {
+      if (cur.getAttribute('data-id') !== next.getAttribute('data-id')) inCur.scrollTop = 0;
+      Array.from(next.attributes).forEach(a => cur.setAttribute(a.name, a.value));
+      inCur.innerHTML = inNext.innerHTML;
+    } else cur.outerHTML = html;
+  }
   else if (html) host.insertAdjacentHTML('beforeend', html);
   document.body.classList.toggle('mx-pg-sheet-open', !!st.open);
   host.querySelectorAll('[data-block="sheet"] textarea.mx-pr-desc').forEach(autosize);

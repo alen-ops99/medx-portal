@@ -179,7 +179,7 @@ function threadRow(t, i) {
   const av = avatarOf(t);
   const when = t.archived ? `<span style="color:#6e5626">${COPY.archivedTag}</span>` : esc(whenLabel(t.last && t.last.created_at));
   return `
-      <div data-act="open" data-key="${esc(t.key)}" role="listitem" aria-current="${cur}" class="mx-msg-row" style="display:flex;gap:13px;align-items:flex-start;padding:14px 22px;cursor:pointer;border-top:1px solid rgba(25,21,18,.1);background:${cur ? 'rgba(201,169,98,.12)' : 'transparent'};border-left:2px solid ${cur ? '#c9a962' : 'transparent'}" data-hover="background:rgba(25,21,18,.04)">
+      <div data-act="open" data-key="${esc(t.key)}" role="listitem" aria-current="${cur}" class="mx-msg-row" style="display:flex;gap:13px;align-items:flex-start;padding:14px 22px;cursor:pointer;border-top:1px solid rgba(25,21,18,.1);background:${cur ? 'rgba(201,169,98,.12)' : 'transparent'};border-left:2px solid ${cur ? '#c9a962' : 'transparent'}"${cur ? '' : ' data-hover="background:var(--row-hover)"'}>
         <span style="width:36px;height:36px;background:${av.bg};color:${av.fg};display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;flex:none">${esc(threadInit(t))}</span>
         <span style="flex:1;min-width:0">
           <span style="display:flex;align-items:baseline;gap:8px">

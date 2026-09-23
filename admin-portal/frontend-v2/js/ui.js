@@ -118,8 +118,16 @@ function modal({ eyebrow = 'MED&X ADMIN', title = '', body = '', actions = [], c
       ${actions.length ? `<div class="mx-modal-foot">${actions.map((a, i) => `<span data-act="a${i}" role="button" tabindex="0" class="${a.kind === 'primary' ? 'btn-primary' : a.kind === 'ink' ? 'btn-ink' : 'btn-ghost'}">${esc(a.label)}</span>`).join('')}</div>` : ''}
     </div>`;
   let onclose = null;
-  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
-  const onKey = e => { if (e.key === 'Escape') { close(); if (onclose) onclose(); } };
+  // the modal fades out (160 ms, css .mx-modal.is-leaving — the member portal's close) — callers have
+  // already resolved; nothing waits on it. Reduced motion: gone at once.
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    if (!wrap.isConnected || wrap.classList.contains('is-leaving')) return;
+    if (reducedMotion()) { wrap.remove(); return; }
+    wrap.classList.add('is-leaving');
+    setTimeout(() => wrap.remove(), 170);
+  };
+  const onKey = e => { if (e.key === 'Escape' && !wrap.classList.contains('is-leaving')) { close(); if (onclose) onclose(); } };
   const handlers = { close: () => { close(); if (onclose) onclose(); } };
   actions.forEach((a, i) => { handlers['a' + i] = () => { const r = a.onClick ? a.onClick() : undefined; if (r !== false) close(); }; });
   bind(wrap, handlers);
@@ -185,11 +193,88 @@ function installDelegates() {
     if (el.matches('a, button, input, textarea, select')) return;
     e.preventDefault(); el.click();
   });
-  // make every actionable span reachable by keyboard without touching the copied markup
-  const observer = new MutationObserver(() => {
+  // iOS only applies :active (the press feedback in app.css) when a touchstart listener exists
+  document.addEventListener('touchstart', () => {}, { passive: true });
+  // make every actionable span reachable by keyboard without touching the copied markup; and, on
+  // whatever was just added, dress the trailing arrows (the member portal's observer, same helper)
+  const observer = new MutationObserver(records => {
     document.querySelectorAll('[data-act]:not([tabindex]):not(a):not(button):not(input):not(select):not(label), [data-nav]:not([tabindex]):not(a):not(button)').forEach(el => { el.setAttribute('tabindex', '0'); if (!el.getAttribute('role')) el.setAttribute('role', 'button'); });
+    for (const r of records) for (const n of r.addedNodes) {
+      if (n.nodeType === 3) { if (n.parentNode) dressArrows(n.parentNode); }
+      else if (n.nodeType === 1) dressArrows(n);
+    }
   });
   observer.observe(document.body, { childList: true, subtree: true });
+  dressArrows(document.body);
+}
+// A control whose label ends in → (or ↗) gets that arrow in its own span, so css can lean it forward on
+// hover and focus (app.css › .mx-arr) — the member portal's dressArrows, so both portals lean every
+// trailing arrow the same way and no view hand-wraps one. The label text keeps its own node; screen
+// readers skip the glyph. The space before the arrow becomes a no-break space: the arrow never wraps onto
+// a line of its own on a phone ("manage / →"), and it survives the edge of a flex item.
+const ARROWS = /\s*([→↗])\s*$/;
+const CONTROL = 'a[href], [data-act], [data-nav], button';
+function dressArrows(root) {
+  if (!root || typeof document.createTreeWalker !== 'function') return;
+  const hits = [];
+  const walk = document.createTreeWalker(root, 4 /* NodeFilter.SHOW_TEXT */);
+  if (root.nodeType === 3) hits.push(root);
+  for (let t = walk.nextNode(); t; t = walk.nextNode()) if (t.nodeValue.indexOf('→') >= 0 || t.nodeValue.indexOf('↗') >= 0) hits.push(t);
+  for (const t of hits) {
+    const m = ARROWS.exec(t.nodeValue); const p = t.parentElement;
+    if (!m || !p || p.classList.contains('mx-arr') || p.closest('input, textarea, select, option, script, style, svg, [contenteditable], .mx-arr')) continue;
+    const ctl = p.closest(CONTROL);
+    if (!ctl || !ctl.textContent.replace(/[→↗\s]/g, '')) continue;     // an arrow-only control keeps its glyph as its name
+    const at = m.index + m[0].indexOf(m[1]);
+    const gap = at > m.index ? ' ' : '';
+    const wrap = document.createElement('span');
+    const arr = document.createElement('span');
+    arr.className = 'mx-arr' + (m[1] === '↗' ? ' ne' : ''); arr.setAttribute('aria-hidden', 'true'); arr.textContent = m[1];
+    wrap.append(t.nodeValue.slice(0, m.index) + gap, arr, t.nodeValue.slice(at + 1));
+    t.replaceWith(wrap);
+    ctl.classList.add('mx-has-arr');      // the NEAREST control owns the lean (a whole-overlay [data-act] never does)
+  }
+}
+
+// ---------------------------------------------------------------- motion helpers
+// One motion language (css/tokens.css › --ease, --t-*); every helper is a no-op for reduced motion.
+function reducedMotion() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+}
+// A side panel whose file just opened settles in once, its blocks a few ms apart (app.css .mx-panel-in).
+// settle(panel) starts it; a view that redraws the panel — or one block inside it — while it is still
+// settling calls settle.carry(newNode): the entrance carries on from where it was (a negative delay,
+// --settle-d) instead of replaying from nothing (the Registrations history used to blink on every note).
+let settling = null;
+function settle(el) {
+  if (!el) return;
+  if (settling) { clearTimeout(settling.timer); settling.el.classList.remove('mx-panel-in'); }
+  el.style.removeProperty('--settle-d');
+  el.classList.add('mx-panel-in');
+  const s = settling = { el, at: Date.now() };
+  s.timer = setTimeout(() => { if (settling !== s) return; s.el.classList.remove('mx-panel-in'); s.el.style.removeProperty('--settle-d'); settling = null; }, 480);
+}
+settle.carry = function (node) {
+  const s = settling; if (!s || !node) return;
+  if (node.matches && node.matches('[data-block="panel"]')) { s.el = node; node.classList.add('mx-panel-in'); }
+  node.style.setProperty('--settle-d', -(Date.now() - s.at) + 'ms');
+};
+// One COPY confirmation for every copy control (Links, the Event Day door link, the Bridges press line,
+// the Forum codes and public link). The view redraws the control in its ✓ COPIED look; this sends one
+// gold ring from a button — or lets a text link's new word settle in (`word: true`) — on THAT element
+// only, never written into a template from state, so no later repaint replays it; announces it to
+// screen readers; and ~2.4 s later calls `revert` (the view clears its flag and puts the word back in
+// place). No toast as well: the control already says so.
+let copiedTimer = null, liveEl = null;
+function copied(el, revert, { word = false, say = 'Copied', ms = 2400 } = {}) {
+  if (el && el.isConnected) {
+    const cls = word ? 'mx-copied-word' : 'mx-copied';
+    el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+  }
+  if (!liveEl) { liveEl = document.createElement('span'); liveEl.className = 'mx-sr'; liveEl.setAttribute('role', 'status'); liveEl.setAttribute('aria-live', 'polite'); document.body.appendChild(liveEl); }
+  liveEl.textContent = ''; setTimeout(() => { if (liveEl) liveEl.textContent = say; }, 30);
+  clearTimeout(copiedTimer);
+  if (typeof revert === 'function') copiedTimer = setTimeout(() => { try { revert(); } catch (e) {} }, ms);
 }
 
 // Inline locked mini-state for a card whose data call answered 403 { section } (contract §3.4).
@@ -197,7 +282,7 @@ function lockedBlock(sectionLabel, note) {
   return `<div class="empty" data-v2="locked-block"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">Locked for you.</span><span class="empty-why">${esc(sectionLabel || 'This section')} needs access${note ? ' — ' + esc(note) : ' — ask Alen, he grants it per section.'}</span></div>`;
 }
 
-export const ui = { toast, modal, confirm, bind, installDelegates, lockedBlock, esc, fmt,
+export const ui = { toast, modal, confirm, bind, installDelegates, lockedBlock, esc, fmt, reducedMotion, settle, copied, dressArrows,
   lockScroll(on) { document.body.style.overflow = on ? 'hidden' : ''; },
   h(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 };

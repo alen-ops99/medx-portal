@@ -21,9 +21,10 @@
 }
 
 /* row hover — the artboard's list rows are plain; give pointer feedback only (hover-capable pointers,
-   so a tapped row on a phone never keeps a stuck wash) */
+   so a tapped row on a phone never keeps a stuck wash). The portal's one row tint (tokens.css --row-hover);
+   the rows carry no side padding, so the wash reaches 12 px past each edge by shadow, not by layout */
 @media (hover: hover) {
-  .mx-net-row:hover { background: rgba(253, 250, 243, .8); }
+  .mx-net-row:hover { background: var(--row-hover); box-shadow: -12px 0 0 var(--row-hover), 12px 0 0 var(--row-hover); }
 }
 
 /* keep the connect/message buttons from collapsing on narrow rows */
@@ -50,8 +51,8 @@
    fresh-results settle, the acknowledgement of the member's own action, and
    the search field's focus. A person card is not one link (it holds CONNECT
    and MESSAGE), so the card itself never lifts. Same language:
-   ease cubic-bezier(.22,1,.36,1) · 150–220 ms hover / press / colour ·
-   280–450 ms entrances · ≤ 900 ms drift · transform / opacity / colour /
+   the tokens.css motion tokens: --ease · --t-quick hover / press / colour ·
+   --t-reveal entrances · --t-drift for the slow photo zoom · transform / opacity / colour /
    shadow only · hover only on hover-capable pointers · nothing moves under
    reduced motion · entrances fill `backwards` (never held hidden after).
    ========================================================================== */
@@ -64,27 +65,27 @@
   /* colour changes glide (the rules below + controls without a data-hover); opacity/transform kept in the
      list so the shared press and image fade still ease on these elements */
   .mx-net-screen [data-act], .mx-net-row {
-    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
-                border-color .18s cubic-bezier(.22,1,.36,1), box-shadow .18s cubic-bezier(.22,1,.36,1),
-                opacity .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease),
+                border-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease),
+                opacity var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
   }
   /* press: every button settles a pixel under the finger / cursor */
-  .mx-net-screen .mx-net-act:active:not([aria-disabled="true"]) { transform: translateY(1px); }
+  .mx-net-screen .mx-net-act:active:not([aria-disabled="true"]):not([data-face=""]) { transform: translateY(1px); }
 
   /* the portrait drifts in slowly under the pointer (photo or monogram — the Home cards' pattern), and a
      monogram's gold frame firms up */
-  .mx-net-face img, .mx-net-face .mx-mono { transition: transform .9s cubic-bezier(.22,1,.36,1), opacity .42s cubic-bezier(.22,1,.36,1); }
-  .mx-net-face .mx-mono::after { transition: border-color .22s cubic-bezier(.22,1,.36,1); }
+  .mx-net-face img, .mx-net-face .mx-mono { transition: transform var(--t-drift) var(--ease), opacity var(--t-reveal) var(--ease); }
+  .mx-net-face .mx-mono::after { transition: border-color var(--t-quick) var(--ease); }
 
   /* new people (a search answer, a directory page): cards rise and rows fade in, inside half a second */
-  .mx-net-fresh .mx-net-card { animation: mx-net-rise .32s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-net-fresh .mx-net-card { animation: mx-net-rise var(--t-reveal) var(--ease) backwards; }
   .mx-net-fresh .mx-net-card:nth-child(2) { animation-delay: .03s; }
   .mx-net-fresh .mx-net-card:nth-child(3) { animation-delay: .06s; }
   .mx-net-fresh .mx-net-card:nth-child(4) { animation-delay: .09s; }
   .mx-net-fresh .mx-net-card:nth-child(5) { animation-delay: .11s; }
   .mx-net-fresh .mx-net-card:nth-child(6) { animation-delay: .13s; }
   .mx-net-fresh .mx-net-card:nth-child(n+7) { animation-delay: .14s; }
-  .mx-net-fresh .mx-net-row { animation: mx-net-fade .3s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-net-fresh .mx-net-row { animation: mx-net-fade var(--t-reveal) var(--ease) backwards; }
   .mx-net-fresh .mx-net-row:nth-child(2) { animation-delay: .02s; }
   .mx-net-fresh .mx-net-row:nth-child(3) { animation-delay: .04s; }
   .mx-net-fresh .mx-net-row:nth-child(4) { animation-delay: .06s; }
@@ -94,15 +95,15 @@
   .mx-net-fresh .mx-net-row:nth-child(n+8) { animation-delay: .14s; }
 
   /* the member's own action: the new button face fades up, a row takes a brief gold wash */
-  .mx-net-changed [data-act="connect"] { animation: mx-net-fade .28s cubic-bezier(.22,1,.36,1) var(--net-age, 0ms) backwards; }
-  .mx-net-row.mx-net-changed { animation: mx-net-wash .9s cubic-bezier(.22,1,.36,1) var(--net-age, 0ms) backwards; }
+  .mx-net-changed [data-act="connect"] { animation: mx-net-fade var(--t-reveal) var(--ease) var(--net-age, 0ms) backwards; }
+  .mx-net-row.mx-net-changed { animation: mx-net-wash var(--t-drift) var(--ease) var(--net-age, 0ms) backwards; }
 }
 
 @media (hover: hover) {
   /* a filled CONNECT / ACCEPT darkens like every crimson button; the outlined faces firm up to ink */
-  .mx-net-act[data-act="connect"][style*="background:#9b1b22"]:hover,
+  .mx-net-act[data-face="fill"]:hover,
   .mx-net-act[data-act="accept"]:hover { background: #7e151b !important; border-color: #7e151b !important; }
-  .mx-net-act[data-act="connect"][style*="background:transparent"]:hover { border-color: #191512 !important; color: #191512 !important; }
+  .mx-net-act[data-face="line"]:hover { border-color: #191512 !important; color: #191512 !important; }
   .mx-net-row [data-act="peek"]:hover { color: #9b1b22; }
   .mx-net-face:hover .mx-mono::after { border-color: rgba(201, 169, 98, .5); }
   .mx-net-search input:hover:not(:focus) { border-color: rgba(25, 21, 18, .5) !important; }
@@ -115,5 +116,5 @@
 .mx-net-search input { outline: 1px solid transparent; outline-offset: -1px; }
 .mx-net-search input:focus { outline-color: #9b1b22; }
 @media (prefers-reduced-motion: no-preference) {
-  .mx-net-search input { transition: border-color .18s cubic-bezier(.22,1,.36,1), outline-color .18s cubic-bezier(.22,1,.36,1); }
+  .mx-net-search input { transition: border-color var(--t-quick) var(--ease), outline-color var(--t-quick) var(--ease); }
 }

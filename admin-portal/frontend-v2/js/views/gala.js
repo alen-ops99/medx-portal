@@ -39,8 +39,6 @@ import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow } from '../facts.js';
 import router from '../router.js';
 
-// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
-const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
 
 export const SOURCE = 'Admin Gala.dc.html';
 
@@ -457,7 +455,7 @@ function blockTitle() {
     </div>
     <div style="flex:1"></div>
     <span data-act="kitchenCsv" style="padding:10px 15px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.csvBtn}</span>
-    <a href="/event-day" style="padding:11px 15px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${arr(COPY.eventDay)}</a>
+    <a href="/event-day" style="padding:11px 15px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.eventDay}</a>
   </div>
   <!-- /dc -->`;
 }
@@ -697,9 +695,9 @@ function blockPlanner() {
     <div style="display:flex;align-items:center;gap:8px;padding:13px 18px;border-bottom:1px solid rgba(32,27,22,.1);flex-wrap:wrap">
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.planner.title}</span>
       <div style="flex:1"></div>
-      <a href="${DVORANA_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#9b1b22;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#7e151b">${arr(COPY.planner.dvorana)}</a>
+      <a href="${DVORANA_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#9b1b22;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#7e151b">${COPY.planner.dvorana}</a>
       <label title="${COPY.planner.layoutTitle}" style="padding:6px 10px;border:1px solid #7a6432;background:#f8f1e2;color:#7a6432;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap;display:flex;align-items:center${st.layoutBusy ? ';opacity:.5;pointer-events:none' : ''}">${st.layoutBusy ? COPY.planner.importing : COPY.planner.layout}<input type="file" data-role="layoutFile" accept=".json,application/json" style="display:none"></label>
-      <a href="${PLANNER_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${arr(COPY.planner.open)}</a>
+      <a href="${PLANNER_URL}" target="_blank" rel="noopener" style="padding:6px 10px;background:#201b16;color:#f6f2ea;font:600 9px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.planner.open}</a>
       <label title="${COPY.planner.importTitle}" style="padding:6px 10px;border:1px solid rgba(32,27,22,.25);background:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap;display:flex;align-items:center${st.taBusy ? ';opacity:.5;pointer-events:none' : ''}" data-hover="border-color:#201b16">${st.taBusy ? COPY.planner.importing : COPY.planner.import}<input type="file" data-role="taFile" accept=".csv,text/csv,text/plain" style="display:none"></label>
     </div>
     ${st.taReport ? `<div style="padding:8px 18px;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#22563a">${esc(st.taReport)}</div>` : ''}
@@ -847,7 +845,7 @@ function blockNight() {
     <span style="font-size:12px;color:#4a4239;line-height:1.7">${schedLine}<br>${perfLine} ${COPY.night.line2}</span>
     <span style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
       <a href="/money" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">${COPY.night.money}</a>
-      <a href="/member-pages/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">${arr(COPY.night.memberPage)}</a>
+      <a href="/member-pages/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.13em">${COPY.night.memberPage}</a>
       <span data-act="perfFlip" data-v2="performers-flip" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${meta.performers_announced ? '#6d6459' : '#7a6432'};cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${meta.performers_announced ? COPY.night.tbaBtn : COPY.night.announceBtn}</span>
     </span>
   </div>

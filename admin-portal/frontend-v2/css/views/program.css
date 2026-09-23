@@ -15,7 +15,6 @@ select.mx-pin { padding-right: 22px; background-image: linear-gradient(45deg, tr
 /* ---- event chips ---- */
 .mx-pg-events { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
 .mx-pg-chip { position: relative; display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 14px; min-height: 44px; border: 1px solid rgba(32,27,22,.18); background: #fff; color: #201b16; cursor: pointer; max-width: 100%; box-sizing: border-box; }
-.mx-pg-chip:hover { border-color: #201b16; }
 .mx-pg-chip.on { background: #201b16; border-color: #201b16; color: #f6f2ea; }
 .mx-pg-chip.today { border-color: #9b1b22; }
 .mx-pg-chip-name { font: 600 10px Inter, sans-serif; letter-spacing: .13em; text-transform: uppercase; white-space: nowrap; }
@@ -50,7 +49,6 @@ select.mx-pin { padding-right: 22px; background-image: linear-gradient(45deg, tr
 .mx-pg-tab b { font: 600 11px Inter, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: inherit; }
 .mx-pg-tab i { font-style: normal; font-size: 11.5px; }
 .mx-pg-tab em { font: 600 9px Inter, sans-serif; font-style: normal; padding: 1px 5px; background: #eee9df; color: #4a4239; }
-.mx-pg-tab:hover { color: #201b16; }
 .mx-pg-tab.on { color: #201b16; border-bottom-color: #9b1b22; }
 .mx-pg-tab.on em { background: #9b1b22; color: #fff; }
 .mx-pg-bar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
@@ -65,10 +63,9 @@ select.mx-pin { padding-right: 22px; background-image: linear-gradient(45deg, tr
 .mx-pg-list { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .mx-pr { position: relative; padding: 10px 14px 10px 10px; border-left: 3px solid transparent; min-width: 0; }   /* transitions: polish block */
 .mx-pr, .mx-pr > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
-.mx-pr:hover { border-color: rgba(32,27,22,.3); }
 .mx-pr.tbd { border-left: 3px dashed #c9a962; }
 .mx-pr.draft { opacity: .72; }
-.mx-pr.draft:hover, .mx-pr.draft:focus-within { opacity: 1; }
+.mx-pr.draft:focus-within { opacity: 1; }
 .mx-pr.dragging { opacity: .4; }
 .mx-pr.over-top { box-shadow: 0 -3px 0 0 #9b1b22; }
 .mx-pr.over-bottom { box-shadow: 0 3px 0 0 #9b1b22; }
@@ -77,7 +74,6 @@ select.mx-pin { padding-right: 22px; background-image: linear-gradient(45deg, tr
 .mx-pr-handle:active { cursor: grabbing; }
 .mx-pr-order { display: flex; flex-direction: column; gap: 2px; }
 .mx-pr-order span { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 16px; font-size: 11px; color: #9a9086; cursor: pointer; line-height: 1; }
-.mx-pr-order span:hover { color: #201b16; }
 .mx-pr-order span[aria-disabled="true"] { opacity: .3; cursor: default; }
 .mx-pr-time { display: flex; align-items: center; gap: 4px; }
 .mx-pr-time i { font-style: normal; color: #9a9086; }
@@ -89,12 +85,10 @@ select.mx-pin { padding-right: 22px; background-image: linear-gradient(45deg, tr
 .mx-pr-att { display: inline-flex; align-items: baseline; gap: 3px; justify-content: center; min-height: 34px; padding: 0 6px; border: 1px solid rgba(32,27,22,.12); background: #fdfbf6; cursor: pointer; white-space: nowrap; line-height: 34px; }
 .mx-pr-att b { font: 600 13px Inter, sans-serif; color: #201b16; }
 .mx-pr-att i { font: 500 10px Inter, sans-serif; font-style: normal; color: #9a9086; }
-.mx-pr-att:hover { border-color: #201b16; }
 .mx-pr-att.over { border-color: #9b1b22; background: #f7e3e4; }
 .mx-pr-att.over b, .mx-pr-att.over i { color: #9b1b22; }
 .mx-pr-toggles { display: flex; gap: 4px; }
 .mx-tg { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 9px; border: 1px solid rgba(32,27,22,.18); background: #fff; color: #6d6459; font: 600 8.5px Inter, sans-serif; letter-spacing: .12em; cursor: pointer; white-space: nowrap; }
-.mx-tg:hover { border-color: #201b16; color: #201b16; }
 .mx-tg.on { background: #c9a962; border-color: #c9a962; color: #201b16; }
 .mx-tg.pub { min-width: 56px; }
 .mx-tg.pub.on { background: #1e6e42; border-color: #1e6e42; color: #fff; }
@@ -102,8 +96,6 @@ select.mx-pin { padding-right: 22px; background-image: linear-gradient(45deg, tr
 .mx-pr-names { font-size: 11.5px; color: #4a4239; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46%; }
 .mx-pr-names i { color: #9a9086; }
 .mx-pr-link { font: 600 8.5px Inter, sans-serif; letter-spacing: .13em; color: #6d6459; cursor: pointer; padding: 6px 0; }
-.mx-pr-link:hover { color: #201b16; }
-.mx-pr-link.danger:hover { color: #9b1b22; }
 .mx-tag-tbd { background: #f8f1e2; color: #7a6432; border: 1px dashed #c9a962; }
 .mx-pr-warn { display: inline-block; padding: 3px 7px; background: #fbf1dd; color: #8a5a10; border: 1px solid #e5c98a; font: 600 8.5px Inter, sans-serif; letter-spacing: .1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
 .mx-pr-more { display: none; margin-top: 12px; padding: 12px 0 4px 48px; border-top: 1px solid rgba(32,27,22,.08); flex-direction: column; gap: 12px; }
@@ -120,12 +112,10 @@ select.mx-pin { padding-right: 22px; background-image: linear-gradient(45deg, tr
 .mx-sp-chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px 4px 4px; background: #f8f1e2; color: #7a6432; font-size: 12px; max-width: 100%; }
 .mx-sp-chip img, .mx-sp-chip b, .mx-sp-hit img, .mx-sp-hit b { width: 24px; height: 24px; flex: none; object-fit: cover; display: inline-flex; align-items: center; justify-content: center; background: #201b16; color: #f6f2ea; font: 600 9px Fraunces, serif; }
 .mx-sp-chip .mx-x { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: #a08a52; cursor: pointer; font: 400 15px Inter, sans-serif; line-height: 1; }
-.mx-sp-chip .mx-x:hover { color: #9b1b22; }
 .mx-sp-find { position: relative; min-width: 0; }
 .mx-sp-hits { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; background: #fff; border: 1px solid rgba(32,27,22,.18); box-shadow: 0 12px 30px rgba(32,27,22,.16); max-height: 260px; overflow-y: auto; }
 .mx-sp-hits:empty { display: none; }
 .mx-sp-hit { display: flex; align-items: center; gap: 10px; padding: 8px 10px; cursor: pointer; min-height: 44px; box-sizing: border-box; }
-.mx-sp-hit:hover { background: #fdfbf6; }
 .mx-sp-hit > span { display: flex; flex-direction: column; min-width: 0; }
 .mx-sp-hit .n { font-size: 13px; font-weight: 600; color: #201b16; }
 .mx-sp-hit .i { font-size: 11px; color: #6d6459; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -216,110 +206,63 @@ body.mx-pg-sheet-open { overflow: hidden; }
   .mx-pg-sheet-body { padding: 14px 14px 28px; }
 }
 
-/* ---- polish 2026-09-22 (behaviour only) ----------------------------------------------------------- */
-/* rows: the pointer lifts a row off the paper with a soft shadow (never while a drop line shows) */
+/* ---- polish (behaviour only) ---------------------------------------------------------------------- */
+/* every pointer look lives under (hover: hover) — the editor has a phone layout with 44 px targets, and a
+   tap used to leave a dark hover border stuck on TBD, COUNTS or a chip */
 @media (hover: hover) {
-  .mx-pr:hover:not(.over-top):not(.over-bottom):not(.dragging) { box-shadow: var(--shadow-lift, 0 12px 26px -16px rgba(32,27,22,.32)); }
-  .mx-pr-handle:hover { color: #201b16; }
-  .mx-pg-chip:not(.on):hover { box-shadow: var(--shadow-lift, 0 12px 26px -16px rgba(32,27,22,.32)); }
-  .mx-pg-tab:not(.on):hover::after { transform: scaleX(1); }
+  .mx-pg-chip:not(.on):hover, .mx-pr-att:hover { border-color: #201b16; }
+  .mx-pg-tab:hover, .mx-pr-order span:not([aria-disabled="true"]):hover, .mx-pr-link:hover, .mx-pr-handle:hover { color: #201b16; }
+  .mx-pr-link.danger:hover, .mx-sp-chip .mx-x:hover { color: #9b1b22; }
+  .mx-tg:not(.on):hover { border-color: #201b16; color: #201b16; }
+  .mx-sp-hit:not(.none):hover { background: var(--row-hover); }
   .mx-sp-chip:hover { background: #f1e7d4; }
+  .mx-pr.draft:hover { opacity: 1; }
+  /* rows: the pointer lifts a row off the paper with the lift shadow (never while a drop line shows) */
+  .mx-pr:hover { border-color: rgba(32,27,22,.3); }
+  .mx-pr:hover:not(.over-top):not(.over-bottom):not(.dragging) { box-shadow: var(--shadow-lift); }
+  .mx-pg-tab:not(.on):hover::after { transform: scaleX(1); }
 }
-/* day tabs: the top bar's idiom — a crimson hairline draws in under the day you point at, a preview of
-   the current day's 2 px rule */
+/* day tabs: the tab hover of every strip in both portals — a crimson hairline (1 px, ~.45) draws in from
+   the left under the day you point at, a preview of the current day's 2 px rule; keyboard focus draws it
+   at full strength */
 .mx-pg-tab { position: relative; }
-.mx-pg-tab:not(.on)::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: #9b1b22; transform: scaleX(0); transform-origin: left center; pointer-events: none; }
-/* drag: the lifted card goes dashed and faint; the drop line is the crimson rule it already had */
+.mx-pg-tab:not(.on)::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: #9b1b22; opacity: .45; transform: scaleX(0); transform-origin: 0 50%; pointer-events: none; }
+.mx-pg-tab:not(.on):focus-visible::after { transform: scaleX(1); opacity: 1; }
+/* drag: the lifted card goes dashed and faint; the drop line is the crimson rule it already had, and it
+   follows the pointer at once (a 220 ms box-shadow glide made the insertion line lag behind the drag) */
 .mx-pr.dragging { outline: 1px dashed rgba(32,27,22,.35); outline-offset: -1px; }
+.mx-pr.over-top, .mx-pr.over-bottom { transition-duration: 0s !important; }
 .mx-pr-handle:active { cursor: grabbing; color: #9b1b22; }
+/* the edit sheet: a closing sheet takes no taps while it slides away */
+.mx-pg-sheet.out, .mx-pg-sheet.out > .mx-pg-sheet-in { pointer-events: none; }
 /* a row that just moved (arrow or drag) flashes gold and settles; a switch that just flipped rings once.
    --fx is the negative delay the view sets so a redraw carries the animation on instead of restarting it */
 @keyframes mx-pr-moved { from { background-color: #f8f1e2; box-shadow: 0 0 0 1px #c9a962, 0 14px 28px -18px rgba(32,27,22,.45); } to { background-color: #fff; box-shadow: 0 0 0 1px rgba(201,169,98,0), 0 0 0 0 rgba(32,27,22,0); } }
-@keyframes mx-pg-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes mx-pg-up { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* the sheet slides in from the edge like the Tasks / Speakers drawers (36 px; 22 px up on a phone) and
+   back out on close (program.js rerenderSheet keeps the element across redraws — never a replay) */
+@keyframes mx-pg-in { from { transform: translateX(36px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes mx-pg-out { from { transform: none; opacity: 1; } to { transform: translateX(36px); opacity: 0; } }
+@keyframes mx-pg-up { from { transform: translateY(22px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes mx-pg-down { from { transform: none; opacity: 1; } to { transform: translateY(22px); opacity: 0; } }
 @media (prefers-reduced-motion: no-preference) {
-  .mx-pr { transition: border-color .18s cubic-bezier(.22,1,.36,1), box-shadow .22s cubic-bezier(.22,1,.36,1), opacity .18s cubic-bezier(.22,1,.36,1); }
-  .mx-pr.moved { animation: mx-pr-moved .9s cubic-bezier(.22,1,.36,1) var(--fx, 0ms); }
-  .mx-tg.flip { animation: mxpj-ok .6s cubic-bezier(.22,1,.36,1) var(--fx, 0ms); }
+  .mx-pr { transition: border-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); }
+  .mx-pr.moved { animation: mx-pr-moved var(--t-drift) var(--ease) var(--fx, 0ms); }
+  .mx-tg.flip { animation: mx-ring var(--t-drift) var(--ease) var(--fx, 0ms); }
   .mx-pg-chip, .mx-pg-tab, .mx-tg, .mx-pr-att, .mx-pr-link, .mx-pr-order span, .mx-pr-handle, .mx-sp-chip, .mx-sp-hit, .mx-pin {
-    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1), border-color .18s cubic-bezier(.22,1,.36,1), box-shadow .22s cubic-bezier(.22,1,.36,1);
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
   }
-  .mx-pg-tab::after { transition: transform .3s var(--ease, cubic-bezier(.22,1,.36,1)); }
-  .mx-pg-sheet > .mx-pg-sheet-in { animation: mx-pg-in .32s cubic-bezier(.22,1,.36,1) both; }
-  .mx-tg:active, .mx-pg-chip:active { transform: translateY(1px); }
+  .mx-pg-tab::after { transition: transform var(--t-quick) var(--ease); }
+  .mx-pg-sheet { animation: mx-fade var(--t-reveal) var(--ease) backwards; }
+  .mx-pg-sheet > .mx-pg-sheet-in { animation: mx-pg-in var(--t-reveal) var(--ease) backwards; }
+  .mx-pg-sheet.out { animation: mx-fade-out var(--t-exit) var(--ease) forwards; }
+  .mx-pg-sheet.out > .mx-pg-sheet-in { animation: mx-pg-out var(--t-exit) var(--ease) forwards; }
+  .mx-tg:active, .mx-pg-chip:active, .mx-pr-order span:not([aria-disabled="true"]):active { transform: translateY(1px); }
 }
 @media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
   .mx-pg-sheet > .mx-pg-sheet-in { animation-name: mx-pg-up; }
+  .mx-pg-sheet.out > .mx-pg-sheet-in { animation-name: mx-pg-down; }
 }
+/* touch: a compact row card answers the press itself */
+@media (hover: none) { .mx-pr-compact:active { opacity: .86; } }
 
-/* ============================================================================================
-   MOTION KIT · Projects surfaces (2026-09-22). The SAME block closes every Projects view css
-   (plexus-hub · accelerator-hub · accelerator-review · forum-hub · bridges-hub · big-ideas · gala ·
-   program · event-day · member-pages · links), so whichever file loads first carries it; copies are
-   identical and harmless. It EXTENDS the portal-wide motion in css/app.css ("MOTION & TOUCH": the
-   --ease / --t-fast tokens, data-hover glides, press dips, #view.mx-arrive + .mx-stagger entrances,
-   the reduced-motion stop) to what only these screens have. Hooks: the view root carries .mxpj; each
-   view's page column carries .mx-stagger, so its blocks settle in one after another on arrival.
-   Only opacity · transform · colour · box-shadow move; hover looks live under (hover: hover); every
-   transition / animation here sits under prefers-reduced-motion: no-preference. :where() keeps the
-   .mxpj scope out of the weight; the few !important rules (field focus / hover, ghost-button hover) skip
-   chromeless fields (transparent, borderless inputs that live inside their own box).
-   ============================================================================================ */
-@keyframes mxpj-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-@keyframes mxpj-swap { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-@keyframes mxpj-ok { from { box-shadow: 0 0 0 0 rgba(201,169,98,.6); } to { box-shadow: 0 0 0 8px rgba(201,169,98,0); } }
-.mxpj .mxpj-arr { display: inline-block; font-style: normal; }
-
-@media (prefers-reduced-motion: no-preference) {
-  /* the things app.css does not already glide: action spans without data-hover, rows, fields, arrows */
-  :where(.mxpj) :where(button, [data-act], [data-row], [role="tab"], .mxpj-arr) {
-    transition: color var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)), background-color var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)),
-                border-color var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)), box-shadow var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)),
-                opacity var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1)), transform var(--t-fast, .18s) var(--ease, cubic-bezier(.22,1,.36,1));
-  }
-  /* arrival (app.css §8 staggers .mx-stagger children): a block that holds a KPI strip only fades —
-     its cells already rise on their own — and so does a block that holds a sticky panel or a fixed
-     layer (never a transform on an ancestor of sticky / fixed) */
-  #view.mx-arrive .mxpj .mx-stagger > :is(.mx-kpi, :has(.mx-kpi, .mx-sticky, .mx-pg-sheet, .mx-ed-sheetwrap, [style*="position:fixed"], [style*="position: fixed"], [style*="position:sticky"], [style*="position: sticky"])) { animation-name: mx-fade; }
-  /* data bars draw from their left edge as the screen arrives */
-  #view.mx-arrive .mxpj .mxpj-bar { transform-origin: left center; animation: mxpj-grow .42s var(--ease, cubic-bezier(.22,1,.36,1)) .08s backwards; }
-  /* confirmation — a label that just changed (COPIED …) settles in; a button also sends out one gold ring */
-  .mxpj .mxpj-swap { animation: mxpj-swap .24s var(--ease, cubic-bezier(.22,1,.36,1)); }
-  .mxpj .mxpj-ok { animation: mxpj-swap .24s var(--ease, cubic-bezier(.22,1,.36,1)), mxpj-ok .6s var(--ease, cubic-bezier(.22,1,.36,1)); }
-}
-
-/* focus — a paper field lifts to white under its crimson outline (the search box's own focus idiom);
-   a chromeless field inside a box is left to that box */
-:where(.mxpj) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):not([style*="background:transparent"]):not([style*="border:none"]):focus { background-color: #fff !important; }
-
-@media (hover: hover) {
-  /* hairline ghost buttons (the artboards' 20 / 25 % ink edge) darken it, with or without data-hover */
-  :where(.mxpj) [data-act][style*="border:1px solid rgba(32,27,22,.2)"]:not([aria-disabled="true"]):hover,
-  :where(.mxpj) [data-act][style*="border:1px solid rgba(32,27,22,.25)"]:not([aria-disabled="true"]):hover { border-color: #201b16 !important; }
-  /* fields answer the pointer before the click */
-  :where(.mxpj) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):not([style*="background:transparent"]):not([style*="border:none"]):not(:disabled):not(:focus):hover { border-color: rgba(32,27,22,.4) !important; }
-  /* list rows warm to paper; a door row (link / action) also shows a crimson edge */
-  :where(.mxpj [data-block] [data-row]:not(.card)):hover { background-color: #fdfbf6; }
-  :where(.mxpj) :is(a, [data-act]).mx-row:hover { box-shadow: inset 2px 0 0 #9b1b22; }
-  /* a KPI cell that opens a panel draws the same crimson hairline app.css gives the linked ones */
-  :where(.mxpj) .mx-kpi > [data-act]:hover { box-shadow: inset 0 2px 0 #9b1b22; }
-}
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  /* the arrow of a label leans toward where it goes */
-  :where(.mxpj) :is(a, [data-act], [data-nav]):hover .mxpj-arr { transform: translateX(3px); }
-  :where(.mxpj) :is(a, [data-act], [data-nav]):hover .mxpj-arr.ne { transform: translate(2px, -2px); }
-}
-/* sub-nav: the top bar's idiom one level down — a crimson hairline draws in under the destination you
-   point at, level with the current one's rule (bottom 1 px); keyboard focus gets the top bar's focus
-   look too — a paper column with that line drawn in — instead of a bar-tall outline box that hung
-   below the bar's hairline */
-@media (hover: hover) and (min-width: 961px) {
-  :where(.mxpj) .mx-subnav > a { position: relative; align-self: stretch; display: inline-flex; align-items: center; }
-  :where(.mxpj) .mx-subnav > a::after { content: ""; position: absolute; left: 0; right: 0; bottom: 1px; height: 1px; background: #9b1b22; transform: scaleX(0); transform-origin: left center; pointer-events: none; }
-  :where(.mxpj) .mx-subnav > a:hover::after, :where(.mxpj) .mx-subnav > a:focus-visible::after { transform: scaleX(1); }
-  :where(.mxpj) .mx-subnav > a:focus-visible { outline: none; background-color: #f6f2ea; box-shadow: -9px 0 0 #f6f2ea, 9px 0 0 #f6f2ea; color: #201b16 !important; }
-}
-@media (hover: hover) and (min-width: 961px) and (prefers-reduced-motion: no-preference) {
-  :where(.mxpj) .mx-subnav > a::after { transition: transform .3s var(--ease, cubic-bezier(.22,1,.36,1)); }
-}
-/* ---- /MOTION KIT ---- */
+/* the Projects motion kit (row warmth, field focus, sub-nav hover, arrival fades) lives once in css/app.css §10 */

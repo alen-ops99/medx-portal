@@ -512,7 +512,8 @@ function redraw(part) {
   if (!rootEl) return;
   const swap = (sel, html) => { const el = rootEl.querySelector(sel); if (el) el.outerHTML = html; };
   if (!part || part === 'list') swap('[data-block="list"]', listCard());
-  if (!part || part === 'panel') swap('[data-block="panel"]', panelCard());
+  // a file still settling in (ui.settle) carries its entrance on when enrich() redraws it ~240 ms later
+  if (!part || part === 'panel') { swap('[data-block="panel"]', panelCard()); ui.settle.carry(rootEl.querySelector('[data-block="panel"]')); }
   if (!part || part === 'passes') swap('[data-block="passes"]', passesCard());
   if (!part || part === 'dups') swap('[data-block="dups"]', blockDups());
   const ex = rootEl.querySelector('[data-role="exportBtn"]'); if (ex) ex.textContent = COPY.exportBtn(filtered().length, isFiltered());
@@ -559,7 +560,7 @@ const handlers = {
     });
     redraw('list'); redraw('panel'); enrich(selected());
   },
-  openRow: (el) => { const was = st.selKey; st.selKey = el.dataset.key; st.noteDraft = null; redraw('list'); redraw('panel'); if (was !== st.selKey) { const pn = rootEl.querySelector('[data-block="panel"]'); if (pn) { pn.classList.add('mx-panel-in'); setTimeout(() => pn.classList.remove('mx-panel-in'), 420); } } enrich(selected()); },
+  openRow: (el) => { const was = st.selKey; st.selKey = el.dataset.key; st.noteDraft = null; redraw('list'); redraw('panel'); if (was !== st.selKey) ui.settle(rootEl.querySelector('[data-block="panel"]')); enrich(selected()); },
   addToggle: () => { st.addOpen = !st.addOpen; const el = rootEl.querySelector('[data-block="add"]'); if (el) el.outerHTML = blockAdd(); else { const t = rootEl.querySelector('[data-block="segs"]'); if (t) t.insertAdjacentHTML('beforebegin', blockAdd()); } const n = rootEl.querySelector('[data-role="npName"]'); if (n) n.focus(); },
   npAdd: async (el) => {
     const v = r => { const i = rootEl.querySelector(`[data-role="${r}"]`); return i ? i.value.trim() : ''; };

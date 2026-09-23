@@ -33,12 +33,9 @@
   [data-block="tl"] .mx-tl-scroll { max-height: 260px !important; }
 }
 
-/* ---- polish pass (2026-09-22): rows warm under the pointer, the open file's row carries a crimson
-   edge, and a newly opened file settles into the side panel (js panelIn — once per selection) ---- */
-.mx-regrow { transition: background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+/* ---- polish: rows warm to the portal's row tint under the pointer, the open file's row carries a crimson
+   edge, and a newly opened file settles into the side panel (ui.settle — once per selection; the shared
+   rule is app.css .mx-panel-in) ---- */
+.mx-regrow { transition: background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); }
 .mx-regrow.on { box-shadow: inset 2px 0 0 #9b1b22; }
 @media (hover: hover) { .mx-regrow:not(.on):hover { background: var(--row-hover) !important; } }
-[data-block="panel"].mx-panel-in > * { animation: mx-rise .32s var(--ease) backwards; }
-[data-block="panel"].mx-panel-in > :nth-child(2) { animation-delay: 35ms; }
-[data-block="panel"].mx-panel-in > :nth-child(3) { animation-delay: 70ms; }
-[data-block="panel"].mx-panel-in > :nth-child(n+4) { animation-delay: 100ms; }

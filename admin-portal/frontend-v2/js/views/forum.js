@@ -19,8 +19,6 @@ import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
 
-// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
-const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
 
 export const SOURCE = 'Admin Forum Hub.dc.html';
 
@@ -219,7 +217,7 @@ function blockTitle() {
         <div style="font-size:12.5px;color:#6d6459;margin-top:4px">${esc(COPY.sub(fmt.longRange(D.hub.gathering && D.hub.gathering.start_date || FACTS.forum.gathering.start, D.hub.gathering && D.hub.gathering.end_date || FACTS.forum.gathering.end)))}</div>
       </div>
       <div style="flex:1"></div>
-      <a href="/member-pages/forum" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${arr(COPY.manage)}</a>
+      <a href="/member-pages/forum" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
     </div>
     <!-- /dc -->`;
 }
@@ -233,12 +231,12 @@ function blockBand() {
     <!-- dc: Admin Forum Hub.dc.html › "Overview band" -->
     <div data-block="band" style="border:1px solid rgba(32,27,22,.14);background:#fff">
       <div class="fh-band" style="display:grid;grid-template-columns:.75fr .75fr 1.7fr">
-        <a href="#forum-members" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);display:block;color:#201b16" data-hover="background:#fdfbf6;color:#201b16">
+        <a href="#forum-members" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);display:block;color:#201b16" data-hover="background:var(--row-hover);color:#201b16">
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${b.members}</div>
           <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${h.members_count}</div>
           <div style="font-size:11px;color:${atCap ? '#9b1b22' : '#6d6459'}">${esc(atCap ? b.atCap(h.cap) : b.membersSub(h.members_count, h.cap))}</div>
         </a>
-        <a href="#forum-pipeline" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);display:block;color:#201b16" data-hover="background:#fdfbf6;color:#201b16">
+        <a href="#forum-pipeline" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);display:block;color:#201b16" data-hover="background:var(--row-hover);color:#201b16">
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${b.cands}</div>
           <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.cands.length}</div>
           <div style="font-size:11px;color:#6d6459">${b.candsSub}</div>
@@ -256,7 +254,7 @@ function blockBand() {
         <span style="display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap"><span style="width:7px;height:7px;background:#c9a962;flex:none"></span><b>${esc(gatherLabel())}</b>&nbsp;${esc(b.gathering(gatherLabel(), gDays))}</span>
         <a href="#forum-codes" style="display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap;color:#201b16" data-hover="color:#9b1b22"><span style="width:7px;height:7px;background:#9b1b22;flex:none"></span><b>${h.codes_out}</b>&nbsp;${b.codes}</a>
         <div style="flex:1"></div>
-        <a href="/calendar" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${arr(b.calendar)}</a>
+        <a href="/calendar" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${b.calendar}</a>
       </div>
     </div>
     <!-- /dc -->`;
@@ -273,7 +271,7 @@ function blockFeed() {
         <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>
         <span style="font-size:11.5px;color:#6d6459">${c.sub}</span>
         <div style="flex:1"></div>
-        <a href="${esc((cfg.memberPortalUrl || '') + '/app/forum')}" target="_blank" rel="noopener" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${arr(c.open)}</a>
+        <a href="${esc((cfg.memberPortalUrl || '') + '/app/forum')}" target="_blank" rel="noopener" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${c.open}</a>
       </div>
       <div class="fh-feed" style="display:grid;grid-template-columns:1fr 1fr">
         <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px;border-right:1px solid rgba(32,27,22,.1)">
@@ -288,7 +286,7 @@ function blockFeed() {
           <input data-role="fTitle" value="${esc(st.fTitle)}" placeholder="${esc(c.phTitle)}" aria-label="Headline" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16">`}
           <textarea data-role="fBody" placeholder="${esc(c.phBody)}" aria-label="Post body" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:10px 11px;font:400 13px Inter,sans-serif;color:#201b16;min-height:72px;resize:vertical;box-sizing:border-box">${esc(st.fBody)}</textarea>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <span data-act="publish" style="padding:10px 18px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${arr(c.publish)}</span>
+            <span data-act="publish" style="padding:10px 18px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.publish}</span>
             <span style="font-size:11px;color:#6d6459">${c.publishNote}</span>
           </div>
         </div>
@@ -432,7 +430,7 @@ function blockCodes() {
               <span style="font:600 12px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.08em;flex:none">${esc(i.code)}</span>
               <span style="font-size:11px;color:#6d6459;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(line(i))}</span>
               ${i.status === 'open' && i.sent_at ? `<a href="/inbox/outbox" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432;white-space:nowrap" title="The invitation email waits for approval there">${c.outbox}</a>` : ''}
-              <span data-act="copyCode" data-code="${esc(i.code)}"${st.copiedCode === i.code ? ' class="mxpj-swap"' : ''} style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${st.copiedCode === i.code ? '#1e6e42' : '#9b1b22'};cursor:pointer;white-space:nowrap">${st.copiedCode === i.code ? c.copied : c.copy}</span>
+              <span data-act="copyCode" data-code="${esc(i.code)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${st.copiedCode === i.code ? '#1e6e42' : '#9b1b22'};cursor:pointer;white-space:nowrap">${st.copiedCode === i.code ? c.copied : c.copy}</span>
               ${i.status === 'open' && i.email ? `<span data-act="queueInvite" data-id="${esc(i.id)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${i.sent_at ? c.resend : c.send}</span>` : ''}
               ${i.status === 'open' ? `<span data-act="revoke" data-id="${esc(i.id)}" title="Revoke this code" style="font:600 11px Inter,sans-serif;color:#9a9086;cursor:pointer" data-hover="color:#9b1b22">${c.revoke}</span>` : ''}
             </div>`).join('')}
@@ -456,7 +454,7 @@ function blockForm() {
                 <input data-role="formDraft" value="${esc(st.formDraft)}" placeholder="${esc(c.addPh)}" aria-label="New question" style="flex:1;border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font-size:12px;color:#201b16;min-width:0">
                 <span data-act="addQ" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">${c.add}</span>
               </div>` : ''}
-            <span data-act="copyLink"${st.linkCopied ? ' class="mxpj-swap"' : ''} style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${st.linkCopied ? '#1e6e42' : '#9b1b22'};cursor:pointer">${st.linkCopied ? c.linkCopied : c.copyLink}</span>
+            <span data-act="copyLink" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${st.linkCopied ? '#1e6e42' : '#9b1b22'};cursor:pointer">${st.linkCopied ? c.linkCopied : c.copyLink}</span>
             <span style="font:400 10.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#9a9086">${c.url}</span>
           </div>
         </div>
@@ -492,7 +490,7 @@ function blockGathering() {
             <div style="display:flex;align-items:center;gap:10px"><span style="width:60px;flex:none;font-size:12px">Split</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span class="mxpj-bar" style="display:block;width:${Math.round((v.counts.split || 0) / total * 100)}%;height:100%;background:#9b1b22"></span></span><span style="font:600 11px Inter,sans-serif;width:20px;text-align:right">${v.counts.split || 0}</span></div>
             <div style="display:flex;align-items:center;gap:10px"><span style="width:60px;flex:none;font-size:12px">Zagreb</span><span style="flex:1;height:9px;background:rgba(32,27,22,.06)"><span class="mxpj-bar" style="display:block;width:${Math.round((v.counts.zagreb || 0) / total * 100)}%;height:100%;background:#c9a962"></span></span><span style="font:600 11px Inter,sans-serif;width:20px;text-align:right">${v.counts.zagreb || 0}</span></div>
           </div>
-          <a href="/calendar" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${arr(c.calendar)}</a>
+          <a href="/calendar" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${c.calendar}</a>
         </div>
         <!-- /dc -->`;
 }
@@ -707,7 +705,18 @@ const handlers = {
       ui.toast((r && r.message) ? String(r.message).toUpperCase() : COPY.members.renewed);
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   },
-  copyCode: (el) => { copyText(el.dataset.code); st.copiedCode = el.dataset.code; rerender('[data-block="codes"]', blockCodes()); ui.toast(COPY.codes.codeCopied(el.dataset.code)); },
+  // the one copy confirmation (ui.copied): the link's word turns to ✓ COPIED in place and settles in, then
+  // lets go ~2.4 s later — no toast as well
+  copyCode: (el) => {
+    const code = el.dataset.code;
+    copyText(code); st.copiedCode = code; rerender('[data-block="codes"]', blockCodes());
+    const sel = `[data-act="copyCode"][data-code="${CSS.escape(code)}"]`;
+    ui.copied(rootEl && rootEl.querySelector(sel), () => {
+      if (!rootEl || !st || st.copiedCode !== code) return;
+      st.copiedCode = null;
+      const b = rootEl.querySelector(sel); if (b) { b.classList.remove('mx-copied-word'); b.textContent = COPY.codes.copy; b.style.color = '#9b1b22'; }
+    }, { word: true, say: COPY.codes.codeCopied(code) });
+  },
   mintCode: async (el) => {
     el.setAttribute('aria-disabled', 'true');
     try { await api.post('/api/v2/forum/invites', {}); await refreshHub(); rerender('[data-block="codes"]', blockCodes()); rerender('[data-block="band"]', blockBand()); ui.toast(COPY.codes.minted); }
@@ -736,7 +745,14 @@ const handlers = {
     st.formDraft = '';
     saveQuestions(D.questions.concat([draft]), COPY.form.qAdded);
   },
-  copyLink: () => { copyText(COPY.form.fullUrl); st.linkCopied = true; rerender('[data-block="form"]', blockForm()); ui.toast(COPY.form.linkToast); },
+  copyLink: () => {
+    copyText(COPY.form.fullUrl); st.linkCopied = true; rerender('[data-block="form"]', blockForm());
+    ui.copied(rootEl && rootEl.querySelector('[data-act="copyLink"]'), () => {
+      if (!rootEl || !st || !st.linkCopied) return;
+      st.linkCopied = false;
+      const b = rootEl.querySelector('[data-act="copyLink"]'); if (b) { b.classList.remove('mx-copied-word'); b.textContent = COPY.form.copyLink; b.style.color = '#9b1b22'; }
+    }, { word: true, say: COPY.form.linkToast });
+  },
   gatherToggle: () => { st.gatherEdit = !st.gatherEdit; rerender('[data-block="gathering"]', blockGathering()); },
   gatherSave: async (el) => {
     const g = D.hub.gathering; if (!g) return;

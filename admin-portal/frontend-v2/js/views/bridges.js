@@ -13,8 +13,6 @@ import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
 
-// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
-const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
 
 export const SOURCE = 'Admin Bridges Hub.dc.html';
 
@@ -332,7 +330,7 @@ function eventTonight() {
 }
 function scannerBtn(where) {
   if (!eventTonight()) return '';
-  return `<a href="/event-day" class="bh-scan bh-scan-${where}" data-v2="door-scanner" style="display:inline-flex;align-items:center;justify-content:center;gap:0;padding:11px 16px;background:#9b1b22;color:#fff;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap;text-decoration:none;${where === 'hub' ? 'align-self:flex-start' : ''}" data-hover="background:#7e151b">${arr(COPY.scanner.cta)}</a>`;
+  return `<a href="/event-day" class="bh-scan bh-scan-${where}" data-v2="door-scanner" style="display:inline-flex;align-items:center;justify-content:center;gap:0;padding:11px 16px;background:#9b1b22;color:#fff;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap;text-decoration:none;${where === 'hub' ? 'align-self:flex-start' : ''}" data-hover="background:#7e151b">${COPY.scanner.cta}</a>`;
 }
 // The three side blocks fold behind their headers on a phone: the header carries the toggle,
 // the body carries the closed class (CSS ≤700 hides it — inline display:flex beats `hidden`).
@@ -384,7 +382,7 @@ function blockTitle() {
         <div class="bh-sub" style="font-size:12.5px;color:#6d6459;margin-top:4px">${isPhone() ? COPY.subShort : COPY.sub}</div>
       </div>
       <div class="bh-sp" style="flex:1"></div>
-      <a href="/member-pages/bridges" class="bh-manage" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${arr(COPY.manage)}</a>
+      <a href="/member-pages/bridges" class="bh-manage" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
     </div>
     <!-- /dc -->`;
 }
@@ -569,7 +567,7 @@ function blockAfter() {
         <div data-block="after" style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:8px">
           ${isPhone() ? `<div${foldHead('after')}><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>${foldMark('after')}</div><div${foldBody('after')} style="display:flex;flex-direction:column;gap:8px">` : `<span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span>`}
           <span style="font-size:12.5px;color:#6d6459;line-height:1.6">${c.body}</span>
-          <a href="/inbox" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${arr(c.cta)}</a>
+          <a href="/inbox" style="font:600 10px Inter,sans-serif;letter-spacing:.14em">${c.cta}</a>
           ${lastPast ? `<!-- v2: one-click thank-you batch for the latest past evening --><span data-act="queueThanks" data-id="${esc(lastPast.id)}" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer" data-v2="queue-thanks" data-hover="color:#201b16">${esc(c.queueThanks(lastPast.city))}</span>` : ''}
           ${isPhone() ? '</div>' : ''}
         </div>
@@ -1040,7 +1038,7 @@ function blockStats() {
       </div>
       <div style="display:flex;align-items:center;gap:14px;border-top:1px solid rgba(32,27,22,.1);padding:12px 20px;flex-wrap:wrap">
         <span data-role="statLine" style="font-family:Fraunces,serif;font-size:15px;font-style:italic;flex:1;min-width:240px">“${esc(line)}”</span>
-        <span data-act="copyLine"${st.copied ? ' class="mxpj-ok"' : ''} style="padding:9px 14px;background:${st.copied ? '#1e6e42' : '#201b16'};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${st.copied ? c.copied : c.copy}</span>
+        <span data-act="copyLine" style="padding:9px 14px;background:${st.copied ? '#1e6e42' : '#201b16'};color:#fff;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${st.copied ? c.copied : c.copy}</span>
       </div>
     </div>
     <!-- /dc -->`;
@@ -1613,7 +1611,12 @@ const handlers = {
     const line = COPY.stats.line(s ? s.effective : { guests: '—', cities: '—', countries: '—', speakers: '—' }, COPY.stats.scopeName[st.scope]);
     copyText(line); st.copied = true;
     rerender('[data-block="stats"]', blockStats());
-    ui.toast(COPY.stats.copiedToast);
+    // the one copy confirmation (ui.copied): ✓ COPIED on green with one gold ring, then it lets go in place
+    ui.copied(rootEl && rootEl.querySelector('[data-act="copyLine"]'), () => {
+      if (!rootEl || !st || !st.copied) return;
+      st.copied = false;
+      const b = rootEl.querySelector('[data-act="copyLine"]'); if (b) { b.classList.remove('mx-copied'); b.textContent = COPY.stats.copy; b.style.background = '#201b16'; }
+    }, { say: COPY.stats.copiedToast });
   }
 };
 

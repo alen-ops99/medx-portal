@@ -435,7 +435,7 @@ function blockHero() {
     <div data-block="hero" style="border:1px solid rgba(32,27,22,.14);background:#fff">
     <div class="mx-kpi" style="display:grid;grid-template-columns:repeat(${Math.max(1, kpis.length)},1fr)">
       ${kpis.map(k => `
-        <a href="${k.href}"${k.title ? ` title="${esc(k.title)}"` : ''} style="padding:18px 22px;border-right:1px solid rgba(32,27,22,.12);display:block;color:#201b16" data-hover="background:#faf6ee;color:#201b16">
+        <a href="${k.href}"${k.title ? ` title="${esc(k.title)}"` : ''} style="padding:18px 22px;border-right:1px solid rgba(32,27,22,.12);display:block;color:#201b16" data-hover="background:var(--row-hover);color:#201b16">
           <div style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${k.k}</div>
           <div class="mx-display-34" style="font-family:Fraunces,serif;font-size:34px;margin-top:4px">${esc(k.v)}</div>
           <div style="font-size:11.5px;color:${k.subColor}">${esc(k.sub)}</div>
@@ -490,7 +490,7 @@ function blockProjects() {
   const card = (href, top, eyebrowColor, eyebrow, title, line1, line2, dashed) => `
         <a href="${href}" class="mx-lift mx-card-link" style="border:1px ${dashed ? 'dashed rgba(32,27,22,.25)' : 'solid rgba(32,27,22,.14)'};${top ? 'border-top:2px solid #9b1b22;' : ''}background:${dashed ? 'transparent' : '#fff'};padding:16px;display:flex;flex-direction:column;gap:6px;color:#201b16" data-hover="${edges(top, 'rgba(32,27,22,' + (dashed ? '.5' : '.35') + ')')};color:#201b16${dashed ? ';background:#faf6ee' : ''}">
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:${eyebrowColor}">${eyebrow}</span>
-          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">${title}<span class="mx-card-go" aria-hidden="true">→</span></span>
+          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">${title}<span class="mx-card-go" aria-hidden="true"> →</span></span>
           <span style="font-size:11.5px;color:#6d6459;line-height:1.5">${line1}<br>${line2}</span>
         </a>`;
   return `
@@ -575,7 +575,7 @@ function bigIdeasCard() {
         <div data-block="bigideas" style="border:1px solid rgba(32,27,22,.14);background:#fff">
           <div style="display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid rgba(32,27,22,.1)"><span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${c.title}</span><div style="flex:1"></div><span style="font-size:11px;color:#6d6459">${c.hint}</span></div>
           ${shown.map((i, n) => `
-          <a class="mx-row" href="/big-ideas/${esc(i.id)}" style="display:flex;gap:12px;align-items:baseline;padding:12px 20px;color:#201b16;${n < shown.length - 1 ? 'border-bottom:1px solid rgba(32,27,22,.08)' : ''}" data-hover="background:#faf6ee">
+          <a class="mx-row" href="/big-ideas/${esc(i.id)}" style="display:flex;gap:12px;align-items:baseline;padding:12px 20px;color:#201b16;${n < shown.length - 1 ? 'border-bottom:1px solid rgba(32,27,22,.08)' : ''}" data-hover="background:var(--row-hover)">
             <span class="mx-row-text" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
               <span style="font-size:12.5px;font-weight:600;overflow-wrap:anywhere">${esc(i.title)}</span>
               <span style="font-size:11.5px;color:#6d6459;line-height:1.45;overflow-wrap:anywhere">${esc(i.next_step)}</span>

@@ -87,7 +87,6 @@ const INK = '<i class="lv-tab-ink" aria-hidden="true"></i>';                 // 
 
 // ---- state -------------------------------------------------------------------------------------
 let S = null, rootEl = null, unbind = null, timers = [], sheet = null, sheetFrom = null, sheetStack = [], onVis = null, onKey = null, inkRO = null;
-const noop = () => {};
 
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } },
@@ -112,7 +111,7 @@ function setThemeColor(c) {
 
 // ---- small helpers -----------------------------------------------------------------------------
 // reduced motion: the css switches every animation off; the js then skips its waits (sheet exit, card exit)
-const calm = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+const calm = () => ui.reducedMotion();
 // write a region only when its markup changed — a 60 s poll that brings nothing new leaves the DOM (hover,
 // focus, lazy images, running entrances) alone. Returns true when it wrote.
 const setHtml = (el, html) => { if (!el || el._html === html) return false; el.innerHTML = html; el._html = html; return true; };
@@ -340,7 +339,7 @@ function tplToggle(s, { compact } = {}) {
   if (S.token && S.mePending) return `<span class="lv-att wait${compact ? ' compact' : ''}" aria-hidden="true">${COPY.att.on}</span>`;
   // a read-only toggle stays tappable on purpose: the tap answers with the one-line reason (ticket link /
   // not on your ticket) — ui.bind() would swallow the click on an aria-disabled element
-  return `<span data-act="att" data-id="${esc(s.id)}" data-sid="${esc(s.id)}" role="switch" aria-checked="${on}" aria-label="${esc((on ? 'Attending: ' : 'Attend: ') + (s.title || 'session'))}" class="lv-att${on ? ' on' : ''}${ok ? '' : ' ro'}${compact ? ' compact' : ''}"${ok ? '' : ` title="${esc(S.token ? COPY.att.notHeld : COPY.att.ticket)}"`}>${on ? COPY.att.on : COPY.att.off}</span>`;
+  return `<span data-act="att" data-id="${esc(s.id)}" data-sid="${esc(s.id)}" role="switch" tabindex="0" aria-checked="${on}" aria-label="${esc((on ? 'Attending: ' : 'Attend: ') + (s.title || 'session'))}" class="lv-att${on ? ' on' : ''}${ok ? '' : ' ro'}${compact ? ' compact' : ''}"${ok ? '' : ` title="${esc(S.token ? COPY.att.notHeld : COPY.att.ticket)}"`}>${on ? COPY.att.on : COPY.att.off}</span>`;
 }
 function tplCard(s, { schedule, conflict } = {}) {
   const ev = eventOf(s.event_key) || {};
@@ -563,10 +562,15 @@ function paintTabs({ bump } = {}) {
 function paintAll() {
   if (!rootEl) return;
   const y = window.scrollY;
+  // another event: NOW / NEXT, YOUR SLOTS and AT A GLANCE fade over with the program instead of swapping in
+  // one frame beside it (never on a data repaint or a poll — only when the event itself changed)
+  const evChanged = S._sideEv !== undefined && S._sideEv !== S.current; S._sideEv = S.current;
   paintHead();
-  setHtml(q('[data-role="now"]'), tplNow());
-  const slots = q('[data-role="slots"]'); if (slots) { setHtml(slots, tplSlots()); slots.hidden = !slots.innerHTML.trim(); }
-  setHtml(q('[data-role="glance"]'), tplGlance());
+  const side = [];
+  if (setHtml(q('[data-role="now"]'), tplNow())) side.push('now');
+  const slots = q('[data-role="slots"]'); if (slots) { if (setHtml(slots, tplSlots())) side.push('slots'); slots.hidden = !slots.innerHTML.trim(); }
+  if (setHtml(q('[data-role="glance"]'), tplGlance())) side.push('glance');
+  if (evChanged) side.forEach(r => replay(q(`[data-role="${r}"]`), 'lv-swap', 420));
   paintTabs();
   TABS.forEach(t => {
     const el = q(`[data-panel="${t}"]`); if (!el) return;
@@ -601,8 +605,26 @@ function reflowSchedule() {
   moved.forEach(x => { x.style.transition = 'transform .28s var(--lv-ease)'; x.style.transform = ''; });
   setTimeout(() => moved.forEach(x => { x.style.transition = ''; }), 320);
 }
+// A repaint that rewrote the focused toggle (MY SCHEDULE losing a row, the counts shown) used to drop keyboard
+// focus to <body>. It goes back to the same session's toggle, or — when that row has left the list — to the
+// toggle of the row that took its place.
+function focusedToggle() {
+  const a = document.activeElement;
+  if (!a || !a.matches || !a.matches('.lv-att[data-sid]') || !rootEl || !rootEl.contains(a)) return null;
+  const list = [...rootEl.querySelectorAll('.lv-panel:not([hidden]) .lv-att[data-sid]')];
+  return { id: a.dataset.sid, i: list.indexOf(a) };
+}
+function refocusToggle(f) {
+  if (!f || !rootEl) return;
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected) return;
+  let el = rootEl.querySelector(`.lv-panel:not([hidden]) [data-sid="${CSS.escape(f.id)}"]`);
+  if (!el && f.i >= 0) { const list = [...rootEl.querySelectorAll('.lv-panel:not([hidden]) .lv-att[data-sid]')]; el = list[Math.min(f.i, list.length - 1)]; }
+  if (el) try { el.focus({ preventScroll: true }); } catch (e) { /* fine */ }
+}
 function paintToggle(id) {
   const s = sessionById(id); if (!s) return;
+  const kf = focusedToggle();
   const on = attending(id);
   each(`[data-sid="${CSS.escape(id)}"]`, el => { el.classList.toggle('on', on); el.classList.toggle('just', on); el.setAttribute('aria-checked', String(on)); el.textContent = on ? COPY.att.on : COPY.att.off; if (on) setTimeout(() => el.classList.remove('just'), 450); });
   each(`[data-sid-card="${CSS.escape(id)}"]`, el => el.classList.toggle('going', on));
@@ -616,13 +638,13 @@ function paintToggle(id) {
   if (off) S.settleUntil = Date.now() + (leaving.length ? 520 : 400);
   if (leaving.length) {
     leaving.forEach(el => el.classList.add('lv-leaving'));
-    const st = S; setTimeout(() => { if (S === st && rootEl) reflowSchedule(); }, 200);
-  } else if (S.tab === 'schedule') reflowSchedule();
+    const st = S; setTimeout(() => { if (S === st && rootEl) { reflowSchedule(); refocusToggle(kf); } }, 200);
+  } else if (S.tab === 'schedule') { reflowSchedule(); refocusToggle(kf); }
   else paintPanel('schedule', { force: true });
 }
 // `scroll`: a tab the guest picked starts at its top; the programmatic calls (first paint, the network
 // landing) never move a reader who has already started scrolling
-function showTab(tab, { push, animate, scroll = true } = {}) {
+function showTab(tab, { push, animate, scroll = true, glide } = {}) {
   if (!TABS.includes(tab)) tab = 'program';
   S.tab = tab; store.set(LS.tab, tab);
   rootEl.querySelectorAll('.lv-tab').forEach(el => { const on = el.dataset.tab === tab; el.classList.toggle('on', on); el.setAttribute('aria-selected', String(on)); });
@@ -631,7 +653,7 @@ function showTab(tab, { push, animate, scroll = true } = {}) {
   // deep in a long program, a tab switch starts the new panel at its top (the tab bar is sticky, so
   // the reader never loses it) instead of landing mid-way through a shorter panel
   const tabs = q('[data-role="tabs"]'), panels = q('.lv-panels');
-  if (scroll && tabs && panels) { const top = panels.getBoundingClientRect().top + window.scrollY - tabs.offsetHeight; if (window.scrollY > top + 4) window.scrollTo(0, Math.max(0, top)); }
+  if (scroll && tabs && panels) { const top = panels.getBoundingClientRect().top + window.scrollY - tabs.offsetHeight; if (window.scrollY > top + 4) window.scrollTo({ top: Math.max(0, top), behavior: glide && !calm() ? 'smooth' : 'auto' }); }
   if (push !== false) { try { const u = new URL(location.href); u.searchParams.set('tab', tab); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { /* fine */ } }
 }
 
@@ -654,6 +676,8 @@ function openSheet(make) {
   wrap.innerHTML = `<div class="lv-scrim" data-act="close"></div><div class="lv-sheet">${make()}</div>`;
   document.body.appendChild(wrap);
   ui.lockScroll(true);
+  const behind = rootEl && rootEl.firstElementChild;
+  if (behind) { behind.inert = true; wrap._inert = behind; }
   wrap._off = ui.bind(wrap, Object.assign({}, handlers, { close: () => closeSheet(), back: () => sheetBack() }));
   grip(wrap);
   void wrap.offsetWidth;                                                // commit the closed pose so the slide runs
@@ -674,7 +698,7 @@ function swapSheet(make, dir) {
     try { wrap._ungrip && wrap._ungrip(); } catch (e) { /* fine */ }
     grip(wrap);
     if (!calm()) {
-      replay(el, dir > 0 ? 'in-r' : 'in-l', 320);
+      replay(el, dir > 0 ? 'in-r' : 'in-l', 420);
       // a taller page: the top edge glides up to its new place instead of jumping (the bottom stays put)
       const dy = top0 - el.getBoundingClientRect().top;
       if (dy > 1) {
@@ -688,7 +712,7 @@ function swapSheet(make, dir) {
   if (calm()) { put(); return; }
   el.style.minHeight = el.offsetHeight + 'px';                           // the sheet keeps its height: it never drops and re-rises
   el.classList.add(dir > 0 ? 'out-l' : 'out-r');
-  wrap._swap = put; wrap._swapT = setTimeout(put, 150);
+  wrap._swap = put; wrap._swapT = setTimeout(put, 160);             // the old page leaves on the exit timing
 }
 function sheetBack() { if (sheet && sheetStack.length) swapSheet(sheetStack.pop(), -1); }
 function closeSheet({ instant } = {}) {
@@ -698,12 +722,13 @@ function closeSheet({ instant } = {}) {
   try { wrap._off && wrap._off(); } catch (e) { /* fine */ }
   try { wrap._ungrip && wrap._ungrip(); } catch (e) { /* fine */ }
   ui.lockScroll(false);
+  if (wrap._inert) { wrap._inert.inert = false; wrap._inert = null; }
   if (instant || calm()) wrap.remove();
   else {
     const el = wrap.querySelector('.lv-sheet');
     if (el) { el.classList.remove('drag'); el.style.transform = ''; el.style.transition = ''; }  // a dragged sheet leaves from where the finger let go
     wrap.classList.remove('open'); wrap.classList.add('closing');
-    setTimeout(() => wrap.remove(), 340);
+    setTimeout(() => wrap.remove(), 200);                              // the exit timing (--t-exit) and a frame
   }
   if (!instant && from && from.isConnected && typeof from.focus === 'function') try { from.focus({ preventScroll: true }); } catch (e) { /* fine */ }
 }
@@ -769,7 +794,7 @@ function speakerSheet(sp) {
 const settling = el => S.settleUntil > Date.now() && !!el.closest('[data-panel="schedule"]');
 const handlers = {
   // a new tab slides the ink and steps its rows in; the tab already open just returns to its top
-  tab: el => showTab(el.dataset.tab, { animate: el.dataset.tab !== S.tab }),
+  tab: el => showTab(el.dataset.tab, { animate: el.dataset.tab !== S.tab, glide: el.dataset.tab === S.tab }),
   ev: async el => { closeSheet(); await switchEvent(el.dataset.key); },
   allEvents: () => { S.showAll = !S.showAll; paintSwitch(); },
   open: el => { if (settling(el)) return; const id = el.dataset.id, s = sessionById(id); if (s) openSheet(() => sessionSheet(sessionById(id) || s)); },
@@ -788,7 +813,7 @@ const handlers = {
     const was = S.attendance[id], next = attending(id) ? 'declined' : 'attending';
     S.attendance[id] = next; paintToggle(id);                          // optimistic
     el.setAttribute('aria-busy', 'true');
-    try { await attend(id, next); if (s.show_counts) paintAll(); }
+    try { await attend(id, next); if (s.show_counts) { const kf = focusedToggle(); paintAll(); refocusToggle(kf); } }
     catch (e) { S.attendance[id] = was; paintToggle(id); ui.toast(e.status === 403 ? COPY.att.notHeld : (e.message || COPY.att.failed), { kind: 'error' }); }
     finally { each(`[data-sid="${CSS.escape(id)}"]`, x => x.removeAttribute('aria-busy')); }
   }
@@ -817,8 +842,6 @@ async function refreshAll({ toastOnSame } = {}) {
 function startTimers() {
   timers.push((() => { const id = setInterval(() => { if (document.visibilityState === 'visible') refreshAll(); }, POLL_MS); return () => clearInterval(id); })());
   timers.push((() => { const id = setInterval(() => setHtml(q('[data-role="now"]'), tplNow()), TICK_MS); return () => clearInterval(id); })());
-  // iOS paints :active (the press feedback on cards, tiles, toggles) only once a touch listener exists
-  document.addEventListener('touchstart', noop, { passive: true });
   onVis = () => { if (document.visibilityState === 'visible' && Date.now() - (S.lastPoll || 0) > 20000) refreshAll(); };
   document.addEventListener('visibilitychange', onVis); window.addEventListener('focus', onVis);
   onKey = e => { if (e.key === 'Escape' && sheet) closeSheet(); };
@@ -914,7 +937,6 @@ export default {
     timers.forEach(stop => { try { stop(); } catch (e) { /* fine */ } }); timers = [];
     if (onVis) { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); onVis = null; }
     if (onKey) { document.removeEventListener('keydown', onKey); onKey = null; }
-    document.removeEventListener('touchstart', noop);
     if (inkRO) { inkRO.disconnect(); inkRO = null; }
     try { document.documentElement.style.scrollbarGutter = ''; } catch (e) { /* fine */ }
     closeSheet({ instant: true });

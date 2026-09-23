@@ -198,7 +198,7 @@ async function toggleSwitch(el, save, paint) {
   catch (e) { set(!on); toast(e && e.message, { kind: 'error' }); return null; }
   finally { el.removeAttribute('aria-busy'); }
 }
-// Sections below the first screen rise in as they scroll into view (css app.css › .mx-sr). The router
+// Sections below the first screen rise in as they scroll into view (css app.css › .mx-rv). The router
 // calls this after a view that opts in (`reveal: true` on the view module) has drawn and scrolled. Only
 // blocks that START below the visible window at that moment are marked, so nothing already on screen
 // ever disappears; the mark is added by script, so without it nothing is hidden; print shows it all.
@@ -221,15 +221,15 @@ function revealOnScroll(root) {
     return r.height > 0 && r.top > vh - 24;
   });
   if (!hide.length) return;
-  hide.forEach(el => el.classList.add('mx-sr'));
+  hide.forEach(el => el.classList.add('mx-rv'));
   const obs = revealObs = new IntersectionObserver(entries => {
     let i = 0;
     for (const en of entries) {
       if (!en.isIntersecting) continue;
       const el = en.target; obs.unobserve(el);
-      el.style.setProperty('--sr-d', Math.min(i++, 3) * 60 + 'ms');   // blocks arriving together follow each other in
-      el.classList.add('mx-sr-in'); el.classList.remove('mx-sr');
-      setTimeout(() => { el.classList.remove('mx-sr-in'); el.style.removeProperty('--sr-d'); }, 700);
+      el.style.setProperty('--rv-d', Math.min(i++, 3) * 60 + 'ms');   // blocks arriving together follow each other in
+      el.classList.add('mx-rv-in'); el.classList.remove('mx-rv');
+      setTimeout(() => { el.classList.remove('mx-rv-in'); el.style.removeProperty('--rv-d'); }, 700);
     }
   }, { threshold: 0 });   // the first visible pixel: a block at the very foot of the page must still arrive
   hide.forEach(el => obs.observe(el));
@@ -303,7 +303,7 @@ function installDelegates() {
   document.addEventListener('mouseover', e => {
     if (!canHover.matches) return;
     const el = e.target.closest && e.target.closest('[data-hover]');
-    if (!el || saved.has(el)) return;
+    if (!el || saved.has(el) || el.getAttribute('aria-disabled') === 'true') return;   // a disabled control (SEND while sending) takes no hover
     const decls = el.getAttribute('data-hover').split(';').map(s => s.trim()).filter(Boolean).map(s => { const i = s.indexOf(':'); return [s.slice(0, i).trim(), s.slice(i + 1).trim()]; });
     saved.set(el, decls.map(([p]) => [p, el.style.getPropertyValue(p), el.style.getPropertyPriority(p)]));
     decls.forEach(([p, v]) => el.style.setProperty(p, v));

@@ -9,9 +9,8 @@
    pages. The shared layer in app.css carries the screen fade, the data-hover
    glide, the press on data-hover controls, the arrow lean and the focus ring.
 
-   The portal's one motion language (polish pass 2026-09-22): ease
-   cubic-bezier(.22,1,.36,1) · 150–220 ms for hover / press / colour ·
-   280–450 ms for entrances · only opacity, transform, colour · hover only on
+   The portal's one motion language (polish pass 2026-09-22): the tokens.css motion tokens: --ease · --t-quick for hover / press / colour ·
+   --t-reveal for entrances · only opacity, transform, colour · hover only on
    hover-capable pointers · nothing moves under prefers-reduced-motion.
    ========================================================================== */
 
@@ -29,23 +28,23 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .mx-auth-screen input, .mx-auth-box {
-    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
-                border-color .18s cubic-bezier(.22,1,.36,1), outline-color .18s cubic-bezier(.22,1,.36,1);
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease),
+                border-color var(--t-quick) var(--ease), outline-color var(--t-quick) var(--ease);
   }
   .mx-auth-screen .mx-auth-btn {
-    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
-                border-color .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease),
+                border-color var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
   }
   /* the submit <button>s sink a pixel while held (the shared press covers the data-hover links and spans) */
   .mx-auth-btn:active:not([aria-disabled="true"]) { transform: translateY(1px); }
   .mx-auth-btn[aria-disabled="true"]::after {
     content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 2px; background: #c9a962;
-    animation: mx-auth-sweep 1.1s cubic-bezier(.45,0,.55,1) infinite;
+    animation: mx-auth-sweep 1.1s var(--ease) infinite;
   }
   /* ticking the terms box: the square settles as it fills (the row's aria-checked flips in place) */
-  [data-act="tgTerms"][aria-checked="true"] > .mx-auth-box { animation: mx-auth-tick .22s cubic-bezier(.22,1,.36,1); }
+  [data-act="tgTerms"][aria-checked="true"] > .mx-auth-box { animation: mx-auth-tick var(--t-reveal) var(--ease); }
   /* an error / notice line fades in each time it appears */
-  .mx-auth-col [data-role="error"], .mx-auth-col [data-role="resendRow"] { animation: mx-auth-fade .24s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-auth-col [data-role="error"], .mx-auth-col [data-role="resendRow"] { animation: mx-auth-fade var(--t-reveal) var(--ease) backwards; }
 }
 
 @media (hover: hover) {

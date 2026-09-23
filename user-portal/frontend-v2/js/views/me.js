@@ -252,7 +252,7 @@ function blockHero() {
       <div style="position:absolute;inset:0;background-image:url('/assets/photo-candlelit.jpg');background-size:cover;background-position:center"></div>
       <div style="position:absolute;inset:0;background:rgba(25,21,18,.72)"></div>
       <div class="mx-me-tilt" data-v2="hover tilt (css .mx-me-tilt / wireCardTilt) — the flip stays on the card">
-      <div data-act="flip" data-block="card" role="button" aria-label="Member card — tap to flip" class="mx-me-card" style="position:relative;width:450px;background:linear-gradient(135deg,#221c17 0%,#191512 55%,#14100d 100%);color:#f7f1e6;padding:26px 28px;box-shadow:0 24px 60px rgba(0,0,0,.5);cursor:pointer;transition:transform .5s cubic-bezier(.22,1,.36,1);transform:perspective(1100px) rotateY(${st.cardBack ? '360deg' : '0deg'})">
+      <div data-act="flip" data-block="card" role="button" aria-label="Member card — tap to flip" class="mx-me-card" style="position:relative;width:450px;background:linear-gradient(135deg,#221c17 0%,#191512 55%,#14100d 100%);color:#f7f1e6;padding:26px 28px;box-shadow:0 24px 60px rgba(0,0,0,.5);cursor:pointer;transition:transform .5s var(--ease);transform:perspective(1100px) rotateY(${st.cardBack ? '360deg' : '0deg'})">
         <div style="position:absolute;inset:9px;border:1px solid rgba(201,169,98,.55);pointer-events:none"></div>
         <div style="position:absolute;inset:12px;border:1px solid rgba(201,169,98,.2);pointer-events:none"></div>
         ${cardInner()}

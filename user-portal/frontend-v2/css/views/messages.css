@@ -54,8 +54,8 @@
    Network's, so it slides across), the arrow lean, the data-hover glide and
    the press. This file adds the conversation's own motion: a thread fading in,
    a NEW message rising into place, the loading hairline, SEND's busy sweep,
-   and field focus. Same language: ease cubic-bezier(.22,1,.36,1) · 150–220 ms
-   hover / press / colour · 280–450 ms entrances · transform / opacity /
+   and field focus. Same language: the tokens.css motion tokens: --ease · --t-quick
+   hover / press / colour · --t-reveal entrances · transform / opacity /
    colour / shadow only · hover only on hover-capable pointers · nothing moves
    under reduced motion.
    ========================================================================== */
@@ -81,32 +81,32 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .mx-msg-screen [data-act], .mx-msg-screen label, .mx-msg-screen .chip, .mx-modal .mx-msg-pick {
-    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
-                border-color .18s cubic-bezier(.22,1,.36,1), opacity .18s cubic-bezier(.22,1,.36,1),
-                transform .15s cubic-bezier(.22,1,.36,1);
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease),
+                border-color var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease),
+                transform var(--t-quick) var(--ease);
   }
-  .mx-msg-field { transition: border-color .18s cubic-bezier(.22,1,.36,1), outline-color .18s cubic-bezier(.22,1,.36,1); }
+  .mx-msg-field { transition: border-color var(--t-quick) var(--ease), outline-color var(--t-quick) var(--ease); }
   .mx-msg-screen .mx-msg-btn, .mx-modal .mx-msg-btn {
-    transition: color .18s cubic-bezier(.22,1,.36,1), background-color .18s cubic-bezier(.22,1,.36,1),
-                border-color .18s cubic-bezier(.22,1,.36,1), transform .15s cubic-bezier(.22,1,.36,1);
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease),
+                border-color var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
   }
   .mx-msg-btn:active:not([aria-disabled="true"]), .mx-msg-screen .chip:active { transform: translateY(1px); }
 
   /* each thread's first paint fades in (the screen itself fades via the shared entrance); a NEW message rises */
-  .mx-msg-fresh { animation: mx-msg-fade .3s cubic-bezier(.22,1,.36,1) backwards; }
-  .mx-msg-new { animation: mx-msg-rise .34s cubic-bezier(.22,1,.36,1) backwards; }
+  .mx-msg-fresh { animation: mx-msg-fade var(--t-reveal) var(--ease) backwards; }
+  .mx-msg-new { animation: mx-msg-rise var(--t-reveal) var(--ease) backwards; }
   /* an unread dot pops in when it is new — messages.js › unreadDot() keeps it still on every later repaint */
-  .mx-msg-dot-in { animation: mx-msg-dot .3s cubic-bezier(.22,1,.36,1) backwards; }
-  .mx-msg-pop { animation: mx-msg-pop .22s cubic-bezier(.22,1,.36,1); }
+  .mx-msg-dot-in { animation: mx-msg-dot var(--t-reveal) var(--ease) backwards; }
+  .mx-msg-pop { animation: mx-msg-pop var(--t-reveal) var(--ease); }
 
-  .mx-msg-wait { animation: mx-msg-fade .3s cubic-bezier(.22,1,.36,1) .35s backwards; }
-  .mx-msg-wait span { display: block; animation: mx-msg-sweep 1.4s cubic-bezier(.45,0,.55,1) infinite; }
+  .mx-msg-wait { animation: mx-msg-fade var(--t-reveal) var(--ease) .35s backwards; }
+  .mx-msg-wait span { display: block; animation: mx-msg-sweep 1.4s var(--ease) infinite; }
 
   /* SEND while it is on its way: the same gold sweep along the button's foot */
   .mx-msg-btn[data-act="send"] { position: relative; overflow: hidden; }
   .mx-msg-btn[data-act="send"][aria-disabled="true"]::after {
     content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 2px; background: #c9a962;
-    animation: mx-msg-sweep 1.1s cubic-bezier(.45,0,.55,1) infinite;
+    animation: mx-msg-sweep 1.1s var(--ease) infinite;
   }
 }
 
@@ -115,9 +115,9 @@
   .mx-msg-field:hover:not(:focus) { border-color: rgba(25, 21, 18, .45) !important; }
   .mx-msg-screen .chip:not(.on):hover { border-color: #191512; }
   .mx-msg-screen .chip.on:hover { background: #7e151b; border-color: #7e151b; }
-  .mx-modal .mx-msg-pick:hover { background: rgba(25, 21, 18, .04); }
+  .mx-modal .mx-msg-pick:hover { background: var(--row-hover); }
   .mx-modal a.mx-msg-btn:hover { border-color: #191512 !important; color: #191512; }
   /* the empty-state / gate crimson CTAs darken like every crimson button (no data-hover on the artboard) */
-  .mx-msg-btn[style*="background:#9b1b22"]:hover { background: #7e151b !important; color: #f7f1e6; }
+  .mx-msg-btn[style*="background:#9b1b22"]:not([aria-disabled="true"]):hover { background: #7e151b !important; color: #f7f1e6; }
   .mx-msg-btn[data-act="retry"]:hover { border-color: #191512 !important; }
 }

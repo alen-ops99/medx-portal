@@ -17,8 +17,6 @@ import { ui, esc, fmt } from '../ui.js';
 import { FACTS } from '../facts.js';
 import { perms } from '../perms.js';
 
-// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
-const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
 
 export const SOURCE = 'Admin Event Day.dc.html';
 
@@ -421,6 +419,8 @@ function stopCam() {
   if (b) b.textContent = camLabel(false);
   const hint = rootEl && rootEl.querySelector('[data-role="camHint"]');
   if (hint) hint.style.display = '';
+  const box = rootEl && rootEl.querySelector('[data-role="camBox"]');
+  if (box) box.classList.remove('is-live');
 }
 async function startCam() {
   const box = rootEl.querySelector('[data-role="camBox"]');
@@ -440,6 +440,7 @@ async function startCam() {
   camVideo.className = 'mx-ed-video';
   camVideo.play();
   box.appendChild(camVideo);
+  box.classList.add('is-live');
   if (hint) hint.style.display = 'none';
   const b = rootEl.querySelector('[data-act="cam"]'); if (b) b.textContent = camLabel(true);
   let lastCode = '', lastAt = 0;
@@ -624,7 +625,7 @@ function blockScanner() {
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;align-self:flex-start">${COPY.scanner.title}</span>
       ${blocked ? `<span data-v2="meetup door needs a pick" style="width:100%;box-sizing:border-box;border:1px solid #c9a962;background:#f8f1e2;padding:10px 12px;font-size:12px;color:#7a6432;line-height:1.5">${esc(meetupList().length ? COPY.meetup.pick : COPY.meetup.pickNone)}</span>` : ''}
       ${meetupOn() && st.meetupId ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#7a6432">${esc(String((pickedMeetup() || {}).label || '').toUpperCase())}</span><span style="font-size:11.5px;color:#6d6459;margin-top:-8px">${esc(COPY.meetup.pickHint)}</span>` : ''}
-      <div data-role="camBox" class="mx-ed-cam" style="width:180px;height:180px;background:repeating-linear-gradient(45deg,#f6f2ea,#f6f2ea 8px,#efe9dc 8px,#efe9dc 16px);border:1px solid rgba(32,27,22,.15);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
+      <div data-role="camBox" class="mx-ed-cam${st.camOn ? ' is-live' : ''}" style="width:180px;height:180px;background:repeating-linear-gradient(45deg,#f6f2ea,#f6f2ea 8px,#efe9dc 8px,#efe9dc 16px);border:1px solid rgba(32,27,22,.15);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
         <span data-role="camHint" style="font:500 10px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#6d6459;max-width:120px">${COPY.scanner.camIdle}</span>
         <span class="mx-ed-laser" style="position:absolute;left:14px;right:14px;top:50%;height:2px;background:rgba(155,27,34,.55);z-index:2"></span>
       </div>
@@ -708,7 +709,7 @@ function staffCardBody() {
   return `
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <span data-role="doorUrl" style="font:600 12px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.15);padding:9px 12px;min-width:0;flex:1 1 auto;overflow-wrap:anywhere;box-sizing:border-box">${esc(t.url)}</span>
-        <span data-act="copyDoor" data-url="${esc(t.url)}"${st.copiedDoor ? ' class="mxpj-ok"' : ''} style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copiedDoor ? COPY.staff.copied : COPY.staff.copy}</span>
+        <span data-act="copyDoor" data-url="${esc(t.url)}" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copiedDoor ? COPY.staff.copied : COPY.staff.copy}</span>
         <span data-act="qrDoor" data-id="${esc(t.id)}" style="padding:9px 14px;border:1px solid rgba(32,27,22,.2);color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${st.qrUrl ? COPY.staff.hideQr : COPY.staff.qr}</span>
         <span data-act="revokeDoor" data-id="${esc(t.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${COPY.staff.revoke}</span>
         <span style="font-size:11.5px;color:#6d6459">${esc(COPY.staff.expires(t.expires_at ? fmt.dayLabel(t.expires_at) + ' ' + String(t.expires_at).slice(11, 16) : 'when the event ends'))}</span>
@@ -734,8 +735,8 @@ function blockMap() {
       <!-- the striped "staff dots" map it replaces was never built — link the real floor plan + seating instead -->
       <span style="font-size:11.5px;color:#6d6459">${COPY.map.sub}</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="https://plexus-tables.netlify.app/planner.html" target="_blank" rel="noopener" style="padding:9px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#000;color:#fff">${arr(COPY.map.planner)}</a>
-        <a href="/gala#mx-gala-board" style="padding:8px 12px;border:1px solid rgba(32,27,22,.25);color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${arr(COPY.map.seating)}</a>
+        <a href="https://plexus-tables.netlify.app/planner.html" target="_blank" rel="noopener" style="padding:9px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#000;color:#fff">${COPY.map.planner}</a>
+        <a href="/gala#mx-gala-board" style="padding:8px 12px;border:1px solid rgba(32,27,22,.25);color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${COPY.map.seating}</a>
       </div>
       <div data-v2="ops notes — shared, saved server-side" style="display:flex;flex-direction:column;gap:6px">
         <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${COPY.map.notes}</span>
@@ -751,7 +752,7 @@ function blockQa() {
     <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:10px">
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.qa.title}</span>
       <span style="font-size:12.5px;color:#6d6459;line-height:1.6">${COPY.qa.why}</span>
-      <a href="/projects/plexus" style="padding:10px 16px;border:1px solid rgba(32,27,22,.2);color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;align-self:flex-start" data-hover="border-color:#201b16;color:#201b16">${arr(COPY.qa.open)}</a>
+      <a href="/projects/plexus" style="padding:10px 16px;border:1px solid rgba(32,27,22,.2);color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;align-self:flex-start" data-hover="border-color:#201b16;color:#201b16">${COPY.qa.open}</a>
     </div>
     <!-- /dc -->`;
 }
@@ -957,7 +958,7 @@ function phoneScanner() {
   return `
     <div class="mx-ed-panel mx-ed-scan" data-panel="scan"${st.tab === 'list' ? ' hidden' : ''}>
       ${blocked ? `<div class="mx-ed-block">${esc(meetupList().length ? COPY.meetup.pick : COPY.meetup.pickNone)}</div>` : ''}
-      <div data-role="camBox" class="mx-ed-cam">
+      <div data-role="camBox" class="mx-ed-cam${st.camOn ? ' is-live' : ''}">
         <span data-role="camHint">${COPY.phone.camIdle}</span>
         <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
         <span class="laser"></span>
@@ -1384,7 +1385,12 @@ const handlers = {
     try { navigator.clipboard.writeText(el.dataset.url).catch(() => {}); } catch (e) {}
     st.copiedDoor = true;
     paint('[data-block="staff"]', blockStaff());
-    ui.toast('LINK COPIED — SEND IT TO THE DOOR STAFF');
+    // the one copy confirmation (ui.copied): ✓ COPIED in place with one gold ring, then it lets go
+    ui.copied(rootEl && rootEl.querySelector('[data-act="copyDoor"]'), () => {
+      if (!rootEl || !st || !st.copiedDoor) return;
+      st.copiedDoor = false;
+      const b = rootEl.querySelector('[data-act="copyDoor"]'); if (b) { b.classList.remove('mx-copied'); b.textContent = COPY.staff.copy; }
+    }, { say: 'Link copied — send it to the door staff' });
   },
   qrDoor: async (el) => {
     if (st.qrUrl) { st.qrUrl = null; paint('[data-block="staff"]', blockStaff()); return; }
@@ -1429,8 +1435,9 @@ const handlers = {
     }
     st.briefCopied = ok;
     paint('[data-block="hostBrief"]', blockHostBrief());
-    ui.toast(ok ? COPY.brief.copyToast : COPY.brief.copyFail, ok ? {} : { kind: 'error' });
-    if (ok) setTimeout(() => { if (st && st.briefCopied) { st.briefCopied = false; if (rootEl) paint('[data-block="hostBrief"]', blockHostBrief()); } }, 2600);
+    if (!ok) { ui.toast(COPY.brief.copyFail, { kind: 'error' }); return; }
+    // the one copy confirmation (ui.copied): ✓ COPIED in place with one gold ring, then it lets go
+    ui.copied(rootEl && rootEl.querySelector('[data-act="hbCopy"]'), () => { if (st && st.briefCopied) { st.briefCopied = false; if (rootEl) paint('[data-block="hostBrief"]', blockHostBrief()); } }, { say: COPY.brief.copyToast });
   },
   hbPrint: () => {
     const b = st.brief;

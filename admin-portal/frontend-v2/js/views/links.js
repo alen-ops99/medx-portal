@@ -78,7 +78,7 @@ export const COPY = {
 // artboard kindStyle, verbatim
 const KIND_STYLE = { PUBLIC: ['#eee9df', '#4a4239'], VIP: ['#f1e7d4', '#7a6432'], DIASPORA: ['#e8eef7', '#2c4a73'], SPONSOR: ['#e4efe7', '#22563a'] };
 
-let D = null, st = null, unbind = null, unkey = null, rootEl = null, reqId = 0, copiedTimer = null;
+let D = null, st = null, unbind = null, unkey = null, rootEl = null, reqId = 0;
 
 function loadCss() {
   if (!document.getElementById('mx-css-links')) {
@@ -251,8 +251,8 @@ function linkRow(l) {
         </div>
         <div style="display:flex;align-items:center;padding-left:23px;min-width:0">${metaLine(l)}</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <span class="mxl-url${copied ? ' is-copied' : ''}" style="font:600 11.5px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:8px 11px;flex:1;min-width:200px;color:${l.paused ? '#9a9086' : '#201b16'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.url)}">${esc(l.url.replace(/^https?:\/\//, ''))}</span>
-          <span data-act="copy" ${ref} data-url="${esc(l.url)}"${copied ? ' class="mxpj-ok"' : ''} style="padding:8px 13px;background:${copied ? '#1e6e42' : '#9b1b22'};color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap"${copied ? '' : ' data-hover="background:#7e151b"'}>${copied ? COPY.row.copied : COPY.row.copy}</span>
+          <span class="mxl-url" style="font:600 11.5px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:8px 11px;flex:1;min-width:200px;color:${l.paused ? '#9a9086' : '#201b16'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.url)}">${esc(l.url.replace(/^https?:\/\//, ''))}</span>
+          <span data-act="copy" ${ref} data-url="${esc(l.url)}" style="padding:8px 13px;background:${copied ? '#1e6e42' : '#9b1b22'};color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap"${copied ? '' : ' data-hover="background:#7e151b"'}>${copied ? COPY.row.copied : COPY.row.copy}</span>
           <span data-act="qr" ${ref} data-url="${esc(l.url)}" data-name="${esc(l.name)}" title="${COPY.row.qrTitle}" style="padding:8px 11px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.row.qr}</span>
         </div>
       </div>`;
@@ -291,7 +291,7 @@ function blockList() {
         ${ordered.map(linkRow).join('')}
         ${!live.length ? `<div class="empty" style="padding:30px 18px 32px"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">${COPY.live.empty}</span><span class="empty-why">${COPY.live.emptyWhy}</span></div>` : ''}
         ${arch.length ? `
-        <div data-act="archToggle" role="button" aria-expanded="${st.archOpen}" style="display:flex;align-items:center;gap:10px;padding:11px 18px;border-top:1px solid rgba(32,27,22,.12);cursor:pointer;background:#fdfbf6" data-hover="background:#f6f2ea">
+        <div data-act="archToggle" role="button" aria-expanded="${st.archOpen}" style="display:flex;align-items:center;gap:10px;padding:11px 18px;border-top:1px solid rgba(32,27,22,.12);cursor:pointer;background:#fdfbf6" data-hover="background:var(--row-hover)">
           <span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${esc(COPY.arch.title(arch.length))}</span>
           <div style="flex:1"></div>
           <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${st.archOpen ? COPY.arch.hide : COPY.arch.show}</span>
@@ -447,17 +447,16 @@ const handlers = {
     const key = el.dataset.kind + ':' + el.dataset.id;
     st.copied = key;
     rerender('[data-block="list"]', blockList());
-    ui.toast(COPY.toast.copied);
-    // the green ✓ COPIED state lets go after a moment — in place, so a half-typed rename survives
-    clearTimeout(copiedTimer);
-    copiedTimer = setTimeout(() => {
+    // the one copy confirmation (ui.copied): ✓ COPIED on green, one gold ring, no toast — and the green
+    // state lets go after a moment, in place, so a half-typed rename survives
+    const sel = `[data-act="copy"][data-kind="${CSS.escape(el.dataset.kind)}"][data-id="${CSS.escape(el.dataset.id)}"]`;
+    ui.copied(rootEl.querySelector(sel), () => {
       if (!rootEl || !st || st.copied !== key) return;
       st.copied = null;
-      const b = rootEl.querySelector(`[data-act="copy"][data-kind="${CSS.escape(el.dataset.kind)}"][data-id="${CSS.escape(el.dataset.id)}"]`);
+      const b = rootEl.querySelector(sel);
       if (!b) return;
-      b.classList.remove('mxpj-ok'); b.textContent = COPY.row.copy; b.style.background = '#9b1b22'; b.setAttribute('data-hover', 'background:#7e151b');
-      const u = b.parentElement && b.parentElement.querySelector('.mxl-url'); if (u) u.classList.remove('is-copied');
-    }, 2400);
+      b.classList.remove('mx-copied'); b.textContent = COPY.row.copy; b.style.background = '#9b1b22'; b.setAttribute('data-hover', 'background:#7e151b');
+    }, { say: COPY.toast.copied });
   },
   qr: (el) => showQr(el.dataset.url, el.dataset.name),
   // ---- Task J: inline rename — RENAME → input prefilled → SAVE/CANCEL (Enter/Escape via onKey) ----
@@ -539,5 +538,5 @@ export default {
       if (form) { form.scrollIntoView({ block: 'center' }); const inp = root.querySelector('select, input'); if (inp) inp.focus(); }
     }
   },
-  destroy() { reqId++; clearTimeout(copiedTimer); if (unbind) unbind(); if (unkey) unkey(); unbind = null; unkey = null; rootEl = null; D = null; st = null; }
+  destroy() { reqId++; if (unbind) unbind(); if (unkey) unkey(); unbind = null; unkey = null; rootEl = null; D = null; st = null; }
 };

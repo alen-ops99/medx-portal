@@ -39,8 +39,8 @@ img { max-width: 100%; }
   outline: 2px solid #9b1b22; outline-offset: 3px;
 }
 /* on the ink ground (drawer, tab bar, dark bands, photo heroes) the ring turns gold so it stays visible */
-#mx-drawer :focus-visible, #mx-tabbar :focus-visible, .mx-ink :focus-visible,
-[style*="background:#191512"] :focus-visible, .mx-waking :focus-visible { outline-color: #c9a962; }
+#mx-drawer :focus-visible, #mx-tabbar :focus-visible, .mx-ink :focus-visible, .mx-toast :focus-visible,
+[style*="background:#191512"] :focus-visible, .mx-waking :focus-visible, .btn-ghost-ink:focus-visible { outline-color: #c9a962; }
 #mx-tabbar a:focus-visible { outline-offset: -4px; }
 [data-act][aria-disabled="true"] { opacity: .55; cursor: default; }
 
@@ -63,14 +63,11 @@ body.drawer-open #mx-scrim { background: rgba(25,21,18,.45); pointer-events: aut
 body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 44px rgba(25,21,18,.4); visibility: visible;
   transition: transform var(--t-reveal) var(--ease), box-shadow var(--t-reveal) var(--ease), visibility 0s; }
 #mx-drawer a, #mx-drawer [data-act] { transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), transform var(--t-quick) var(--ease); }
-/* opening: the entries follow the panel in, a few ms apart (chrome.openDrawer sets .is-entering for one pass) */
+/* opening: the entries follow the panel in one after another — every menu line, not each list as a slab.
+   chrome.openDrawer marks the lines .mx-dr-i with --dr-d (22 ms apart, capped at 160 ms) and sets
+   .is-entering for one pass */
 @media (prefers-reduced-motion: no-preference) {
-  #mx-drawer.is-entering > * { animation: mx-drawer-in var(--t-reveal) var(--ease) both; }
-  #mx-drawer.is-entering > :nth-child(2) { animation-delay: 40ms; }
-  #mx-drawer.is-entering > :nth-child(3) { animation-delay: 70ms; }
-  #mx-drawer.is-entering > :nth-child(4) { animation-delay: 100ms; }
-  #mx-drawer.is-entering > :nth-child(5) { animation-delay: 115ms; }
-  #mx-drawer.is-entering > :nth-child(n+6) { animation-delay: 130ms; }
+  #mx-drawer.is-entering .mx-dr-i { animation: mx-drawer-in var(--t-reveal) var(--ease) backwards; animation-delay: var(--dr-d, 0ms); }
 }
 @keyframes mx-drawer-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
 /* a menu entry leans in a few pixels under the pointer — the active one (gold rule) stays put */
@@ -83,8 +80,8 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-pop-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid rgba(25,21,18,.16); }
 .mx-pop-list { max-height: 60vh; overflow-y: auto; }
 .mx-pop-row { display: flex; gap: 12px; align-items: flex-start; padding: 11px 16px; border-bottom: 1px solid rgba(25,21,18,.1); color: #191512; cursor: pointer; }
-.mx-pop-row { transition: background-color var(--t-quick) var(--ease); }
-@media (hover: hover) { .mx-pop-row:hover { background: #f7efdf; } }
+.mx-pop-row { transition: background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
+@media (hover: hover) { .mx-pop-row:hover { background: var(--row-hover); } }
 .mx-pop-row:last-child { border-bottom: 0; }
 .mx-search { position: fixed; inset: 0; z-index: 50; background: rgba(25,21,18,.55); display: flex; align-items: flex-start; justify-content: center; padding: 10vh 18px 0; }
 .mx-search-panel { width: 640px; max-width: 100%; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: 0 16px 44px rgba(25,21,18,.35); }
@@ -94,24 +91,35 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-search-group { padding: 10px 20px 4px; font: 600 9px Inter, sans-serif; letter-spacing: .16em; color: #6e5626; }
 /* SEARCH / ALERTS open with a short fade and a few pixels of travel; they fade out on close.
    chrome.js adds .mx-pop-in for the opening pass only (--pop-t continues it across a re-render). */
+/* Entrances fill `backwards` only: a finished entrance must not keep an identity transform on the panel
+   (it would stay a containing block for anything fixed or sticky inside it). Exits fill `forwards`. */
 @media (prefers-reduced-motion: no-preference) {
-  .mx-pop.mx-pop-in { animation: mx-drop var(--t-reveal) var(--ease) both; animation-delay: var(--pop-t, 0ms); }
-  .mx-search.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease) both; animation-delay: var(--pop-t, 0ms); }
-  .mx-search.mx-pop-in .mx-search-panel { animation: mx-drop var(--t-reveal) var(--ease) both; animation-delay: var(--pop-t, 0ms); }
-  .mx-pop.mx-pop-out, .mx-search.mx-pop-out { animation: mx-fade-out var(--t-exit) var(--ease) both; pointer-events: none; }
+  .mx-pop.mx-pop-in { animation: mx-drop var(--t-reveal) var(--ease) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-search.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-search.mx-pop-in .mx-search-panel { animation: mx-drop var(--t-reveal) var(--ease) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-pop.mx-pop-out, .mx-search.mx-pop-out { animation: mx-fade-out var(--t-exit) var(--ease) forwards; pointer-events: none; }
 }
+/* the search panel: ↑ / ↓ move a visible active row (chrome.js › .is-active), Enter opens it */
+.mx-pop-row.is-active { background: var(--row-hover); box-shadow: inset 2px 0 0 #c9a962; }
 @keyframes mx-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 @keyframes mx-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
-/* ---- toast (Profile.dc.html bottom toast, verbatim look) ----------------- */
+/* ---- toast (Profile.dc.html bottom toast, verbatim look) -----------------
+   width:max-content — with left:50% the shrink-to-fit width was capped at the right HALF of the viewport,
+   so on a phone a long toast was squeezed into a 195 px column six lines tall. It rises in at the reveal
+   timing, lifted off the page by its shadow, and leaves at the exit timing. */
 .mx-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(12px); background: #191512; color: #f7f1e6; padding: 12px 20px;
   font: 600 10px Inter, sans-serif; letter-spacing: .15em; text-transform: uppercase; z-index: 70; border-left: 3px solid #c9a962; white-space: nowrap;
-  opacity: 0; transition: opacity var(--t-reveal) var(--ease), transform var(--t-reveal) var(--ease); max-width: calc(100vw - 36px); box-sizing: border-box; }
-.mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  width: max-content; max-width: calc(100vw - 36px); box-sizing: border-box; box-shadow: 0 14px 34px -14px rgba(25,21,18,.55);
+  opacity: 0; transition: opacity var(--t-exit) var(--ease), transform var(--t-exit) var(--ease); }
+.mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto;
+  transition: opacity var(--t-reveal) var(--ease), transform var(--t-reveal) var(--ease); }
 /* a faded toast stays in the DOM — it must never catch the taps meant for the tab bar under it */
 .mx-toast:not(.show) { pointer-events: none; }
 .mx-toast.error { border-left-color: #9b1b22; }
 @media (max-width: 500px) { .mx-toast { white-space: normal; max-width: 86vw; text-align: center; } }
+/* phones: the toast rides above the ink tab bar (51 px) instead of sitting on it, where ink on ink read as part of the bar */
+@media (max-width: 430px) { body[data-layout="portal"] .mx-toast { bottom: 65px; } }
 
 /* ---- modal / confirm (brand vocabulary: ink scrim, cream sheet, hairlines) ---- */
 .mx-modal { position: fixed; inset: 0; z-index: 60; background: rgba(25,21,18,.55); display: flex; align-items: center; justify-content: center; padding: 18px; }
@@ -121,9 +129,9 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-modal-body .mx-modal-title { font-family: Fraunces, serif; font-size: 22px; line-height: 1.15; color: #191512; margin-bottom: 10px; }
 .mx-modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 0 22px 22px; flex-wrap: wrap; }
 @media (prefers-reduced-motion: no-preference) {
-  .mx-modal { animation: mx-fade var(--t-reveal) var(--ease) both; }
-  .mx-modal .mx-modal-sheet { animation: mx-rise var(--t-reveal) var(--ease) both; }
-  .mx-modal.is-leaving { animation: mx-fade-out var(--t-exit) var(--ease) both; pointer-events: none; }
+  .mx-modal { animation: mx-fade var(--t-reveal) var(--ease) backwards; }
+  .mx-modal .mx-modal-sheet { animation: mx-rise var(--t-reveal) var(--ease) backwards; }
+  .mx-modal.is-leaving { animation: mx-fade-out var(--t-exit) var(--ease) forwards; pointer-events: none; }
 }
 .mx-modal.is-leaving { pointer-events: none; }
 @keyframes mx-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -137,6 +145,9 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-waking .bar { width: 120px; height: 1px; background: rgba(247,241,230,.18); margin-top: 18px; position: relative; overflow: hidden; }
 .mx-waking .bar::after { content: ""; position: absolute; left: 0; top: 0; width: 40%; height: 100%; background: #c9a962; transform: translateX(-100%); animation: mx-sweep 1.6s var(--ease) infinite; }
 @keyframes mx-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }   /* transform, not left — no layout per frame */
+/* reduced motion: the sweep cannot run (the kill switch below stops it after one 1 ms pass, which parked it
+   off the track and left an empty line that looked hung) — a still gold segment holds the track instead */
+@media (prefers-reduced-motion: reduce) { .mx-waking .bar::after { animation: none !important; transform: translateX(75%); } }
 
 /* ---- hero photo rotation (Home photo band) ------------------------------ */
 .mx-rotator img { transition: opacity var(--t-drift) var(--ease); }
@@ -264,21 +275,21 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 @keyframes mx-lift-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes mx-settle { from { transform: scale(1.045); } to { transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
-  #view.mx-enter { animation: mx-fade var(--t-reveal) var(--ease) both; }
+  #view.mx-enter { animation: mx-fade var(--t-reveal) var(--ease) backwards; }
   /* card grids cascade in — 35 ms apart, capped so the last card lands by ~500 ms */
-  #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > * { animation: mx-lift-in var(--t-reveal) var(--ease) both; }
+  #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > * { animation: mx-lift-in var(--t-reveal) var(--ease) backwards; }
   #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > :nth-child(2) { animation-delay: 35ms; }
   #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > :nth-child(3) { animation-delay: 70ms; }
   #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > :nth-child(4) { animation-delay: 105ms; }
   #view.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts) > :nth-child(n+5) { animation-delay: 140ms; }
   /* hero copy rises in line by line — eyebrow, headline, lead, actions */
-  #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > * { animation: mx-lift-in var(--t-reveal) var(--ease) both; }
+  #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > * { animation: mx-lift-in var(--t-reveal) var(--ease) backwards; }
   #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > :nth-child(2) { animation-delay: 40ms; }
   #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > :nth-child(3) { animation-delay: 80ms; }
   #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > :nth-child(4) { animation-delay: 115ms; }
   #view.mx-enter :is(.mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > :nth-child(n+5) { animation-delay: 140ms; }
   /* photo heroes settle into place — a slow, barely-there zoom-out */
-  #view.mx-enter .mx-hero-photo { animation: mx-settle var(--t-drift) var(--ease) both; }
+  #view.mx-enter .mx-hero-photo { animation: mx-settle var(--t-drift) var(--ease) backwards; }
 }
 /* the photo heroes sit on ink, so a photo still arriving rises out of the dark, never out of cream */
 .mx-ink { background: #191512; }
@@ -289,19 +300,24 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
    creeps along the top of the window, then sweeps home and fades as the new screen lands (body.mx-held —
    on the body, not in #view, so the new screen's own fade never swallows the sweep).
    On a tab switch the breadcrumb and the tab strip stay lit, the tab you pressed takes its underline at
-   once, and only the content around them rises in (.mx-enter-tab › .mx-tab-in) while the rule slides. ---- */
+   once, and only the content around them rises in (.mx-enter-tab › .mx-tab-in) while the rule slides.
+   The ~250 ms threshold is a router TIMER (body.mx-slow), not a css delay, so reduced motion keeps it:
+   there the old screen dims and a still hairline shows, both at once, with nothing travelling. ---- */
 #view .mx-leaving { pointer-events: none; }
 body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 75; background: #c9a962; pointer-events: none;
   opacity: 0; transform: scaleX(0); transform-origin: 0 50%; }
+body.mx-holding.mx-slow #view .mx-leaving { opacity: .55; }
+body.mx-holding.mx-slow::before { opacity: 1; transform: scaleX(.9); }
 @media (prefers-reduced-motion: no-preference) {
-  body.mx-holding #view .mx-leaving { opacity: .55; transition: opacity var(--t-reveal) var(--ease) 250ms; }
-  body.mx-holding::before { opacity: 1; transform: scaleX(.9); transition: transform 9s cubic-bezier(.08,.7,.2,1) 250ms, opacity 0s linear 250ms; }
+  body.mx-holding.mx-slow #view .mx-leaving { transition: opacity var(--t-reveal) var(--ease); }
+  body.mx-holding.mx-slow::before { transition: transform 9s cubic-bezier(.08,.7,.2,1), opacity 0s; }
   body.mx-held::before { opacity: 0; transform: none; transition: transform var(--t-quick) var(--ease), opacity var(--t-reveal) var(--ease) var(--t-quick); }
 }
+@media (prefers-reduced-motion: reduce) { body.mx-holding.mx-slow::before { opacity: .55; transform: none; } }
 .mx-tab.is-pending { color: #191512 !important; }
 .mx-tab.is-pending::after { transform: none; }
 @media (prefers-reduced-motion: no-preference) {
-  #view.mx-enter-tab .mx-tab-in { animation: mx-lift-in var(--t-reveal) var(--ease) both; }
+  #view.mx-enter-tab .mx-tab-in { animation: mx-lift-in var(--t-reveal) var(--ease) backwards; }
   #view.mx-enter-tab .mx-tab-in ~ .mx-tab-in { animation-delay: 45ms; }
 }
 
@@ -316,7 +332,11 @@ a, [data-act], [data-nav], button { -webkit-tap-highlight-color: transparent; }
 
 /* ---- trailing arrows: ui.js wraps a control's closing → / ↗ in .mx-arr and marks that control
    .mx-has-arr; hovering the control leans its arrow forward ---- */
-.mx-arr { display: inline-block; transition: transform var(--t-quick) var(--ease); }
+.mx-arr { display: inline-block; font-style: normal; line-height: 1; transition: transform var(--t-quick) var(--ease); }
+@media (prefers-reduced-motion: no-preference) {   /* a keyboard focus leans the arrow too (the admin portal's rule) */
+  .mx-has-arr:focus-visible .mx-arr { transform: translateX(3px); }
+  .mx-has-arr:focus-visible .mx-arr.ne { transform: translate(2px, -2px); }
+}
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .mx-has-arr:hover .mx-arr { transform: translateX(3px); }
   .mx-has-arr:hover .mx-arr.ne { transform: translate(2px, -2px); }
@@ -337,24 +357,32 @@ a, [data-act], [data-nav], button { -webkit-tap-highlight-color: transparent; }
 
 /* ---- section tabs (.mx-tab inside [data-tabs]): the underline is a drawn rule, not a border — the active
    one draws in from the centre on arrival (or slides over from the tab you left: router.js sets
-   --tab-dx / --tab-sx and .is-sliding); an inactive tab grows a hairline under the pointer ---- */
+   --tab-dx / --tab-sx and .is-sliding); under the pointer an inactive tab draws a crimson hairline in
+   from the left (the admin nav, sub-tabs and Inbox tabs do the same) ---- */
 /* the strip keeps its drawn height (the old active tab carried 5px of border + padding) */
 :is(.mx-plexus-tabs, .mx-tabs)[data-tabs] { min-height: 44px; box-sizing: border-box; }
 .mx-tab { position: relative; }
 .mx-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 2px; background: #9b1b22;
   transform: scaleX(0); transform-origin: 50% 50%; transition: transform var(--t-quick) var(--ease); pointer-events: none; }
 .mx-tab.is-on::after { transform: none; }
-.mx-tab:not(.is-on)::after { height: 1px; background: currentColor; opacity: .5; }
+.mx-tab:not(.is-on)::after { height: 1px; opacity: .45; transform-origin: 0 50%; }
 @media (hover: hover) { .mx-tab:not(.is-on):hover::after { transform: none; } }
 @keyframes mx-draw { from { transform: scaleX(0); } to { transform: none; } }
 @keyframes mx-tab-slide { from { transform: translateX(var(--tab-dx, 0)) scaleX(var(--tab-sx, 1)); } to { transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
-  #view:is(.mx-enter, .mx-enter-tab) .mx-tab.is-on:not(.is-sliding)::after { animation: mx-draw var(--t-reveal) var(--ease) both; animation-delay: 60ms; }
-  .mx-tab.is-on.is-sliding::after { transform-origin: 0 50%; animation: mx-tab-slide var(--t-reveal) var(--ease) both; }
+  #view:is(.mx-enter, .mx-enter-tab) .mx-tab.is-on:not(.is-sliding)::after { animation: mx-draw var(--t-reveal) var(--ease) backwards; animation-delay: 60ms; }
+  .mx-tab.is-on.is-sliding::after { transform-origin: 0 50%; animation: mx-tab-slide var(--t-reveal) var(--ease) backwards; }
 }
-@media (max-width: 480px) { .mx-tab::after { bottom: 0; } }
+@media (max-width: 480px) {
+  .mx-tab::after { bottom: 0; }
+  /* a strip that scrolls sideways fades at its edges, so a clipped tab reads as "more this way", not cut off */
+  :is(.mx-tabs, .mx-plexus-tabs)[data-tabs] {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%);
+  }
+}
 
-/* ---- clickable cards lift a hair; their photo drifts (the Home project cards set the pattern). One
+/* ---- clickable cards lift 2px on --shadow-lift (the same lift in both portals and the event app); their photo drifts (the Home project cards set the pattern). One
    transition list for everything a card may change — it replaces the [data-hover] list on the same
    element, so the hover background and colour must be in it too, or they snap ---- */
 .mx-proj-card, .mx-card-link { transition: transform var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease),
@@ -362,28 +390,29 @@ a, [data-act], [data-nav], button { -webkit-tap-highlight-color: transparent; }
 .mx-ph { display: block; overflow: hidden; }
 .mx-proj-card img, .mx-ph img, .mx-ph .mx-mono { transition: transform var(--t-drift) var(--ease), opacity var(--t-reveal) var(--ease); }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .mx-proj-card:hover, .mx-card-link:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
-  .mx-card-link.is-small:hover { transform: translateY(-2px); }
+  .mx-proj-card:hover, .mx-card-link:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
   .mx-proj-card:hover img, .mx-ph:hover img, .mx-card-link:hover .mx-ph img, .mx-ph:hover .mx-mono, .mx-card-link:hover .mx-ph .mx-mono { transform: scale(1.045); }
   /* pressed, a lifted card settles most of the way back — the same gesture on every card */
-  .mx-proj-card:active, .mx-card-link:active, .mx-card-link.is-small:active { transform: translateY(-1px); box-shadow: 0 10px 22px -18px rgba(25,21,18,.5); }
+  .mx-proj-card:active, .mx-card-link:active { transform: translateY(-1px); box-shadow: 0 10px 22px -18px rgba(25,21,18,.5); }
 }
 /* touch: no hover, so a card answers the press itself */
 @media (hover: none) { .mx-proj-card:active, .mx-card-link:active { opacity: .86; } }
-a.mx-proj-card:hover { color: #191512; }
-a.mx-proj-card.dark, a.mx-proj-card.dark:hover { color: #f7f1e6; }
-a.mx-card-link, a.mx-card-link:hover { color: #191512; }
+/* a card link keeps its own ink (never the crimson of a bare link, never the global link hover) */
+a.mx-proj-card.dark { color: #f7f1e6; }
+a.mx-card-link { color: #191512; }
+@media (hover: hover) { a.mx-proj-card:hover, a.mx-card-link:hover { color: #191512; } a.mx-proj-card.dark:hover { color: #f7f1e6; } }
 
 /* ---- sections below the first screen rise in as they scroll into view (ui.revealOnScroll — views opt in
-   with `reveal: true`). Marked by script only, so without it nothing is hidden; print shows everything ---- */
+   with `reveal: true`). Marked by script only, so without it nothing is hidden; print shows everything
+   (.mx-rv, not .mx-sr: in the admin portal .mx-sr is screen-reader-only text — one name, two meanings) ---- */
 @media (prefers-reduced-motion: no-preference) {
-  .mx-sr { opacity: 0; transform: translateY(14px); }
-  .mx-sr-in { transition: opacity var(--t-reveal) var(--ease) var(--sr-d, 0ms), transform var(--t-reveal) var(--ease) var(--sr-d, 0ms); }
+  .mx-rv { opacity: 0; transform: translateY(14px); }
+  .mx-rv-in { transition: opacity var(--t-reveal) var(--ease) var(--rv-d, 0ms), transform var(--t-reveal) var(--ease) var(--rv-d, 0ms); }
 }
-@media print { .mx-sr { opacity: 1 !important; transform: none !important; } }
+@media print { .mx-rv { opacity: 1 !important; transform: none !important; } }
 
 /* ---- disclosure panels (FAQ answer, host detail): the opened panel fades down into place ---- */
-@media (prefers-reduced-motion: no-preference) { .mx-reveal { animation: mx-drop var(--t-reveal) var(--ease) both; } }
+@media (prefers-reduced-motion: no-preference) { .mx-reveal { animation: mx-drop var(--t-reveal) var(--ease) backwards; } }
 
 /* ---- images arrive with a short fade instead of painting in rows. ui.js marks only view / sheet images
    still loading a frame after they were drawn (never the chrome's logo, never a photo hero) and clears
@@ -407,7 +436,7 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
 /* legacy: a switch re-drawn in its new state (ui.flipSwitch) slides its knob over from the old side */
 @keyframes mx-knob { from { transform: translateX(var(--knob-from, 0)); } to { transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
-  [role="switch"]:not(.mx-switch).mx-sw-flip > span { animation: mx-knob var(--t-quick) var(--ease) both; }
+  [role="switch"]:not(.mx-switch).mx-sw-flip > span { animation: mx-knob var(--t-quick) var(--ease) backwards; }
   [role="switch"][aria-checked="true"].mx-sw-flip > span { --knob-from: -16px; }
   [role="switch"][aria-checked="false"].mx-sw-flip > span { --knob-from: 16px; }
 }
@@ -429,7 +458,9 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
 #mx-tabbar a:active > span:last-child { color: #f7f1e6 !important; }
 @media (hover: hover) { #mx-tabbar a:hover > span:last-child { color: #f7f1e6 !important; } }
 
-/* countdown digits: ui.tick() fades a changed number up into place (Web Animations; skipped for reduced motion) */
+/* countdown digits: ui.tick() fades a changed number up into place (Web Animations; skipped for reduced motion).
+   Tabular figures, so a changing digit never nudges the units beside it */
+[data-cd] { font-variant-numeric: tabular-nums; }
 
 /* ---- reduced motion: nothing travels, fades or zooms (1 ms keeps animationend/transitionend firing) ---- */
 @media (prefers-reduced-motion: reduce) {

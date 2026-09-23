@@ -14,18 +14,23 @@
 /* the preview's intrinsic width must not travel up the tree at all — contain it (Chrome 105+,
    Safari 16+); the width:0 + min-width:100% pair is the same promise for older engines */
 .mx-task-result { contain: inline-size; width: 0; min-width: 100%; box-sizing: border-box; }
-.mx-col-body { transition: background-color var(--t-fast) var(--ease), outline-color var(--t-fast) var(--ease); padding: 2px; margin: -2px; outline: 1px dashed transparent; outline-offset: 2px; }
+.mx-col-body { transition: background-color var(--t-quick) var(--ease), outline-color var(--t-quick) var(--ease); padding: 2px; margin: -2px; outline: 1px dashed transparent; outline-offset: 2px; }
 .mx-col.over .mx-col-body { background: rgba(201,169,98,.14); outline-color: #c9a962; }
 /* the column you carry a card over names itself: its head rule turns gold */
-.mx-col-head { transition: border-color var(--t-fast) var(--ease); }
+.mx-col-head { transition: border-color var(--t-quick) var(--ease); }
 .mx-col.over .mx-col-head { border-bottom-color: #c9a962 !important; }
-.mx-task { transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), transform var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease); user-select: none; -webkit-user-select: none; }
+.mx-task { transition: border-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease), transform var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); user-select: none; -webkit-user-select: none; }
 .mx-task.open { border-color: #9b1b22 !important; box-shadow: inset 3px 0 0 #9b1b22; }
-/* desktop: a card rises under the pointer and shows the grab hand — it can be carried to another column */
+/* desktop: a card rises under the pointer (the card lift of both portals) and shows the grab hand — it can
+   be carried to another column. The open card keeps its crimson edge under the pointer. */
 @media (hover: hover) {
-  .mx-task:hover { border-color: #201b16 !important; transform: translateY(-1px); box-shadow: var(--shadow-lift); }
-  .mx-task.open:hover { box-shadow: inset 3px 0 0 #9b1b22, var(--shadow-lift); }
+  .mx-task:hover { border-color: #201b16 !important; box-shadow: var(--shadow-lift); }
+  .mx-task.open:hover { border-color: #9b1b22 !important; box-shadow: inset 3px 0 0 #9b1b22, var(--shadow-lift); }
 }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-task:not(.dragging):hover { transform: translateY(-2px); }
+}
+@media (hover: none) { .mx-task:active { opacity: .86; } }
 @media (hover: hover) and (pointer: fine) and (min-width: 761px) {
   .mx-task[draggable="true"] { cursor: grab !important; }
   .mx-task[draggable="true"]:active { cursor: grabbing !important; }
@@ -35,19 +40,22 @@
 [data-col="done"] .mx-task { border-left: 3px solid #9b1b22 !important; }
 [data-col="seen"] .mx-task { opacity: .82; }
 @media (hover: hover) { [data-col="seen"] .mx-task:hover { opacity: 1; } }
+@media (hover: none) { [data-col="seen"] .mx-task:active { opacity: .7; } }   /* a dimmed card still answers the press (dimmer, never brighter) */
 
 /* ---- drawer (right side on desktop; no scrim — the board stays live, a click on another card
    switches the drawer, × or Escape closes it) ---- */
 .mx-drawer { position: fixed; inset: 0; z-index: 55; display: flex; justify-content: flex-end; pointer-events: none; }
-.mx-drawer-sheet { position: relative; width: 520px; max-width: 100%; height: 100%; background: #fff; border-left: 1px solid rgba(32,27,22,.18); box-shadow: -12px 0 30px rgba(32,27,22,.16); overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; animation: mx-drawer-in var(--t-enter) var(--ease); -webkit-overflow-scrolling: touch; }
+.mx-drawer-sheet { position: relative; width: 520px; max-width: 100%; height: 100%; background: #fff; border-left: 1px solid rgba(32,27,22,.18); box-shadow: -12px 0 30px rgba(32,27,22,.16); overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; animation: mx-sheet-in var(--t-reveal) var(--ease); -webkit-overflow-scrolling: touch; }
 /* the sheet slides in from the right edge (a new card switching the open drawer re-renders it, so
    the slide answers every card you open) */
-@keyframes mx-drawer-in { from { transform: translateX(36px); opacity: 0; } to { transform: none; opacity: 1; } }
-/* the sheet slides in when it opens and only then (js rerenderDrawer): a redraw of the same card keeps
-   the sheet element and swaps its contents, another card cross-fades in, closing slides it back out */
-.mx-drawer.swap .mx-drawer-sheet { animation: mx-fade .24s var(--ease) both; }
+@keyframes mx-sheet-in { from { transform: translateX(36px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* the sheet slides in when it opens and only then (js rerenderDrawer): every redraw keeps the sheet
+   element and swaps what is inside it. Another card's content cross-fades in on the sheet, which stays
+   opaque (it used to fade the whole white sheet, and the board flashed through it); a redraw landing
+   mid-fade carries the fade on (--swap-d). Closing slides the sheet back out at --t-exit. */
+.mx-drawer.swap .mx-drawer-sheet > * { animation: mx-fade var(--t-reveal) var(--ease) var(--swap-d, 0ms) both; }
 .mx-drawer.out, .mx-drawer.out .mx-drawer-sheet { pointer-events: none; }
-.mx-drawer.out .mx-drawer-sheet { animation: mx-drawer-out .2s var(--ease) both; }
+.mx-drawer.out .mx-drawer-sheet { animation: mx-drawer-out var(--t-exit) var(--ease) forwards; }
 @keyframes mx-drawer-out { from { transform: none; opacity: 1; } to { transform: translateX(36px); opacity: 0; } }
 @keyframes mx-drawer-down { from { transform: none; opacity: 1; } to { transform: translateY(22px); opacity: 0; } }
 @media (max-width: 760px) { .mx-drawer.out .mx-drawer-sheet { animation-name: mx-drawer-down; } }
@@ -74,7 +82,7 @@
   .mx-tasks-filters { gap: 6px !important; }
   .mx-tasks-search { flex: 1 1 100% !important; min-width: 0 !important; }
   /* the drawer becomes the whole screen; the page underneath stops scrolling */
-  .mx-drawer-sheet { width: 100%; border-left: 0; box-shadow: none; animation: mx-drawer-up var(--t-enter) var(--ease); }
+  .mx-drawer-sheet { width: 100%; border-left: 0; box-shadow: none; animation: mx-drawer-up var(--t-reveal) var(--ease); }
   @keyframes mx-drawer-up { from { transform: translateY(22px); opacity: 0; } to { transform: none; opacity: 1; } }
   .mx-drawer-fields { grid-template-columns: 1fr 1fr !important; }
   .mx-drawer-fields > div:first-child { grid-column: 1 / -1; }

@@ -312,10 +312,8 @@ let hostTimer = null;
 // at once, and a keyboard user lands back on the active tab instead of the top of the page.
 let tabFocus = { live: false };
 
-// motion hook (css: the Projects MOTION KIT at the end of plexus-hub.css) — a label's trailing arrow leans
-// on hover. A no-break space: a plain one collapses at a flex item's edge ("CALENDAR→") and lets the
+// A trailing arrow sits on a no-break space: a plain one collapses at a flex item's edge ("CALENDAR→") and lets the
 // arrow wrap onto a line of its own on a phone.
-const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);
 function injectCss() {
   if (!document.querySelector('link[data-mxp-css]')) {
     const l = document.createElement('link');
@@ -531,8 +529,8 @@ function blockTitle() {
         </div>
       </div>
       <div class="mxp-title-actions" style="display:flex;gap:10px;flex-wrap:wrap">
-        <a href="/member-pages/plexus" style="border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:10px 16px;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${arr(h.manage)}</a>
-        <a href="/event-day" style="background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 16px;white-space:nowrap" data-hover="background:#9b1b22">${arr(h.eventday)}</a>
+        <a href="/member-pages/plexus" style="border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:10px 16px;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${h.manage}</a>
+        <a href="/event-day" style="background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 16px;white-space:nowrap" data-hover="background:#9b1b22">${h.eventday}</a>
       </div>
     </div>
     <!-- /dc -->
@@ -586,9 +584,9 @@ function blockStats() {
   const collected = galaLocked ? null : (ops ? ops.eur.collected : D.gala.collected) + D.revenue;
   const live = spLive().length;
   const cell = (inner, href, act) => href
-    ? `<a href="${href}" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block" data-hover="background:#fdfbf6;color:#201b16">${inner}</a>`
+    ? `<a href="${href}" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block" data-hover="background:var(--row-hover);color:#201b16">${inner}</a>`
     : act
-      ? `<span data-act="${act}" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block;cursor:pointer" data-hover="background:#fdfbf6;color:#201b16">${inner}</span>`
+      ? `<span data-act="${act}" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block;cursor:pointer" data-hover="background:var(--row-hover);color:#201b16">${inner}</span>`
       : `<div style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1)">${inner}</div>`;
   const kd = keyDates();
   return `
@@ -602,19 +600,19 @@ function blockStats() {
         ${cell(`
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.reg}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.regs == null ? '—' : esc(fmt.num(D.regs))}</div>
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${arr(esc(s.regSub(D.cap)))}</div>`, '/registrations')}
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${esc(s.regSub(D.cap))}</div>`, '/registrations')}
         ${cell(`
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${ops ? s.gala : s.galaFallback}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${galaLocked ? '—' : (ops ? ops.seats.reserved : D.gala.rows.length)}</div>
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${galaLocked ? esc(COPY.locked('plexus')) : arr(esc(ops ? s.galaSub(ops.seats.paid, ops.seats.chase) : s.galaSub(D.gala.paid.length, D.gala.toChase.length)))}</div>`, '/gala')}
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${galaLocked ? esc(COPY.locked('plexus')) : esc(ops ? s.galaSub(ops.seats.paid, ops.seats.chase) : s.galaSub(D.gala.paid.length, D.gala.toChase.length))}</div>`, '/gala')}
         ${cell(`
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.speakers}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.speakers.length}</div>
-          <div style="font-size:11px;color:${spLive().length ? '#6d6459' : '#9b1b22'}">${arr(live ? esc(s.speakersLive(live)) : s.speakersDraft)}</div>`, null, 'openSpeakers')}
-        <a href="/money" style="padding:16px 20px;color:#201b16;display:block" data-hover="background:#fdfbf6;color:#201b16">
+          <div style="font-size:11px;color:${spLive().length ? '#6d6459' : '#9b1b22'}">${live ? esc(s.speakersLive(live)) : s.speakersDraft}</div>`, null, 'openSpeakers')}
+        <a href="/money" style="padding:16px 20px;color:#201b16;display:block" data-hover="background:var(--row-hover);color:#201b16">
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${s.money}</div>
           <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${collected == null ? '—' : esc(fmt.eur(collected))}</div>
-          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${arr(s.moneySub)}</div>
+          <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${s.moneySub}</div>
         </a>
       </div>
       <div class="mxp-dates" style="display:grid;grid-template-columns:repeat(4,1fr) auto;border-top:1px solid rgba(32,27,22,.1)">
@@ -623,7 +621,7 @@ function blockStats() {
           <span style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;background:${r.color};flex:none"></span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em">${esc(r.label)}</span></span>
           <span style="font-size:12px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(fmt.detail(r.text))}</span>
         </div>`).join('')}
-        <a href="/calendar" style="display:flex;align-items:center;padding:0 20px;border-left:1px solid rgba(32,27,22,.08);font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${arr(COPY.stats.calendar)}</a>
+        <a href="/calendar" style="display:flex;align-items:center;padding:0 20px;border-left:1px solid rgba(32,27,22,.08);font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.stats.calendar}</a>
       </div>
     </div>
     <!-- /dc -->`;
@@ -632,23 +630,23 @@ function blockStats() {
 // ---- BEFORE THE WEEK rows + inline manage panels -------------------------------------------------
 function rowNav(r) { // the artboard's row: whole row is the door
   return `
-          <a href="${esc(r.href)}" class="mx-row" data-row="${esc(r.id)}" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16" data-hover="background:#fdfbf6">
+          <a href="${esc(r.href)}" class="mx-row" data-row="${esc(r.id)}" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16" data-hover="background:var(--row-hover)">
             <span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${r.tagColor}">${esc(r.tag)}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;white-space:nowrap">${esc(r.name)}</span><span style="font-size:12px;color:#6d6459;min-width:0">${esc(r.status)}</span></span>
             ${r.extra || ''}
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)}&nbsp;<i class="mxpj-arr">→</i></span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)}&nbsp;→</span>
           </a>`;
 }
 function rowAct(r) { // same look, opens an inline panel instead of navigating
   return `
-          <span data-act="${esc(r.act)}" class="mx-row" data-row="${esc(r.id)}" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16;cursor:pointer;text-align:left" data-hover="background:#fdfbf6">
+          <span data-act="${esc(r.act)}" class="mx-row" data-row="${esc(r.id)}" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16;cursor:pointer;text-align:left" data-hover="background:var(--row-hover)">
             <span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${r.tagColor}">${esc(r.tag)}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;white-space:nowrap">${esc(r.name)}</span><span style="font-size:12px;color:#6d6459;min-width:0">${esc(r.status)}</span></span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)}&nbsp;${st.openPanel === r.panel ? '↑' : '<i class="mxpj-arr">→</i>'}</span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)}&nbsp;${st.openPanel === r.panel ? '↑' : '→'}</span>
           </span>`;
 }
 function lockedRow(id, name, sec) {
-  return `<div class="mx-row" data-row="${esc(id)}" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.08)"><span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9a9086">LOCKED</span><span style="flex:1;font-size:12.5px;color:#6d6459"><b style="font-size:13.5px;color:#201b16">${esc(name)}</b> · ${esc(COPY.locked(sec))}</span></div>`;
+  return `<div class="mx-row mx-row-locked" data-row="${esc(id)}" aria-disabled="true" style="display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(32,27,22,.08)"><span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9a9086">LOCKED</span><span style="flex:1;font-size:12.5px;color:#6d6459"><b style="font-size:13.5px;color:#201b16">${esc(name)}</b> · ${esc(COPY.locked(sec))}</span></div>`;
 }
 
 function panelSpeakers() {
@@ -751,7 +749,7 @@ function blockBefore() {
             <span style="width:92px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${f.status === 'open' ? '#1e6e42' : f.status === 'draft' ? '#b07d10' : '#6d6459'}">${esc(String(f.status || 'draft').toUpperCase())}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px">${esc(f.title)}</span><span style="font-size:12px;color:#6d6459;min-width:0">${esc(live ? c.forms.liveStatus(Number(f.live_count) || 0, f.live_label || 'the event page', day) : c.forms.status(Number(f.response_count) || 0, Number(f.waitlist_count) || 0, day))}</span></span>
             <span data-act="formToggle" data-id="${esc(f.id)}" data-status="${esc(f.status || 'draft')}" data-v2="open-close" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;border:1px solid rgba(32,27,22,.2);padding:5px 9px;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16;color:#201b16">${f.status === 'open' ? c.forms.close : c.forms.open}</span>
-            <a href="${live ? '/projects/bridges' : '/links'}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${live ? c.forms.liveList : c.forms.responses}&nbsp;<i class="mxpj-arr">→</i></a>
+            <a href="${live ? '/projects/bridges' : '/links'}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${live ? c.forms.liveList : c.forms.responses}&nbsp;→</a>
           </div>`;
   };
   return `
@@ -784,15 +782,15 @@ function blockGala() {
   const galaLocked = isLocked('gala');
   const when = [g.settings.date ? fmt.dayShort(g.settings.date) : FACTS.gala.dateLabel, g.settings.venue || FACTS.gala.venue].filter(Boolean);
   const row = r => `
-          <a href="${esc(r.href)}" class="mx-row" data-row="${esc(r.id)}" style="display:flex;align-items:center;gap:14px;padding:15px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16" data-hover="background:#fdfbf6">
+          <a href="${esc(r.href)}" class="mx-row" data-row="${esc(r.id)}" style="display:flex;align-items:center;gap:14px;padding:15px 20px;border-bottom:1px solid rgba(32,27,22,.08);color:#201b16" data-hover="background:var(--row-hover)">
             <span style="width:110px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${r.tagColor}">${esc(r.tag)}</span>
             <span class="mx-row-text" style="flex:1;min-width:0"><span style="display:block;font-size:14px;font-weight:600">${esc(r.name)}</span><span style="display:block;font-size:12px;color:#6d6459;margin-top:2px">${esc(r.status)}</span></span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)}&nbsp;<i class="mxpj-arr">→</i></span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${esc(r.action)}&nbsp;→</span>
           </a>`;
   return `
         <!-- dc: Admin Plexus Hub.dc.html › "THE GALA EVENING" -->
         <div data-block="gala" style="background:#fff;border:1px solid rgba(32,27,22,.14)">
-          <div style="padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em">${c.title}</span><span style="font-size:12px;color:#9a9086">${esc(c.when(when[0], when[1] || ''))}</span><div style="flex:1"></div><a href="/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${arr(c.full)}</a></div>
+          <div style="padding:14px 20px;border-bottom:1px solid rgba(32,27,22,.1);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font:600 10px Inter,sans-serif;letter-spacing:.16em">${c.title}</span><span style="font-size:12px;color:#9a9086">${esc(c.when(when[0], when[1] || ''))}</span><div style="flex:1"></div><a href="/gala" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${c.full}</a></div>
           ${galaLocked ? `<div style="padding:8px 0">${ui.lockedBlock(perms.label('plexus'))}</div>` : `
           ${row({ id: 'gala-seats', tag: c.seats.tag(g.ops ? g.ops.seats.paid : g.paid.length), tagColor: '#1e6e42', name: c.seats.name, status: c.seats.status(g.ops ? g.ops.seats.reserved : g.rows.length, g.ops ? g.ops.seats.chase : g.toChase.length), action: c.seats.action, href: '/gala' })}
           ${row({ id: 'gala-waitlist', tag: c.waitlist.tag, tagColor: '#6d6459', name: c.waitlist.name, status: c.waitlist.status(D.waitn), action: c.waitlist.action, href: '/gala' })}
@@ -821,15 +819,15 @@ function blockAfter() {
             <span data-act="start2027" title="${esc(c.start2027Title)}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap;color:#9a9086;border:1px dashed rgba(32,27,22,.3);padding:6px 10px;cursor:pointer">${esc(c.start2027(after))}</span>
           </div>
           <div data-v2="post-event-rows" style="border-top:1px solid rgba(32,27,22,.08)">
-          <span data-act="peOpen" class="mx-row" data-row="pe-certs" style="display:flex;align-items:center;gap:14px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.08);cursor:pointer;color:#201b16" data-hover="background:#fdfbf6">
+          <span data-act="peOpen" class="mx-row" data-row="pe-certs" style="display:flex;align-items:center;gap:14px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.08);cursor:pointer;color:#201b16" data-hover="background:var(--row-hover)">
             <span style="width:110px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${certs ? '#1e6e42' : '#6d6459'}">${certs ? esc(c.certs.done(certs)) : c.certs.tag}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;font-size:12.5px;color:#6d6459"><b style="font-size:13.5px;color:#201b16">${c.certs.name}</b> · ${esc(c.certs.status(peLine))}</span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${c.certs.action}&nbsp;<i class="mxpj-arr">→</i></span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${c.certs.action}&nbsp;→</span>
           </span>
-          <span data-act="editionsOpen" class="mx-row" data-row="editions" style="display:flex;align-items:center;gap:14px;padding:11px 20px;cursor:pointer;color:#201b16" data-hover="background:#fdfbf6">
+          <span data-act="editionsOpen" class="mx-row" data-row="editions" style="display:flex;align-items:center;gap:14px;padding:11px 20px;cursor:pointer;color:#201b16" data-hover="background:var(--row-hover)">
             <span style="width:110px;flex:none;font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#6d6459">${c.editions.tag}</span>
             <span class="mx-row-text" style="flex:1;min-width:0;font-size:12.5px;color:#6d6459"><b style="font-size:13.5px;color:#201b16">${c.editions.name}</b> · ${esc(c.editions.status(D.editions.editions.length))}</span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${c.editions.action}&nbsp;<i class="mxpj-arr">→</i></span>
+            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${c.editions.action}&nbsp;→</span>
           </span>
           </div>
         </div>
@@ -850,7 +848,7 @@ function blockMembers() {
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;margin-top:12px">${c.detail}</div>
           <input data-role="msDetail" value="${esc(p.detail_line || '')}" aria-label="${esc(c.detail)}" style="width:100%;box-sizing:border-box;margin-top:6px;background:#f6f2ea;border:1px solid rgba(32,27,22,.25);padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16">
           <button data-act="msSave" data-role="msSaveBtn" style="margin-top:14px;background:${saved ? '#1e6e42' : '#9b1b22'};color:#fff;border:none;font:600 10px Inter,sans-serif;letter-spacing:.14em;padding:11px 18px;cursor:pointer;white-space:nowrap">${saved ? c.saved : c.save}</button>
-          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(32,27,22,.1)"><a href="/member-pages/plexus" style="font:600 9px Inter,sans-serif;letter-spacing:.14em">${arr(c.manage)}</a></div>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(32,27,22,.1)"><a href="/member-pages/plexus" style="font:600 9px Inter,sans-serif;letter-spacing:.14em">${c.manage}</a></div>
           </div>
         </div>
         <!-- /dc -->`;
@@ -919,7 +917,7 @@ function memberResults(block, act, bag) {
   const body = b.busy ? pickerLine('…')
     : q.length < 2 ? pickerLine(COPY.meet.form.hostSearchShort)
     : !(b.results || []).length ? pickerLine(COPY.meet.form.hostNone)
-    : b.results.map(m => `<span data-act="${act}" data-id="${esc(m.id)}" data-name="${esc(m.name || '')}" data-email="${esc(m.email || '')}" data-line="${esc(m.line || '')}" style="display:flex;align-items:baseline;gap:9px;padding:8px 11px;border-top:1px solid ${HAIR07};cursor:pointer" data-hover="background:#fdfbf6"><span style="font-size:12.5px;font-weight:600;white-space:nowrap">${esc(m.name || m.email)}</span><span style="font-size:11.5px;color:#6d6459;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.line || m.email || '')}</span></span>`).join('');
+    : b.results.map(m => `<span data-act="${act}" data-id="${esc(m.id)}" data-name="${esc(m.name || '')}" data-email="${esc(m.email || '')}" data-line="${esc(m.line || '')}" style="display:flex;align-items:baseline;gap:9px;padding:8px 11px;border-top:1px solid ${HAIR07};cursor:pointer" data-hover="background:var(--row-hover)"><span style="font-size:12.5px;font-weight:600;white-space:nowrap">${esc(m.name || m.email)}</span><span style="font-size:11.5px;color:#6d6459;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.line || m.email || '')}</span></span>`).join('');
   return `<div data-block="${block}" class="mxp-picker" style="display:flex;flex-direction:column;border:1px solid ${HAIR12};background:#fff;max-height:196px;overflow:auto">${body}</div>`;
 }
 
@@ -1245,6 +1243,9 @@ function template() {
 
 // ---------------------------------------------------------------- behaviour
 function paint() { if (rootEl) { rootEl.innerHTML = template(); } }
+// an inline manage panel (speakers · schedule · Q&A) that just OPENED settles in once (app.css .mx-rise-in —
+// added after the paint that opened it, so no later repaint replays it)
+function panelIn() { const p = st && st.openPanel && rootEl && rootEl.querySelector('.mxp-panel'); if (p) p.classList.add('mx-rise-in'); }
 // surgical repaint of ONE block (the js/views/studio.js paint(sel, html) idiom) — used by the
 // meetups drawer so typing in a search field survives a result-list refresh
 function paintPart(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
@@ -1394,9 +1395,9 @@ const handlers = {
   },
   // ---- BEFORE list
   editList: () => ui.toast(COPY.before.editListToast),
-  openSpeakers: () => { st.openPanel = st.openPanel === 'speakers' ? null : 'speakers'; st.spEdit = null; st.spDraft = blankSp(); paint(); if (st.openPanel) { const r = rootEl.querySelector('[data-block="spPanel"]'); if (r) r.scrollIntoView({ behavior: 'smooth', block: 'center' }); } },
-  openSchedule: () => { st.openPanel = st.openPanel === 'schedule' ? null : 'schedule'; st.ssEdit = null; st.ssDraft = blankSs(); paint(); },
-  openQa: () => { st.openPanel = st.openPanel === 'qa' ? null : 'qa'; paint(); },
+  openSpeakers: () => { st.openPanel = st.openPanel === 'speakers' ? null : 'speakers'; st.spEdit = null; st.spDraft = blankSp(); paint(); panelIn(); if (st.openPanel) { const r = rootEl.querySelector('[data-block="spPanel"]'); if (r) r.scrollIntoView({ behavior: ui.reducedMotion() ? 'auto' : 'smooth', block: 'center' }); } },
+  openSchedule: () => { st.openPanel = st.openPanel === 'schedule' ? null : 'schedule'; st.ssEdit = null; st.ssDraft = blankSs(); paint(); panelIn(); },
+  openQa: () => { st.openPanel = st.openPanel === 'qa' ? null : 'qa'; paint(); panelIn(); },
   formToggle: async (el) => {
     const id = el.dataset.id, cur = el.dataset.status;
     const next = cur === 'open' ? 'closed' : 'open';
@@ -1607,7 +1608,7 @@ const handlers = {
   copyStats: async () => { ui.toast((await copyText(statsLine())) ? COPY.widget.copied : COPY.widget.copyFail); },
 
   // ================================ v2 2026-09-11: edition switcher ==============================
-  edToggle: () => { st.edOpen = !st.edOpen; paintPart('[data-block="title"]', blockTitle()); },
+  edToggle: () => { st.edOpen = !st.edOpen; paintPart('[data-block="title"]', blockTitle()); if (st.edOpen) { const p = rootEl.querySelector('[data-block="edPicker"]'); if (p && p.firstElementChild) p.classList.add('mx-pop-in'); } },
 
   // ================================ v2 2026-09-11: MEETUPS =======================================
   mNew: () => { st.drawer = 'form'; st.form = blankForm(); paintPart('[data-block="meetDrawer"]', blockMeetDrawer()); scrollDrawer(); const i = rootEl.querySelector('[data-role="fTitle"]'); if (i) i.focus(); },

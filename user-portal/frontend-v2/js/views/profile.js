@@ -403,7 +403,7 @@ const pctOf = el => { const n = parseInt(el && el.textContent, 10); return isNaN
 // the big percentage counts to its new value alongside the bar (textContent only — no layout work)
 function tweenPct(el, from, to) {
   if (!el || from == null || to == null || from === to || !motionOK()) return;
-  const dur = 450;
+  const dur = 340;                                 // --t-reveal, the bar's own fill (profile.css)
   let t0 = null;                                   // the frame clock, from the first frame (one clock throughout)
   const step = now => {
     if (!el.isConnected) return;

@@ -12,6 +12,7 @@ html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: #f6f2ea; font-family: Inter, sans-serif; color: #201b16; }
 a { color: #9b1b22; text-decoration: none; }
 @media (hover: hover) { a:hover { color: #201b16; } }
+::selection { background: rgba(201,169,98,.34); }   /* the member portal's gold tint */
 input, textarea, select, button { font-family: Inter, sans-serif; }
 input:focus, select:focus, textarea:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
 img { max-width: 100%; }
@@ -28,11 +29,16 @@ img { max-width: 100%; }
 .mx-brand { flex: none !important; }
 .mx-brand img { width: auto !important; max-width: none !important; flex: none !important; }   /* height stays the inline one (18px header, 22px overlay) */
 
-/* clickable spans from the artboards (onClick → data-act): pointer + keyboard focus ring */
+/* clickable spans from the artboards (onClick → data-act): pointer + keyboard focus ring — the member
+   portal's ring exactly: 2 px crimson, 3 px clear of the control */
 [data-act], [data-nav] { cursor: pointer; }
-[data-act]:focus-visible, [data-nav]:focus-visible, a:focus-visible, button:focus-visible,
-[tabindex]:focus-visible, summary:focus-visible, label:focus-visible, [role="checkbox"]:focus-visible { outline: 1px solid #9b1b22; outline-offset: 3px; }
+[data-act]:focus-visible, [data-nav]:focus-visible, a:focus-visible, button:focus-visible, [role="switch"]:focus-visible,
+[tabindex]:focus-visible, summary:focus-visible, label:focus-visible, [role="checkbox"]:focus-visible { outline: 2px solid #9b1b22; outline-offset: 3px; }
+/* on an ink ground (the toast, the waking screen, ink bands and tooltips) the ring turns gold so it stays visible */
+.mx-toast :focus-visible, .mx-waking :focus-visible,
+[style*="background:#201b16"] :focus-visible, [style*="background:#191512"] :focus-visible { outline-color: #c9a962; }
 [data-act][aria-disabled="true"] { opacity: .55; cursor: default; }
+a, [data-act], [data-nav], button { -webkit-tap-highlight-color: transparent; }
 
 /* ---- shell -------------------------------------------------------------- */
 #app { position: relative; min-height: 100vh; }
@@ -46,10 +52,16 @@ body[data-layout="signin"] #chrome { display: none; }
 .mx-pop-right { left: auto; right: 0; }
 .mx-pop-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 12px; border-bottom: 1px solid rgba(32,27,22,.06); color: #201b16; font-size: 12.5px; cursor: pointer; box-shadow: inset 2px 0 0 transparent; }
 .mx-pop-row[aria-selected="true"] { background: #f6f2ea; color: #201b16; box-shadow: inset 2px 0 0 #9b1b22; }
-@media (hover: hover) { .mx-pop-row:hover { background: #f6f2ea; color: #201b16; } }
-@media (hover: none) { .mx-pop-row[aria-selected="true"] { box-shadow: none; background: transparent; } }
-/* the keyboard's row carries a quiet ↵ on the right — Enter opens exactly that one */
+@media (hover: hover) { .mx-pop-row:not([aria-selected="true"]):hover { background: var(--row-hover); color: #201b16; } }
+/* the keyboard's row carries a quiet ↵ on the right — Enter opens exactly that one. A phone has no
+   keyboard highlight to follow (and no Enter under the thumb), so neither the highlight nor the ↵ shows */
 .mx-pop-row[aria-selected="true"]:not([data-act="ask"])::after { content: "\21B5"; margin-left: auto; padding-left: 8px; font: 400 12px Inter, sans-serif; color: #9a9086; align-self: center; }
+@media (hover: none) {
+  .mx-pop-row[aria-selected="true"] { box-shadow: none; background: transparent; }
+  .mx-pop-row[aria-selected="true"]:not([data-act="ask"])::after { content: none; }
+  .mx-pop-row:active { background: #f6f2ea; }
+}
+.mx-pop-hit { font-weight: 600; color: #201b16; background: none; }   /* the typed words, picked out in a result */
 .mx-pop-kind { font: 600 8px Inter, sans-serif; letter-spacing: .12em; color: #9b1b22; width: 54px; flex: none; text-transform: uppercase; }
 .mx-pop-note { padding: 10px 12px; font-size: 12px; color: #6d6459; }
 .mx-menu { position: absolute; top: 38px; right: 0; width: 260px; background: #fff; border: 1px solid rgba(32,27,22,.18); box-shadow: 0 12px 30px rgba(32,27,22,.16); z-index: 60; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; text-align: left; }
@@ -57,16 +69,18 @@ body[data-layout="signin"] #chrome { display: none; }
    hairline, the 0 12px 30px shadow; a row = crimson 8px key · label · muted note / count pills */
 .mx-dd { position: absolute; top: 58px; left: 0; min-width: 300px; width: max-content; max-width: min(380px, calc(100vw - 32px)); background: #fff; border: 1px solid rgba(32,27,22,.18); border-top: 0; box-shadow: 0 12px 30px rgba(32,27,22,.16); z-index: 65; padding: 8px 0; }
 .mx-dd-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 16px; color: #201b16; font-size: 13px; border-left: 2px solid transparent; }
-.mx-dd-row:focus-visible { background: #f6f2ea; color: #201b16; outline: 1px solid #9b1b22; outline-offset: -1px; }
+.mx-dd-row:focus-visible { background: #f6f2ea; color: #201b16; outline: 2px solid #9b1b22; outline-offset: -2px; }
 @media (hover: hover) {
-  .mx-dd-row:hover { background: #f6f2ea; color: #201b16; }
+  .mx-dd-row:hover { background: var(--row-hover); color: #201b16; }
   .mx-dd-row:not(.on):hover { border-left-color: rgba(155,27,34,.4); }
-  .mx-dd-row:hover .lbl { transform: translateX(3px); }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-dd-row:hover .lbl, .mx-dd-row:focus-visible .lbl { transform: translateX(3px); }
 }
 .mx-dd-row.on { border-left-color: #9b1b22; }
 .mx-dd-row.on .lbl { font-weight: 600; }
 .mx-dd .k { font: 600 8px Inter, sans-serif; letter-spacing: .12em; color: #9b1b22; width: 60px; flex: none; }
-.mx-dd .lbl { white-space: nowrap; display: inline-block; transition: transform var(--t-fast) var(--ease); }
+.mx-dd .lbl { white-space: nowrap; display: inline-block; transition: transform var(--t-quick) var(--ease); }
 .mx-dd .sub { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding-left: 14px; white-space: nowrap; }
 .mx-dd .sub .txt { font-size: 11px; color: #6d6459; }
 .mx-dd-rule { height: 1px; background: rgba(32,27,22,.08); margin: 6px 0; }
@@ -114,15 +128,17 @@ body[data-layout="signin"] #chrome { display: none; }
 }
 
 /* ---- toast (Admin Home.dc.html bottom toast, verbatim look; UNDO in gold) ----- */
+/* width: max-content — a box at left:50% shrink-fits into the HALF of the screen right of its left edge,
+   so a long phone toast was squeezed to ~195 px and six lines; max-content lets max-width decide instead */
 .mx-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(12px); background: #201b16; color: #f6f2ea; padding: 12px 18px;
   font: 600 10px Inter, sans-serif; letter-spacing: .14em; text-transform: uppercase; z-index: 80; border-left: 3px solid #c9a962; display: flex; gap: 14px; align-items: center; white-space: nowrap;
-  opacity: 0; transition: opacity var(--t-enter) var(--ease), transform var(--t-enter) var(--ease); max-width: calc(100vw - 32px); box-sizing: border-box;
+  width: max-content; opacity: 0; transition: opacity var(--t-exit) var(--ease), transform var(--t-exit) var(--ease); max-width: calc(100vw - 32px); box-sizing: border-box;
   box-shadow: 0 14px 34px -14px rgba(32,27,22,.55); }
-.mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; transition: opacity var(--t-reveal) var(--ease), transform var(--t-reveal) var(--ease); }
 /* a faded toast stays in the DOM — it must never catch the taps meant for the tab bar under it */
 .mx-toast:not(.show) { pointer-events: none; }
 .mx-toast.error { border-left-color: #9b1b22; }
-.mx-toast .undo { color: #c9a962; cursor: pointer; letter-spacing: .14em; transition: color var(--t-fast) var(--ease); }
+.mx-toast .undo { color: #c9a962; cursor: pointer; letter-spacing: .14em; transition: color var(--t-quick) var(--ease); }
 @media (hover: hover) { .mx-toast .undo:hover { color: #f6f2ea; } }
 /* an UNDO toast shows how long the undo stays open: a gold hairline that runs out with it */
 .mx-toast.timed::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(201,169,98,.6); transform-origin: left center; animation: mx-toast-time var(--toast-ms, 5000ms) linear both; }
@@ -144,8 +160,8 @@ body[data-layout="signin"] #chrome { display: none; }
 .mx-waking .why { font-size: 14px; color: rgba(246,242,234,.8); margin: 14px 0 0; line-height: 1.6; }
 .mx-waking .status { font: 600 10px Inter, sans-serif; letter-spacing: .16em; color: #c9a962; margin-top: 22px; }
 .mx-waking .bar { width: 120px; height: 1px; background: rgba(246,242,234,.18); margin-top: 18px; position: relative; overflow: hidden; }
-.mx-waking .bar::after { content: ""; position: absolute; left: 0; top: 0; width: 40%; height: 100%; background: #c9a962; transform: translateX(-100%); animation: mx-sweep 1.6s ease-in-out infinite; }
-@keyframes mx-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.mx-waking .bar::after { content: ""; position: absolute; left: 0; top: 0; width: 40%; height: 100%; background: #c9a962; transform: translateX(-100%); animation: mx-sweep 1.6s var(--ease) infinite; }
+@keyframes mx-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }   /* transform, not left — no layout per frame */
 
 /* ---- responsive (translated from admin-responsive.css; hooks = class names) ----- */
 @media (max-width: 960px) {
@@ -198,12 +214,16 @@ body[data-layout="signin"] #chrome { display: none; }
 .mx-two > *, .mx-side > *, .mx-kpi > *, .mx-grid-3 > *, .mx-grid-4 > *, .mx-grid-5 > *, .fh-band > *, .fh-feed > * { min-width: 0; }
 
 /* ============================================================================
-   MOTION & TOUCH — the polish pass (2026-09-22). One language for every screen:
-     ease   cubic-bezier(.22,1,.36,1)   (var(--ease), tokens.css)
-     180 ms hover · press · colour      (var(--t-fast))
-     340 ms popovers · drawers · toasts · panels  (var(--t-enter))
+   MOTION & TOUCH — one language for every screen, and the SAME vocabulary as the member portal
+   (tokens.css carries the same names and values in both):
+     ease   cubic-bezier(.22,1,.36,1)                  var(--ease)
+     180 ms hover · press · colour                     var(--t-quick)
+     340 ms popovers · drawers · modals · toasts · panels  var(--t-reveal)
+     160 ms anything leaving                           var(--t-exit)
+     900 ms slow settles                               var(--t-drift)
    Only opacity / transform / colour / box-shadow / filter animate — never a box dimension.
-   Hover looks live under @media (hover: hover) so a phone never keeps a stuck hover.
+   Hover looks live under @media (hover: hover), and a hover that MOVES something also under
+   (prefers-reduced-motion: no-preference), so a phone never keeps a stuck hover.
    No transform ever lands on an ancestor of a sticky or fixed layer (#view fades by opacity only).
    Everything stops for prefers-reduced-motion (the block at the very end).
    ========================================================================== */
@@ -212,67 +232,78 @@ body[data-layout="signin"] #chrome { display: none; }
    background / border on mouseover (ui.js installDelegates); these transitions turn the swap into
    an 180 ms ease on every screen at once. Inputs ease their focus ring the same way. ---- */
 [data-hover], .mx-dd-row, .mx-pop-row, .mx-chat, .mx-nav-item, a {
-  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
-              box-shadow var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+  transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease),
+              box-shadow var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
 }
-input, select, textarea { transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), outline-color var(--t-fast) var(--ease); }
+input, select, textarea { transition: border-color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease), outline-color var(--t-quick) var(--ease); }
 
-/* ---- 2 · press feedback: filled and hairline buttons dip for the length of the press. Selected by
-   the artboards' own inline vocabulary (crimson / ink fills, the .2 hairline) and only on things that
-   ARE buttons (a · [data-act] · button), so no row or card ever dims. ---- */
-:is(a, [data-act], button):is([style*="background:#9b1b22"], [style*="background:#201b16"], [style*="background:#191512"], [style*="border:1px solid rgba(32,27,22,.2)"], [style*="border:1px solid rgba(32,27,22,.18)"]):active,
-.btn-primary:active, .btn-ghost:active, .btn-ink:active { opacity: .8; transition-duration: 40ms; }
+/* ---- 2 · press: a BUTTON sinks one pixel while held (touch included) — the member portal's gesture,
+   no dimming. Button-shaped = the artboards' own inline button vocabulary (crimson / ink fills, the .2 /
+   .18 / .25 hairlines) on things that ARE buttons (a · [data-act] · button), plus the .btn-* classes.
+   Rows and whole cards never sink: on touch they answer the press with the card fade below. ---- */
+:is(a, [data-act], button):is([style*="background:#9b1b22"], [style*="background:#201b16"], [style*="background:#191512"], [style*="border:1px solid rgba(32,27,22,.2)"], [style*="border:1px solid rgba(32,27,22,.18)"], [style*="border:1px solid rgba(32,27,22,.25)"]):not(.mx-row):not(.mx-lift):not([data-row]):not(.mxg-tile):active,
+:is(a, span, div, button)[data-hover]:is([data-hover*="background"], [data-hover*="border-color"])[style*="letter-spacing"]:not(.mx-row):not(.mx-lift):not([data-row]):not(.mxg-tile):active,
 .btn-primary:active, .btn-ghost:active, .btn-ink:active { transform: translateY(1px); }
+/* touch: a row or a card that opens something answers the press itself */
+@media (hover: none) {
+  :is(.mx-lift, a.mx-row, [data-act].mx-row, a[data-row], [data-act][data-row], .mx-people-row[data-act], .mx-regrow, .mx-thread-row, .mx-outbox-row[data-act]):active { opacity: .86; }
+}
 
 /* ---- 3 · the top bar ---- */
-/* nav: a crimson hairline draws in under the item you point at — a preview of the active underline */
+/* nav: a crimson hairline draws in from the left under the item you point at — a quiet preview of the
+   active underline (the same tab hover as every tab strip, both portals: 1 px, ~.45, --t-quick) */
 .mx-nav-item.has-menu > a { position: relative; }
-.mx-caret { display: inline-block; transition: transform var(--t-enter) var(--ease); }
+.mx-caret { display: inline-block; transition: transform var(--t-quick) var(--ease); }
 .mx-nav-item.has-menu.open .mx-caret { transform: rotate(180deg); opacity: 1 !important; }
 @media (min-width: 961px) {
   .mx-nav > a.mx-nav-item:not(.active):not(.locked)::after,
   .mx-nav-item.has-menu:not(.active):not(.locked) > a::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: #9b1b22;
-    transform: scaleX(0); transform-origin: left center; transition: transform .3s var(--ease); pointer-events: none;
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: #9b1b22; opacity: .45;
+    transform: scaleX(0); transform-origin: 0 50%; transition: transform var(--t-quick) var(--ease); pointer-events: none;
   }
   .mx-nav-item.has-menu.open:not(.active) > a::after { transform: scaleX(1); }
 }
-/* keyboard focus on a top-bar item: a paper-tinted column with the crimson underline drawn in — the
-   bar-tall outline box it used to get read as a glitch */
+/* keyboard focus on a top-bar item: a paper-tinted column with the crimson underline drawn in at full
+   strength — the bar-tall outline box it used to get read as a glitch */
 @media (min-width: 961px) {
   .mx-nav > a:focus-visible, .mx-nav > .mx-nav-item > a:focus-visible { outline: none; background: #f6f2ea; box-shadow: -9px 0 0 #f6f2ea, 9px 0 0 #f6f2ea; }
-  .mx-nav > a:focus-visible::after, .mx-nav > .mx-nav-item > a:focus-visible::after { transform: scaleX(1) !important; }
+  .mx-nav > a:focus-visible::after, .mx-nav > .mx-nav-item > a:focus-visible::after { transform: scaleX(1) !important; opacity: 1; }
 }
 @media (hover: hover) and (min-width: 961px) {
   .mx-nav > a.mx-nav-item:not(.active):not(.locked):hover::after,
   .mx-nav-item.has-menu:not(.active):not(.locked) > a:hover::after { transform: scaleX(1); }
 }
-/* dropdowns / search results / profile menu arrive with a short fade-and-settle (chrome.js adds
-   .mx-pop-in only when a panel OPENS — a redraw of an open panel never replays it) */
-@keyframes mx-drop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-@keyframes mx-lift-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-6px); } }
-.mx-pop-in { animation: mx-drop .26s var(--ease) both; }
+/* dropdowns / search results / profile menu arrive with a short fade-and-settle and fade out when they
+   close (chrome.js fill(): .mx-pop-in only when a panel OPENS — a redraw never replays it; .mx-pop-out
+   for --t-exit before the panel is removed; moving between two open nav groups swaps them at once) */
+@keyframes mx-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes mx-lift-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-8px); } }
+.mx-pop-out { pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .mx-pop-in { animation: mx-drop var(--t-reveal) var(--ease) backwards; }
+  .mx-pop-out { animation: mx-fade-out var(--t-exit) var(--ease) forwards; }
+}
 /* the TEAM CHAT pill takes a soft shadow under the pointer */
 @media (hover: hover) {
   .mx-chat:hover { box-shadow: 0 6px 16px -10px rgba(32,27,22,.45); }
 }
 /* search: the field itself carries focus (ink hairline, white fill) — no crimson box inside it */
 .mx-search-box { display: flex; align-items: center; gap: 8px; border: 1px solid rgba(32,27,22,.18); background: #f6f2ea; padding: 7px 12px; box-sizing: border-box;
-  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+  transition: border-color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
 .mx-search-box input:focus, .mx-search-box input:focus-visible { outline: none; }
 .mx-search-box:focus-within { border-color: #201b16; background: #fff; box-shadow: 0 8px 22px -14px rgba(32,27,22,.45); }
 @media (hover: hover) { .mx-search-box:not(:focus-within):hover { border-color: rgba(32,27,22,.4); } }
-.mx-search-glass { color: #6d6459; transition: color var(--t-fast) var(--ease); }
+.mx-search-glass { color: #6d6459; transition: color var(--t-quick) var(--ease); }
 .mx-search-box:focus-within .mx-search-glass { color: #9b1b22; }
 /* the same rule for every search drawn as a hairline box around a borderless input (People, Registrations,
    the Tasks / Speakers / Notes filters): the box takes the focus, the glass turns crimson */
-:is(.mx-field, .mx-tasks-search, .mx-spk-search, .mx-nr-search) { transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+:is(.mx-field, .mx-tasks-search, .mx-spk-search, .mx-nr-search) { transition: border-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
 :is(.mx-field, .mx-tasks-search, .mx-spk-search, .mx-nr-search):focus-within { border-color: #201b16 !important; box-shadow: 0 8px 22px -16px rgba(32,27,22,.45); }
 :is(.mx-field, .mx-tasks-search, .mx-spk-search, .mx-nr-search):focus-within > span:first-child { color: #9b1b22 !important; }
 :is(.mx-field, .mx-tasks-search) input:focus { outline: none; }
 /* the ⌘K hint — desktop only, where the chord exists; it steps aside once you type */
 .mx-kbd { display: none; flex: none; font: 600 9px Inter, sans-serif; letter-spacing: .08em; color: #9a9086; border: 1px solid rgba(32,27,22,.16); background: #fff; padding: 2px 5px; line-height: 1.2; white-space: nowrap;
-  transition: opacity var(--t-fast) var(--ease); }
+  transition: opacity var(--t-quick) var(--ease); }
 @media (hover: hover) and (pointer: fine) and (min-width: 1200px) {
   .mx-search { flex-basis: 236px !important; }
   .mx-kbd { display: inline-block; }
@@ -282,52 +313,99 @@ input, select, textarea { transition: border-color var(--t-fast) var(--ease), ba
 /* ---- 4 · the phone MENU drawer: slides down under the bar and folds back up on close (.menu-closing,
    ~200 ms); the page behind is dimmed by a real scrim element (chrome.js .mx-scrim — a tap on it closes
    the drawer, iOS included) and cannot scroll away under it; the three bars fold into a cross ---- */
-.mx-burger > span { transition: transform var(--t-enter) var(--ease), opacity var(--t-fast) var(--ease); transform-origin: center; }
+.mx-burger > span { transition: transform var(--t-reveal) var(--ease), opacity var(--t-quick) var(--ease); transform-origin: center; }
 body.menu-open .mx-burger > span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
 body.menu-open .mx-burger > span:nth-child(2) { opacity: 0; }
 body.menu-open .mx-burger > span:nth-child(3) { transform: translate(3px, -6px) rotate(-45deg) scaleX(1.5); }
 body.menu-open.menu-closing .mx-burger > span { transform: none; opacity: 1; }   /* the cross unfolds with the drawer, not after it */
 @media (max-width: 960px) {
-  body.menu-open.menu-anim .mx-nav { animation: mx-drop .3s var(--ease) both; }
-  body.menu-open.menu-closing .mx-nav { animation: mx-lift-out .2s var(--ease) both; pointer-events: none; }
+  body.menu-open.menu-anim .mx-nav { animation: mx-drop var(--t-reveal) var(--ease) backwards; }
+  body.menu-open.menu-closing .mx-nav { animation: mx-lift-out var(--t-exit) var(--ease) forwards; pointer-events: none; }
   html:has(body.menu-open), body.menu-open { overflow: hidden; }
   body.menu-open .mx-nav { overscroll-behavior: contain; }
-  body.menu-open .mx-scrim { display: block; animation: mx-fade .3s var(--ease) both; }
-  body.menu-open.menu-closing .mx-scrim { animation: mx-fade-out .2s var(--ease) both; pointer-events: none; }
-  body.menu-open .mx-dd-row { transition: background-color var(--t-fast) var(--ease); }
+  body.menu-open .mx-scrim { display: block; animation: mx-fade var(--t-reveal) var(--ease) backwards; }
+  body.menu-open.menu-closing .mx-scrim { animation: mx-fade-out var(--t-exit) var(--ease) forwards; pointer-events: none; }
+  body.menu-open .mx-dd-row { transition: background-color var(--t-quick) var(--ease); }
   body.menu-open .mx-dd-row:active { background: #f1ebdf; }
 }
 
 .mx-scrim { display: none; position: fixed; inset: 0; background: rgba(32,27,22,.32); z-index: 45; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
-/* ---- 5 · overlays: the modal sheet rises out of a fading scrim ---- */
-@keyframes mx-sheet { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
-.mx-modal { animation: mx-fade .24s var(--ease) both; }
-.mx-modal-sheet { animation: mx-sheet var(--t-enter) var(--ease) both; box-shadow: 0 24px 60px -24px rgba(32,27,22,.5); }
+/* ---- 5 · overlays: the modal sheet rises out of a fading scrim and fades away on close (ui.js adds
+   .is-leaving and removes the modal 170 ms later — at once for reduced motion). The member portal's
+   modal motion exactly: scrim + sheet at --t-reveal, a 10 px rise, a --t-exit fade-out. ---- */
+.mx-modal-sheet { box-shadow: 0 24px 60px -24px rgba(32,27,22,.5); }
+.mx-modal.is-leaving { pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .mx-modal { animation: mx-fade var(--t-reveal) var(--ease) backwards; }
+  .mx-modal .mx-modal-sheet { animation: mx-rise var(--t-reveal) var(--ease) backwards; }
+  .mx-modal.is-leaving { animation: mx-fade-out var(--t-exit) var(--ease) forwards; }
+}
 
-/* ---- 6 · things you point at. Whole-card links rise 2px with a soft shadow; list rows warm up;
-   KPI cells draw a crimson hairline along their top edge (the link's own affordance). ---- */
-.mx-lift { transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease); }
-.mx-kpi > a { transition: background-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease); }
+/* ---- 6 · things you point at. Whole-card links rise 2px with the lift shadow (the member portal's
+   card lift); list rows warm to --row-hover; KPI cells draw a crimson hairline along their top edge
+   (the link's own affordance). Keyboard focus gets the same answers as the pointer. ---- */
+.mx-lift { transition: transform var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); }
+.mx-kpi > a { transition: background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
+.mx-lift:focus-visible { box-shadow: var(--shadow-lift); }
+.mx-kpi > a:focus-visible { box-shadow: inset 0 2px 0 #9b1b22; }
 @media (hover: hover) {
-  .mx-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+  .mx-lift:hover { box-shadow: var(--shadow-lift); }
   .mx-kpi > a:hover { box-shadow: inset 0 2px 0 #9b1b22; }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-lift:hover { transform: translateY(-2px); }
+  /* pressed, a lifted card settles most of the way back (the member portal's card press) */
+  .mx-lift:active { transform: translateY(-1px); box-shadow: 0 8px 18px -14px rgba(32,27,22,.32); }
+}
+/* numbers never jitter when a badge refreshes or a count changes: the KPI figures (Fraunces) and the
+   count pills take tabular digits — the captions under them keep proportional ones, so nothing re-wraps */
+.mx-kpi [style*="Fraunces"], .badge, [data-role^="badge-"] { font-variant-numeric: tabular-nums; }
+
+/* ---- trailing arrows (the member portal's helper, ported): ui.js wraps a control's closing → / ↗ in
+   .mx-arr and marks that control .mx-has-arr; pointing at it — or focusing it — leans the arrow forward.
+   One helper for every screen: no view hand-wraps an arrow any more. ---- */
+.mx-arr { display: inline-block; font-style: normal; line-height: 1; transition: transform var(--t-quick) var(--ease); }   /* line-height 1: the glyph's own box never makes its line taller */
+@media (prefers-reduced-motion: no-preference) {
+  .mx-has-arr:focus-visible .mx-arr { transform: translateX(3px); }
+  .mx-has-arr:focus-visible .mx-arr.ne { transform: translate(2px, -2px); }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-has-arr:hover .mx-arr { transform: translateX(3px); }
+  .mx-has-arr:hover .mx-arr.ne { transform: translate(2px, -2px); }
 }
 
 /* a panel that opens in place (Studio's tool panel) settles in once — js adds the class on open only */
-.mx-rise-in { animation: mx-rise var(--t-enter) var(--ease) backwards; }
+.mx-rise-in { animation: mx-rise var(--t-reveal) var(--ease) backwards; }
+/* a side panel whose file just opened (People, Registrations): its blocks settle in one after another.
+   ui.settle() adds the class once per selection; a block the view redraws mid-entrance carries the
+   entrance on (--settle-d, a negative delay) instead of replaying it */
+[data-block="panel"].mx-panel-in > * { animation: mx-rise var(--t-reveal) var(--ease) backwards; animation-delay: var(--settle-d, 0ms); }
+[data-block="panel"].mx-panel-in > :nth-child(2) { animation-delay: calc(var(--settle-d, 0ms) + 35ms); }
+[data-block="panel"].mx-panel-in > :nth-child(3) { animation-delay: calc(var(--settle-d, 0ms) + 70ms); }
+[data-block="panel"].mx-panel-in > :nth-child(n+4) { animation-delay: calc(var(--settle-d, 0ms) + 100ms); }
 
-/* the place a jump lands on glows gold once (Money's book links) */
+/* the place a jump lands on glows gold once (Money's book links), after the glide has arrived */
 @keyframes mx-flash { 0% { box-shadow: 0 0 0 0 rgba(201,169,98,0); } 30% { box-shadow: 0 0 0 3px rgba(201,169,98,.55); } 100% { box-shadow: 0 0 0 3px rgba(201,169,98,0); } }
-.mx-flash { animation: mx-flash .9s var(--ease) .3s both; }
+.mx-flash { animation: mx-flash var(--t-drift) var(--ease) .3s both; }
+
+/* COPY confirmations — one pattern everywhere (ui.copied): the control says ✓ COPIED in place and a
+   button sends out one gold ring, a text link lets its new word settle in; ~2.4 s later it lets go.
+   Added to the clicked element only, never from view state, so a repaint never replays it */
+@keyframes mx-ring { from { box-shadow: 0 0 0 0 rgba(201,169,98,.6); } to { box-shadow: 0 0 0 8px rgba(201,169,98,0); } }
+@keyframes mx-word { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .mx-copied { animation: mx-ring var(--t-drift) var(--ease); }
+  .mx-copied-word { display: inline-block; animation: mx-word var(--t-reveal) var(--ease); }
+}
 
 /* ---- 7 · loading: every screen waits on its data before it draws. The router keeps the leaving screen
    (dimmed — §8) and, on a change of screen whose wait passes ~650 ms, lays a quiet skeleton in #view
    shaped like the screen that is coming (data-shape band / board / tabs / grid / list); the real
    screen replaces it wholesale. The delays live in router.js timers, so reduced motion keeps them. ---- */
 .mx-skel { max-width: 1180px; margin: 0 auto; padding: 30px 28px 48px; box-sizing: content-box; display: flex; flex-direction: column; gap: 22px;
-  animation: mx-fade .36s var(--ease) both; }
-.mx-skel i { display: block; height: 10px; background: rgba(32,27,22,.075); animation: mx-skel-pulse 1.5s ease-in-out infinite; }
+  animation: mx-fade var(--t-reveal) var(--ease) both; }
+.mx-skel i { display: block; height: 10px; background: rgba(32,27,22,.075); animation: mx-skel-pulse .75s var(--ease) infinite alternate; }
 .mx-skel-title { display: flex; flex-direction: column; gap: 10px; }
 .mx-skel-title i:first-child { width: min(260px, 70%); height: 28px; }
 .mx-skel-title i:last-child { width: min(420px, 90%); }
@@ -361,13 +439,15 @@ body.menu-open.menu-closing .mx-burger > span { transform: none; opacity: 1; }  
 .mx-skel-grid > span > i:first-child { width: 30%; height: 8px; }
 .mx-skel-grid > span > i:nth-child(2) { width: 58%; height: 18px; }
 .mx-skel-grid > span > i:last-child { width: 86%; }
-@keyframes mx-skel-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes mx-skel-pulse { from { opacity: 1; } to { opacity: .45; } }
 .mx-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-/* a wait past ~450 ms: a crimson hairline glides along the very top edge until the screen lands */
-.mx-loadbar { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 90; pointer-events: none; overflow: hidden; opacity: 0; transition: opacity .22s var(--ease); }
-.mx-loadbar.on { opacity: 1; }
-.mx-loadbar::after { content: ""; position: absolute; top: 0; left: 0; width: 32%; height: 100%; background: #9b1b22; transform: translateX(-100%); animation: mx-loadbar 1.15s var(--ease) infinite; }
-@keyframes mx-loadbar { from { transform: translateX(-100%); } to { transform: translateX(320%); } }
+/* a wait past ~450 ms (router.js timer): the member portal's slow-load hairline — a gold 2 px line that
+   creeps across the very top edge while the server thinks, then sweeps home and fades as the screen
+   lands (.home). Under reduced motion it simply stands at 90 % and goes. */
+.mx-loadbar { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 90; pointer-events: none; background: #c9a962;
+  opacity: 0; transform: scaleX(0); transform-origin: 0 50%; }
+.mx-loadbar.on { opacity: 1; transform: scaleX(.9); transition: transform 9s cubic-bezier(.08,.7,.2,1), opacity 0s; }
+.mx-loadbar.home { opacity: 0; transform: none; transition: transform var(--t-quick) var(--ease), opacity var(--t-reveal) var(--ease) var(--t-quick); }
 @media (max-width: 960px) { .mx-skel { padding: 22px 16px 40px; } }
 @media (max-width: 760px) {
   .mx-skel-board { grid-template-columns: 1fr; }
@@ -389,23 +469,84 @@ body.menu-open.menu-closing .mx-burger > span { transform: none; opacity: 1; }  
    before anything re-renders, never replayed). ---- */
 @keyframes mx-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes mx-fade-out { from { opacity: 1; } to { opacity: 0; } }
-@keyframes mx-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes mx-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 /* never a filling animation on #view: one that keeps filling makes #view a stacking context for good,
    and every fixed layer inside it (the Tasks / Speakers drawers, z 55) then sank under the top bar
    (z 50) — the drawer's own head was hidden behind the header */
-#view.mx-pending { opacity: .55; transition: opacity .24s var(--ease); }
+#view.mx-pending { opacity: .55; transition: opacity var(--t-reveal) var(--ease); }
 #view[inert] { pointer-events: none; }
-#view.mx-arrive .mx-kpi > *, #view.mx-arrive .mx-stagger > * { animation: mx-rise .36s var(--ease) backwards; }
+#view.mx-arrive .mx-kpi > *, #view.mx-arrive .mx-stagger > * { animation: mx-rise var(--t-reveal) var(--ease) backwards; }
 #view.mx-arrive :is(.mx-kpi, .mx-stagger) > :nth-child(2) { animation-delay: 40ms; }
 #view.mx-arrive :is(.mx-kpi, .mx-stagger) > :nth-child(3) { animation-delay: 80ms; }
 #view.mx-arrive :is(.mx-kpi, .mx-stagger) > :nth-child(4) { animation-delay: 120ms; }
 #view.mx-arrive :is(.mx-kpi, .mx-stagger) > :nth-child(n+5) { animation-delay: 150ms; }
 
-/* ---- 9 · reduced motion: nothing moves, nothing pulses; state changes land at once ---- */
+/* ============================================================================
+   10 · PROJECTS SURFACES — the motion kit, once. The Projects views (Plexus hub, Accelerator, Review
+   Room, Forum, Bridges, Big Ideas, Gala, Program, Event Day, Member Pages, Links) put .mxpj on their
+   root and .mx-stagger on their page column, so their blocks settle in one after another on arrival
+   (§8). Until 2026-09-23 this block was pasted into all eleven view stylesheets — one copy here means
+   no rule can ever depend on which screens were visited first, or in what order.
+   :where() keeps the .mxpj scope out of the weight; the few !important rules (field focus / hover,
+   ghost-button hover) skip chromeless fields (transparent, borderless inputs inside their own box).
+   ========================================================================== */
+@keyframes mxpj-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: no-preference) {
+  /* the things §1 does not already glide: action spans without data-hover, rows, tabs */
+  :where(.mxpj) :where(button, [data-act], [data-row], [role="tab"]) {
+    transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease),
+                box-shadow var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease), transform var(--t-quick) var(--ease);
+  }
+  /* arrival: a block that holds a KPI strip only fades — its cells already rise on their own — and so
+     does a block that holds a sticky panel or a fixed layer (never a transform on an ancestor of sticky / fixed) */
+  #view.mx-arrive .mxpj .mx-stagger > :is(.mx-kpi, :has(.mx-kpi, .mx-sticky, .mx-pg-sheet, .mx-ed-sheetwrap, [style*="position:fixed"], [style*="position: fixed"], [style*="position:sticky"], [style*="position: sticky"])) { animation-name: mx-fade; }
+  /* data bars draw from their left edge as the screen arrives */
+  #view.mx-arrive .mxpj .mxpj-bar { transform-origin: left center; animation: mxpj-grow var(--t-reveal) var(--ease) 80ms backwards; }
+  /* a block whose content was just swapped (Member Pages' project tabs) settles in */
+  .mxpj .mxpj-swap { animation: mx-word var(--t-reveal) var(--ease); }
+}
+
+/* focus — a paper field lifts to white under its crimson outline (the search box's own focus idiom);
+   a chromeless field inside a box is left to that box */
+:where(.mxpj) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):not([style*="background:transparent"]):not([style*="border:none"]):focus { background-color: #fff !important; }
+/* keyboard parity: a door row, a KPI cell show what the pointer shows (the ring sits inside a row) */
+:where(.mxpj) :is(a, [data-act]).mx-row:focus-visible { outline-offset: -2px; box-shadow: inset 2px 0 0 #9b1b22; background-color: var(--row-hover); }
+:where(.mxpj) .mx-kpi > [data-act]:focus-visible { box-shadow: inset 0 2px 0 #9b1b22; }
+
+@media (hover: hover) {
+  /* hairline ghost buttons (the artboards' 20 / 25 % ink edge) darken it, with or without data-hover */
+  :where(.mxpj) [data-act][style*="border:1px solid rgba(32,27,22,.2)"]:not([aria-disabled="true"]):hover,
+  :where(.mxpj) [data-act][style*="border:1px solid rgba(32,27,22,.25)"]:not([aria-disabled="true"]):hover { border-color: #201b16 !important; }
+  /* fields answer the pointer before the click */
+  :where(.mxpj) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):not([style*="background:transparent"]):not([style*="border:none"]):not(:disabled):not(:focus):hover { border-color: rgba(32,27,22,.4) !important; }
+  /* list rows warm to the portal's one row tint; a door row (link / action) also shows a crimson edge.
+     A locked row (Plexus › a section this admin cannot open) never warms — it is not a door */
+  :where(.mxpj [data-block] [data-row]:not(.card):not(.mx-row-locked)):hover { background-color: var(--row-hover); }
+  :where(.mxpj) :is(a, [data-act]).mx-row:hover { box-shadow: inset 2px 0 0 #9b1b22; }
+  /* a KPI cell that opens a panel draws the same crimson hairline §6 gives the linked ones */
+  :where(.mxpj) .mx-kpi > [data-act]:hover { box-shadow: inset 0 2px 0 #9b1b22; }
+}
+/* sub-nav: the top bar's idiom one level down — a crimson hairline (1 px, ~.45) draws in from the left
+   under the destination you point at, level with the current one's rule (bottom 1 px); keyboard focus
+   gets the top bar's focus look — a paper column with that line drawn in at full strength — instead of a
+   bar-tall outline box that hung below the bar's hairline */
+@media (hover: hover) and (min-width: 961px) {
+  :where(.mxpj) .mx-subnav > a { position: relative; align-self: stretch; display: inline-flex; align-items: center; }
+  :where(.mxpj) .mx-subnav > a::after { content: ""; position: absolute; left: 0; right: 0; bottom: 1px; height: 1px; background: #9b1b22; opacity: .45; transform: scaleX(0); transform-origin: 0 50%; pointer-events: none; }
+  :where(.mxpj) .mx-subnav > a:hover::after, :where(.mxpj) .mx-subnav > a:focus-visible::after { transform: scaleX(1); }
+  :where(.mxpj) .mx-subnav > a:focus-visible::after { opacity: 1; }
+  :where(.mxpj) .mx-subnav > a:focus-visible { outline: none; background-color: #f6f2ea; box-shadow: -9px 0 0 #f6f2ea, 9px 0 0 #f6f2ea; color: #201b16 !important; }
+}
+@media (hover: hover) and (min-width: 961px) and (prefers-reduced-motion: no-preference) {
+  :where(.mxpj) .mx-subnav > a::after { transition: transform var(--t-quick) var(--ease); }
+}
+
+/* ---- 9 · reduced motion: nothing moves, nothing pulses; state changes land at once (the loading hairline
+   stands still at 90 % instead of creeping) ---- */
 @media (prefers-reduced-motion: reduce) {
+  .mx-loadbar.on { opacity: .55; transform: none; transition: none; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important;
     transition-duration: .01ms !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
   .mx-skel i { opacity: 1 !important; }
   .mx-waking .bar::after { animation: none !important; transform: translateX(75%); }
-  .mx-loadbar::after { animation: none !important; transform: none; width: 100%; opacity: .55; }
 }

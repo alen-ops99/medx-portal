@@ -280,7 +280,7 @@ function blockTasksKeyDates() {
           <span style="font-size:11.5px;color:#6d6459">${c.note}</span>
         </div>
         ${D.tasks.slice(0, 8).map(t => { const m = taskMeta(t); return `
-        <a href="/tasks/${encodeURIComponent(t.id)}" data-task="${esc(t.id)}" class="mx-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07);color:#201b16" data-hover="background:#faf6ee">
+        <a href="/tasks/${encodeURIComponent(t.id)}" data-task="${esc(t.id)}" class="mx-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07);color:#201b16" data-hover="background:var(--row-hover)">
           <span style="width:8px;height:8px;background:${t.status === 'doing' ? '#2c4a73' : (m.dueColor === '#9b1b22' ? '#9b1b22' : '#c9a962')};flex:none"></span>
           <span class="mx-row-text" style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">${esc(t.title)}</span>${m.due || t.status === 'doing' ? `<span style="display:block;font-size:11px;color:${m.dueColor};margin-top:1px">${esc([t.status === 'doing' ? c.doing : '', m.due].filter(Boolean).join(' · '))}</span>` : ''}</span>
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;padding:3px 7px;background:#eee9df;color:#4a4239;white-space:nowrap">${esc(m.who)}</span>

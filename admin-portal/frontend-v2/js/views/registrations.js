@@ -139,7 +139,7 @@ function blockStats() {
   const s = (D && D.stats) || {};
   const cap = s.conference_cap || FACTS.plexus.cap;
   const cell = (act, label, num, sub, subColor, last, note) => `
-      <span data-act="${act}" role="button" style="padding:14px 18px;${last ? '' : 'border-right:1px solid rgba(32,27,22,.1);'}cursor:pointer;display:block" data-hover="background:#faf6ee"><span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${label}</span><span style="display:block;font-family:Fraunces,serif;font-size:26px;margin-top:2px">${num} ${sub ? `<span style="font-size:13px;color:${subColor}">${sub}</span>` : ''}</span>${note ? `<span data-v2="gala-open-split" style="display:block;font-size:10px;color:#6d6459;margin-top:2px">${note}</span>` : ''}</span>`;
+      <span data-act="${act}" role="button" style="padding:14px 18px;${last ? '' : 'border-right:1px solid rgba(32,27,22,.1);'}cursor:pointer;display:block" data-hover="background:var(--row-hover)"><span style="display:block;font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${label}</span><span style="display:block;font-family:Fraunces,serif;font-size:26px;margin-top:2px">${num} ${sub ? `<span style="font-size:13px;color:${subColor}">${sub}</span>` : ''}</span>${note ? `<span data-v2="gala-open-split" style="display:block;font-size:10px;color:#6d6459;margin-top:2px">${note}</span>` : ''}</span>`;
   const galaSplit = esc(COPY.stats.split(s.gala_buckets));
   // audit #11: the ALL stat counts LIVE rows; the cancelled remainder is named right on the stat,
   // so it can no longer silently disagree with the export button (which lists cancelled too).
@@ -300,7 +300,7 @@ async function loadTimeline(email) {
 }
 function redrawTimeline() {
   const r = selRow();
-  if (rootEl && r && r.email && TL && TL.email === r.email) rerender('[data-block="tl"]', blockTimeline(r));
+  if (rootEl && r && r.email && TL && TL.email === r.email) { rerender('[data-block="tl"]', blockTimeline(r)); ui.settle.carry(rootEl.querySelector('[data-block="tl"]')); }
 }
 function ensureTimeline() {
   if (!rootEl || !st) return;
@@ -375,16 +375,10 @@ function template() {
 }
 
 // ---------------------------------------------------------------- behaviour
-// a newly opened file settles into the side panel (css [data-block="panel"].mx-panel-in). The class
-// comes off again once the entrance has run (~420 ms): the TIMELINE block is redrawn in place inside the
-// panel (a note added, the history refreshed) and would otherwise rise in all over again
-let panelInTimer = null;
-function panelIn() {
-  const p = rootEl && rootEl.querySelector('[data-block="panel"]'); if (!p) return;
-  p.classList.add('mx-panel-in');
-  clearTimeout(panelInTimer);
-  panelInTimer = setTimeout(() => p.classList.remove('mx-panel-in'), 460);
-}
+// a newly opened file settles into the side panel (ui.settle — css app.css .mx-panel-in). The class
+// comes off again once the entrance has run; a TIMELINE redraw inside the panel meanwhile carries the
+// entrance on (redrawTimeline › settle.carry) instead of rising in all over again
+function panelIn() { ui.settle(rootEl && rootEl.querySelector('[data-block="panel"]')); }
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
 function redrawData() {
   rerender('[data-block="stats"]', blockStats());

@@ -17,8 +17,6 @@ import { FACTS } from '../facts.js';
 import cfg from '../config.js';
 import { criteriaCardBody, criteriaHandlers, onCriteriaChange } from './_accel-criteria.js';
 
-// motion hook (css: the Projects MOTION KIT at the end of this view's css) — a label's trailing arrow leans on hover
-const arr = s => String(s).replace(/\s*(→|↗)\s*$/, (m, a) => `\u00a0<i class="mxpj-arr${a === '↗' ? ' ne' : ''}">${a}</i>`);   // no-break: a plain space collapses at a flex edge
 
 export const SOURCE = 'Admin Accelerator Hub.dc.html';
 
@@ -152,8 +150,8 @@ function blockTitle() {
         <div style="font-size:12.5px;color:#6d6459;margin-top:4px">${COPY.sub(esc(o.long))}</div>
       </div>
       <div style="flex:1"></div>
-      <a href="/member-pages/accelerator" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${arr(COPY.manage)}</a>
-      <a href="/accelerator-review" style="padding:10px 16px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${arr(COPY.review)}</a>
+      <a href="/member-pages/accelerator" style="padding:10px 16px;border:2px solid #9b1b22;background:#fff;color:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${COPY.manage}</a>
+      <a href="/accelerator-review" style="padding:10px 16px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.review}</a>
     </div>
     <!-- /dc -->`;
 }
@@ -169,7 +167,7 @@ function blockStats() {
     <!-- dc: Admin Accelerator Hub.dc.html › "Stats + key dates" -->
     <div data-block="stats" style="border:1px solid rgba(32,27,22,.14);background:#fff">
       <div class="mx-grid-3" style="display:grid;grid-template-columns:1.2fr 1fr 1fr">
-        <a href="/accelerator-review" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block" data-hover="background:#fdfbf6;color:#201b16">
+        <a href="/accelerator-review" style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.1);color:#201b16;display:block" data-hover="background:var(--row-hover);color:#201b16">
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${COPY.stats.apps}</div>
           <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.apps ? n : '—'}</div>
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${n ? COPY.stats.appsSome(esc(line)) : COPY.stats.appsZero}</div>
@@ -179,7 +177,7 @@ function blockStats() {
           <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${D.sites ? sites().length : '—'}</div>
           <div style="font-size:11px;color:#6d6459">${COPY.stats.hostsSub}</div>
         </div>
-        <a href="#alumni" style="padding:16px 20px;color:#201b16;display:block" data-hover="background:#fdfbf6;color:#201b16">
+        <a href="#alumni" style="padding:16px 20px;color:#201b16;display:block" data-hover="background:var(--row-hover);color:#201b16">
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${COPY.stats.fellows}</div>
           <div style="font-family:Fraunces,serif;font-size:30px;margin-top:3px">${fellows}</div>
           <div style="font-size:11px;color:#6d6459">${esc(fellowsSub)}</div>
@@ -304,7 +302,7 @@ function blockReviewCard() {
             ${COPY.room.chips.map(([t, to]) => `<a href="${to}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:4px 8px" data-hover="color:#201b16">${t}</a>`).join('')}
             <a href="${COPY.room.chipGold[1]}" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#f1e7d4;color:#7a6432;padding:4px 8px" data-hover="color:#201b16">${COPY.room.chipGold[0]}</a>
           </div>
-          <a href="/accelerator-review" style="margin-top:4px;padding:11px 14px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;text-align:center" data-hover="background:#9b1b22;color:#f6f2ea">${arr(COPY.room.open)}</a>
+          <a href="/accelerator-review" style="margin-top:4px;padding:11px 14px;background:#201b16;color:#f6f2ea;font:600 10px Inter,sans-serif;letter-spacing:.14em;text-align:center" data-hover="background:#9b1b22;color:#f6f2ea">${COPY.room.open}</a>
           <!-- /dc -->
         </div>`;
 }

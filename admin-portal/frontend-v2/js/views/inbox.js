@@ -288,12 +288,12 @@ function blockTabs() {
   };
   return `
   <!-- dc: Admin Inbox.dc.html › "Tabs" -->
-  <div class="mx-inbox-tabs" data-block="tabs" style="display:flex;gap:0;border-bottom:1px solid rgba(32,27,22,.18)">
+  <div class="mx-inbox-tabs" data-block="tabs" style="display:flex;gap:0;box-shadow:inset 0 -1px 0 rgba(32,27,22,.18)">
     ${TAB_ORDER.map(id => {
       const on = st.tab === id;
       const b = badges[id];
       const tip = id === 'messages' && b ? ` title="${esc(COPY.messages.badgeTitle(b))}"` : '';
-      return `<a href="/inbox/${TAB_TO_SLUG[id]}"${tip}${on ? ' class="on" aria-current="page"' : ''} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};margin-bottom:-1px;display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${COPY.tabs[id]}${b ? `<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">${b}</span>` : ''}</a>`;
+      return `<a href="/inbox/${TAB_TO_SLUG[id]}"${tip}${on ? ' class="on" aria-current="page"' : ''} style="padding:10px 16px;font:600 10.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;color:${on ? '#201b16' : '#6d6459'};border-bottom:${on ? '2px solid #9b1b22' : '2px solid transparent'};display:flex;align-items:center;gap:7px;white-space:nowrap" data-hover="color:#201b16">${COPY.tabs[id]}${b ? `<span style="min-width:16px;height:16px;padding:0 4px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box">${b}</span>` : ''}</a>`;
     }).join('\n    ')}
   </div>
   <!-- /dc -->`;
@@ -1484,7 +1484,7 @@ const handlers = {
       actions: [
         { label: 'CANCEL' },
         { label: c.meetGo, kind: 'primary', onClick: () => {
-          const wrap = document.querySelector('.mx-modal');
+          const wrap = document.querySelector('.mx-modal:not(.is-leaving)');
           const title = wrap.querySelector('[data-role="meetTitle"]').value.trim() || 'Team meeting';
           const options = [0, 1, 2].map(i => wrap.querySelector(`[data-role="meetT${i}"]`).value).filter(Boolean);
           if (options.length < 2) { ui.toast('PICK AT LEAST TWO CANDIDATE TIMES'); return false; }
