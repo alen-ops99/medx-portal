@@ -72,10 +72,23 @@ module.exports = function mountProgramOps(app, ctx) {
 
     // registrants per event — who holds a ticket (rows) and seats (with guests) — best-effort per table
     function registeredFor(key) {
-        const alive = "NOT IN ('cancelled','canceled','rejected','declined','withdrawn')";
+        const alive = "NOT IN ('cancelled','canceled','rejected','declined','withdrawn','merged')";   // merged legs = the survivor's duplicate
         let people = 0, seats = 0;
         const add = (sql, params, seatSql) => { try { const r = q.get(sql, params || []); people += Number((r && r.n) || 0); seats += Number((r && (seatSql ? r.s : r.n)) || 0); } catch (e) { /* table absent */ } };
-        if (key === 'conference') add(`SELECT COUNT(*) AS n, COUNT(*) + COALESCE((SELECT COUNT(*) FROM ca_registration_guests g JOIN croatians_abroad_registrations c2 ON c2.id = g.registration_id WHERE COALESCE(g.conference, 0) = 1 AND COALESCE(c2.selected_conference, 0) = 1 AND LOWER(COALESCE(c2.conference_status, '')) ${alive}), 0) AS s FROM croatians_abroad_registrations WHERE COALESCE(selected_conference, 0) = 1 AND LOWER(COALESCE(conference_status, '')) ${alive}`, [], true);
+        if (key === 'conference') add(`SELECT COUNT(*) AS n,
+              COUNT(*) + COALESCE((SELECT COUNT(*) FROM ca_registration_guests g JOIN croatians_abroad_registrations c2 ON c2.id = g.registration_id WHERE COALESCE(g.conference, 0) = 1 AND COALESCE(c2.selected_conference, 0) = 1 AND LOWER(COALESCE(c2.conference_status, '')) ${alive}), 0) AS s FROM croatians_abroad_registrations WHERE COALESCE(selected_conference, 0) = 1 AND LOWER(COALESCE(conference_status, '')) ${alive}`, [], true);
+        if (key === 'conference') {
+            // people = distinct e-mails across both doors (the /plexus form ∪ the portal's My Plexus rows) —
+            // the same number Today, the Plexus hub and Registrations print; seats keep rows + guests
+            try {
+                const u = q.get(`SELECT COUNT(*) AS n FROM (
+                    SELECT lower(email) AS e FROM croatians_abroad_registrations WHERE COALESCE(selected_conference, 0) = 1 AND LOWER(COALESCE(conference_status, '')) ${alive} AND email IS NOT NULL AND TRIM(email) <> ''
+                    UNION
+                    SELECT lower(COALESCE(NULLIF(r.email,''), u.email)) FROM registrations r LEFT JOIN users u ON u.id = r.user_id JOIN conferences cf ON cf.id = r.conference_id AND cf.slug = 'plexus-2026'
+                    WHERE LOWER(COALESCE(r.status, '')) ${alive} AND COALESCE(r.revoked, 0) = 0 AND COALESCE(NULLIF(r.email,''), u.email) IS NOT NULL)`);
+                if (u && u.n != null) people = Number(u.n);
+            } catch (e) { /* a database without the portal tables keeps the form-row count */ }
+        }
         if (key === 'bridges') {
             add(`SELECT COUNT(*) AS n, COUNT(*) + COALESCE((SELECT COUNT(*) FROM ca_registration_guests g JOIN croatians_abroad_registrations c2 ON c2.id = g.registration_id WHERE COALESCE(g.bridges, 0) = 1 AND COALESCE(c2.selected_bridges, 0) = 1 AND LOWER(COALESCE(c2.bridges_status, '')) ${alive}), 0) AS s FROM croatians_abroad_registrations WHERE COALESCE(selected_bridges, 0) = 1 AND LOWER(COALESCE(bridges_status, '')) ${alive}`, [], true);
             add(`SELECT COUNT(*) AS n FROM bridges_registrations r JOIN bridges_events e ON e.id = r.event_id WHERE e.slug = 'building-bridges' AND LOWER(COALESCE(r.status, '')) ${alive}`);

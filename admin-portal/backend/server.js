@@ -18312,6 +18312,19 @@ By applying to this program, I provide the following consents:
     // (A hoisted function declaration on purpose — editionStats() far below calls it, and a
     // `const` here would be a TDZ trap for any caller that runs before this line at boot.)
     function plexusRegistrantCount(extraWhere, args) {
+        // The total is PEOPLE across both doors: the /plexus form (croatians_abroad_registrations) ∪ the member
+        // portal's My Plexus rows (registrations) — Registrations and the Program editor count the same union.
+        if (!extraWhere) {
+            try {
+                return query.get(`SELECT COUNT(*) AS c FROM (
+                    SELECT lower(email) AS e FROM croatians_abroad_registrations WHERE selected_conference = 1 AND conference_status IN ('pre-registered','confirmed','registered') AND email IS NOT NULL AND TRIM(email) <> ''
+                    UNION
+                    SELECT lower(COALESCE(NULLIF(r.email,''), u.email)) FROM registrations r LEFT JOIN users u ON u.id = r.user_id
+                     JOIN conferences c ON c.id = r.conference_id AND c.slug = 'plexus-2026'
+                    WHERE lower(COALESCE(r.status,'')) NOT IN ('cancelled','canceled','rejected','refunded','merged') AND COALESCE(r.revoked,0) = 0
+                      AND COALESCE(NULLIF(r.email,''), u.email) IS NOT NULL)`)?.c || 0;
+            } catch (e) { /* fall through to the form-only count */ }
+        }
         const sql = "SELECT COUNT(DISTINCT lower(email)) AS c FROM croatians_abroad_registrations WHERE selected_conference = 1 AND conference_status IN ('pre-registered','confirmed','registered')";
         try { return query.get(sql + (extraWhere ? ' AND ' + extraWhere : ''), args || [])?.c || 0; }
         catch (e) { return 0; }

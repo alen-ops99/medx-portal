@@ -68,6 +68,9 @@ module.exports = function mountRegistrations(app, ctx) {
 
     const CANCELLED = new Set(['cancelled', 'canceled', 'rejected', 'refunded']);
     const isCancelled = s => CANCELLED.has(String(s || '').toLowerCase());
+    // a leg folded into its survivor (shared/ca-merge.js) is the same person twice — never a row here
+    // (15 merged conference legs used to count as live FREE rows: "125 of 200" for 107 people)
+    const isMerged = s => String(s || '').toLowerCase() === 'merged';
 
     // ---------------------------------------------------------------- the union
     function buildRows() {
@@ -221,7 +224,7 @@ module.exports = function mountRegistrations(app, ctx) {
             if (trim(r.dietary)) commonFacts.push(['MEAL', trim(r.dietary)]);
             if (trim(r.applied_for)) commonFacts.push(['APPLIED FOR', trim(r.applied_for)]);
 
-            if (Number(r.selected_conference) === 1) {
+            if (Number(r.selected_conference) === 1 && !isMerged(r.conference_status)) {
                 const cancelled = isCancelled(r.conference_status);
                 rows.push({ ...base, key: 'ca:' + r.id + ':conference', ca_event: 'conference',
                     event: 'Plexus Conference', event_key: 'conference',
@@ -229,7 +232,7 @@ module.exports = function mountRegistrations(app, ctx) {
                     facts: [['ENTRY', cancelled ? 'Cancelled' : 'Free · ' + (r.conference_status || 'pre-registered')], ...commonFacts],
                     can_mark_paid: false });
             }
-            if (Number(r.selected_bridges) === 1) {
+            if (Number(r.selected_bridges) === 1 && !isMerged(r.bridges_status)) {
                 const cancelled = isCancelled(r.bridges_status);
                 rows.push({ ...base, key: 'ca:' + r.id + ':bridges', ca_event: 'bridges',
                     event: 'Building Bridges', event_key: 'bridges',
@@ -237,7 +240,7 @@ module.exports = function mountRegistrations(app, ctx) {
                     facts: [['ENTRY', cancelled ? 'Cancelled' : 'Free · ' + (r.bridges_status || 'pre-registered')], ...commonFacts],
                     can_mark_paid: false });
             }
-            if (Number(r.selected_gala) === 1 && !trim(r.gala_registration_id)) {
+            if (Number(r.selected_gala) === 1 && !trim(r.gala_registration_id) && !isMerged(r.gala_status)) {
                 const cancelled = isCancelled(r.gala_status);
                 const paid = r.gala_payment_status === 'paid';
                 const state = galaStates['ca:' + r.id + ':gala'] || null;
@@ -292,6 +295,8 @@ module.exports = function mountRegistrations(app, ctx) {
         return {
             all: live.length,
             conference: live.filter(r => r.event_key === 'conference').length,
+            // people, not rows — the same count Today and the Plexus hub print (one person, two forms = one)
+            conference_people: new Set(live.filter(r => r.event_key === 'conference').map(r => String(r.email || r.key).trim().toLowerCase())).size,
             conference_cap: Number(conf.max_capacity) || null,
             gala: gala.length,
             gala_unpaid,

@@ -32,7 +32,7 @@ export const COPY = {
   // Audit 2026-09-17 A: "unpaid" was four states plus abandoned twins of guests who had paid. The
   // stat says how many rows still expect a payment; its title carries the split (the words are
   // the server's stats.gala_buckets labels — held rows and paid twins are named, never chased).
-  stats: { all: 'ALL REGISTRATIONS', conference: 'CONFERENCE', gala: 'GALA REGISTRATIONS', boston: 'BOSTON', of: n => `of ${n}`, unpaid: n => `${n} payment open`, cancelled: n => `+ ${n} cancelled`,
+  stats: { all: 'ALL REGISTRATIONS', conference: 'CONFERENCE', gala: 'GALA REGISTRATIONS', boston: 'BOSTON', of: n => `of ${n}`, rows: n => `${n} sign-up rows`, unpaid: n => `${n} payment open`, cancelled: n => `+ ${n} cancelled`,
     split: b => b ? ['link_sent', 'checkout_abandoned', 'no_link_yet', 'held', 'paid_twins'].filter(k => b[k] && Number(b[k].rows)).map(k => `${b[k].rows} ${String(b[k].tag || b[k].label || k).toLowerCase()}`).join(' · ') : '' },
   searchPh: 'Name, email, note — e.g. “vegan”, “pending”, “kbc”',
   events: [['all', 'ALL EVENTS'], ['conference', 'PLEXUS CONFERENCE'], ['gala', 'GALA EVENING'], ['boston', 'BOSTON'], ['donor', 'DONOR NIGHT'], ['bridges', 'BUILDING BRIDGES'], ['forum', 'FORUM'], ['signup', 'SIGN-UP FORMS']],   // first five per the artboard; the rest are live data (v2)
@@ -148,7 +148,7 @@ function blockStats() {
   <!-- dc: Admin Registrations.dc.html › "Stat strip" -->
   <div data-block="stats" class="mx-grid-4 mx-kpi" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(4,1fr)">
     ${cell('statAll', COPY.stats.all, s.all == null ? '—' : s.all, cxAll ? COPY.stats.cancelled(cxAll) : '', '#9a9086')}
-    ${cell('statConf', COPY.stats.conference, s.conference == null ? '—' : s.conference, cap ? COPY.stats.of(cap) : '', '#6d6459')}
+    ${cell('statConf', COPY.stats.conference, s.conference_people != null ? s.conference_people : s.conference == null ? '—' : s.conference, (cap ? COPY.stats.of(cap) : '') + (s.conference_people != null && s.conference != null && s.conference !== s.conference_people ? ' · ' + COPY.stats.rows(s.conference) : ''), '#6d6459')}
     ${cell('statGala', COPY.stats.gala, s.gala == null ? '—' : s.gala, s.gala_unpaid ? COPY.stats.unpaid(s.gala_unpaid) : '', '#9b1b22', false, galaSplit)}
     ${cell('statBoston', COPY.stats.boston, s.boston == null ? '—' : s.boston, s.boston_cap ? COPY.stats.of(s.boston_cap) : '', '#6d6459', true)}
   </div>
