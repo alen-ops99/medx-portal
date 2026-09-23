@@ -267,7 +267,7 @@ function stubApp() {
         assert.ok(/--lv-w: 720px/.test(css), 'the 720 px column');
         assert.ok(/\.lv-tabs \{ position: sticky; top: 0/.test(css) && /\.lv-day \{ position: sticky; top: 48px/.test(css), 'sticky tabs + day headers');
         assert.ok(/\.lv-card\.tbd \{ border-style: dashed/.test(css), 'TBD placeholders dashed');
-        assert.ok(/\.lv-att\.on \{ background: var\(--crimson\)/.test(css), 'ATTENDING fills red');
+        assert.ok(/\.lv-att\.on \{[^}]*color: var\(--crimson\)/.test(css) && /\.lv-att\.on::before/.test(css), 'IN MY SCHEDULE reads crimson with a drawn check (a calm ON — registered events start ON)');
     });
 
     await t('the member pages link to the app: PLEXUS WEEK LIVE → on every Plexus tab strip, EVENT APP → on Building Bridges', () => {
