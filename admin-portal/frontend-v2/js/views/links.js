@@ -205,7 +205,7 @@ function metaLine(l, dim) {
     : (l.eventName || COPY.meta.noBundle);
   const exp = l.expires ? COPY.meta.expires(String(l.expires).slice(0, 10)) : COPY.meta.noExpiry;
   const tok = l.token ? '…' + String(l.token).slice(-6) : COPY.meta.noToken;
-  return `<span data-v2="link-meta" title="${COPY.meta.title}" style="font-size:10.5px;color:${dim ? '#b0a79c' : '#9a9086'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(bundle)} · ${esc(exp)} · <span style="font-family:ui-monospace,monospace;letter-spacing:.02em">${esc(tok)}</span></span>`;
+  return `<span data-v2="link-meta" title="${COPY.meta.title}" style="font-size:10.5px;color:${dim ? '#b0a79c' : '#9a9086'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(bundle)} · ${esc(exp)} · <span style="font-family:Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em">${esc(tok)}</span></span>`;
 }
 // Task J — inline rename (registration links only: PUT /api/admin/registration-links/:id {label}).
 // The name cell becomes an input + SAVE/CANCEL while st.renaming === keyOf(l); Enter/Escape are
@@ -250,7 +250,7 @@ function linkRow(l) {
         </div>
         <div style="display:flex;align-items:center;padding-left:23px;min-width:0">${metaLine(l)}</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <span style="font:600 11.5px ui-monospace,monospace;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:8px 11px;flex:1;min-width:200px;color:${l.paused ? '#9a9086' : '#201b16'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.url)}">${esc(l.url.replace(/^https?:\/\//, ''))}</span>
+          <span style="font:600 11.5px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:8px 11px;flex:1;min-width:200px;color:${l.paused ? '#9a9086' : '#201b16'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.url)}">${esc(l.url.replace(/^https?:\/\//, ''))}</span>
           <span data-act="copy" ${ref} data-url="${esc(l.url)}" style="padding:8px 13px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copied === keyOf(l) ? COPY.row.copied : COPY.row.copy}</span>
           <span data-act="qr" ${ref} data-url="${esc(l.url)}" data-name="${esc(l.name)}" title="${COPY.row.qrTitle}" style="padding:8px 11px;border:1px solid rgba(32,27,22,.2);font:600 9px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${COPY.row.qr}</span>
         </div>
@@ -405,7 +405,7 @@ async function showQr(url, name) {
       eyebrow: COPY.qrModal.eyebrow, title: esc(name),
       body: `<div style="display:flex;flex-direction:column;align-items:center;gap:12px">
           <img src="${r.dataUrl}" alt="QR code for ${esc(name)}" style="width:240px;height:240px;border:1px solid rgba(32,27,22,.14)">
-          <span style="font:600 11px ui-monospace,monospace;color:#201b16;word-break:break-all;text-align:center">${esc(url.replace(/^https?:\/\//, ''))}</span>
+          <span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#201b16;word-break:break-all;text-align:center">${esc(url.replace(/^https?:\/\//, ''))}</span>
           <span style="font-size:11.5px;color:#6d6459">${COPY.qrModal.hint}</span>
           <a href="${r.dataUrl}" download="medx-link-qr.png" class="btn-ghost">${COPY.qrModal.download}</a>
         </div>`,

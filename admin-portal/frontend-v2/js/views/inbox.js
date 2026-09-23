@@ -46,6 +46,10 @@ export const COPY = {
     discardAllBody: (n) => `Discards ${n} stale draft${n === 1 ? '' : 's'} — nothing is sent. Everything already approved or sent stays exactly as it is.`,
     discardAllCancel: 'KEEP THEM',
     discardedAll: (n) => `DISCARDED ${n} DRAFT${n === 1 ? '' : 'S'} — NOTHING WAS SENT`,
+    olderPulses: (n) => `${n} older weekly pulse${n === 1 ? '' : 's'} — out of date; only the newest one is worth sending`,
+    showOlder: 'SHOW THEM', hideOlder: 'HIDE',
+    discardOlder: (n) => `DISCARD THE ${n} OLDER`,
+    discardOlderTitle: 'Discard the older weekly pulses?',
     weeksOld: (w) => w === 1 ? '1 WEEK OLD' : `${w} WEEKS OLD`,
     sends: (label) => `SENDS ${label}`,
     kinds: { pulse: 'WEEKLY PULSES — ROUTINE', guest: 'GUEST & MEMBER MESSAGES', survey: 'SURVEYS & FOLLOW-UPS', newsletter: 'NEWSLETTERS', other: 'ONE-OFF EMAILS' },
@@ -338,6 +342,21 @@ function previewDrawer(b) {
       ${p.preview && p.preview.html ? `<iframe sandbox="" title="Email preview" srcdoc="${esc(previewSafeHtml(p.preview.html))}"></iframe>` : `<span style="font-size:12px;color:#6d6459">${esc((p.preview && p.preview.body_text) || 'This batch carries no stored preview.')}</span>`}
     </div>`;
 }
+// Weekly pulses pile up when nobody approves them (twelve on 22 Sept, the oldest ten weeks old). Only the
+// newest is worth sending: it shows as a normal row, the older ones fold into one line with a bulk discard.
+function pulsesNewestFirst(items) { return items.slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))); }
+function pulseFold(g, row) {
+  if (g.kind !== 'pulse' || g.items.length < 2) return g.items.map(b => row(b, g)).join('');
+  const [newest, ...older] = pulsesNewestFirst(g.items);
+  const o = COPY.outbox;
+  return `${row(newest, g)}
+      <div data-v2="older weekly pulses, folded" style="display:flex;align-items:center;gap:14px;padding:11px 20px;border-bottom:1px solid rgba(32,27,22,.08);background:#fdfbf6;flex-wrap:wrap">
+        <span style="font-size:12px;color:#6d6459;flex:1;min-width:220px">${esc(o.olderPulses(older.length))}</span>
+        <span data-act="toggleOlderPulses" style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${st.showOlderPulses ? o.hideOlder : o.showOlder}</span>
+        <span data-act="discardOlderPulses" style="padding:7px 12px;border:1px solid rgba(155,27,34,.45);font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="background:#9b1b22;color:#fff">${o.discardOlder(older.length)}</span>
+      </div>
+      ${st.showOlderPulses ? older.map(b => row(b, g)).join('') : ''}`;
+}
 function blockWaiting() {
   const groups = outboxGroups();
   // stale-pulse age flag (audit #6): a weekly pulse a week or more old is flagged in weeks
@@ -374,10 +393,10 @@ function blockWaiting() {
       <div style="display:flex;align-items:center;gap:10px;padding:8px 20px;background:#fdfbf6;border-bottom:1px solid rgba(32,27,22,.08)">
         <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.16em;color:#6d6459">${g.label}</span>
         <div style="flex:1"></div>
-        ${g.items.length > 1 ? `<span data-act="approveAll" data-kind="${g.kind}" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#1e6e42;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.outbox.approveAll(g.items.length)}</span>` : ''}
-        ${g.kind === 'pulse' && g.items.length > 1 ? `<span data-act="discardAllPulse" data-v2="bulk discard for piled-up weekly pulses (audit #6) — confirm first, pending only" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#7e151b">${COPY.outbox.discardAll(g.items.length)}</span>` : ''}
+        ${g.items.length > 1 && g.kind !== 'pulse' ? `<span data-act="approveAll" data-kind="${g.kind}" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#1e6e42;cursor:pointer;white-space:nowrap" data-hover="color:#201b16">${COPY.outbox.approveAll(g.items.length)}</span>` : ''}
+        ${g.kind === 'pulse' && g.items.length > 1 && st.showOlderPulses ? `<span data-act="discardAllPulse" data-v2="bulk discard for piled-up weekly pulses (audit #6) — confirm first, pending only" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:#9b1b22;cursor:pointer;white-space:nowrap" data-hover="color:#7e151b">${COPY.outbox.discardAll(g.items.length)}</span>` : ''}
       </div>
-      ${g.items.map(b => row(b, g)).join('')}
+      ${pulseFold(g, row)}
       ${g.deferred.map(b => row(Object.assign({ _deferred: true }, b), g)).join('')}`).join('')}
       ${!groups.length ? `<div style="padding:26px 20px;text-align:center;font-size:13px;color:#6d6459">${COPY.outbox.empty}</div>` : ''}
     </div>
@@ -1086,6 +1105,28 @@ const handlers = {
   // DISCARD uses, which by definition touches rows still in 'pending_approval'. Anything already
   // approved, scheduled or sent is not in D.pending and is never addressed here, so DRAFTS &
   // HISTORY keeps its record. The confirm names the count and says plainly that nothing is sent.
+  toggleOlderPulses: () => { st.showOlderPulses = !st.showOlderPulses; rerender('[data-block="waiting"]', blockWaiting()); },
+  discardOlderPulses: async (el) => {
+    const items = pulsesNewestFirst(D.pending.filter(b => (KIND_OF_ENGINE[b.source_engine] || 'other') === 'pulse')).slice(1);
+    if (!items.length) return;
+    const ok = await ui.confirm({
+      eyebrow: COPY.outbox.discardAllEyebrow,
+      title: COPY.outbox.discardOlderTitle,
+      body: COPY.outbox.discardAllBody(items.length),
+      ok: COPY.outbox.discardOlder(items.length),
+      cancel: COPY.outbox.discardAllCancel
+    });
+    if (!ok) return;
+    el.setAttribute('aria-disabled', 'true');
+    let done = 0;
+    for (const b of items) {
+      try { await api.post('/api/admin/outbox/' + encodeURIComponent(b.batch_id) + '/cancel', {}); done++; }
+      catch (e) { ui.toast(e.message, { kind: 'error' }); }
+    }
+    st.discardConfirm = null; st.previewBatch = null; st.showOlderPulses = false;
+    if (done) ui.toast(COPY.outbox.discardedAll(done));
+    await reloadOutbox();
+  },
   discardAllPulse: async (el) => {
     const items = D.pending.filter(b => (KIND_OF_ENGINE[b.source_engine] || 'other') === 'pulse');
     if (!items.length) return;

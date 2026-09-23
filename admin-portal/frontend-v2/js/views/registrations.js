@@ -146,7 +146,7 @@ function blockStats() {
   const cxAll = D && D.grand_total != null && s.all != null ? Math.max(0, D.grand_total - s.all) : 0;
   return `
   <!-- dc: Admin Registrations.dc.html › "Stat strip" -->
-  <div data-block="stats" class="mx-grid-4" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(4,1fr)">
+  <div data-block="stats" class="mx-grid-4 mx-kpi" style="border:1px solid rgba(32,27,22,.14);background:#fff;display:grid;grid-template-columns:repeat(4,1fr)">
     ${cell('statAll', COPY.stats.all, s.all == null ? '—' : s.all, cxAll ? COPY.stats.cancelled(cxAll) : '', '#9a9086')}
     ${cell('statConf', COPY.stats.conference, s.conference == null ? '—' : s.conference, cap ? COPY.stats.of(cap) : '', '#6d6459')}
     ${cell('statGala', COPY.stats.gala, s.gala == null ? '—' : s.gala, s.gala_unpaid ? COPY.stats.unpaid(s.gala_unpaid) : '', '#9b1b22', false, galaSplit)}
@@ -265,7 +265,7 @@ function blockTransfers() {
           <span style="color:#6d6459">${t.to_name ? ` (${esc(t.to_email)})` : ''}</span>
         </span>
         <span style="min-width:0;font-size:11px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.event || 'Gala Evening')}</span>
-        <span title="Registration id — unchanged by the transfer" style="font:600 8px ui-monospace,Menlo,monospace;letter-spacing:.08em;padding:2px 6px;background:#f6f2ea;color:#4a4239;white-space:nowrap">${esc(C.reg(t.registration_ref))}${t.checked_in ? ` · ${C.checkedIn}` : ''}</span>
+        <span title="Registration id — unchanged by the transfer" style="font:600 8px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.08em;padding:2px 6px;background:#f6f2ea;color:#4a4239;white-space:nowrap">${esc(C.reg(t.registration_ref))}${t.checked_in ? ` · ${C.checkedIn}` : ''}</span>
         <span class="mx-reg-when" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#6d6459;white-space:nowrap">${esc(fmt.when(t.created_at))}</span>
       </div>`).join('') : `<div style="padding:14px 16px;font-size:12px;color:#6d6459">${C.empty}</div>`}
     </div>

@@ -287,9 +287,12 @@ module.exports = function mountBridgesOps(app, ctx) {
             const homeId = homeBridgesId();
             // Cancelled / superseded rows (the June "[superseded] Boston Symposium" seed) stay in the table for
             // history but have no place on the working screen.
+            // Donor Night borrows a bridges_events row (slug 'donor-night') for its guest list — it is a Plexus
+            // Week evening, not a Bridges city, and it was showing here as "Zagreb · DEC 4 · draft".
             const events = q.all(`SELECT * FROM bridges_events WHERE COALESCE(status,'upcoming') <> 'cancelled' AND name NOT LIKE '[superseded]%'
+                                    AND COALESCE(slug,'') <> 'donor-night'
                                   ORDER BY (event_date IS NULL) ASC, event_date DESC, created_at DESC`).map(e => ({
-                id: e.id, name: e.name, city: e.city, venue_name: e.venue_name || null, venue_address: e.venue_address || null,
+                id: e.id, slug: e.slug || null, name: e.name, city: e.city, venue_name: e.venue_name || null, venue_address: e.venue_address || null,
                 event_date: e.event_date || null, event_time: e.event_time || null, end_time: e.end_time || null,
                 description: e.description || null, capacity: e.capacity || null, registration_open: !!e.registration_open,
                 registration_deadline: e.registration_deadline || null, status: e.status || 'upcoming', is_published: !!e.is_published,

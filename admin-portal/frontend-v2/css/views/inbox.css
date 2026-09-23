@@ -22,6 +22,16 @@
 }
 @media (max-width: 620px) {
   .mx-outbox-row { flex-wrap: wrap !important; row-gap: 8px; }
-  .mx-outbox-row .mx-outbox-text { flex: 1 1 100% !important; }
+  /* the count stays beside the title (it used to sit alone on a line above it) */
+  .mx-outbox-row .mx-outbox-text { flex: 1 1 calc(100% - 60px) !important; }
   .mx-outbox-row > [data-act], .mx-outbox-row > span.mx-defer { margin-left: 44px; }
+}
+
+/* a grid cell never widens past its track (a <select> with a long option pushed the compose card,
+   and the whole page, 40px past a 390px phone) */
+.mx-inbox-split > *, .mx-inbox-split label { min-width: 0; }
+.mx-inbox-split select { max-width: 100%; }
+/* phone: the tab row scrolls — fade its right edge so the tabs past the screen edge read as "more" */
+@media (max-width: 620px) {
+  .mx-inbox-tabs { -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent); mask-image: linear-gradient(90deg, #000 82%, transparent); }
 }

@@ -168,7 +168,7 @@ const waitUp = async (base, ms = 90000) => {
         // --- (3) shape: the per-event keys the view consumes did not change ---
         const keys2 = h2.home ? Object.keys(h2.home).sort() : [];
         check('shape: per-event keys unchanged between reads', keys0.length > 0 && JSON.stringify(keys0) === JSON.stringify(keys2), keys2.join(','));
-        const expectedKeys = ['id', 'name', 'city', 'venue_name', 'venue_address', 'event_date', 'event_time', 'end_time', 'description', 'capacity', 'registration_open',
+        const expectedKeys = ['id', 'slug', 'name', 'city', 'venue_name', 'venue_address', 'event_date', 'event_time', 'end_time', 'description', 'capacity', 'registration_open',
             'registration_deadline', 'status', 'is_published', 'notes', 'price', 'registration_count', 'checked_in_count', 'speakers_count', 'invitation_queued', 'reminder_queued', 'thankyou_queued'].sort();
         check('shape: per-event keys are exactly the ones bridges.js reads', JSON.stringify(keys2) === JSON.stringify(expectedKeys), keys2.filter(k => !expectedKeys.includes(k)).concat(expectedKeys.filter(k => !keys2.includes(k))).join(',') || 'same set');
 

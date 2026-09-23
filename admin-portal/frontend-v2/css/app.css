@@ -144,8 +144,13 @@ body[data-layout="signin"] #chrome { display: none; }
   .mx-search { flex: 1 1 120px !important; }
 }
 @media (max-width: 620px) {
-  .mx-grid-5, .mx-grid-4, .mx-grid-3, .mx-kpi { grid-template-columns: 1fr !important; }
-  .mx-kpi > * { border-right: 0 !important; border-bottom: 1px solid rgba(32,27,22,.1); }
+  .mx-grid-5, .mx-grid-4, .mx-grid-3 { grid-template-columns: 1fr !important; }
+  /* KPI bands stay two-up on a phone: five full-width 180px cells pushed the Gala guest list (and the
+     Registrations table) a full screen down before the first row */
+  .mx-kpi { grid-template-columns: 1fr 1fr !important; }
+  .mx-kpi > * { border-right: 0 !important; border-bottom: 1px solid rgba(32,27,22,.1); padding: 14px 14px 13px !important; box-sizing: border-box; }
+  .mx-kpi > *:nth-child(odd):not(:last-child) { border-right: 1px solid rgba(32,27,22,.1) !important; }
+  .mx-kpi > *:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .mx-display-34 { font-size: 24px !important; }
   .mx-display-30 { font-size: 22px !important; }
   .mx-display-32 { font-size: 24px !important; }
@@ -171,3 +176,7 @@ body[data-layout="signin"] #chrome { display: none; }
   [data-block] > div, [data-block] [data-row], .empty { flex-wrap: wrap; }
   .empty-why { white-space: normal; overflow-wrap: anywhere; }
 }
+
+/* phone safety: a grid cell never grows past its track because of one nowrap line (the Forum hub's
+   pipeline rows pushed the page 66px sideways at 390px, the Accelerator key-dates note 6px) */
+.mx-two > *, .mx-side > *, .mx-kpi > *, .mx-grid-3 > *, .mx-grid-4 > *, .mx-grid-5 > *, .fh-band > *, .fh-feed > * { min-width: 0; }

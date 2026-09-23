@@ -32,7 +32,7 @@ export const COPY = {
     full: 'FULL ACCESS', todayOnly: 'today only', sections: n => `${n} section${n === 1 ? '' : 's'}`,
     invited: e => 'INVITE SENT TO ' + e.toUpperCase(), permSaved: 'ACCESS UPDATED — TAKES EFFECT ON THEIR NEXT CLICK',
     scannerMade: 'SCANNER ACCOUNT READY — HAND OVER THE PASSWORD BELOW',
-    scannerBody: (em, pw) => `<p style="margin:0 0 8px">Scanner account for <b>${esc(em)}</b> is live — Event Day check-in only.</p><p style="margin:0 0 4px">One-time password (shown only now):</p><p style="margin:0"><code style="display:inline-block;background:#f6f2ea;border:1px solid rgba(32,27,22,.2);padding:8px 14px;font:600 15px ui-monospace,monospace;letter-spacing:.08em">${esc(pw)}</code></p>`,
+    scannerBody: (em, pw) => `<p style="margin:0 0 8px">Scanner account for <b>${esc(em)}</b> is live — Event Day check-in only.</p><p style="margin:0 0 4px">One-time password (shown only now):</p><p style="margin:0"><code style="display:inline-block;background:#f6f2ea;border:1px solid rgba(32,27,22,.2);padding:8px 14px;font:600 15px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.08em">${esc(pw)}</code></p>`,
     foot: (n, here) => `${n} teammate${n === 1 ? '' : 's'} · only ${here} see${here === 'you' ? '' : 's'} who uses the portal and how much`
   },
   org: {
@@ -201,7 +201,7 @@ function teamCard() {
 function orgCard() {
   const o = D.org;
   const input = (role, label, ph, val) => `
-          <label style="display:flex;flex-direction:column;gap:4px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${label}</span><input data-role="${role}" value="${esc(val || '')}" placeholder="${esc(ph)}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px ui-monospace,monospace;color:#201b16"></label>`;
+          <label style="display:flex;flex-direction:column;gap:4px"><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${label}</span><input data-role="${role}" value="${esc(val || '')}" placeholder="${esc(ph)}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#201b16"></label>`;
   return `
     <!-- dc: Admin Settings.dc.html › "ORGANISATION & PAYMENTS" -->
     <div id="org" data-block="org" style="border:1px solid rgba(32,27,22,.14);border-top:2px solid #201b16;background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:9px">

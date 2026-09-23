@@ -426,7 +426,7 @@ function blockCodes() {
           <span style="font-size:12px;color:#6d6459;line-height:1.55">${c.explain}</span>
           ${invites.map(i => `
             <div data-row="${esc(i.id)}" style="border:1px solid rgba(32,27,22,.1);background:#f6f2ea;padding:10px 12px;display:flex;align-items:center;gap:10px;${i.status === 'open' ? '' : 'opacity:.6'}">
-              <span style="font:600 12px ui-monospace,monospace;letter-spacing:.08em;flex:none">${esc(i.code)}</span>
+              <span style="font:600 12px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.08em;flex:none">${esc(i.code)}</span>
               <span style="font-size:11px;color:#6d6459;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(line(i))}</span>
               ${i.status === 'open' && i.sent_at ? `<a href="/inbox/outbox" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;color:#7a6432;white-space:nowrap" title="The invitation email waits for approval there">${c.outbox}</a>` : ''}
               <span data-act="copyCode" data-code="${esc(i.code)}" style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:${st.copiedCode === i.code ? '#1e6e42' : '#9b1b22'};cursor:pointer;white-space:nowrap">${st.copiedCode === i.code ? c.copied : c.copy}</span>
@@ -454,7 +454,7 @@ function blockForm() {
                 <span data-act="addQ" style="padding:8px 12px;background:#9b1b22;color:#fff;font:600 9px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">${c.add}</span>
               </div>` : ''}
             <span data-act="copyLink" style="font:600 9px Inter,sans-serif;letter-spacing:.13em;color:${st.linkCopied ? '#1e6e42' : '#9b1b22'};cursor:pointer">${st.linkCopied ? c.linkCopied : c.copyLink}</span>
-            <span style="font:400 10.5px ui-monospace,monospace;color:#9a9086">${c.url}</span>
+            <span style="font:400 10.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#9a9086">${c.url}</span>
           </div>
         </div>
         <!-- /dc -->`;

@@ -8,8 +8,8 @@
 // Real wiring: print suite = the existing /api/admin/print/* engine (context + HTML preview always
 // work; the print-ready PDF needs headless Chrome on the service and says so when it is missing);
 // certificates = the existing certificates table + a brand-true preview (v2 studio module);
-// social cards = the artboard's 1080×1080 canvas download + the member portal's live attendance
-// cards (v2_attendance_cards, images served member-side).
+// social cards = the artboard's 1080×1080 canvas download (the member-portal attendance-card strip
+// was removed 22 Sept: those cards are retired and were never to be emailed).
 // Studio extras (team review Aug 2026 §C "Studio"):
 //   photo library (v2_studio_assets — upload ≤8MB jpg/png/webp, tags, copy-URL, soft delete);
 //   per-tool SETTINGS drawers (v2_studio_settings) that the generate buttons genuinely read —
@@ -70,8 +70,7 @@ export const COPY = {
     bgNoPhotos: 'upload photos to the library below to use one as a card background',
     taint: 'THAT PHOTO BLOCKS CANVAS EXPORT — PICK ANOTHER OR RE-UPLOAD IT TO THE LIBRARY',
     imgFail: 'COULD NOT LOAD THAT PHOTO — PICK ANOTHER',
-    recent: 'FRESH FROM THE MEMBER PORTAL', recentWhy: 'attendance cards the system generated from real registrations — auto-emailed to each guest',
-    recentNone: 'No member cards yet — they generate themselves on registration.'
+    recent: 'FRESH FROM THE MEMBER PORTAL', recentWhy: '', recentNone: ''
   },
   forms: {
     sub: 'every live registration link, with its sign-up count — replies land in People / Registrations',
@@ -124,7 +123,6 @@ async function load() {
   const r = await api.settle({
     printCtx: api.get('/api/admin/print/context?event=conference'),
     certSummary: api.get('/api/v2/studio/certificates/summary'),
-    cards: api.get('/api/v2/studio/attendance-cards'),
     library: api.get('/api/v2/studio/library'),
     settings: api.get('/api/v2/studio/settings')
   });
@@ -132,7 +130,7 @@ async function load() {
     errors: r.$errors,
     printCtx: r.printCtx || null,
     certSummary: r.certSummary || { total: 0, by_type: [], recent: [] },
-    cards: (r.cards && r.cards.cards) || [],
+    cards: [],   // attendance cards retired (17 Sept) — no longer read
     photos: (r.library && r.library.photos) || [],
     settings: Object.assign(JSON.parse(JSON.stringify(SETTINGS_FALLBACK)), (r.settings && r.settings.settings) || {})
   };
@@ -255,7 +253,7 @@ function formLinksBody() {
             <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.11em;padding:3px 7px;background:${(FORM_KIND_STYLE[l.kind] || FORM_KIND_STYLE.PUBLIC)[0]};color:${(FORM_KIND_STYLE[l.kind] || FORM_KIND_STYLE.PUBLIC)[1]};white-space:nowrap">${esc(l.kind)}</span>
             <span style="font-size:12.5px;font-weight:600;min-width:140px;flex:1">${esc(l.name)}</span>
             <span style="font-size:11px;color:#6d6459;white-space:nowrap">${esc(COPY.forms.uses(l.uses))}${l.paused ? ` · ${COPY.forms.paused}` : ''}${l.expired && !l.paused ? ` · ${COPY.forms.expired}` : ''}</span>
-            <span style="font:600 11px ui-monospace,monospace;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:6px 9px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${l.paused ? '#9a9086' : '#201b16'}" title="${esc(l.url)}">${esc(l.url.replace(/^https?:\/\//, ''))}</span>
+            <span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;background:#f6f2ea;border:1px solid rgba(32,27,22,.14);padding:6px 9px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${l.paused ? '#9a9086' : '#201b16'}" title="${esc(l.url)}">${esc(l.url.replace(/^https?:\/\//, ''))}</span>
             <span data-act="formCopy" data-url="${esc(l.url)}" style="padding:6px 11px;background:#9b1b22;color:#fff;font:600 8.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.forms.copy}</span>
           </div>`).join('')}
           ${!list.length ? `<div class="empty" style="padding:26px 20px"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">${COPY.forms.empty}</span><span class="empty-why">${COPY.forms.emptyWhy}</span></div>` : ''}
@@ -300,8 +298,6 @@ function drawerBody() {
   }
   if (st.tool === 'signup') return formLinksBody();
   // social
-  const cards = D.cards;
-  const cardImg = p => (cfg.memberBase ? cfg.memberBase : cfg.memberPortalUrl) + p;
   return `
         <div style="padding:16px 20px 20px;display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
           <div style="display:flex;flex-direction:column;gap:9px;flex:1;min-width:240px">
@@ -309,14 +305,7 @@ function drawerBody() {
             <input data-role="scSub" value="${esc(st.scSub)}" placeholder="${esc(COPY.social.subPh)}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:9px 11px;font:400 13px Inter,sans-serif;color:#201b16">
             ${socialBgRow()}
             <span data-act="dlSocial" style="padding:10px 15px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;align-self:flex-start" data-hover="background:#7e151b">${COPY.social.dl}</span>
-            <div data-v2="live member share cards (v2_attendance_cards)" style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-              <span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459">${COPY.social.recent}</span>
-              ${cards.length ? `
-              <div class="mx-st-cards" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px">
-                ${cards.slice(0, 6).map(cd => `<a href="${esc(cardImg(cd.image_path))}" target="_blank" rel="noopener" title="${esc(cd.event_name || cd.kind)} · ${esc(cd.email_to || '')}" style="flex:none"><img src="${esc(cardImg(cd.image_path))}" alt="${esc(cd.event_name || 'attendance card')}" loading="lazy" style="width:150px;height:79px;object-fit:cover;border:1px solid rgba(32,27,22,.18);display:block" onerror="this.parentNode.style.display='none'"></a>`).join('')}
-              </div>
-              <span style="font-size:11px;color:#6d6459">${COPY.social.recentWhy}</span>` : `<span style="font-size:11.5px;color:#6d6459;font-style:italic">${COPY.social.recentNone}</span>`}
-            </div>
+            <!-- the member-portal attendance-card strip is gone: those cards are retired (never emailed, 17 Sept rule) and their images 404 -->
           </div>
           ${socialPreviewTile()}
         </div>`;
@@ -358,7 +347,7 @@ function blockBrand() {
         <div style="padding:16px 20px;border-right:1px solid rgba(32,27,22,.08)">
           <div style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#6d6459;margin-bottom:10px">${COPY.brand.colours}</div>
           <div style="display:flex;flex-direction:column;gap:6px">
-            ${COLOURS.map(([hex, name]) => `<span data-act="copyHex" data-hex="${hex}" title="Click to copy" style="display:flex;align-items:center;gap:10px;cursor:pointer"><span style="width:22px;height:22px;background:${hex};${hex === '#F7F1E6' ? 'border:1px solid rgba(32,27,22,.15);' : ''}flex:none"></span><span style="font:600 11px ui-monospace,monospace">${hex}</span><span style="font-size:11px;color:#6d6459">${esc(name)}</span></span>`).join('')}
+            ${COLOURS.map(([hex, name]) => `<span data-act="copyHex" data-hex="${hex}" title="Click to copy" style="display:flex;align-items:center;gap:10px;cursor:pointer"><span style="width:22px;height:22px;background:${hex};${hex === '#F7F1E6' ? 'border:1px solid rgba(32,27,22,.15);' : ''}flex:none"></span><span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums">${hex}</span><span style="font-size:11px;color:#6d6459">${esc(name)}</span></span>`).join('')}
           </div>
         </div>
         <div style="padding:16px 20px">

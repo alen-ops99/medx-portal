@@ -189,7 +189,7 @@ function blockStats() {
         <span style="display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap"><span style="width:7px;height:7px;background:#201b16;flex:none"></span><b>${COPY.dates.phase2When}</b>&nbsp;${COPY.dates.phase2}</span>
         <span style="display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap"><span style="width:7px;height:7px;background:#1e6e42;flex:none"></span><b>${COPY.dates.phase3When}</b>&nbsp;${COPY.dates.phase3}</span>
         <div style="flex:1"></div>
-        <span style="font-size:11px;color:#6d6459;white-space:nowrap">${COPY.dates.note}<a href="/calendar">${COPY.dates.noteLink}</a></span>
+        <span style="font-size:11px;color:#6d6459">${COPY.dates.note}<a href="/calendar">${COPY.dates.noteLink}</a></span>
       </div>
       ${st.intakeEdit ? `
       <div data-v2="intake-editor" style="display:flex;gap:8px;align-items:center;padding:10px 20px;background:#fdfbf6;border-top:1px solid rgba(32,27,22,.07);flex-wrap:wrap">

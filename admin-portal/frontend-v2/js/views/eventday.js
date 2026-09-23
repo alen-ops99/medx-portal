@@ -99,8 +99,8 @@ export const COPY = {
     handQr: 'let door staff scan this QR with their phone camera'
   },
   map: {
-    title: 'VENUE MAP', placeholder: 'Esplanade floor plan — staff positions live here on the day',
-    sub: 'Each teammate’s dot updates as they scan; tap a dot to call them.',
+    title: 'VENUE & SEATING', planner: 'OPEN THE 3D BALLROOM PLANNER ↗', seating: 'GALA SEATING BOARD →',
+    sub: 'The Esplanade plan and every table — the same seating the door scanner reads.',
     notes: 'OPS NOTES — SHARED WITH THE TEAM', notesPh: 'Door assignments, parking, kitchen timing…',
     save: 'SAVE NOTES', saved: 'NOTES SAVED — THE WHOLE TEAM SEES THEM'
   },
@@ -622,7 +622,7 @@ function blockScanner() {
       ${blocked ? `<span data-v2="meetup door needs a pick" style="width:100%;box-sizing:border-box;border:1px solid #c9a962;background:#f8f1e2;padding:10px 12px;font-size:12px;color:#7a6432;line-height:1.5">${esc(meetupList().length ? COPY.meetup.pick : COPY.meetup.pickNone)}</span>` : ''}
       ${meetupOn() && st.meetupId ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.13em;color:#7a6432">${esc(String((pickedMeetup() || {}).label || '').toUpperCase())}</span><span style="font-size:11.5px;color:#6d6459;margin-top:-8px">${esc(COPY.meetup.pickHint)}</span>` : ''}
       <div data-role="camBox" class="mx-ed-cam" style="width:180px;height:180px;background:repeating-linear-gradient(45deg,#f6f2ea,#f6f2ea 8px,#efe9dc 8px,#efe9dc 16px);border:1px solid rgba(32,27,22,.15);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
-        <span data-role="camHint" style="font:500 10px ui-monospace,monospace;color:#6d6459;max-width:120px">${COPY.scanner.camIdle}</span>
+        <span data-role="camHint" style="font:500 10px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#6d6459;max-width:120px">${COPY.scanner.camIdle}</span>
         <span style="position:absolute;left:14px;right:14px;top:50%;height:2px;background:rgba(155,27,34,.55);z-index:2"></span>
       </div>
       <span style="font-size:12px;color:#6d6459;line-height:1.55;max-width:260px">${COPY.scanner.hint}</span>
@@ -704,7 +704,7 @@ function staffCardBody() {
   // it wrap inside the card; at ≤480px it takes its own line (css/views/event-day.css).
   return `
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <span data-role="doorUrl" style="font:600 12px ui-monospace,monospace;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.15);padding:9px 12px;min-width:0;flex:1 1 auto;overflow-wrap:anywhere;box-sizing:border-box">${esc(t.url)}</span>
+        <span data-role="doorUrl" style="font:600 12px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;background:#f6f2ea;border:1px solid rgba(32,27,22,.15);padding:9px 12px;min-width:0;flex:1 1 auto;overflow-wrap:anywhere;box-sizing:border-box">${esc(t.url)}</span>
         <span data-act="copyDoor" data-url="${esc(t.url)}" style="padding:9px 14px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.copiedDoor ? COPY.staff.copied : COPY.staff.copy}</span>
         <span data-act="qrDoor" data-id="${esc(t.id)}" style="padding:9px 14px;border:1px solid rgba(32,27,22,.2);color:#201b16;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#201b16">${st.qrUrl ? COPY.staff.hideQr : COPY.staff.qr}</span>
         <span data-act="revokeDoor" data-id="${esc(t.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.12em;color:#6d6459;cursor:pointer;white-space:nowrap" data-hover="color:#9b1b22">${COPY.staff.revoke}</span>
@@ -728,8 +728,12 @@ function blockMap() {
     <!-- dc: Admin Event Day.dc.html › "VENUE MAP" -->
     <div style="border:1px solid rgba(32,27,22,.14);background:#fff;padding:16px 20px;display:flex;flex-direction:column;gap:10px">
       <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em">${COPY.map.title}</span>
-      <div style="height:150px;background:repeating-linear-gradient(45deg,#f6f2ea,#f6f2ea 8px,#efe9dc 8px,#efe9dc 16px);border:1px solid rgba(32,27,22,.12);display:flex;align-items:center;justify-content:center"><span style="font:500 10px ui-monospace,monospace;color:#6d6459;text-align:center;padding:0 12px">${COPY.map.placeholder}</span></div>
+      <!-- the striped "staff dots" map it replaces was never built — link the real floor plan + seating instead -->
       <span style="font-size:11.5px;color:#6d6459">${COPY.map.sub}</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="https://plexus-tables.netlify.app" target="_blank" rel="noopener" style="padding:9px 13px;background:#201b16;color:#f6f2ea;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="background:#000;color:#fff">${COPY.map.planner}</a>
+        <a href="/gala#mx-gala-board" style="padding:8px 12px;border:1px solid rgba(32,27,22,.25);color:#201b16;font:600 9.5px Inter,sans-serif;letter-spacing:.13em;white-space:nowrap" data-hover="border-color:#201b16">${COPY.map.seating}</a>
+      </div>
       <div data-v2="ops notes — shared, saved server-side" style="display:flex;flex-direction:column;gap:6px">
         <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459">${COPY.map.notes}</span>
         <textarea data-role="notes" rows="3" ${canEdit ? '' : 'readonly'} placeholder="${esc(COPY.map.notesPh)}" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 10px;font:400 12.5px Inter,sans-serif;color:#201b16;resize:vertical">${esc(D.notes.notes || '')}</textarea>

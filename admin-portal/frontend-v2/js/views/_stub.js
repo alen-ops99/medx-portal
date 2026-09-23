@@ -24,7 +24,7 @@ export function makeStub({ source, title, headline, tabs = [], eyebrow = 'IN PRO
       <div class="empty" style="padding:38px 22px 40px">
         <span style="width:28px;height:1px;background:#c9a962"></span>
         <span class="empty-line">This screen is on its way.</span>
-        <span class="empty-why">It is being built from <span style="font:600 12px ui-monospace,Menlo,monospace;color:#201b16">${esc(source)}</span> — the design is final, the wiring follows.</span>
+        <span class="empty-why">It is being built from <span style="font:600 12px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#201b16">${esc(source)}</span> — the design is final, the wiring follows.</span>
         <a href="/today" style="margin-top:8px;padding:9px 14px;border:1px solid rgba(32,27,22,.2);font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#201b16;white-space:nowrap" data-hover="border-color:#201b16">BACK TO TODAY</a>
       </div>
     </div>

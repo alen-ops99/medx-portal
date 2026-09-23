@@ -73,7 +73,7 @@ export const COPY = {
     plexus: { live: 'LIVE', closed: 'REGISTRATION CLOSED', title: FACTS.plexus.week, line: (r, cap, galaBit) => `${r} registered of ${cap} · ${galaBit}`, parts: FACTS.plexus.parts },
     accelerator: { title: FACTS.accelerator.short, opens: `OPENS ${FACTS.accelerator.opensShort.toUpperCase()}`, apps: n => n === 0 ? '0 applications yet' : `${n} application${n === 1 ? '' : 's'}`, hosts: n => `${n} host institution${n === 1 ? '' : 's'} ready` },
     forum: { title: FACTS.forum.name, eyebrow: 'BY INVITATION', line: (m, c) => `${m} member${m === 1 ? '' : 's'} · ${c} candidate${c === 1 ? '' : 's'}`, gathering: `gathering ${FACTS.forum.gathering.label}` },
-    bridges: { title: FACTS.bridges.name, next: (city, when) => `NEXT · ${city.toUpperCase()} · ${when}`, none: 'NO DATE SET', line: (past, n, city) => `${past} past edition${past === 1 ? '' : 's'} · ${n} ${city} sign-up${n === 1 ? '' : 's'}`, venueSoon: 'venue announced soon' },
+    bridges: { title: FACTS.bridges.name, next: (city, when) => `NEXT · ${city.toUpperCase()} · ${when}`, none: 'NO DATE SET', dateTbc: 'DATE TBC', dateLine: 'date to be confirmed', line: (past, n, city) => `${past} past edition${past === 1 ? '' : 's'} · ${n} ${city} sign-up${n === 1 ? '' : 's'}`, venueSoon: 'venue announced soon' },
     more: { eyebrow: 'EVERYTHING ELSE', title: 'More tools', line: 'Website &amp; portal text, team access, health, audit, team library…' }
   },
   attention: {
@@ -170,6 +170,7 @@ async function load(days) {
     calendar: api.get('/api/admin/year-calendar'),
     status: api.get('/api/public/status', { noAuth: true }),
     bridges: api.get('/api/bridges/events'),
+    bridgesHub: api.get('/api/v2/bridges/hub'),     // the Zagreb head count (diaspora form rows included) + the published editions
     forumCand: api.get('/api/admin/forum/candidates?status=all'),
     institutions: api.get('/api/accelerator/institutions', { noAuth: true }),
     bigIdeas: api.get('/api/v2/big-ideas/due?days=14')   // Big Ideas — next steps due or overdue
@@ -186,9 +187,23 @@ async function load(days) {
   const prefs = {}; PREF_KEYS.forEach(k => { prefs[k] = true; });
   (Array.isArray(r.prefs) ? r.prefs : []).forEach(row => { if (row && row.card_id in prefs) prefs[row.card_id] = !!Number(row.is_visible); });
   const status = {}; (((r.status || {}).projects) || []).forEach(p => { status[p.project_key] = p; });
-  const bridges = Array.isArray(r.bridges) ? r.bridges : [];
+  // Building Bridges evenings only: Donor Night borrows a bridges_events row (slug 'donor-night') for its
+  // guest list, and cancelled / "[superseded]" rows are history — none of them is a Bridges city. Donor
+  // Night used to surface here as "NEXT · ZAGREB · DEC 4 · 0 sign-ups" (and as "Building Bridges Zagreb is
+  // tonight" on 4 Dec).
+  const hub = r.bridgesHub && Array.isArray(r.bridgesHub.events) ? r.bridgesHub : null;
+  const hubCount = id => { const e = hub && hub.events.find(x => String(x.id) === String(id)); return e ? Number(e.registration_count || 0) : null; };
+  const bridges = (Array.isArray(r.bridges) ? r.bridges : [])
+    .filter(b => b.slug !== 'donor-night' && String(b.status || '') !== 'cancelled' && !/^\[superseded\]/i.test(String(b.name || '')))
+    .map(b => { const n = hubCount(b.id); return n == null ? b : Object.assign({}, b, { registration_count: n }); });
   const dated = bridges.filter(b => b.event_date && /^\d{4}-\d{2}-\d{2}/.test(b.event_date)).map(b => Object.assign({}, b, { d: String(b.event_date).slice(0, 10) }));
-  const nextBridges = dated.filter(b => b.d >= today).sort((a, b) => a.d.localeCompare(b.d))[0] || null;
+  // next = the next dated evening; else the undated home edition (Zagreb, during Plexus Week)
+  const nextBridges = dated.filter(b => b.d >= today).sort((a, b) => a.d.localeCompare(b.d))[0]
+    || bridges.find(b => b.slug === 'building-bridges' && !(b.event_date && /^\d{4}-\d{2}-\d{2}/.test(b.event_date))) || null;
+  // past editions = the published recaps + any dated evening already held whose city has no recap yet
+  const edCities = new Set(((hub && hub.editions) || []).filter(e => e.is_published).map(e => String(e.city || '').toLowerCase().replace(/ü/g, 'u')));
+  const pastCount = hub ? edCities.size + dated.filter(b => b.d < today && !edCities.has(String(b.city || '').toLowerCase().replace(/ü/g, 'u'))).length
+    : dated.filter(b => b.d < today).length;
   // the board's cards: open = todo/doing (the overdue attention row counts everyone's); mine = assigned to me
   const boardRows = r.tasks && Array.isArray(r.tasks.tasks) ? r.tasks.tasks : [];
   const myMember = r.tasks && r.tasks.me ? r.tasks.me.member_id : null;
@@ -210,7 +225,7 @@ async function load(days) {
     msgNeedsReply: (r.threads && Array.isArray(r.threads.threads))
       ? r.threads.threads.filter(t => !t.archived && (Number(t.unread) > 0 || !(t.last && t.last.mine)))
       : null,
-    advisors: r.advisors, prefs, status, bridges: { all: bridges, dated, next: nextBridges, past: dated.filter(b => b.d < today).length },
+    advisors: r.advisors, prefs, status, bridges: { all: bridges, dated, next: nextBridges, past: pastCount },
     calendar: Array.isArray(r.calendar) ? r.calendar : [],
     forumCandidates: r.forumCand && r.forumCand.counts ? Number(r.forumCand.counts.all || 0) : 0,
     institutions: Array.isArray(r.institutions) ? r.institutions.filter(i => Number(i.is_active == null ? 1 : i.is_active)).length : null,
@@ -467,7 +482,7 @@ function blockProjects() {
   const accEl = s.accelerator; const accLabel = accEl ? fmt.upper(fmt.detail(accEl.status_label)) : c.accelerator.opens;
   const accColor = accEl && accEl.status_kind === 'open' ? '#9b1b22' : accEl && accEl.status_kind === 'soon' ? '#b7791f' : '#b7791f';
   const nb = D.bridges.next; const nbCity = nb ? nb.city : FACTS.bridges.next.city;
-  const nbWhen = nb ? fmt.dayLabel(nb.d).split(' ')[0] + ' ' + nb.d.slice(0, 4) : FACTS.bridges.next.short.toUpperCase();
+  const nbWhen = nb && nb.d ? fmt.dayLabel(nb.d).split(' ')[0] + ' ' + nb.d.slice(0, 4) : nb ? c.bridges.dateTbc : FACTS.bridges.next.short.toUpperCase();
   const nbVenue = nb && nb.venue_name && !/announce|tba/i.test(nb.venue_name) ? nb.venue_name : c.bridges.venueSoon;
   const card = (href, top, eyebrowColor, eyebrow, title, line1, line2, dashed) => `
         <a href="${href}" style="border:1px ${dashed ? 'dashed rgba(32,27,22,.25)' : 'solid rgba(32,27,22,.14)'};${top ? 'border-top:2px solid #9b1b22;' : ''}background:${dashed ? 'transparent' : '#fff'};padding:16px;display:flex;flex-direction:column;gap:6px;color:#201b16" data-hover="border-color:rgba(32,27,22,${dashed ? '.5' : '.35'});color:#201b16">
@@ -486,7 +501,7 @@ function blockProjects() {
         ${card('/projects/plexus', true, Number(conf.registration_open) ? '#9b1b22' : '#6d6459', (Number(conf.registration_open) || !conf.id ? c.plexus.live : c.plexus.closed) + ' · ' + esc(fmt.rangeLabel(conf.start_date || FACTS.plexus.start, conf.end_date || FACTS.plexus.end)), esc(c.plexus.title), esc(c.plexus.line(regs, D.cap, isLocked('gala') ? '— gala paid' : (g.ops ? `${g.ops.seats.paid} gala seat${g.ops.seats.paid === 1 ? '' : 's'} paid` : `${g.paid.length} gala booking${g.paid.length === 1 ? '' : 's'} paid`))), esc(c.plexus.parts))}
         ${card('/projects/accelerator', false, accColor, esc(accLabel), esc(c.accelerator.title), esc(c.accelerator.apps(apps)), D.institutions == null ? esc(FACTS.accelerator.hosts.length + ' host institutions (canonical)') : esc(c.accelerator.hosts(D.institutions)))}
         ${card('/projects/forum', false, '#6d6459', esc(s.forum ? fmt.upper(s.forum.status_label) : c.forum.eyebrow), esc(c.forum.title), esc(c.forum.line(members, D.forumCandidates)), esc(c.forum.gathering))}
-        ${card('/projects/bridges', false, nb ? '#2f7d4f' : '#b7791f', nb ? esc(c.bridges.next(nbCity, nbWhen)) : c.bridges.none, esc(c.bridges.title), esc(c.bridges.line(D.bridges.past, nb ? Number(nb.registration_count || 0) : 0, nbCity)), esc((nb ? fmt.rangeLabel(nb.d) : FACTS.bridges.next.label) + ' · ' + nbVenue))}
+        ${card('/projects/bridges', false, nb ? '#2f7d4f' : '#b7791f', nb ? esc(c.bridges.next(nbCity, nbWhen)) : c.bridges.none, esc(c.bridges.title), esc(c.bridges.line(D.bridges.past, nb ? Number(nb.registration_count || 0) : 0, nbCity)), esc((nb ? (nb.d ? fmt.rangeLabel(nb.d) : c.bridges.dateLine) : FACTS.bridges.next.label) + ' · ' + nbVenue))}
         ${card('/settings', false, '#6d6459', c.more.eyebrow, c.more.title, c.more.line, '', true)}
       </div>
     </div>

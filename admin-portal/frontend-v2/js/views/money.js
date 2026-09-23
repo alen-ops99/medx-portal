@@ -407,9 +407,9 @@ function bookTable(dir) {
     ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:#e4efe7;color:#22563a;white-space:nowrap">FISCAL</span>`
     : `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;padding:3px 6px;background:#fdf3df;color:#8a6116;white-space:nowrap">NON-FISCAL</span>`;
   const rows = data.rows.map(r => `<tr data-row="${esc(r.id)}">
-      ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(r.invoice_number)}</span>`)}
+      ${td(`<span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap">${esc(r.invoice_number)}</span>`)}
       ${td(esc(r.party_name) + (r.notes ? `<span style="display:block;font-size:11px;color:#6d6459">${esc(r.notes)}</span>` : ''))}
-      ${td(`<span style="font:400 11.5px ui-monospace,monospace">${esc(r.party_oib || '—')}</span>`)}
+      ${td(`<span style="font:400 11.5px Inter,sans-serif;font-variant-numeric:tabular-nums">${esc(r.party_oib || '—')}</span>`)}
       ${td(esc(dmy(r.invoice_date)))}
       ${tdNum(money(r.amount))}
       ${td(esc(dmy(r.booking_date)))}
@@ -422,9 +422,9 @@ function bookTable(dir) {
       ${tdActs(actBtn(dir === 'out' ? 'boEdit' : 'biEdit', r.id, '✎', 'Edit row') + actBtn(dir === 'out' ? 'boDelete' : 'biDelete', r.id, '✕', 'Delete row'))}
     </tr>`).join('');
   const legacyRows = data.legacy_rows.map(r => `<tr style="opacity:.66">
-      ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(r.invoice_number || '—')}</span>`)}
+      ${td(`<span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap">${esc(r.invoice_number || '—')}</span>`)}
       ${td(esc(r.party_name || '—') + ` <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:#eee9df;color:#6d6459">LEGACY</span>`)}
-      ${td(`<span style="font:400 11.5px ui-monospace,monospace">${esc(r.party_oib || '—')}</span>`)}
+      ${td(`<span style="font:400 11.5px Inter,sans-serif;font-variant-numeric:tabular-nums">${esc(r.party_oib || '—')}</span>`)}
       ${td(esc(r.invoice_date ? dmy(r.invoice_date) : '—'))}
       ${tdNum(money(r.amount))}
       ${td('—')}
@@ -481,7 +481,7 @@ function blockTravel() {
   const c = COPY.travel, f = st.f.travel;
   const headers = [{ t: c.th.broj }, { t: c.th.ime }, { t: c.th.datum }, { t: c.th.odrediste }, { t: c.th.svrha }, { t: c.th.trosak, r: 1 }, { t: c.th.otvoren }, { t: c.th.jedinica }, { t: c.th.projekt }, { t: c.th.akcije, r: 1 }];
   const rows = D.travel.rows.map(r => `<tr data-row="${esc(r.id)}">
-      ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(r.order_number)}</span>`)}
+      ${td(`<span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap">${esc(r.order_number)}</span>`)}
       ${td(`<span style="font-weight:600">${esc(r.traveler_name)}</span>`)}
       ${td(esc(dmy(r.travel_date)))}
       ${td(esc(r.destination))}
@@ -521,7 +521,7 @@ function blockPayment() {
   const c = COPY.pay, f = st.f.pay;
   const headers = [{ t: c.th.broj }, { t: c.th.primatelj }, { t: c.th.opis }, { t: c.th.iznos, r: 1 }, { t: c.th.datum }, { t: c.th.jedinica }, { t: c.th.projekt }, { t: c.th.akcije, r: 1 }];
   const rows = D.pay.rows.map(r => `<tr data-row="${esc(r.id)}">
-      ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(r.order_number)}</span>`)}
+      ${td(`<span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap">${esc(r.order_number)}</span>`)}
       ${td(`<span style="font-weight:600">${esc(r.recipient_name)}</span>`)}
       ${td(esc(r.description || '—'))}
       ${tdNum(money(r.amount))}
@@ -557,7 +557,7 @@ function blockUnits() {
   const c = COPY.units;
   const headers = [{ t: c.th.sifra }, { t: c.th.naziv }, { t: c.th.opis }, { t: c.th.prihod(st.year), r: 1 }, { t: c.th.rashod(st.year), r: 1 }, { t: c.th.preneseno, r: 1 }, { t: c.th.konacno, r: 1 }, { t: c.th.akcije, r: 1 }];
   const rows = D.units.map(u => `<tr data-row="${esc(u.id)}">
-      ${td(`<span style="font:600 11px ui-monospace,monospace;white-space:nowrap">${esc(u.code)}</span>${!u.active ? ` <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:#eee9df;color:#6d6459">${c.inactive}</span>` : ''}`)}
+      ${td(`<span style="font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap">${esc(u.code)}</span>${!u.active ? ` <span style="font:600 8px Inter,sans-serif;letter-spacing:.1em;padding:2px 5px;background:#eee9df;color:#6d6459">${c.inactive}</span>` : ''}`)}
       ${td(`<span style="font-weight:600">${esc(u.name)}</span>`)}
       ${td(esc(u.description || '—'))}
       ${tdNum(`<span style="color:#2f7d4f">${money(u.prihod)}</span>`)}
