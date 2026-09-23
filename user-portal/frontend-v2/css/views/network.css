@@ -25,3 +25,15 @@
 
 /* keep the connect/message buttons from collapsing on narrow rows */
 .mx-net-act { flex: none; }
+
+/* phone: a person card turns sideways — portrait on the left, name and actions on the right — so
+   eight suggestions read as a list instead of eight full-width 150px portrait slabs */
+@media (max-width: 560px) {
+  .mx-net-card { display: grid !important; grid-template-columns: 104px 1fr; }
+  .mx-net-face { height: auto !important; min-height: 128px; }
+  .mx-net-face .mx-mono { font-size: 30px !important; }
+  .mx-net-face .mx-mono::after { inset: 6px; }
+  .mx-net-chip { top: auto !important; bottom: 7px; left: 7px !important; right: 7px; text-align: center; white-space: normal;
+    font-size: 7.5px !important; letter-spacing: .1em !important; padding: 2px 4px !important; }
+}
+@media (min-width: 561px) { .mx-net-face .mx-net-chip { top: 16px !important; left: 16px !important; } }

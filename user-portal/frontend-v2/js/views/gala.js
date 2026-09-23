@@ -72,7 +72,7 @@ export const COPY = {
     all: 'ALL PHOTOS →',
     modalEyebrow: 'GALA · MOMENTS', modalTitle: 'Moments from previous Galas',
     modalNote: 'Galleries from each Gala land here as our team publishes them.',
-    close: 'CLOSE', photos: ['photo-candlelit.jpg', 'photo-ballroom.jpg', 'photo-hall.jpg']
+    close: 'CLOSE', photos: ['photo-candlelit.jpg', 'photo-ballroom.jpg', 'photo-stage.jpg']
   },
   glance: {
     n: '03', title: 'THE EVENING AT A GLANCE',
@@ -270,7 +270,7 @@ function speakerCard(sp) {
   const img = sp.image ? `<img data-role="portrait" src="${esc(api.url(sp.image))}" alt="${esc(sp.name)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;display:block">` : '';
   return `
       <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div style="position:relative;aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239;text-align:center;padding:0 10px">${esc(COPY.stage.portrait(sp.name))}${img}</div>
+        <div style="position:relative;aspect-ratio:1/1;background:#191512;overflow:hidden">${img || ui.monogram(sp.name, 54)}</div>
         <div style="padding:14px 16px;display:flex;flex-direction:column;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(sp.name)}</span><span style="font-size:11.5px;color:#4a4239">${esc(sp.title || sp.role || '')}</span></div>
       </div>`;
 }
@@ -385,7 +385,7 @@ function blockGlance() {
         </div>
         <div style="padding-top:24px;display:flex;flex-direction:column;gap:10px">
           <div style="border:1px solid rgba(201,169,98,.8);padding:9px">
-            <img src="/assets/photo-candlelit.jpg" alt="" style="width:100%;height:210px;object-fit:cover;display:block">
+            <img src="/assets/photo-forum.jpg" alt="" style="width:100%;height:210px;object-fit:cover;object-position:center 40%;display:block">
           </div>
           <div style="display:flex;align-items:center">
             <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#4a4239">${COPY.glance.photoCaption}</span>
@@ -499,7 +499,7 @@ const handlers = {
       body: `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           ${COPY.moments.photos.map(p => `<img src="/assets/${p}" alt="" style="width:100%;height:150px;object-fit:cover;display:block">`).join('')}
-          <img src="/assets/photo-stage.jpg" alt="" style="width:100%;height:150px;object-fit:cover;display:block">
+          <img src="/assets/photo-forum.jpg" alt="" style="width:100%;height:150px;object-fit:cover;display:block">
         </div>
         <p style="margin-top:12px;font-size:12px;color:#4a4239">${COPY.moments.modalNote}</p>`,
       actions: [{ label: COPY.moments.close }]

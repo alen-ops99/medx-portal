@@ -27,3 +27,17 @@
   .mx-me-row > .mx-me-label { width: 100% !important; }
   .mx-me-card { padding: 22px 18px !important; }
 }
+
+/* wallet · no tickets yet — a drawn ticket stub in place of the artboard's striped wireframe box */
+.mx-ghost-ticket { display: flex; width: 280px; max-width: 100%; height: 96px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16);
+  box-shadow: 0 10px 26px -14px rgba(25,21,18,.35); position: relative; transform: rotate(-2deg); text-align: left; }
+.mx-ghost-ticket .gt-stub { width: 64px; flex: none; background: #191512; color: #c9a962; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px; border-right: 1px dashed rgba(201,169,98,.55); font: 600 8px Inter, sans-serif; letter-spacing: .2em; }
+.mx-ghost-ticket .gt-stub b { font: 400 26px Fraunces, serif; letter-spacing: 0; color: #f7f1e6; }
+.mx-ghost-ticket .gt-body { flex: 1; min-width: 0; padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.mx-ghost-ticket .gt-eye { font: 600 8.5px Inter, sans-serif; letter-spacing: .18em; color: #9b1b22; }
+.mx-ghost-ticket .gt-title { font: italic 400 19px Fraunces, serif; color: #191512; line-height: 1.1; }
+.mx-ghost-ticket .gt-meta { font: 600 8.5px Inter, sans-serif; letter-spacing: .14em; color: #6d6459; }
+.mx-ghost-ticket::before, .mx-ghost-ticket::after { content: ''; position: absolute; left: 56px; width: 16px; height: 16px; border-radius: 50%; background: #f7f1e6; border: 1px solid rgba(25,21,18,.16); }
+.mx-ghost-ticket::before { top: -9px; clip-path: inset(50% 0 0 0); }
+.mx-ghost-ticket::after { bottom: -9px; clip-path: inset(0 0 50% 0); }

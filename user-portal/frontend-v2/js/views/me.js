@@ -33,7 +33,7 @@ export const COPY = {
     browse: 'BROWSE EVENTS →', download: 'DOWNLOAD', email: 'EMAIL', add: 'ADD TO WALLET', pay: 'COMPLETE PAYMENT →',
     emptyLine: 'Your wallet is ready for December.',
     emptyWhy: 'Plexus 2026 is free for members — register and your ticket lands here, QR and all.',
-    emptyCta: 'REGISTER FOR PLEXUS →', emptyTag: 'MY WALLET · NO TICKETS YET', emptyPh: 'YOUR FIRST TICKET',
+    emptyCta: 'REGISTER FOR PLEXUS →', emptyTag: 'MY WALLET · NO TICKETS YET', emptyPh: 'Your first ticket',
     pastEmptyLine: 'No purchases yet.', pastEmptyWhy: 'Receipts and confirmations collect here after you register — free entries get a confirmation, paid seats a receipt.',
     pastNote: 'Free registrations come with a confirmation rather than a receipt · certificates of attendance live under <strong style="color:#191512">My record</strong> below. Ask us anything about an order — ',
     contact: 'contact the team', receipt: 'RECEIPT →', confirmation: 'CONFIRMATION →',
@@ -47,12 +47,12 @@ export const COPY = {
     order: n => `Order ${n}`, paidTag: a => `${fmt.eur(a)} · PAID`, freeTag: 'FREE ENTRY', vipTag: 'VIP · COMPLIMENTARY'
   },
   record: {
-    n: '02', title: 'MY RECORD', sub: 'Attendance and year-in-review cards arrive by email automatically when you register.',
+    n: '02', title: 'MY RECORD', sub: 'Everything you have attended and earned with Med&amp;X — kept here for good.',
     events: 'EVENTS', eventsEmpty: 'Your events appear here after you register. ', browseShort: 'Browse events',
     certs: 'CERTIFICATES', certsEmpty: 'Certificates appear here after events you attend — download any time.',
     certExample: 'Certificate of Attendance', open: 'OPEN CERTIFICATES →',
     badges: 'BADGES', badgesEmpty: 'Recognition you earn across Med&X events collects here.',
-    example: 'EXAMPLE', attended: 'ATTENDED', confirmed: 'CONFIRMED', registered: 'REGISTERED',
+    none: 'None yet', example: 'EXAMPLE', attended: 'ATTENDED', confirmed: 'CONFIRMED', registered: 'REGISTERED',
     cards: 'ATTENDANCE CARDS'
   },
   certs: {
@@ -192,7 +192,7 @@ function qrImgTag(size, role) {
   const box = `width:${size}px;height:${size}px;background:#f7f1e6;padding:${size >= 100 ? 9 : 8}px;box-sizing:border-box`;
   const inner = src
     ? `<img data-role="${role}" src="${src}" alt="Member QR" style="width:100%;height:100%;display:block;image-rendering:pixelated">`
-    : `<div data-role="${role}" style="width:100%;height:100%;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 10px ui-monospace,Menlo,monospace;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,transparent 3px 6px)">QR</div>`;
+    : `<div data-role="${role}" style="width:100%;height:100%;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 10px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,transparent 3px 6px)">QR</div>`;
   return `<div style="${box};flex:none">${inner}</div>`;
 }
 function cardInner() {
@@ -203,7 +203,7 @@ function cardInner() {
   if (st.cardBack) return `
         <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 0 8px;text-align:center">
           <div style="width:120px;height:120px;background:#f7f1e6;padding:9px;box-sizing:border-box">
-            ${st.qrUrl ? `<img src="${st.qrUrl}" alt="Member QR" style="width:100%;height:100%;display:block;image-rendering:pixelated">` : `<div style="width:100%;height:100%;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 10px ui-monospace,Menlo,monospace;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,transparent 3px 6px)">QR</div>`}
+            ${st.qrUrl ? `<img src="${st.qrUrl}" alt="Member QR" style="width:100%;height:100%;display:block;image-rendering:pixelated">` : `<div style="width:100%;height:100%;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 10px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,transparent 3px 6px)">QR</div>`}
           </div>
           <div style="font-family:Fraunces,serif;font-style:italic;font-size:19px;color:#c9a962">${COPY.card.motto}</div>
           <div style="font-size:11px;color:rgba(247,241,230,.55)">${COPY.card.mottoSub}</div>
@@ -226,7 +226,7 @@ function cardInner() {
           ${qrImgTag(92, 'qr-front')}
         </div>
         <div style="display:flex;align-items:center;margin-top:18px;padding-top:12px;border-top:1px solid rgba(247,241,230,.14)">
-          <span style="font:600 9px ui-monospace,Menlo,monospace;letter-spacing:.18em;color:rgba(247,241,230,.45)">N° ${esc(m.member_no || String(D.me.id || '').slice(0, 8).toUpperCase())}</span>
+          <span style="font:600 9px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.18em;color:rgba(247,241,230,.45)">N° ${esc(m.member_no || String(D.me.id || '').slice(0, 8).toUpperCase())}</span>
           <div style="flex:1"></div>
           <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.2em;color:rgba(247,241,230,.45)">${COPY.card.fast}</span>
         </div>`;
@@ -265,7 +265,7 @@ function ticketCard(it) {
   const wrapBorder = gala ? 'border:1px solid rgba(201,169,98,.55)' : 'border:1px solid rgba(25,21,18,.16)';
   const qr = it.ticket
     ? `<div style="width:44px;height:44px;flex:none;background:#fff;border:1px solid rgba(25,21,18,.16);padding:2px;box-sizing:border-box"><img src="${esc(api.url(it.ticket))}" alt="Ticket QR" style="width:100%;height:100%;display:block;object-fit:contain"></div>`
-    : `<div style="width:44px;height:44px;flex:none;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 8px ui-monospace,Menlo,monospace;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,#f7f1e6 3px 6px)">QR</div>`;
+    : `<div style="width:44px;height:44px;flex:none;border:1px dashed rgba(25,21,18,.4);display:flex;align-items:center;justify-content:center;font:600 8px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.08) 0 3px,#f7f1e6 3px 6px)">QR</div>`;
   const line = [shortRange(it), fmt.detail(String(it.venue || '').replace(/;\s*/g, ' · ')), statusLine(it)].filter(Boolean).join(' · ');
   const actions = it.pending && !it.paid
     ? `<a href="${it.kind === 'gala' ? '/app/gala' : '/app/plexus'}" style="color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wallet.pay}</a>`
@@ -286,7 +286,10 @@ function walletCurrent() {
       <div data-block="wallet-list" style="background:#f7f1e6;border:1px solid rgba(25,21,18,.16);margin-bottom:26px">
         <div style="padding:12px 22px;border-bottom:1px solid rgba(25,21,18,.16);font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${COPY.wallet.emptyTag.replace(/&/g, '&amp;')}</div>
         <div style="padding:30px 22px 32px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px">
-          <div style="width:150px;height:88px;border:1px dashed rgba(25,21,18,.3);background:repeating-linear-gradient(45deg,rgba(25,21,18,.05) 0 8px,transparent 8px 16px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239">${COPY.wallet.emptyPh}</div>
+          <div class="mx-ghost-ticket" aria-hidden="true">
+            <span class="gt-stub"><span>ADMIT</span><b>1</b></span>
+            <span class="gt-body"><span class="gt-eye">${esc(fmt.upper(FACTS.plexus.short))} · ${esc(fmt.upper(FACTS.plexus.city))}</span><span class="gt-title">${COPY.wallet.emptyPh}</span><span class="gt-meta">${esc(fmt.upper(FACTS.plexus.dateShort))} · ${esc(fmt.upper(FACTS.plexus.venue))}</span></span>
+          </div>
           <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px;margin-top:8px">${COPY.wallet.emptyLine}</span>
           <span style="font-size:12.5px;color:#4a4239;max-width:380px;line-height:1.55">${COPY.wallet.emptyWhy}</span>
           <a href="/app/plexus" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.wallet.emptyCta}</a>
@@ -400,17 +403,13 @@ function blockRecord() {
   const certsInner = certs.length
     ? certs.slice(0, 2).map(c => `<span style="display:flex;gap:8px;align-items:baseline"><span style="font-family:Fraunces,serif;font-size:15px;min-width:0">${esc(c.title || R.certExample)}</span></span><span style="font-size:11.5px;color:#4a4239">${esc(c.number || '')}${c.issue_date ? ' · ' + esc(String(c.issue_date).slice(0, 4)) : ''}</span>`).join('')
       + `<a href="/app/me/certificates" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;margin-top:4px">${R.open}</a>`
-    : `<span style="display:flex;gap:8px;align-items:baseline"><span style="font-family:Fraunces,serif;font-size:15px">${R.certExample}</span><span style="padding:2px 6px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${R.example}</span></span>
-        <span style="font-size:12px;color:#4a4239">${R.certsEmpty}</span>`;
+    : `<span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;color:#6d6459">${R.none}</span>
+        <span style="font-size:12px;color:#4a4239;line-height:1.5">${R.certsEmpty}</span>`;
   const badges = (D.record.badges || []);
   const badgesInner = badges.length
     ? `<span style="display:flex;gap:8px;flex-wrap:wrap">${badges.map(b => `<span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.13em">${esc(fmt.upper(b.name || 'BADGE'))}</span>`).join('')}</span>`
-    : `<span style="display:flex;gap:8px;flex-wrap:wrap">
-          <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.13em">FIRST CONFERENCE</span>
-          <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.13em">PRESENTER</span>
-          <span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${R.example}</span>
-        </span>
-        <span style="font-size:12px;color:#4a4239">${R.badgesEmpty.replace(/&/g, '&amp;')}</span>`;
+    : `<span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;color:#6d6459">${R.none}</span>
+        <span style="font-size:12px;color:#4a4239;line-height:1.5">${R.badgesEmpty.replace(/&/g, '&amp;')}</span>`;
   const att = D.attendance;
   const rawCards = (att && (att.cards || att.items || (Array.isArray(att) ? att : null))) || [];
   const attCards = visibleCards(rawCards);

@@ -17,6 +17,16 @@ export function esc(v) {
 // Med&X in copy: keep the ampersand readable in templates → esc() then this for brand strings
 export const AMP = 'Med&amp;X';
 
+// A person without a photo: gold Fraunces initials on the ink ground (css/app.css .mx-mono), filling
+// its positioned parent. Replaces the artboard's striped "PORTRAIT · X. NAME" wireframe placeholder.
+export function initials(name) {
+  return String(name || '').replace(/\b(dr|prof|mr|mrs|ms|sir|lord|dame)\.?\s+/gi, '').split(/\s+/).filter(Boolean)
+    .map(w => w[0]).join('').replace(/[^A-Za-zŠĐČĆŽšđčćžÀ-ÿ]/g, '').toUpperCase().slice(0, 2) || 'M';
+}
+export function monogram(name, size = 40) {
+  return `<span class="mx-mono" aria-hidden="true" style="font-size:${Number(size) || 40}px">${esc(initials(name))}</span>`;
+}
+
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MON3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 const DAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
@@ -225,7 +235,7 @@ function installDelegates() {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
-export const ui = { toast, modal, confirm, countdown, buildIcs, downloadIcs, bind, installDelegates, esc, fmt,
+export const ui = { toast, modal, confirm, countdown, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials,
   lockScroll(on) { document.body.style.overflow = on ? 'hidden' : ''; },
   // quick DOM helper
   h(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }

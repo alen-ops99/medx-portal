@@ -90,10 +90,6 @@ function ago(v) {
 }
 function photoUrl(p) { return p ? (String(p).startsWith('/') ? api.url(p) : p) : ''; }
 function initialsOf(name) { return String(name || '').split(' ').filter(Boolean).map(w => w[0]).join('').replace(/[^A-ZŠĐČĆŽa-zšđčćž]/g, '').toUpperCase().slice(0, 2) || 'M'; }
-function portraitLabel(c) {
-  const f = (c.first_name || '').trim(), l = (c.last_name || '').trim();
-  return ('PORTRAIT · ' + ((f[0] ? f[0] + '. ' : '') + (l || f)).trim()).toUpperCase();
-}
 function subLine(c) {
   return [c.institution, c.city || c.country].filter(Boolean).join(' · ') || (c.specialties && c.specialties[0]) || 'Med&X member';
 }
@@ -201,10 +197,10 @@ function connFace(c) {
 }
 
 function cardRequest(m) { return `
-          <div data-card="${esc(m.id)}" style="border:1px solid rgba(155,27,34,.45);background:#fdfaf3;display:flex;flex-direction:column">
-            <div style="height:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9px ui-monospace,Menlo,monospace;color:#4a4239;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : esc(portraitLabel(m))}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid #9b1b22;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.forYou.requestChip}</span></div>
+          <div data-card="${esc(m.id)}" class="mx-net-card" style="border:1px solid rgba(155,27,34,.45);background:#fdfaf3;display:flex;flex-direction:column">
+            <div class="mx-net-face" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid #9b1b22;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.forYou.requestChip}</span></div>
             <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px;flex:1">
-              <span data-act="peek" data-id="${esc(m.id)}" style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">${esc(m.name)}</span>
+              <span data-act="peek" data-id="${esc(m.id)}" style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>
               <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(COPY.forYou.requestSub)}${m.institution ? ' · ' + esc(m.institution) : ''}</span>
               <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
                 <span data-act="accept" data-cid="${esc(m.cid)}" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.forYou.accept}</span>
@@ -217,10 +213,10 @@ function cardSuggestion(m) {
   const face = connFace(m);
   const why = m.why_label || (COPY.reasons[m.why] ? (typeof COPY.reasons[m.why] === 'function' ? COPY.reasons[m.why]((m.reasons && m.reasons[0] && m.reasons[0].n) || 1) : COPY.reasons[m.why]) : '');
   return `
-          <div data-card="${esc(m.id)}" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-            <div style="height:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9px ui-monospace,Menlo,monospace;color:#4a4239;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : esc(portraitLabel(m))}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(why)}</span></div>
+          <div data-card="${esc(m.id)}" class="mx-net-card" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
+            <div class="mx-net-face" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}${why ? `<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(why)}</span>` : ''}</div>
             <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px;flex:1">
-              <span data-act="peek" data-id="${esc(m.id)}" style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">${esc(m.name)}</span>
+              <span data-act="peek" data-id="${esc(m.id)}" style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>
               <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(subLine(m))}</span>
               <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
                 <span data-act="connect" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${face.label}</span>

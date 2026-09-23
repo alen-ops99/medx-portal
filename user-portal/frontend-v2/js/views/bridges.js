@@ -191,7 +191,7 @@ function blockHero() {
   return `
   <!-- dc: Building Bridges.dc.html › "Hero" -->
   <div style="position:relative;overflow:hidden">
-    <img src="/assets/photo-stage.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    <img src="/assets/photo-bridges.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 45%">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
       <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${n ? COPY.hero.eyebrow(esc(fmt.upper(n.city)), esc(fmt.upper(n.dateLabel))) : COPY.hero.eyebrowNone}</span>
@@ -264,7 +264,7 @@ function nextCard() {
   // keeps the striped venue plate until it has a picture of its own.
   const plate = n.isNext
     ? `<div style="position:relative;overflow:hidden;min-height:150px"><img src="/assets/bb-boston-hero-wide.jpg" alt="${esc(COPY.next.cardTitle(n.city, n.year))}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></div>`
-    : `<div style="position:relative;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px ui-monospace,Menlo,monospace;color:#4a4239;text-align:center;padding:0 14px">${esc(COPY.next.venueLabel(n.venue) || fmt.upper(n.city))}</div>`;
+    : `<div style="position:relative;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#4a4239;text-align:center;padding:0 14px">${esc(COPY.next.venueLabel(n.venue) || fmt.upper(n.city))}</div>`;
   return `<div data-block="next" data-eid="${esc(n.id)}" class="mx-bb-next" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:grid;grid-template-columns:230px 1fr 260px;align-items:stretch">
       ${plate}
       <div style="padding:24px 28px;display:flex;flex-direction:column;gap:8px">

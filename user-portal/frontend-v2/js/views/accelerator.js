@@ -539,7 +539,7 @@ function blockBand() {
 function hostCards() {
   const cards = D.hosts.map((h, i) => `
       <div data-act="pickHost" data-i="${i}" aria-expanded="${st.host === i}" style="border:1px solid ${st.host === i ? '#191512' : 'rgba(25,21,18,.16)'};background:#fdfaf3;padding:16px;display:flex;gap:13px;align-items:center;cursor:pointer" data-hover="border-color:#191512">
-        ${h.logo ? `<img src="${esc(h.logo)}" alt="" style="width:46px;height:46px;object-fit:contain;background:#191512;flex:none">` : `<span style="width:46px;height:46px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 11px Fraunces,serif;flex:none">${esc(h.abbr)}</span>`}
+        ${h.logo ? `<img src="${esc(h.logo)}" alt="" style="width:46px;height:46px;object-fit:contain;background:#191512;flex:none">` : `<span style="width:46px;height:46px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 ${String(h.abbr || '').length > 4 ? 8.5 : 11}px Fraunces,serif;flex:none;overflow:hidden;text-align:center;line-height:1">${esc(h.abbr)}</span>`}
         <span style="min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:14.5px;line-height:1.2">${esc(h.name)}</span><span style="display:block;font-size:11px;color:#4a4239;margin-top:2px">${esc(h.city)}</span></span>
       </div>`).join('');
   const h = st.host !== null ? D.hosts[st.host] : null;
@@ -585,7 +585,7 @@ function blockProgram() {
     <div style="font-size:13.5px;color:#4a4239;line-height:1.65;max-width:860px">${about}</div>
     <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:16px 0 8px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.program.whoTitle}</span><span style="font-size:12px;color:#4a4239">${COPY.program.whoSub}</span></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 18px">
-      ${COPY.program.chips.map(c => `<span style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${c}</span>`).join('\n      ')}
+      ${COPY.program.chips.map(c => `<span class="mx-ax-chip" style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${c}</span>`).join('\n      ')}
       <span style="padding:6px 11px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.program.chipGold}</span>
     </div>
     <!-- dc: Accelerator.dc.html › "HOST LABS & CLINICS" -->
@@ -705,7 +705,7 @@ function resultsBlock() {
             const own = mineNums.has(r.application_number);
             return `<tr${own ? ' style="background:#f7efdf"' : ''}>
               <td style="${cell};font-family:Fraunces,serif;font-size:14px">${esc(r.rank_position || i + 1)}</td>
-              <td style="${cell};font:600 11px ui-monospace,Menlo,monospace;letter-spacing:.06em">${esc(r.application_number || '—')}${own ? ` <span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">${COPY.results.yours}</span>` : ''}</td>
+              <td style="${cell};font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.06em">${esc(r.application_number || '—')}${own ? ` <span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">${COPY.results.yours}</span>` : ''}</td>
               <td style="${cell}">${num(r.objective_score)}</td>
               <td style="${cell}">${num(r.interview_score)}</td>
               <td style="${cell};font-weight:600">${num(r.total_score)}</td>
@@ -1433,7 +1433,7 @@ function appSectionInner() {
         ${lookupLive ? `
         <div class="mx-ax-lookup mx-wrap-row" style="display:flex;gap:12px;align-items:center;padding:14px 0 8px;flex-wrap:wrap">
           <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962;white-space:nowrap">${COPY.results.label}</span>
-          <input data-role="code" placeholder="${COPY.results.placeholder}" aria-label="Results access code" maxlength="9" autocapitalize="characters" autocomplete="off" spellcheck="false" style="border:1px solid rgba(25,21,18,.25);padding:9px 13px;font:600 11px ui-monospace,Menlo,monospace;color:#191512;background:#fdfaf3;letter-spacing:.1em;width:110px;text-transform:uppercase;border-radius:0">
+          <input data-role="code" placeholder="${COPY.results.placeholder}" aria-label="Results access code" maxlength="9" autocapitalize="characters" autocomplete="off" spellcheck="false" style="border:1px solid rgba(25,21,18,.25);padding:9px 13px;font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#191512;background:#fdfaf3;letter-spacing:.1em;width:110px;text-transform:uppercase;border-radius:0">
           <span data-act="viewResults" style="padding:10px 15px;background:#191512;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;white-space:nowrap" data-hover="background:#2c2620">${COPY.results.view}</span>
           <span style="font-size:11.5px;color:#4a4239">${COPY.results.hint}</span>
         </div>

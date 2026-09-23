@@ -383,7 +383,8 @@ function blockForum() {
 
 function blockNetwork() {
   const im = D.impact;
-  const stat = (n, l) => `<span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:24px;color:#c9a962">${esc(fmt.num(n))}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.7)">${l}</span></span>`;
+  // a headline number under 10 ("4 SPEAKERS HOSTED") undersells the band it sits in — leave it out
+  const stat = (n, l) => (n == null || Number(n) < 10) ? '' : `<span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:24px;color:#c9a962">${esc(fmt.num(n))}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.7)">${l}</span></span>`;
   return `
   <!-- dc: Med&X Home.dc.html › "03 · GROW YOUR NETWORK" -->
   <div class="mx-rotator" style="position:relative;overflow:hidden">

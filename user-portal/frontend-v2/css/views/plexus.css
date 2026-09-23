@@ -51,3 +51,13 @@
   .mx-session-indent { padding-left: 0 !important; }
   .mx-bio-sheet { padding: 20px 18px !important; }
 }
+
+/* overview › "On the Plexus stage" teaser: the confirmed speakers as a row of overlapping faces */
+.mx-px-faces { display: flex; flex: none; padding-left: 10px; }
+.mx-px-face { position: relative; width: 46px; height: 46px; margin-left: -10px; border: 2px solid #fdfaf3; background: #191512; overflow: hidden; box-sizing: content-box; }
+.mx-px-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+.mx-px-face .mx-mono::after { display: none; }
+@media (max-width: 560px) {
+  .mx-px-teaser { flex-wrap: wrap; }
+  .mx-px-face { width: 38px; height: 38px; }
+}

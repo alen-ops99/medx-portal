@@ -515,13 +515,13 @@ function speakerCard(sp, { program } = {}) {
   const meta = D.meta[sp.id] || {};
   const portrait = sp.photo_url
     ? `<img class="mx-portrait" src="${esc(sp.photo_url)}" alt="${esc(sp.name)}" loading="lazy">`
-    : `PORTRAIT · ${esc(fmt.upper(sp.name))}`;
+    : ui.monogram(sp.name, 54);
   const logo = meta.institution_logo_url
     ? `<img class="mx-logo" src="${esc(meta.institution_logo_url)}" alt="${esc(sp.institution || '')}" loading="lazy">`
-    : `<div style="height:24px;width:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 6px,transparent 6px 12px);display:flex;align-items:center;justify-content:center;font:600 8px ui-monospace,Menlo,monospace;color:#4a4239;margin-top:2px">${esc(instShort(sp))} LOGO</div>`;
+    : '';   // no logo on file → nothing (the role line above already names the institution)
   if (program) return `
       <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239;position:relative;overflow:hidden">${portrait}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(speakerTag(sp))}</span></div>
+        <div style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(speakerTag(sp))}</span></div>
         <div style="padding:14px 16px;display:flex;flex-direction:column;gap:6px;flex:1">
           <span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(sp.name)}</span>
           <span style="font-size:11.5px;color:#4a4239">${esc(speakerRole(sp))}</span>
@@ -530,7 +530,7 @@ function speakerCard(sp, { program } = {}) {
       </div>`;
   return `
       <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div style="aspect-ratio:1/1;background:repeating-linear-gradient(45deg,rgba(25,21,18,.07) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 9.5px ui-monospace,Menlo,monospace;color:#4a4239;position:relative;overflow:hidden">${portrait}</div>
+        <div style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}</div>
         <div style="padding:16px;display:flex;flex-direction:column;gap:7px;flex:1">
           <span style="align-self:flex-start;padding:3px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.stage.confirmed}</span>
           <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">${esc(sp.name)}</span>
@@ -606,7 +606,8 @@ function ovStage() {
     </div>
     <div style="font-size:13px;color:#4a4239;max-width:640px;line-height:1.55">${esc(COPY.stage.sub)}</div>
     ${n ? `
-    <a href="/app/plexus/program" style="display:flex;align-items:center;gap:16px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:16px 20px;margin:16px 0 24px;color:#191512;text-decoration:none" data-hover="background:#f7efdf">
+    <a href="/app/plexus/program" class="mx-px-teaser" style="display:flex;align-items:center;gap:18px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:16px 20px;margin:16px 0 24px;color:#191512;text-decoration:none" data-hover="background:#f7efdf">
+      <span class="mx-px-faces" aria-hidden="true">${D.speakers.slice(0, 6).map(sp => `<span class="mx-px-face">${sp.photo_url ? `<img src="${esc(sp.photo_url)}" alt="" loading="lazy">` : ui.monogram(sp.name, 17)}</span>`).join('')}</span>
       <span style="flex:1;min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:17px;line-height:1.25">${esc(COPY.stage.teaser(n))}</span><span style="display:block;font-size:12px;color:#4a4239;margin-top:3px">${esc(COPY.stage.teaserWhy)}</span></span>
       <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap;flex:none">${COPY.stage.all}</span>
     </a>` : `
@@ -1040,7 +1041,7 @@ function minePassAndWho() {
             </span>`).join('')}
           </div>
           <span style="font-size:12.5px;color:#4a4239;max-width:360px">${COPY.mine.passNote}</span>` : `
-          <div style="width:58px;height:58px;border:1px dashed rgba(25,21,18,.35);display:flex;align-items:center;justify-content:center;font:600 9px ui-monospace,Menlo,monospace;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.06) 0 3px,transparent 3px 6px)">QR</div>
+          <div style="width:58px;height:58px;border:1px dashed rgba(25,21,18,.35);display:flex;align-items:center;justify-content:center;font:600 9px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.06) 0 3px,transparent 3px 6px)">QR</div>
           <span style="font-family:Fraunces,serif;font-style:italic;font-size:16.5px;color:#4a4239">${pendingGala ? esc(COPY.mine.passPending) : esc(COPY.mine.passEmptyLine)}</span>
           <span style="font-size:12.5px;color:#4a4239;max-width:360px">${COPY.mine.passEmptyWhy}</span>`}
         </div>
