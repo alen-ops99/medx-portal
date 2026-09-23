@@ -182,3 +182,10 @@ body[data-layout="signin"] #chrome { display: none; }
 /* phone safety: a grid cell never grows past its track because of one nowrap line (the Forum hub's
    pipeline rows pushed the page 66px sideways at 390px, the Accelerator key-dates note 6px) */
 .mx-two > *, .mx-side > *, .mx-kpi > *, .mx-grid-3 > *, .mx-grid-4 > *, .mx-grid-5 > *, .fh-band > *, .fh-feed > * { min-width: 0; }
+
+/* ---- motion: each screen arrives with a soft fade (opacity only — never a transform, so sticky bars
+   and fixed layers inside a view stay put); nothing moves for reduced-motion users ---- */
+@keyframes mx-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  #view.mx-enter { animation: mx-fade .32s cubic-bezier(.22,1,.36,1) both; }
+}

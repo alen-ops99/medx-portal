@@ -54,7 +54,7 @@ export const COPY = {
     why: 'Badges, certificates, the print suite, social cards, brand assets and stored files now live in their own place in the header.',
     open: 'OPEN THE STUDIO →',
     rows: [
-      { name: 'Content studio', note: 'social cards & member share cards', href: '/studio/social' },
+      { name: 'Content studio', note: 'social cards for Instagram & LinkedIn', href: '/studio/social' },
       { name: 'Brand studio', note: 'logos, colours, type — the official kit', href: '/studio#brand' }
     ]
   },

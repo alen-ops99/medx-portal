@@ -100,6 +100,7 @@ export const router = {
     current = { module: view, root, path: pathname };
     const title = typeof view.title === 'function' ? view.title(ctx) : (view.title || (route && route.title) || '');
     document.title = hooks.title(title);
+    root.classList.remove('mx-enter'); void root.offsetWidth; root.classList.add('mx-enter');   // a soft fade per screen (css: #view.mx-enter)
     try { await view.render(root, ctx); } catch (e) { console.error('[router] render failed for ' + pathname, e); root.innerHTML = renderError(e); }
     if (seq !== this._seq) return;
     if (hooks.afterRender) hooks.afterRender({ route, params, query, layout, active, view, title });

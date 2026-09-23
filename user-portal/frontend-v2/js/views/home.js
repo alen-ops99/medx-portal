@@ -34,7 +34,7 @@ export const COPY = {
     profile: pct => `Complete your profile — <strong style="color:#191512">${pct}%</strong> done · `, edit: 'EDIT PROFILE →',
     resent: 'Link sent — check your inbox (and spam).'
   },
-  next: { eyebrow: 'NEXT EVENT', free: 'Free entry', schedule: 'VIEW SCHEDULE', register: `${CTA.register} →`, mine: 'MY TICKET →', units: ['DAYS', 'HOURS', 'MINUTES'] },
+  next: { eyebrow: 'NEXT EVENT', free: 'Free entry', schedule: 'VIEW SCHEDULE', mySchedule: 'MY SCHEDULE →', register: `${CTA.register} →`, mine: 'MY TICKET →', units: ['DAYS', 'HOURS', 'MINUTES'] },
   projects: {
     n: '01', title: 'OUR PROJECTS', sub: 'Apply, register, and follow every Med&amp;X project from here.',
     cards: {
@@ -251,7 +251,7 @@ function blockNextEvent() {
         ${cell('min', COPY.next.units[2])}
       </span>
       <span class="mx-cta-row" style="margin-left:auto;display:flex;gap:12px">
-        <a href="/app/plexus/program" style="padding:12px 18px;border:1px solid rgba(247,241,230,.35);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#f7f1e6;white-space:nowrap" data-hover="border-color:#f7f1e6;color:#f7f1e6">${COPY.next.schedule}</a>
+        <a href="${D.next.registered ? '/app/live' : '/app/plexus/program'}" style="padding:12px 18px;border:1px solid rgba(247,241,230,.35);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#f7f1e6;white-space:nowrap" data-hover="border-color:#f7f1e6;color:#f7f1e6">${D.next.registered ? COPY.next.mySchedule : COPY.next.schedule}</a>
         <a href="/app/plexus/mine" style="padding:12px 18px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#b8994f;color:#191512">${D.next.registered ? COPY.next.mine : COPY.next.register}</a>
       </span>
     </div>
@@ -270,16 +270,17 @@ function blockProjects() {
   const card = key => {
     const p = D.projects[key] || COPY.projects.fallback[key]; const c = CARD[key]; const meta = COPY.projects.cards[key];
     const to = routeFor(p.cta_target || key, routeFor(key));
+    // the whole card is the door (only the small CTA line used to be clickable)
     return `
-      <div style="${c.wrap}">
-        <img src="/assets/${meta.photo}" alt="" style="${c.img}">
+      <a href="${to}" class="mx-proj-card${key === 'gala' ? ' dark' : ''}" style="${c.wrap};${key === 'gala' ? '' : 'color:#191512;'}text-decoration:none">
+        <span class="mx-proj-photo" style="display:block;overflow:hidden"><img src="/assets/${meta.photo}" alt="" style="${c.img}"></span>
         <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
           <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${c.status}">${esc(fmt.upper(fmt.detail(p.status_label || '')))}</span>
           <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${meta.title}</span>
           <span style="font-size:12px;color:${c.detail};line-height:1.5">${esc(fmt.detail(reconcileEarlyBird(p.detail_line || '')))}</span>
-          <a href="${to}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:${c.cta};margin-top:auto;white-space:nowrap">${esc(cardCta(key, p))} →</a>
+          <span class="mx-proj-cta" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:${c.cta};margin-top:auto;white-space:nowrap">${esc(cardCta(key, p))} →</span>
         </div>
-      </div>`;
+      </a>`;
   };
   return `
     <!-- dc: Med&X Home.dc.html › "01 · OUR PROJECTS" -->
@@ -353,10 +354,10 @@ function blockNewsletter() {
   const chip = label => { const on = picked.includes(label); return `<span data-act="nlTg" data-topic="${esc(label)}" role="checkbox" aria-checked="${on}" style="padding:5px 9px;border:1px solid ${on ? '#9b1b22' : 'rgba(25,21,18,.22)'};background:${on ? '#9b1b22' : 'transparent'};color:${on ? '#f7f1e6' : '#191512'};font:600 8.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap">${esc(label)}</span>`; };
   return `
     <!-- dc: Med&X Home.dc.html › "MED&X NEWSLETTER" -->
-    <div data-block="newsletter" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-bottom:28px">
+    <div data-block="newsletter" class="mx-nl" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-bottom:28px">
       <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">${COPY.newsletter.title}</span>
-      <span style="font-size:12px;color:#4a4239;flex:none">${COPY.newsletter.sub}</span>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:220px">
+      <span class="mx-nl-sub" style="font-size:12px;color:#4a4239;flex:none">${COPY.newsletter.sub}</span>
+      <div class="mx-nl-chips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:220px">
         ${COPY.newsletter.topics.map(chip).join('\n        ')}
       </div>
       ${st.nlDone ? `

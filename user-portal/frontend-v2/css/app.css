@@ -205,3 +205,29 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   .mx-week-grid { grid-template-columns: 1fr !important; }
   .mx-ax-chip { white-space: normal !important; line-height: 1.5; }
 }
+
+/* ---- motion: each screen arrives with a soft fade (opacity only — never a transform, so sticky bars
+   and fixed layers inside a view stay put); nothing moves for reduced-motion users ---- */
+@keyframes mx-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  #view.mx-enter { animation: mx-fade .32s cubic-bezier(.22,1,.36,1) both; }
+}
+
+/* home › OUR PROJECTS: the card lifts a hair and its photo drifts in on hover */
+.mx-proj-card { transition: transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s ease; }
+.mx-proj-card img { transition: transform .9s cubic-bezier(.22,1,.36,1); }
+.mx-proj-card .mx-proj-cta { transition: letter-spacing .3s ease; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-proj-card:hover { transform: translateY(-3px); box-shadow: 0 16px 30px -20px rgba(25,21,18,.5); }
+  .mx-proj-card:hover img { transform: scale(1.045); }
+  .mx-proj-card:hover .mx-proj-cta { letter-spacing: .2em; }
+}
+a.mx-proj-card:hover { color: #191512; }
+a.mx-proj-card.dark, a.mx-proj-card.dark:hover { color: #f7f1e6; }
+
+/* home › newsletter: the topic chips get their own line (they used to wrap one chip onto a second row
+   between the text and the e-mail field); on phones everything stacks as before */
+@media (min-width: 901px) {
+  .mx-nl .mx-nl-sub { flex: 1 1 auto !important; }
+  .mx-nl .mx-nl-chips { order: 10; flex: 1 1 100% !important; }
+}
