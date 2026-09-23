@@ -25,7 +25,7 @@ export const COPY = {
   updated: when => `PROGRAM UPDATED · ${when}`, never: 'NOTHING PUBLISHED YET',
   events: { eyebrow: 'EVENT', today: 'TODAY', live: 'LIVE', tbd: 'TBD ROWS', counts: (p, n) => `${p}/${n} LIVE` },
   insight: {
-    eyebrow: 'INSIGHT', registered: 'REGISTERED', opened: 'OPENED THE APP', scheduled: 'BUILT A SCHEDULE', taps: 'ATTENDING TAPS',
+    eyebrow: 'INSIGHT', registered: 'REGISTERED', opened: 'OPENED THE APP', scheduled: 'TAPPED A SESSION', taps: 'ADDED BY HAND',
     top: 'MOST WANTED', topNone: 'No taps yet.', speakers: 'SPEAKERS NOT OPENED', speakersAll: 'Every linked speaker has opened their slots.', speakersNone: 'No speakers from the roster are linked yet.',
     seats: n => `${n} SEATS`
   },
@@ -38,7 +38,7 @@ export const COPY = {
     track: 'Track', capacity: 'Capacity', description: 'What this is — one or two sentences guests read under the title',
     speakers: 'SPEAKERS', speakerPh: 'Find a speaker from the roster…', namesPh: 'Other names, comma-separated (people not on the roster)',
     details: 'DETAILS', less: 'LESS', duplicate: 'DUPLICATE', remove: 'DELETE', tbd: 'TBD', counts: 'COUNTS', live: 'LIVE', draft: 'DRAFT',
-    overlaps: t => `OVERLAPS ${t}`, att: 'Attendance — who tapped ATTENDING', noCap: 'no cap', kindLabel: 'Kind', start: 'From', end: 'To',
+    overlaps: t => `OVERLAPS ${t}`, att: 'Added by hand — registrants of the event have every session in their schedule by default', noCap: 'no cap', kindLabel: 'Kind', start: 'From', end: 'To',
     noSpeakers: 'No speakers yet', done: 'DONE', sheetEyebrow: (t, k) => `${t || '—'} · ${k}`
   },
   add: { session: '+ ADD SESSION', break: '+ ADD BREAK', newTitle: 'New session', breakTitle: 'Break' },
