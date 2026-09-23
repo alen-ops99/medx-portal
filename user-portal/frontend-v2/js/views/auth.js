@@ -66,7 +66,7 @@ export const COPY = {
 };
 
 const st = { terms: false, sent: false, pendingEmail: null, devVerifyUrl: null };
-let rootEl = null, unbind = null, currentView = 'welcome';
+let rootEl = null, unbind = null, currentView = 'welcome', onSubmit = null, submitRoot = null;
 const INPUT = 'border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box';
 const INPUT12 = 'border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box';
 const PRIMARY = 'margin-top:20px;padding:14px 0;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center;display:block;white-space:nowrap';
@@ -394,13 +394,18 @@ export default {
     if (view !== 'reset') st.sent = false;
     render(root, ctx);
     unbind = ui.bind(root, Object.fromEntries(Object.entries(handlers).map(([k, fn]) => [k, (el, ev) => fn(el, ev, ctx.query || {})])));
-    root.addEventListener('submit', (e) => {
+    // ONE submit listener per render, removed in destroy(): each visit used to add another to the shared
+    // #view root, so after a few hops one Enter fired sign-in / sign-up / reset several times
+    if (onSubmit && submitRoot) submitRoot.removeEventListener('submit', onSubmit);
+    onSubmit = (e) => {
       e.preventDefault();
       const kind = e.target.getAttribute('data-form');
       const act = { signin: 'signin', signup: 'signup', reset: 'sendReset', code: 'verifyCode' }[kind];
       const btn = root.querySelector(`[data-act="${act}"]`);
       if (act && btn && btn.getAttribute('aria-disabled') !== 'true') handlers[act](btn, e, ctx.query || {});
-    });
+    };
+    submitRoot = root;
+    root.addEventListener('submit', onSubmit);
   },
-  destroy() { if (unbind) unbind(); unbind = null; rootEl = null; }
+  destroy() { if (unbind) unbind(); unbind = null; if (onSubmit && submitRoot) submitRoot.removeEventListener('submit', onSubmit); onSubmit = null; submitRoot = null; rootEl = null; }
 };

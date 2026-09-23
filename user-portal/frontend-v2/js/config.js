@@ -29,7 +29,7 @@ const cfg = {
     '/api', '/plexus', '/meetups', '/awards', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success',
     '/invite-cancelled', '/reset-password', '/qr', '/calendar', '/verify-certificate', '/verify', '/r',
     '/unsubscribe', '/email-prefs', '/donate', '/uploads', '/f', '/speaker', '/boston', '/building-bridges',
-    '/donor-night', '/terms', '/privacy', '/health', '/__staging', '/__admin'
+    '/donor-night', '/terms', '/privacy', '/health', '/__staging', '/__admin', '/gala/ticket', '/plexus.ics'
   ]
 };
 export default cfg;

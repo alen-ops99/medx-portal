@@ -21,7 +21,7 @@ export const COPY = {
   banner: { lead: 'Confirm your email to unlock everything. Link sent to ', leadShort: 'Confirm your email to unlock everything.', resend: 'RESEND LINK', resendShort: 'RESEND', sent: 'Link sent — check your inbox (and spam).' },
   stats: { registrations: 'REGISTRATIONS', following: 'FOLLOWING', since: 'MEMBER SINCE' },
   drawer: { portal: 'PORTAL', projects: 'Projects', quick: 'QUICK LINKS', website: 'Website ↗' },
-  searchPanel: { placeholder: 'Search events, people, tickets…', hint: 'Type at least two characters.', none: 'Nothing matched — try a name, a city or an event.', groups: { events: 'EVENTS', members: 'PEOPLE', talks: 'TALKS', mine: 'MINE' } },
+  searchPanel: { placeholder: 'Search events, people, tickets…', hint: 'Type at least two characters.', none: 'Nothing matched — try a name, a city or an event.', groups: { projects: 'PROJECTS', events: 'EVENTS', members: 'PEOPLE', mine: 'MINE' } },
   alertsPanel: { title: 'ALERTS', markAll: 'MARK ALL READ', emptyLine: 'All quiet.', emptyWhy: 'Announcements and replies land here the moment they arrive.' },
   mobile: { title: 'MEMBER PORTAL', tabs: ['HOME', 'PROJECTS', 'PEOPLE', 'INBOX', 'MY M&X'] },
   talksRetired: 'The Talk Library was retired — recordings return when real Plexus talks exist.'
@@ -163,9 +163,12 @@ function mobileTop() {
     ${isRoot
       ? `<a href="/app/home" class="mx-brand" style="display:block"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:17px;display:block"></a>`
       : `<span data-act="back" aria-label="Back" style="font-size:17px;cursor:pointer;color:#9b1b22;min-width:44px;min-height:24px;display:inline-flex;align-items:center">←</span>`}
-    <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${esc(title)}</span>
+    <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(title)}</span>
     <div style="flex:1"></div>
+    <span data-act="search" role="button" aria-label="Search" style="width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;color:#191512;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21" stroke-linecap="square"/></svg></span>
+    <span data-act="alerts" role="button" aria-label="Alerts" style="position:relative;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;color:#191512;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span style="position:absolute;top:8px;right:8px;width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'block' : 'none'}"></span></span>
     <a href="/app/me" aria-label="My Med&X" style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 10.5px Fraunces,serif;text-decoration:none">${esc(session.initials())}</a>
+    <div data-role="popover-m"></div>
   </div>
   <!-- /dc -->
   ${mobileBanner()}`;
@@ -207,7 +210,7 @@ function alertsPanel() {
     </div>`;
   return `<div class="mx-pop" role="dialog" aria-label="Alerts">
     <div class="mx-pop-head"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${COPY.alertsPanel.title}${s.unread ? ' · ' + s.unread + ' NEW' : ''}</span><div style="flex:1"></div>${list.length ? `<span data-act="markAll" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${COPY.alertsPanel.markAll}</span>` : ''}<span data-act="closePop" aria-label="Close" style="margin-left:14px;color:#4a4239;cursor:pointer">×</span></div>
-    <div class="mx-pop-list">${list.length ? list.map(row).join('') : `<div class="empty"><span class="rule-gold" style="margin-bottom:6px"></span><span class="empty-line">${COPY.alertsPanel.emptyLine}</span><span class="empty-why">${COPY.alertsPanel.emptyWhy}</span></div>`}</div>
+    <div class="mx-pop-list">${s.msgUnread > 0 ? `<div class="mx-pop-row" data-act="openInbox"><span style="width:7px;height:7px;flex:none;margin-top:5px;background:#c9a962"></span><span style="flex:1;min-width:0;font-size:13px;font-weight:600;line-height:1.3">${s.msgUnread} unread message${s.msgUnread === 1 ? '' : 's'}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap">OPEN →</span></div>` : ''}${list.length ? list.map(row).join('') : s.msgUnread > 0 ? '' : `<div class="empty"><span class="rule-gold" style="margin-bottom:6px"></span><span class="empty-line">${COPY.alertsPanel.emptyLine}</span><span class="empty-why">${COPY.alertsPanel.emptyWhy}</span></div>`}</div>
   </div>`;
 }
 function searchOverlay() {
@@ -218,10 +221,22 @@ function searchOverlay() {
     </div>
   </div>`;
 }
+// Projects the search can always name (the server's events group never listed the Gala Evening)
+const SEARCH_PROJECTS = [
+  { title: 'Plexus Week 2026', detail: 'Conference · Gala · Building Bridges · Meetups', to: '/app/plexus', words: 'plexus week conference zagreb december program speakers' },
+  { title: 'Gala Evening', detail: 'Hotel Esplanade · 5 December', to: '/app/gala', words: 'gala evening dinner awards esplanade seat' },
+  { title: 'The Accelerator', detail: 'Summer research placements', to: '/app/accelerator', words: 'accelerator internship placement fellowship apply' },
+  { title: 'Biomedical Forum', detail: 'By invitation', to: '/app/forum', words: 'forum biomedical invitation code' },
+  { title: 'Building Bridges', detail: 'Evenings across the world', to: '/app/bridges', words: 'building bridges boston zagreb diaspora' },
+  { title: 'Meetups', detail: 'Small tables during Plexus Week', to: '/app/plexus/meetups', words: 'meetups tables coffee lunch' },
+  { title: 'Plexus Week Live', detail: 'The event app — program and your schedule', to: '/app/live', words: 'live event app schedule program' },
+  { title: 'Messages', detail: 'Write to the Med&X team', to: '/app/messages', words: 'messages inbox contact team help' },
+  { title: 'Profile & settings', detail: 'Name, photo, password, topics', to: '/app/profile', words: 'profile settings password photo account' }
+];
 function searchResults(res) {
-  const groups = ['events', 'members', 'talks', 'mine'].filter(g => res[g] && res[g].length);
+  const groups = ['projects', 'events', 'members', 'mine'].filter(g => res[g] && res[g].length);
   if (!groups.length) return `<div class="empty"><span class="empty-line">${COPY.searchPanel.none}</span></div>`;
-  return groups.map(g => `<div class="mx-search-group">${COPY.searchPanel.groups[g]}</div>` + res[g].map(it => `<div class="mx-pop-row" data-act="openResult" data-section="${esc(it.section || '')}" data-kind="${esc(it.kind || '')}">
+  return groups.map(g => `<div class="mx-search-group">${COPY.searchPanel.groups[g]}</div>` + res[g].map(it => `<div class="mx-pop-row" data-act="openResult" data-section="${esc(it.section || '')}" data-kind="${esc(it.kind || '')}"${it.to ? ` data-to="${esc(it.to)}"` : ''}>
       <span style="flex:1;min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:15px;line-height:1.25">${esc(it.title)}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${esc(it.detail || '')}</span></span>
       <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap">OPEN →</span></div>`).join('')).join('');
 }
@@ -237,7 +252,10 @@ function renderAll() {
   if (popover) renderPopover();
 }
 function renderPopover() {
-  const host = els.chrome.querySelector('[data-role="popover"]');
+  // the phone bar has its own host — the desktop one sits inside the hidden desktop chrome
+  const phone = window.matchMedia && window.matchMedia('(max-width: 430px)').matches;
+  els.chrome.querySelectorAll('[data-role="popover"], [data-role="popover-m"]').forEach(h => { h.innerHTML = ''; });
+  const host = els.chrome.querySelector(phone ? '[data-role="popover-m"]' : '[data-role="popover"]');
   if (!host) return;
   host.innerHTML = popover === 'alerts' ? alertsPanel() : popover === 'search' ? searchOverlay() : '';
   if (popover === 'search') { const q = host.querySelector('[data-role="q"]'); if (q) { q.focus(); q.addEventListener('input', onSearchInput); } }
@@ -249,7 +267,21 @@ function onSearchInput(e) {
   const box = els.chrome.querySelector('[data-role="results"]');
   if (q.length < 2) { if (box) box.innerHTML = `<div style="padding:14px 20px;font-size:12px;color:#4a4239">${COPY.searchPanel.hint}</div>`; return; }
   searchTimer = setTimeout(async () => {
-    try { const res = await api.get('/api/member/search?q=' + encodeURIComponent(q)); if (box && popover === 'search') box.innerHTML = searchResults(res); }
+    try {
+      // the server's search only knew confirmed Plexus registrants as people — the member directory
+      // (the same list /app/network shows) answers the PEOPLE group, and a hit opens that person there
+      const [res, net] = await Promise.all([
+        api.get('/api/member/search?q=' + encodeURIComponent(q)),
+        api.get('/api/v2/network/search?size=6&q=' + encodeURIComponent(q)).catch(() => null)
+      ]);
+      const ql = q.toLowerCase();
+      res.projects = SEARCH_PROJECTS.filter(p => (p.title + ' ' + p.words).toLowerCase().includes(ql)).slice(0, 4);
+      const seen = new Set();
+      const people = ((net && net.results) || []).map(m => ({ kind: 'member', id: m.id, title: m.name, detail: [m.institution, m.city || m.country].filter(Boolean).join(' · ') || 'Med&X member', to: '/app/network?q=' + encodeURIComponent(m.name || q) }));
+      res.members = people.concat(res.members || []).filter(m => { const k = String(m.title || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+      delete res.talks;   // the Talk Library is retired
+      if (box && popover === 'search') box.innerHTML = searchResults(res);
+    }
     catch (err) { if (box) box.innerHTML = `<div style="padding:14px 20px;font-size:12px;color:#9b1b22">${esc(err.message)}</div>`; }
   }, 250);
 }
@@ -261,6 +293,7 @@ const handlers = {
   search: () => { popover = popover === 'search' ? null : 'search'; renderPopover(); },
   alerts: async () => { popover = popover === 'alerts' ? null : 'alerts'; renderPopover(); if (popover === 'alerts') { await chrome.refresh({ only: 'notifications' }); renderPopover(); } },
   closePop: (el, e) => { if (e && e.target.closest && e.target.closest('[data-stop]')) return; closePopover(); },
+  openInbox: () => { closePopover(); router.navigate('/app/messages'); },
   markAll: async () => { try { await api.put('/api/user-notifications/mark-all-read'); await chrome.refresh({ only: 'notifications' }); renderPopover(); ui.toast('All alerts marked as read.'); } catch (e) { ui.toast(e.message, { kind: 'error' }); } },
   openAlert: async (el) => {
     const id = el.dataset.id, link = el.dataset.link;
@@ -269,7 +302,8 @@ const handlers = {
     if (link) router.navigate(routeFor(link, '/app/home'));
   },
   openResult: (el) => {
-    const sec = el.dataset.section; closePopover();
+    const sec = el.dataset.section, to = el.dataset.to; closePopover();
+    if (to) return router.navigate(to);
     if (sec === 'talks') return ui.toast(COPY.talksRetired);
     router.navigate(routeFor(sec, '/app/home'));
   },
@@ -291,7 +325,7 @@ export const chrome = {
     ui.bind(els.overlays, handlers);
     document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (popover) closePopover(); else chrome.closeDrawer(); } });
     document.addEventListener('click', e => { if (popover === 'alerts' && !e.target.closest('.mx-pop') && !e.target.closest('[data-act="alerts"]')) closePopover(); });
-    state.subscribe((s, keys) => { if (keys.some(k => ['user', 'stats', 'unread', 'active', 'layout', 'viewTitle', 'notifications'].includes(k))) renderAll(); });
+    state.subscribe((s, keys) => { if (keys.some(k => ['user', 'stats', 'unread', 'msgUnread', 'active', 'layout', 'viewTitle', 'notifications'].includes(k))) renderAll(); });
     renderAll();
   },
   toggleDrawer() { document.body.classList.contains('drawer-open') ? chrome.closeDrawer() : chrome.openDrawer(); },
@@ -307,7 +341,7 @@ export const chrome = {
           api.get('/api/user-notifications?limit=10'),
           api.get('/api/v2/messages/unread-count').catch(() => null)
         ]);
-        state.set({ unread: (n.unreadCount || 0) + ((inb && inb.unread) || 0), notifications: n.notifications || [] });
+        state.set({ unread: (n.unreadCount || 0) + ((inb && inb.unread) || 0), msgUnread: (inb && inb.unread) || 0, notifications: n.notifications || [] });
       } catch (e) {}
       return;
     }
@@ -325,7 +359,7 @@ export const chrome = {
       following: r.topics ? (r.topics.projects || []).length : null,
       since: r.meta && r.meta.member_since ? String(r.meta.member_since).slice(0, 4) : null
     };
-    state.set({ stats, unread: (r.notifs ? (r.notifs.unreadCount || 0) : 0) + (r.inbox ? (r.inbox.unread || 0) : 0), notifications: r.notifs ? (r.notifs.notifications || []) : [] });
+    state.set({ stats, unread: (r.notifs ? (r.notifs.unreadCount || 0) : 0) + (r.inbox ? (r.inbox.unread || 0) : 0), msgUnread: r.inbox ? (r.inbox.unread || 0) : 0, notifications: r.notifs ? (r.notifs.notifications || []) : [] });
   }
 };
 export default chrome;

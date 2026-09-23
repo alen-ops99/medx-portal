@@ -50,7 +50,7 @@ export const COPY = {
       gala: { status_label: 'Seats limited', detail_line: `${FACTS.gala.dateLabel} · ${FACTS.gala.venue} · €${FACTS.gala.priceEarly} through ${FACTS.gala.priceFlipLabel}`, cta_label: CTA.reserve(`€${FACTS.gala.priceEarly}`), cta_target: 'gala' },
       accelerator: { status_label: 'Opens November 15', detail_line: `Partner labs and clinics · ${FACTS.accelerator.opensLabel}`, cta_label: 'Learn more', cta_target: 'accelerator' },
       forum: { status_label: 'By invitation', detail_line: `Forum gathering · ${FACTS.forum.gathering.label}`, cta_label: 'Enter code', cta_target: 'forum' },
-      bridges: { status_label: `${FACTS.bridges.next.city} · ${FACTS.bridges.next.short}`, detail_line: `${FACTS.bridges.next.city} · ${FACTS.bridges.next.label}`, cta_label: 'View program', cta_target: 'bridges' }
+      bridges: { status_label: 'Zagreb · December 2026', detail_line: 'Building Bridges Zagreb · during Plexus Week · Free to attend', cta_label: 'Learn more', cta_target: 'bridges' }
     }
   },
   latest: {
@@ -65,7 +65,7 @@ export const COPY = {
     // shown only when GET /api/plexus/settings carries no key_dates
     fallback: [
       { label: `Gala seats — €${FACTS.gala.priceEarly}`, date: FACTS.gala.dateLabel },
-      { label: 'Building Bridges — Boston', date: FACTS.bridges.next.label },
+      { label: 'Building Bridges Zagreb — during Plexus Week', date: 'December 2026' },
       { label: 'Donor Night — during Plexus Week', date: 'December 2026' },
       { label: 'Accelerator applications open', date: FACTS.accelerator.opensLabel },
       { label: 'Plexus Conference & Gala', date: FACTS.plexus.dateRange }
@@ -189,12 +189,12 @@ function blockHero() {
           </div>
           ${emailOk ? '' : `
             <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 12px;border-top:1px solid rgba(25,21,18,.08)">
-              <span style="width:11px;height:11px;border:1px solid rgba(25,21,18,.35);flex:none;margin-top:2px"></span>
+              <span aria-hidden="true" style="width:6px;height:6px;background:#9b1b22;transform:rotate(45deg);flex:none;margin:6px 3px 0 2px"></span>
               <span style="font-size:12px;line-height:1.5;color:#4a4239;flex:1">${COPY.start.confirm}<span data-act="resend" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.start.resend}</span></span>
             </div>`}
           ${c.complete ? '' : `
             <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 12px 10px;border-top:1px solid rgba(25,21,18,.08)">
-              <span style="width:11px;height:11px;border:1px solid rgba(25,21,18,.35);flex:none;margin-top:2px"></span>
+              <span aria-hidden="true" style="width:6px;height:6px;background:#9b1b22;transform:rotate(45deg);flex:none;margin:6px 3px 0 2px"></span>
               <span style="font-size:12px;line-height:1.5;color:#4a4239;flex:1">${COPY.start.profile(c.pct)}<a href="/app/profile" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.start.edit}</a></span>
             </div>`}
         </div>` : ''}
@@ -303,8 +303,10 @@ function latestRows() {
           <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.latest.emptyWhy}</span>
           <span data-act="explore" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap">${COPY.latest.emptyCta}</span>
         </div>`;
+  // READ → opens the announcement itself when it has text (it used to jump to the project page and the
+  // body was never shown anywhere); the sheet then offers the project link
   return items.map((it, i) => `
-        <a href="${it.source === 'forum' ? '/app/forum' : routeFor(it.link_url, '/app/home')}" style="display:flex;gap:16px;align-items:baseline;padding:14px 0;${i < items.length - 1 ? 'border-bottom:1px solid rgba(25,21,18,.1);' : ''}color:#191512" data-hover="color:#9b1b22">
+        <a href="${it.source === 'forum' ? '/app/forum' : routeFor(it.link_url, '/app/home')}"${it.source !== 'forum' && String(it.body || '').trim() ? ` data-act="readNews" data-i="${i}"` : ''} style="display:flex;gap:16px;align-items:baseline;padding:14px 0;${i < items.length - 1 ? 'border-bottom:1px solid rgba(25,21,18,.1);' : ''}color:#191512" data-hover="color:#9b1b22">
           <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#9b8f80;flex:none;width:52px">${esc(fmt.shortDate(it.posted_at))}</span>
           <span style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.25;flex:1;min-width:0">${esc(fmt.euro(it.title))}</span>
           <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">${COPY.latest.read}</span>
@@ -438,6 +440,18 @@ const handlers = {
     setTimeout(() => el.removeAttribute('aria-disabled'), 30000);
   },
   seeAll: () => { st.expanded = !st.expanded; rerender('[data-block="latest"]', `<div data-block="latest">${latestRows()}</div>`); const b = rootEl.querySelector('[data-act="seeAll"]'); if (b) b.textContent = st.expanded ? COPY.latest.showLess : COPY.latest.seeAll; },
+  readNews: (el) => {
+    const it = D.feed[Number(el.dataset.i)];
+    if (!it) return;
+    const to = routeFor(it.link_url, '');
+    const paras = String(it.body || '').trim().split(/\n{2,}/).map(p => `<p style="margin:0 0 10px;font-size:13.5px;line-height:1.65;color:#191512">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+    ui.modal({
+      eyebrow: 'LATEST FROM MED&X · ' + fmt.shortDate(it.posted_at),
+      title: esc(fmt.euro(it.title)),
+      body: paras,
+      actions: to && to !== '/app/home' ? [{ label: 'CLOSE' }, { label: fmt.upper(it.link_label || 'Open') + ' →', kind: 'primary', onClick: () => router.navigate(to) }] : [{ label: 'CLOSE' }]
+    });
+  },
   explore: () => { const el = rootEl.querySelector('#projects'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   dlIcs: () => {
     const year = (D.conf && D.conf.year) || FACTS.year;

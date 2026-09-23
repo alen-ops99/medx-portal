@@ -36,6 +36,8 @@ export const COPY = {
   events: {
     title: 'EVENTS', sub: 'one row per city — recaps publish to the member page',
     newCity: '+ NEW CITY', ncCity: 'City — e.g. Munich', ncWhen: 'When — e.g. Spring 2027', add: 'ADD',
+    heldTitle: 'Start this evening’s recap — the next edition number, kept hidden from members until it has a guest count and a photo',
+    recapMade: city => `${city.toUpperCase()} RECAP STARTED — ADD THE GUEST COUNT + A PHOTO, THEN SHOW IT`,
     added: city => `${city.toUpperCase()} ADDED — A DRAFT UNTIL YOU PUBLISH IT`, typeCity: 'TYPE THE CITY FIRST',
     upcoming: 'UPCOMING', held: 'JUST HELD · ADD RECAP', draft: 'DRAFT', manage: 'MANAGE →', openBoston: 'OPEN BOSTON →', close: 'CLOSE', recap: 'RECAP', edition: n => `EDITION ${String(n).padStart(2, '0')}`,
     venueTBA: 'Venue announced soon · exact date TBA', planTBA: 'Venue to scout',
@@ -472,7 +474,7 @@ function blockEvents() {
           <div data-row="${esc(e.id)}" class="bh-ev-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(32,27,22,.07)">
             <span class="bh-ev-date" style="font:600 9px Inter,sans-serif;letter-spacing:.11em;color:#6d6459;width:76px;flex:none">${esc(dateLabel(e))}</span>
             <span class="bh-ev-main" ${isBostonRow(e) ? `data-act="bostonOpen" title="Open the Boston card" style="flex:1;min-width:0;cursor:pointer" data-hover="color:#9b1b22"` : `style="flex:1;min-width:0"`}><span style="display:block;font-size:13.5px;font-weight:600">${esc(e.city)}</span><span style="display:block;font-size:11px;color:#6d6459">${esc(e.venue_name || c.venueTBA)}</span></span>
-            ${justHeld(e) ? `<span class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6f0e9;color:#2f7d4f;padding:3px 8px;white-space:nowrap">${c.held}</span>` : e.is_published ? `<span class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e7ecf3;color:#31517e;padding:3px 8px;white-space:nowrap">${c.upcoming}</span>` : `<span class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:3px 8px;white-space:nowrap">${c.draft}</span>`}
+            ${justHeld(e) ? `<span data-act="makeRecap" data-id="${esc(e.id)}" title="${esc(c.heldTitle)}" class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e6f0e9;color:#2f7d4f;padding:3px 8px;white-space:nowrap;cursor:pointer" data-hover="background:#2f7d4f;color:#fff">${c.held}</span>` : e.is_published ? `<span class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#e7ecf3;color:#31517e;padding:3px 8px;white-space:nowrap">${c.upcoming}</span>` : `<span class="bh-ev-chip" style="font:600 8.5px Inter,sans-serif;letter-spacing:.1em;background:#eee9df;color:#4a4239;padding:3px 8px;white-space:nowrap">${c.draft}</span>`}
             ${isBostonRow(e) ? `
             <!-- v2: the Boston row — MANAGE opens the Boston block below; EDIT DETAILS is the inline editor -->
             <span class="bh-ev-count" style="font-size:11.5px;color:#6d6459;white-space:nowrap">${esc(c.bostonLine(e.registration_count || 0, e.capacity, D.pres ? Number(D.pres.confirmed) || 0 : null, e.checked_in_count || 0))}</span>
@@ -1246,6 +1248,19 @@ const handlers = {
       await refreshHub(); rerenderAll();
       ui.toast(COPY.events.ev.saved);
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
+  },
+  // an evening just held → its recap row (v2_bridges_editions, next edition number, hidden until ready)
+  makeRecap: async (el) => {
+    const e = hubEvents().find(x => String(x.id) === String(el.dataset.id));
+    if (!e) return;
+    el.setAttribute('aria-disabled', 'true');
+    try {
+      const r = await api.post('/api/v2/bridges/editions', { city: e.city, venue: e.venue_name || null, event_date: String(e.event_date || '').slice(0, 10) || null, event_id: e.id, is_published: 0 });
+      await refreshHub();
+      st.recapEdit = (r && r.edition && r.edition.id) || null; st.editEvent = null;
+      rerenderAll();
+      ui.toast(COPY.events.recapMade(e.city));
+    } catch (err) { el.removeAttribute('aria-disabled'); ui.toast(err.message, { kind: 'error' }); }
   },
   recap: (el) => { st.recapEdit = st.recapEdit === el.dataset.id ? null : el.dataset.id; st.editEvent = null; rerender('[data-block="events"]', blockEvents()); },
   rcSave: async (el) => {

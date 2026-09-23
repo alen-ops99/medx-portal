@@ -27,6 +27,7 @@ export const COPY = {
   hero: {
     eyebrow: (city, dateLabel) => `NEXT EDITION · ${city} · ${dateLabel}`,
     eyebrowNone: 'NEXT EDITION · TO BE ANNOUNCED',
+    eyebrowHome: 'NEXT EDITION · ZAGREB · DURING PLEXUS WEEK',
     title: 'Building Bridges <i style="color:#c9a962">in Biomedicine</i>',
     lede: per => `Connecting Croatian medicine and science with international medicine and science — intimate evenings of ${per}, built for collaboration that outlasts the night.`,
     register: `${CTA.register} →`,
@@ -46,6 +47,13 @@ export const COPY = {
       { text: 'Prestigious venues, dinner and drinks', gold: false },
       { text: '40–50 guests, so every conversation counts', gold: true }
     ]
+  },
+  home: {
+    when: 'During Plexus Week · December',
+    title: year => `Building Bridges — Zagreb ${year}`,
+    desc: 'The home edition: Croatian medicine and science and the colleagues who work abroad, in one room during Plexus Week.',
+    how: 'Free to attend — register with the Plexus Week form and tick Building Bridges; one form covers the conference and the Gala too.',
+    side: 'FREE TO ATTEND', chip: 'PART OF PLEXUS WEEK'
   },
   next: {
     n: '02', title: 'NEXT EVENT',
@@ -122,7 +130,8 @@ async function load() {
   const r = await api.settle({
     events: api.get('/api/bridges/events'),
     editions: api.get('/api/v2/bridges/editions', { noAuth: true }),
-    topics: api.get('/api/notify-topics')
+    topics: api.get('/api/notify-topics'),
+    week: api.get('/api/v2/plexus-week/overview')   // the Zagreb home edition lives inside Plexus Week
   });
   const today = new Date().toISOString().slice(0, 10);
   const events = Array.isArray(r.events) ? r.events : [];
@@ -152,13 +161,23 @@ async function load() {
       registered: !!(mine && mine.registered)
     };
   }
+  // No dated evening ahead, but Plexus Week's Building Bridges Zagreb is open: show THAT as the next
+  // evening (registration = the Plexus Week form with Bridges ticked). The page used to say "the next
+  // evening is being planned" while the Plexus page and the Home card said "Zagreb · registration open".
+  let home = null;
+  const hb = !next && r.week && Array.isArray(r.week.blocks) ? r.week.blocks.find(b => b && b.key === 'bridges') : null;
+  if (hb && hb.status_kind === 'open') {
+    const venue = hb.venue && !/to be announced/i.test(hb.venue) ? hb.venue : '';
+    home = { city: r.week.city || 'Zagreb', year: String((r.week.date_label || '').match(/\d{4}/) || FACTS.year),
+      dateLabel: hb.date_label || COPY.home.when, venue };
+  }
   const editions = (r.editions && Array.isArray(r.editions.editions) && r.editions.editions.length)
     ? r.editions.editions : factsEditions();
   const totals = (r.editions && r.editions.totals) || {};
   const cities = totals.cities || new Set(editions.map(e => e.city)).size;
   const guests = totals.guests != null ? fmt.num(totals.guests) : FACTS.bridges.guests;
   return {
-    next, editions,
+    next, home, editions,
     stats: { cities, guests, events: totals.events || editions.length },
     follow: !!(r.topics && Array.isArray(r.topics.projects) && r.topics.projects.includes('bridges'))
   };
@@ -169,7 +188,7 @@ function blockCrumb() {
   return `
   <!-- dc: Building Bridges.dc.html › "Breadcrumb" -->
   <div class="mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${COPY.crumb.left}</span>
+    <a href="/app/projects" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.left}</a>
     <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.right}</span>
     <div style="flex:1"></div>
@@ -194,10 +213,10 @@ function blockHero() {
     <img src="/assets/photo-bridges.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 45%">
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
     <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
-      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${n ? COPY.hero.eyebrow(esc(fmt.upper(n.city)), esc(fmt.upper(n.dateLabel))) : COPY.hero.eyebrowNone}</span>
+      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${n ? COPY.hero.eyebrow(esc(fmt.upper(n.city)), esc(fmt.upper(n.dateLabel))) : D.home ? COPY.hero.eyebrowHome : COPY.hero.eyebrowNone}</span>
       <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:48px;line-height:1.1;color:#f7f1e6;margin-top:20px">${COPY.hero.title}</div>
       <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:600px">${COPY.hero.lede(COPY.band.perEvening)}</div>
-      ${n ? `
+      ${n || D.home ? `
       <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
         <a href="#bb-next" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b">${COPY.hero.register}</a>
       </div>` : ''}
@@ -288,12 +307,32 @@ function nextCard() {
     </div>`;
 }
 
+function homeCard() {
+  const h = D.home, c = COPY.home;
+  return `<div data-block="next" class="mx-bb-next" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:grid;grid-template-columns:230px 1fr 260px;align-items:stretch">
+      <div style="position:relative;overflow:hidden;min-height:150px"><img src="/assets/photo-stage.jpg" alt="Plexus Week in Zagreb" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 60%;display:block"></div>
+      <div style="padding:24px 28px;display:flex;flex-direction:column;gap:8px">
+        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${esc(fmt.upper(h.city))} · ${esc(fmt.upper(h.dateLabel))}</span>
+        ${h.venue ? `<span style="font-size:12.5px;color:#4a4239">${esc(h.venue)}</span>` : ''}
+        <span style="font-family:Fraunces,serif;font-size:26px;line-height:1.15">${esc(c.title(h.year))}</span>
+        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${esc(c.desc)}</span>
+        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${esc(c.how)}</span>
+        <span style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px"><span style="padding:4px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${c.chip}</span></span>
+      </div>
+      <div style="background:#191512;color:#f7f1e6;padding:22px 24px;display:flex;flex-direction:column;justify-content:center;gap:12px;text-align:center">
+        <span style="font:600 9px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${c.side}</span>
+        <a href="/plexus?pick=bridges&amp;src=portal" style="padding:11px 0;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap;text-decoration:none" data-hover="background:#7e151b;color:#f7f1e6">${COPY.next.register}</a>
+      </div>
+    </div>`;
+}
+
 function blockNext() {
   const head = `
     <div id="bb-next" style="display:flex;align-items:baseline;gap:14px;padding:16px 0 12px;border-top:1px solid rgba(25,21,18,.16)">
       <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.next.n}</span>
       <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.next.title}</span>
     </div>`;
+  if (!D.next && D.home) return `${head}${homeCard()}`;
   if (!D.next) return `
     <!-- dc: Building Bridges.dc.html › "02 · NEXT EVENT" -->
     ${head}

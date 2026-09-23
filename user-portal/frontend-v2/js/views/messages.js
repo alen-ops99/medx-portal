@@ -557,7 +557,7 @@ const handlers = {
     ui.bind(m.el, {
       pickTeam: () => { m.close(); openThread(TEAM, { focus: true }); },
       pickConn: (el) => { m.close(); openThread(el.dataset.id, { focus: true }); },
-      closeModal: () => m.close()
+      closeModal: () => { m.close(); router.navigate('/app/network'); }   // the modal's only closeModal control is OPEN THE NETWORK →
     });
   }
 };

@@ -457,7 +457,7 @@ function blockCrumbs(applyTab) {
   return `
   <!-- dc: ${applyTab ? 'Accelerator Application' : 'Accelerator'}.dc.html › "Breadcrumb" -->
   <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${COPY.crumbs.projects}</span>
+    <a href="/app/projects" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumbs.projects}</a>
     <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
     ${applyTab
       ? `<a href="/app/accelerator" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em">${COPY.crumbs.name}</a>

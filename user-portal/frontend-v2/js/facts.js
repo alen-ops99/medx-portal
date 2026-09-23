@@ -123,7 +123,8 @@ export const CTA = Object.freeze({
 // Week" names neither, so it keeps whatever date the admin gave it.
 const DATE_TRUTH = [
   { test: /early.?bird|price\s*(flip|change)/i, date: () => `Until ${galaFlipLabel()}` },
-  { test: /building bridges|boston/i, date: () => FACTS.bridges.next.label },
+  // Boston only: after 21 Sept the next Building Bridges is Zagreb (Plexus Week) and keeps the admin's date
+  { test: /boston/i, date: () => FACTS.bridges.next.label },
   { test: /accelerator/i, date: () => FACTS.accelerator.opensLabel },
   { test: /plexus conference|conference\s*(&|and)\s*gala|plexus\s*20\d{2}/i, date: () => FACTS.plexus.dateRange },
   { test: /\bgala\b/i, date: () => FACTS.gala.dateLabel }
@@ -154,6 +155,9 @@ export const PROJECT_ROUTES = Object.freeze({
 });
 export function routeFor(key, fallback = '/app/home') {
   const k = String(key || '').trim().toLowerCase().replace(/^#/, '').replace(/^(app:|site:)/, '');
+  // legacy v1 deep links that alerts still carry (the server writes /forum/events/<id>): a server path
+  // with no route, which fell through to the OLD portal — the Forum page is their home in v2
+  if (/^\/forum\/events(\/|$)/.test(k)) return '/app/forum';
   if (/^https?:\/\//.test(k) || k.startsWith('/')) return String(key);
   return PROJECT_ROUTES[k] || fallback;
 }

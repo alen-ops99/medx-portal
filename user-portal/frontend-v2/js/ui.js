@@ -196,6 +196,10 @@ function bind(root, handlers) {
     if (!el || !root.contains(el) || el.getAttribute('aria-disabled') === 'true') return;
     const h = handlers[el.dataset.act];
     if (!h) return;
+    // A real link INSIDE an actionable row (the signup consent row's "Terms and Privacy Policy") is the
+    // user's target — let it open natively instead of running the row's handler (it used to just tick the box).
+    const link = e.target.closest('a[href]');
+    if (link && link !== el && el.contains(link)) return;
     // Never cancel a native control's OWN activation behaviour. On a file input preventDefault
     // closed the OS file picker; on a checkbox/radio it runs the "canceled activation steps",
     // which restore the pre-click checkedness AFTER dispatch — so the box silently un-ticks

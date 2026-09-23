@@ -50,6 +50,9 @@
 /boston  https://medx-staging.onrender.com/boston  200
 /boston/*  https://medx-staging.onrender.com/boston/:splat  200
 /boston.ics  https://medx-staging.onrender.com/boston.ics  200
+# ticket pages + the conference .ics (built as absolute Render URLs today; guarded so a relative link never 404s)
+/gala/*  https://medx-staging.onrender.com/gala/:splat  200
+/plexus.ics  https://medx-staging.onrender.com/plexus.ics  200
 /__staging  https://medx-staging.onrender.com/__staging  200
 /__staging/*  https://medx-staging.onrender.com/__staging/:splat  200
 /__admin  https://medx-staging.onrender.com/__admin  200

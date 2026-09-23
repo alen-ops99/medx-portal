@@ -1,6 +1,6 @@
 // Med&X member portal v2 — service worker.
 // Keep the CACHE_NAME line shape: scripts/stamp-sw.sh rewrites '…-vN' → '…-vN-<sha>' on deploy.
-const CACHE_NAME = 'medx-portal-v2-5';   // bumped 2026-09-22: Plexus Week Live (/live) view + css join the shell (cache-first JS must roll)
+const CACHE_NAME = 'medx-portal-v2-6';   // bumped 2026-09-22 (review pass): portraits, phone search/alerts, auth + bind fixes — cache-first JS must roll
 
 // App shell (same-origin only — cross-origin entries make cache.addAll() reject and the SW never installs).
 // /js/views/live.js + /css/views/live.css are precached so a guest's second open of /live/<token> paints
@@ -18,7 +18,7 @@ const SHELL = [
 // Server-rendered paths (see js/config.js serverPaths) — network only, never cached, never shell-fallbacked.
 const SERVER_PREFIXES = ['/api', '/plexus', '/meetups', '/forum', '/apply', '/evaluate', '/pay', '/pass', '/invite', '/invite-success', '/invite-cancelled',
   '/reset-password', '/qr', '/calendar', '/verify-certificate', '/verify', '/r', '/unsubscribe', '/email-prefs', '/donate', '/uploads', '/f',
-  '/speaker', '/building-bridges', '/donor-night', '/terms', '/privacy', '/health', '/__staging', '/__admin'];
+  '/speaker', '/building-bridges', '/donor-night', '/terms', '/privacy', '/health', '/__staging', '/__admin', '/gala/ticket', '/plexus.ics'];
 const isServerPath = p => SERVER_PREFIXES.some(x => p === x || p.startsWith(x + '/'));
 const isStatic = p => p.startsWith('/css/') || p.startsWith('/js/') || p.startsWith('/assets/') || p === '/manifest.webmanifest';
 

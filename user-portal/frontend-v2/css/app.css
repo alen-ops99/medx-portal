@@ -77,7 +77,9 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(12px); background: #191512; color: #f7f1e6; padding: 12px 20px;
   font: 600 10px Inter, sans-serif; letter-spacing: .15em; text-transform: uppercase; z-index: 70; border-left: 3px solid #c9a962; white-space: nowrap;
   opacity: 0; transition: opacity .25s ease, transform .25s ease; max-width: calc(100vw - 36px); box-sizing: border-box; }
-.mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+/* a faded toast stays in the DOM — it must never catch the taps meant for the tab bar under it */
+.mx-toast:not(.show) { pointer-events: none; }
 .mx-toast.error { border-left-color: #9b1b22; }
 @media (max-width: 500px) { .mx-toast { white-space: normal; max-width: 86vw; text-align: center; } }
 

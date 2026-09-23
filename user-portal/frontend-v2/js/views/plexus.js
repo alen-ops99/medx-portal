@@ -525,7 +525,7 @@ function speakerCard(sp, { program } = {}) {
         <div style="padding:14px 16px;display:flex;flex-direction:column;gap:6px;flex:1">
           <span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(sp.name)}</span>
           <span style="font-size:11.5px;color:#4a4239">${esc(speakerRole(sp))}</span>
-          <span data-act="vb" data-id="${esc(sp.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:auto;cursor:pointer;white-space:nowrap">${COPY.prog.bioAdd}</span>
+          <span data-act="vb" data-id="${esc(sp.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:auto;cursor:pointer;white-space:nowrap">${speakerSessions(sp).length ? COPY.prog.bioAdd : COPY.stage.viewBio}</span>
         </div>
       </div>`;
   return `
@@ -548,6 +548,7 @@ const WEEK_ACCENT = { open: '#9b1b22', soon: '#6e5626', full: '#6e5626', closed:
 // wording the server's block carries. Every other block keeps the label the server gave it.
 function weekCta(b) {
   if (b.key === 'conference') return CTA.register;
+  if (b.key === 'bridges' && b.status_kind === 'open') return CTA.register;
   if (b.key === 'gala') {
     const p = b.price && Number(b.price.current);
     return CTA.reserve(fmt.eur(Number.isFinite(p) && p > 0 ? p : galaPriceNow()));
@@ -556,7 +557,9 @@ function weekCta(b) {
 }
 function weekCard(b) {
   const accent = WEEK_ACCENT[b.status_kind] || '#4a4239';
-  const to = routeFor(b.cta_target || 'plexus', '/app/plexus');
+  // an open sign-up goes straight to the form with that event ticked — the server's targets were the
+  // program page (conference: nothing to register there) and /app/bridges (Zagreb isn't listed there)
+  const to = (b.status_kind === 'open' && (b.key === 'conference' || b.key === 'bridges')) ? formUrl(b.key) : routeFor(b.cta_target || 'plexus', '/app/plexus');
   const detail = [b.date_label, b.venue, b.price_label].filter(Boolean).join(' · ');
   return `
       <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid ${accent};background:#fdfaf3;display:flex;flex-direction:column;gap:8px;padding:16px;box-sizing:border-box">
@@ -723,7 +726,7 @@ function ovPhotos() {
 function overviewTpl() {
   return `
 <div data-screen-label="Plexus Week" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
-  ${crumb([{ label: COPY.crumb.projects }, { label: COPY.crumb.plexus, current: true }])}
+  ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, current: true }])}
   <div data-block="hero">${ovHero()}</div>
   ${ovBand()}
   ${tabStrip()}
@@ -801,7 +804,7 @@ function programTpl() {
   const { html: dayHtml, anySessions } = progDays();
   return `
 <div data-screen-label="Plexus Program" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
-  ${crumb([{ label: COPY.crumb.projects }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.program }])}
+  ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.program }])}
   ${tabStrip()}
   <div class="mx-gutter" style="padding:0 36px">
     <!-- dc: Plexus Program.dc.html › "01 · THE PROGRAM" -->
@@ -853,7 +856,7 @@ function zagrebTpl() {
       </div>`;
   return `
 <div data-screen-label="Explore Zagreb" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
-  ${crumb([{ label: COPY.crumb.projects }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.zagreb }])}
+  ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.zagreb }])}
   ${tabStrip()}
   <!-- dc: Plexus Zagreb.dc.html › "Hero" -->
   <div style="position:relative;overflow:hidden;background:#191512">
@@ -1073,7 +1076,7 @@ function minePassAndWho() {
 function mineTpl() {
   return `
 <div data-screen-label="My Plexus" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
-  ${crumb([{ label: COPY.crumb.projects }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.mine }])}
+  ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.mine }])}
   ${tabStrip()}
   <div data-block="mine-hero">${mineHero()}</div>
   <div class="mx-gutter" style="padding:0 36px">

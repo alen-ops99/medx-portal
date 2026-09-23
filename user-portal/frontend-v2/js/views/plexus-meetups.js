@@ -383,7 +383,7 @@ function boardTpl() {
   const weekLine = ed.label ? COPY.head.week(ed.label, fmt.longRange(ed.starts_on, ed.ends_on)) : '';
   return `
 <div data-screen-label="Meetups" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
-  ${crumb([{ label: COPY.crumb.projects }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.meetups }])}
+  ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.meetups }])}
   <!-- v2: head -->
   <div class="mx-pad-hero" style="border-bottom:1px solid rgba(25,21,18,.16);padding:40px 36px 32px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
@@ -467,7 +467,7 @@ function hostTpl() {
   const stat = (v, label) => `<span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:22px;color:#c9a962">${esc(String(v))}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.7)">${label}</span></span>`;
   return `
 <div data-screen-label="Meetup host" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
-  ${crumb([{ label: COPY.crumb.projects }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.meetups, to: '/app/plexus/meetups' }, { label: COPY.crumb.hosting }])}
+  ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.meetups, to: '/app/plexus/meetups' }, { label: COPY.crumb.hosting }])}
   <!-- v2: host head -->
   <div class="mx-pad-hero" style="padding:38px 36px 28px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
