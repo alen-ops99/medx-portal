@@ -521,7 +521,7 @@ export default {
   async render(root, ctx) {
     rootEl = root;
     D = await load();
-    if (rootEl !== root) return; // navigated away while loading
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     const followedLabels = D.followed.map(k => Object.keys(TOPIC_KEY).find(l => TOPIC_KEY[l] === k)).filter(Boolean);
     const nlKeys = D.nl && D.nl.subscribed ? D.nl.topics : null;
     const nlLabels = nlKeys ? (nlKeys.includes('all') ? [ALL_TOPIC] : nlKeys.map(k => Object.keys(TOPIC_KEY).find(l => TOPIC_KEY[l] === k)).filter(Boolean)) : null;

@@ -626,7 +626,7 @@ export default {
     const q0 = (ctx.query && ctx.query.q) || '';
     st = { q: q0, res: null, dir: { open: false, loading: false, items: [], page: 1, pages: 1 } };
     D = await load(q0);
-    if (rootEl !== root) return;   // navigated away while loading
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     fresh = null;
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);

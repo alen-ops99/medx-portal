@@ -74,6 +74,10 @@ const PROJECT_ROOTS = ['/app/plexus', '/app/gala', '/app/accelerator', '/app/for
 const TAB_EXTRA = { 'MY M&X': ['/app/profile'], PEOPLE: ['/app/mentorship'] };
 const VERIFY_DISMISS_KEY = 'medx_verify_dismissed'; // legacy sessionStorage key, kept
 
+// the side menu's slide shut (app.css › #mx-drawer: --t-reveal 340 ms on --ease): 98 % of the way out by 240 ms. The
+// router starts the crossing then (the scrim's last tenth dissolves with the old screen), under its 250 ms "slow" dim
+const DRAWER_MS = 240;
+let drawerShutAt = 0;
 let els = {};
 let popover = null; // 'alerts' | 'search' | null
 let searchTimer = null;
@@ -166,7 +170,9 @@ function drawer() {
   <!-- /dc -->`;
 }
 function mobileTop() {
-  const s = state.get(); const path = router.path;
+  // the bar belongs to the screen on view: its back arrow and title change when the new screen draws (the router's
+  // stage, state.shownPath), not at the tap while the screen being left is still up. The tab bar lights at once.
+  const s = state.get(); const path = s.shownPath || router.path;
   const isRoot = Object.values(TAB_ROOTS).includes(path.replace(/\/$/, '')) || path === '/' || path === '/app';
   const title = path === '/app/home' || path === '/' || path === '/app' ? COPY.mobile.home : fmt.upper(s.viewTitle || '');
   return `
@@ -257,14 +263,38 @@ function searchResults(res) {
 }
 
 // ---------------------------------------------------------------- render + behaviour
+// The chrome re-renders on every state change it shows (a route, the unread count, the stats arriving). Markup that
+// did not change is not rewritten (a rewrite re-decodes the logo, drops a press in progress and restarts nothing
+// useful); the drawer, its scrim and the tab bar are kept as elements and updated in place, so the drawer's slide
+// out is never cut short by a route change and the tab bar's light eases from one tab to the next.
 function renderAll() {
   const s = state.get();
   const portal = s.layout === 'portal';
   document.body.setAttribute('data-layout', s.layout || 'portal');
   document.body.classList.toggle('authed', session.isAuthed);
-  els.chrome.innerHTML = portal ? `<div id="mx-desktop-chrome">${topBar()}${statsStrip()}${banner()}</div>${mobileTop()}` : '';
-  els.overlays.innerHTML = portal ? drawer() + tabBar() : '';
+  const html = portal ? `<div id="mx-desktop-chrome">${topBar()}${statsStrip()}${banner()}</div>${mobileTop()}` : '';
+  if (html !== els.chrome._html || (portal && !els.chrome.firstElementChild)) { els.chrome.innerHTML = html; els.chrome._html = html; }
+  renderOverlays(portal);
   if (popover) renderPopover();
+}
+function renderOverlays(portal) {
+  const o = els.overlays;
+  if (!portal) { if (o.firstChild) o.innerHTML = ''; o._drawer = o._tabs = null; return; }
+  const d = drawer(), t = tabBar();
+  const dr = o.querySelector('#mx-drawer'), tb = o.querySelector('#mx-tabbar');
+  if (!dr || !tb || !o.querySelector('#mx-scrim')) { o.innerHTML = d + t; o._drawer = d; o._tabs = t; return; }
+  if (o._drawer !== d) { const n = ui.h(`<div>${d}</div>`).querySelector('#mx-drawer'); if (n) dr.innerHTML = n.innerHTML; o._drawer = d; }
+  if (o._tabs !== t) { patchTabs(tb, ui.h(t.replace(/<!--[\s\S]*?-->/g, ''))); o._tabs = t; }
+}
+// the same five tabs, another one lit: attributes and inline styles move over, so the css transitions carry them
+function patchTabs(el, next) {
+  const now = [...el.querySelectorAll(':scope > a')], want = next ? [...next.querySelectorAll(':scope > a')] : [];
+  if (!want.length || now.length !== want.length || now.some((a, i) => a.getAttribute('href') !== want[i].getAttribute('href'))) { el.replaceWith(next); return; }
+  now.forEach((a, i) => {
+    const b = want[i];
+    ['aria-selected', 'style'].forEach(k => { if (a.getAttribute(k) !== b.getAttribute(k)) a.setAttribute(k, b.getAttribute(k)); });
+    [...a.children].forEach((c, j) => { const w = b.children[j]; if (w && c.getAttribute('style') !== w.getAttribute('style')) c.setAttribute('style', w.getAttribute('style')); });
+  });
 }
 function renderPopover() {
   clearTimeout(popCloseTimer);
@@ -307,7 +337,7 @@ function closePopover({ refocus } = {}) {
   if (!live.length || ui.reducedMotion()) return renderPopover();
   live.forEach(n => { n.classList.remove('mx-pop-in'); n.classList.add('mx-pop-out'); });
   clearTimeout(popCloseTimer);
-  popCloseTimer = setTimeout(() => { if (!popover) renderPopover(); }, 170);
+  popCloseTimer = setTimeout(() => { if (!popover) renderPopover(); }, 230);   // the exit (--t-exit) and a frame
 }
 // SEARCH: ↑ / ↓ walk the result rows (a visible active row, kept in view), Enter opens the active one
 function onSearchKey(e) {
@@ -407,7 +437,7 @@ export const chrome = {
       openPopover('search');
     });
     document.addEventListener('click', e => { if (popover === 'alerts' && !e.target.closest('.mx-pop') && !e.target.closest('[data-act="alerts"]')) closePopover(); });
-    state.subscribe((s, keys) => { if (keys.some(k => ['user', 'stats', 'unread', 'msgUnread', 'active', 'layout', 'viewTitle', 'notifications'].includes(k))) renderAll(); });
+    state.subscribe((s, keys) => { if (keys.some(k => ['user', 'stats', 'unread', 'msgUnread', 'active', 'layout', 'viewTitle', 'shownPath', 'notifications'].includes(k))) renderAll(); });
     renderAll();
   },
   toggleDrawer() { document.body.classList.contains('drawer-open') ? chrome.closeDrawer() : chrome.openDrawer(); },
@@ -431,6 +461,7 @@ export const chrome = {
   },
   closeDrawer() {
     const wasOpen = document.body.classList.contains('drawer-open');
+    if (wasOpen) drawerShutAt = performance.now();
     document.body.classList.remove('drawer-open'); const s = els.overlays.querySelector('#mx-scrim'); if (s) s.setAttribute('aria-hidden', 'true');
     if (drawerTrap) { drawerTrap(); drawerTrap = null; }
     if (wasOpen) {
@@ -439,6 +470,12 @@ export const chrome = {
       if (menu && (!a || a === document.body || (d && d.contains(a)))) { try { menu.focus({ preventScroll: true }); } catch (e) {} }
     }
     drawerFrom = null;
+  },
+  // resolves once the side menu has finished sliding shut (at once when it was not open): the router snapshots the old
+  // screen after it (router.js › hooks.settle), so the menu is never caught mid-slide
+  drawerSettled() {
+    const left = drawerShutAt ? DRAWER_MS - (performance.now() - drawerShutAt) : 0;
+    return left > 0 && !ui.reducedMotion() ? new Promise(r => setTimeout(r, left)) : Promise.resolve();
   },
   closePopover,
   // stats strip + unread dot — all live reads, never hardcoded

@@ -11,7 +11,7 @@
    (crimson on cream, app.css), buttons and chips sink 1 px when pressed, cards lift 2 px on --shadow-lift
    and on touch answer the press at .86 opacity, tabs draw a crimson hairline in from the left. */
 
-.lv, .lv-sheet-wrap { --lv-ease: var(--ease); --lv-fast: var(--t-quick); --lv-slow: var(--t-reveal); --lv-exit: var(--t-exit); }
+.lv, .lv-sheet-wrap { --lv-ease: var(--ease); --lv-fast: var(--t-quick); --lv-slow: var(--t-reveal); --lv-exit: var(--t-exit); --lv-ease-exit: var(--ease-exit); --lv-sheet-exit: 260ms; }
 .lv { --lv-w: 720px; max-width: var(--lv-w); margin: 0 auto; min-height: 100vh; background: var(--cream); color: var(--ink);
       font: 16px/1.5 var(--font-ui); -webkit-font-smoothing: antialiased; position: relative; padding-bottom: env(safe-area-inset-bottom); }
 @media (min-width: 761px) { .lv { border-left: 1px solid var(--hair); border-right: 1px solid var(--hair); } }
@@ -86,6 +86,10 @@
 /* ---- NOW / NEXT strip ---- */
 .lv-now { display: grid; grid-template-columns: 1fr 1fr; background: var(--card); border-bottom: 1px solid var(--hair); min-height: 76px; }
 .lv-now:empty { display: none; }
+/* the strip's place while the catalogue loads (live.js › tplNow): its own three lines, drawn as quiet bars */
+.lv-now-sk { cursor: default; }
+.lv-now-sk > span { align-self: flex-start; color: transparent; background: rgba(25,21,18,.06); border-radius: 2px; }
+.lv-now-sk > .lv-now-label { width: 18%; } .lv-now-sk > .lv-now-title { width: 52%; } .lv-now-sk > .lv-now-sub { width: 34%; }
 .lv-now-item, .lv-now-line { display: flex; flex-direction: column; gap: 3px; padding: 14px 20px; min-width: 0; cursor: pointer; }
 .lv-now-item { transition: box-shadow var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
 .lv-now-item:focus-visible { outline-offset: -3px; }
@@ -136,6 +140,9 @@
 
 /* ---- panels ---- */
 .lv-panels { padding: 0 0 24px; min-height: 60vh; }
+/* flow-root: a panel's first margin (the program's note) stays inside it, never moving the panel down when the
+   skeleton gives way to the program (a hidden panel keeps display: none) */
+.lv-panel:not([hidden]) { display: flow-root; }
 .lv-note { margin: 14px 20px 0; padding: 12px 14px; border: 1px solid rgba(201,169,98,.55); background: var(--banner); font-size: 13.5px; color: var(--soft); line-height: 1.5; }
 .lv-note.warn { border-color: rgba(155,27,34,.4); }
 .lv-note.soft { border-color: rgba(25,21,18,.12); background: transparent; font-size: 12.5px; }
@@ -281,14 +288,19 @@
 /* ---- sheet (session / speaker detail): a bottom sheet that slides up on phones, a centred card on desktop ---- */
 .lv-sheet-wrap { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
 .lv-sheet-wrap.closing { pointer-events: none; }   /* the page under a leaving sheet takes taps at once */
-.lv-scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity var(--lv-slow) var(--lv-ease); }
-.lv-sheet-wrap.closing .lv-scrim { transition-duration: var(--lv-exit); }
+.lv-scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity var(--lv-slow) var(--ease-fade); }
+.lv-sheet-wrap.closing .lv-scrim { transition-duration: var(--lv-sheet-exit); transition-timing-function: var(--lv-ease-exit); }
 .lv-sheet-wrap.open .lv-scrim { opacity: 1; }
 .lv-sheet { display: flex; flex-direction: column; position: relative; width: 100%; max-width: 720px; max-height: 88vh; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--cream); color: var(--ink); border-top: 1px solid var(--gold);
             transform: translateY(100%); transition: transform var(--lv-slow) var(--lv-ease); padding-bottom: env(safe-area-inset-bottom); font: 16px/1.5 var(--font-ui);
-            box-shadow: 0 -18px 40px -28px rgba(25,21,18,.5); }
-.lv-sheet-wrap.open .lv-sheet { transform: none; }
-.lv-sheet-wrap.closing .lv-sheet { transition-duration: var(--lv-exit); }   /* leaves quicker than it arrives */
+            box-shadow: 0 -18px 40px -28px rgba(25,21,18,.5), 0 48px 0 0 var(--cream); }
+/* it rises and comes to rest like a light spring (tokens.css --ease-settle, a few px past its place and back —
+   the cream copy of the sheet 48 px below it, off screen at rest, fills that moment); let go of a short drag and
+   it springs back the same way */
+.lv-sheet-wrap.open .lv-sheet { transform: none; transition-duration: var(--t-settle); transition-timing-function: var(--ease-settle); }
+/* it leaves quicker than it arrives, on an ease-in-out, so the whole way down is seen (a front-loaded curve
+   dropped most of the sheet in the first frame) */
+.lv-sheet-wrap.closing .lv-sheet { transition-duration: var(--lv-sheet-exit); transition-timing-function: var(--lv-ease-exit); }
 .lv-sheet.drag { transition: none; }
 .lv-sheet > .lv-sheet-head, .lv-sheet > .lv-sheet-foot { flex: none; }
 .lv-sheet > .lv-sheet-body { flex: 1 0 auto; }   /* a sheet held at its height keeps the foot at the bottom */
@@ -309,7 +321,7 @@
   .lv-sheet { max-width: 560px; border: 1px solid var(--hair); box-shadow: var(--shadow-sheet), 0 30px 60px -30px rgba(25,21,18,.35);
               opacity: 0; transform: translateY(10px); transition: transform var(--lv-slow) var(--lv-ease), opacity var(--lv-slow) var(--lv-ease); }
   .lv-sheet-wrap.open .lv-sheet { opacity: 1; transform: none; }
-  .lv-sheet-wrap.closing .lv-sheet { transition-duration: var(--lv-exit); }
+  .lv-sheet-wrap.closing .lv-sheet { transition-duration: var(--lv-exit); transition-timing-function: var(--lv-ease-exit); }
 }
 .lv-sheet-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--hair); position: sticky; top: 0; background: var(--cream); z-index: 2; }
 @media (max-width: 760px) {

@@ -660,11 +660,12 @@ export default {
       if (rootEl !== root) return;                      // navigated away while loading
       if (!H) {                                          // 404 — never "you are not the host of X"
         const nf = await import('./notfound.js');
-        if (rootEl !== root) return;
+        if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return;
         state.set({ layout: 'bare' });                   // the router resets this on the next route
-        (nf.default || nf).render(root, ctx);
+        await (nf.default || nf).render(root, ctx);
         return;
       }
+      if (ctx.ready && !(await ctx.ready())) return;    // the router moved on
       root.innerHTML = hostTpl();
       unbind = ui.bind(root, handlers);
       chrome.refresh();
@@ -672,7 +673,7 @@ export default {
     }
 
     D = await loadBoard();
-    if (rootEl !== root) return;
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     root.innerHTML = boardTpl();
     unbind = ui.bind(root, handlers);
     chrome.refresh();

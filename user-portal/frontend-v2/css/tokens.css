@@ -47,8 +47,17 @@
   --ease: cubic-bezier(.22,1,.36,1);
   --t-quick: 180ms;
   --t-reveal: 340ms;
-  --t-exit: 160ms;
+  --t-exit: 200ms;
+  /* exits ease in and out (never a front-loaded snap): whatever leaves is seen leaving */
+  --ease-exit: cubic-bezier(.4,0,.2,1);
+  /* a scrim or a sheet fading in: the fade ramps (the house --ease reaches 60 % in its first frame, a dim that
+     read as a snap); what travels keeps --ease / --ease-settle */
+  --ease-fade: cubic-bezier(.25,.1,.25,1);
   --t-drift: 900ms;
+  /* settle: a sheet, a popover or a toast arriving comes to rest like a light spring (1.5 % past its place and
+     back, damping .8) — for the TRAVEL only (transform); its fade keeps --ease. Browsers without linear() get --ease */
+  --ease-settle: var(--ease);
+  --t-settle: 480ms;
   --t-fast: var(--t-quick);
   --t-enter: var(--t-reveal);
   --shadow-lift: 0 16px 30px -20px rgba(25,21,18,.5);   /* a clickable card, hovered (lifts 2px) */
@@ -56,6 +65,9 @@
   /* a list row under the pointer (alerts, search results, thread list, directory, pickers). Translucent
      ink, so it reads the same on the card cream and on the page cream */
   --row-hover: rgba(25,21,18,.04);
+}
+@supports (animation-timing-function: linear(0, 1)) {
+  :root { --ease-settle: linear(0, 0.04, 0.136, 0.259, 0.39, 0.515, 0.627, 0.724, 0.803, 0.866, 0.915, 0.951, 0.976, 0.994, 1.005, 1.011, 1.014, 1.015, 1.015, 1.013, 1.011, 1.009, 1.007, 1.005, 1.003, 1.001, 1); }
 }
 
 /* ---- repeated utility vocabulary (only where the design repeats itself) ---- */

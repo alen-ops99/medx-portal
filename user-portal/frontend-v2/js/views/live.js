@@ -340,7 +340,10 @@ function tplSwitcher(cur = S.current) {
   return list.map(chip).join('') + more;
 }
 function tplNow() {
-  const key = S.current; if (!key) return '';
+  const key = S.current;
+  // the catalogue is still on its way: a quiet strip of the same lines holds the place, so the tabs and the program
+  // do not drop by its height when it arrives (the line classes give it the exact height)
+  if (!key) return S.eventsPending ? '<div class="lv-now-line lv-now-sk" aria-hidden="true"><span class="lv-now-label">&nbsp;</span><span class="lv-now-title">&nbsp;</span><span class="lv-now-sub">&nbsp;</span></div>' : '';
   const nn = nowNext(key); const now = Date.now();
   const card = (label, s, sub, live) => `
     <div class="lv-now-item${live ? ' live' : ''}" data-act="open" data-id="${esc(s.id)}">
@@ -841,7 +844,7 @@ function closeSheet({ instant } = {}) {
     const el = wrap.querySelector('.lv-sheet');
     if (el) { el.classList.remove('drag'); el.style.transform = ''; el.style.transition = ''; }  // a dragged sheet leaves from where the finger let go
     wrap.classList.remove('open'); wrap.classList.add('closing');
-    setTimeout(() => wrap.remove(), 200);                              // the exit timing (--t-exit) and a frame
+    setTimeout(() => wrap.remove(), 300);                              // the exit timing (--lv-sheet-exit) and a frame
   }
   if (!instant && from && from.isConnected && typeof from.focus === 'function') try { from.focus({ preventScroll: true }); } catch (e) { /* fine */ }
 }
@@ -1061,7 +1064,7 @@ export default {
   async render(root, ctx) {
     rootEl = root;
     await ensureCss();
-    if (rootEl !== root) return;
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return;
     setThemeColor('#191512');
     // the sheet locks the page scroll; a reserved gutter keeps a desktop scrollbar from shifting the layout
     try { document.documentElement.style.scrollbarGutter = 'stable'; } catch (e) { /* fine */ }

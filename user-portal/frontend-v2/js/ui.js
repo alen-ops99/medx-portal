@@ -113,7 +113,10 @@ let toastEl = null, toastTimer = null;
 function toast(text, opts = {}) {
   const msg = String(text || '').trim() || (opts.kind === 'error' ? 'Something went wrong — please try again.' : 'Done.');
   if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'mx-toast'; toastEl.setAttribute('role', 'status'); toastEl.setAttribute('aria-live', 'polite'); document.body.appendChild(toastEl); }
+  // a toast already showing takes the new message in place: the words cross-fade instead of jumping
+  const swap = toastEl.classList.contains('show') && toastEl.textContent !== msg && !reducedMotion() && typeof toastEl.animate === 'function';
   toastEl.textContent = msg;
+  if (swap) { try { toastEl.animate([{ color: 'rgba(247,241,230,0)' }, { color: '#f7f1e6' }], { duration: 260, easing: EASE }); } catch (e) {} }
   toastEl.classList.toggle('error', opts.kind === 'error');
   clearTimeout(toastTimer);
   requestAnimationFrame(() => toastEl.classList.add('show'));
@@ -166,10 +169,17 @@ function returnFocus(to, leaving) {
 
 // ---------------------------------------------------------------- modal / confirm
 let modalSeq = 0;
+// the sheets on screen now: a screen change closes them (closeModals, called by the router as a screen is left),
+// each on its own exit, so a sheet never floats over the next screen (a link inside it, a deep link, a push tap)
+const openModals = new Set();
+function closeModals() { [...openModals].forEach(fn => { try { fn(); } catch (e) { /* fine */ } }); }
 function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOnScrim = true, wide = false } = {}) {
   const wrap = document.createElement('div');
   const opener = document.activeElement;
   wrap.className = 'mx-modal';
+  // a sheet opened as another one leaves (REPORT from a profile, a confirm after a menu): the scrim is already
+  // there, so it stays at full strength instead of dipping and fading in again; only the new sheet rises
+  if (document.querySelector('body > .mx-modal.is-leaving')) wrap.classList.add('is-chained');
   const lid = 'mx-modal-l' + (++modalSeq);
   wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('aria-labelledby', lid);
   wrap.innerHTML = `
@@ -182,16 +192,19 @@ function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOn
   let release = null;
   const close = () => {
     document.removeEventListener('keydown', onKey);
+    openModals.delete(dismiss);
     if (!wrap.isConnected || wrap.classList.contains('is-leaving')) return;
     if (release) { release(); release = null; }
     returnFocus(opener, wrap);
     if (reducedMotion()) { wrap.remove(); return; }
     wrap.classList.add('is-leaving');
-    setTimeout(() => wrap.remove(), 170);
+    setTimeout(() => wrap.remove(), 250);   // the sheet's exit (--t-exit + its sink) and a frame
   };
   const onKey = e => { if (e.key === 'Escape') { close(); if (typeof opts_onclose === 'function') opts_onclose(); } };
   let opts_onclose = null;
   const handlers = { close: () => { close(); if (opts_onclose) opts_onclose(); } };
+  const dismiss = () => handlers.close();
+  openModals.add(dismiss);
   actions.forEach((a, i) => { handlers['a' + i] = () => { const r = a.onClick ? a.onClick() : undefined; if (r !== false) close(); }; });
   bind(wrap, handlers);
   wrap.addEventListener('click', e => { if (closeOnScrim && e.target === wrap) handlers.close(); });
@@ -419,6 +432,7 @@ function installDelegates() {
   });
   // iOS only applies :active (the press feedback in app.css) when a touchstart listener exists
   document.addEventListener('touchstart', () => {}, { passive: true });
+  installPress();
   // make every actionable span reachable by keyboard without touching the copied markup; and, on
   // whatever was just added, dress the trailing arrows and let still-loading images fade in
   const observer = new MutationObserver(records => {
@@ -431,6 +445,59 @@ function installDelegates() {
   observer.observe(document.body, { childList: true, subtree: true });
   dressArrows(document.body); fadeImages(document.body);
 }
+// ---------------------------------------------------------------- touch press
+// A finger on anything tappable answers at once: the control dims (a small control more than a row or a card) and
+// eases back as the finger lifts, the way a native control highlights. The dim waits 45 ms, so a list scrolled
+// under the finger never flickers (the browser cancels the pointer as soon as it scrolls); a tap quicker than that
+// still shows a short blink. Web Animations only (never the element's own style or transition list, which the
+// artboards' hover and colour transitions own); mouse and pen never; reduced motion keeps the dim, without easing.
+// Controls that already answer the press in css (cards, the tab bar, the phone bar, the event app's rows and
+// links) keep their own look.
+const PRESSABLE = 'a[href], button, [data-act], [data-nav], [role="button"], [role="tab"], [role="switch"], [role="menuitem"], [role="radio"], summary, .mx-pop-row';
+const PRESS_OWN = '#mx-scrim, .mx-search, .mx-modal, .lv-scrim, [data-role="bio-scrim"], #mx-tabbar a, #mx-mobile-top a, #mx-mobile-top [data-act], ' +
+  '.mx-card-link, .mx-proj-card, .lv-card-body, .lv-person, .lv-now-item, .lv-slot, .lv-mini, .lv-tab, .lv-x, .lv-sback, .lv-ics, .lv-links a, ' +
+  '.lv-glance-map, .lv-refresh, .lv-back, .lv-info-body a, .lv-glance-list a, input, textarea, select, [contenteditable]';
+function installPress() {
+  if (typeof Element === 'undefined' || typeof Element.prototype.animate !== 'function') return;
+  let cur = null;              // { el, id, x, y, timer, anim, base, to }
+  const pick = e => {
+    const el = e.target && e.target.closest ? e.target.closest(PRESSABLE) : null;
+    if (!el || el.matches(PRESS_OWN) || el.closest('[inert], .mx-leaving') || el.getAttribute('aria-disabled') === 'true' || el.getAttribute('aria-busy') === 'true') return null;
+    const r = el.getBoundingClientRect();
+    if (!r.width || r.width * r.height > window.innerWidth * window.innerHeight * 0.4) return null;   // a whole-screen hit area is not a button
+    return { el, r };
+  };
+  const on = c => {
+    if (!c || c.anim || !c.el.isConnected) return;
+    const base = parseFloat(getComputedStyle(c.el).opacity) || 1;
+    c.base = base; c.to = base * (c.r.height <= 64 && c.r.width <= 360 ? 0.5 : 0.72);
+    try { c.anim = c.el.animate([{ opacity: base }, { opacity: c.to }], { duration: reducedMotion() ? 0 : 70, easing: 'ease-out', fill: 'forwards' }); } catch (e) {}
+  };
+  const off = (c, blink) => {
+    if (!c) return;
+    clearTimeout(c.timer);
+    if (blink && !c.anim) on(c);
+    if (!c.anim) return;
+    const a = c.anim; c.anim = null;
+    // a quick tap holds the dim one beat before easing back, so the answer is seen
+    try { c.el.animate([{ opacity: c.to }, { opacity: c.base }], { duration: reducedMotion() ? 0 : 260, delay: blink && !reducedMotion() ? 60 : 0, easing: EASE, fill: 'backwards' }); } catch (e) {}
+    a.cancel();
+  };
+  document.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' || !e.isPrimary) return;
+    off(cur); cur = null;
+    const hit = pick(e); if (!hit) return;
+    const c = cur = { el: hit.el, r: hit.r, id: e.pointerId, x: e.clientX, y: e.clientY, anim: null };
+    c.timer = setTimeout(() => on(c), 45);
+  }, { passive: true, capture: true });
+  document.addEventListener('pointermove', e => {
+    if (!cur || e.pointerId !== cur.id) return;
+    if (Math.abs(e.clientX - cur.x) > 10 || Math.abs(e.clientY - cur.y) > 10) { off(cur); cur = null; }
+  }, { passive: true, capture: true });
+  document.addEventListener('pointerup', e => { if (cur && e.pointerId === cur.id) { off(cur, true); cur = null; } }, { passive: true, capture: true });
+  document.addEventListener('pointercancel', e => { if (cur && e.pointerId === cur.id) { off(cur); cur = null; } }, { passive: true, capture: true });
+}
+
 // A control whose label ends in → (or ↗) gets that arrow in its own span, so css can lean it forward
 // on hover (app.css › .mx-arr). The label text keeps its own node; screen readers skip the glyph.
 const ARROWS = /\s*([→↗])\uFE0E?\s*$/;
@@ -466,6 +533,8 @@ const FADE_SKIP = '.mx-rotator, .mx-hero-photo, .mx-brand, #mx-drawer, #mx-mobil
 function fadeImages(root) {
   if (!root || !root.nodeType || root.nodeType !== 1) return;
   const list = root.tagName === 'IMG' ? [root] : [...root.querySelectorAll('img')];
+  // a photo still arriving decodes off the main thread: a screen change never waits (or stalls) on a large JPEG
+  list.forEach(img => { if (!img.complete && !img.hasAttribute('decoding')) img.decoding = 'async'; });
   const wait = list.filter(img => !img.complete && !img.classList.contains('mx-img-in') && img.closest(FADE_SCOPE) && !img.closest(FADE_SKIP));
   if (!wait.length) return;
   requestAnimationFrame(() => {
@@ -478,7 +547,7 @@ function fadeImages(root) {
   });
 }
 
-export const ui = { toast, hideToast, trapFocus, returnFocus, modal, lightbox, confirm, countdown, tick, toggleSwitch, flipSwitch, revealOnScroll, reducedMotion, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials,
+export const ui = { toast, hideToast, trapFocus, returnFocus, modal, closeModals, lightbox, confirm, countdown, tick, toggleSwitch, flipSwitch, revealOnScroll, reducedMotion, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials,
   lockScroll(on) { document.body.style.overflow = on ? 'hidden' : ''; },
   // quick DOM helper
   h(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }

@@ -862,6 +862,7 @@ export default {
     ensureCss();
     rootEl = root;
     const data = await load();
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     if (!data) { root.innerHTML = `<div class="empty" style="padding:70px 22px"><span class="rule-gold"></span><span class="empty-line">${COPY.errors.load}</span></div>`; return; }
     D = {
       profile: data.profile, completion: data.completion, v2: data.v2,

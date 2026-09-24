@@ -1,10 +1,13 @@
 // js/router.js — History-API router. Routes are a TABLE (js/routes.js) of
 //   { path: '/app/plexus/:tab?', view: () => import('./views/plexus.js'), auth: true,
 //     layout: 'portal' | 'auth' | 'bare', active: 'Plexus', title: 'Plexus Conference' }
-// A view module exports default { title, render(root, ctx), destroy() } (see ARCHITECTURE.md).
+// A view module exports default { title, render(root, ctx), destroy() } (see ARCHITECTURE.md); render()
+// loads its data, then `if (!(await ctx.ready())) return;` right before its first write to root (the
+// screen change happens there — see ctx.ready below).
 // Guards: auth routes bounce to /app/auth/signin?next=…; the auth screens bounce a signed-in
 // member to Home. Unknown paths render views/notfound.js (System Pages 404). Scroll position is
-// restored on back/forward and reset to top on forward navigation. Server-rendered paths
+// restored on back/forward, kept when the same screen is read again, and reset to top on forward
+// navigation. Server-rendered paths
 // (cfg.serverPaths) are never intercepted — a full page load reaches the Express server.
 import cfg from './config.js';
 import { session, state } from './state.js';
@@ -13,7 +16,19 @@ import { ui } from './ui.js';
 const routes = [];
 let current = { module: null, root: null, path: null };
 let notFoundLoader = null;
-let hooks = { beforeRender: null, afterRender: null, title: t => t ? t + ' · Med&X' : 'Med&X Member Portal' };
+let hooks = { leave: null, settle: null, beforeRender: null, afterRender: null, title: t => t ? t + ' · Med&X' : 'Med&X Member Portal' };
+// Screen changes (View Transitions, where the browser has them: Safari / WKWebView 18+, Chrome 111+). The screen
+// being left stays on view until the next one has its data; then ctx.ready() (called by the view just before its
+// first write) snapshots it and the two screens cross over — forward slides in from the right, back from the left
+// (phones: the native push; wider screens: a drifting dissolve), a tab bar / menu jump or another tab cross-fades —
+// while the tab bar holds still, and the top bar too when both screens are at their top (css app.css › SCREEN
+// CHANGES). A touch during a crossing ends it and reaches the new screen: it never holds a tap back. A re-read of the
+// same screen updates in place. Without the API, or before the first screen, the #view fade (.mx-enter) remains.
+let navIdx = 0;       // this history entry's place in the session (history.state.idx): back vs forward on popstate
+let nextDir = null;   // 'forward' | 'back' | 'fade' — set by navigate() / popstate for the resolve that follows
+let navHint = null;   // 'fade' when the tab bar, the menu or the logo started the navigation (a jump, not a step)
+let vtNow = null;     // the view transition under way, if any
+const waitedSheets = new WeakSet();   // a view stylesheet is waited for once at most (a 404 must not slow every screen)
 let tabFrom = null;   // the active section tab's box when a sibling tab was clicked — the new underline slides from it
 let enterTimer = null, heldTimer = null, slowTimer = null;
 const SLOW_MS = 250;  // a wait past this dims the leaving screen and runs the gold hairline (app.css › body.mx-slow)
@@ -68,10 +83,16 @@ export const router = {
     if (/^https?:\/\//i.test(to)) { window.location.assign(to); return; }
     const url = new URL(to, window.location.origin);
     if (isServerPath(url.pathname)) { window.location.assign(url.href); return; }
+    // the screen already open (a tap on its own tab or link): a navigation like any other, but it replaces this
+    // history entry instead of stacking a second copy of it (Back then leaves the screen, never shows it again)
+    if (!replace && url.pathname + url.search + url.hash === location.pathname + location.search + location.hash) replace = true;
     // remember where the current entry was scrolled before leaving it
-    try { history.replaceState(Object.assign({}, history.state || {}, { scrollY: window.scrollY }), '', location.href); } catch (e) {}
-    const entry = Object.assign({ scrollY: 0 }, st || {});
+    try { history.replaceState(Object.assign({}, history.state || {}, { scrollY: window.scrollY, idx: navIdx }), '', location.href); } catch (e) {}
+    const idx = replace ? navIdx : navIdx + 1;
+    const entry = Object.assign({ scrollY: 0, idx }, st || {});
     try { history[replace ? 'replaceState' : 'pushState'](entry, '', url.pathname + url.search + url.hash); } catch (e) { window.location.assign(url.href); return; }
+    navIdx = idx;
+    nextDir = replace ? 'fade' : 'forward';
     return this.resolve({ popped: false });
   },
   replace(to) { return this.navigate(to, { replace: true }); },
@@ -80,6 +101,9 @@ export const router = {
   async resolve({ popped = false } = {}) {
     const pathname = location.pathname;
     const query = parseQuery(location.search);
+    const bare = !nextDir;                                   // a bare resolve() (pull to refresh, resume) is a re-read
+    const dir = nextDir || (popped ? 'fade' : 'forward');
+    const hint = navHint; nextDir = null; navHint = null;
     let hit = this.match(pathname);
     let route = hit ? hit.route : null, params = hit ? hit.params : {};
     // alias rows (UX audit 2026-09-02, small notes): a bare /signin is a path people type — send it
@@ -101,30 +125,124 @@ export const router = {
     if (seq !== this._seq || !mod) return; // superseded by a newer navigation
     const view = mod.default || mod;
     const ctx = { params, query, path: pathname, route, navigate: (to, o) => this.navigate(to, o), user: session.user, popped };
+    const first = !current.module;
+    // the same screen read again (pull to refresh, back from an in-app browser, a long pause — a bare resolve()): it
+    // repaints where the member left it, never a jump to the top or to a scroll position saved the last time they left
+    // it; even after the view rewrote its own query (the event app's ?tab=). A tap on the tab or link of the screen
+    // already open is a navigation like any other (back to its start, crossing over), the way a native tab bar does
+    const reread = !first && bare && current.module === view && current.path === pathname;
+    const keepY = reread ? window.scrollY : null;
     // tear down the previous view
     if (current.module && typeof current.module.destroy === 'function') { try { current.module.destroy(); } catch (e) { console.error('[router] destroy failed', e); } }
     const layout = (route && route.layout) || (mod.layout) || 'portal';
     const active = (route && route.active) || null;
     const prevLayout = state.get().layout;
-    state.set({ layout, active });
-    if (hooks.beforeRender) hooks.beforeRender({ route, params, query, layout, active, view });
     const root = document.getElementById('view');
-    // The screen being left stays on view (inert, dimmed if the wait drags) until the next one draws
-    // over it — portal to portal only; the auth and bare layouts start from a clean slate as before.
-    const hold = prevLayout === 'portal' && layout === 'portal' && root.firstElementChild;
+    // The screen being left stays on view (inert, dimmed if the wait drags) until the next one draws over it —
+    // across layouts too (sign-in → Home, Home → the event app): the layout switches over with the new screen,
+    // at ctx.ready(), so the page never shows a bare background, a chrome without content, or a white frame.
+    const hold = !first && !!root.firstElementChild;
+    const deferLayout = hold && prevLayout !== layout;
+    state.set(deferLayout ? { active } : { layout, active });   // the tab bar and the menu light the new place at once
+    if (hooks.leave) hooks.leave({ route, layout, active });   // the menu and the popovers close right away
     const sameView = current.module === view;
     const tabKey = hold ? holdLeaving(root, sameView) : (root.innerHTML = '', null);
     const body = document.body;                                      // the progress hairline (app.css › body.mx-holding)
-    clearTimeout(heldTimer); clearTimeout(slowTimer); body.classList.remove('mx-held', 'mx-slow'); body.classList.toggle('mx-holding', !!hold);
+    // a re-read (pull to refresh, a return from Safari, a long pause) keeps the screen as it is while it reads —
+    // no dim, no hairline (the app's pull spinner, or nothing, says it is working) — and then updates in place
+    const wait = hold && !reread;
+    clearTimeout(heldTimer); clearTimeout(slowTimer); body.classList.remove('mx-held', 'mx-slow'); body.classList.toggle('mx-holding', wait);
     // a timer, not a css delay, so reduced motion (which zeroes every css delay) keeps the threshold
-    if (hold) slowTimer = setTimeout(() => { if (seq === this._seq) body.classList.add('mx-slow'); }, SLOW_MS);
+    if (wait) slowTimer = setTimeout(() => { if (seq === this._seq) body.classList.add('mx-slow'); }, SLOW_MS);
     root.scrollTop = 0;
     current = { module: view, root, path: pathname };
     const title = typeof view.title === 'function' ? view.title(ctx) : (view.title || (route && route.title) || '');
     document.title = hooks.title(title);
-    root.classList.remove(...ENTER_CLASSES); clearTimeout(enterTimer); ui.revealOnScroll(null);
-    try { await view.render(root, ctx); } catch (e) { console.error('[router] render failed for ' + pathname, e); root.innerHTML = renderError(e); }
-    if (seq !== this._seq) return;
+    root.classList.remove(...ENTER_CLASSES, 'mx-vt'); clearTimeout(enterTimer); ui.revealOnScroll(null);
+
+    // ---- the switch-over. stage(): the layout and the bar title change with the screen, once. place(): the scroll
+    // position of the new screen — kept on a re-read, restored on back / forward, the top otherwise, or a #target.
+    let staged = false, placed = false, crossed = false, commit = null;
+    const committed = new Promise(r => { commit = r; });
+    const stage = () => {
+      if (staged) return; staged = true;
+      clearTimeout(slowTimer);                     // the screen is switching now: no "still waiting" dim or hairline
+      if (deferLayout) state.set({ layout });
+      if (hooks.beforeRender) hooks.beforeRender({ route, params, query, layout, active, view });
+    };
+    const place = () => {
+      if (placed) return; placed = true;
+      // a re-read leaves the page where the member has it. It is only put back if the new content moved it (never
+      // during a pull: WebKit reports the pull as a negative scroll, and a scrollTo there cut the bounce off in one
+      // frame)
+      if (keepY != null) {
+        if (keepY > 0 && window.scrollY >= 0 && Math.abs(window.scrollY - keepY) > 1) window.scrollTo(0, keepY);
+        return;
+      }
+      const st = history.state || {};
+      const target = hashTarget(location.hash);
+      if (target) target.scrollIntoView();
+      else window.scrollTo(0, keepY != null ? keepY : popped ? (st.scrollY || 0) : 0);
+    };
+    let kind = reread ? 'fade' : tabKey ? 'tab' : (hint || dir);
+    // ctx.ready(): the view calls it once its data is in, right before its first write (`if (!(await ctx.ready()))
+    // return` — false: a newer navigation took over). It waits for a view stylesheet still loading (a screen never
+    // paints unstyled), switches the stage and, where the browser can, snapshots the old screen first so the two
+    // cross over. The view's write happens inside the transition's update, so the old snapshot is always the old
+    // screen and nothing paints half-drawn.
+    let readyP = null;
+    ctx.ready = () => readyP || (readyP = (async () => {
+      await sheetsSettled();
+      // the side menu finishes sliding shut before the old screen is snapshot (caught mid-slide, it jumped)
+      if (hooks.settle) { try { await hooks.settle(); } catch (e) {} }
+      if (seq !== this._seq) return false;
+      // a re-read updates in place: what did not change stays pixel-still, what did simply shows its new state.
+      // (A snapshot cross-fade here ghosted: the page is often still moving — the pull's bounce — when data lands)
+      if (!hold || reread || !canCross()) { stage(); return true; }
+      return new Promise(resolve => {
+        const html = document.documentElement;
+        let t = null;
+        const done = () => { if (vtNow === t) { vtNow = null; html.removeAttribute('data-mx-nav'); html.classList.remove('mx-vt-chrome', 'mx-vt-bars'); } nameTabs(root, null); };
+        // the bars are layers of their own (they hold still) only when both screens have them; a bar on one side
+        // only (the event app has none) stays part of its screen and travels with it, under the screen on top
+        const bars = prevLayout === 'portal' && layout === 'portal';
+        // the "one moment" overlay still fading out: the screens dissolve and carry it away with the old one (a
+        // slide would drag it sideways; left alone, it ghosted over the new screen)
+        const waking = document.querySelector('body > .mx-waking.is-leaving');
+        if (waking && kind !== 'tab') kind = 'fade';
+        html.setAttribute('data-mx-nav', kind);
+        html.classList.toggle('mx-vt-bars', bars);
+        html.classList.toggle('mx-vt-chrome', bars && chromeStill());
+        const stripAt = nameTabs(root, tabKey);
+        try {
+          t = vtNow = document.startViewTransition(async () => {
+            if (seq !== this._seq) { resolve(false); return; }
+            stage(); crossed = true; resolve(true);
+            if (waking) waking.remove();
+            // the view writes in the microtasks that follow and the router's own finish (scroll, tabs) lands with it;
+            // a view that awaits more after its first write (Messages opening a thread) is not waited for
+            await Promise.race([committed, new Promise(r => setTimeout(r, 0))]);
+            // the crossing is the entrance: the new screen's own entrances (a hero rising, cards fading in) are
+            // finished before it is snapshot, so it slides in whole — never pale, half-empty or with a doubled heading
+            settleEntrances(root);
+            place();
+            // the app's own photos on view are decoded (off the main thread) before the new screen is captured: a
+            // first visit to a photo screen used to stall the crossing's first frames on a 2000 px JPEG. The old
+            // screen holds still meanwhile; never more than 250 ms
+            await photosDecoded(root, 250);
+            nameTabs(root, tabKey, stripAt);
+            if (!chromeStill()) html.classList.remove('mx-vt-chrome');
+          });
+        } catch (e) { t = null; done(); stage(); resolve(true); return; }
+        t.finished.then(done, done);
+        if (t.ready) t.ready.catch(() => {});                       // skipped (a newer screen change): nothing to undo
+        // the update normally runs on the next frame; if it never does, the screen still changes
+        setTimeout(() => { stage(); resolve(true); }, 900);
+      });
+    })());
+    try { await view.render(root, ctx); } catch (e) { console.error('[router] render failed for ' + pathname, e); stage(); root.innerHTML = renderError(e); }
+    if (seq !== this._seq) { commit(); return; }
+    stage();                                                            // a view that never called ctx.ready()
     clearTimeout(slowTimer);
     root.querySelectorAll('.mx-leaving').forEach(n => n.remove());     // a view that appended instead of replacing
     if (body.classList.contains('mx-holding')) {                        // the top hairline sweeps home and fades
@@ -136,10 +254,15 @@ export const router = {
     // A new screen: #view.mx-enter (a soft fade, the card grids cascading in, the hero photo settling).
     // Another tab of the same section: #view.mx-enter-tab — the breadcrumb and the strip stay put and
     // only the content around them rises in, so a tab change reads as a tab change, not a page load.
-    const strip = tabKey ? root.querySelector(`[data-tabs="${cssAttr(tabKey)}"]`) : null;
+    // Crossed over by a view transition (.mx-vt): the crossing is the entrance, so only the tab rule and the
+    // photo settle run inside it (app.css › SCREEN CHANGES).
+    const strip = tabKey && !reread ? root.querySelector(`[data-tabs="${cssAttr(tabKey)}"]`) : null;
     if (strip) markAround(root, strip, 'mx-tab-in');
-    void root.offsetWidth; root.classList.add(strip ? 'mx-enter-tab' : 'mx-enter');
-    enterTimer = setTimeout(() => root.classList.remove(...ENTER_CLASSES), 1000);
+    if (!reread) {                                                      // a re-read has no entrance (see ctx.ready)
+      void root.offsetWidth; root.classList.add(strip ? 'mx-enter-tab' : 'mx-enter');
+      if (crossed) root.classList.add('mx-vt');
+      enterTimer = setTimeout(() => root.classList.remove(...ENTER_CLASSES, 'mx-vt'), 1000);
+    }
     settleTabs(root);
     if (rf && current.module === view && sameView && (!document.activeElement || document.activeElement === document.body)) {
       let back = [...root.querySelectorAll(rf.attr === 'href' ? 'a[href]' : '[data-nav]')].find(el => el.getAttribute(rf.attr) === rf.to);
@@ -150,25 +273,53 @@ export const router = {
       if (back) { try { back.focus({ preventScroll: true }); } catch (e) {} }
     }
     if (hooks.afterRender) hooks.afterRender({ route, params, query, layout, active, view, title });
-    // scroll: restore on back/forward, top on forward navigation, hash targets when present
-    const st = history.state || {};
-    const target = hashTarget(location.hash);
-    if (target) target.scrollIntoView();
-    else window.scrollTo(0, popped ? (st.scrollY || 0) : 0);
+    place();
     // sections below the fold rise in as they scroll into view — for the screens that ask for it
     const reveal = typeof view.reveal === 'function' ? view.reveal(ctx) : view.reveal;
-    if (reveal && layout === 'portal') ui.revealOnScroll(root);
+    if (reveal && layout === 'portal' && !reread) ui.revealOnScroll(root);
+    commit();
   },
   start() {
-    window.addEventListener('popstate', () => this.resolve({ popped: true }));
+    // the router places every screen itself (restored on back / forward, kept on a re-read): the browser's own
+    // restoration would scroll the OLD screen to the new position a frame before the switch
+    try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
+    navIdx = history.state && typeof history.state.idx === 'number' ? history.state.idx : 0;
+    try { history.replaceState(Object.assign({}, history.state || {}, { idx: navIdx }), '', location.href); } catch (e) {}
+    // A crossing never holds a tap back. While one runs the browser hit-tests the whole page as <html> (the snapshots
+    // cover it; pointer-events on them change nothing), so a touch ends it at once (the new screen is already in
+    // place underneath) and the tap goes to what is under the finger: a touch's own click lands there by itself; a
+    // mouse click, aimed at <html> by then, is handed on
+    let cut = null;
+    document.addEventListener('pointerdown', e => {
+      if (!vtNow) return;
+      try { vtNow.skipTransition(); } catch (err) {}
+      cut = { at: performance.now() };
+    }, true);
+    document.addEventListener('click', e => {
+      if (!cut || performance.now() - cut.at > 1500) { cut = null; return; }
+      if (e.target !== document.documentElement) { cut = null; return; }
+      cut = null;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (!el || el === document.documentElement || el === document.body) return;
+      e.stopImmediatePropagation(); e.preventDefault();
+      el.click();
+    }, true);
+    window.addEventListener('popstate', () => {
+      const idx = history.state && typeof history.state.idx === 'number' ? history.state.idx : null;
+      nextDir = idx == null || idx === navIdx ? 'fade' : idx < navIdx ? 'back' : 'forward';
+      if (idx != null) navIdx = idx;
+      this.resolve({ popped: true });
+    });
     // link delegate: <a href="/app/…"> and [data-nav="/app/…"] go through the router; server paths and
     // external links fall through to the browser (full load).
     document.addEventListener('click', e => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const view = document.getElementById('view');
       const kbd = el => e.detail === 0 && !!view && view.contains(el);   // Enter on a focused control (a mouse click has detail ≥ 1)
+      // the tab bar, the menu and the logo jump between places: those screens cross-fade instead of sliding
+      const jump = el => !!(el.closest && el.closest('#mx-tabbar, #mx-drawer, .mx-brand'));
       const nav = e.target.closest && e.target.closest('[data-nav]');
-      if (nav) { e.preventDefault(); refocus = kbd(nav) ? { attr: 'data-nav', to: nav.getAttribute('data-nav') } : null; this.navigate(nav.getAttribute('data-nav')); return; }
+      if (nav) { e.preventDefault(); refocus = kbd(nav) ? { attr: 'data-nav', to: nav.getAttribute('data-nav') } : null; navHint = jump(nav) ? 'fade' : null; this.navigate(nav.getAttribute('data-nav')); return; }
       const a = e.target.closest && e.target.closest('a[href]');
       if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
       const href = a.getAttribute('href');
@@ -178,12 +329,37 @@ export const router = {
       e.preventDefault();
       refocus = kbd(a) ? { attr: 'href', to: href, strip: a.closest('[data-tabs]') ? a.closest('[data-tabs]').getAttribute('data-tabs') : null } : null;
       rememberTab(a);
+      navHint = jump(a) ? 'fade' : null;
       this.navigate(url.pathname + url.search + url.hash);
     });
     return this.resolve({ popped: false });
   },
   get current() { return current; }
 };
+
+// A step inside a screen that reads as a screen change (a conversation opened from the inbox on a phone, and
+// back): the same crossing as between screens — 'forward' pushes, 'back' pops, 'fade' dissolves — around a
+// synchronous DOM update. Without the API, or while another crossing runs, the update just happens.
+export function step(kind, update) {
+  if (!canCross() || vtNow) { update(); return; }
+  const html = document.documentElement;
+  const done = () => { if (vtNow === t) { vtNow = null; html.removeAttribute('data-mx-nav'); html.classList.remove('mx-vt-bars', 'mx-vt-chrome'); } };
+  html.setAttribute('data-mx-nav', kind);
+  html.classList.add('mx-vt-bars');
+  html.classList.toggle('mx-vt-chrome', chromeStill());
+  let t = null;
+  try { t = vtNow = document.startViewTransition(() => { update(); }); }
+  catch (e) { t = null; vtNow = null; html.removeAttribute('data-mx-nav'); html.classList.remove('mx-vt-bars', 'mx-vt-chrome'); update(); return; }
+  t.finished.then(done, done);
+  if (t.ready) t.ready.catch(() => {});
+}
+
+// Resolves once the screen change under way (if any) has finished: a view that opens the keyboard on arrival
+// (Messages with ?to=) waits for it, so the keyboard rises after the new screen has settled, not across the slide.
+export function settled() {
+  const t = vtNow;
+  return t && t.finished ? t.finished.then(() => {}, () => {}) : Promise.resolve();
+}
 
 // ---- leaving a screen (css app.css › .mx-leaving) ----
 // Marks what is on screen now as leaving: inert (no clicks, no focus, hidden from assistive tech) and,
@@ -211,6 +387,77 @@ function markAround(root, strip, cls) {
   return out;
 }
 function cssAttr(v) { return String(v).replace(/["\\]/g, '\\$&'); }
+
+// ---- screen changes (css app.css › SCREEN CHANGES) ----
+// A view's stylesheet is injected when the view first opens (views/*.js ensureCss) and never awaited there: the
+// new screen waits for it here, at most 400 ms, once per stylesheet (a failed one never slows another screen).
+function sheetsSettled(max = 400) {
+  const wait = [...document.querySelectorAll('link[rel="stylesheet"]')].filter(l => {
+    if (l.sheet || waitedSheets.has(l)) return false;
+    try { return new URL(l.href, location.href).origin === location.origin; } catch (e) { return false; }
+  });
+  if (!wait.length) return Promise.resolve();
+  wait.forEach(l => waitedSheets.add(l));
+  const loaded = l => new Promise(r => { l.addEventListener('load', r, { once: true }); l.addEventListener('error', r, { once: true }); });
+  return Promise.race([Promise.all(wait.map(loaded)), new Promise(r => setTimeout(r, max))]);
+}
+function canCross() {
+  return typeof document.startViewTransition === 'function' && document.visibilityState === 'visible';
+}
+// The top bar is a layer of its own (it holds still) only while the page is at its top, before and after the switch:
+// on wider screens it scrolls away with the page; on phones it sticks, but WebKit captures a named sticky bar where
+// it sits in the flow, not where it is stuck, so from or to a scrolled page the bar vanished for the whole slide and
+// popped back at the end. Scrolled, it travels with its own screen instead.
+function chromeStill() {
+  const c = document.getElementById('chrome');
+  if (!c || !c.firstElementChild || document.body.getAttribute('data-layout') !== 'portal') return false;
+  return window.scrollY <= 2;
+}
+// The bundled photos (same origin, not a backend image fetched through the app's proxy) in or near the viewport,
+// decoded; resolves when they are, or after `max` ms. A backend photo still arriving fades in on its own (ui.js).
+function photosDecoded(root, max) {
+  const vh = window.innerHeight || 800;
+  const list = [...root.querySelectorAll('img')].filter(img => {
+    let u; try { u = new URL(img.currentSrc || img.src, location.href); } catch (e) { return false; }
+    if (u.origin !== location.origin || u.pathname.startsWith('/_capacitor')) return false;
+    const r = img.getBoundingClientRect();
+    return r.width > 0 && r.bottom > -vh * 0.25 && r.top < vh * 1.25;
+  });
+  if (!list.length || typeof list[0].decode !== 'function') return Promise.resolve();
+  return Promise.race([Promise.all(list.map(img => img.decode().catch(() => {}))), new Promise(r => setTimeout(r, max))]);
+}
+// The view's entrance animations already under way on the new screen (its first write) run to their end at once: the
+// crossing carries the screen in. What keeps going: loops (a live dot, a skeleton), the hero photo's slow settle and
+// the tab rule sliding over (app.css › SCREEN CHANGES), and anything the view starts later.
+const KEEP_RUNNING = new Set(['mx-settle', 'mx-draw', 'mx-tab-slide', 'mx-knob']);
+function settleEntrances(root) {
+  let list = [];
+  try { list = root.getAnimations({ subtree: true }); } catch (e) { return; }
+  list.forEach(a => {
+    if (typeof CSSAnimation === 'undefined' || !(a instanceof CSSAnimation) || KEEP_RUNNING.has(a.animationName)) return;
+    let end = Infinity;
+    try { end = a.effect.getComputedTiming().endTime; } catch (e) {}
+    if (!isFinite(end)) return;
+    try { a.finish(); } catch (e) {}
+  });
+}
+// Another tab of the same section: its strip (the rule sliding over to the new tab) is its own layer, so it
+// neither fades nor ghosts while the content around it crosses over. A class, never the artboard's inline style.
+// Returns where the strip sits on screen. Called again for the new screen with that place (`was`): a strip drawn
+// in the same spot keeps the layer (it holds perfectly still); one that lands elsewhere (the tab above it is
+// shorter, the page went back to its top) takes a layer of its own and fades in there while the old one fades out
+// where it was — a strip never glides across the content.
+function nameTabs(root, key, was) {
+  root.querySelectorAll('.mx-vt-tabs, .mx-vt-tabs-in').forEach(n => n.classList.remove('mx-vt-tabs', 'mx-vt-tabs-in'));
+  if (!key) return null;
+  const strips = root.querySelectorAll(`[data-tabs="${cssAttr(key)}"]`);
+  const s = strips[strips.length - 1];
+  if (!s) return null;
+  const r = s.getBoundingClientRect();
+  const still = was === undefined || (was && Math.abs(was.top - r.top) < 1.5 && Math.abs(was.left - r.left) < 1.5);
+  s.classList.add(still ? 'mx-vt-tabs' : 'mx-vt-tabs-in');
+  return { top: r.top, left: r.left };
+}
 
 // ---- section tabs ([data-tabs] strip of .mx-tab, the current one .is-on — css app.css › .mx-tab) ----
 // Clicking a sibling tab records where the current underline is; after the next screen draws, its

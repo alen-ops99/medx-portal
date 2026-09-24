@@ -30,7 +30,8 @@ export function enterSystem(root) {
 
 export default {
   title: 'Page not found',
-  render(root) {
+  async render(root, ctx) {
+    if (ctx && ctx.ready && !(await ctx.ready())) return;   // the router moved on
     root.innerHTML = `
 <div data-screen-label="System Pages" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh;display:flex;flex-direction:column">
   <!-- dc: System Pages.dc.html › "01 · 404 — PAGE NOT FOUND" -->

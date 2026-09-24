@@ -436,6 +436,7 @@ export default {
     // a signed-in member has no business on welcome / sign in / sign up (verify, reset, code stay reachable)
     if (session.isAuthed && ['welcome', 'signin', 'signup'].includes(view)) return router.replace(nextTarget(ctx.query || {}));
     ensureCss();
+    if (ctx.ready && !(await ctx.ready())) return;   // the router moved on (the screen before stays until here)
     if (view !== 'reset') st.sent = false;
     render(root, ctx);
     enter(root);

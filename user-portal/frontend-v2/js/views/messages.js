@@ -25,7 +25,7 @@
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
-import router from '../router.js';
+import router, { settled, step } from '../router.js';
 import { SAFETY, ensureCss as ensureSafetyCss, moreButton, msgMoreButton, openMenu, reportSheet, blockFlow, forgetBlocks } from './_safety.js';
 
 export const SOURCE = 'Messages.dc.html';
@@ -436,6 +436,8 @@ function renderConv({ keepDraft = true } = {}) {
   wireConv();
   scrollMsgs();
 }
+// the inbox and the conversation stack (one shows at a time) at ≤700 px — messages.css
+const stacked = () => { try { return window.matchMedia('(max-width: 700px)').matches; } catch (e) { return false; } };
 function scrollMsgs() { const m = rootEl && rootEl.querySelector('[data-role="msgs"]'); if (m) m.scrollTop = m.scrollHeight; }
 function sizeGrid() {
   const g = rootEl && rootEl.querySelector('[data-role="grid"]'); if (!g) return;
@@ -510,7 +512,7 @@ async function openThread(key, { focus = false, mobile = true } = {}) {
   }
   if (st.cur !== key) return;                       // switched while loading
   renderList(); renderConv();
-  if (focus) { const ta = rootEl && rootEl.querySelector('[data-role="draft"]'); if (ta) ta.focus(); }
+  if (focus) { const ta = rootEl && rootEl.querySelector('[data-role="draft"]'); if (ta) settled().then(() => { if (ta.isConnected && rootEl) ta.focus(); }); }
 }
 
 async function refreshThreads() {
@@ -546,8 +548,10 @@ async function poll() {
 }
 
 const handlers = {
-  open: (el) => openThread(el.dataset.key, { focus: false }),
-  backList: () => { st.mobileOpen = false; const grid = rootEl.querySelector('[data-role="grid"]'); if (grid) grid.classList.remove('mx-msg-open'); renderList(); const first = rootEl.querySelector('[data-role="rows"] [data-act="open"]'); if (first) first.focus(); },
+  // on a phone the inbox and a conversation are two stacked views: opening one is a push, ← INBOX a pop
+  // (router.js › step), the way the screens themselves change; on wider screens both panes stay in place
+  open: (el) => { const key = el.dataset.key; if (stacked() && !st.mobileOpen) step('forward', () => { openThread(key, { focus: false }); }); else openThread(key, { focus: false }); },
+  backList: () => step(stacked() ? 'back' : 'fade', () => { st.mobileOpen = false; const grid = rootEl.querySelector('[data-role="grid"]'); if (grid) grid.classList.remove('mx-msg-open'); renderList(); const first = rootEl.querySelector('[data-role="rows"] [data-act="open"]'); if (first) first.focus({ preventScroll: true }); }),
   retry: () => module.render(rootEl, { params: {}, query: {}, path: '/app/messages' }),
   toggleArchived: () => { st.showArchived = !st.showArchived; renderList(); },
   startMsg: () => { const ta = rootEl.querySelector('[data-role="draft"]'); if (ta) ta.focus(); },
@@ -698,7 +702,7 @@ const module = {
     }
     ensureSafetyCss();
     D = await load();
-    if (rootEl !== root) return;
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     const q = ctx.query || {};
     // ?topic=<key> (existing) and ?about=<tag> (the MESSAGE US context tag from other pages —
     // gala, plexus, bridges, accelerator, forum) both preselect the team topic
@@ -711,6 +715,7 @@ const module = {
     unbind = ui.bind(root, handlers);
     if (!D.threads) return;                                   // backend route unavailable — retry UI only
     wireList();
+    sizeGrid();                                               // the grid takes its height with the first paint, not after the thread loads
 
     // entry params: ?to=<userId> opens/creates the 1:1 thread · ?topic= preselects the team tag
     let openKey = TEAM, focus = false, mobile = false;

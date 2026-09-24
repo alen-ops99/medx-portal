@@ -24,11 +24,12 @@ export const COPY = {
 export default {
   title: 'Projects',
   reveal: true,        // sections below the fold rise in on scroll (router › ui.revealOnScroll)
-  async render(root) {
+  async render(root, ctx) {
     const [status, next] = await Promise.all([
       api.get('/api/public/status', { noAuth: true }).catch(() => null),
       api.get('/api/me/next-event').catch(() => null)
     ]);
+    if (ctx && ctx.ready && !(await ctx.ready())) return;   // the router moved on while loading
     const byKey = {}; ((status && status.projects) || []).forEach(p => { byKey[p.project_key] = p; });
     const held = { plexus: !!(next && next.registered), gala: !!(next && next.has_gala) };
     const cta = (key, p) => held[key] ? COPY.mine[key] : key === 'plexus' ? CTA.register : fmt.upper(p.cta_label || 'Open');

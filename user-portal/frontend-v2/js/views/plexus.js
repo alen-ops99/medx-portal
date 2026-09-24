@@ -1118,7 +1118,7 @@ function closeBio() {
   };
   if (!scrim || ui.reducedMotion()) return done();
   scrim.classList.remove('mx-bio-in'); scrim.classList.add('is-leaving');
-  setTimeout(done, 170);
+  setTimeout(done, 230);   // the exit (--t-exit) and a frame
 }
 function openBioFocus() {
   const scrim = rootEl.querySelector('[data-role="bio-scrim"]');
@@ -1310,7 +1310,7 @@ export default {
     if (!TABS.some(t => t.key === tab)) { router.replace('/app/plexus'); return; }
     rootEl = root;
     D = await load(tab);
-    if (rootEl !== root) return;                 // navigated away while loading
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     st = { bio: null, dayOpen: { 0: true } };
     root.innerHTML = tab === '' ? overviewTpl() : tab === 'program' ? programTpl() : tab === 'zagreb' ? zagrebTpl() : mineTpl();
     unbind = ui.bind(root, handlers);

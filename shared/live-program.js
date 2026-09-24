@@ -39,7 +39,7 @@ const FACTS = {
     conference: { label: 'Plexus Conference', short: 'Conference', date: '2026-12-04', start: '17:00', end: '21:00', venue: 'Novinarski dom', address: 'Perkovčeva 2, Zagreb', city: 'Zagreb', tz: ZAGREB, kind: 'conference' },
     donor:      { label: 'Plexus Donor Night', short: 'Donor Night', date: '2026-12-04', start: '19:30', end: '22:30', venue: 'Esplanade Zagreb', address: 'Esplanade Zagreb, private salon', city: 'Zagreb', tz: ZAGREB, kind: 'donor', times_tbd: true },
     bridges:    { label: 'Building Bridges Zagreb', short: 'Bridges Zagreb', date: '2026-12-05', start: '11:00', end: '14:00', venue: 'To be announced', address: '', city: 'Zagreb', tz: ZAGREB, kind: 'bridges', tentative: true },
-    gala:       { label: 'Gala Evening', short: 'Gala', date: '2026-12-05', start: '18:00', end: '23:30', venue: 'Hotel Esplanade', address: 'Mihanovićeva 1, Zagreb', city: 'Zagreb', tz: ZAGREB, kind: 'gala' },
+    gala:       { label: 'Gala Evening', short: 'Gala', date: '2026-12-05', start: '19:00', end: '23:59', venue: 'Hotel Esplanade', address: 'Mihanovićeva 1, Zagreb', city: 'Zagreb', tz: ZAGREB, kind: 'gala' },
     boston:     { label: 'Building Bridges — Boston', short: 'Boston', date: '2026-09-21', start: '17:30', end: '21:00', venue: 'Waterhouse Room, Gordon Hall', address: '25 Shattuck Street, Harvard Medical School, Boston, MA', city: 'Boston', tz: BOSTON_TZ, kind: 'bridges' }
 };
 

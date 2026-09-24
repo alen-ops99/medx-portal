@@ -537,7 +537,7 @@ export default {
     ensureCss();
     rootEl = root;
     D = await load();
-    if (rootEl !== root) return; // navigated away while loading
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     st = { follow: D.follow };
     root.innerHTML = template();
     unbind = ui.bind(root, handlers);

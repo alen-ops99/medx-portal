@@ -94,7 +94,7 @@
   .mx-safe-more:active { transform: translateY(1px); }
   .mx-safe-menu { animation: mx-safe-in var(--t-reveal) var(--ease) backwards; }
   .mx-safe-menu.is-up { animation-name: mx-safe-in-up; }
-  .mx-safe-menu.is-leaving { animation: mx-safe-out var(--t-exit) var(--ease) forwards; pointer-events: none; }
+  .mx-safe-menu.is-leaving { animation: mx-safe-out var(--t-exit) var(--ease-exit) forwards; pointer-events: none; }
   /* SEND REPORT without a reason: the chips give one small shake */
   .mx-safe-reasons.is-missing { animation: mx-safe-nudge var(--t-reveal) var(--ease); }
 }

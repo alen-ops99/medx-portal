@@ -1540,7 +1540,7 @@ export default {
     injectCss();
     rootEl = root;
     D = await load(false);
-    if (rootEl !== root) return;                    // navigated away while loading
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     const applyTab = ctx.params.tab === 'apply';
     const preview = ctx.query && ctx.query.preview === '1';
     if (!st) st = { follow: D.followed, notified: D.followed, host: null, faqOpen: null, cohortPage: 0, results: null, codeErr: '' };

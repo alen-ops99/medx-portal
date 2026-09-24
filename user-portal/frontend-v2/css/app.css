@@ -10,7 +10,7 @@
    ========================================================================== */
 
 /* ---- base (from the artboards' own <style> blocks) ---------------------- */
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }   /* no double-tap zoom: a tap answers at once */
 body { margin: 0; background: #f7f1e6; font-family: Inter, sans-serif; color: #191512; }
 body[data-layout="auth"] { background: #191512; }
 a { color: #9b1b22; text-decoration: none; transition: color var(--t-quick) var(--ease); }
@@ -70,7 +70,7 @@ body[data-layout="portal"] #view > [data-screen-label] { flex: 1 0 auto; min-hei
 /* ---- Portal Chrome: drawer + scrim (Portal Chrome.dc.html) --------------- */
 /* The drawer/scrim markup and inline styles are verbatim; these rules only carry the
    open/closed state that the mock expressed through {{ dx }} {{ sc }} {{ pe }}. */
-#mx-scrim { position: fixed; inset: 0; z-index: 40; transition: background-color var(--t-reveal) var(--ease); background: rgba(25,21,18,0); pointer-events: none; cursor: pointer; }
+#mx-scrim { position: fixed; inset: 0; z-index: 40; transition: background-color var(--t-reveal) var(--ease-fade); background: rgba(25,21,18,0); pointer-events: none; cursor: pointer; }
 #mx-drawer { position: fixed; top: 0; left: -312px; width: 300px; max-height: 100%; height: 100%; z-index: 41; background: #191512; color: #f7f1e6;
   transform: translateX(0px); display: flex; flex-direction: column;
   padding: calc(24px + env(safe-area-inset-top)) 0 calc(28px + env(safe-area-inset-bottom)); box-sizing: border-box; box-shadow: none; overflow-y: auto; visibility: hidden;
@@ -78,6 +78,8 @@ body[data-layout="portal"] #view > [data-screen-label] { flex: 1 0 auto; min-hei
 /* the shadow only exists while the drawer is open — closed, its 44px blur used to bleed a grey band
    down the left edge of every page (the drawer parks at left:-312px, the blur reached ~40px in) */
 body.drawer-open #mx-scrim { background: rgba(25,21,18,.45); pointer-events: auto; }
+/* a list scrolled to its end inside the menu, a sheet or a dropdown never drags the page behind it along */
+#mx-drawer, .mx-modal, .mx-search { overscroll-behavior: contain; }
 body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 44px rgba(25,21,18,.4); visibility: visible;
   transition: transform var(--t-reveal) var(--ease), box-shadow var(--t-reveal) var(--ease), visibility 0s; }
 #mx-drawer a, #mx-drawer [data-act] { transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), transform var(--t-quick) var(--ease); }
@@ -96,7 +98,7 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 /* ---- top-bar dropdowns (SEARCH / ALERTS) — no artboard; built from tokens ---- */
 .mx-pop { position: absolute; top: 60px; right: 36px; z-index: 35; width: 380px; max-width: calc(100vw - 36px); background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: 0 10px 34px rgba(25,21,18,.15); }
 .mx-pop-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid rgba(25,21,18,.16); }
-.mx-pop-list { max-height: 60vh; overflow-y: auto; }
+.mx-pop-list { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; }
 .mx-pop-row { display: flex; gap: 12px; align-items: flex-start; padding: 11px 16px; border-bottom: 1px solid rgba(25,21,18,.1); color: #191512; cursor: pointer; }
 .mx-pop-row { transition: background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
 @media (hover: hover) { .mx-pop-row:hover { background: var(--row-hover); } }
@@ -112,14 +114,16 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 /* Entrances fill `backwards` only: a finished entrance must not keep an identity transform on the panel
    (it would stay a containing block for anything fixed or sticky inside it). Exits fill `forwards`. */
 @media (prefers-reduced-motion: no-preference) {
-  .mx-pop.mx-pop-in { animation: mx-drop var(--t-reveal) var(--ease) backwards; animation-delay: var(--pop-t, 0ms); }
-  .mx-search.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease) backwards; animation-delay: var(--pop-t, 0ms); }
-  .mx-search.mx-pop-in .mx-search-panel { animation: mx-drop var(--t-reveal) var(--ease) backwards; animation-delay: var(--pop-t, 0ms); }
-  .mx-pop.mx-pop-out, .mx-search.mx-pop-out { animation: mx-fade-out var(--t-exit) var(--ease) forwards; pointer-events: none; }
+  .mx-pop.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-drop-t var(--t-settle) var(--ease-settle) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-search.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-search.mx-pop-in .mx-search-panel { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-drop-t var(--t-settle) var(--ease-settle) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-pop.mx-pop-out, .mx-search.mx-pop-out { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; pointer-events: none; }
+  .mx-pop.mx-pop-out, .mx-search.mx-pop-out .mx-search-panel { transform: translateY(-4px); transition: transform var(--t-exit) var(--ease-exit); }
 }
 /* the search panel: ↑ / ↓ move a visible active row (chrome.js › .is-active), Enter opens it */
 .mx-pop-row.is-active { background: var(--row-hover); box-shadow: inset 2px 0 0 #c9a962; }
 @keyframes mx-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes mx-drop-t { from { transform: translateY(-8px); } to { transform: none; } }
 @keyframes mx-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
 /* ---- toast (Profile.dc.html bottom toast, verbatim look) -----------------
@@ -130,9 +134,9 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(12px); background: #191512; color: #f7f1e6; padding: 12px 20px;
   font: 600 10px Inter, sans-serif; letter-spacing: .15em; text-transform: uppercase; z-index: 70; border-left: 3px solid #c9a962; white-space: normal; text-align: center; line-height: 1.5;
   width: max-content; max-width: calc(100vw - 36px); box-sizing: border-box; box-shadow: 0 14px 34px -14px rgba(25,21,18,.55);
-  opacity: 0; transition: opacity var(--t-exit) var(--ease), transform var(--t-exit) var(--ease); }
+  opacity: 0; transition: opacity var(--t-exit) var(--ease-exit), transform var(--t-exit) var(--ease-exit); }
 .mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto;
-  transition: opacity var(--t-reveal) var(--ease), transform var(--t-reveal) var(--ease); }
+  transition: opacity var(--t-reveal) var(--ease-fade), transform var(--t-settle) var(--ease-settle); }
 /* a faded toast stays in the DOM — it must never catch the taps meant for the tab bar under it */
 .mx-toast:not(.show) { pointer-events: none; }
 .mx-toast.error { border-left-color: #9b1b22; }
@@ -152,13 +156,20 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-modal-body { padding: 22px; font-size: 13px; color: #4a4239; line-height: 1.6; }
 .mx-modal-body .mx-modal-title { font-family: Fraunces, serif; font-size: 22px; line-height: 1.15; color: #191512; margin-bottom: 10px; }
 .mx-modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 0 22px 22px; flex-wrap: wrap; }
+/* a sheet rises in and settles (--ease-settle) while its scrim fades in; closing, the pair fades out on the exit
+   timing as the sheet sinks a few pixels. A sheet opened as another leaves (.is-chained, ui.modal) keeps the scrim
+   that is already there at full strength — it never dips and fades in again */
 @media (prefers-reduced-motion: no-preference) {
-  .mx-modal { animation: mx-fade var(--t-reveal) var(--ease) backwards; }
-  .mx-modal .mx-modal-sheet { animation: mx-rise var(--t-reveal) var(--ease) backwards; }
-  .mx-modal.is-leaving { animation: mx-fade-out var(--t-exit) var(--ease) forwards; pointer-events: none; }
+  .mx-modal { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
+  .mx-modal.is-chained { animation: none; }
+  .mx-modal .mx-modal-sheet { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-settle-up var(--t-settle) var(--ease-settle) backwards; }
+  .mx-modal.is-leaving { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; pointer-events: none; }
+  .mx-modal.is-leaving .mx-modal-sheet { animation: mx-sink var(--t-exit) var(--ease-exit) forwards; }
 }
 .mx-modal.is-leaving { pointer-events: none; }
 @keyframes mx-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes mx-settle-up { from { transform: translateY(16px) scale(.985); } to { transform: none; } }
+@keyframes mx-sink { to { transform: translateY(6px) scale(.99); } }
 
 /* ---- "waking up" overlay (staging backend boots for up to ~2 min) --------- */
 .mx-waking { position: fixed; inset: 0; z-index: 80; background: #191512; color: #f7f1e6; display: flex; align-items: center; justify-content: center; text-align: center; padding: 32px; }
@@ -172,6 +183,13 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 /* reduced motion: the sweep cannot run (the kill switch below stops it after one 1 ms pass, which parked it
    off the track and left an empty line that looked hung) — a still gold segment holds the track instead */
 @media (prefers-reduced-motion: reduce) { .mx-waking .bar::after { animation: none !important; transform: translateX(75%); } }
+/* it arrives and leaves as a fade (api.js hideWaking keeps it 420 ms for the exit), never a one-frame flash */
+@media (prefers-reduced-motion: no-preference) {
+  .mx-waking { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
+  .mx-waking .mx-waking-inner { animation: mx-lift-in 520ms var(--ease) 80ms backwards; }
+  .mx-waking.is-leaving { animation: mx-fade-out 400ms var(--ease-exit) forwards; }
+}
+.mx-waking.is-leaving { pointer-events: none; }
 
 /* ---- hero photo rotation (Home photo band) ------------------------------ */
 .mx-rotator img { transition: opacity var(--t-drift) var(--ease); }
@@ -394,7 +412,7 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 #view .mx-leaving { pointer-events: none; }
 body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 75; background: #c9a962; pointer-events: none;
   opacity: 0; transform: scaleX(0); transform-origin: 0 50%; }
-body.mx-holding.mx-slow #view .mx-leaving { opacity: .55; }
+body.mx-holding.mx-slow #view .mx-leaving { opacity: .7; }
 body.mx-holding.mx-slow::before { opacity: 1; transform: scaleX(.9); }
 @media (prefers-reduced-motion: no-preference) {
   body.mx-holding.mx-slow #view .mx-leaving { transition: opacity var(--t-reveal) var(--ease); }
@@ -402,6 +420,83 @@ body.mx-holding.mx-slow::before { opacity: 1; transform: scaleX(.9); }
   body.mx-held::before { opacity: 0; transform: none; transition: transform var(--t-quick) var(--ease), opacity var(--t-reveal) var(--ease) var(--t-quick); }
 }
 @media (prefers-reduced-motion: reduce) { body.mx-holding.mx-slow::before { opacity: .55; transform: none; } }
+
+/* ---- SCREEN CHANGES (router.js › ctx.ready — View Transitions: Safari and the iOS app from 18, Chrome 111+).
+   Once the new screen has its data the two screens cross over; the page never blanks in between.
+   Phones (≤500 px, the iOS app's iPhone): a step forward is the native push — the new screen slides in from the
+   right edge over the one left behind, which drifts a third of the way left and dims a little; back is the same in
+   reverse (the screen on top slides off to the right). The top bar and the tab bar hold still (the bar's title and
+   back arrow cross-fade in place); a bar that exists on one side only (the event app has none) travels with its
+   screen. Wider screens (iPad, desktop): the screens dissolve into each other while drifting a few pixels the way
+   you are going. A jump from the tab bar, the menu or the logo and another tab of a section dissolve in place;
+   dissolves keep the browser's additive blend with matched curves, so whatever the two screens share (a breadcrumb,
+   a heading, a band, the cream ground) stays perfectly still — no dip, no flash. A re-read of the same screen (pull
+   to refresh) has no crossing at all: it updates in place. Reduced motion: a plain short dissolve, nothing travels.
+   Browsers without the API keep the #view fade below. */
+/* layers of their own only for the steps that travel (a dissolve keeps whatever the two screens share still by
+   itself; WebKit also drew named bars a few hundred px off for a frame when a dissolve left a scrolled page) */
+html:is([data-mx-nav="forward"], [data-mx-nav="back"]).mx-vt-bars #mx-tabbar { view-transition-name: mx-tabbar; }
+html:is([data-mx-nav="forward"], [data-mx-nav="back"]).mx-vt-chrome body[data-layout="portal"] #chrome { view-transition-name: mx-chrome; }
+html:is([data-mx-nav="forward"], [data-mx-nav="back"]) .mx-toast { view-transition-name: mx-toast; }
+.mx-vt-tabs { view-transition-name: mx-tabs; }
+.mx-vt-tabs-in { view-transition-name: mx-tabs-in; }
+:root { --vt-push: 440ms; --vt-push-ease: cubic-bezier(.32,.72,0,1); --vt-drift: 340ms; --vt-fade: 300ms; --vt-fade-ease: cubic-bezier(.4,0,.2,1); }
+::view-transition-group(*) { animation-duration: var(--vt-drift); animation-timing-function: var(--ease); }
+/* dissolves: the default additive cross-fade, eased in and out (a front-loaded curve read as a cut) */
+::view-transition-old(root) { animation: mx-vt-fade-out var(--vt-fade) var(--vt-fade-ease) both; }
+::view-transition-new(root) { animation: mx-vt-fade-in var(--vt-fade) var(--vt-fade-ease) both; }
+/* wider screens: a dissolve that drifts the way you are going. The fade eases in and out like the other dissolves
+   (on the front-loaded --ease, 40 % of the change landed in the first frame or two); the drift keeps --ease */
+html[data-mx-nav="forward"]::view-transition-old(root) { animation: mx-vt-fade-out var(--vt-drift) var(--vt-fade-ease) both, mx-vt-drift-out-l var(--vt-drift) var(--ease) both; }
+html[data-mx-nav="forward"]::view-transition-new(root) { animation: mx-vt-fade-in var(--vt-drift) var(--vt-fade-ease) both, mx-vt-drift-in-r var(--vt-drift) var(--ease) both; }
+html[data-mx-nav="back"]::view-transition-old(root) { animation: mx-vt-fade-out var(--vt-drift) var(--vt-fade-ease) both, mx-vt-drift-out-r var(--vt-drift) var(--ease) both; }
+html[data-mx-nav="back"]::view-transition-new(root) { animation: mx-vt-fade-in var(--vt-drift) var(--vt-fade-ease) both, mx-vt-drift-in-l var(--vt-drift) var(--ease) both; }
+@keyframes mx-vt-fade-out { to { opacity: 0; } }
+@keyframes mx-vt-fade-in { from { opacity: 0; } }
+@keyframes mx-vt-drift-out-l { to { transform: translateX(-16px); } }
+@keyframes mx-vt-drift-out-r { to { transform: translateX(16px); } }
+@keyframes mx-vt-drift-in-r { from { transform: translateX(24px); } }
+@keyframes mx-vt-drift-in-l { from { transform: translateX(-24px); } }
+/* phones: the push. The screen on top is opaque and carries a soft edge shadow; the one under it dims */
+@media (max-width: 500px) {
+  html:is([data-mx-nav="forward"], [data-mx-nav="back"])::view-transition-old(root),
+  html:is([data-mx-nav="forward"], [data-mx-nav="back"])::view-transition-new(root) { mix-blend-mode: normal; }
+  html[data-mx-nav="forward"]::view-transition-old(root) { animation: mx-vt-under-l var(--vt-push) var(--vt-push-ease) both; }
+  html[data-mx-nav="forward"]::view-transition-new(root) { animation: mx-vt-over-in var(--vt-push) var(--vt-push-ease) both; box-shadow: -10px 0 28px rgba(25,21,18,.14); }
+  html[data-mx-nav="back"]::view-transition-old(root) { animation: mx-vt-over-out var(--vt-push) var(--vt-push-ease) both; z-index: 1; box-shadow: -10px 0 28px rgba(25,21,18,.14); }
+  html[data-mx-nav="back"]::view-transition-new(root) { animation: mx-vt-under-in var(--vt-push) var(--vt-push-ease) both; }
+  /* a bar on one side only rides with its screen */
+  html[data-mx-nav="forward"]::view-transition-old(*):only-child { animation: mx-vt-under-l var(--vt-push) var(--vt-push-ease) both; }
+  html[data-mx-nav="forward"]::view-transition-new(*):only-child { animation: mx-vt-over-in var(--vt-push) var(--vt-push-ease) both; }
+  html[data-mx-nav="back"]::view-transition-old(*):only-child { animation: mx-vt-over-out var(--vt-push) var(--vt-push-ease) both; }
+  html[data-mx-nav="back"]::view-transition-new(*):only-child { animation: mx-vt-under-in var(--vt-push) var(--vt-push-ease) both; }
+  html:is([data-mx-nav="forward"], [data-mx-nav="back"])::view-transition-group(*) { animation-duration: var(--vt-push); animation-timing-function: var(--vt-push-ease); }
+}
+@keyframes mx-vt-over-in { from { transform: translateX(100%); } }
+@keyframes mx-vt-over-out { to { transform: translateX(100%); } }
+@keyframes mx-vt-under-l { to { transform: translateX(-30%); filter: brightness(.9); } }
+@keyframes mx-vt-under-in { from { transform: translateX(-30%); filter: brightness(.9); } }
+/* the tab strip, drawn in the same spot: the new strip at once (its rule slides from the old tab), never a ghost of
+   the old one. Drawn elsewhere (router.js › nameTabs): the old strip fades out where it was, the new one fades in */
+::view-transition-old(mx-tabs) { animation: none; opacity: 0; }
+::view-transition-new(mx-tabs) { animation: none; }
+::view-transition-old(mx-tabs):only-child { animation: mx-vt-fade-out var(--vt-fade) var(--vt-fade-ease) both; opacity: 1; }
+::view-transition-group(mx-tabs-in) { animation: none; }
+::view-transition-new(mx-tabs-in) { animation: mx-vt-fade-in var(--vt-fade) var(--vt-fade-ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) { animation: none !important; }
+  ::view-transition-old(*) { animation: mx-vt-fade-out 160ms linear both !important; mix-blend-mode: plus-lighter !important; box-shadow: none !important; }
+  ::view-transition-new(*) { animation: mx-vt-fade-in 160ms linear both !important; mix-blend-mode: plus-lighter !important; box-shadow: none !important; }
+  ::view-transition-old(mx-tabs) { animation: none !important; opacity: 0; }
+  ::view-transition-new(mx-tabs) { animation: none !important; }
+  ::view-transition-old(mx-tabs):only-child { animation: mx-vt-fade-out 160ms linear both !important; opacity: 1; }
+}
+/* crossed over (#view.mx-vt): the crossing is the entrance, so the #view fade and the card / hero / tab-content
+   cascades stand down; the photo settle and the tab rule still run inside the new screen */
+#view.mx-vt.mx-enter { animation: none; }
+#view.mx-vt.mx-enter :is(.mx-grid-2, .mx-grid-3, .mx-grid-4, .mx-grid-5, .mx-ax-hosts, .mx-pad-hero, .mx-pad-hero-z, .mx-pad-mine) > * { animation: none; }
+#view.mx-vt.mx-enter-tab .mx-tab-in { animation: none; }
+
 .mx-tab.is-pending { color: #191512 !important; }
 .mx-tab.is-pending::after { transform: none; }
 @media (prefers-reduced-motion: no-preference) {
@@ -544,7 +639,7 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
 /* phone bar + tab bar: touch feedback while pressed (no hover on touch) */
 #mx-mobile-top [data-act], #mx-mobile-top a { transition: opacity var(--t-quick) var(--ease); }
 #mx-mobile-top [data-act]:active, #mx-mobile-top a:active { opacity: .55; }
-#mx-tabbar a { transition: background-color var(--t-quick) var(--ease); }
+#mx-tabbar a { transition: background-color var(--t-quick) var(--ease), border-color var(--t-reveal) var(--ease); }
 #mx-tabbar a > span { transition: transform var(--t-quick) var(--ease), color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease); }
 #mx-tabbar a:active { background-color: rgba(247,241,230,.06); }
 #mx-tabbar a:active > span:first-child { transform: rotate(45deg) scale(1.4) !important; }

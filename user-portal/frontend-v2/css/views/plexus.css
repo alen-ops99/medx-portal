@@ -81,13 +81,15 @@
   .mx-px-face { width: 38px; height: 38px; }
 }
 
-/* bio sheet opens and closes like every other sheet (app.css › .mx-modal): scrim fades, sheet rises a few px;
-   on close it fades out over the exit timing (plexus.js › closeBio adds .is-leaving, then redraws the block).
-   .mx-bio-in is added only when a bio is opened, so a re-draw (adding a session) stays still. */
+/* bio sheet opens and closes like every other sheet (app.css › .mx-modal): scrim fades, the sheet rises and comes
+   to rest (--ease-settle); on close the pair fades out over the exit timing as the sheet sinks a few px (plexus.js ›
+   closeBio adds .is-leaving, then redraws the block). .mx-bio-in is added only when a bio is opened, so a re-draw
+   (adding a session) stays still. */
 @media (prefers-reduced-motion: no-preference) {
-  [data-role="bio-scrim"].mx-bio-in { animation: mx-fade var(--t-reveal) var(--ease) backwards; }
-  [data-role="bio-scrim"].mx-bio-in .mx-bio-sheet { animation: mx-rise var(--t-reveal) var(--ease) backwards; }
-  [data-role="bio-scrim"].is-leaving { animation: mx-fade-out var(--t-exit) var(--ease) forwards; }
+  [data-role="bio-scrim"].mx-bio-in { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
+  [data-role="bio-scrim"].mx-bio-in .mx-bio-sheet { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-settle-up var(--t-settle) var(--ease-settle) backwards; }
+  [data-role="bio-scrim"].is-leaving { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; }
+  [data-role="bio-scrim"].is-leaving .mx-bio-sheet { animation: mx-sink var(--t-exit) var(--ease-exit) forwards; }
 }
 [data-role="bio-scrim"].is-leaving { pointer-events: none; }
 

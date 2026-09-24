@@ -115,7 +115,11 @@ function boot() {
     if (!location.pathname.startsWith('/app/auth/signin')) router.replace('/app/auth/signin');
   });
   router.addAll(ROUTES).notFound(NOT_FOUND)
-    .hook('beforeRender', ({ route, title }) => { state.set({ viewTitle: (route && route.title) || '' }); chrome.closeDrawer(); chrome.closePopover(); })
+    // leave: the moment a screen is left (the menu and the popovers close at once); beforeRender: the moment the new
+    // screen draws (the bar title changes with it, not while the old screen is still waiting for data)
+    .hook('leave', () => { chrome.closeDrawer(); chrome.closePopover(); ui.closeModals(); })
+    .hook('settle', () => chrome.drawerSettled())
+    .hook('beforeRender', ({ route, title }) => { state.set({ viewTitle: (route && route.title) || '', shownPath: location.pathname }); })
     .hook('afterRender', ({ title }) => { if (title) state.set({ viewTitle: title }); });
   chrome.mount();
   router.start().then(() => { after.forEach(fn => { try { fn(); } catch (e) { console.error('[boot] entry handler failed', e); } }); });

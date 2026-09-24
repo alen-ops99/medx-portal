@@ -161,7 +161,7 @@ export function openMenu(anchor, items) {
     if (focusBack && anchor.isConnected) anchor.focus();
     if (ui.reducedMotion()) { el.remove(); return; }
     el.classList.add('is-leaving');
-    setTimeout(() => el.remove(), 170);
+    setTimeout(() => el.remove(), 230);   // the exit (--t-exit) and a frame
   }
   menu = { el, anchor, close };
   document.addEventListener('pointerdown', onDown, true);

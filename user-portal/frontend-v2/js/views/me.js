@@ -687,7 +687,7 @@ export default {
     // /app/me/rewards is gone with the points economy — a bookmarked URL lands on the wallet (no dead route)
     const view = tab === 'certificates' ? 'certificates' : 'wallet';
     D = await load(view === 'certificates' ? 'certificates' : '');
-    if (rootEl !== root) return;
+    if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     st = {
       view, tab: ctx.query && ctx.query.qa === 'past' ? 'past' : 'cur',
       cardBack: !!(ctx.query && (ctx.query.open === 'qr' || ctx.query.view === 'ticket')),

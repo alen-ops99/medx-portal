@@ -21,10 +21,17 @@ export class ApiError extends Error {
 
 const BACKOFF_MS = [2000, 3000, 5000, 8000, 10000];
 const WAKE_MAX_MS = 4 * 60 * 1000;
-let wakeOverlay = null;
+let wakeOverlay = null, wakeLeaving = null;
 let wakeStartedAt = 0;
 
+// The overlay fades in over the screen and fades away once the backend answers (css app.css › .mx-waking) — it used
+// to appear and vanish in one frame, a black flash on a cream screen. A new wait during its exit takes it back.
 function showWaking(payload) {
+  if (wakeLeaving && !wakeLeaving.isConnected) { clearTimeout(wakeLeaving._t); wakeLeaving = null; }   // a screen change took it
+  if (!wakeOverlay && wakeLeaving) {                // still fading out: it comes back as it is, never a second overlay
+    clearTimeout(wakeLeaving._t); wakeLeaving.classList.remove('is-leaving');
+    wakeOverlay = wakeLeaving; wakeLeaving = null;
+  }
   if (!wakeOverlay) {
     wakeOverlay = document.createElement('div');
     wakeOverlay.className = 'mx-waking';
@@ -49,7 +56,15 @@ function showWaking(payload) {
     st.textContent = (cfg.isStaging ? 'STAGING · ' : '') + (bits.join(' · ') || 'CONNECTING');
   }
 }
-function hideWaking() { if (wakeOverlay) { wakeOverlay.remove(); wakeOverlay = null; } wakeStartedAt = 0; }
+function hideWaking() {
+  const el = wakeOverlay; wakeOverlay = null; wakeStartedAt = 0;
+  if (!el) return;
+  let calm = false; try { calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (calm) { el.remove(); return; }
+  el.classList.add('is-leaving');
+  wakeLeaving = el;
+  el._t = setTimeout(() => { el.remove(); if (wakeLeaving === el) wakeLeaving = null; }, 420);
+}
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function buildUrl(path) {

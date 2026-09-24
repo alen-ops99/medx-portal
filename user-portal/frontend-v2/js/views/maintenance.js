@@ -13,7 +13,8 @@ export const layout = 'bare';
 
 export default {
   title: 'Back shortly',
-  render(root) {
+  async render(root, ctx) {
+    if (ctx && ctx.ready && !(await ctx.ready())) return;   // the router moved on
     root.innerHTML = `
 <div data-screen-label="System Pages" style="font-family:Inter,sans-serif;color:#191512;min-height:100vh">
   <!-- dc: System Pages.dc.html › "02 · MAINTENANCE" -->

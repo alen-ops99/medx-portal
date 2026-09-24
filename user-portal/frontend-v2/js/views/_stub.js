@@ -13,7 +13,8 @@ import { esc } from '../ui.js';
 export function makeStub({ source, title, headline, tabs = [], eyebrow = 'COMING SOON', note }) {
   return {
     title,
-    render(root, ctx) {
+    async render(root, ctx) {
+      if (ctx && ctx.ready && !(await ctx.ready())) return;   // the router moved on
       const tab = ctx.params && (ctx.params.tab || ctx.params.view);
       const active = tabs.find(t => t.key === (tab || '')) || tabs[0];
       root.innerHTML = `
