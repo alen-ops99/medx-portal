@@ -22,10 +22,11 @@ let hooks = { leave: null, settle: null, beforeRender: null, afterRender: null, 
 // first write) snapshots it and the two screens cross over — forward slides in from the right, back from the left
 // (phones: the native push; wider screens: a drifting dissolve), a tab bar / menu jump or another tab cross-fades —
 // while the tab bar holds still, and the top bar too when both screens are at their top (css app.css › SCREEN
-// CHANGES). A touch during a crossing ends it and reaches the new screen: it never holds a tap back. A re-read of the
+// CHANGES). A tap during a crossing ends it and reaches the new screen: it never holds a tap back. A re-read of the
 // same screen updates in place. Without the API, or before the first screen, the #view fade (.mx-enter) remains.
+// A Back the browser animated itself (an edge swipe) gets neither: the new screen simply appears.
 let navIdx = 0;       // this history entry's place in the session (history.state.idx): back vs forward on popstate
-let nextDir = null;   // 'forward' | 'back' | 'fade' — set by navigate() / popstate for the resolve that follows
+let nextDir = null;   // 'forward' | 'back' | 'fade' | 'none' (the browser animated it) — set by navigate() / popstate
 let navHint = null;   // 'fade' when the tab bar, the menu or the logo started the navigation (a jump, not a step)
 let vtNow = null;     // the view transition under way, if any
 const waitedSheets = new WeakSet();   // a view stylesheet is waited for once at most (a 404 must not slow every screen)
@@ -79,20 +80,25 @@ export const router = {
     }
     return null;
   },
-  navigate(to, { replace = false, state: st = null } = {}) {
+  navigate(to, { replace = false, state: st = null, back = false } = {}) {
     if (/^https?:\/\//i.test(to)) { window.location.assign(to); return; }
     const url = new URL(to, window.location.origin);
     if (isServerPath(url.pathname)) { window.location.assign(url.href); return; }
+    const here = location.pathname + location.search + location.hash, there = url.pathname + url.search + url.hash;
     // the screen already open (a tap on its own tab or link): a navigation like any other, but it replaces this
     // history entry instead of stacking a second copy of it (Back then leaves the screen, never shows it again)
-    if (!replace && url.pathname + url.search + url.hash === location.pathname + location.search + location.hash) replace = true;
+    if (!replace && there === here) replace = true;
+    // a link that means Back ('← PORTAL', a breadcrumb's parent — data-dir="back") to the screen this one was opened
+    // from IS Back: the browser's own step, so history never loops and that screen returns where it was left. To
+    // anywhere else it is a new entry that still moves back (it comes in from the left)
+    if (back && !replace && navIdx > 0 && history.state && history.state.from === there) { history.back(); return; }
     // remember where the current entry was scrolled before leaving it
     try { history.replaceState(Object.assign({}, history.state || {}, { scrollY: window.scrollY, idx: navIdx }), '', location.href); } catch (e) {}
     const idx = replace ? navIdx : navIdx + 1;
-    const entry = Object.assign({ scrollY: 0, idx }, st || {});
-    try { history[replace ? 'replaceState' : 'pushState'](entry, '', url.pathname + url.search + url.hash); } catch (e) { window.location.assign(url.href); return; }
+    const entry = Object.assign({ scrollY: 0, idx, from: replace ? (history.state || {}).from : here }, st || {});
+    try { history[replace ? 'replaceState' : 'pushState'](entry, '', there); } catch (e) { window.location.assign(url.href); return; }
     navIdx = idx;
-    nextDir = replace ? 'fade' : 'forward';
+    nextDir = replace ? 'fade' : back ? 'back' : 'forward';
     return this.resolve({ popped: false });
   },
   replace(to) { return this.navigate(to, { replace: true }); },
@@ -103,6 +109,7 @@ export const router = {
     const query = parseQuery(location.search);
     const bare = !nextDir;                                   // a bare resolve() (pull to refresh, resume) is a re-read
     const dir = nextDir || (popped ? 'fade' : 'forward');
+    const appear = dir === 'none';                           // the browser already animated this Back: no motion of ours
     const hint = navHint; nextDir = null; navHint = null;
     let hit = this.match(pathname);
     let route = hit ? hit.route : null, params = hit ? hit.params : {};
@@ -198,7 +205,9 @@ export const router = {
       if (seq !== this._seq) return false;
       // a re-read updates in place: what did not change stays pixel-still, what did simply shows its new state.
       // (A snapshot cross-fade here ghosted: the page is often still moving — the pull's bounce — when data lands)
-      if (!hold || reread || !canCross()) { stage(); return true; }
+      // After a Back the browser animated (iPhone Safari's edge swipe, Android's back gesture) the screen simply
+      // appears too: a crossing of our own would replay the step the finger just made
+      if (!hold || reread || appear || !canCross()) { stage(); return true; }
       return new Promise(resolve => {
         const html = document.documentElement;
         let t = null;
@@ -256,9 +265,10 @@ export const router = {
     // only the content around them rises in, so a tab change reads as a tab change, not a page load.
     // Crossed over by a view transition (.mx-vt): the crossing is the entrance, so only the tab rule and the
     // photo settle run inside it (app.css › SCREEN CHANGES).
-    const strip = tabKey && !reread ? root.querySelector(`[data-tabs="${cssAttr(tabKey)}"]`) : null;
+    // A re-read, and a Back the browser animated, have no entrance (see ctx.ready).
+    const strip = tabKey && !reread && !appear ? root.querySelector(`[data-tabs="${cssAttr(tabKey)}"]`) : null;
     if (strip) markAround(root, strip, 'mx-tab-in');
-    if (!reread) {                                                      // a re-read has no entrance (see ctx.ready)
+    if (!reread && !appear) {
       void root.offsetWidth; root.classList.add(strip ? 'mx-enter-tab' : 'mx-enter');
       if (crossed) root.classList.add('mx-vt');
       enterTimer = setTimeout(() => root.classList.remove(...ENTER_CLASSES, 'mx-vt'), 1000);
@@ -286,27 +296,57 @@ export const router = {
     navIdx = history.state && typeof history.state.idx === 'number' ? history.state.idx : 0;
     try { history.replaceState(Object.assign({}, history.state || {}, { idx: navIdx }), '', location.href); } catch (e) {}
     // A crossing never holds a tap back. While one runs the browser hit-tests the whole page as <html> (the snapshots
-    // cover it; pointer-events on them change nothing), so a touch ends it at once (the new screen is already in
-    // place underneath) and the tap goes to what is under the finger: a touch's own click lands there by itself; a
-    // mouse click, aimed at <html> by then, is handed on
-    let cut = null;
-    document.addEventListener('pointerdown', e => {
-      if (!vtNow) return;
-      try { vtNow.skipTransition(); } catch (err) {}
-      cut = { at: performance.now() };
-    }, true);
-    document.addEventListener('click', e => {
-      if (!cut || performance.now() - cut.at > 1500) { cut = null; return; }
-      if (e.target !== document.documentElement) { cut = null; return; }
-      cut = null;
+    // cover it; pointer-events on them change nothing), so a tap or a click made during it is handed on here: it ends
+    // the crossing (the new screen is already in place underneath) and goes to what is under the finger or the
+    // pointer — a field takes focus first (a click made by script never focuses one, and the typing went nowhere),
+    // and the modifier keys travel with it (a ⌘-clicked link still opens a new tab). A mouse is handed on at its
+    // click, which lands on <html>. A finger is handed on as it lifts: iOS picks a tap's target as the finger lands
+    // (<html> here) and may then make no click at all; where the browser does make one, it lands after ours and is
+    // dropped. A finger that moves (a scroll starting) lets the crossing run to its end: snapped into place
+    // mid-slide, the new screen jumped
+    let press = null, handed = null;
+    const handOn = e => {
+      if (vtNow) { try { vtNow.skipTransition(); } catch (err) {} }
       const el = document.elementFromPoint(e.clientX, e.clientY);
-      if (!el || el === document.documentElement || el === document.body) return;
-      e.stopImmediatePropagation(); e.preventDefault();
-      el.click();
+      if (!el || el === document.documentElement || el === document.body) return false;
+      if (el.closest(':disabled')) return true;
+      // a link clicked with ⌘ / Ctrl / Shift opens in a new tab (Safari followed a click made by script in this one)
+      const link = el.closest('a[href]');
+      if (link && (e.metaKey || e.ctrlKey || e.shiftKey)) { try { window.open(link.href, '_blank', 'noopener'); } catch (err) {} return true; }
+      const label = el.closest('label');
+      const field = el.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') || (label && label.control);
+      if (field) { try { field.focus({ preventScroll: true }); } catch (err) {} }
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, view: window, detail: e.detail || 1,
+        screenX: e.screenX, screenY: e.screenY, clientX: e.clientX, clientY: e.clientY, button: 0,
+        ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey, altKey: e.altKey }));
+      return true;
+    };
+    document.addEventListener('pointerdown', e => {
+      handed = null;                                 // a new press: whatever the last tap left behind is not its click
+      press = vtNow && e.isPrimary ? { id: e.pointerId, x: e.clientX, y: e.clientY, at: performance.now(), mouse: e.pointerType === 'mouse' } : null;
     }, true);
-    window.addEventListener('popstate', () => {
+    const lift = e => {
+      const p = press;
+      if (!p || p.mouse || e.pointerId !== p.id) return;
+      if (e.type === 'pointermove') { if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 10) press = null; return; }
+      press = null;
+      if (e.type === 'pointerup' && performance.now() - p.at < 1500 && handOn(e)) handed = { at: performance.now(), x: e.clientX, y: e.clientY };
+    };
+    ['pointermove', 'pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, lift, true));
+    document.addEventListener('click', e => {
+      const h = handed, p = press;
+      if (h && e.isTrusted) {                        // the browser's own click of a tap already handed on
+        handed = null;
+        if (performance.now() - h.at < 800 && Math.hypot(e.clientX - h.x, e.clientY - h.y) < 30) { e.stopImmediatePropagation(); e.preventDefault(); return; }
+      }
+      if (!p || !p.mouse || !e.isTrusted) return;
+      press = null;
+      if (performance.now() - p.at < 1500 && e.target === document.documentElement && handOn(e)) { e.stopImmediatePropagation(); e.preventDefault(); }
+    }, true);
+    window.addEventListener('popstate', e => {
       const idx = history.state && typeof history.state.idx === 'number' ? history.state.idx : null;
-      nextDir = idx == null || idx === navIdx ? 'fade' : idx < navIdx ? 'back' : 'forward';
+      // the browser already animated this step (iPhone Safari's edge swipe, Android's back gesture): 'none'
+      nextDir = e.hasUAVisualTransition ? 'none' : idx == null || idx === navIdx ? 'fade' : idx < navIdx ? 'back' : 'forward';
       if (idx != null) navIdx = idx;
       this.resolve({ popped: true });
     });
@@ -318,8 +358,10 @@ export const router = {
       const kbd = el => e.detail === 0 && !!view && view.contains(el);   // Enter on a focused control (a mouse click has detail ≥ 1)
       // the tab bar, the menu and the logo jump between places: those screens cross-fade instead of sliding
       const jump = el => !!(el.closest && el.closest('#mx-tabbar, #mx-drawer, .mx-brand'));
+      // a link that means Back ('← PORTAL', a breadcrumb's parent) says so: data-dir="back" (see navigate)
+      const back = el => el.getAttribute('data-dir') === 'back';
       const nav = e.target.closest && e.target.closest('[data-nav]');
-      if (nav) { e.preventDefault(); refocus = kbd(nav) ? { attr: 'data-nav', to: nav.getAttribute('data-nav') } : null; navHint = jump(nav) ? 'fade' : null; this.navigate(nav.getAttribute('data-nav')); return; }
+      if (nav) { e.preventDefault(); refocus = kbd(nav) ? { attr: 'data-nav', to: nav.getAttribute('data-nav') } : null; navHint = jump(nav) ? 'fade' : null; this.navigate(nav.getAttribute('data-nav'), { back: back(nav) }); return; }
       const a = e.target.closest && e.target.closest('a[href]');
       if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
       const href = a.getAttribute('href');
@@ -330,7 +372,7 @@ export const router = {
       refocus = kbd(a) ? { attr: 'href', to: href, strip: a.closest('[data-tabs]') ? a.closest('[data-tabs]').getAttribute('data-tabs') : null } : null;
       rememberTab(a);
       navHint = jump(a) ? 'fade' : null;
-      this.navigate(url.pathname + url.search + url.hash);
+      this.navigate(url.pathname + url.search + url.hash, { back: back(a) });
     });
     return this.resolve({ popped: false });
   },
@@ -427,14 +469,17 @@ function photosDecoded(root, max) {
   return Promise.race([Promise.all(list.map(img => img.decode().catch(() => {}))), new Promise(r => setTimeout(r, max))]);
 }
 // The view's entrance animations already under way on the new screen (its first write) run to their end at once: the
-// crossing carries the screen in. What keeps going: loops (a live dot, a skeleton), the hero photo's slow settle and
-// the tab rule sliding over (app.css › SCREEN CHANGES), and anything the view starts later.
+// crossing carries the screen in. Both kinds: the css ones and those a view plays itself (sign-in, the 404 and
+// maintenance screens, through element.animate). What keeps going: loops (a live dot, a skeleton), the photo's slow
+// settle (css, or an animate() with that id) and the tab rule sliding over (app.css › SCREEN CHANGES), transitions,
+// and anything the view starts later.
 const KEEP_RUNNING = new Set(['mx-settle', 'mx-draw', 'mx-tab-slide', 'mx-knob']);
 function settleEntrances(root) {
   let list = [];
   try { list = root.getAnimations({ subtree: true }); } catch (e) { return; }
   list.forEach(a => {
-    if (typeof CSSAnimation === 'undefined' || !(a instanceof CSSAnimation) || KEEP_RUNNING.has(a.animationName)) return;
+    if (typeof CSSTransition !== 'undefined' && a instanceof CSSTransition) return;
+    if (KEEP_RUNNING.has(a.animationName || a.id)) return;
     let end = Infinity;
     try { end = a.effect.getComputedTiming().endTime; } catch (e) {}
     if (!isFinite(end)) return;

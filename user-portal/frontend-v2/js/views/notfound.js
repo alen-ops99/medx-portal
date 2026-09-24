@@ -24,8 +24,9 @@ export function enterSystem(root) {
   const play = (el, frames, opts) => { try { el.animate(frames, Object.assign({ easing: EASE, fill: 'backwards' }, opts)); } catch (e) { /* no WAAPI: stays still */ } };
   root.querySelectorAll('[data-enter="rise"] > *').forEach((el, i) =>
     play(el, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 360, delay: STAGGER[Math.min(i, STAGGER.length - 1)] }));
+  // the photo's settle is named: it runs on through a screen change, which finishes the rest (router.js › settleEntrances)
   root.querySelectorAll('[data-enter="settle"]').forEach(el =>
-    play(el, [{ transform: 'scale(1.05)' }, { transform: 'none' }], { duration: 900 }));
+    play(el, [{ transform: 'scale(1.05)' }, { transform: 'none' }], { duration: 900, id: 'mx-settle' }));
 }
 
 export default {

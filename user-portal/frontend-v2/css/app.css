@@ -158,7 +158,8 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 0 22px 22px; flex-wrap: wrap; }
 /* a sheet rises in and settles (--ease-settle) while its scrim fades in; closing, the pair fades out on the exit
    timing as the sheet sinks a few pixels. A sheet opened as another leaves (.is-chained, ui.modal) keeps the scrim
-   that is already there at full strength — it never dips and fades in again */
+   that is already there at full strength — it never dips and fades in again. The leaving one lets its own go at once
+   and fades out ABOVE it (.is-handed): one scrim on screen, and the leaving sheet never darkens under the new one */
 @media (prefers-reduced-motion: no-preference) {
   .mx-modal { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
   .mx-modal.is-chained { animation: none; }
@@ -167,6 +168,7 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   .mx-modal.is-leaving .mx-modal-sheet { animation: mx-sink var(--t-exit) var(--ease-exit) forwards; }
 }
 .mx-modal.is-leaving { pointer-events: none; }
+.mx-modal.is-leaving.is-handed { background: transparent; z-index: 61; }
 @keyframes mx-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes mx-settle-up { from { transform: translateY(16px) scale(.985); } to { transform: none; } }
 @keyframes mx-sink { to { transform: translateY(6px) scale(.99); } }

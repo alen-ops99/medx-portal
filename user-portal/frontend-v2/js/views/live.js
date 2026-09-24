@@ -562,7 +562,7 @@ function tplSkeleton({ list } = {}) {
   return `${day}${block}${block}`;
 }
 function tplShell() {
-  const back = session.isAuthed ? `<a href="/app/home" class="lv-back">${COPY.portal}</a>` : '';
+  const back = session.isAuthed ? `<a href="/app/home" class="lv-back" data-dir="back">${COPY.portal}</a>` : '';
   return `
   <div class="lv" data-screen-label="Plexus Week Live">
     <header class="lv-head" data-role="head">

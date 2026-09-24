@@ -384,7 +384,7 @@ function onSearchInput(e) {
 const handlers = {
   tg: () => chrome.toggleDrawer(),
   cl: () => chrome.closeDrawer(),
-  back: () => (history.length > 1 ? history.back() : router.navigate('/app/home')),
+  back: () => (history.length > 1 ? history.back() : router.navigate('/app/home', { back: true })),   // Home comes in from the left
   search: () => { if (popover === 'search') closePopover({ refocus: true }); else openPopover('search'); },
   alerts: async () => {
     if (popover === 'alerts') return closePopover({ refocus: true });

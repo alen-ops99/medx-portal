@@ -504,7 +504,7 @@ function certificatesTab() {
     </div>
     <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:44px;line-height:1.08">${C.title}</div>
     <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:520px;margin-top:14px">${C.lede}</div>
-    <a href="/app/me" class="mx-me-link" style="display:inline-block;margin-top:18px;font:600 10px Inter,sans-serif;letter-spacing:.16em">${C.back.replace(/&/g, '&amp;')}</a>
+    <a href="/app/me" data-dir="back" class="mx-me-link" style="display:inline-block;margin-top:18px;font:600 10px Inter,sans-serif;letter-spacing:.16em">${C.back.replace(/&/g, '&amp;')}</a>
   </div>
   <div class="mx-gutter" style="padding:10px 36px 34px">
     ${certs.length ? rows : `

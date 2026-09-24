@@ -150,7 +150,7 @@ function blockCreate() {
             <div style="display:flex;gap:16px;margin-top:16px;font-size:12px;color:#4a4239">
               <span>${c.already}<a href="/app/auth/signin" style="color:#9b1b22;font-weight:600;cursor:pointer">${c.signin}</a></span>
               <div style="flex:1"></div>
-              <a href="/app/auth/welcome" style="cursor:pointer;color:#4a4239" data-hover="color:#191512">${c.back}</a>
+              <a href="/app/auth/welcome" data-dir="back" style="cursor:pointer;color:#4a4239" data-hover="color:#191512">${c.back}</a>
             </div>
           </form>
           <!-- /dc -->`;
@@ -216,7 +216,7 @@ function blockReset() {
               <span data-act="sendReset" class="mx-auth-btn" style="margin-top:14px;padding:13px 0;border:1px solid rgba(25,21,18,.3);font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center;color:#191512;display:block" data-hover="border-color:#191512">${r.resend}</span>
               ${errorLine('error')}`}
             <div style="display:flex;margin-top:16px;font-size:12px;color:#4a4239">
-              <a href="/app/auth/signin" style="cursor:pointer;color:#4a4239" data-hover="color:#191512"><span style="white-space:nowrap">${r.back}</span></a>
+              <a href="/app/auth/signin" data-dir="back" style="cursor:pointer;color:#4a4239" data-hover="color:#191512"><span style="white-space:nowrap">${r.back}</span></a>
             </div>
           </form>
           <!-- /dc -->`;
@@ -234,7 +234,7 @@ function blockCode() {
             <button type="submit" data-act="verifyCode" class="mx-auth-btn" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${c.submit}</button>
             <div style="font-size:11.5px;color:#4a4239;margin-top:14px;line-height:1.55">${c.note}</div>
             <div style="display:flex;margin-top:14px;font-size:12px;color:#4a4239">
-              <a href="/app/auth/signin" style="cursor:pointer;color:#4a4239" data-hover="color:#191512"><span style="white-space:nowrap">${c.back}</span></a>
+              <a href="/app/auth/signin" data-dir="back" style="cursor:pointer;color:#4a4239" data-hover="color:#191512"><span style="white-space:nowrap">${c.back}</span></a>
             </div>
           </form>
           <!-- /dc -->`;
@@ -411,7 +411,8 @@ function enter(root) {
   if (ui.reducedMotion()) return;
   const play = (el, frames, opts) => { try { el.animate(frames, Object.assign({ easing: EASE, fill: 'backwards' }, opts)); } catch (e) { /* stays still */ } };
   const cascade = (els, dur) => els.forEach((el, i) => play(el, RISE, { duration: dur, delay: Math.min(i * 25, 140) }));
-  root.querySelectorAll('.mx-auth-photo').forEach(el => play(el, [{ transform: 'scale(1.05)' }, { transform: 'none' }], { duration: 900 }));
+  // the photo's settle is named: it runs on through a screen change, which finishes the rest (router.js › settleEntrances)
+  root.querySelectorAll('.mx-auth-photo').forEach(el => play(el, [{ transform: 'scale(1.05)' }, { transform: 'none' }], { duration: 900, id: 'mx-settle' }));
   cascade([...root.querySelectorAll('.mx-auth-rise > *')], 360);
   root.querySelectorAll('.mx-auth-quote > *').forEach(el => play(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: 80 }));
   // the form column: its forms (display:contents) and the name / institution pairs are opened up, so each

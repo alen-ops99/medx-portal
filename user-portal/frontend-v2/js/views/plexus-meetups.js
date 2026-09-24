@@ -186,7 +186,7 @@ function crumb(items) {
   <!-- v2: breadcrumb (Plexus Conference.dc.html › "Breadcrumb" idiom) -->
   <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
     ${items.map((it, i) => (i ? sep + '\n    ' : '') + (it.to
-      ? `<a href="${it.to}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${it.label}</a>`
+      ? `<a href="${it.to}" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${it.label}</a>`
       : `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:${i ? '#191512' : '#4a4239'}">${it.label}</span>`)).join('\n    ')}
     <div style="flex:1"></div>
   </div>

@@ -188,7 +188,7 @@ function blockCrumb() {
   return `
   <!-- dc: Building Bridges.dc.html › "Breadcrumb" -->
   <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <a href="/app/projects" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.left}</a>
+    <a href="/app/projects" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.left}</a>
     <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.right}</span>
     <div style="flex:1"></div>

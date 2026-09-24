@@ -7,6 +7,7 @@ import { ui } from './ui.js';
 import router from './router.js';
 import { ROUTES, NOT_FOUND } from './routes.js';
 import { chrome } from './chrome.js';
+import { closeMenu as closeSafetyMenu } from './views/_safety.js';
 
 // Legacy hash routes (user-portal/frontend/index.html `#up-section-<id>` / staff `#section-<id>` / plain
 // `#<id>`) → v2 routes. Anything not listed keeps the current path.
@@ -115,9 +116,10 @@ function boot() {
     if (!location.pathname.startsWith('/app/auth/signin')) router.replace('/app/auth/signin');
   });
   router.addAll(ROUTES).notFound(NOT_FOUND)
-    // leave: the moment a screen is left (the menu and the popovers close at once); beforeRender: the moment the new
-    // screen draws (the bar title changes with it, not while the old screen is still waiting for data)
-    .hook('leave', () => { chrome.closeDrawer(); chrome.closePopover(); ui.closeModals(); })
+    // leave: the moment a screen is left (the menu, the popovers, the sheets and the ⋯ REPORT / BLOCK menu close at
+    // once); beforeRender: the moment the new screen draws (the bar title changes with it, not while the old screen
+    // is still waiting for data)
+    .hook('leave', () => { chrome.closeDrawer(); chrome.closePopover(); ui.closeModals(); closeSafetyMenu(false); })
     .hook('settle', () => chrome.drawerSettled())
     .hook('beforeRender', ({ route, title }) => { state.set({ viewTitle: (route && route.title) || '', shownPath: location.pathname }); })
     .hook('afterRender', ({ title }) => { if (title) state.set({ viewTitle: title }); });

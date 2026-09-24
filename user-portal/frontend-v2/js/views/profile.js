@@ -184,7 +184,7 @@ function blockCrumbs() {
   return `
   <!-- dc: Profile.dc.html › "Breadcrumb" -->
   <div class="mx-profile-pad" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <a href="/app/me" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em">${COPY.crumbs.my}</a>
+    <a href="/app/me" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em">${COPY.crumbs.my}</a>
     <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
     <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumbs.here}</span>
   </div>

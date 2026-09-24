@@ -178,8 +178,11 @@ function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOn
   const opener = document.activeElement;
   wrap.className = 'mx-modal';
   // a sheet opened as another one leaves (REPORT from a profile, a confirm after a menu): the scrim is already
-  // there, so it stays at full strength instead of dipping and fading in again; only the new sheet rises
-  if (document.querySelector('body > .mx-modal.is-leaving')) wrap.classList.add('is-chained');
+  // there, so it stays at full strength instead of dipping and fading in again; only the new sheet rises. The
+  // leaving sheet hands its scrim over at once and fades out above the new one (.is-handed): two scrims stacked, or
+  // the new scrim over the old sheet, read as the screen dipping dark
+  const leaving = document.querySelectorAll('body > .mx-modal.is-leaving');
+  if (leaving.length) { wrap.classList.add('is-chained'); leaving.forEach(n => n.classList.add('is-handed')); }
   const lid = 'mx-modal-l' + (++modalSeq);
   wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('aria-labelledby', lid);
   wrap.innerHTML = `

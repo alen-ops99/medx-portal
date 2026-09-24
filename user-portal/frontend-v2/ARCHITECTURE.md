@@ -171,7 +171,7 @@ router.replace('/app/home');                  // replaceState + render
 router.back();  router.path;  router.current  // { module, root, path }
 ```
 Route table rows (`js/routes.js`): `{ path, view: () => import('./views/x.js'), auth, guestTo, layout, active, title }`. `path` supports `:param` and `:param?`. Guards: `auth: true` → guests go to `/app/auth/signin?next=…` (or `guestTo`); a view can bounce signed-in users itself (auth.js does). `layout`: `portal` (chrome) · `auth` (ink ground, no chrome) · `bare` (cream, no chrome). `active` = drawer highlight key (`Home · Plexus · Meetups · Gala · Accelerator · Forum · Bridges · Network · My Med&X`).
-Link handling is global: `<a href="/app/…">` and `[data-nav="/app/…"]` route client-side; server paths and external links fall through to a full load. Scroll: back/forward restores, forward navigation scrolls to top, `#hash` targets scroll into view.
+Link handling is global: `<a href="/app/…">` and `[data-nav="/app/…"]` route client-side; server paths and external links fall through to a full load. Scroll: back/forward restores, forward navigation scrolls to top, `#hash` targets scroll into view. A link that means Back (`← PORTAL`, a breadcrumb's parent) carries `data-dir="back"` (or `router.navigate(to, { back: true })`): when it leads to the entry just before, it is a real `history.back()`; otherwise it pushes with the back crossing.
 
 ### 3.7 `js/chrome.js`
 ```js

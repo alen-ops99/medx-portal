@@ -111,7 +111,10 @@ with sync_playwright() as p:
         people.filter(has_text='Kellis').first.click(); page.wait_for_timeout(500)
         sheet = page.locator('.lv-sheet')
         check(sheet.count() == 1 and 'Kellis' in (sheet.text_content() or ''), f'[{name}] tapping a speaker opens their sheet')
-        page.keyboard.press('Escape'); page.wait_for_timeout(300)
+        page.keyboard.press('Escape')
+        # the sheet sinks out before it is removed (live.js closeSheet): wait for it to be gone, not a fixed time
+        try: page.wait_for_selector('.lv-sheet-wrap', state='detached', timeout=2000)
+        except Exception: pass
         check(page.locator('.lv-sheet-wrap').count() == 0, f'[{name}] Escape closes the sheet')
 
         # INFO
