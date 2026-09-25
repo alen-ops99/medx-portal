@@ -15,6 +15,10 @@
 //   ui.revealOnScroll(root);                              // sections below the fold rise in on scroll (router, views with reveal: true)
 //   const release = ui.trapFocus(sheetEl);                // Tab / Shift+Tab stay inside a dialog until release()
 //   ui.hideToast();                                       // take a toast down early (a screen that owned it is leaving)
+//   ui.portrait({ name, src, size: 64 })                  // a person: circle 32/44/64/96, initials when no photo or a broken one
+//   ui.icon('calendar', 20)                               // a line icon (js/icons.js)
+
+import { iconSvg } from './icons.js';
 
 export function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -30,6 +34,24 @@ export function initials(name) {
 }
 export function monogram(name, size = 40) {
   return `<span class="mx-mono" aria-hidden="true" style="font-size:${Number(size) || 40}px">${esc(initials(name))}</span>`;
+}
+
+// ONE way to draw a person (DESIGN-RULES §4): always a circle, in one of four sizes — 32 top bar / thread header ·
+// 44 inbox, team and alert rows · 64 directory and speaker rows · 96 speaker cards, person sheet, profile header.
+// The initials sit under the photo and show while it loads; a photo that fails is removed by the delegated
+// error listener (installDelegates), so the initials take over — never an empty or black box.
+// `ring` = a 1px gold ring (featured speakers on ink only). `src` is used as given (member uploads: api.url(…)).
+const PIC_SIZES = [32, 44, 64, 96];
+export function portrait({ name = '', src = '', size = 64, ring = false, alt } = {}) {
+  const n = Number(size) || 64;
+  const sz = PIC_SIZES.includes(n) ? n : PIC_SIZES.reduce((a, b) => Math.abs(b - n) < Math.abs(a - n) ? b : a);
+  const label = alt == null ? name : alt;
+  const img = src ? `<img data-pic src="${esc(src)}" alt="${esc(label)}" loading="lazy" decoding="async">` : '';
+  return `<span class="mx-pic mx-pic-${sz}${ring ? ' is-ring' : ''}"${src ? '' : ` role="img" aria-label="${esc(label)}"`}><span class="mx-pic-i" aria-hidden="true">${esc(initials(name))}</span>${img}</span>`;
+}
+// a photo that never loaded (404, blocked, bad file) leaves the circle: the initials beneath show
+function dropBrokenPic(img) {
+  if (img && img.matches && img.matches('img[data-pic]') && img.parentNode) img.remove();
 }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -316,7 +338,7 @@ function revealOnScroll(root) {
   const vh = window.innerHeight || document.documentElement.clientHeight || 800;
   const blocks = [];
   for (const el of screen.children) {
-    if (el.classList.contains('mx-gutter') && el.childElementCount > 1 && !el.matches('.mx-crumbs, [data-tabs]')) blocks.push(...el.children);
+    if ((el.classList.contains('mx-gutter') || el.classList.contains('mx-p')) && el.childElementCount > 1 && !el.matches('.mx-crumbs, [data-tabs]')) blocks.push(...el.children);
     else blocks.push(el);
   }
   const hide = blocks.filter(el => {
@@ -433,6 +455,8 @@ function installDelegates() {
     if (el.matches('a, button, input, textarea, select')) return;
     e.preventDefault(); el.click();
   });
+  // ui.portrait: a photo that fails is dropped, so the circle shows its initials (error does not bubble: capture)
+  document.addEventListener('error', e => dropBrokenPic(e.target), true);
   // iOS only applies :active (the press feedback in app.css) when a touchstart listener exists
   document.addEventListener('touchstart', () => {}, { passive: true });
   installPress();
@@ -536,6 +560,7 @@ const FADE_SKIP = '.mx-rotator, .mx-hero-photo, .mx-brand, #mx-drawer, #mx-mobil
 function fadeImages(root) {
   if (!root || !root.nodeType || root.nodeType !== 1) return;
   const list = root.tagName === 'IMG' ? [root] : [...root.querySelectorAll('img')];
+  list.forEach(img => { if (img.complete && img.naturalWidth === 0 && img.hasAttribute('data-pic') && img.getAttribute('src')) dropBrokenPic(img); });
   // a photo still arriving decodes off the main thread: a screen change never waits (or stalls) on a large JPEG
   list.forEach(img => { if (!img.complete && !img.hasAttribute('decoding')) img.decoding = 'async'; });
   const wait = list.filter(img => !img.complete && !img.classList.contains('mx-img-in') && img.closest(FADE_SCOPE) && !img.closest(FADE_SKIP));
@@ -550,7 +575,9 @@ function fadeImages(root) {
   });
 }
 
-export const ui = { toast, hideToast, trapFocus, returnFocus, modal, closeModals, lightbox, confirm, countdown, tick, toggleSwitch, flipSwitch, revealOnScroll, reducedMotion, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials,
+export const ui = { toast, hideToast, trapFocus, returnFocus, modal, closeModals, lightbox, confirm, countdown, tick, toggleSwitch, flipSwitch, revealOnScroll, reducedMotion, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials, portrait,
+  // a line icon from js/icons.js (1.5 stroke, currentColor), decorative: ui.icon('calendar') · ui.icon('chevron-right', 16)
+  icon: (name, size = 20, cls = '') => iconSvg(name, size, cls),
   lockScroll(on) { document.body.style.overflow = on ? 'hidden' : ''; },
   // quick DOM helper
   h(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }

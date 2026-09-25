@@ -65,6 +65,22 @@
   /* a list row under the pointer (alerts, search results, thread list, directory, pickers). Translucent
      ink, so it reads the same on the card cream and on the page cream */
   --row-hover: rgba(25,21,18,.04);
+
+  /* PHONE CALM type scale (DESIGN-RULES §2) — nothing on screen is drawn below --fs-label */
+  --fs-display: 34px;   /* hero title */
+  --fs-title1: 30px;    /* large screen title (root screens) */
+  --fs-title2: 22px;    /* feature card title, sheet title */
+  --fs-title3: 18px;    /* list-row and card titles, names */
+  --fs-body: 16px;      /* running text, inputs */
+  --fs-2nd: 14px;       /* secondary lines, roles, meta */
+  --fs-label: 12px;     /* eyebrows, tags, section heads, field labels — the floor */
+  --fs-btn: 13px;       /* button text */
+  --fs-num: 40px;       /* countdown, stat tiles */
+  /* 4-point spacing grid */
+  --sp-4: 4px; --sp-8: 8px; --sp-12: 12px; --sp-16: 16px; --sp-20: 20px; --sp-24: 24px; --sp-32: 32px; --sp-48: 48px;
+  --gutter-p: 20px;     /* phone page gutter */
+  --pic-ring: rgba(25,21,18,.12);   /* hairline around a person's circle on cream */
+  --tap: 44px;          /* smallest touch target */
 }
 @supports (animation-timing-function: linear(0, 1)) {
   :root { --ease-settle: linear(0, 0.04, 0.136, 0.259, 0.39, 0.515, 0.627, 0.724, 0.803, 0.866, 0.915, 0.951, 0.976, 0.994, 1.005, 1.011, 1.014, 1.015, 1.015, 1.013, 1.011, 1.009, 1.007, 1.005, 1.003, 1.001, 1); }
@@ -83,9 +99,9 @@
 .eyebrow-t    { font: 600 14px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
 .eyebrow-s    { font-size: 12.5px; color: var(--soft); }
 
-/* buttons — crimson filled / hairline ghost / gold filled; uppercase micro text; never wrap */
+/* buttons — crimson filled / hairline ghost / gold filled; uppercase 13px text (phone calm scale); never wrap */
 .btn-primary, .btn-ghost, .btn-gold, .btn-ghost-ink {
-  display: inline-block; padding: 12px 20px; font: 600 10.5px var(--font-ui); letter-spacing: .16em;
+  display: inline-block; padding: 13px 22px; font: 600 var(--fs-btn) var(--font-ui); letter-spacing: .12em;
   text-transform: uppercase; text-decoration: none; cursor: pointer; white-space: nowrap; border-radius: var(--radius);
   border: 0; line-height: normal; text-align: center; box-sizing: border-box;
 }
@@ -106,6 +122,14 @@
   .btn-gold:hover { background: var(--gold-btn-hover); color: var(--ink); }
 }
 .btn-primary[disabled], .btn-ghost[disabled], .btn-gold[disabled] { opacity: .55; cursor: default; }
+/* a filled primary on a phone is full width inside the gutter and 48 tall; .btn-block asks for that everywhere */
+.btn-block { display: flex !important; width: 100%; align-items: center; justify-content: center; gap: 10px; min-height: 48px; }
+.btn-sm { padding: 0 14px !important; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-label) !important; }
+.btn-primary .mx-ic, .btn-ghost .mx-ic, .btn-gold .mx-ic, .btn-ghost-ink .mx-ic { flex: none; }
+@media (max-width: 500px) {
+  .btn-primary, .btn-ghost, .btn-gold, .btn-ghost-ink { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; }
+  .btn-sm { min-height: 36px; }
+}
 
 /* card — cream sheet with a 1px hairline; no shadow, no radius */
 .card         { background: var(--card); border: 1px solid var(--hair); box-sizing: border-box; }
@@ -125,24 +149,25 @@
 .toggle.on    { background: var(--crimson); }
 .toggle.on::after { transform: translateX(16px); }
 
-/* chips — square, hairline, crimson when selected (newsletter topics, specialties) */
-.chip         { display: inline-block; padding: 5px 9px; border: 1px solid rgba(25,21,18,.22); background: transparent; color: var(--ink);
-                font: 600 8.5px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+/* chips — square, hairline, crimson when selected (newsletter topics, specialties): 14px sentence case, 36 tall */
+.chip         { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border: 1px solid rgba(25,21,18,.22); background: transparent; color: var(--ink);
+                font: 500 var(--fs-2nd) var(--font-ui); letter-spacing: 0; text-transform: none; cursor: pointer; white-space: nowrap; box-sizing: border-box; }
 .chip         { transition: background-color var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease), color var(--t-quick) var(--ease); }
 .chip.on      { border-color: var(--crimson); background: var(--crimson); color: var(--cream); }
 @media (hover: hover) { .chip:not(.on):hover { border-color: var(--ink); } }
 
 /* inputs — card cream fill, hairline, crimson focus outline (Auth / Profile vocabulary) */
-.input        { border: 1px solid rgba(25,21,18,.25); background: #fdfaf3; padding: 11px 12px; font: 13px var(--font-ui); color: var(--ink); width: 100%; box-sizing: border-box; border-radius: 0; }
+.input        { border: 1px solid rgba(25,21,18,.25); background: #fdfaf3; padding: 13px 14px; font: var(--fs-body) var(--font-ui); color: var(--ink); width: 100%; box-sizing: border-box; border-radius: 0; min-height: 52px; }
+textarea.input { min-height: 104px; line-height: 1.5; }
 .input        { transition: border-color var(--t-quick) var(--ease); }
 @media (hover: hover) { .input:hover { border-color: rgba(25,21,18,.45); } }
 .input:focus  { outline: 1px solid var(--crimson); outline-offset: -1px; }
-.label        { font: 600 10px var(--font-ui); letter-spacing: .14em; color: var(--soft); text-transform: uppercase; }
+.label        { font: 600 var(--fs-label) var(--font-ui); letter-spacing: .12em; color: var(--soft); text-transform: uppercase; }
 
-/* empty-state voice: italic Fraunces line + one sentence + one CTA */
-.empty        { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 30px 22px 32px; }
-.empty-line   { font-family: var(--font-display); font-style: italic; font-size: 17px; }
-.empty-why    { font-size: 12.5px; color: var(--soft); max-width: 400px; line-height: 1.55; }
+/* empty-state voice: italic Fraunces line + one sentence + at most one ghost action (compact) */
+.empty        { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 20px 30px; }
+.empty-line   { font-family: var(--font-display); font-style: italic; font-size: var(--fs-title3); line-height: 1.3; }
+.empty-why    { font-size: var(--fs-2nd); color: var(--soft); max-width: 400px; line-height: 1.45; }
 
 /* striped placeholder (spots awaiting real content) */
 .placeholder  { border: 1px dashed rgba(25,21,18,.3); background: repeating-linear-gradient(45deg, rgba(25,21,18,.05) 0 8px, transparent 8px 16px);
