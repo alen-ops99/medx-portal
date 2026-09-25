@@ -13,12 +13,20 @@ const path = require('path');
  *                      rows still match), and
  *   (c) its tagged people (owner request, same day: "let us tag more than one person"): any
  *                      v2_task_people row of the task whose member_id is a team_members row of
- *                      the caller (same user_id join). The redesign portal writes that table
- *                      (assigned_to stays its first tagged person); this portal only reads it, so
- *                      a second tagged person sees the task here too.
+ *                      the caller (same user_id join), but ONLY while the tag rows are live, i.e.
+ *                      assigned_to is one of them. The redesign portal writes the tag set
+ *                      (assigned_to stays its first tagged person). This portal knows one person
+ *                      per task, so its writers keep the set to that one person whenever they move
+ *                      assigned_to (setTaskPeople below, the same thing the redesign tree's copies
+ *                      of these routes do). Tag rows whose assigned_to is missing from them were
+ *                      left by a one-person writer that did not do this (an older deploy): they are
+ *                      stale and grant nothing, and the task is its one assignee's (fail closed),
+ *                      the same rule the redesign applies to the same rows.
  * A subtask follows its parent task. There is NO founder, president or section override.
  * A task the caller cannot see answers exactly like a missing one (same 404, same body) on reads
- * AND writes, so its existence never leaks. Reassigning or untagging moves visibility with it.
+ * AND writes, so its existence never leaks. Reassigning, unassigning or untagging moves
+ * visibility with it: a hand-off on this portal leaves the task to the new person (and its
+ * creator) only.
  *
  * Both portals read the same database, so every task reader in both servers goes through here,
  * and so does every side channel that used to carry task text (Action Center nudges, the audit
@@ -50,7 +58,8 @@ const TASK_PEOPLE_DDL = `CREATE TABLE IF NOT EXISTS v2_task_people (
  * FROM clause) the user may see. Always alias the outer project_tasks table.
  *   const v = visibleTaskSql('pt', req.user.id);
  *   query.all(`SELECT pt.* FROM project_tasks pt WHERE pt.project = ? AND ${v.sql}`, [p, ...v.params]);
- * Tags are read on the TOP-level task, so a subtask follows its parent's people.
+ * Tags are read on the TOP-level task, so a subtask follows its parent's people, and they count
+ * only while the top-level task's assigned_to is among them (live tag rows, see (c) above).
  */
 function visibleTaskSql(alias, userId) {
     const a = alias || 'pt';
@@ -60,9 +69,11 @@ function visibleTaskSql(alias, userId) {
                 WHERE vis_top.id = COALESCE(NULLIF(${a}.parent_id, ''), ${a}.id)
                   AND (vis_top.created_by = ?
                        OR vis_top.assigned_to IN (SELECT vis_tm.id FROM team_members vis_tm WHERE vis_tm.user_id = ?)
-                       OR EXISTS (SELECT 1 FROM v2_task_people vis_tp
-                                  JOIN team_members vis_ptm ON vis_ptm.id = vis_tp.member_id
-                                  WHERE vis_tp.task_id = vis_top.id AND vis_ptm.user_id = ?)))`,
+                       OR (EXISTS (SELECT 1 FROM v2_task_people vis_tp
+                                   JOIN team_members vis_ptm ON vis_ptm.id = vis_tp.member_id
+                                   WHERE vis_tp.task_id = vis_top.id AND vis_ptm.user_id = ?)
+                           AND EXISTS (SELECT 1 FROM v2_task_people vis_tp0
+                                       WHERE vis_tp0.task_id = vis_top.id AND vis_tp0.member_id = vis_top.assigned_to))))`,
         params: [uid, uid, uid]
     };
 }
@@ -73,6 +84,39 @@ function visibleTaskSql(alias, userId) {
  *   db.run(taskVis.FORGET_TASK_PEOPLE_SQL, [id, id]);
  */
 const FORGET_TASK_PEOPLE_SQL = 'DELETE FROM v2_task_people WHERE task_id = ? OR task_id IN (SELECT id FROM project_tasks WHERE parent_id = ?)';
+
+/**
+ * Write the people on task `taskId`: exactly `memberIds` (first = assigned_to; [] = no one). Rows
+ * for people who stay keep their added_at, new rows are inserted in the order given, everyone
+ * else's row goes, and assigned_to is set to the first. `run(sql, params)` is the caller's writer.
+ * The same function, body and table as the redesign tree's setTaskPeople (the database is shared).
+ * This portal is a one-person writer: it passes [assignee] when it creates a task with one, and
+ * [newAssignee] (or [] on an unassign) whenever a PUT moves assigned_to, so a hand-off here leaves
+ * the task to exactly the new person. A PUT that leaves assigned_to alone never touches the tags.
+ */
+function setTaskPeople(run, taskId, memberIds, addedBy, nowIso) {
+    const ids = [];
+    for (const m of memberIds || []) { const s = m == null ? '' : String(m); if (s && !ids.includes(s)) ids.push(s); }
+    const now = nowIso || new Date().toISOString();
+    if (ids.length) run(`DELETE FROM v2_task_people WHERE task_id = ? AND member_id NOT IN (${ids.map(() => '?').join(',')})`, [String(taskId), ...ids]);
+    else run('DELETE FROM v2_task_people WHERE task_id = ?', [String(taskId)]);
+    for (const m of ids) run('INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES (?,?,?,?)', [String(taskId), m, addedBy || null, now]);
+    run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', [ids[0] || null, String(taskId)]);
+    return ids;
+}
+
+/**
+ * A one-person writer moved (or may have moved) assigned_to from `before` to `after`: when it
+ * really changed, the tag set becomes exactly the new person ([] when unassigned). Returns true
+ * when it rewrote the tags. ('' and null are the same "no one".)
+ */
+function handOffTaskPeople(run, taskId, before, after, addedBy) {
+    const b = before == null ? '' : String(before);
+    const a = after == null ? '' : String(after);
+    if (a === b) return false;
+    setTaskPeople(run, taskId, a ? [a] : [], addedBy);
+    return true;
+}
 
 /**
  * The task row when the user may see it, else null (identical for "missing" and "not yours").
@@ -155,12 +199,16 @@ function techRowScope(table, alias, user) {
         const v = visibleTaskSql(inner, uid);
         return { sql: `EXISTS (SELECT 1 FROM project_tasks ${inner} WHERE ${inner}.id = ${a}.${col} AND ${v.sql})`, params: v.params };
     };
-    switch (table) {
+    // A demo-purge backup (_purged_<table>) carries the same rows as its table, so it gets the same
+    // scope. A purged task is gone from project_tasks, so its backup rows are visible to nobody.
+    switch (String(table || '').toLowerCase().replace(/^_purged_/, '')) {
         case 'project_tasks':
             return visibleTaskSql(a, uid);
         case 'task_files':
             return viaTask('task_id', 'scope_t');
         case 'v2_task_people': // no text, but "these people are on task X" is the task's own business
+            return viaTask('task_id', 'scope_t');
+        case 'v2_task_comments': // the redesign's comments and its activity lines ("Laura tagged Alen and Miro")
             return viaTask('task_id', 'scope_t');
         case 'nag_items': {
             const v = viaTask('subject_id', 'scope_t');
@@ -207,7 +255,7 @@ function taskFileOnDisk(file, uploadsDir) {
 
 module.exports = {
     TASK_404, TASK_NAG_KINDS, TASK_REMINDER_TITLE, TASK_REMINDER_BODY,
-    TASK_PEOPLE_DDL, FORGET_TASK_PEOPLE_SQL,
+    TASK_PEOPLE_DDL, FORGET_TASK_PEOPLE_SQL, setTaskPeople, handOffTaskPeople,
     visibleTaskSql, findVisibleTask, nagItemVisible,
     redactTaskReminderDm, taskReminderDmScope, redactAuditRow, techRowScope,
     isTaskUploadPath, taskFileOnDisk

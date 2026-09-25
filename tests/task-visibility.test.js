@@ -21,6 +21,11 @@
  * (board, search, summary, dashboard, Action Center, file gate, tech tools), while the founder stays
  * an outsider with the missing-task 404. Untagging takes it away again, a subtask's own tag row
  * grants nothing, and every delete route of this portal drops the task's (and subtasks') tag rows.
+ * A hand-off or unassign on THIS portal (admin PUT, checklist PUT, member PUT) leaves the task to
+ * exactly the new person: the tag rows collapse to [new] (or []), and every formerly tagged person
+ * gets the missing-task 404 on both backends. Tag rows a one-person writer left stale (assigned_to
+ * not among them) grant nothing. The tech tools scope the redesign's v2_task_comments and the
+ * demo-purge backups (_purged_*) like their live tables, and the table list counts only own rows.
  *
  *   node tests/task-visibility.test.js
  *
@@ -135,7 +140,7 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         check('scratch boot: seeded founder login works', r.status === 200 && alen, r.text);
 
         const people = {};
-        for (const [key, first] of [['a', 'Laura'], ['b', 'Bob'], ['c', 'Carol']]) {
+        for (const [key, first] of [['a', 'Laura'], ['b', 'Bob'], ['c', 'Carol'], ['d', 'Dave']]) {
             const email = `qa.robot+taskvis-${key}@example.com`;
             r = await api(ADMIN, '/api/admin/team/grant', { method: 'POST', token: alen, body: { email, password: 'task-vis-pass-9', first_name: first, last_name: 'Test', role: 'admin' } });
             check(`grant admin ${first}`, r.status === 200, r.text);
@@ -144,12 +149,12 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
             people[key] = { token: r.d && r.d.token, name: first };
         }
         people.f = { token: alen, name: 'Alen (founder)' };
-        for (const key of ['a', 'b', 'c', 'f']) {
+        for (const key of ['a', 'b', 'c', 'd', 'f']) {
             r = await api(ADMIN, '/api/team', { method: 'POST', token: people[key].token, body: { name: people[key].name + ' Test', role: 'Admin' } });
             people[key].tm = r.d && r.d.id;
             check(`${people[key].name} has a team member id`, r.status === 200 && people[key].tm, r.text);
         }
-        const { a: A, b: B, c: C, f: F } = people;
+        const { a: A, b: B, c: C, d: D, f: F } = people;
 
         r = await api(ADMIN, '/api/tasks/plexus', { token: A.token });
         check('granted admin reaches the task board (no section lock)', r.status === 200 && Array.isArray(r.d), r.status + ' ' + r.text);
@@ -268,7 +273,7 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         check('T is still open after the denied Action Center "done"', ((r.d || []).find(x => x.id === T) || {}).status === 'todo');
 
         // ================= side channels (leak re-check) =================
-        const emailOf = { a: 'qa.robot+taskvis-a@example.com', b: 'qa.robot+taskvis-b@example.com', c: 'qa.robot+taskvis-c@example.com', f: 'juginovic.alen@gmail.com' };
+        const emailOf = { a: 'qa.robot+taskvis-a@example.com', b: 'qa.robot+taskvis-b@example.com', c: 'qa.robot+taskvis-c@example.com', d: 'qa.robot+taskvis-d@example.com', f: 'juginovic.alen@gmail.com' };
         const auditOf = async (P) => { const x = await api(ADMIN, '/api/admin/audit-log?limit=500', { token: P.token }); return { ...x, rows: Array.isArray(x.d) ? x.d : [] }; };
 
         // /nag/run answers with the caller's own counts (the same filter as /nag/items).
@@ -457,7 +462,8 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         const fMissDl = await dl(F, missing);
         check(`outsider ${F.name}: download F answers exactly like a missing file`, x.status === 404 && x.text === fMissDl.text, x.status);
         r = await api(ADMIN, '/api/admin/tech/tables/v2_task_people?limit=500', { token: B.token, headers: TECH });
-        check('tagged Bob: tech table v2_task_people shows T\'s people', r.status === 200 && r.text.includes(T) && r.d.total === 3, r.status + ' total ' + (r.d && r.d.total));
+        // T's two rows, S's row, and K's row (a v1 create writes its one person's tag row)
+        check('tagged Bob: tech table v2_task_people shows the people of his tasks (T, S, K)', r.status === 200 && r.text.includes(T) && r.text.includes(K) && r.d.total === 4, r.status + ' total ' + (r.d && r.d.total));
         r = await api(ADMIN, '/api/admin/tech/tables/v2_task_people?limit=500', { token: F.token, headers: TECH });
         check(`outsider ${F.name}: tech table v2_task_people shows nobody on T (total 0)`, r.status === 200 && !r.text.includes(T) && !r.text.includes(S) && r.d.total === 0, r.status + ' total ' + (r.d && r.d.total));
         r = await api(ADMIN, '/api/admin/tech/export-all', { token: F.token, headers: TECH });
@@ -487,6 +493,141 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         check('untagged Bob: the Action Center lost T\'s item', r.status === 200 && !(r.d.items || []).some(it => it.subject_id === T));
         r = await api(ADMIN, '/api/tasks/plexus', { token: A.token });
         check('A (creator) still sees T', (r.d || []).some(y => y.id === T));
+
+        // ================= a one-person hand-off on this portal =================
+        // Reviewer's probe (25 Sept 2026): the redesign tags [Bob, Carol], then THIS portal moves
+        // assigned_to. The tags must not keep granting the task: the v1 writers collapse the tag set
+        // to the new person ([] on an unassign), and tag rows an older one-person writer left stale
+        // (assigned_to not among them) grant nothing. Checked on the admin AND the member backend.
+        const peopleOf = (id) => tagDb.prepare('SELECT member_id FROM v2_task_people WHERE task_id = ? ORDER BY rowid').all(id).map(y => y.member_id);
+        const same = (got, want) => JSON.stringify(got) === JSON.stringify(want);
+        const seesOn = async (base, P, id) => { const y = await api(base, '/api/tasks/plexus', { token: P.token }); return y.status === 200 && (y.d || []).some(t => t.id === id); };
+        const lost = async (label, P, id) => {
+            for (const [bl, base] of [['admin', ADMIN], ['member', USER]]) {
+                const board = await api(base, '/api/tasks/plexus', { token: P.token });
+                const found = await api(base, '/api/search?q=' + encodeURIComponent(SECRET), { token: P.token });
+                const miss = await api(base, `/api/tasks/${missing}`, { method: 'PUT', token: P.token, body: { title: 'x' } });
+                const hid = await api(base, `/api/tasks/${id}`, { method: 'PUT', token: P.token, body: { title: 'late edit' } });
+                check(`${label}: ${P.name} @${bl} lost it (board, search, PUT = the missing-task 404)`,
+                    board.status === 200 && !board.text.includes(id) && found.status === 200 && !(found.d && found.d.tasks || []).some(y => y.id === id)
+                    && hid.status === 404 && hid.text === miss.text, `board ${board.text.includes(id)} put ${hid.status}`);
+            }
+            const cl = await api(ADMIN, '/api/admin/tasks', { token: P.token });
+            check(`${label}: ${P.name} checklist has no trace of it`, cl.status === 200 && !cl.text.includes(id));
+        };
+        const keeps = async (label, P, id) => check(`${label}: ${P.name} sees it on both backends`, await seesOn(ADMIN, P, id) && await seesOn(USER, P, id));
+        const fullBody = (title, who) => ({ project: 'plexus', title, description: SECRET + 'handoff desc', assigned_to: who, priority: 'high', status: 'todo', due_date: yesterday });
+
+        // H1: admin PUT hand-off Bob -> Dave (Dave was never tagged)
+        r = await api(ADMIN, '/api/tasks', { method: 'POST', token: A.token, body: fullBody(SECRET + 'H1 therapy', B.tm) });
+        const H1 = r.d && r.d.id;
+        check('H1: a v1 create writes its one person\'s tag row', r.status === 200 && same(peopleOf(H1), [B.tm]), JSON.stringify(peopleOf(H1)));
+        tag(H1, C); // the redesign tags Carol second
+        await keeps('H1 tagged [Bob, Carol]', C, H1);
+        r = await api(ADMIN, `/api/tasks/${H1}`, { method: 'PUT', token: A.token, body: fullBody(SECRET + 'H1 therapy', D.tm) });
+        check('H1: Laura hands it to Dave on the old portal (admin PUT)', r.status === 200, r.text);
+        check('H1: tag rows collapse to exactly [Dave]', same(peopleOf(H1), [D.tm]), JSON.stringify(peopleOf(H1)));
+        await lost('H1 after admin hand-off', B, H1);
+        await lost('H1 after admin hand-off', C, H1);
+        await keeps('H1 after admin hand-off', D, H1);
+        await keeps('H1 after admin hand-off (creator)', A, H1);
+
+        // H2: checklist PUT hand-off Bob -> Dave
+        r = await api(ADMIN, '/api/admin/tasks', { method: 'POST', token: A.token, body: { project: 'plexus', title: SECRET + 'H2 checklist', assigned_to: B.tm } });
+        const H2 = r.d && r.d.id;
+        check('H2: a checklist create writes its one person\'s tag row', r.status === 200 && same(peopleOf(H2), [B.tm]), JSON.stringify(peopleOf(H2)));
+        tag(H2, C);
+        r = await api(ADMIN, `/api/admin/tasks/${H2}`, { method: 'PUT', token: A.token, body: { assigned_to: D.tm } });
+        check('H2: checklist PUT hands it to Dave', r.status === 200 && same(peopleOf(H2), [D.tm]), r.text + ' ' + JSON.stringify(peopleOf(H2)));
+        await lost('H2 after checklist hand-off', B, H2);
+        await lost('H2 after checklist hand-off', C, H2);
+        await keeps('H2 after checklist hand-off', D, H2);
+        r = await api(ADMIN, `/api/admin/tasks/${H2}`, { method: 'PUT', token: D.token, body: { done: 1 } });
+        check('H2: a checklist PUT that leaves the person alone keeps the tags', r.status === 200 && same(peopleOf(H2), [D.tm]), JSON.stringify(peopleOf(H2)));
+        r = await api(ADMIN, `/api/admin/tasks/${H2}`, { method: 'PUT', token: A.token, body: { assigned_to: '' } });
+        check('H2: checklist unassign drops every tag row', r.status === 200 && same(peopleOf(H2), []), JSON.stringify(peopleOf(H2)));
+        await lost('H2 after checklist unassign', D, H2);
+
+        // H3: admin PUT unassign ('') on a tagged task
+        r = await api(ADMIN, '/api/tasks', { method: 'POST', token: A.token, body: fullBody(SECRET + 'H3 unassign', B.tm) });
+        const H3 = r.d && r.d.id;
+        tag(H3, C);
+        r = await api(ADMIN, `/api/tasks/${H3}`, { method: 'PUT', token: A.token, body: fullBody(SECRET + 'H3 unassign', '') });
+        check('H3: admin PUT unassign drops every tag row', r.status === 200 && same(peopleOf(H3), []), r.text + ' ' + JSON.stringify(peopleOf(H3)));
+        await lost('H3 after admin unassign', B, H3);
+        await lost('H3 after admin unassign', C, H3);
+        await keeps('H3 after admin unassign (creator)', A, H3);
+
+        // H4: member backend, Bob hands his own task to Dave
+        r = await api(USER, '/api/tasks', { method: 'POST', token: A.token, body: fullBody(SECRET + 'H4 member', B.tm) });
+        const H4 = r.d && r.d.id;
+        check('H4: a member-backend create writes its one person\'s tag row', r.status === 200 && same(peopleOf(H4), [B.tm]), JSON.stringify(peopleOf(H4)));
+        tag(H4, C);
+        r = await api(USER, `/api/tasks/${H4}`, { method: 'PUT', token: B.token, body: fullBody(SECRET + 'H4 member', D.tm) });
+        check('H4: Bob hands it to Dave on the member backend', r.status === 200 && same(peopleOf(H4), [D.tm]), r.text + ' ' + JSON.stringify(peopleOf(H4)));
+        await lost('H4 after member hand-off', B, H4);
+        await lost('H4 after member hand-off', C, H4);
+        await keeps('H4 after member hand-off', D, H4);
+
+        // H5: hand-off to someone ALREADY tagged: the set is still exactly the new person
+        r = await api(ADMIN, '/api/tasks', { method: 'POST', token: A.token, body: fullBody(SECRET + 'H5 to tagged', B.tm) });
+        const H5 = r.d && r.d.id;
+        tag(H5, C);
+        r = await api(ADMIN, `/api/tasks/${H5}`, { method: 'PUT', token: A.token, body: fullBody(SECRET + 'H5 to tagged', C.tm) });
+        check('H5: handing to Carol (already tagged) leaves exactly [Carol]', r.status === 200 && same(peopleOf(H5), [C.tm]), JSON.stringify(peopleOf(H5)));
+        await lost('H5 after hand-off to a tagged person', B, H5);
+        await keeps('H5 after hand-off to a tagged person', C, H5);
+
+        // H6: a PUT that leaves assigned_to alone never touches the tags
+        r = await api(ADMIN, '/api/tasks', { method: 'POST', token: A.token, body: fullBody(SECRET + 'H6 keep', B.tm) });
+        const H6 = r.d && r.d.id;
+        tag(H6, C);
+        r = await api(USER, `/api/tasks/${H6}`, { method: 'PUT', token: C.token, body: fullBody(SECRET + 'H6 keep, edited by Carol', B.tm) });
+        check('H6: a tagged person edits it, same assignee: the tags stay [Bob, Carol]', r.status === 200 && same(peopleOf(H6), [B.tm, C.tm]), JSON.stringify(peopleOf(H6)));
+        await keeps('H6 after an edit', B, H6);
+        await keeps('H6 after an edit', C, H6);
+
+        // H7: tag rows left stale by an older one-person writer (assigned_to moved, tags untouched,
+        // written straight into the DB the way an earlier deploy did): they grant nothing.
+        r = await api(ADMIN, '/api/tasks', { method: 'POST', token: A.token, body: fullBody(SECRET + 'H7 stale', B.tm) });
+        const H7 = r.d && r.d.id;
+        tag(H7, C);
+        tagDb.prepare('UPDATE project_tasks SET assigned_to = ? WHERE id = ?').run(D.tm, H7);
+        check('H7: stale tag rows [Bob, Carol] with assigned_to Dave', same(peopleOf(H7), [B.tm, C.tm]), JSON.stringify(peopleOf(H7)));
+        await lost('H7 stale tags', B, H7);
+        await lost('H7 stale tags', C, H7);
+        await keeps('H7 stale tags', D, H7);
+        r = await api(ADMIN, '/api/dashboard/summary', { token: C.token });
+        const cTasks = await api(ADMIN, '/api/tasks', { token: C.token });
+        check('H7: Carol\'s counts carry none of H1-H5/H7 (only H6 and her own)', r.status === 200 && ![H1, H2, H3, H4, H7].some(id => cTasks.text.includes(id)), JSON.stringify(r.d && r.d.tasks));
+
+        // ---- tech tools: the redesign's comments + activity lines, purge backups, table counts ----
+        tagDb.exec(`CREATE TABLE IF NOT EXISTS v2_task_comments (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, author_id TEXT,
+            author_name TEXT, body TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'comment', created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
+        tagDb.prepare("INSERT INTO v2_task_comments (id, task_id, author_id, author_name, body, kind) VALUES (?, ?, ?, 'Laura Test', 'Laura tagged Bob and Carol', 'system')").run(randomUUID(), H6, aId);
+        tagDb.prepare("INSERT INTO v2_task_comments (id, task_id, author_id, author_name, body, kind) VALUES (?, ?, ?, 'Laura Test', ?, 'comment')").run(randomUUID(), H6, aId, SECRET + 'comment about the diagnosis');
+        tagDb.exec('CREATE TABLE IF NOT EXISTS _purged_project_tasks AS SELECT * FROM project_tasks WHERE 0');
+        tagDb.prepare("INSERT INTO _purged_project_tasks (id, project, title, status) VALUES (?, 'plexus', ?, 'todo')").run(randomUUID(), SECRET + 'purged backup row');
+        r = await api(ADMIN, '/api/admin/tech/tables/v2_task_comments?limit=500', { token: F.token, headers: TECH });
+        check(`outsider ${F.name}: tech table v2_task_comments hands out nothing (total 0)`, r.status === 200 && r.d.total === 0 && !r.text.includes(SECRET) && !r.text.includes('tagged Bob'), r.status + ' total ' + (r.d && r.d.total));
+        r = await api(ADMIN, '/api/admin/tech/tables/_purged_v2_task_comments?limit=500', { token: F.token, headers: TECH });
+        check('a table name that does not exist is still refused', r.status === 400, r.status);
+        r = await api(ADMIN, '/api/admin/tech/tables/_purged_project_tasks?limit=500', { token: F.token, headers: TECH });
+        check(`outsider ${F.name}: tech table _purged_project_tasks hands out nothing (total 0)`, r.status === 200 && r.d.total === 0 && !r.text.includes(SECRET), r.status + ' total ' + (r.d && r.d.total));
+        r = await api(ADMIN, '/api/admin/tech/tables/v2_task_comments?limit=500', { token: C.token, headers: TECH });
+        check('tagged Carol: tech table v2_task_comments shows H6\'s two rows', r.status === 200 && r.d.total === 2 && r.text.includes('tagged Bob'), r.status + ' total ' + (r.d && r.d.total));
+        r = await api(ADMIN, '/api/admin/tech/export-all', { token: F.token, headers: TECH });
+        check(`outsider ${F.name}: tech export-all carries no comment, activity line or purged task`, r.status === 200 && Array.isArray(r.d.tables.v2_task_comments) && r.d.tables.v2_task_comments.length === 0
+            && (r.d.tables._purged_project_tasks || []).length === 0 && !r.text.includes(SECRET) && !r.text.includes('tagged Bob'), r.status);
+        r = await api(ADMIN, '/api/admin/tech/tables', { token: F.token, headers: TECH });
+        const countOf = (y, name) => ((y.d && y.d.tables || []).find(t => t.name === name) || {}).rowCount;
+        check(`outsider ${F.name}: the tech table list counts none of the task rows he is not on`,
+            r.status === 200 && countOf(r, 'v2_task_people') === 0 && countOf(r, 'v2_task_comments') === 0 && countOf(r, '_purged_project_tasks') === 0,
+            JSON.stringify({ people: countOf(r, 'v2_task_people'), comments: countOf(r, 'v2_task_comments'), purged: countOf(r, '_purged_project_tasks') }));
+        const cList = await api(ADMIN, '/api/admin/tech/tables', { token: C.token, headers: TECH });
+        check('tagged Carol: the tech table list counts her own task rows', countOf(cList, 'v2_task_comments') === 2 && countOf(cList, 'v2_task_people') > 0, JSON.stringify({ people: countOf(cList, 'v2_task_people'), comments: countOf(cList, 'v2_task_comments') }));
+        for (const id of [H1, H2, H3, H4, H5, H6, H7]) await api(ADMIN, `/api/tasks/${id}`, { method: 'DELETE', token: A.token });
+        check('H1-H7 deleted by their creator, with their tag rows', tagRows([H1, H2, H3, H4, H5, H6, H7]) === 0, tagRows([H1, H2, H3, H4, H5, H6, H7]));
 
         // Tag rows on K (checklist route) and on a task T3 made on the member backend, for the
         // delete checks below: every delete route of this portal drops the task's tag rows.

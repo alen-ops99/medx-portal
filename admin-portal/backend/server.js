@@ -12243,6 +12243,7 @@ async function initializeApp() {
         db.run(`INSERT INTO project_tasks (id, project, title, assigned_to, due_date, status, created_by)
             VALUES (?,?,?,?,?, 'todo', ?)`,
             [id, b.project || 'general', title, b.assigned_to || null, b.due_date || null, req.user.id]);
+        if (b.assigned_to) taskVis.setTaskPeople((sql, p) => db.run(sql, p), id, [b.assigned_to], req.user.id); // one person, and its tag row
         saveDb();
         logAudit(req, 'task.create', id); // the id only: the audit feed goes to every admin, the title is private to the task
         res.json({ success: true, id });
@@ -12255,13 +12256,16 @@ async function initializeApp() {
         let status = existing.status;
         if (b.done !== undefined) status = b.done ? 'done' : 'todo';
         else if (b.status) status = b.status;
+        const assignedTo = b.assigned_to !== undefined ? (b.assigned_to || null) : existing.assigned_to;
         db.run(`UPDATE project_tasks SET title=?, assigned_to=?, due_date=?, status=?, completed_at=? WHERE id=?`,
             [b.title !== undefined ? String(b.title).trim() : existing.title,
-             b.assigned_to !== undefined ? (b.assigned_to || null) : existing.assigned_to,
+             assignedTo,
              b.due_date !== undefined ? (b.due_date || null) : existing.due_date,
              status,
              status === 'done' ? (existing.completed_at || new Date().toISOString()) : null,
              req.params.id]);
+        // a hand-off (or unassign) here leaves the task to exactly the new person: the tags follow
+        taskVis.handOffTaskPeople((sql, p) => db.run(sql, p), req.params.id, existing.assigned_to, assignedTo, req.user.id);
         saveDb();
         res.json({ success: true });
     });
@@ -12443,6 +12447,7 @@ async function initializeApp() {
                 db.run(`INSERT INTO project_tasks (id, project, title, assigned_to, due_date, status, created_by)
                     VALUES (?,?,?,?,?, 'todo', ?)`,
                     [id, (it.project || 'general'), title.slice(0, 200), it.assigned_to || null, it.due_date || null, req.user.id]);
+                if (it.assigned_to) taskVis.setTaskPeople((sql, p) => db.run(sql, p), id, [it.assigned_to], req.user.id); // one person, and its tag row
                 created++;
             });
             saveDb();
@@ -18346,13 +18351,15 @@ By applying to this program, I provide the following consents:
         db.run(`INSERT INTO project_tasks (id, project, title, description, assigned_to, priority, due_date, created_by, parent_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, project || 'general', title, description, assigned_to || null, priority || 'medium', due_date, req.user.id, parentId]);
+        if (assigned_to) taskVis.setTaskPeople((sql, p) => db.run(sql, p), id, [assigned_to], req.user.id); // one person, and its tag row
         saveDb();
         res.json({ success: true, id, task_id: id });
     });
 
     // Update task
     app.put('/api/tasks/:id', auth, adminOnly, (req, res) => {
-        if (!taskVis.findVisibleTask(query.get, req.user.id, req.params.id)) return res.status(404).json({ error: taskVis.TASK_404 });
+        const before = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
+        if (!before) return res.status(404).json({ error: taskVis.TASK_404 });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
@@ -18365,6 +18372,9 @@ By applying to this program, I provide the following consents:
             completed_at = ${status === 'done' ? "datetime('now')" : 'NULL'}
             WHERE id = ?`,
             [title, description, assigned_to, priority, status, due_date, project, req.params.id]);
+        // a hand-off (or unassign) here leaves the task to exactly the new person: the tags follow
+        const after = (query.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [req.params.id]) || {}).assigned_to;
+        taskVis.handOffTaskPeople((sql, p) => db.run(sql, p), req.params.id, before.assigned_to, after, req.user.id);
         saveDb();
         res.json({ success: true, id: req.params.id });
     });
@@ -36214,7 +36224,11 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         try {
             const tables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
             const result = tables.map(t => {
-                const countRow = query.get(`SELECT COUNT(*) as cnt FROM "${t.name}"`);
+                // a task table's count is the caller's own rows, the same scope as the rows route below
+                const scope = taskVis.techRowScope(t.name, 'tt', req.user);
+                const countRow = scope
+                    ? query.get(`SELECT COUNT(*) as cnt FROM "${t.name}" tt WHERE ${scope.sql}`, scope.params)
+                    : query.get(`SELECT COUNT(*) as cnt FROM "${t.name}"`);
                 const columns = query.all(`PRAGMA table_info("${t.name}")`);
                 return {
                     name: t.name,

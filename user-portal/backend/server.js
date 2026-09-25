@@ -19490,13 +19490,15 @@ By applying to this program, I provide the following consents:
         db.run(`INSERT INTO project_tasks (id, project, title, description, assigned_to, priority, due_date, created_by, parent_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, project || 'general', title, description, assigned_to || null, priority || 'medium', due_date, req.user.id, parentId]);
+        if (assigned_to) taskVis.setTaskPeople((sql, p) => db.run(sql, p), id, [assigned_to], req.user.id); // one person, and its tag row
         saveDb();
         res.json({ success: true, id, task_id: id });
     });
 
     // Update task
     app.put('/api/tasks/:id', auth, adminOnly, (req, res) => {
-        if (!taskVis.findVisibleTask(query.get, req.user.id, req.params.id)) return res.status(404).json({ error: taskVis.TASK_404 });
+        const before = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
+        if (!before) return res.status(404).json({ error: taskVis.TASK_404 });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
@@ -19509,6 +19511,9 @@ By applying to this program, I provide the following consents:
             completed_at = ${status === 'done' ? "datetime('now')" : 'NULL'}
             WHERE id = ?`,
             [title, description, assigned_to, priority, status, due_date, project, req.params.id]);
+        // a hand-off (or unassign) here leaves the task to exactly the new person: the tags follow
+        const after = (query.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [req.params.id]) || {}).assigned_to;
+        taskVis.handOffTaskPeople((sql, p) => db.run(sql, p), req.params.id, before.assigned_to, after, req.user.id);
         saveDb();
         res.json({ success: true, id: req.params.id });
     });
