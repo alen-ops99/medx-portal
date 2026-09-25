@@ -294,6 +294,9 @@ const waitUp = async (base, ms = 150000) => {
             const th = await tech('C', 'tables/' + tname);
             check(`admin GET /api/admin/tech/tables/${tname}: the same 400 as a missing table`, th.status === 400 && same(th, tMissing), JSON.stringify(th));
         }
+        x(`CREATE TABLE _purged_project_tasks AS SELECT * FROM project_tasks`);   // a demo-purge backup of the task table
+        const thp = await tech('C', 'tables/_purged_project_tasks');
+        check('admin GET /api/admin/tech/tables/_purged_project_tasks: a backup of a task table is refused the same way', thp.status === 400 && same(thp, tMissing), JSON.stringify(thp));
         const rowsOf = async (k, tname, qs = '') => (((await tech(k, `tables/${tname}?limit=500${qs}`)).d || {}).rows || []);
         check('admin tech tables/direct_messages: C gets no nudge (nor by search); B gets both', !(await rowsOf('C', 'direct_messages')).some(m => m.title === 'Task reminder') && (await rowsOf('C', 'direct_messages', '&search=Qazwx')).length === 0
             && (await rowsOf('B', 'direct_messages')).filter(m => m.title === 'Task reminder').length === 2);
@@ -302,7 +305,7 @@ const waitUp = async (base, ms = 150000) => {
         check('admin tech tables/audit_log: C gets no task row', !(await rowsOf('C', 'audit_log')).some(aboutTask));
         r = await tech('C', 'export-all');
         const dump = JSON.stringify(r.d || {});
-        check('admin GET /api/admin/tech/export-all: C\'s export holds no task table and no task text', r.status === 200 && r.d.tables && !('project_tasks' in r.d.tables) && !('nag_items' in r.d.tables) && !/Qazwx|dentist|Task reminder/.test(dump), (dump.match(/.{60}(Qazwx|dentist|Task reminder).{60}/) || [''])[0]);
+        check('admin GET /api/admin/tech/export-all: C\'s export holds no task table and no task text', r.status === 200 && r.d.tables && !('project_tasks' in r.d.tables) && !('nag_items' in r.d.tables) && !('_purged_project_tasks' in r.d.tables) && !/Qazwx|dentist|Task reminder/.test(dump), (dump.match(/.{60}(Qazwx|dentist|Task reminder).{60}/) || [''])[0]);
         r = await tech('C', 'db-download');
         check('admin GET /api/admin/tech/db-download: refused to an admin who is not the founder (the raw file holds every task)', r.status === 403, JSON.stringify(r));
         x(`UPDATE users SET is_founder = 1 WHERE id = ?`, [P.A]);
