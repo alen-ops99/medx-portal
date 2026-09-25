@@ -99,16 +99,16 @@ function topBar() {
   <div class="mx-topbar" style="display:flex;align-items:center;gap:20px;padding:0 36px;height:60px;border-bottom:1px solid rgba(25,21,18,.16);position:relative">
     <span data-act="tg" aria-label="Open menu" style="display:flex;align-items:center;gap:10px;cursor:pointer">
       <span style="display:flex;flex-direction:column;gap:4px"><span style="width:18px;height:2px;background:#191512"></span><span style="width:18px;height:2px;background:#191512"></span><span style="width:12px;height:2px;background:#191512"></span></span>
-      <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.18em">${COPY.menu}</span>
+      <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em">${COPY.menu}</span>
     </span>
     <a href="/app/home" class="mx-brand" style="display:block"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:22px;display:block"></a>
     <div style="flex:1"></div>
-    <span data-act="search" aria-label="Search" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer" data-hover="color:#191512">${COPY.search}</span>
-    <span data-act="alerts" aria-label="Alerts" style="display:flex;align-items:center;gap:6px;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer" data-hover="color:#191512">${COPY.alerts}<span data-role="unread-dot" style="width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'inline-block' : 'none'}"></span></span>
+    <span data-act="search" aria-label="Search" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239;cursor:pointer" data-hover="color:#191512">${COPY.search}</span>
+    <span data-act="alerts" aria-label="Alerts" style="display:flex;align-items:center;gap:6px;font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239;cursor:pointer" data-hover="color:#191512">${COPY.alerts}<span data-role="unread-dot" style="width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'inline-block' : 'none'}"></span></span>
     <span style="width:1px;height:18px;background:rgba(25,21,18,.16)"></span>
     <a href="/app/me" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#191512" data-hover="color:#191512">
       <span class="mx-avatar" style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;border-radius:50%">${esc(session.initials())}</span>
-      <span class="mx-identity-text" style="display:flex;flex-direction:column;line-height:1.25"><span style="font-size:12.5px;font-weight:600">${esc(session.displayName())}</span><span style="font-size:10.5px;color:#4a4239">${COPY.memberLabel}</span></span>
+      <span class="mx-identity-text" style="display:flex;flex-direction:column;line-height:1.25"><span style="font-size:12.5px;font-weight:600">${esc(session.displayName())}</span><span style="font-size:12px;color:#4a4239">${COPY.memberLabel}</span></span>
     </a>
     <div data-role="popover"></div>
   </div>
@@ -120,15 +120,15 @@ function statsStrip() {
   // above every screen told each new member four times that they were nothing; a zero now simply
   // waits its turn. MEMBER SINCE reads label-first — it is a date, not a score.
   const stat = (v, l) => (Number(v) > 0
-    ? `<span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">${esc(v)}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">${l}</span></span>`
+    ? `<span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:17px">${esc(v)}</span><span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239">${l}</span></span>`
     : '');
   const since = st.since
-    ? `<span style="display:flex;align-items:baseline;gap:7px"><span style="font:600 9px Inter,sans-serif;letter-spacing:.15em;color:#4a4239">${COPY.stats.since}</span><span style="font-family:Fraunces,serif;font-size:17px">${esc(st.since)}</span></span>`
+    ? `<span style="display:flex;align-items:baseline;gap:7px"><span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239">${COPY.stats.since}</span><span style="font-family:Fraunces,serif;font-size:17px">${esc(st.since)}</span></span>`
     : '';
   return `
   <!-- dc: Portal Chrome.dc.html › "Member stats strip" -->
   <div class="mx-stats" style="display:flex;align-items:center;gap:24px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <span style="font:600 10px Inter,sans-serif;letter-spacing:.18em;color:#4a4239">${fmt.todayLabel()}</span>
+    <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239">${fmt.todayLabel()}</span>
     <div style="flex:1"></div>
     ${stat(st.registrations, COPY.stats.registrations)}
     ${stat(st.following, COPY.stats.following)}
@@ -146,7 +146,7 @@ function banner() {
     <span style="width:6px;height:6px;background:#c9a962;flex:none"></span>
     <span style="font-size:12.5px;color:#4a4239">${COPY.banner.lead}<strong style="color:#191512">${esc(u.email || '')}</strong>.</span>
     <div style="flex:1"></div>
-    <span data-act="resend" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.banner.resend}</span>
+    <span data-act="resend" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.banner.resend}</span>
     <span data-act="hideBanner" aria-label="Dismiss" style="color:#4a4239;cursor:pointer">×</span>
   </div>
   <!-- /dc -->`;
@@ -159,12 +159,12 @@ function drawer() {
   <div id="mx-scrim" data-act="cl" aria-hidden="true" tabindex="-1"></div>
   <div id="mx-drawer" role="navigation" aria-label="Portal menu">
     <div style="display:flex;align-items:center;padding:0 26px"><img src="/assets/logo-white.png" alt="med&amp;X" style="height:20px;display:block"><div style="flex:1"></div><span data-act="cl" aria-label="Close menu" style="font-size:20px;color:rgba(247,241,230,.7);cursor:pointer" data-hover="color:#f7f1e6">×</span></div>
-    <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin:30px 0 8px">${COPY.drawer.portal}</div>
+    <div style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:rgba(201,169,98,.9);padding:0 26px;margin:30px 0 8px">${COPY.drawer.portal}</div>
     <div style="display:flex;flex-direction:column">
       ${NAV.map(n => `<a href="${n.to}" style="${nav(n.key, n.sub)}" data-hover="color:#f7f1e6"${n.v2 ? ' data-v2="nav entry not in Portal Chrome.dc.html"' : ''}>${n.label}</a>`).join('\n      ')}
     </div>
     <div style="height:1px;background:rgba(247,241,230,.14);margin:14px 26px"></div>
-    <div style="font:600 10px Inter,sans-serif;letter-spacing:.2em;color:rgba(201,169,98,.9);padding:0 26px;margin-bottom:8px">${COPY.drawer.quick}</div>
+    <div style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:rgba(201,169,98,.9);padding:0 26px;margin-bottom:8px">${COPY.drawer.quick}</div>
     <div style="display:flex;flex-direction:column">
       ${QUICK.map(q => `<a href="${q.to}" style="display:block;padding:6px 26px;font-size:12.5px;color:rgba(247,241,230,.6);text-decoration:none" data-hover="color:#f7f1e6"${q.v2 ? ' data-v2="quick-link not in Portal Chrome.dc.html"' : ''}>${q.label}</a>`).join('\n      ')}
     </div>

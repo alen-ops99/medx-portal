@@ -254,7 +254,7 @@ function lightbox(photos, { start = 0, eyebrow = 'PHOTOS', title = '', note = ''
   const ctl = 'font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap;padding:14px 0;min-height:44px;box-sizing:border-box';
   const paint = () => {
     const p = list[i];
-    box.innerHTML = `<figure style="margin:0;background:#191512"><img src="${esc(p.src)}" alt="${esc(p.alt || '')}" style="display:block;width:100%;height:min(62vh,560px);object-fit:contain"></figure>
+    box.innerHTML = `<figure style="margin:0;background:#191512"><img src="${esc(p.src)}" alt="${esc(p.alt || '')}" style="display:block;width:100%;height:auto;max-height:min(62vh,560px);object-fit:contain"></figure>
       ${p.caption ? `<div style="font-size:14px;color:#4a4239;margin-top:8px">${esc(p.caption)}</div>` : ''}
       ${list.length > 1 ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
         <span data-act="lbPrev" role="button" tabindex="0" aria-label="Previous photo" style="${ctl}">← PREV</span>

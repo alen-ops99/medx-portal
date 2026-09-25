@@ -171,7 +171,7 @@ export const COPY = {
     passEmptyWhy: 'One QR for everything you registered for, also in <a href="/app/me">My Med&amp;X</a>.',
     passNote: 'One QR for everything you registered for, also in <a href="/app/me">My Med&amp;X</a> and your phone wallet.',
     passPending: 'Awaiting payment — the QR appears the moment the seat is settled.',
-    whoN: '04', whoTitle: 'Who from your network attends', attending: n => `${n} attending`,
+    whoN: '04', whoTitle: 'From your network', attending: n => `${n} attending`,
     whoEmptyLine: 'No attendees on the public list yet.', whoEmptyWhy: 'Members who register and share their profile show up here.',
     message: 'Message', findMore: 'Find more attendees', findMoreSub: 'Open the member directory',
     transfer: {
@@ -537,9 +537,11 @@ function weekRow(b) {
   const when = b.starts_on ? dayMon(b.starts_on) : (b.key === 'bridges' ? 'Dec' : '');
   const range = String(b.date_label || '').match(/^(\d{1,2})\s*[–-]\s*(\d{1,2})\s+([A-Za-z]{3})/);
   const time = range ? `${range[1]}–${range[2]} ${range[3]}` : when;
-  const sub = [fmt.detail(status || ''), b.key === 'gala' ? '' : fmt.detail(b.price_label || '')].filter(Boolean).join(' · ');
   const act = !D.week.archived && to !== page && (to.startsWith(FORM) || to === '/app/plexus/mine')
     ? `<a href="${esc(to)}" class="btn-ghost btn-sm mx-px-weekbtn">${esc(weekCta(b))} →</a>` : '';
+  // say it once: a row whose button already reads "Register — free" drops the "Free to attend" price line
+  const priceLine = b.key === 'gala' || (act && /free/i.test(weekCta(b)) && /free/i.test(b.price_label || '')) ? '' : fmt.detail(b.price_label || '');
+  const sub = [fmt.detail(status || ''), priceLine].filter(Boolean).join(' · ');
   if (D.week.archived) return `<li class="mx-tl-row"><time class="mx-tl-time">${esc(time)}</time><div class="mx-tl-body"><span class="mx-tl-title">${esc(b.title || '')}</span><span class="mx-tl-sub">${COPY.week.past}</span></div></li>`;
   return `
       <li class="mx-tl-row mx-px-weekrow"><time class="mx-tl-time">${esc(time)}</time>
@@ -614,13 +616,13 @@ function ovProgram() {
 function ovGala() {
   const gd = fmt.toDate(D.gala.date);
   const when = gd ? `${WD3[gd.getDay()]} ${gd.getDate()} ${MON3[gd.getMonth()]}` : '';
-  const tag = D.gala.ebActive ? `${fmt.eur(D.gala.price)} until ${dayMon(D.gala.ebDeadline)}` : fmt.eur(D.gala.price);
   return `
   <!-- dc: Plexus Conference.dc.html › "Gala Evening & Awards Ceremony" -->
   <section class="mx-sec" data-block="gala">
     <article class="mx-pcard mx-px-gala">
-      <div class="mx-media r-16x9"><img src="/assets/photo-gala.jpg" alt="" loading="lazy" style="object-position:50% 35%"><div class="mx-scrim"></div><span class="mx-tag mx-tag--gold">${esc(tag)}</span>
-        <h3 class="mx-pcard-title"><a class="mx-pcard-main" href="/app/gala">${COPY.galaBlock.title}</a></h3></div>
+      <div class="mx-media r-16x9"><img src="/assets/photo-gala.jpg" alt="" loading="lazy" style="object-position:50% 35%"><div class="mx-scrim"></div>
+        <h3 class="mx-pcard-title">${COPY.galaBlock.title}</h3></div>
+      <a class="mx-pcard-main mx-pcard-cover" href="/app/gala" aria-label="${esc(COPY.galaBlock.title.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&'))}"></a>
       <div class="mx-pcard-body">
         <div class="mx-pcard-meta">${icon('calendar', 16)}<span>${esc(when)} · ${esc(D.gala.time)}</span><span class="mx-sep"></span>${icon('pin', 16)}<span>${esc(D.gala.venueShort)}</span></div>
         <p class="mx-pcard-line">${COPY.galaBlock.line}</p>
@@ -656,7 +658,7 @@ function overviewTpl() {
   ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, current: true }])}
   <div data-block="hero">${ovHero()}</div>
   ${ovCountdown()}
-  <div class="mx-p">
+  <div class="mx-p mx-p--num">
     ${tabStrip()}
     ${ovFacts()}
     ${ovWeek()}
@@ -850,19 +852,20 @@ function mineIncluded() {
     : g === 'pending'
     ? `<span data-act="galaPendingInfo" role="button" class="btn-ghost btn-sm">${COPY.mine.galaCard.tagPending}</span>`
     : `<a href="${formUrl('gala')}" class="btn-ghost btn-sm">${COPY.mine.galaCard.cta(fmt.eur(D.gala.price))}</a>`;
-  const galaTag = g === 'paid' ? COPY.mine.galaCard.tagPaid : g === 'approved' ? COPY.mine.galaCard.tagApproved : esc(COPY.mine.galaCard.price(fmt.eur(D.gala.price)));
+  // a state chip only (the price is on the card's own link and in the facts above)
+  const galaTag = g === 'paid' ? COPY.mine.galaCard.tagPaid : g === 'approved' ? COPY.mine.galaCard.tagApproved : '';
   return `
   <!-- dc: My Plexus.dc.html › "01 · WHAT'S INCLUDED" -->
   <section class="mx-sec" data-block="included">
     ${sectionHead(COPY.mine.includedN, COPY.mine.includedTitle)}
     <div class="mx-px-incl">
       <div class="mx-px-inclcard">
-        <div class="mx-px-inclhead"><span class="mx-px-incltitle">${COPY.mine.confCard.title}</span><span class="mx-tag ${registered ? 'mx-tag--ink' : 'mx-tag--soft'}">${registered ? COPY.mine.confCard.tagDone : COPY.mine.confCard.tag}</span></div>
+        <div class="mx-px-inclhead"><span class="mx-px-incltitle">${COPY.mine.confCard.title}</span>${registered ? `<span class="mx-tag mx-tag--ink">${COPY.mine.confCard.tagDone}</span>` : ''}</div>
         ${checks(COPY.mine.confCard.items(esc(confDays), esc(fmt.longRange(D.conf.start, D.conf.start).replace(/, \d{4}$/, '')), esc(D.conf.startTime)))}
         ${confCta}
       </div>
       <div class="mx-px-inclcard">
-        <div class="mx-px-inclhead"><span class="mx-px-incltitle">${COPY.mine.galaCard.title}</span><span class="mx-tag ${g === 'paid' ? 'mx-tag--ink' : 'mx-tag--gold'}">${galaTag}</span></div>
+        <div class="mx-px-inclhead"><span class="mx-px-incltitle">${COPY.mine.galaCard.title}</span>${galaTag ? `<span class="mx-tag ${g === 'paid' ? 'mx-tag--ink' : 'mx-tag--gold'}">${galaTag}</span>` : ''}</div>
         ${checks(COPY.mine.galaCard.items)}
         ${galaCta}
       </div>

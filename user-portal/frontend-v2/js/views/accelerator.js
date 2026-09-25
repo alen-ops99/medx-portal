@@ -71,7 +71,7 @@ export const COPY = {
   selection: {
     n: '03', title: 'How selection works',
     steps: opens => [
-      { n: '01', t: 'Apply', d: `CV, mentor letter, documents · from ${opens}` },
+      { n: '01', t: 'Apply', d: 'CV, mentor letter and documents' },
       { n: '02', t: 'Document review', d: 'Two phases; shortlisted candidates advance' },
       { n: '03', t: 'Interview', d: 'With two Croatian biomedical professionals' },
       { n: '04', t: 'Selection & onboarding', d: 'Results by email with your access code' }
@@ -80,7 +80,7 @@ export const COPY = {
   },
   application: {
     n: '04', title: 'Your application', resultAvail: 'RESULT AVAILABLE',
-    noneLine: opens => `No application yet · they open ${opens}.`,
+    noneLine: () => 'No application yet.',
     noneOpenLine: 'No application yet · applications are open.',
     closedLine: 'Applications for this cycle have closed.',
     noneWhy: 'Ready your CV, a mentor letter and a one-line project summary.',
@@ -765,7 +765,7 @@ function overviewTemplate() {
   ${blockCrumbs(false)}
   ${blockHero()}
   ${blockCountdown()}
-  <div class="mx-p">
+  <div class="mx-p mx-p--num">
     <section class="mx-sec mx-sec--tight">${blockTabs(false)}</section>
     ${blockTiles()}
     ${blockProgram()}
@@ -859,7 +859,7 @@ function blockWizHeader(preview) {
   const pill = W.submitted
     ? COPY.wiz.pillSubmitted(W.submitted.submitted_at || W.submitted.created_at ? fmt.longRange(String(W.submitted.submitted_at || W.submitted.created_at).slice(0, 10)) : '')
     : (preview && state !== 'open') ? COPY.wiz.pillPreview(fmt.upper(esc(opensInfo().label)))
-    : gate ? (state === 'closed' ? COPY.wiz.closed : COPY.wiz.opens(fmt.upper(esc(opensInfo().label))))
+    : gate ? ''                       // the gate card below says it once ("Applications open 15 November 2026.")
     : COPY.wiz.pillDraft;
   const right = gate ? ''
     : state === 'open'
@@ -868,7 +868,7 @@ function blockWizHeader(preview) {
   return `
   <!-- dc: Accelerator Application.dc.html › "Header band" -->
   <section class="mx-sec mx-sec--tight mx-ax-wizhead">
-    <div class="mx-ax-apptags"><span class="mx-tag mx-tag--gold">${pill}</span>${right ? `<span class="mx-ax-appinst">${right}</span>` : ''}</div>
+    ${pill || right ? `<div class="mx-ax-apptags">${pill ? `<span class="mx-tag mx-tag--gold">${pill}</span>` : ''}${right ? `<span class="mx-ax-appinst">${right}</span>` : ''}</div>` : ''}
     <h1 class="mx-lt">${COPY.wiz.title}</h1>
     <p class="mx-lede">${sub}</p>
   </section>

@@ -337,7 +337,9 @@ function blockGlance() {
     ? D.schedule.map(r => ({ time: r.time, title: fmt.euro(r.title || ''), sub: r.description || '' }))
     : COPY.glance.fallback.map(r => ({ time: r.time, title: r.title, sub: r.description, gold: r.gold }));
   const musicAt = rows.findIndex(r => /music/i.test(r.title));
-  if (!D.performers.announced && musicAt >= 0 && !rows[musicAt].sub) rows[musicAt].sub = COPY.performers.tbaLine;
+  // the admin's music line can already name the performers: until the backend flag (performers_announced) is on,
+  // the row says only that two are confirmed, whatever that description holds
+  if (!D.performers.announced && musicAt >= 0) rows[musicAt].sub = COPY.performers.tbaLine;
   const row = r => `<li class="mx-tl-row${r.gold || /award/i.test(r.title) ? ' is-gold' : ''}"><time class="mx-tl-time">${esc(r.time || '')}</time><div class="mx-tl-body"><span class="mx-tl-title">${esc(r.title)}</span>${r.sub ? `<span class="mx-tl-sub">${esc(r.sub)}</span>` : ''}</div></li>`;
   const named = D.performers.announced ? `
     <div class="mx-gala-perf">
@@ -378,7 +380,7 @@ function template() {
   ${blockCrumb()}
   ${blockHero()}
   ${blockCountdown()}
-  <div class="mx-p">
+  <div class="mx-p mx-p--num">
     ${blockFacts()}
     ${blockStage()}
     ${blockWhy()}

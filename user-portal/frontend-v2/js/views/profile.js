@@ -192,7 +192,8 @@ const photoSrc = () => (D.photoPreview ? D.photoPreview : (D.profile.photo_url ?
 // "Change photo"); the completion as one accordion row; identity fields (16px inputs, 12 labels); About (14px chips,
 // 16px bio); Account & preferences as grouped rows (switches and ›); ONE Save at the end of the form; "How others see
 // you" folded away; Delete account as one crimson row (its what-is-deleted / what-is-kept copy lives in its sheet).
-// Hooks kept: .mx-profile-sec around [data-block="prefs"] (the iOS shell inserts "ON THIS IPHONE" after it),
+// Hooks kept: .mx-profile-sec around [data-block="prefs"] and [data-block="deleteAccount"] (the iOS shell inserts its
+// "On this iPhone" section, drawn with these kit rows, right above Delete account),
 // data-act="deleteAccount", every data-act / data-field / data-role the handlers read.
 const specLabel = v => { const t = String(v || ''); return t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t; };
 function blockCrumbs() {
@@ -342,7 +343,7 @@ function blockAccount() {
       <!-- /dc -->`;
 }
 // Not in Profile.dc.html (App Store 5.1.1(v)): one crimson row, the last word on the screen (below the iOS shell's
-// "ON THIS IPHONE", which the app inserts right after the account section). What is erased and what Med&X keeps
+// "On this iPhone", which the app inserts right above this section). What is erased and what Med&X keeps
 // is spelled out in the sheet it opens (openDeleteModal), word for word.
 function blockDelete() {
   const c = COPY.del;

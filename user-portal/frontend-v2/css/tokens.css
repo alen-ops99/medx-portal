@@ -129,6 +129,9 @@
 @media (max-width: 500px) {
   .btn-primary, .btn-ghost, .btn-gold, .btn-ghost-ink { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; }
   .btn-sm { min-height: 36px; }
+  /* a full-width label too long for a small phone ("GET NOTIFIED WHEN APPLICATIONS OPEN" at 320) takes two balanced
+     lines instead of being cut at both edges; a label that fits stays on one line */
+  .btn-block { white-space: normal; text-wrap: balance; line-height: 18px; padding-left: 16px; padding-right: 16px; }
 }
 
 /* card — cream sheet with a 1px hairline; no shadow, no radius */

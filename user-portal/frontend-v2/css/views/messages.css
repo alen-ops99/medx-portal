@@ -30,6 +30,7 @@
   .mx-msg-screen { min-height: 0 !important; }      /* the inline 100vh added a scroll into blank cream under the grid */
   .mx-msg-head .mx-msg-archlink { display: none !important; }
   .mx-msg-more--phone { display: inline-flex !important; color: var(--soft); }
+  .mx-msg-head .mx-safe-more { width: 44px; height: 44px; }      /* the header's ⋯ is a full 44px target */
 }
 /* phones: the grid is sized to end exactly at the tab bar (messages.js › sizeGrid), so the view's own
    86 px tab-bar clearance would only add a scroll into blank cream under the composer */

@@ -22,7 +22,8 @@
   .mx-gala-stage:has(> :nth-child(5):last-child) { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 .mx-gala-stage .mx-person { padding: 4px 0; }
-/* a role such as "President & CEO, University Health Network" reads whole: three lines at most, never an ellipsis mid-name */
+/* a role such as "President & CEO, University Health Network" reads whole: three lines at most, never an ellipsis mid-name
+   (close round 2026-09-25: the kit's two-line clamp cut "Massachusetts Gener…" and "University Health…" at 390) */
 .mx-gala-stage .mx-person-role { -webkit-line-clamp: 3; }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .mx-gala-stage .mx-person .mx-pic { transition: transform var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }

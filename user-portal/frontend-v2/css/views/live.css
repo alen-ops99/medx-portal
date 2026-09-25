@@ -142,6 +142,8 @@
   .lv-tab { padding: 0 4px; letter-spacing: .06em; }
 }
 @media (max-width: 340px) { .lv-tab-my { display: none; } }
+/* a 320 phone: the header row keeps the eyebrow and the way back; the member's name ("REV…") steps aside */
+@media (max-width: 360px) { .lv-who { display: none; } }
 
 /* ---- panels ---- */
 .lv-panels { padding: 0 0 24px; min-height: 60vh; }

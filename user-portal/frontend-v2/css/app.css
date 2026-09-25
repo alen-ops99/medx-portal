@@ -744,6 +744,14 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
 /* ---- section head: 01 + TITLE + optional right link, one line that never wraps ---- */
 .mx-sh { display: flex; align-items: center; gap: 12px; min-width: 0; margin: 0 0 var(--sp-16); }
 .mx-sh-n { flex: none; font: 400 15px/1 var(--font-display); color: var(--crimson); font-variant-numeric: lining-nums tabular-nums; }
+/* the long project pages (.mx-p--num: Gala, Plexus, Accelerator, Forum) number EVERY section head in page order, so
+   "Moments" or "Good to know" never sit unnumbered between 02 and 03; a section a page leaves out takes no number */
+.mx-p--num { counter-reset: mx-sec; }
+.mx-p--num .mx-sec > .mx-sh { counter-increment: mx-sec; }
+.mx-p--num .mx-sec > .mx-sh > .mx-sh-n { display: none; }
+.mx-p--num .mx-sec > .mx-sh::before { content: counter(mx-sec, decimal-leading-zero); flex: none; font: 400 15px/1 var(--font-display); color: var(--crimson);
+  font-variant-numeric: lining-nums tabular-nums; }
+.mx-p--num .mx-dark > .mx-sh::before, .mx-p--num .mx-dark .mx-sec > .mx-sh::before { color: var(--gold); }
 .mx-sh-t { flex: 1 1 auto; min-width: 0; margin: 0; font: 600 var(--fs-label)/16px var(--font-ui); letter-spacing: .12em; text-transform: uppercase;
   color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mx-sh-a { flex: none; margin: -12px 0 -12px auto; padding: 0 0 0 8px; min-height: 44px; min-width: 44px; box-sizing: border-box; justify-content: flex-end; display: inline-flex; align-items: center; gap: 4px;
@@ -831,6 +839,7 @@ a.mx-person, button.mx-person, .mx-person[data-act] { cursor: pointer; }
 .mx-person-row .mx-person-role { -webkit-line-clamp: 2; }
 .mx-person-row .mx-person-tag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 400px) { .mx-person-row { gap: 12px; } .mx-person-row .mx-person-tag { letter-spacing: .08em; } }
+@media (max-width: 340px) { .mx-person-row { gap: 10px; } .mx-person-row .mx-person-tag { letter-spacing: .03em; } }
 .mx-person-row > .mx-ic { color: rgba(25,21,18,.32); }
 .mx-person-act { flex: none; display: flex; align-items: center; gap: 8px; }
 a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: background-color var(--t-quick) var(--ease); }
@@ -907,6 +916,12 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
   .mx-countdown { display: grid; grid-template-columns: repeat(3, max-content); justify-content: start; column-gap: 28px; row-gap: 6px; }
   .mx-cd-label { grid-column: 1 / -1; }
   .mx-cd-num { font-size: 36px; }
+}
+/* wide screens: the band's label and numbers start on the page column, as one group (the 501px padding above used to
+   win over the column rule, so "Begins in" sat at the window edge and the numbers at the far right) */
+@media (min-width: 901px) {
+  .mx-countdown { padding-left: max(36px, calc((100vw - 1180px) / 2 + 36px)); padding-right: max(36px, calc((100vw - 1180px) / 2 + 36px)); }
+  .mx-cd-label { margin-right: 12px; }
 }
 /* a countdown as one quiet line inside a card */
 .mx-countdown--line { display: flex !important; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 0; background: none; border: 0; color: inherit; }
@@ -998,6 +1013,10 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
 .mx-pcard-line { margin: 0; font: 400 var(--fs-2nd)/20px var(--font-ui); color: var(--soft); }
 .mx-pcard-main { color: inherit; text-decoration: none; }
 .mx-pcard-main::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+/* the card's own link as a cover over the whole card (a title link inside the photo's positioned title only covered
+   the 30px title line); the CTA with its own href sits above it */
+.mx-pcard-cover { position: absolute; inset: 0; z-index: 1; }
+.mx-pcard-cover::after { content: none; }
 .mx-pcard-cta { position: relative; z-index: 2; align-self: flex-start; min-height: 44px; margin: -4px 0 -12px; display: inline-flex; align-items: center; gap: 6px;
   font: 600 var(--fs-btn)/16px var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--crimson); text-decoration: none; }
 .mx-pcard .mx-media > img { transition: transform var(--t-drift) var(--ease); }

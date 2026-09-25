@@ -32,9 +32,9 @@ const NAMES = [
   [/kevinsmith/, 'kevin_smith'],
   [/chriscoburn|christophercoburn/, 'coburn'],
   [/gilesboland/, 'boland'],
-  [/marceladelcarmen|delcarmen/, 'delcarmen'],
-  [/spisso/, 'spisso'],
-  [/anderson/, 'anderson']
+  [/marceladelcarmen/, 'delcarmen'],
+  [/johnesespisso/, 'spisso'],
+  [/paulanderson/, 'anderson']
 ];
 const letters = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '');
 

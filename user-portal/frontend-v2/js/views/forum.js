@@ -78,7 +78,8 @@ export const COPY = {
     stages: ['Join', 'Register', 'Confirmed'],
     inviteLine: 'Received an invitation? Enter your code to join.',
     codePlaceholder: 'FORUM CODE', unlock: 'UNLOCK REGISTRATION →', checking: 'CHECKING…',
-    note: cap => `Annual membership · capped at ${cap} members. No code yet? Message us below.`,
+    // the cap and "Annual membership" are facts above (say it once); the card keeps only the way in
+    note: () => 'No code yet? Message us below.',
     emptyCode: 'Enter the code from your invitation email.',
     memberTag: 'FORUM MEMBER',
     welcome: first => `Welcome to the Forum${first ? ', ' + first : ''}.`,
@@ -275,7 +276,7 @@ function blockSchedule() {
   <!-- dc: Biomedical Forum.dc.html › "02 · THE ANNUAL GATHERING" -->
   <section class="mx-sec" id="forum-schedule" data-block="gathering">
     ${sectionHead(COPY.gathering.n, COPY.gathering.title)}
-    <p class="mx-sh-sub">${esc(D.gatherShort)} · ${COPY.gathering.sub}</p>
+    <p class="mx-sh-sub">${COPY.gathering.sub}</p>
     <div class="mx-accs"><details class="mx-acc"><summary>${COPY.gathering.more}</summary><div class="mx-acc-a">${esc(D.gatherAbout)}</div></details></div>
   </section>
   <!-- /dc -->`;
@@ -428,7 +429,7 @@ function template() {
 <div data-screen-label="Biomedical Forum" class="mx-fo">
   ${blockCrumb()}
   ${blockHero()}
-  <div class="mx-p">
+  <div class="mx-p mx-p--num">
     ${blockFacts()}
     ${blockNetwork()}
     ${blockFeed()}

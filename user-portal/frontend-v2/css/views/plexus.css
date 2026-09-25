@@ -4,7 +4,8 @@
 .mx-px { background: #f7f1e6; color: #191512; }
 
 /* hero: on a phone the portrait crop keeps the Plexus roll-up and the panel, and leaves the projected slide's lettering at the edge */
-.mx-px-heroimg { object-position: 75% 50%; }
+/* phones: the whole screen and the panel in frame (at 75% the slide's words were cut at the left edge, "to Gala / ing") */
+.mx-px-heroimg { object-position: 7% 50%; }
 @media (min-width: 701px) { .mx-px-heroimg { object-position: 50% 88%; } }
 
 /* ---- the four tabs + the event app row ---- */
@@ -15,6 +16,7 @@
 
 /* ---- Plexus Week: one row per event; the title is the row's link, a registration button (its old href) sits above it ---- */
 .mx-px-year { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.mx-px-week { max-width: 640px; }   /* the width of the facts column above it */
 .mx-timeline--wide .mx-px-weekrow { position: relative; grid-template-columns: 72px minmax(0, 1fr) 20px; }
 .mx-px-weekrow > .mx-ic { align-self: center; color: rgba(25,21,18,.32); }
 .mx-px-weeklink { color: #191512; text-decoration: none; }
@@ -31,6 +33,7 @@
 }
 @media (min-width: 901px) { .mx-px-stage:has(> :nth-child(5):last-child) { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 .mx-px-stage .mx-person { padding: 4px 0; }
+/* a role reads whole: three lines at most (two cut "Massachusetts Gener…" at 390) */
 .mx-px-stage .mx-person-role { -webkit-line-clamp: 3; }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .mx-px-stage .mx-person .mx-pic { transition: transform var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
