@@ -59,6 +59,8 @@ const path = require('path');
 const multer = require('multer');
 const { randomUUID } = require('crypto');
 const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
+// Who may see a task (25 Sept 2026): a task nudge in direct_messages is returned only to its sender and receiver
+const taskVis = require('../../../shared/task-visibility');
 // The gala payment-state classifier (paid · link_sent · checkout_abandoned · no_link_yet · held ·
 // paid_twins) — ONE truth shared with gala-ops / registrations / people / money, so the audience
 // tag, the "payment open" sub-label and the compose filter agree with the Gala card (audit item A).
@@ -366,7 +368,12 @@ ${paragraphs(body)}` }),
                                 FROM scheduled_emails WHERE batch_id = ? ORDER BY created_at ASC, rowid ASC`, [batch]);
             if (!rows.length) return res.status(404).json({ error: 'No such batch.' });
             const parse = (r) => { try { return r.payload_json ? JSON.parse(r.payload_json) : {}; } catch (e) { return {}; } };
-            const first = parse(rows[0]);
+            // a daily digest is one person's own list (older digests named their tasks, which only the
+            // task's creator and assignee may see): it previews only the caller's own row, never another's
+            const personal = rows[0].source_engine === 'nag-digest';
+            const me = String((req.user && req.user.email) || '').trim().toLowerCase();
+            const own = personal ? rows.find(r => me && String(r.recipient_email || parse(r).to || '').trim().toLowerCase() === me) : rows[0];
+            const first = own ? parse(own) : { subject: 'Your Med&X action items', body_text: 'Each digest lists only its recipient\'s own items, so it previews only for them.' };
             const items = rows.map(r => { const p = parse(r); return { id: r.id, to: p.to || r.recipient_email, status: r.status, scheduled_for: r.scheduled_for || null }; });
             res.json({
                 batch_id: batch,
@@ -438,10 +445,11 @@ ${paragraphs(body)}` }),
     app.get('/api/v2/inbox/threads', auth, adminOnly, (req, res) => {
         try {
             const adminId = String((req.user && req.user.id) || 'admin');
+            const tr = taskVis.taskReminderDmScope('direct_messages', req.user && req.user.id);
             const rows = all(`SELECT id, sender_id, receiver_id, sender_type, receiver_type, title, topic, content, attachment_name, is_read, created_at
                                 FROM direct_messages
-                               WHERE COALESCE(sender_type,'user') = 'admin' OR COALESCE(receiver_type,'user') = 'admin'
-                               ORDER BY created_at ASC, rowid ASC`);
+                               WHERE (COALESCE(sender_type,'user') = 'admin' OR COALESCE(receiver_type,'user') = 'admin') AND ${tr.sql}
+                               ORDER BY created_at ASC, rowid ASC`, tr.params);
             const byMember = new Map();
             rows.forEach(r => {
                 const inbound = String(r.sender_type || 'user') !== 'admin';
@@ -824,10 +832,11 @@ ${paragraphs(body)}` }),
     app.get('/api/v2/inbox/needs-reply', auth, adminOnly, (req, res) => {
         try {
             const adminId = String((req.user && req.user.id) || 'admin');
+            const tr = taskVis.taskReminderDmScope('direct_messages', req.user && req.user.id);   // the same rows GET /threads shows
             const rows = all(`SELECT sender_id, receiver_id, sender_type, is_read, created_at
                                 FROM direct_messages
-                               WHERE COALESCE(sender_type,'user') = 'admin' OR COALESCE(receiver_type,'user') = 'admin'
-                               ORDER BY created_at ASC, rowid ASC`);
+                               WHERE (COALESCE(sender_type,'user') = 'admin' OR COALESCE(receiver_type,'user') = 'admin') AND ${tr.sql}
+                               ORDER BY created_at ASC, rowid ASC`, tr.params);
             const resolved = new Map();                      // rawKey (users.id OR legacy email) → thread key
             const keyOf = (rawKey) => {
                 if (resolved.has(rawKey)) return resolved.get(rawKey);

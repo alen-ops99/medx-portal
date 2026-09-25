@@ -23,8 +23,9 @@ export const ROUTES = [
   // BIG IDEAS — a primary destination of its own (never a tab inside PROJECTS): the long-term
   // projects book. '/big-ideas' is the list, '/big-ideas/<id>' the detail.
   { path: '/big-ideas/:id?',   view: () => import('./views/big-ideas.js'),   active: 'Big Ideas', title: 'Big Ideas',    sections: S.bigideas },
-  // TASKS — the shared board (2026-09-20): '/tasks' is the board, '/tasks/<id>' opens that card's
-  // drawer. Unmapped on the server (tasks are for the whole team) → no `sections`.
+  // TASKS — the board (2026-09-20): '/tasks' is the board, '/tasks/<id>' opens that card's
+  // drawer. Unmapped on the server (every admin has a board; each card is seen only by its creator
+  // and its assignee, 25 Sept 2026) → no `sections`.
   { path: '/tasks/:id?',       view: () => import('./views/tasks.js'),       active: 'Tasks',     title: 'Tasks' },
   // NOTES — event & day notes (2026-09-22): '/notes' is the stream + composer, '/notes/<id>' scrolls
   // to that note, '/notes?event=<key>' is one event's page. Unmapped on the server (whole team) → no `sections`.

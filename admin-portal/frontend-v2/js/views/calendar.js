@@ -12,8 +12,8 @@
 // exists where it earns its space — the printed A4 landscape board behind EXPORT PDF.
 // Data: entries ARE /api/admin/year-calendar (add = POST, ✕ = DELETE with UNDO re-create);
 // NEXT UP + KEY DATES compose the /api/v2/calendar/key-dates union (entries · conferences ·
-// bridges · live gala early-bird prices); TEAM TASKS is the board's open list (/api/v2/tasks — the
-// same cards /tasks shows; 2026-09-20: the tick-list moved to the board, this card is its door)
+// bridges · live gala early-bird prices); YOUR TASKS is the board's open list (/api/v2/tasks — the
+// same cards /tasks shows, only the caller's own; 2026-09-20: the tick-list moved to the board, this card is its door)
 // (note 17 — ticking here completes for everyone). Header comes from js/chrome.js.
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -24,7 +24,7 @@ export const SOURCE = 'Admin Calendar.dc.html';
 
 export const COPY = {
   title: 'Calendar', sub: 'everything Med&amp;X is running, this year and next',
-  exportPdf: 'EXPORT PDF', exportPdfTitle: 'A print-ready year board in the Med&X look — one page; your browser\'s print dialog opens, choose "Save as PDF"',
+  exportPdf: 'EXPORT PDF', exportPdfTitle: 'A print-ready year board in the Med&X look, one page. Your browser\'s print dialog opens, choose Save as PDF.',
   exportPdfToast: 'PRINT-READY YEAR BOARD — CHOOSE “SAVE AS PDF” IN THE DIALOG',
   exportCsv: 'EXPORT CSV', exportedCsv: 'CALENDAR EXPORTED · CSV', addEntry: '+ ADD ENTRY',
   nextUp: { label: 'NEXT UP', inDays: n => n === 0 ? 'today' : `in ${fmt.plural(n, 'day')}`, open: p => `OPEN ${String(p || 'calendar').toUpperCase()} →`, none: 'Nothing dated ahead — add the next thing to the board.' },
@@ -40,7 +40,7 @@ export const COPY = {
     empty: 'Nothing dated yet — + ADD ENTRY puts the first thing on the calendar.'
   },
   tasks: {
-    title: 'TEAM TASKS', note: 'open cards on the board — tap one to open it', team: 'TEAM', empty: 'All clear — nothing open.',
+    title: 'YOUR TASKS', note: 'open cards you gave or were given — tap one to open it', team: 'NO ONE', empty: 'All clear — nothing open.',
     board: 'OPEN THE BOARD →', add: '+ NEW TASK', more: n => `+ ${n} more on the board`, doing: 'IN PROGRESS',
     overdue: n => `Overdue — ${fmt.plural(n, 'day')}`, dueToday: 'Due today', due: d => `Due ${fmt.dayShort(d)}`
   },
@@ -232,7 +232,10 @@ function blockAdd() {
 // and entry deletion moved to KEY DATES below, where the rows actually read.
 
 function taskMeta(t) {
-  const who = t.assignee_first ? String(t.assignee_first).toUpperCase() : (t.assignee_name ? String(t.assignee_name).split(/\s+/)[0].toUpperCase() : COPY.tasks.team);
+  // who is on it: up to three first names, then +N (the board's card label); an older backend sends one
+  const names = Array.isArray(t.people) ? t.people.map(p => String(p.first || String(p.name || '').split(/\s+/)[0] || '').toUpperCase()).filter(Boolean) : [];
+  const who = names.length ? names.slice(0, 3).join(' · ') + (names.length > 3 ? ` +${names.length - 3}` : '')
+    : t.assignee_first ? String(t.assignee_first).toUpperCase() : (t.assignee_name ? String(t.assignee_name).split(/\s+/)[0].toUpperCase() : COPY.tasks.team);
   if (!t.due_date || !String(t.due_date).trim()) return { who, due: '', dueColor: '#6d6459' };
   const diff = fmt.daysUntil(t.due_date);
   if (diff < 0) return { who, due: COPY.tasks.overdue(Math.abs(diff)), dueColor: '#9b1b22' };

@@ -42,6 +42,36 @@
 @media (hover: hover) { [data-col="seen"] .mx-task:hover { opacity: 1; } }
 @media (hover: none) { [data-col="seen"] .mx-task:active { opacity: .7; } }   /* a dimmed card still answers the press (dimmer, never brighter) */
 
+/* ---- WHO: the people on a task (add bar + drawer) — one rectangular chip per person with its own ×,
+   then a dashed ADD PERSON button that is a native select underneath (a phone opens its own wheel). The
+   × and the picker keep a 44 px hit area on touch screens; you are marked by a gold hairline. ---- */
+.mx-people { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.mx-tasks-add .mx-people { flex: 0 1 auto; }
+.mx-person { display: inline-flex; align-items: stretch; height: 32px; box-sizing: border-box; border: 1px solid rgba(32,27,22,.22); background: #f6f2ea; color: #201b16; max-width: 100%; min-width: 0; }
+.mx-person.me { border-color: #c9a962; background: #fbf7ee; }
+.mx-person-name { display: inline-flex; align-items: center; padding: 0 2px 0 10px; font: 600 9.5px Inter, sans-serif; letter-spacing: .13em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.mx-person-x { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; flex: none; margin: 0; padding: 0; border: 0; background: transparent; color: #8a8178; cursor: pointer;
+  transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease); }
+.mx-person-x::after { content: ''; position: absolute; inset: -6px -4px; }   /* a larger target than it looks */
+@media (hover: hover) { .mx-person-x:hover { color: #9b1b22; background: rgba(155,27,34,.07); } }
+.mx-person-x:focus-visible { outline: 2px solid #9b1b22; outline-offset: -2px; }
+.mx-person-add { position: relative; display: inline-flex; align-items: center; height: 32px; box-sizing: border-box; padding: 0 12px; border: 1px dashed rgba(32,27,22,.34); background: transparent; color: #6d6459;
+  font: 600 9.5px Inter, sans-serif; letter-spacing: .13em; white-space: nowrap; cursor: pointer; transition: border-color var(--t-quick) var(--ease), color var(--t-quick) var(--ease); }
+@media (hover: hover) { .mx-person-add:hover { border-color: #201b16; color: #201b16; } }
+.mx-person-add:focus-within { border-color: #201b16; color: #201b16; }
+.mx-person-add:has(select:focus-visible) { outline: 2px solid #9b1b22; outline-offset: 3px; }   /* the ring only for the keyboard */
+.mx-person-add select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; border: 0; margin: 0; -webkit-appearance: none; appearance: none; }
+.mx-people-note { font-size: 11px; color: #6d6459; }
+/* someone with no portal account (the card never reaches them): a dashed hairline and a NO ACCOUNT mark,
+   visible on a touch screen where the title tooltip never shows */
+.mx-person.noacct { border-style: dashed; background: transparent; }
+.mx-person-flag { display: inline-flex; align-items: center; padding: 0 0 0 7px; font: 600 7.5px Inter, sans-serif; letter-spacing: .12em; color: #8a8178; white-space: nowrap; flex: none; }
+/* a people save in flight: every × and the picker wait for it */
+.mx-person-x:disabled, .mx-person-add:has(select:disabled) { opacity: .45; cursor: default; }
+.mx-person-add select:disabled { cursor: default; }
+/* the card's WHO label may carry three names: it shrinks with an ellipsis instead of widening the card */
+.mx-task-who { min-width: 0; flex: 0 1 auto; }
+
 /* ---- drawer (right side on desktop; no scrim — the board stays live, a click on another card
    switches the drawer, × or Escape closes it) ---- */
 .mx-drawer { position: fixed; inset: 0; z-index: 55; display: flex; justify-content: flex-end; pointer-events: none; }
@@ -69,6 +99,16 @@
 .mx-drop-zone { position: relative; }
 
 /* ---- responsive ---- */
+/* touch (a phone, and a tablet wider than the phone layout): every chip, × and picker is a 44 px target */
+@media (max-width: 760px), (pointer: coarse) {
+  .mx-person, .mx-person-add { height: 44px; }
+  .mx-person-name { padding-left: 12px; font-size: 10px; }
+  /* the × itself is 44 × 44: it stretches over the chip's hairline (top, bottom, right) */
+  .mx-person-x { width: 44px; margin: -1px -1px -1px 0; }
+  .mx-person-x::after { inset: 0; }
+  .mx-person-add { padding: 0 14px; font-size: 10px; }
+  .mx-person-add select { inset: -1px; width: auto; height: auto; max-width: none; }   /* the picker fills the whole 44 px button, hairline included */
+}
 @media (max-width: 1100px) {
   .mx-board { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
@@ -76,12 +116,13 @@
   .mx-board { grid-template-columns: minmax(0, 1fr) !important; gap: 20px !important; }
   .mx-col-body { min-height: 0 !important; }
   .mx-tasks-add { padding: 10px 12px !important; }
-  .mx-tasks-add input[data-role="addTitle"] { flex-basis: 100% !important; }
-  /* second line: WHO · date · ADD on one row */
-  .mx-tasks-add select[data-role="addWho"] { flex: 1 1 80px !important; min-width: 0; }
-  .mx-tasks-add label { flex: 1 1 120px !important; min-width: 0; }
-  .mx-tasks-add label > span { display: none; }
-  .mx-tasks-add label > input { width: 100%; box-sizing: border-box; }
+  .mx-tasks-add input[data-role="addTitle"] { flex-basis: 100% !important; min-height: 44px; box-sizing: border-box; }
+  /* second line: WHO (its chips + ADD PERSON, wrapping); third line: date · ADD */
+  .mx-tasks-add .mx-people { flex: 1 1 100%; }
+  .mx-tasks-add .mx-add-due { flex: 1 1 120px !important; min-width: 0; }
+  .mx-tasks-add .mx-add-due > span { display: none; }
+  .mx-tasks-add .mx-add-due > input { width: 100%; box-sizing: border-box; min-height: 44px; }
+  .mx-tasks-add .mx-add-btn { min-height: 44px; display: inline-flex; align-items: center; box-sizing: border-box; }
   .mx-tasks-filters { gap: 6px !important; }
   .mx-tasks-search { flex: 1 1 100% !important; min-width: 0 !important; }
   /* the drawer becomes the whole screen; the page underneath stops scrolling */

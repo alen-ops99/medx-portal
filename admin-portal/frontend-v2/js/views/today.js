@@ -113,7 +113,7 @@ export const COPY = {
   comingUp: { title: 'COMING UP', full: 'FULL CALENDAR →', empty: 'Nothing on the year board yet — add dates in Calendar.', earlyBird: (price, days) => `Gala early-bird ends — price moves to ${price} · ${days} day${days === 1 ? '' : 's'} away` },
   // TASKS (2026-09-20): the tick-list became the shared board (/tasks). This card is the compact
   // read — what is waiting for ME to see (done, unseen — red) and my own open tasks, each a door.
-  tasks: { title: 'TASKS', waiting: n => `${n} waiting for you to see`, waitingWhy: 'finished — the result is on the card', mine: 'YOURS', empty: 'Nothing on your plate.', emptyWhy: 'Add the next thing on the board — the person you pick gets one short email.', all: 'OPEN THE BOARD →', more: n => `+ ${n} more`, overdue: d => `${d}D OVERDUE`, today: 'DUE TODAY', due: d => `DUE ${d}`, doing: 'IN PROGRESS' },
+  tasks: { title: 'TASKS', waiting: n => `${n} waiting for you to see`, waitingWhy: 'finished — the result is on the card', mine: 'YOURS', empty: 'Nothing on your plate.', emptyWhy: 'Add the next thing on the board — everyone you tag who has a portal account gets one short email.', all: 'OPEN THE BOARD →', more: n => `+ ${n} more`, overdue: d => `${d}D OVERDUE`, today: 'DUE TODAY', due: d => `DUE ${d}`, doing: 'IN PROGRESS' },
   // NOTES (2026-09-22): the shared event & day notes (/notes). A small tile — today's count, the
   // last note's first line, ADD A NOTE (the composer focused). On an event day it names the event.
   notes: { title: 'NOTES', add: 'ADD A NOTE →', forEvent: (ev, n) => `Notes for ${ev} — ${n} so far`, today: n => n === 0 ? 'No notes today yet.' : `${n} note${n === 1 ? '' : 's'} today`, why: 'Who you met, what was agreed — written in a tap, found later.', last: who => who ? `${who} wrote last:` : 'Last note:' },
@@ -165,7 +165,7 @@ async function load(days) {
     money: api.get('/api/v2/money/summary?year=' + new Date().getFullYear()),   // COLLECTED THIS YEAR = Money's own figure
     confIns: api.get('/api/v2/program/conference/insight'),   // CONFERENCE REGISTERED = the people Registrations and the Program editor count
     nag: api.get('/api/admin/nag/items'),
-    tasks: api.get('/api/v2/tasks'),                  // the board: every live card + who I am on it
+    tasks: api.get('/api/v2/tasks'),                  // the board: my live cards (made by me or given to me) + who I am on it
     tasksBadge: api.get('/api/v2/tasks/badge'),      // done-unseen for me · my open count
     notes: api.get('/api/v2/notes/summary?today=' + fmt.ymd(new Date())),   // the NOTES tile: today's count, the last line, the event of the day
     outbox: api.get('/api/admin/outbox?status=pending_approval'),
@@ -211,11 +211,14 @@ async function load(days) {
   const edCities = new Set(((hub && hub.editions) || []).filter(e => e.is_published).map(e => String(e.city || '').toLowerCase().replace(/ü/g, 'u')));
   const pastCount = hub ? edCities.size + dated.filter(b => b.d < today && !edCities.has(String(b.city || '').toLowerCase().replace(/ü/g, 'u'))).length
     : dated.filter(b => b.d < today).length;
-  // the board's cards: open = todo/doing (the overdue attention row counts everyone's); mine = assigned to me
+  // the board's cards: open = todo/doing (the overdue attention row counts everyone's); mine = the ones
+  // I am on (first or tagged — the board's MINE; an older backend sends only assigned_to)
   const boardRows = r.tasks && Array.isArray(r.tasks.tasks) ? r.tasks.tasks : [];
   const myMember = r.tasks && r.tasks.me ? r.tasks.me.member_id : null;
+  const myUser = r.tasks && r.tasks.me ? r.tasks.me.id : null;
   const tasks = boardRows.filter(t => t.status === 'todo' || t.status === 'doing');
-  const myTasks = myMember ? tasks.filter(t => t.assigned_to === myMember) : [];
+  const onMe = t => Array.isArray(t.people) ? t.people.some(p => (myUser && p.user_id === myUser) || (myMember && p.id === myMember)) : !!(myMember && t.assigned_to === myMember);
+  const myTasks = tasks.filter(onMe);
   const tasksBadge = { done_unseen: r.tasksBadge ? Number(r.tasksBadge.done_unseen || 0) : 0, assigned_open: r.tasksBadge ? Number(r.tasksBadge.assigned_open || 0) : myTasks.length };
   // Canonical gala numbers (audit #1): /api/v2/gala-ops/summary counts SEATS (1 + guest_count,
   // plus-ones included) over non-cancelled rows — the same block the Gala and Money screens read.

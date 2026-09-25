@@ -74,7 +74,7 @@ export const COPY = {
 const NAV = [
   { key: 'Today', label: COPY.nav.today, to: '/today' },
   { key: 'Projects', label: COPY.nav.projects, to: '/projects/plexus', menu: true, drop: ['Projects', 'Big Ideas'] },
-  // TEAM — the shared board, the notes, the inbox and the calendar: everything the team does
+  // TEAM — the task board (each card seen only by who made it and who has it), the notes, the inbox and the calendar
   // together. TASKS and NOTES are unmapped on the server (every admin) → no `sections`.
   { key: 'Team', label: COPY.nav.team, to: '/tasks', menu: true, badge: 'team', badge2: 'tasksOpen', drop: ['Tasks', 'Notes', 'Inbox', 'Calendar'] },
   // PEOPLE carries the open member REPORTS count (App Store 1.2 — answered within 24 hours); the badge opens the queue
@@ -105,7 +105,7 @@ const MENUS = {
   ],
   Team: [
     // TASKS — red = tasks I gave that are done and waiting for me to see; grey = my open tasks
-    { k: 'TASKS', key: 'Tasks', label: 'Tasks', to: '/tasks', sub: 'the shared board', badge: 'tasks', badge2: 'tasksOpen' },
+    { k: 'TASKS', key: 'Tasks', label: 'Tasks', to: '/tasks', sub: 'seen only by who gave it and who has it', badge: 'tasks', badge2: 'tasksOpen' },
     // NOTES — event & day notes (2026-09-22): what happened, who we met, what was agreed
     { k: 'NOTES', key: 'Notes', label: 'Notes', to: '/notes', sub: 'what happened' },
     { k: 'INBOX', key: 'Inbox', label: 'Inbox', to: '/inbox', sub: 'email · outbox · chat', badge: 'inbox', sections: ['member-ops', 'pr-media'] },
@@ -191,7 +191,7 @@ const PALETTE = [
   { kind: 'SCREEN', label: 'Speaker pipeline — potential speakers for 2027', syn: 'speaker speakers predavač predavači govornik pipeline 2027 prospect kandidat invite pozvati contacted kontaktiran keynote', href: '/people/speakers' },
   { kind: 'ACTION', label: 'Add a potential speaker — so we do not forget them', syn: 'speaker predavač govornik new novi add dodaj prospect met upoznao invite 2027 pipeline', href: '/people/speakers?new=1' },
   { kind: 'SCREEN', label: 'Money', syn: 'novac finance financije knjige računi bookkeeping', href: '/money' },
-  { kind: 'SCREEN', label: 'Tasks — the shared board', syn: 'task tasks zadatak zadaci board ploča laura result rezultat todo done seen', href: '/tasks' },
+  { kind: 'SCREEN', label: 'Tasks — your board', syn: 'task tasks zadatak zadaci board ploča laura result rezultat todo done seen', href: '/tasks' },
   { kind: 'SCREEN', label: 'Notes — what happened at each event', syn: 'note notes bilješke bilješka zapis event događaj met upoznao people ljudi boston gala conference day dnevnik whatsapp', href: '/notes' },
   { kind: 'SCREEN', label: 'Calendar & key dates', syn: 'kalendar rokovi deadlines', href: '/calendar' },
   { kind: 'SCREEN', label: 'Studio', href: '/studio' },

@@ -13,6 +13,7 @@ const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
 const caMerge = require('../../shared/ca-merge'); // merged duplicate /plexus registrations follow their survivor
+const taskVis = require('../../shared/task-visibility'); // WHO SEES A TASK (25 Sept 2026): only its creator and the people on it
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
 const safetyCore = require('../../shared/safety-core'); // REPORT / BLOCK / moderation / content filter (App Store 1.2)
 const emailLayout = require('../../shared/email-layout'); // THE Med&X email layout — every outgoing email is rendered in it (sendEmail)
@@ -1071,7 +1072,7 @@ const _legalPageShell = (title, bodyHtml) => `<!DOCTYPE html>
 app.get('/terms', (req, res) => {
     res.send(_legalPageShell('Terms & Conditions', `
         <h1>Terms &amp; Conditions</h1>
-        <div class="updated">Last updated: 23 September 2026</div>
+        <div class="updated">Last updated: 25 September 2026</div>
 
         <p>These terms govern registration for events organized by <strong>Med&amp;X</strong>, a Croatian non-profit organization, including the Plexus Conference, the Plexus Gala Evening, the Annual Biomedical Forum, and other Med&amp;X-organized events, and the use of the Med&amp;X member portal and the Med&amp;X apps for iPhone, iPad and Mac.</p>
 
@@ -1079,7 +1080,7 @@ app.get('/terms', (req, res) => {
         <p>By submitting a registration form, you confirm that the information you provide is accurate and that you accept these terms. Paid registrations are processed via Stripe; receipt of payment confirms your registration. Complimentary (VIP) registrations are confirmed at the moment of form submission.</p>
 
         <h2>2. Refund Policy</h2>
-        <p>All registration fees are <strong>non-refundable</strong>. If you are unable to attend, you may transfer your place to another individual by emailing <a href="mailto:info@medx.hr">info@medx.hr</a> at least 14 days before the event, subject to Med&amp;X approval. In the event of cancellation by Med&amp;X, paid fees will be refunded in full within 30 days.</p>
+        <p>All registration fees are <strong>non-refundable</strong>. If you are unable to attend, you may transfer your place to another individual by emailing <a href="mailto:info@medx.hr">info@medx.hr</a> at least 14 days before the event, subject to Med&amp;X approval. If Med&amp;X cancels an event for any reason not covered by §8, paid fees are refunded in full within 30 days. If Med&amp;X postpones an event for such a reason, your registration carries over, and if you cannot attend the new date, Med&amp;X refunds you in full within 30 days of your request. If circumstances outside Med&amp;X's reasonable control prevent an event from going ahead as planned, §8 applies.</p>
 
         <h2>3. Event Attendance</h2>
         <ul>
@@ -1110,13 +1111,18 @@ app.get('/terms', (req, res) => {
         <p>Attendees are responsible for their own health, safety, and personal belongings during the event. Med&amp;X is not liable for any loss, damage, injury, or expense incurred by attendees except where caused by gross negligence or wilful misconduct on the part of Med&amp;X.</p>
 
         <h2>8. Force Majeure</h2>
-        <p>If Med&amp;X is prevented from holding the event by circumstances outside its reasonable control (including public-health restrictions, natural disasters, or government action), Med&amp;X may postpone or cancel the event. Registration fees may be applied to the rescheduled event or refunded at Med&amp;X's discretion.</p>
+        <p>If circumstances outside Med&amp;X's reasonable control prevent an event from going ahead as planned, Med&amp;X may postpone it, move it to another venue or online, or cancel it. Such circumstances include public-health restrictions, natural disasters, war or civil unrest, general or transport strikes, the venue becoming unusable through fire, flood or an order of the authorities, and other government action.</p>
+        <ul>
+            <li>If the event is postponed or moved, your registration carries over to the new date or format. If you cannot take part, you may transfer your place as described in §2. You may instead tell us at <a href="mailto:info@medx.hr">info@medx.hr</a>, within 14 days of our email about the change, that you will not take part. You then receive the credit or refund described in the next point, and only the costs lost because of the postponement or move count toward your share.</li>
+            <li>If the event is cancelled, Med&amp;X gives you a credit worth the full fee you paid. You can use it for any Med&amp;X event within 24 months of the cancellation, or pass it to another person. Until the credit is used or expires, you may ask for a refund instead. The refund is the fee you paid minus your share of the costs Med&amp;X has already paid for the event and cannot recover, such as the venue, catering, printing and payment-processing fees. Your share is those costs, less anything covered by insurance, sponsors or grants, divided among all paid registrations in proportion to the fees paid. It is never more than 30 percent of your fee. Med&amp;X sends you the calculation and pays the refund within 60 days of your request. If the credit expires unused, Med&amp;X pays you this refund without a request.</li>
+        </ul>
+        <p>In these circumstances Med&amp;X is not responsible for travel, accommodation or other costs you arranged for the event.</p>
 
         <h2>9. Data and Privacy</h2>
         <p>The personal data you provide is processed in accordance with our <a href="/privacy">Privacy Policy</a>. You can delete your member account at any time in the portal or the app, under My Med&amp;X › Profile &amp; settings › Delete account.</p>
 
         <h2>10. Changes to These Terms</h2>
-        <p>Med&amp;X may amend these terms from time to time. The version in force is the one published on this page at the date of your registration.</p>
+        <p>Med&amp;X may update these terms when it adds or changes an event, a program or a feature of the portal or the apps, when the law or the authorities require it, or to make the terms clearer. The version published on this page applies to everyone, so please check it from time to time. Before a change that affects your rights takes effect, Med&amp;X tells members in the portal and the app, or by email, at least 14 days ahead. A change the law requires can apply sooner. If you do not agree with a change, tell us at <a href="mailto:info@medx.hr">info@medx.hr</a>, or delete your account before the change takes effect. If you keep using the portal or the apps after that, you accept the updated terms. A change never makes the price, the refund terms (§2) or the cancellation terms (§8) worse for a registration you have already paid for.</p>
 
         <h2>11. Governing Law</h2>
         <p>These terms are governed by the laws of the Republic of Croatia. Any disputes arising shall be subject to the exclusive jurisdiction of the courts of Zagreb, Croatia.</p>
@@ -1129,7 +1135,7 @@ app.get('/terms', (req, res) => {
 app.get('/privacy', (req, res) => {
     res.send(_legalPageShell('Privacy Policy', `
         <h1>Privacy Policy</h1>
-        <div class="updated">Last updated: 23 September 2026</div>
+        <div class="updated">Last updated: 25 September 2026</div>
 
         <p><strong>Med&amp;X</strong>, a Croatian non-profit organization, is the controller of personal data collected through this portal and the Med&amp;X apps for iPhone, iPad and Mac. This policy explains what data we collect, why we collect it, how we use it, and your rights under the EU General Data Protection Regulation (GDPR) and the Croatian Personal Data Protection Act.</p>
 
@@ -1222,7 +1228,7 @@ app.get('/privacy', (req, res) => {
         <p>Some of our processors (e.g. Stripe, Google Workspace, Render) may transfer data outside the European Economic Area. All such transfers are protected by the EU Commission's Standard Contractual Clauses or by adequacy decisions.</p>
 
         <h2>10. Changes to This Policy</h2>
-        <p>We may update this policy from time to time. The version in force at the time of your registration is the one shown on this page on that date.</p>
+        <p>We may update this policy from time to time. The version published on this page applies from the date shown under "Last updated". Before a change that significantly affects how we use your personal data takes effect, we tell you by email, and members also see it in the portal and the app. If we want to use your data for a new purpose that needs your consent, we ask for it first.</p>
 
         <h2>11. Contact</h2>
         <p>For any privacy questions, write to us at <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
@@ -7792,6 +7798,9 @@ async function initializeApp() {
         uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE
     )`);
+    // Everyone tagged on a task (25 Sept 2026): the legacy /api/tasks* routes and search read the task
+    // rule, which reads this table, so it exists before the first request (shared/task-visibility.js)
+    try { taskVis.ensureTaskPeopleTable((sql, p) => db.run(sql, p)); } catch (e) { console.error('[tasks] v2_task_people schema:', e.message); }
 
     // Project timeline events table
     db.run(`CREATE TABLE IF NOT EXISTS project_timeline_events (
@@ -19948,12 +19957,13 @@ By applying to this program, I provide the following consents:
     app.get('/api/dashboard/summary', auth, adminOnly, (req, res) => {
         const conf = activePlexusConf();
         const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
+        const tv = taskVis.visibleTaskSql('pt', req.user && req.user.id);   // task counts are the caller's own tasks
 
         const summary = {
             plexus: {
                 registrations: query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ?', [conf?.id])?.c || 0,
                 speakers: query.get('SELECT COUNT(*) as c FROM speakers WHERE conference_id = ?', [conf?.id])?.c || 0,
-                pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE project = 'plexus' AND status != 'done'")?.c || 0
+                pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks pt WHERE project = 'plexus' AND status != 'done' AND " + tv.sql, tv.params)?.c || 0
             },
             accelerator: {
                 applications: query.get('SELECT COUNT(*) as c FROM accelerator_applications WHERE program_id = ?', [program?.id])?.c || 0,
@@ -19969,8 +19979,8 @@ By applying to this program, I provide the following consents:
                 events: 4
             },
             tasks: {
-                total: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done'")?.c || 0,
-                urgent: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND priority = 'high'")?.c || 0
+                total: query.get("SELECT COUNT(*) as c FROM project_tasks pt WHERE status != 'done' AND " + tv.sql, tv.params)?.c || 0,
+                urgent: query.get("SELECT COUNT(*) as c FROM project_tasks pt WHERE status != 'done' AND priority = 'high' AND " + tv.sql, tv.params)?.c || 0
             }
         };
 
@@ -19978,16 +19988,26 @@ By applying to this program, I provide the following consents:
     });
 
     // ========== PROJECT TASKS ROUTES ==========
+    // The v1 SPA's per-project task lists (the same rows the admin board uses — one Turso DB). Every
+    // route here follows the task rule (only the creator and the people on it see a task —
+    // shared/task-visibility.js): lists and summaries hold only the caller's own tasks, and a task the
+    // caller may not see answers exactly like a missing one.
+    const visTasks = (req, alias) => taskVis.visibleTaskSql(alias || 'pt', req.user && req.user.id);
+    const visTaskRow = (req, id, cols) => taskVis.visibleTaskRow(query.get.bind(query), req.user && req.user.id, id, cols);
+    // these routes know one person per task: a change of assigned_to makes that person the task's only one
+    // (v2_task_people follows, so nobody tagged earlier keeps it — shared/task-visibility.js)
+    const taskPeopleRun = (sql, p) => db.run(sql, p);
 
     // Get tasks for a project
     app.get('/api/tasks/:project', auth, adminOnly, (req, res) => {
         // Get parent tasks (no parent_id)
-        const tasks = query.all("SELECT * FROM project_tasks WHERE project = ? AND (parent_id IS NULL OR parent_id = '') ORDER BY sort_order, created_at DESC",
-            [req.params.project]);
-        // Attach files and subtasks to each task
+        const v = visTasks(req);
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE pt.project = ? AND (pt.parent_id IS NULL OR pt.parent_id = '') AND ${v.sql} ORDER BY pt.sort_order, pt.created_at DESC`,
+            [req.params.project, ...v.params]);
+        // Attach files and subtasks to each task (a subtask follows its parent)
         tasks.forEach(task => {
             task.files = query.all('SELECT id, filename, original_name, file_size FROM task_files WHERE task_id = ?', [task.id]);
-            task.subtasks = query.all('SELECT * FROM project_tasks WHERE parent_id = ? ORDER BY sort_order, created_at', [task.id]);
+            task.subtasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE pt.parent_id = ? AND ${v.sql} ORDER BY pt.sort_order, pt.created_at`, [task.id, ...v.params]);
             task.subtasks.forEach(st => {
                 st.files = query.all('SELECT id, filename, original_name, file_size FROM task_files WHERE task_id = ?', [st.id]);
             });
@@ -19997,7 +20017,8 @@ By applying to this program, I provide the following consents:
 
     // Get all tasks summary
     app.get('/api/tasks', auth, adminOnly, (req, res) => {
-        const tasks = query.all('SELECT * FROM project_tasks ORDER BY due_date, priority DESC');
+        const v = visTasks(req);
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE ${v.sql} ORDER BY pt.due_date, pt.priority DESC`, v.params);
         const summary = {
             total: tasks.length,
             todo: tasks.filter(t => t.status === 'todo').length,
@@ -20014,40 +20035,59 @@ By applying to this program, I provide the following consents:
 
     // Create task
     app.post('/api/tasks', auth, adminOnly, (req, res) => {
-        const { project, title, description, assigned_to, priority, due_date, parent_id } = req.body;
+        const { project, title, description, assigned_to, priority, due_date } = req.body;
+        let parent_id = req.body.parent_id || null;
+        if (parent_id) {
+            // a subtask hangs on a task the caller can see, and always on its top-level task
+            const parent = visTaskRow(req, parent_id, 'pt.id, pt.parent_id');
+            if (!parent) return res.status(404).json({ error: 'Task not found' });
+            parent_id = parent.parent_id || parent.id;
+        }
         const id = uuidv4();
         db.run(`INSERT INTO project_tasks (id, project, title, description, assigned_to, priority, due_date, created_by, parent_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, project || 'general', title, description, assigned_to || null, priority || 'medium', due_date, req.user.id, parent_id || null]);
+        if (assigned_to) taskVis.setTaskPeople(taskPeopleRun, id, [assigned_to], req.user.id);
         saveDb();
         res.json({ success: true, id, task_id: id });
     });
 
     // Update task
     app.put('/api/tasks/:id', auth, adminOnly, (req, res) => {
+        const before = visTaskRow(req, req.params.id, 'pt.id, pt.assigned_to');
+        if (!before) return res.status(404).json({ error: 'Task not found' });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
+        // assigned_to and due_date change only when the body carries them (as the checklist PUT does): an
+        // edit that leaves them out never unassigns the task (and so never takes it from its people) or
+        // clears its due date
+        const has = k => req.body[k] !== undefined;
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
             description = COALESCE(?, description),
-            assigned_to = ?,
+            assigned_to = CASE WHEN ? THEN ? ELSE assigned_to END,
             priority = COALESCE(?, priority),
             status = COALESCE(?, status),
-            due_date = ?,
+            due_date = CASE WHEN ? THEN ? ELSE due_date END,
             project = COALESCE(?, project),
             completed_at = ${status === 'done' ? "datetime('now')" : 'NULL'}
             WHERE id = ?`,
-            [title, description, assigned_to, priority, status, due_date, project, req.params.id]);
+            [title, description, has('assigned_to') ? 1 : 0, has('assigned_to') ? assigned_to : null, priority, status, has('due_date') ? 1 : 0, has('due_date') ? due_date : null, project, req.params.id]);
+        const after = (query.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [req.params.id]) || {}).assigned_to || null;
+        if ((after || null) !== (before.assigned_to || null)) taskVis.setTaskPeople(taskPeopleRun, req.params.id, after ? [after] : [], req.user.id);
         saveDb();
         res.json({ success: true, id: req.params.id });
     });
 
     // Upload file to task
-    app.post('/api/tasks/:id/files', auth, upload.single('file'), (req, res) => {
+    app.post('/api/tasks/:id/files', auth, adminOnly, upload.single('file'), (req, res) => {
+        const task = visTaskRow(req, req.params.id, 'pt.id');
+        if (!task) {
+            if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (e) { /* already gone */ } }
+            return res.status(404).json({ error: 'Task not found' });
+        }
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         const fileId = uuidv4();
-        const task = query.get('SELECT id FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!task) return res.status(404).json({ error: 'Task not found' });
 
         // Move file to tasks folder
         const newPath = path.join(uploadsDir, 'tasks', req.file.filename);
@@ -20066,7 +20106,7 @@ By applying to this program, I provide the following consents:
 
     // Delete task file
     app.delete('/api/tasks/files/:fileId', auth, adminOnly, (req, res) => {
-        const file = query.get('SELECT * FROM task_files WHERE id = ?', [req.params.fileId]);
+        const file = taskVis.visibleTaskFile(query.get.bind(query), req.user && req.user.id, req.params.fileId);
         if (!file) return res.status(404).json({ error: 'File not found' });
 
         // Delete physical file
@@ -20081,7 +20121,7 @@ By applying to this program, I provide the following consents:
 
     // Quick toggle task status
     app.post('/api/tasks/:id/toggle', auth, adminOnly, (req, res) => {
-        const task = query.get('SELECT status FROM project_tasks WHERE id = ?', [req.params.id]);
+        const task = visTaskRow(req, req.params.id, 'pt.status');
         if (!task) return res.status(404).json({ error: 'Task not found' });
 
         const nextStatus = task.status === 'todo' ? 'in_progress' : task.status === 'in_progress' ? 'done' : 'todo';
@@ -20093,6 +20133,8 @@ By applying to this program, I provide the following consents:
 
     // Delete task
     app.delete('/api/tasks/:id', auth, adminOnly, (req, res) => {
+        if (!visTaskRow(req, req.params.id, 'pt.id')) return res.status(404).json({ error: 'Task not found' });
+        taskVis.deleteTaskPeople(taskPeopleRun, req.params.id);   // its tag rows and its subtasks'
         db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -20371,8 +20413,10 @@ By applying to this program, I provide the following consents:
         if (!q || q.length < 2) return res.json({ tasks: [], files: [], folders: [] });
 
         const searchTerm = `%${q}%`;
-        const tasks = query.all(`SELECT * FROM project_tasks WHERE title LIKE ? OR description LIKE ? LIMIT 10`,
-            [searchTerm, searchTerm]);
+        // tasks: only the caller's own (creator or on it — shared/task-visibility.js)
+        const tv = taskVis.visibleTaskSql('pt', req.user && req.user.id);
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE (pt.title LIKE ? OR pt.description LIKE ?) AND ${tv.sql} LIMIT 10`,
+            [searchTerm, searchTerm, ...tv.params]);
         const files = query.all(`SELECT * FROM project_files WHERE original_name LIKE ? LIMIT 10`,
             [searchTerm]);
         const folders = query.all(`SELECT * FROM project_folders WHERE name LIKE ? LIMIT 10`,
