@@ -125,13 +125,14 @@ function counterpart() {
 const firstName = p => (p && p.first) || (p && p.name ? String(p.name).split(/\s+/)[0] : '');
 // is a picker value (team row id or user:<id>) me?
 const isMyPick = id => !!id && (id === me().member_id || id === 'user:' + me().id || !!((D.people || []).find(p => p.id === id && p.user_id && p.user_id === me().id)));
-function addPrivacyText(who) { const p = who && !isMyPick(who) ? personById(who) : null; return COPY.privacy.add(p ? firstName(p) : ''); }
+// a team row with no portal account can never open the board, so it is never named as someone who sees it
+function addPrivacyText(who) { const p = who && !isMyPick(who) ? personById(who) : null; return COPY.privacy.add(p && p.user_id ? firstName(p) : ''); }
 // the drawer's line: the other people on this card (its creator and its assignee), never me
 function drawerPrivacyText(t) {
   const names = [];
   if (t.created_by && t.created_by !== me().id && t.creator_first) names.push(t.creator_first);
   const assigneeIsMe = (t.assignee_user_id && t.assignee_user_id === me().id) || (t.assigned_to && t.assigned_to === me().member_id);
-  if (t.assigned_to && !assigneeIsMe && t.assignee_first && !names.includes(t.assignee_first)) names.push(t.assignee_first);
+  if (t.assigned_to && !assigneeIsMe && t.assignee_user_id && t.assignee_first && !names.includes(t.assignee_first)) names.push(t.assignee_first);
   return COPY.privacy.drawer(names);
 }
 
