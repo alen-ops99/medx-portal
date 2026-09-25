@@ -37,9 +37,8 @@
    material from the kit (.mx-glass.mx-glass--sheet, css/app.css), iOS-style rows in sentence case, Block in crimson ---- */
 .mx-safe-menu.mx-glass {
   position: fixed; z-index: 70; min-width: 200px; box-sizing: border-box; border-radius: var(--r-pop, 22px);
-  display: flex; flex-direction: column; padding: 6px; transform-origin: top right;
+  display: flex; flex-direction: column; padding: 6px;   /* transform-origin: set on open, at the trigger (_safety.js) */
 }
-.mx-safe-menu.is-up { transform-origin: bottom right; }
 .mx-safe-item {
   display: flex; align-items: center; min-height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 16px; cursor: pointer; white-space: nowrap;
   font: 400 16px/22px var(--font-ui); color: var(--ink);

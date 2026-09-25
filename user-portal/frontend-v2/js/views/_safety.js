@@ -130,9 +130,11 @@ export function openMenu(anchor, items) {
   const vw = document.documentElement.clientWidth, vh = window.innerHeight;
   const w = el.offsetWidth, h = el.offsetHeight;
   const left = Math.max(12, Math.min(r.right - w, vw - w - 12));
-  let top = r.bottom + 6;
-  if (top + h > vh - 12) { top = r.top - h - 6; el.classList.add('is-up'); }
+  let top = r.bottom + 6, up = false;
+  if (top + h > vh - 12) { top = r.top - h - 6; el.classList.add('is-up'); up = true; }
   el.style.left = Math.round(left) + 'px';
+  // the glass menu grows out of its trigger (css .mx-safe-menu motion), wherever the trigger sits
+  el.style.transformOrigin = `${Math.round(r.left + r.width / 2 - left)}px ${up ? '100%' : '0'}`;
   el.style.top = Math.round(Math.max(12, top)) + 'px';
   anchor.setAttribute('aria-expanded', 'true');
 
